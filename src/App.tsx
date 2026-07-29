@@ -22,7 +22,7 @@ import { t, useLocale } from './lib/i18n'
 import { startRealtime, stopRealtime } from './api/realtime'
 import { useAuth } from './store/auth'
 import { loadConfig } from './store/config'
-import { resetEntries } from './store/entries'
+import { resetEntries, startEntriesRealtime } from './store/entries'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
 import { resetOutbox } from './store/outbox'
 import { setLocaleSetting, setTheme, useSettings } from './store/settings'
@@ -306,9 +306,20 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
     // open first; both calls are idempotent, and subscribing before SUBSCRIBED
     // lands is fine — api/realtime.ts registers handlers, not sockets.
     startRealtime()
+    // Both stores subscribe to the SAME channel: api/realtime.ts owns the socket
+    // and fans batches out to whoever registered, so this is two handler
+    // registrations rather than two connections.
+    //
+    // The entries subscription is what makes the channel worth opening at all —
+    // without it api/realtime.ts coalesced, debounced and flushed every entries
+    // and entry_updates batch to nobody, `onRealtimeResync` had no subscriber so
+    // the post-reconnect refetch never fired, and two sessions on one entry did
+    // not see each other until the 45 s focus refetch.
+    const stopEntries = startEntriesRealtime()
     const stopNotifications = initNotificationsRealtime()
 
     return () => {
+      stopEntries()
       stopNotifications()
       stopRealtime()
       // Sign-out, not just unmount — see above. Each of these three stores holds

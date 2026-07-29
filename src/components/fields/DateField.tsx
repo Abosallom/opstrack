@@ -72,6 +72,7 @@ export function DateField({
     <Field
       label={label}
       htmlFor={id}
+      messageId={messageId}
       hint={hint}
       error={error}
       optionalLabel={optionalLabel}

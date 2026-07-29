@@ -54,6 +54,7 @@ export function TextField({
     <Field
       label={label}
       htmlFor={id}
+      messageId={messageId}
       hint={hint}
       error={error}
       optionalLabel={optionalLabel}
@@ -112,6 +113,7 @@ export function TextAreaField({
     <Field
       label={label}
       htmlFor={id}
+      messageId={messageId}
       hint={hint}
       error={error}
       optionalLabel={optionalLabel}

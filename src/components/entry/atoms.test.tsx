@@ -243,7 +243,25 @@ describe('HealthPill', () => {
     // Green would be a lie: silence is fine, the elapsed-time commitment is not.
     expect(out).toContain('pill danger health-pill')
     expect(out).toContain('data-sla="breached"')
-    expect(out).toContain(esc(t('entry.slaBreached')))
+    // The visible marker is a WORD; the sentence is what a screen reader gets.
+    // It used to be the sentence on screen — 25 characters of `white-space:
+    // nowrap` in a 278px board card, which overflowed the row on a phone.
+    expect(out).toContain(`aria-hidden="true">${esc(t('entry.slaMark'))}<`)
+    expect(out).toContain(`class="sr-only">${esc(t('entry.slaBreached'))}<`)
+    expect(out).toContain(`title="${esc(t('entry.slaBreachedHint'))}"`)
+  })
+
+  it('does not paint a STALE breach yellow', () => {
+    // The upgrade used to fire only for health === 'ok', so a stale + breached
+    // entry rendered `warn` — quieter than a plain overdue item that had missed
+    // nothing anyone had committed to.
+    expect(html(<HealthPill health="stale" slaBreached />)).toContain('pill danger health-pill')
+  })
+
+  it('leaves critical alone — .filled already outranks everything', () => {
+    // Downgrading the one badge global.css reserves for "must win attention" to
+    // the outlined danger tone would be a demotion, not an escalation.
+    expect(html(<HealthPill health="critical" slaBreached />)).toContain('pill filled health-pill')
   })
 
   it('says nothing about SLA when the admin has not switched it on', () => {

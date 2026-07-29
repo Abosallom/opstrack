@@ -162,8 +162,17 @@ export default function UpdateThread({
                   <StatusPill status={from} size="sm" />
                   {/* The arrow is decorative; the sentence below is what a
                       screen reader gets, because "→" is announced as anything
-                      from "rightwards arrow" to silence. */}
-                  <span aria-hidden="true">→</span>
+                      from "rightwards arrow" to silence.
+
+                      THROUGH t(), and not because of a style rule about
+                      literals. U+2192 has bidi class ON and the bidi algorithm
+                      does not mirror it, so a hardcoded "→" keeps pointing right
+                      under dir=rtl while the two pills beside it lay out
+                      right-to-left — it would point from the NEW status back at
+                      the OLD one, and the thread would read "to → from" in
+                      Arabic. `entry.arrow` is seeded → / ←, so the glyph flips
+                      with the language the same way the pills do. */}
+                  <span aria-hidden="true">{t('entry.arrow')}</span>
                   <StatusPill status={to} size="sm" />
                   <span className="sr-only">
                     {t('entry.statusChangedBy', {

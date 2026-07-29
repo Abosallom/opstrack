@@ -35,6 +35,23 @@ import type { AppNotification, NotificationKind } from '../types'
  * retitled or the actor's profile is deleted, and the alternative is every row
  * in the list triggering a lookup in a store the notification centre may not
  * have loaded.
+ *
+ * THE NAME RESOLUTION ORDER IS A CONTRACT, and it is not the same for the two
+ * columns. `entry_title` is the snapshot and stays authoritative — what the item
+ * was called when this happened is the honest thing to show. `actor_name` is
+ * NOT: profiles_update lets a member edit their own row and guard_profile_role()
+ * pins only `role`, so a member can rename themselves, cause a notification, and
+ * rename back — leaving an inbox line permanently attributed to a name they no
+ * longer hold ("Aziz assigned you: URGENT: wire 50k to acct 991"), with no join
+ * to fall back on. `actor_id` is the durable identity, so:
+ *
+ *   RENDER THE ACTOR AS  memberMap.get(actorId)?.displayName ?? actorName ?? ''
+ *
+ * — the live profile first, this snapshot only for an actor whose profile is
+ * gone (`actor_id` is `on delete set null`, so that case is real), and the
+ * kind's actor-less sentence when both are empty. store/members.ts already holds
+ * that map for OwnerBadge; the Wave-3 notification centre consumes the same one.
+ * A renderer that prints `actorName` directly re-opens the forgery.
  */
 export interface NotificationRow {
   /**

@@ -233,12 +233,24 @@ export interface HealthPillProps {
  * SLA OUTRANKS HEALTH. Staleness measures SILENCE (`last_activity_at`); the SLA
  * measures ELAPSED TIME (`created_at`). An item updated hourly for a month is
  * never stale and can still have blown its SLA, so a breach forces the danger
- * tone even over `health: 'ok'` — otherwise the one pill on the row would be
- * green while the workspace's own commitment was missed.
+ * tone over everything except `critical` — otherwise the one pill on the row
+ * would be green, or (for a stale breach) YELLOW, while the workspace's own
+ * commitment was missed. `critical` is the one level a breach must not touch:
+ * it renders `.filled`, which global.css reserves for the badge that has to win
+ * attention, and downgrading it to the outlined danger tone would be a demotion.
  *
- * Three cues, never colour alone: the tone, a dashed border, and a text marker.
- * That is what keeps the breach legible in greyscale and to a colour-blind
- * reader, which WCAG 1.4.1 asks for and a red pill on its own does not give.
+ * Three cues, never colour alone, and each one has to carry on its own:
+ *   TONE — the same red as plain overdue, so it cannot be the distinguishing
+ *     cue between the two states. It is the alarm, not the label.
+ *   BORDER — dashed AND at full currentColor rather than .pill's 35% mix. The
+ *     mix measured 1.90:1 (dark) / 1.79:1 (light) against the elevated surface,
+ *     under WCAG 1.4.11's 3:1 for a meaningful graphic; at full strength it is
+ *     6.73:1 / 5.80:1. A dash pattern on a line nobody can see is not a cue.
+ *   MARKER — t('entry.slaMark'), a WORD. It used to be the whole sentence
+ *     ("Past its service deadline"), ~160px of `white-space: nowrap` inside a
+ *     278px board card, which overflowed the row on a phone. The sentence still
+ *     reaches a screen reader through the .sr-only span, and the explanation
+ *     still reaches a mouse through `title`.
  */
 export function HealthPill({
   health,
@@ -248,7 +260,7 @@ export function HealthPill({
 }: HealthPillProps): ReactElement {
   useLocale()
 
-  const tone = slaBreached && health === 'ok' ? 'danger' : HEALTH_TONE[health]
+  const tone = slaBreached && health !== 'critical' ? 'danger' : HEALTH_TONE[health]
   // The day count is the more useful sentence when there is one: "3 d overdue"
   // beats "Overdue" on a row someone is triaging.
   const text = daysOverdue > 0 ? t('date.overdueByDays', { count: daysOverdue }) : t(`health.${health}`)
@@ -261,7 +273,15 @@ export function HealthPill({
       title={slaBreached ? t('entry.slaBreachedHint') : undefined}
     >
       {text}
-      {slaBreached ? <span>{t('entry.slaBreached')}</span> : null}
+      {slaBreached ? (
+        <>
+          <span aria-hidden="true">{t('entry.slaMark')}</span>
+          {/* The abbreviation on screen is not a sentence anyone can act on, so
+              the full one is announced instead — the pill's visible text plus
+              this, in that order, is what a screen reader reads out. */}
+          <span className="sr-only">{t('entry.slaBreached')}</span>
+        </>
+      ) : null}
     </span>
   )
 }

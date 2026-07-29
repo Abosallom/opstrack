@@ -26,6 +26,19 @@ export interface FieldProps {
    * the label then renders as plain text and does not lie about what it labels.
    */
   htmlFor?: string
+  /**
+   * The id to stamp on the hint/error paragraph, when the caller has already
+   * minted one to put in its control's `aria-describedby`.
+   *
+   * It is a PROP rather than a second useId() here because two useId() calls
+   * never collide: TextField, TextAreaField and DateField each minted
+   * `${id}-msg`, this component minted its own, and the reference dangled on
+   * every field in the app. The consequence was worst on error — aria-invalid
+   * announced with no reason attached, which is precisely the failure the
+   * wrapper exists to prevent. Optional, because a caller that renders no
+   * control of its own has nothing to point at the message.
+   */
+  messageId?: string
   /** Helper text under the control. Suppressed while `error` is showing. */
   hint?: string
   /** An already-translated sentence, not a key. */
@@ -38,13 +51,18 @@ export interface FieldProps {
 export function Field({
   label,
   htmlFor,
+  messageId,
   hint,
   error,
   optionalLabel,
   children,
   className,
 }: FieldProps): ReactElement {
-  const messageId = useId()
+  // The fallback keeps the paragraph identified even when nobody is pointing at
+  // it — a caller may add an aria-describedby later, and an element with no id
+  // is one more thing to remember.
+  const ownId = useId()
+  const msgId = messageId ?? ownId
   return (
     <div className={`field fld${className ? ` ${className}` : ''}`}>
       {htmlFor ? (
@@ -62,12 +80,12 @@ export function Field({
       {/* role="alert" so a validation failure is announced when it appears
           rather than only when the user happens to Tab back to the field. */}
       {error ? (
-        <p className="field-error" id={messageId} role="alert">
+        <p className="field-error" id={msgId} role="alert">
           {error}
         </p>
       ) : (
         hint && (
-          <p className="fld-hint" id={messageId}>
+          <p className="fld-hint" id={msgId}>
             {hint}
           </p>
         )

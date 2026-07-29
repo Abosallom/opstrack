@@ -232,6 +232,30 @@ export function getOutboxSnapshot(): readonly OutboxItem[] {
 
 // ── draining ───────────────────────────────────────────────────────────────
 
+// ── the settle seam ────────────────────────────────────────────────────────
+
+/** What a store is told when one of its queued writes lands. */
+export type OutboxSettleFn = (op: MutOp, data: unknown) => void
+
+let settleFn: OutboxSettleFn | null = null
+
+/**
+ * Register the callback that puts a drained write back into its store.
+ *
+ * A queue that sends a write and never tells anybody is only half a queue: the
+ * optimistic row the caller applied is still sitting there stamped "queued",
+ * with a client-minted temp id, and the real row arrives separately on the next
+ * fetch — so a successfully flushed offline capture rendered TWICE, for the life
+ * of the tab.
+ *
+ * A callback rather than an import because the direction is fixed: stores call
+ * into the outbox, never the other way round. main.tsx installs it, next to the
+ * two submit seams, for the same reason those are resolved there.
+ */
+export function setOutboxSettle(fn: OutboxSettleFn | null): void {
+  settleFn = fn
+}
+
 /** Pull the server's id off whatever a transport returned, or null. */
 function serverIdOf(data: unknown): string | null {
   if (typeof data !== 'object' || data === null) return null
@@ -299,6 +323,16 @@ async function drain(): Promise<void> {
         if (real) resolved.set(item.op.tempId, real)
       }
       removeItem(itemId)
+      // Hand the row back to whoever queued it. Wrapped, because this file's
+      // contract is that a drain never throws, and a store's settle is code the
+      // outbox does not own — one bad row must not strand the rest of the queue.
+      if (settleFn) {
+        try {
+          settleFn(op, result.data)
+        } catch (e) {
+          console.warn('[outbox] settle threw:', e)
+        }
+      }
       continue
     }
 
@@ -307,11 +341,40 @@ async function drain(): Promise<void> {
   }
 }
 
-/** Substitute any temp id this drain has already resolved. */
+/**
+ * Substitute any temp id this drain has already resolved — in the target, in the
+ * dependency list, AND inside the payload.
+ *
+ * The payload half is not optional. `entry_updates:insert` carries its parent in
+ * `payload.entryId` and has no `op.id` at all, so a create+update pair queued
+ * offline passed the temp-id guard on its resolved `dependsOn` and then went out
+ * with `entryId: 'temp_…'` in the body — which reaches Postgres as a malformed
+ * uuid (22P02) and loses the update. That is the exact trap the temp-id rewrite
+ * exists to close, and closing it only in the envelope closed half of it.
+ *
+ * Generic rather than per-table on purpose: temp ids are minted by this module
+ * and only ever appear where a row id belongs, so "a string value that is a
+ * resolved temp id" is unambiguous wherever it turns up, and the next table to
+ * queue a write gets the behaviour for free. `tempId` itself is deliberately
+ * left alone — it is how the settle path finds the optimistic row.
+ */
 function rewrite(op: MutOp, resolved: ReadonlyMap<string, string>): MutOp {
   const id = op.id !== null ? (resolved.get(op.id) ?? op.id) : null
   const dependsOn = op.dependsOn.map((dep) => resolved.get(dep) ?? dep)
-  return { ...op, id, dependsOn }
+  return { ...op, id, dependsOn, payload: rewritePayload(op.payload, resolved) }
+}
+
+function rewritePayload(payload: unknown, resolved: ReadonlyMap<string, string>): unknown {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return payload
+  const entries = Object.entries(payload as Record<string, unknown>)
+  let changed = false
+  const next: Record<string, unknown> = {}
+  for (const [key, value] of entries) {
+    const real = typeof value === 'string' ? resolved.get(value) : undefined
+    if (real !== undefined) changed = true
+    next[key] = real ?? value
+  }
+  return changed ? next : payload
 }
 
 function patchItem(id: string, patch: Partial<OutboxItem>): void {

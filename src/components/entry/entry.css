@@ -13,10 +13,12 @@
    CARVE-OUT — this file must not restyle it. `.entry-row-title` /
    `.entry-card-title` add only truncation and the row's hit area on top of it.
 
-   `.entry-sheet*` and `.upd-*` are NOT in this file. EntrySheet and
-   UpdateThread transfer to W2-DETAIL at the Wave-2 open and bring their rules
-   with them; writing them here first would hand that worker a stylesheet they
-   do not own and cannot fix.
+   `.entry-sheet*` is NOT in this file — EntrySheet's rules live in sheet.css
+   with the `.sheetx-*` set they extend. `.upd-*` IS here, at the bottom: both
+   components transfer to W2-DETAIL at the Wave-2 open, but shipping UpdateThread
+   with no rules at all left it visibly broken (global.css:174 zeroes every
+   margin, so the thread rendered as run-on text), and W2-DETAIL inheriting a
+   structural baseline is the same deal it already gets from `.sheetx-*`.
 
    LOGICAL PROPERTIES ONLY, like the rest of the repo — inline/block axes, never
    a physical edge. The Arabic mirror then costs nothing, and there is no
@@ -145,13 +147,22 @@
    — because an SLA miss is the one signal in this app that a colour-blind
    reader must not be able to miss. */
 
+/* Dashed AND full-strength. .pill's border is `currentColor 35%`, which composites
+   to 1.90:1 on the dark theme (#683E41 on --bg-elev) and 1.79:1 on light
+   (#E9B5B5 on white) — under the 3:1 WCAG 1.4.11 asks of a graphic that carries
+   meaning, and a dash pattern on a line that faint is not a cue anyone receives.
+   At full currentColor the same edge measures 6.73:1 / 5.80:1. This is the one
+   badge in the app allowed to be loud; a missed commitment has earned it. */
 .health-pill[data-sla='breached'] {
   border-style: dashed;
+  border-color: currentColor;
 }
 
 /* The SLA marker: a second, quieter word sharing the pill, fenced off by a hair
-   rule in currentColor so it inherits whatever tone the pill resolved to. */
-.health-pill > span {
+   rule in currentColor so it inherits whatever tone the pill resolved to.
+   `:not(.sr-only)` because the pill also carries a visually-hidden span with the
+   full sentence, and a 1px clipped box has no use for a divider. */
+.health-pill > span:not(.sr-only) {
   margin-inline-start: 5px;
   padding-inline-start: 5px;
   border-inline-start: 1px solid currentColor;
@@ -788,10 +799,21 @@ span.tag-chip::after {
 }
 
 /* Rotates rather than swapping glyphs, so the motion says "this opened" and one
-   icon covers both states. -90deg (not +90) points the closed caret toward the
-   inline start under a rotation that is direction-agnostic. */
+   icon covers both states. -90deg turns IconChevronDown toward the inline START
+   in LTR, which is where a closed section's content will open from.
+
+   A 90° rotation is NOT its own mirror — only 180° is — so RTL needs the
+   opposite sign, or a collapsed section in Arabic points toward the inline end.
+   `dir` mirrors layout, never transforms or glyphs. The override is written out
+   rather than done with `.icon-directional`, because that class writes
+   `scaleX(-1)` to the same `transform` property and the two would clobber each
+   other; filters.css:60-64 hits the same collision on .flt-caret. */
 .entry-section-caret[data-open='false'] {
   transform: rotate(-90deg);
+}
+
+[dir='rtl'] .entry-section-caret[data-open='false'] {
+  transform: rotate(90deg);
 }
 
 .entry-section-count {
@@ -824,5 +846,136 @@ span.tag-chip::after {
   margin: 0;
   padding-block: 10px;
   color: var(--text-faint);
+  font-size: 13px;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   UPDATE THREAD — UpdateThread.tsx's compose box and immutable history
+   ══════════════════════════════════════════════════════════════════
+
+   These rules ship HERE despite the header's note that `.upd-*` would arrive
+   with W2-DETAIL, because global.css:174 resets `* { margin: 0; padding: 0 }`
+   and JSX strips the whitespace between sibling elements: with no rules at all
+   the thread rendered as run-on text — "Ahmed2 h ago", two status pills touching
+   each other, the immutability hint welded to the Post button. sheet.css already
+   ships the full `.sheetx-*` set for EntrySheet, which transfers on the same
+   line of the plan; the asymmetry was the bug, not the ownership.
+
+   Deliberately structural — flex, gap, one hair rule and the two quiet inks.
+   Wave 2 inherits and refines exactly as it inherits `.sheetx-*`. */
+
+.upd {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------- compose ---------- */
+
+.upd-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upd-compose-input {
+  /* The box grows with the note but stops before it owns the panel: a thread is
+     read far more often than it is written to. */
+  min-block-size: 62px;
+  max-block-size: 40vh;
+  resize: vertical;
+}
+
+/* The hint and the button share a line, pushed apart. `wrap` because the hint is
+   a full sentence in both languages and a 320px phone has no room for both. */
+.upd-compose-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.upd-immutable {
+  flex: 1 1 12ch;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ---------- history ---------- */
+
+.upd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* The <ol> carries no visible numbering — the timestamps are the sequence, and
+     a numbered audit trail invites "update #3" in conversation about a thread
+     whose numbering shifts the moment older rows are paged in. `list-style` is
+     kept on `none` explicitly rather than left to the global reset, because this
+     is the one place it is a decision. */
+  list-style: none;
+}
+
+.upd-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  /* Border rather than a gap alone: a thread of one-line updates otherwise reads
+     as one paragraph, and knowing where one entry stops is the whole job. */
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--border);
+}
+
+.upd-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.upd-author {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.upd-time {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.upd-transition {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--text-dim);
+}
+
+/* `pre-wrap` so an update written as three lines of what happened stays three
+   lines. `overflow-wrap` because updates carry ticket ids and URLs, and one long
+   token must not widen the panel it sits in. */
+.upd-body {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- the two non-thread states ---------- */
+
+.upd-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-block: 6px;
+  font-size: 13px;
+}
+
+.upd-error {
+  color: var(--red);
   font-size: 13px;
 }

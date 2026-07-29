@@ -1,6 +1,7 @@
 -- OpsTrack workspace data: the sixth track, per-track suggested tags, the
 -- meeting capture buffer, the notification inbox and its triggers, the
--- run-one-template RPC, and the entries_update widening.
+-- run-one-template RPC, the entries column guard, and the entries_update
+-- widening.
 --
 -- Everything here is additive. Nothing in this file drops a column, rewrites a
 -- row an admin could have edited, or changes the meaning of an existing one —
@@ -189,8 +190,24 @@ create policy notifications_update on public.notifications
 -- There is intentionally NO insert policy and NO delete policy.
 --   * INSERT: rows arrive only through entries_notify() below, which is
 --     SECURITY DEFINER and therefore runs as this table's owner — and a table's
---     owner is exempt from its own RLS. A client that could insert here could
---     forge "the CEO assigned you this".
+--     owner is exempt from its own RLS. So a client cannot mint a notification
+--     out of nothing: every row here corresponds to a real change to a real
+--     entry, written by the database at the moment it happened.
+--
+--     WHAT THIS DOES NOT BUY, stated plainly because an earlier version of this
+--     comment claimed it did: it is not proof against an ATTRIBUTED forgery.
+--     `actor_name` is a snapshot of profiles.display_name, profiles_update lets
+--     a member edit their own row, and guard_profile_role() pins only `role` —
+--     so a member can rename themselves, cause a notification, and rename back,
+--     leaving an inbox line permanently attributed to a name they no longer
+--     hold. The trigger path is honest about WHAT happened; WHO is only as
+--     trustworthy as a self-chosen display name.
+--
+--     The mitigation is on the read side and it is a contract, not a policy:
+--     `actor_id` is the durable identity and the inbox resolves the display name
+--     from it live, falling back to this snapshot only for a profile that no
+--     longer exists. src/api/notifications.ts states the order; the Wave-3
+--     notification centre implements it.
 --   * DELETE: an inbox you can empty is an inbox that can be emptied by someone
 --     else's bug. Read is a state, not a deletion; if volume ever matters, a
 --     retention job runs as the owner and needs no policy either.
@@ -257,6 +274,7 @@ as $$
 declare
   v_assigned    boolean;
   v_completed   boolean;
+  v_scheduled   boolean;
   v_actor       uuid;
   v_actor_name  text;
 begin
@@ -277,19 +295,51 @@ begin
     return null;
   end if;
 
-  -- Through profiles rather than raw from auth.uid(), for the FK reason
-  -- log_config_audit() spells out: an auth user without a profile row would
-  -- violate actor_id's FK, and because this is an AFTER trigger that violation
-  -- would roll back the user's perfectly legitimate entry edit.
-  select p.id, p.display_name into v_actor, v_actor_name
-    from public.profiles p where p.id = auth.uid();
-  v_actor_name := coalesce(v_actor_name, '');
+  -- IS A PERSON DOING THIS, OR IS IT THE SCHEDULE? Everything below turns on the
+  -- answer, and it must not be inferred from auth.uid().
+  --
+  -- auth.uid() reads the request.jwt.claims GUC, and SECURITY DEFINER does not
+  -- clear it — it changes the ROLE, not the request. So inside
+  -- materialize_due_recurring() auth.uid() is whichever member's browser happened
+  -- to call it, and that member is a bystander, not an author. api/entries.ts's
+  -- materializeRecurring() runs from store/auth.ts on every sign-in, so this is
+  -- the normal path, not an edge case. Reading a NULL actor there — as an earlier
+  -- version of this comment asserted — meant a member who owns a recurring
+  -- template never heard about their own scheduled assignment, and a template
+  -- owned by someone else was announced as "⟨whoever opened the app⟩ assigned
+  -- you this".
+  --
+  -- `new.created_by is null` on an INSERT is the honest signal, and the database
+  -- guarantees it: entries_insert is `with check (is_member() and created_by =
+  -- auth.uid())`, so a client insert ALWAYS carries its author. The only writers
+  -- that can leave it null are the SECURITY DEFINER materialisers and the SQL
+  -- editor — and for all of those the truthful actor is nobody. An UPDATE always
+  -- has a real writer; the materialisers only ever insert.
+  v_scheduled := tg_op = 'INSERT' and new.created_by is null;
 
-  -- `is distinct from` rather than `<>`: v_actor is NULL for the service role,
-  -- the SQL Editor and materialize_due_recurring(), and NULL <> uuid is NULL,
-  -- which reads as false and would silence every scheduled assignment. With no
-  -- actor there is nobody to be identical to, so the notification stands.
-  if v_assigned and new.owner_id is distinct from v_actor then
+  if v_scheduled then
+    -- Nobody did this. Naming a bystander is worse than naming no one, and the
+    -- inbox renders an actor-less line from the kind alone.
+    v_actor      := null;
+    v_actor_name := '';
+  else
+    -- Through profiles rather than raw from auth.uid(), for the FK reason
+    -- log_config_audit() spells out: an auth user without a profile row would
+    -- violate actor_id's FK, and because this is an AFTER trigger that violation
+    -- would roll back the user's perfectly legitimate entry edit.
+    select p.id, p.display_name into v_actor, v_actor_name
+      from public.profiles p where p.id = auth.uid();
+    v_actor_name := coalesce(v_actor_name, '');
+  end if;
+
+  -- The self-notify suppression applies only to a real interactive writer. Being
+  -- told you did the thing you just did is what mutes a notification system; being
+  -- told the schedule handed you this week's item is the whole point of having one.
+  --
+  -- `is distinct from` rather than `<>` in the interactive branch: v_actor is still
+  -- NULL for the service role and the SQL Editor, and NULL <> uuid is NULL, which
+  -- reads as false and would silence those writes too.
+  if v_assigned and (v_scheduled or new.owner_id is distinct from v_actor) then
     insert into public.notifications (recipient_id, kind, entry_id, entry_title, actor_id, actor_name)
     values (new.owner_id, 'assigned', new.id, new.title, v_actor, v_actor_name);
   end if;
@@ -443,10 +493,95 @@ end;
 $realtime$;
 
 
+-- ── entries: immutable identity columns, and who last wrote the row ─────────
+-- RLS is row-level. A policy says which ROWS a member may write; it says nothing
+-- about which COLUMNS. Under EITHER version of entries_update — 0001's
+-- creator/owner/admin or the widening below — that leaves `created_by`,
+-- `created_at` and `template_id` writable by whoever can write the row at all:
+-- authorship can be taken, and `created_at` is what v_entry_health measures
+-- sla_due_at from, so writing `created_at = now()` erases a missed SLA. Verified
+-- through RLS as a plain member on the live project before this trigger existed:
+-- `created_by_now_B=true`, `sla_breached before=true after=false`.
+--
+-- This block sits OUTSIDE the owner-decision fence deliberately. The widening
+-- makes the hole reachable by every member instead of by two, but the hole is
+-- not the widening's — it is there either way, and so is the fix.
+--
+-- Same shape and same reasoning as notifications_guard_update() above and 0001's
+-- guard_profile_role(): the auth.uid() test lets the JWT-less privileged paths
+-- (the SQL Editor, the service role, the SECURITY DEFINER materialisers) through,
+-- and those are the only writers that are supposed to touch these three.
+--
+-- `updated_by` is stamped in the same pass, so "who edited what" has a
+-- server-side answer for a plain field edit that appends no thread row at all —
+-- which is what the widening's accountability argument below quietly assumed and
+-- the schema did not provide. Nullable, and null means "not a person".
+--
+-- Everything the feature actually needs stays writable: status, owner, dates,
+-- tags, title, description, priority, type, links.
+alter table public.entries add column if not exists updated_by uuid
+  references public.profiles (id) on delete set null;
+
+comment on column public.entries.updated_by is
+  'Who last wrote this row, stamped by entries_guard_update(). NULL for the scheduler, the SQL editor and the service role. The thread in entry_updates remains the narrative record; this is the answer for a field edit that writes no thread row.';
+
+create or replace function public.entries_guard_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    return new;
+  end if;
+
+  -- Identity and provenance are not editable by anyone acting as a user. Pinned
+  -- FIRST, so a rejected attempt to rewrite them cannot also count as "something
+  -- changed" in the diff below and bump the activity clock.
+  new.created_by  := old.created_by;
+  new.created_at  := old.created_at;
+  new.template_id := old.template_id;
+
+  -- The diff is entries_touch()'s diff, minus updated_by — deliberately the same
+  -- test, because the two triggers have to agree on what "an edit" is. A member
+  -- re-saving a row unchanged (dropping a board card back in the column it came
+  -- from) must not stamp a new editor and, through entries_touch(), drag
+  -- last_activity_at forward and make a stale item look attended to.
+  --
+  -- updated_by is resolved THROUGH profiles rather than taken raw from auth.uid():
+  -- a JWT without a profile row would violate the FK, and the failure would
+  -- surface as the member's perfectly legitimate edit being rejected. Same
+  -- reasoning as vocab_touch() in 0003.
+  if (to_jsonb(new) - 'updated_at' - 'last_activity_at' - 'updated_by')
+     is distinct from
+     (to_jsonb(old) - 'updated_at' - 'last_activity_at' - 'updated_by') then
+    new.updated_by := coalesce(
+      (select p.id from public.profiles p where p.id = auth.uid()),
+      old.updated_by
+    );
+  end if;
+
+  return new;
+end;
+$$;
+
+-- BEFORE UPDATE, and it runs ahead of entries_touch(): Postgres fires BEFORE row
+-- triggers in NAME order, and `entries_guard_update` sorts before
+-- `entries_touch_trg`. That ordering is load-bearing — entries_touch() diffs the
+-- row to decide whether to move the clocks, and it has to see the pinned values,
+-- not the ones the client sent.
+drop trigger if exists entries_guard_update on public.entries;
+create trigger entries_guard_update
+  before update on public.entries
+  for each row execute function public.entries_guard_update();
+
+
 -- ▼ OWNER DECISION — entries_update widening ─────────────────────────────────
 -- DELETE THIS BLOCK WHOLESALE (down to the ▲ fence) IF THE OWNER DECLINES, and
 -- set ENTRIES_UPDATE_IS_OPEN = false in src/lib/permissions.ts in the same
 -- commit. 0001's policy is never dropped in that path, so it simply survives.
+-- The column guard above is NOT part of this decision and stays either way.
 --
 -- 0001 scoped UPDATE to creator, owner or admin — deliberately narrower than
 -- SELECT. In practice that means a member cannot drag another member's board
@@ -456,8 +591,9 @@ $realtime$;
 --
 -- The accountability layer is not this policy — it is entry_updates, which has
 -- no UPDATE and no DELETE policy at all and records every status transition with
--- its author. Who changed what stays answerable; who was ALLOWED to becomes
--- "any member", which is what the team already is.
+-- its author, plus entries.updated_by for the field edits that write no thread
+-- row. Who changed what stays answerable; who was ALLOWED to becomes "any
+-- member", which is what the team already is.
 --
 -- DELETE stays admin-only. Widening UPDATE loses nothing that can't be read back
 -- out of the thread; widening DELETE loses the row.

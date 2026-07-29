@@ -27,6 +27,7 @@ import {
   getOutboxSnapshot,
   isTempId,
   resetOutbox,
+  setOutboxSettle,
   submit,
   type MutOp,
 } from './outbox'
@@ -308,6 +309,93 @@ describe('queue management', () => {
     setOnline(false)
     await submit(op())
     resetOutbox()
+    expect(getOutboxSnapshot()).toHaveLength(0)
+  })
+})
+
+describe('the settle seam — a drained write finds its way home', () => {
+  it('hands each landed op and its row to the registered store', async () => {
+    // Without this the queue was half a queue: the write went out and the
+    // optimistic row stayed on screen stamped "queued" beside the real row from
+    // the next fetch, for the life of the tab.
+    const settled: Array<[string, unknown]> = []
+    setOutboxSettle((o, data) => settled.push([`${o.table}:${o.op}`, data]))
+
+    setOnline(false)
+    await submit(op({ op: 'insert', id: null, tempId: `${TEMP_PREFIX}a`, dedupeKey: 'c1', payload: {} }))
+    setOnline(true)
+    vi.mocked(createEntry).mockResolvedValue(ok({ id: 'server-uuid' }) as never)
+
+    await flushOutbox()
+
+    expect(settled).toEqual([['entries:insert', { id: 'server-uuid' }]])
+    setOutboxSettle(null)
+  })
+
+  it('hands over the REWRITTEN op, so the store can pair temp id with real id', async () => {
+    const seen: MutOp[] = []
+    setOutboxSettle((o) => seen.push(o))
+
+    const temp = `${TEMP_PREFIX}b`
+    setOnline(false)
+    await submit(op({ op: 'insert', id: null, tempId: temp, dedupeKey: 'c1', payload: {} }))
+    await submit(op({ id: temp, dependsOn: [temp], dedupeKey: 'u1' }))
+    setOnline(true)
+    vi.mocked(createEntry).mockResolvedValue(ok({ id: 'server-uuid' }) as never)
+    vi.mocked(updateEntry).mockResolvedValue(ok({ id: 'server-uuid' }) as never)
+
+    await flushOutbox()
+
+    // The insert still carries its temp id — that is how the store finds the
+    // optimistic row — while the update's target has become the real one.
+    expect(seen[0].tempId).toBe(temp)
+    expect(seen[1].id).toBe('server-uuid')
+    setOutboxSettle(null)
+  })
+
+  it('does not let a throwing settle strand the rest of the queue', async () => {
+    setOutboxSettle(() => {
+      throw new Error('a store bug')
+    })
+    setOnline(false)
+    await submit(op({ id: 'e1', dedupeKey: 'k1' }))
+    await submit(op({ id: 'e2', dedupeKey: 'k2' }))
+    setOnline(true)
+    vi.mocked(updateEntry).mockResolvedValue(ok({ id: 'e' }) as never)
+
+    await flushOutbox()
+
+    expect(vi.mocked(updateEntry)).toHaveBeenCalledTimes(2)
+    expect(getOutboxSnapshot()).toHaveLength(0)
+    setOutboxSettle(null)
+  })
+
+  it('rewrites a temp id INSIDE the payload, not only in the envelope', async () => {
+    // entry_updates:insert carries its parent in payload.entryId and has no
+    // op.id at all. Rewriting only the envelope sent `entryId: 'temp_…'` to
+    // Postgres as a malformed uuid and lost the update — the exact loss the
+    // rewrite exists to prevent, one field over.
+    const temp = `${TEMP_PREFIX}c`
+    setOnline(false)
+    await submit(op({ op: 'insert', id: null, tempId: temp, dedupeKey: 'c1', payload: {} }))
+    await submit(
+      op({
+        table: 'entry_updates',
+        op: 'insert',
+        id: null,
+        tempId: `${TEMP_PREFIX}note`,
+        payload: { entryId: temp, body: 'a note' },
+        dedupeKey: 'n1',
+        dependsOn: [temp],
+      }),
+    )
+    setOnline(true)
+    vi.mocked(createEntry).mockResolvedValue(ok({ id: 'server-uuid' }) as never)
+    vi.mocked(addUpdate).mockResolvedValue(ok({ id: 'u1' }) as never)
+
+    await flushOutbox()
+
+    expect(vi.mocked(addUpdate).mock.calls[0][0]).toEqual({ entryId: 'server-uuid', body: 'a note' })
     expect(getOutboxSnapshot()).toHaveLength(0)
   })
 })

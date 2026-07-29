@@ -10,11 +10,17 @@
 -- Adding a seventh status would rewrite history, silently, with no undo, which
 -- is exactly why the admin screen can never do it.
 --
+-- SLA SHIPS OFF. `sla_days` is seeded NULL on all four priority rows and nothing
+-- in this file ever writes a number into it — see the note where the old backfill
+-- block used to be, roughly a hundred lines down. Turning SLA on is an admin's
+-- act, through the vocabulary screen or one UPDATE.
+--
 -- Deploy: Supabase Dashboard -> SQL Editor -> paste + Run. Re-runnable from the
 -- top in any partial state, same discipline as 0001/0002: create table/index if
 -- not exists, add column if not exists, drop constraint/policy/trigger if exists
 -- before every create, create or replace on every function, seeds with
--- on conflict do nothing.
+-- on conflict do nothing. That claim is load-bearing and is checked: a re-run
+-- must not change a single configured value, in either direction.
 
 
 -- ── vocab_options ───────────────────────────────────────────────────────────
@@ -132,12 +138,20 @@ as $$
       ('status',         'cancelled',         6, null,      null),
 
       -- The staleness numbers are 0001's hardcoded case expression, lifted out
-      -- of the view verbatim (2/4/8/15). The SLA numbers are the workspace's
-      -- opening position on how fast each priority is answered.
-      ('priority',       'low',               1, 15,        14),
-      ('priority',       'medium',            2, 8,         7),
-      ('priority',       'high',              3, 4,         3),
-      ('priority',       'critical',          4, 2,         1),
+      -- of the view verbatim (2/4/8/15) — a fallback, not a policy.
+      --
+      -- sla_days is NULL on all four, and that is the binding contract
+      -- (WAVE1-ADDENDUM §2.2): SLA is OFF until an admin turns it on, per
+      -- priority. This file originally seeded 1/3/7/14 and 0005 cleared them
+      -- again; the two are reconciled HERE, in the seed itself, because
+      -- v_entry_health.sla_breached is `now() > created_at + sla_days` with no
+      -- regard for when the number was chosen — so a seeded default reports
+      -- every critical item older than a day as a missed commitment, against a
+      -- target nobody set. See the note above the removed backfill block below.
+      ('priority',       'low',               1, 15,        null),
+      ('priority',       'medium',            2, 8,         null),
+      ('priority',       'high',              3, 4,         null),
+      ('priority',       'critical',          4, 2,         null),
 
       ('type',           'action',            1, null,      null),
       ('type',           'decision',          2, null,      null),
@@ -163,36 +177,26 @@ select s.kind, s.key, s.sort_order, s.stale_after_days, s.sla_days
   from public.vocab_seed() s
 on conflict (kind, key) do nothing;
 
--- SLA backfill for a project that took an earlier cut of this file, where the
--- rows exist and `sla_days` was added empty above. The `not exists` guard is the
--- whole design: it fires only when NO priority row has an SLA at all — i.e. SLA
--- has never been configured here. An admin who tunes critical to 2 days and
--- re-runs the migration keeps their 2; an admin who clears all four (the honest
--- way to switch SLA off workspace-wide) gets the seed back on the next run, and
--- that is the one case where this block is wrong. It is documented rather than
--- solved because solving it means a "SLA has been configured" flag column whose
--- only reader is this block.
-do $sla_seed$
-declare
-  v_rows int;
-begin
-  if not exists (select 1 from public.vocab_options where sla_days is not null) then
-    update public.vocab_options v
-       set sla_days = s.sla_days
-      from public.vocab_seed() s
-     where s.kind = v.kind and s.key = v.key
-       and v.kind = 'priority'
-       and s.sla_days is not null;
-
-    get diagnostics v_rows = row_count;
-    if v_rows > 0 then
-      raise notice 'OpsTrack: seeded sla_days on % priority rows (critical 1, high 3, medium 7, low 14).', v_rows;
-    end if;
-  else
-    raise notice 'OpsTrack: sla_days already configured — leaving the admin''s values alone.';
-  end if;
-end
-$sla_seed$;
+-- THERE IS DELIBERATELY NO SLA BACKFILL HERE, and the block that used to sit at
+-- this line is worth a paragraph so nobody puts it back.
+--
+-- It backfilled the seeded SLA numbers onto all four priority rows whenever
+-- `not exists (select 1 from vocab_options where sla_days is not null)` — i.e.
+-- whenever no priority row had an SLA at all, which it read as "never
+-- configured". That is exactly the state this file now ships and 0005 restores:
+-- all four NULL. So on a workspace running the intended configuration, re-running
+-- 0003 — which this file's own header advertises as safe — silently switched SLA
+-- back on at 1/3/7/14 and, because sla_breached is computed from created_at with
+-- no regard for when the number was chosen, retroactively marked every open
+-- critical item older than a day as a missed commitment.
+--
+-- "All four NULL" cannot distinguish "never configured" from "deliberately off",
+-- and an admin clearing all four is the honest way to switch SLA off
+-- workspace-wide. So the inference is dropped rather than patched: the seed above
+-- is NULL, the insert is `on conflict do nothing`, and an admin's numbers are
+-- never touched by a re-run in either direction. 0005 remains in the tree as
+-- history (it is what corrected a project that already took the earlier cut of
+-- this file) and is now a no-op on any project that runs 0003 from here.
 
 
 -- ── bookkeeping trigger ─────────────────────────────────────────────────────

@@ -169,8 +169,9 @@ function isClosed(status: EntryStatus): boolean {
 
 /**
  * THE MONOTONIC GUARD. Accept a server row iff:
- *   (a) source === 'local'  — our own settled write; it always wins, because it
- *       IS the newest truth and its updated_at may equal what we already hold;
+ *   (a) source is 'local' or 'outbox' — our own settled write; it always wins,
+ *       because it IS the newest truth and its updated_at may equal (or, under
+ *       clock skew, trail) the optimistic row we are replacing;
  *   (b) nothing local exists for this id;
  *   (c) nothing is pending for it AND the row is not older than what we hold.
  *
@@ -178,6 +179,11 @@ function isClosed(status: EntryStatus): boolean {
  * it the sequence is: optimistic edit renders, realtime delivers the pre-edit
  * row, the field visibly reverts, and then the settle puts it back — a flicker
  * the user reads as the app fighting them.
+ *
+ * 'outbox' sits with 'local' rather than with 'realtime' because it is the same
+ * event a beat later: the queue performed OUR write and the server answered with
+ * OUR row. Spec §6's rule for entry fields is last-write-wins, and this is that
+ * write landing.
  */
 export function acceptsServerRow(
   existing: Entry | undefined,
@@ -185,7 +191,7 @@ export function acceptsServerRow(
   source: ApplySource,
   isPending: boolean,
 ): boolean {
-  if (source === 'local') return true
+  if (source === 'local' || source === 'outbox') return true
   if (!existing) return true
   if (isPending) return false
   return incoming.updated_at >= existing.updated_at
@@ -306,14 +312,44 @@ function byActivityDesc(a: Entry, b: Entry): number {
 }
 
 /**
+ * Does this view row still describe the entry it was fetched for?
+ *
+ * `v_entry_health` is a SNAPSHOT taken at fetch time, and every one of these four
+ * columns is an INPUT to the verdict it computed: staleness is measured from
+ * last_activity_at against the priority's threshold, overdue from due_date, and a
+ * closed entry has no verdict at all. So the moment a local write moves any of
+ * them, the stored row is describing an entry that no longer exists.
+ *
+ * Compared rather than versioned because the view exposes no version and both
+ * sides come from the same column through the same client, so the timestamps are
+ * byte-identical whenever they are genuinely the same.
+ */
+function healthMatches(h: EntryHealth | undefined, e: Entry): boolean {
+  return (
+    h !== undefined &&
+    h.last_activity_at === e.last_activity_at &&
+    h.due_date === e.due_date &&
+    h.priority === e.priority &&
+    h.status === e.status
+  )
+}
+
+/**
  * Recompute `list` and `health` from `byId`. Called on every write; never from a
  * selector.
  *
- * The health fallback loop runs ONLY for rows the view has not answered for, so
- * a normal loaded list does zero work here and makes zero calls into
- * store/vocab. Optimistic and offline rows do get a computed row, because a
- * follow-ups screen that ignores the item you just captured is not a follow-ups
- * screen.
+ * The health fallback loop runs only for rows the view has not answered for OR
+ * has answered STALELY, so a freshly loaded list does zero work here and makes
+ * zero calls into store/vocab.
+ *
+ * The staleness half is not an optimisation, it is the correctness half. Skipping
+ * any entry that merely HAS a view row meant every optimistic mutation left the
+ * pre-mutation verdict in place: post an update on a nine-day-quiet item and the
+ * age pill kept saying 9d, the health pill kept saying stale, and
+ * bucketFollowUps() — which prefers `h.health` over its own fallback — kept the
+ * row in the Stale section until the next full refetch. This file's own promise
+ * is that "a pill and the row badge beside it can never disagree about the same
+ * entry"; that only holds if the health map follows the rows it describes.
  */
 function derive(
   byId: Map<string, Entry>,
@@ -321,12 +357,18 @@ function derive(
 ): Pick<EntriesState, 'list' | 'health'> {
   const list = [...byId.values()].sort(byActivityDesc)
 
-  const missing = list.filter((e) => !serverHealth.has(e.id) && !isClosed(e.status))
-  if (missing.length === 0) return { list, health: serverHealth }
+  const stale = list.filter((e) => !isClosed(e.status) && !healthMatches(serverHealth.get(e.id), e))
+  // A closed entry keeps no verdict: it is not overdue, not stale, and every
+  // section that reads health drops it. Its view row is dropped with it, so a
+  // done item cannot linger in a follow-up bucket on the strength of a row the
+  // view will not return next time either.
+  const closed = list.filter((e) => isClosed(e.status) && serverHealth.has(e.id))
+  if (stale.length === 0 && closed.length === 0) return { list, health: serverHealth }
 
   const snapshot = getVocabSnapshot()
   const health = new Map(serverHealth)
-  for (const entry of missing) {
+  for (const entry of closed) health.delete(entry.id)
+  for (const entry of stale) {
     health.set(
       entry.id,
       computeHealth(entry, staleDays(snapshot, entry.priority), slaDays(snapshot, entry.priority)),
@@ -421,11 +463,45 @@ function initialState(): EntriesState {
 const useEntriesStore = create<EntriesState>(() => initialState())
 
 /**
+ * Set while applyRealtimeBatch() is running, and null every other moment.
+ *
+ * §2.14 is explicit and frozen: "a meeting bulk-commit of 20 rows produces one
+ * setState, not twenty". api/realtime.ts does its half of that — Map-keyed
+ * coalescing, a 120 ms trailing debounce, a 500 ms hard cap — and then hands the
+ * batch over. Applying it row by row through commit() handed every bit of the
+ * saving straight back: each commit() re-sorts the entire working set (up to two
+ * thousand rows), notifies every subscriber in the app, and schedules a cache
+ * write.
+ *
+ * So during a batch, commit() folds into this staged snapshot instead, and
+ * readState() serves the snapshot to the appliers so row N still sees the effect
+ * of row N-1. One derive(), one setState, one cache write, at the end.
+ */
+let staged: EntriesState | null = null
+/** Whether anything in the batch actually changed. No change, no setState. */
+let stagedDirty = false
+
+/**
+ * The current truth. Inside a batch that is the staged snapshot; everywhere else
+ * it is the store. Every applier below reads through this rather than calling
+ * getState() directly — an applier that reads the store mid-batch would work
+ * from state two rows out of date and silently drop the rows before it.
+ */
+function readState(): EntriesState {
+  return staged ?? useEntriesStore.getState()
+}
+
+/**
  * Every mutation of byId/serverHealth goes through here, so `list` and `health`
  * cannot drift from the rows they are derived from and the cache write cannot be
  * forgotten.
  */
 function commit(byId: Map<string, Entry>, serverHealth: Map<string, EntryHealth>, rest: Partial<EntriesState> = {}): void {
+  if (staged) {
+    staged = { ...staged, byId, serverHealth, ...rest }
+    stagedDirty = true
+    return
+  }
   useEntriesStore.setState({ byId, serverHealth, ...derive(byId, serverHealth), ...rest })
   scheduleCacheWrite()
 }
@@ -795,6 +871,12 @@ export function resetEntries(): void {
   stopFlashSweep()
   updatesInFlight.clear()
   inFlight = null
+  // Both are keyed by entry id and both outlive a single call, so the next
+  // account in this tab would inherit them: a busy badge that never clears, and
+  // a stashed row RLS would never have handed the new user.
+  outstanding.clear()
+  deferredRealtime.clear()
+  localWrites.clear()
   try {
     localStorage.removeItem(CACHE_KEY)
   } catch {
@@ -860,11 +942,123 @@ function newTempId(): string {
 }
 
 function setPending(id: string, op: PendingOp | null): void {
-  const st = useEntriesStore.getState()
+  const st = readState()
   const pending = new Map(st.pending)
   if (op) pending.set(id, op)
   else pending.delete(id)
   useEntriesStore.setState({ pending })
+}
+
+/**
+ * How many writes are still outstanding against each entry.
+ *
+ * `pending` stays keyed by ENTRY, because "is this row busy?" is the only
+ * question any renderer asks. But every control in the entry sheet commits its
+ * own field independently and fire-and-forget (`void patchEntry(id, fields)`),
+ * so two writes against one row overlap routinely — and clearing `pending` on
+ * the first settle deleted the guard while the second was still out. The
+ * monotonic guard is the only thing stopping a realtime echo from reverting the
+ * row under the user's cursor, so opening it early is not cosmetic.
+ *
+ * A QUEUED write stays counted. It has not settled — the outbox owns it — and
+ * `settleOutboxWrite()` is what finally retires it. That is the same lifetime
+ * `pending`'s own `queued: true` marker already has, so nothing here leaks that
+ * the row's busy badge was not already going to.
+ *
+ * Creates are exempt: their target id is minted by the call itself, so nothing
+ * else can be writing to it yet.
+ */
+const outstanding = new Map<string, number>()
+
+function beginWrite(id: string): void {
+  outstanding.set(id, (outstanding.get(id) ?? 0) + 1)
+}
+
+/** Retire one write. True when it was the LAST one out for this entry. */
+function endWrite(id: string): boolean {
+  const left = (outstanding.get(id) ?? 1) - 1
+  if (left > 0) {
+    outstanding.set(id, left)
+    return false
+  }
+  outstanding.delete(id)
+  return true
+}
+
+/**
+ * Realtime rows the monotonic guard dropped because a write was in flight.
+ *
+ * Dropping them is right — see acceptsServerRow — but only for the length of the
+ * flight. The row was another user's edit, postgres_changes has no replay, and
+ * without this it stayed lost until the 45 s focus refetch. Newest per entry
+ * only: an older drop is superseded by definition, and this is a stash, not a
+ * queue.
+ *
+ * Replayed rather than refetched because we already HAVE the row, and the guard
+ * re-runs on the way back in — so a settled local write that is genuinely newer
+ * still wins on `updated_at`.
+ */
+const deferredRealtime = new Map<string, { row: Entry; actor?: FlashMark }>()
+
+/** Hand back a row the guard deferred, now that the entry is quiet. */
+function flushDeferred(id: string): void {
+  const held = deferredRealtime.get(id)
+  if (!held) return
+  deferredRealtime.delete(id)
+  applyServerRow(held.row, 'realtime', held.actor)
+}
+
+/**
+ * The store, read without React. Mirrors getVocabSnapshot() and
+ * getMembersSnapshot(); for tests, and for anything that needs the working set
+ * outside a component.
+ */
+export function getEntriesSnapshot(): {
+  byId: ReadonlyMap<string, Entry>
+  pending: ReadonlyMap<string, PendingOp>
+  updates: ReadonlyMap<string, EntryUpdate[]>
+  health: ReadonlyMap<string, EntryHealth>
+} {
+  const st = useEntriesStore.getState()
+  return { byId: st.byId, pending: st.pending, updates: st.updates, health: st.health }
+}
+
+/** Copy one column across. A generic key parameter is the only shape TypeScript
+ *  accepts a write through `keyof` in. */
+function copyColumn<K extends keyof Entry>(target: Entry, source: Entry, key: K): void {
+  target[key] = source[key]
+}
+
+/**
+ * Undo THIS write's optimistic change, and nothing else's.
+ *
+ * The old rollback restored the whole pre-change snapshot, which is correct only
+ * for a write that was alone on the row. It never is: patch A (status) snapshots
+ * S0 and applies S1, patch B (priority) applies S2, B succeeds, A fails — and
+ * restoring S0 erased B's priority change from the UI even though the server had
+ * accepted it, until the next fetch.
+ *
+ * So the diff is taken twice. `before` vs `mine` says which columns THIS write
+ * touched; `current` vs `mine` says whether anything has moved them since. A
+ * column this write did not touch is left alone, and a column somebody else has
+ * since written is left alone — the undo only ever reaches the values it
+ * actually put there.
+ *
+ * Reference equality on `tags` and `links` is deliberate rather than tolerated:
+ * applyPatchLocal assigns the caller's array, so a fresh reference means "this
+ * write set it" and a matching one means "nothing has replaced it". Erring
+ * toward not-mine is the safe direction for a rollback.
+ */
+export function revertMine(current: Entry, before: Entry, mine: Entry): Entry {
+  const next = { ...current }
+  let touched = false
+  for (const col of Object.keys(before) as (keyof Entry)[]) {
+    if (before[col] === mine[col]) continue
+    if (current[col] !== mine[col]) continue
+    copyColumn(next, before, col)
+    touched = true
+  }
+  return touched ? next : current
 }
 
 /**
@@ -931,13 +1125,9 @@ export async function createEntryOptimistic(input: NewEntry): Promise<ApiResult<
   if (result.ok) {
     // ONE setState: delete the temp row and insert the server row together. A
     // two-step swap makes the row visibly flicker out of the list and back.
-    const current = useEntriesStore.getState()
-    const next = new Map(current.byId)
-    next.delete(tempId)
-    next.set(result.data.id, result.data)
-    const pending = new Map(current.pending)
-    pending.delete(tempId)
-    commit(next, current.serverHealth, { pending })
+    // Shared with the outbox's settle path, because a create that went straight
+    // out and a create that sat in the queue for an hour are the same event.
+    settleCreate(tempId, result.data)
     return result
   }
 
@@ -985,6 +1175,7 @@ export async function patchEntry(id: string, patch: EntryPatch): Promise<ApiResu
     }),
   })
 
+  beginWrite(id)
   const result = await submitFn<Entry>({
     table: 'entries',
     op: 'update',
@@ -998,25 +1189,35 @@ export async function patchEntry(id: string, patch: EntryPatch): Promise<ApiResu
     dependsOn: isTempId(id) ? [id] : [],
   })
 
-  if (result.ok) {
-    setPending(id, null)
-    applyServerRow(result.data, 'local')
-    return result
-  }
-
-  if (result.error === QUEUED_KEY) {
+  if (!result.ok && result.error === QUEUED_KEY) {
+    // NOT retired: the write is still outstanding, it is just outstanding in the
+    // outbox. settleOutboxWrite() ends it when the queue drains.
     markQueued(id)
     return result
   }
 
-  // Restore the SNAPSHOT, not an inverse patch: an inverse drifts the moment two
-  // edits overlap, and the second rollback then writes the first edit's value
-  // back over a field the user never touched.
+  const last = endWrite(id)
+
+  if (result.ok) {
+    // Only the LAST write out clears the busy marker. Clearing it while a
+    // sibling edit is still in flight reopens the monotonic guard early, and the
+    // realtime echo of the in-flight write then reverts the field under the
+    // user's cursor.
+    if (last) setPending(id, null)
+    applyServerRow(result.data, 'local')
+    if (last) flushDeferred(id)
+    return result
+  }
+
+  // Undo only what THIS write applied — see revertMine. Restoring the whole
+  // snapshot used to erase an overlapping edit the server had already accepted.
   const current = useEntriesStore.getState()
-  const restored = new Map(current.byId).set(id, snapshot)
+  const held = current.byId.get(id)
+  const restored = held ? new Map(current.byId).set(id, revertMine(held, snapshot, optimistic)) : current.byId
   const pending = new Map(current.pending)
-  pending.delete(id)
+  if (last) pending.delete(id)
   commit(restored, current.serverHealth, { pending })
+  if (last) flushDeferred(id)
   toast(t(result.error), { tone: 'error' })
   return result
 }
@@ -1071,6 +1272,11 @@ export async function postUpdate(input: NewEntryUpdate): Promise<ApiResult<Entry
     }),
   })
 
+  // The parent row as this post left it, so the rollback below can tell "nothing
+  // has touched it since" from "somebody has".
+  const parentAfter = byId.get(entryId)
+
+  beginWrite(entryId)
   const result = await submitFn<EntryUpdate>({
     table: 'entry_updates',
     op: 'insert',
@@ -1081,30 +1287,43 @@ export async function postUpdate(input: NewEntryUpdate): Promise<ApiResult<Entry
     dependsOn: isTempId(entryId) ? [entryId] : [],
   })
 
+  if (!result.ok && result.error === QUEUED_KEY) {
+    // Still outstanding, in the outbox. The temp thread row stays and
+    // settleOutboxWrite() swaps it for the server's.
+    markQueued(entryId)
+    return result
+  }
+
+  const last = endWrite(entryId)
   const current = useEntriesStore.getState()
   const thread = current.updates.get(entryId) ?? []
   const withoutTemp = thread.filter((u) => u.id !== tempId)
 
   if (result.ok) {
-    setPending(entryId, null)
+    if (last) setPending(entryId, null)
     useEntriesStore.setState({
       updates: new Map(current.updates).set(entryId, mergeUpdates(withoutTemp, [result.data])),
     })
-    return result
-  }
-
-  if (result.error === QUEUED_KEY) {
-    markQueued(entryId)
+    if (last) flushDeferred(entryId)
     return result
   }
 
   const pending = new Map(current.pending)
-  pending.delete(entryId)
-  const restored = parentBefore ? new Map(current.byId).set(entryId, parentBefore) : current.byId
+  if (last) pending.delete(entryId)
+  // Same rule as patchEntry's: undo the activity bump this post applied, and
+  // leave it alone if an overlapping edit or a settled sibling has moved the row
+  // since. The thread row is removed unconditionally — it is this post's and
+  // nothing else can have claimed it.
+  const held = current.byId.get(entryId)
+  const restored =
+    held && parentBefore && parentAfter
+      ? new Map(current.byId).set(entryId, revertMine(held, parentBefore, parentAfter))
+      : current.byId
   commit(restored, current.serverHealth, {
     updates: new Map(current.updates).set(entryId, withoutTemp),
     pending,
   })
+  if (last) flushDeferred(entryId)
   toast(t(result.error), { tone: 'error' })
   return result
 }
@@ -1167,19 +1386,29 @@ export async function bulkCreate(inputs: NewEntry[]): Promise<ApiResult<Entry[]>
 const localWrites = new Map<string, string>()
 
 export function applyServerRow(row: Entry, source: ApplySource, actor?: FlashMark): void {
-  const st = useEntriesStore.getState()
+  const st = readState()
   const existing = st.byId.get(row.id)
-  if (!acceptsServerRow(existing, row, source, st.pending.has(row.id))) return
+  if (!acceptsServerRow(existing, row, source, st.pending.has(row.id))) {
+    // A realtime row refused because THIS client is mid-write is not junk — it
+    // is another user's edit, and postgres_changes will not send it again. Hold
+    // the newest one and hand it back when the row goes quiet. Every other
+    // refusal is a genuinely older row and stays dropped.
+    if (source === 'realtime' && st.pending.has(row.id)) {
+      const held = deferredRealtime.get(row.id)
+      if (!held || held.row.updated_at <= row.updated_at) deferredRealtime.set(row.id, { row, actor })
+    }
+    return
+  }
 
-  if (source === 'local') localWrites.set(row.id, row.updated_at)
+  if (source === 'local' || source === 'outbox') localWrites.set(row.id, row.updated_at)
 
   const byId = new Map(st.byId).set(row.id, row)
   const rest: Partial<EntriesState> = {}
 
   const echoOfMine = localWrites.get(row.id) === row.updated_at
-  if (echoOfMine && source !== 'local') localWrites.delete(row.id)
+  if (echoOfMine && source === 'realtime') localWrites.delete(row.id)
 
-  if (actor && source !== 'local' && !echoOfMine) {
+  if (actor && source === 'realtime' && !echoOfMine) {
     rest.flash = new Map(st.flash).set(row.id, actor)
   }
 
@@ -1195,7 +1424,7 @@ export function applyServerRow(row: Entry, source: ApplySource, actor?: FlashMar
  * has somewhere to live.
  */
 export function applyServerUpdate(row: EntryUpdate, _source: ApplySource): void {
-  const st = useEntriesStore.getState()
+  const st = readState()
   const thread = st.updates.get(row.entry_id)
   // Only merge into a thread that is actually loaded. Seeding a one-row thread
   // for an entry nobody has opened would make loadUpdates() think it is done and
@@ -1206,8 +1435,141 @@ export function applyServerUpdate(row: EntryUpdate, _source: ApplySource): void 
   commit(byId, st.serverHealth, { updates })
 }
 
+// ── the outbox settle seam ─────────────────────────────────────────────────
+//
+// A queued write that flushes has to land back HERE, or the optimistic row it
+// belongs to is stranded. Without this, an offline capture that drained
+// successfully rendered twice for the life of the tab — the temp row, still
+// stamped "queued" (mergeOpenFetch preserves anything in `pending` by design),
+// plus the real row from the next fetch. `ApplySource` declared 'outbox' and no
+// call site ever produced one, which was the tell.
+//
+// It is a seam rather than an import because the direction only works one way:
+// store/outbox.ts is the write path and this store calls INTO it. main.tsx
+// installs the callback, the same composition-root move setNotificationsSubmit()
+// and setEntriesSubmit() make three lines apart.
+
+/** A row is only worth applying if it actually looks like one — `data` arrives
+ *  as `unknown` from a transport this file does not own. */
+function asEntry(data: unknown): Entry | null {
+  if (typeof data !== 'object' || data === null) return null
+  const row = data as Entry
+  return typeof row.id === 'string' ? row : null
+}
+
+function asEntryUpdate(data: unknown): EntryUpdate | null {
+  if (typeof data !== 'object' || data === null) return null
+  const row = data as EntryUpdate
+  return typeof row.id === 'string' && typeof row.entry_id === 'string' ? row : null
+}
+
+/**
+ * A queued INSERT landed: swap the temp row for the server's, in one setState.
+ *
+ * This is createEntryOptimistic's success branch, extracted so the online and
+ * the drained-offline paths cannot drift — they are the same event, and the only
+ * difference is how long it took.
+ *
+ * Everything else keyed by the entry moves with it. A patch or an update queued
+ * against the temp row is keyed by the temp id in `pending`, in `updates` and in
+ * the outstanding-writes count; leaving them behind strands a busy badge on a
+ * row that no longer exists and hides a thread the sheet is about to ask for.
+ */
+function settleCreate(tempId: string, row: Entry): void {
+  const st = readState()
+  // Gone already — undoCapture() removes a temp row outright, and the user is
+  // allowed to do that while the create is still queued.
+  if (!st.byId.has(tempId)) return
+
+  const byId = new Map(st.byId)
+  byId.delete(tempId)
+  byId.set(row.id, row)
+
+  const pending = new Map(st.pending)
+  const held = pending.get(tempId)
+  pending.delete(tempId)
+  if (held && held.kind !== 'create') pending.set(row.id, { ...held, id: row.id })
+
+  let updates = st.updates
+  const thread = updates.get(tempId)
+  if (thread) {
+    updates = new Map(updates)
+    updates.delete(tempId)
+    updates.set(row.id, thread)
+  }
+
+  const left = outstanding.get(tempId)
+  if (left !== undefined) {
+    outstanding.delete(tempId)
+    outstanding.set(row.id, left)
+  }
+
+  localWrites.set(row.id, row.updated_at)
+  commit(byId, st.serverHealth, { pending, updates })
+}
+
+/** A queued UPDATE landed. Same retire-then-apply order as patchEntry's. */
+function settlePatch(id: string, row: Entry): void {
+  const last = endWrite(id)
+  if (last) setPending(id, null)
+  applyServerRow(row, 'outbox')
+  if (last) flushDeferred(id)
+}
+
+/** A queued thread post landed: drop the temp row, merge the server's. */
+function settlePostedUpdate(tempId: string | null, row: EntryUpdate): void {
+  const st = readState()
+  const entryId = row.entry_id
+  const last = endWrite(entryId)
+
+  const thread = st.updates.get(entryId)
+  const updates = thread
+    ? new Map(st.updates).set(
+        entryId,
+        mergeUpdates(tempId === null ? thread : thread.filter((u) => u.id !== tempId), [row]),
+      )
+    : st.updates
+
+  const pending = new Map(st.pending)
+  if (last) pending.delete(entryId)
+
+  commit(touchEntry(st.byId, entryId, row.created_at), st.serverHealth, { updates, pending })
+  if (last) flushDeferred(entryId)
+}
+
+/**
+ * One drained op, settled into the store. Installed by main.tsx; never called
+ * directly by a screen.
+ *
+ * `op` is the REWRITTEN op — the outbox has already substituted any temp id it
+ * resolved earlier in the same drain — so `op.id` is a real row id here while
+ * `op.tempId` is still the client-minted one the optimistic row is filed under.
+ * That pairing is what makes the swap possible at all.
+ *
+ * Routes this store did not write (notifications, and the tables waves 2–4 add)
+ * fall through: their own stores register their own settle when they get one.
+ */
+export function settleOutboxWrite(op: MutOp, data: unknown): void {
+  const route = `${op.table}:${op.op}`
+
+  if (route === 'entries:insert') {
+    const row = asEntry(data)
+    if (op.tempId && row) settleCreate(op.tempId, row)
+    return
+  }
+  if (route === 'entries:update') {
+    const row = asEntry(data)
+    if (op.id && row) settlePatch(op.id, row)
+    return
+  }
+  if (route === 'entry_updates:insert') {
+    const row = asEntryUpdate(data)
+    if (row) settlePostedUpdate(op.tempId, row)
+  }
+}
+
 export function removeEntryLocal(id: string): void {
-  const st = useEntriesStore.getState()
+  const st = readState()
   if (!st.byId.has(id)) return
   const byId = new Map(st.byId)
   byId.delete(id)
@@ -1332,32 +1694,51 @@ function applyRealtimeBatch(batch: RealtimeEvent<unknown>[]): void {
     actorByEntry.set(row.entry_id, row.author_id)
   }
 
-  for (const event of batch) {
-    if (event.table === 'entries') {
-      if (event.eventType === 'DELETE') {
-        if (event.oldId) removeEntryLocal(event.oldId)
+  // Stage every row against one snapshot, then re-derive ONCE. See `staged`.
+  staged = useEntriesStore.getState()
+  stagedDirty = false
+  try {
+    for (const event of batch) {
+      if (event.table === 'entries') {
+        if (event.eventType === 'DELETE') {
+          if (event.oldId) removeEntryLocal(event.oldId)
+          continue
+        }
+        if (!event.row) continue
+        const row = event.row as Entry
+        const actorId =
+          event.eventType === 'INSERT' ? row.created_by : (actorByEntry.get(row.id) ?? null)
+        // Never flash my own work back at me.
+        const mark: FlashMark | undefined =
+          actorId && actorId === meId
+            ? undefined
+            : {
+                actorId,
+                actorName: null,
+                kind: event.eventType === 'INSERT' ? 'new' : 'edit',
+                at: Date.now(),
+              }
+        applyServerRow(row, 'realtime', mark)
         continue
       }
-      if (!event.row) continue
-      const row = event.row as Entry
-      const actorId =
-        event.eventType === 'INSERT' ? row.created_by : (actorByEntry.get(row.id) ?? null)
-      // Never flash my own work back at me.
-      const mark: FlashMark | undefined =
-        actorId && actorId === meId
-          ? undefined
-          : {
-              actorId,
-              actorName: null,
-              kind: event.eventType === 'INSERT' ? 'new' : 'edit',
-              at: Date.now(),
-            }
-      applyServerRow(row, 'realtime', mark)
-      continue
-    }
 
-    if (event.table === 'entry_updates' && event.eventType === 'INSERT' && event.row) {
-      applyServerUpdate(event.row as EntryUpdate, 'realtime')
+      if (event.table === 'entry_updates' && event.eventType === 'INSERT' && event.row) {
+        applyServerUpdate(event.row as EntryUpdate, 'realtime')
+      }
+    }
+  } finally {
+    // `finally`, because one malformed row must not leave the store staged — every
+    // later commit in the session would then fold into a snapshot nothing reads.
+    const next = staged
+    const dirty = stagedDirty
+    staged = null
+    stagedDirty = false
+    if (next && dirty) {
+      commit(next.byId, next.serverHealth, {
+        updates: next.updates,
+        pending: next.pending,
+        flash: next.flash,
+      })
     }
   }
 }

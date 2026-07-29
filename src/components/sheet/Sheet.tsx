@@ -40,6 +40,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { t } from '../../lib/i18n'
+import { pushOverlay } from '../../lib/overlayStack'
 import { IconClose } from '../fields/glyphs'
 import './sheet.css'
 
@@ -163,23 +164,20 @@ export default function Sheet({
     // it announces the entry, and one Tab reaches the first control.
     surface.current?.focus()
 
-    // Escape is bound to the DOCUMENT rather than to the surface, because focus
-    // does not reliably stay inside: drag-selecting an update body (a normal
-    // move when copying a note out) puts focus on the nearest focusable
-    // ancestor, and a keydown that lands outside the React root never reaches a
-    // JSX onKeyDown. Capture phase so it wins over whatever the page behind the
-    // scrim binds. This mirrors components/Confirm.tsx, for the same reasons.
-    const onEscape = (event: globalThis.KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
-      // A picker or a native <select> popup open INSIDE the sheet gets Escape
-      // first and stops it there; anything that reaches the document means the
-      // sheet itself is what the user wants out of.
-      event.preventDefault()
-      event.stopPropagation()
-      onCloseRef.current()
-    }
-    document.addEventListener('keydown', onEscape, true)
-    return () => document.removeEventListener('keydown', onEscape, true)
+    // Escape is arbitrated by lib/overlayStack rather than by a listener this
+    // component owns. It still ends up on the DOCUMENT — focus does not reliably
+    // stay inside the sheet, and a keydown that lands outside the React root
+    // never reaches a JSX onKeyDown — but on the BUBBLE phase and behind a
+    // `defaultPrevented` check, so a control INSIDE the sheet gets the key first.
+    //
+    // That ordering is the whole point. This listener used to be capture-phase
+    // with a stopPropagation(), which runs before React can dispatch anything
+    // (React binds to the root and portal containers, both below document), so
+    // InlineText's "Escape cancels the edit" was dead code for the title,
+    // description and requester fields: abandoning a bad edit closed the sheet
+    // and discarded the draft. The stack also means a Confirm opened over this
+    // sheet dismisses ONE layer instead of both. See that module's header.
+    return pushOverlay(() => onCloseRef.current())
   }, [open])
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>): void => {

@@ -19,10 +19,18 @@
 -- `sla_days ?? null` and carries a comment saying there is no default), so the
 -- database was the only place the workspace was opted in.
 --
--- The fix is applied here rather than by editing 0003 because 0003 has already
--- run against the live project and its output is quoted in the Wave-1 proofs.
--- Migrations are history; this is the correction, and it is the last word
--- because it runs last.
+-- STATUS AFTER THE WAVE-1 AUDIT: 0003 was corrected at its source as well.
+-- Leaving the fix here alone was not enough, because 0003 also carried a backfill
+-- block that re-seeded the numbers whenever all four rows were NULL — which is
+-- precisely the state this file leaves behind. Re-running 0003, which its own
+-- header advertises as safe, therefore switched SLA back on. 0003 now seeds NULL
+-- and has no backfill, so the two files agree and neither can undo the other.
+--
+-- This file stays in the tree because it is the correction that actually ran
+-- against the live project, and because a workspace that took 0003's earlier cut
+-- still needs it. On a project running the corrected 0003 it is a no-op: the
+-- guard below finds no row still holding 0003's old seed and leaves everything
+-- alone. Running it twice is safe either way.
 --
 -- TURNING SLA ON IS ONE STATEMENT, and it is an admin's to make — through the
 -- vocabulary admin screen, or:

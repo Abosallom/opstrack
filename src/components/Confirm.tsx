@@ -21,6 +21,7 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from 'react'
+import { pushOverlay } from '../lib/overlayStack'
 import './confirm.css'
 
 export interface ConfirmOptions {
@@ -122,24 +123,25 @@ export function ConfirmHost(): ReactElement {
     confirmBtn.current?.focus()
     const id = window.setTimeout(() => setArmed(true), ARM_DELAY_MS)
 
-    // Escape is bound to the DOCUMENT, not to the sheet, because focus does not
-    // reliably stay on the sheet's buttons: drag-selecting the warning text (a
-    // normal move when re-reading a destructive confirmation) puts focus on the
-    // nearest focusable ancestor, and a keydown that lands anywhere but inside
-    // the React root never reaches a JSX onKeyDown at all. Escape has to cancel
-    // wherever focus sits, or the only way out of a modal dialog is a mouse.
-    // Capture phase so it wins over anything the page behind the scrim binds.
-    const onEscape = (event: globalThis.KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      event.stopPropagation()
-      finish(false)
-    }
-    document.addEventListener('keydown', onEscape, true)
+    // Escape ends up on the DOCUMENT, because focus does not reliably stay on
+    // the sheet's buttons: drag-selecting the warning text (a normal move when
+    // re-reading a destructive confirmation) puts focus on the nearest focusable
+    // ancestor, and a keydown that lands anywhere but inside the React root
+    // never reaches a JSX onKeyDown at all. Escape has to cancel wherever focus
+    // sits, or the only way out of a modal dialog is a mouse.
+    //
+    // It goes through lib/overlayStack rather than through a listener this
+    // component owns, because a confirm is very often opened FROM an open Sheet,
+    // and Sheet used to bind its own. Two capture-phase listeners on the same
+    // node both fire — stopPropagation() does not stop a sibling on the same
+    // node, that needs stopImmediatePropagation — so one Escape cancelled the
+    // confirm AND closed the sheet behind it. The stack dismisses the top layer
+    // only, which here is always this dialog.
+    const offEscape = pushOverlay(() => finish(false))
 
     return () => {
       window.clearTimeout(id)
-      document.removeEventListener('keydown', onEscape, true)
+      offEscape()
     }
   }, [pending, finish])
 
