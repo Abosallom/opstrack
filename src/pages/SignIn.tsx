@@ -105,9 +105,14 @@ export default function SignIn(): ReactElement {
   const busy = pending !== null
 
   // This route renders outside the shell, so nothing else sets the title.
+  //
+  // Keyed on `locale`, unlike Shell's equivalent effect, because this screen
+  // carries the language toggle itself: without the dep, switching to Arabic
+  // repaints every string on the page and leaves the browser tab reading
+  // "Sign in · OpsTrack" — the one label the toggle visibly failed to reach.
   useEffect(() => {
     document.title = `${t('route.signin')} · ${t('app.name')}`
-  }, [])
+  }, [locale])
 
   // Resend countdown. Cleared on unmount so a stale interval cannot keep
   // ticking after the user has signed in and this screen is gone.

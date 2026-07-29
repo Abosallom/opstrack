@@ -3,7 +3,8 @@
    NOTHING HERE STYLES A CARD. `.entry-card*` belongs to the entry kit's own
    sheet, and the one hook the kit left for this screen is `.entry-card[data-
    dragging]`, which it already styles. What this file owns is the space AROUND
-   the cards: the scroller, the columns, the lanes, the retired rail.
+   the cards: the scroller, the columns, the composer, the drop slot, the
+   collapsed rails, the overflow list.
 
    THE SCROLLER IS THE INLINE AXIS AND NOTHING ELSE. Columns scroll sideways as a
    group; each column scrolls its own cards vertically. A board that scrolled the
@@ -17,8 +18,16 @@
    and every one of them is a scroll-axis name with no logical spelling yet;
    lib/dnd.ts's header explains why the arithmetic behind them is physical too.
 
-   MOTION: 150–200ms, and every transition here is a property the reduced-motion
-   kill-switch in global.css already clamps. */
+   THE ONE OTHER PHYSICAL VALUE is `--bd-slide`, the arrival animation's offset.
+   CSS has no logical transform, so the SIGN is resolved in Board.tsx from the
+   document's own `dir` — the same trick arrowStep() uses, and for the same
+   reason: direction is a fact the screen already holds, and re-deriving it in
+   two places is how the two disagree.
+
+   MOTION: 150–200ms, and every transition and keyframe here is clamped by the
+   reduced-motion kill-switch in global.css.
+
+   SPACING is on the 4px grid throughout — 4 / 8 / 12 / 16 / 24, nothing else. */
 
 .bd {
   display: flex;
@@ -43,10 +52,23 @@
 
 .bd-group {
   flex: 0 1 auto;
+  align-items: center;
   gap: 4px;
 }
 
-.bd-refresh {
+.bd-group-label {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-inline-end: 4px;
+}
+
+/* Pushed to the far end, so the two chip groups do not read as one run of six
+   options — which is exactly how "Status Track Owner Priority Comfortable
+   Compact" scanned before this rule and its visible label existed. */
+.bd-density {
   margin-inline-start: auto;
 }
 
@@ -101,27 +123,44 @@
   flex: 0 0 auto;
   inline-size: 300px;
   max-block-size: min(72dvh, 900px);
-  padding: 10px;
+  padding: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-elev);
-  transition: border-color 0.16s ease, background-color 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    inline-size 0.18s ease;
 }
 
-/* The status's own colour, as a 3px cap on the block-start edge. One hex, both
-   themes — lib/vocabStyle.ts's header explains why this is a custom property
-   and not a colour picked in JavaScript. */
+/* A TRACK column paints itself in the track's colour, and tracks store TWO
+   hexes because one that reads on near-black sits near 2:1 on white. This is
+   the same resolution global.css does for .track-bar/.track-dot/.track-glyph,
+   applied to the one custom property the rest of this sheet consumes — never a
+   colour picked in JavaScript, which would keep yesterday's hex when the `auto`
+   theme flips at sunset (lib/trackStyle.ts's header). */
+.bd-col[data-dim='track'] {
+  --vocab-c: var(--track-c-dark, var(--text-dim));
+}
+
+[data-theme='light'] .bd-col[data-dim='track'] {
+  --vocab-c: var(--track-c-light, var(--track-c-dark, var(--text-dim)));
+}
+
+/* The status's own colour, as a 2px cap on the block-end edge of the header.
+   One hex, both themes — lib/vocabStyle.ts's header explains why this is a
+   custom property and not a colour picked in JavaScript. */
 .bd-col-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   padding-block-end: 8px;
   margin-block-end: 4px;
   border-block-end: 2px solid color-mix(in oklab, var(--vocab-c, var(--text-dim)) 45%, transparent);
 }
 
 .bd-col-title {
+  flex: 1 1 auto;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.2px;
@@ -138,25 +177,161 @@
   color: var(--text-dim);
 }
 
-/* The live drop target. A 2px inset ring rather than a background flood: the
-   cards keep their contrast, and the ring reads at a glance from across a
-   six-column board. */
+/* Any card in this column past its SLA. A count, not a dot: "3 past SLA" is
+   actionable and "something is wrong here" is not. */
+.bd-sla {
+  flex: 0 0 auto;
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
+  font-weight: 700;
+}
+
+/* The two header controls. 32px is the visible target on a pointer device,
+   where a 44px pair would eat a quarter of a 300px column; coarse pointers get
+   the full 44px below. */
+.bd-col-fold,
+.bd-col-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 32px;
+  block-size: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.bd-col-fold:hover,
+.bd-col-add:hover {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+.bd-col-fold:active,
+.bd-col-add:active {
+  border-color: var(--border);
+}
+
+.bd-col-fold:focus-visible,
+.bd-col-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.bd-col-add[aria-expanded='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.bd-caret {
+  transition: rotate 0.16s ease;
+}
+
+/* The live drop target. A ring plus a wash rather than a background flood: the
+   cards keep their contrast, and it reads at a glance from across a six-column
+   board. */
 .bd-col[data-over='true'] {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 7%, var(--bg-elev));
 }
 
-.bd-drop {
-  padding-block: 6px;
-  padding-inline: 10px;
+/* ── the collapsed rail ────────────────────────────────────────────────── */
+
+/* A collapsed column is still a DROP TARGET — filing something out of sight is
+   the reason to collapse a column in the first place.
+
+   The `[data-density]` in the selector is not decoration: the compact rule far
+   below is `.bd[data-density='compact'] .bd-col`, which outweighs a bare
+   `.bd-col[data-collapsed]` and made every collapsed column 264px wide on a
+   compact board. Matching its weight here, earlier in the file, is the fix that
+   does not depend on source order alone. */
+.bd[data-density] .bd-col[data-collapsed='true'] {
+  inline-size: 64px;
+  padding-block: 8px;
+  padding-inline: 4px;
+}
+
+.bd-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  min-block-size: 160px;
+  padding-block: 8px;
+  padding-inline: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--vocab-c, var(--text-dim));
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+
+.bd-rail:hover {
+  background: var(--bg-elev-2);
+}
+
+.bd-rail:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* HORIZONTAL AND WRAPPED, not rotated — and that is a deliberate break with the
+   kanban convention. `writing-mode: vertical-rl` is what every other board does
+   with a collapsed column, and it turns Arabic into a column of rotated,
+   effectively unreadable glyphs (verified in the RTL pass, which is why this
+   rule reads the way it does). RTL has to be equal to LTR, so both scripts get
+   a small wrapped label, and the full name rides on the button's aria-label and
+   its tooltip for the cases where two lines are not enough. */
+.bd-rail-label {
+  inline-size: 100%;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  max-block-size: 4.2em;
+}
+
+/* ── quick add ─────────────────────────────────────────────────────────── */
+
+.bd-add {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
   margin-block-end: 8px;
-  border: 1px dashed var(--accent);
+  border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
-  text-align: center;
+}
+
+.bd-add-input {
+  inline-size: 100%;
+}
+
+.bd-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bd-add-hint {
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 /* ── cards ─────────────────────────────────────────────────────────────── */
@@ -173,12 +348,6 @@
   overscroll-behavior-block: contain;
 }
 
-/* Nested lists (a lane's cards) must not add a second scroller. */
-.bd-cards .bd-cards {
-  overflow: visible;
-  padding: 0;
-}
-
 .bd-card {
   display: block;
   /* The browser keeps the vertical pan; a mostly-horizontal gesture is ours.
@@ -188,7 +357,8 @@
   border-radius: var(--radius-sm);
 }
 
-.bd-card + .bd-card {
+.bd-card + .bd-card,
+.bd-slot + .bd-card {
   margin-block-start: 8px;
 }
 
@@ -199,37 +369,98 @@
   outline-offset: 3px;
 }
 
-.bd-fold {
-  inline-size: 100%;
-  margin-block-start: 8px;
-  gap: 6px;
+/* ── arrival motion ────────────────────────────────────────────────────── */
+
+/* Three arrivals, three readings. `moved` is somebody ELSE's move and slides in
+   from the direction the card travelled (the kit's own is-flash highlight rides
+   along, set by the store). `landed` is this reader's own move and springs,
+   because the drag already showed the travel. `new` is a card that did not
+   exist a moment ago. All three are one-shot, all three are 180ms, and all
+   three are neutralised by the reduced-motion kill-switch in global.css. */
+
+@keyframes bd-arrive {
+  from {
+    translate: var(--bd-slide, 0) 0;
+    opacity: 0.4;
+  }
+  to {
+    translate: 0 0;
+    opacity: 1;
+  }
 }
 
-/* ── lanes (the swimlane grouping) ─────────────────────────────────────── */
-
-.bd-lane {
-  display: block;
+@keyframes bd-appear {
+  from {
+    translate: 0 -8px;
+    opacity: 0;
+  }
+  to {
+    translate: 0 0;
+    opacity: 1;
+  }
 }
 
-.bd-lane + .bd-lane {
-  margin-block-start: 14px;
+@keyframes bd-land {
+  0% {
+    scale: 0.97;
+  }
+  55% {
+    scale: 1.015;
+  }
+  100% {
+    scale: 1;
+  }
 }
 
-.bd-lane-title {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: 1;
-  padding-block: 4px;
-  margin-block-end: 6px;
-  background: var(--bg-elev);
-  color: var(--text-faint);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+.bd-card[data-enter='moved'] {
+  animation: bd-arrive 0.18s ease-out both;
+}
+
+.bd-card[data-enter='new'] {
+  animation: bd-appear 0.18s ease-out both;
+}
+
+.bd-card[data-enter='landed'] {
+  animation: bd-land 0.18s ease-out both;
+}
+
+/* ── the drop preview ──────────────────────────────────────────────────── */
+
+/* Where the card WILL be, which is the top: every write bumps
+   last_activity_at, and every list in this app is ordered by it. A slot under
+   the pointer would preview a position the store never produces. */
+.bd-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  margin-block-end: 8px;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  min-block-size: 56px;
+  justify-content: center;
+}
+
+.bd-slot-title {
+  font-size: 13px;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.bd-slot-hint {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.bd-fold {
+  inline-size: 100%;
+  margin-block-start: 8px;
+  gap: 4px;
 }
 
 /* ── an empty column ───────────────────────────────────────────────────── */
@@ -257,45 +488,44 @@
   line-height: 1.5;
 }
 
-/* ── the retired rail ──────────────────────────────────────────────────── */
+/* ── the overflow rail ─────────────────────────────────────────────────── */
 
-.bd-retired {
+.bd-overflow {
   margin-block-start: 24px;
   padding-block-start: 16px;
   border-block-start: 1px solid var(--border);
 }
 
-.bd-retired-title {
+.bd-overflow-title {
   font-size: 14px;
   font-weight: 700;
 }
 
-.bd-retired-hint {
+.bd-overflow-hint {
   color: var(--text-faint);
   font-size: 12px;
   line-height: 1.5;
-  margin-block: 2px 10px;
+  margin-block: 4px 8px;
 }
 
-.bd-retired-list {
+.bd-overflow-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   list-style: none;
 }
 
-.bd-retired-item {
+.bd-overflow-item {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-elev);
   overflow: hidden;
 }
 
-.bd-retired-toggle {
+.bd-overflow-toggle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   inline-size: 100%;
   min-block-size: 44px;
   padding-block: 8px;
@@ -307,24 +537,27 @@
   font-weight: 600;
   text-align: start;
   cursor: pointer;
-  transition: background-color 0.16s ease, color 0.16s ease;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
 }
 
-.bd-retired-toggle:hover {
+.bd-overflow-toggle:hover {
   background: var(--bg-elev-2);
   color: var(--text);
 }
 
-.bd-retired-toggle:active {
+.bd-overflow-toggle:active {
   background: var(--bg-elev-2);
 }
 
-.bd-retired-toggle:focus-visible {
+.bd-overflow-toggle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
-.bd-retired-label {
+.bd-overflow-label {
+  flex: 1 1 auto;
   color: var(--vocab-c, var(--text-dim));
   overflow: hidden;
   text-overflow: ellipsis;
@@ -332,16 +565,56 @@
   min-inline-size: 0;
 }
 
-.bd-retired-cards {
-  padding-block: 0 10px;
-  padding-inline: 10px;
+.bd-overflow-cards {
+  padding-block: 0 8px;
+  padding-inline: 8px;
+}
+
+/* Nested lists (an overflow strip's cards) must not add a second scroller. */
+.bd-overflow-cards .bd-cards {
+  overflow: visible;
+  padding: 0;
+}
+
+/* ── density ───────────────────────────────────────────────────────────── */
+
+/* What this toggle can reach is the space AROUND the cards: EntryCardProps has
+   no `density`, unlike EntryRowProps, so the card's own internals keep their
+   comfortable spacing. Filed as an extension-slot gap rather than reached for
+   across the registry — `.entry-card*` belongs to entry.css. */
+.bd[data-density='compact'] .bd-col {
+  inline-size: 264px;
+  padding: 4px 8px 8px;
+}
+
+.bd[data-density='compact'] .bd-card + .bd-card,
+.bd[data-density='compact'] .bd-slot + .bd-card {
+  margin-block-start: 4px;
+}
+
+.bd[data-density='compact'] .bd-cols {
+  gap: 8px;
+}
+
+.bd[data-density='compact'] .bd-hint {
+  display: none;
 }
 
 /* ── loading ───────────────────────────────────────────────────────────── */
 
 .bd-col-skeleton {
-  gap: 10px;
+  gap: 8px;
   max-block-size: none;
+}
+
+/* ── coarse pointers ───────────────────────────────────────────────────── */
+
+@media (pointer: coarse) {
+  .bd-col-fold,
+  .bd-col-add {
+    inline-size: 44px;
+    block-size: 44px;
+  }
 }
 
 /* ── phone ─────────────────────────────────────────────────────────────── */
@@ -352,7 +625,7 @@
      affordance; a snapped near-full-bleed column reads as a deck. */
   .bd-cols {
     scroll-snap-type: x mandatory;
-    gap: 10px;
+    gap: 8px;
   }
 
   .bd-scroller {
@@ -365,13 +638,21 @@
     max-block-size: none;
   }
 
+  /* A collapsed column keeps its slim rail on a phone too — it is how you skip
+     past four empty owner columns with one swipe. It must not snap, or the
+     swipe stops on every one of them. */
+  .bd[data-density] .bd-col[data-collapsed='true'] {
+    inline-size: 60px;
+    scroll-snap-align: none;
+  }
+
+  .bd[data-density='compact'] .bd-col {
+    inline-size: min(86vw, 340px);
+  }
+
   /* The page scrolls on a phone, not the column: two nested scrollers under one
      thumb is the interaction people report as "it scrolls the wrong thing". */
   .bd-cards {
     overflow: visible;
-  }
-
-  .bd-lane-title {
-    position: static;
   }
 }

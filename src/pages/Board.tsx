@@ -1,19 +1,35 @@
-// The board — every item the filter admits, in a column per status.
+// The board — every item the filter admits, in a column per whatever the reader
+// is currently grouping by.
 //
-// COLUMNS COME FROM THE VOCABULARY, not from the EntryStatus union. An admin who
-// renamed `waiting_on` to "Awaiting vendor" and reordered the statuses sees that
-// here, at zero cost, because the keys are frozen and the labels are resolved at
-// render (store/vocab.ts's header). Hidden statuses leave the board — but only
-// as COLUMNS: a hidden status still holding entries gets a strip in the retired
-// rail below, because "hiding an option must never hide data". You can drag work
-// OUT of a retired status; you cannot drag it in, which is the whole point of
-// retiring one.
+// THE COLUMN AXIS IS A CHOICE, NOT A CONSTANT (WAVE3-NOTES §1). Status is the
+// default and the one everybody means by "kanban", but the same card machinery
+// bands by track, by owner or by priority, and a drag along each of those axes
+// is a re-file, a re-assignment or a re-prioritisation. There is exactly ONE
+// place in this file that knows which: `patchFor()`. Everything else — the
+// bucketing, the hit test, the keyboard path, the announcements, the quick-add
+// seed — is written against an opaque column key, which is why a fifth
+// dimension would be a row in `DIMENSIONS` plus a case in three switches rather
+// than a second board.
 //
-// SCOPE IS FORCED TO 'all' AND `statuses` IS FORCED EMPTY. The board's columns
-// ARE the status axis, so a status facet would be a second control fighting the
-// first, and the default 'open' scope would leave the Done and Cancelled columns
-// permanently, inexplicably empty. The board therefore also asks for a window of
-// recently-closed rows on mount — see CLOSED_WINDOW_DAYS.
+// COLUMNS COME FROM THE VOCABULARY (and the track list, and the member list),
+// not from the frozen unions. An admin who renamed `waiting_on` to "Awaiting
+// vendor" and reordered the statuses sees that here, at zero cost, because the
+// keys are frozen and the labels are resolved at render (store/vocab.ts's
+// header). Options an admin retired, tracks they archived, and free-text
+// owners who were never members all leave the board — but only as COLUMNS: a
+// bucket that still holds entries gets a strip in the overflow rail below,
+// because "hiding an option must never hide data". You can drag work OUT of a
+// retired bucket; you cannot drag it in, which is the whole point of retiring
+// one. Free-text owners are permanently in that rail, because a board has no
+// control for typing a vendor's name and an affordance that cannot be honoured
+// is worse than none.
+//
+// SCOPE IS FORCED TO 'all', AND THE STATUS FACET IS DROPPED ONLY WHEN STATUS IS
+// THE AXIS. A status facet fighting status columns would leave Done and
+// Cancelled permanently, inexplicably empty; a status facet over OWNER columns
+// is the useful question "who is sitting on the blocked work". The board also
+// asks for a window of recently-closed rows on mount either way — see
+// CLOSED_WINDOW_DAYS.
 //
 // TWO PATHS TO ONE STORE CALL. A drag, the arrow keys, and the card's own move
 // menu all end in `move()`, which is the only place in this file that writes.
@@ -24,19 +40,27 @@
 // region. A board that only works for a mouse is a board half this team cannot
 // use on the day they most need it.
 //
+// THE CARD'S OWN MENU IS ALWAYS A STATUS MENU, whatever the column axis is. It
+// is a StatusPill; it is labelled with statuses; making it mean "owner" when
+// the board happens to be grouped by owner would be a control that lies. So
+// under a non-status axis the pill still moves the card WITHIN its column, and
+// the arrow/digit keys are the axis-aware path. Both are first-class, and the
+// keyboard hint says so.
+//
 // THE TRANSITION ROW COMES FROM THE API LAYER. `api/entries.updateEntry()` reads
 // the previous status and appends the `status_from`/`status_to` thread row
 // itself, so a move made here is attributable in the entry's thread without this
 // screen writing anything extra — and writing it here as well would produce two
 // rows for one move. See move()'s comment.
 //
-// OPTIMISM COMES FROM THE STORE, NOT FROM HERE. `setStatus()` applies locally,
-// re-derives, and rolls the row back itself if the write fails; the card is in
-// its new column before the request leaves. So this file holds no shadow copy of
-// the board — the one thing that would guarantee a divergence between what the
-// screen shows and what the store believes. A member who has lost permission
-// sees the card snap back (store) and a toast naming the reason (store), plus
-// the positional sentence in the live region (here).
+// OPTIMISM COMES FROM THE STORE, NOT FROM HERE. `setStatus()`/`patchEntry()`
+// apply locally, re-derive, and roll the row back themselves if the write
+// fails; the card is in its new column before the request leaves. So this file
+// holds no shadow copy of the board — the one thing that would guarantee a
+// divergence between what the screen shows and what the store believes. A
+// member who has lost permission sees the card snap back (store) and a toast
+// naming the reason (store), plus the positional sentence in the live region
+// (here).
 
 import {
   memo,
@@ -45,22 +69,26 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type HTMLAttributes,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactElement,
+  type ReactNode,
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import FilterBar, { type FilterFacet } from '../components/FilterBar'
 import { EmptyState, Skeleton } from '../components/shared'
-import { EntryCard } from '../components/entry'
+import { EntryCard, OwnerBadge, TrackDot } from '../components/entry'
+import { IconChevronDown, IconPlus } from '../components/fields'
 import { IconColumns } from '../components/icons'
 import { toast } from '../components/toast'
 import {
   arrowStep,
   dropOf,
   edgeScroll,
+  edgeScrollBlock,
   indexFromDigit,
   isDragging,
   moveDrag,
@@ -80,12 +108,15 @@ import {
 import { t, useLocale } from '../lib/i18n'
 import { useTrackLabel } from '../lib/labels'
 import { canEditEntry } from '../lib/permissions'
+import { trackVars } from '../lib/trackStyle'
 import { vocabVars } from '../lib/vocabStyle'
 import { useAuth } from '../store/auth'
 import { useActiveTracks, useTrackMap } from '../store/config'
 import {
+  createEntryOptimistic,
   loadClosedSince,
   loadEntries,
+  patchEntry,
   refreshEntries,
   setStatus,
   useEntriesError,
@@ -97,9 +128,18 @@ import {
   usePendingOp,
 } from '../store/entries'
 import { openEntry } from '../store/entrySheet'
-import { useMemberMap } from '../store/members'
+import { useMemberLabel, useMemberMap, useMembers } from '../store/members'
 import { useVocabAll, useVocabLabel } from '../store/vocab'
-import type { Entry, EntryHealth, EntryStatus, Track, UserRole } from '../types'
+import type {
+  Entry,
+  EntryHealth,
+  EntryPatch,
+  EntryPriority,
+  EntryStatus,
+  NewEntry,
+  Track,
+  UserRole,
+} from '../types'
 import './board.css'
 
 /**
@@ -109,37 +149,28 @@ import './board.css'
  * asks for them. Asking for everything ever closed would grow without bound on a
  * log nothing deletes, and a Done column showing two years of history is not a
  * board, it is an archive. Two weeks is "what this team finished recently",
- * which is the question a board answers.
+ * which is the question a board answers — and it is loaded under every axis,
+ * because "what did Layla finish this fortnight" is the same question asked of
+ * the owner columns.
  */
 const CLOSED_WINDOW_DAYS = 14
 
 /**
- * Cards rendered per column before the fold.
+ * Cards rendered per column before the fold, per density.
  *
  * A column with 300 items is not read, it is scrolled past — and rendering all
  * of them costs a phone its frame budget on every drag. The count in the header
  * is always the true total, so the fold hides cards, never facts.
  */
-const MAX_CARDS_PER_COLUMN = 25
+const MAX_CARDS: Readonly<Record<Density, number>> = { comfortable: 25, compact: 40 }
 
 /**
- * The facets the board offers.
+ * The facets the board offers under every axis.
  *
- * No `status` — the columns are the status axis (FilterBar's own header names
- * the board as the reason facets are opt-in). No `scope` either: see the file
- * header. What is left is the four the brief names, plus the two that live on
- * the always-visible rail and cost nothing.
+ * No `scope` — see the file header. `status` is appended when status is NOT the
+ * column axis, which is the one facet whose usefulness depends on the grouping.
  */
 const BOARD_FACETS: readonly FilterFacet[] = ['search', 'mine', 'track', 'owner', 'priority', 'tag']
-
-/** Cards within a column can be banded by track or by owner. */
-type Grouping = 'none' | 'track' | 'owner'
-
-const GROUPINGS: readonly { key: Grouping; labelKey: string }[] = [
-  { key: 'none', labelKey: 'board.swimlaneNone' },
-  { key: 'track', labelKey: 'board.swimlaneTrack' },
-  { key: 'owner', labelKey: 'board.swimlaneOwner' },
-]
 
 /**
  * store/entries.ts's private QUEUED_KEY, which is not a failure: the write is
@@ -152,23 +183,209 @@ const QUEUED_ERROR_KEY = 'offline.queued'
 /** How long after a drag a click is still that drag's mouseup, in ms. */
 const CLICK_SUPPRESS_MS = 400
 
-interface BoardColumn {
-  key: EntryStatus
-  label: string
-  color: string | null
-  /** Hidden in the vocabulary but still holding entries. Source only, never a target. */
-  retired: boolean
-  entries: Entry[]
+/** How long a card wears its arrival animation. Matches board.css's 180ms. */
+const ENTER_MS = 240
+
+/**
+ * Above this many cards changing column at once, nothing animates.
+ *
+ * A teammate moving one card is an event worth showing. A filter change, a
+ * first load or an axis switch re-buckets everything at once, and animating
+ * forty cards is not "livelier", it is a screen that convulses every time
+ * somebody types in the search box.
+ */
+const ENTER_BURST_MAX = 6
+
+/** How far a card slides in from, in px. Physical — the sign is resolved by dir. */
+const ENTER_SLIDE_PX = 14
+
+/** The bucket key for "no value" — untracked, unassigned. Never a real id. */
+const NO_VALUE = ''
+
+/**
+ * Prefix for an owner bucket that is free text rather than a member.
+ *
+ * `entries.owner_name` holds vendors and other people outside the workspace,
+ * and they own real work. They get a column so that work is visible and can be
+ * dragged onto a teammate; they never accept a drop, because assigning TO a
+ * vendor means typing a name and a board has nowhere to type.
+ */
+const NAME_PREFIX = 'name:'
+
+/** localStorage record of the three choices that should outlive a reload. */
+const PREFS_KEY = 'opstrack_board_v1'
+
+/** Which dimension the columns are cut along. */
+type BoardDim = 'status' | 'track' | 'owner' | 'priority'
+
+type Density = 'comfortable' | 'compact'
+
+const DIMENSIONS: readonly { key: BoardDim; labelKey: string }[] = [
+  { key: 'status', labelKey: 'board.groupStatus' },
+  { key: 'track', labelKey: 'board.groupTrack' },
+  { key: 'owner', labelKey: 'board.groupOwner' },
+  { key: 'priority', labelKey: 'board.groupPriority' },
+]
+
+const DENSITIES: readonly { key: Density; labelKey: string }[] = [
+  { key: 'comfortable', labelKey: 'board.densityComfortable' },
+  { key: 'compact', labelKey: 'board.densityCompact' },
+]
+
+/**
+ * The overflow rail's heading, per axis.
+ *
+ * Written as a literal Record rather than `t(\`board.overflow${dim}\`)` because
+ * lib/localeReach.test.ts finds keys by scanning for quoted dotted strings — a
+ * template literal has no key until it runs, and the four families that are
+ * built that way have to be enumerated in the test itself. A lookup table costs
+ * three lines and stays inside the mechanism.
+ */
+const OVERFLOW_TITLE: Readonly<Record<BoardDim, string>> = {
+  status: 'board.overflowStatus',
+  track: 'board.overflowTrack',
+  owner: 'board.overflowOwner',
+  priority: 'board.overflowPriority',
 }
 
-interface Lane {
-  key: string
-  name: string
-  entries: Entry[]
+/**
+ * What an empty column says, per axis. Same lookup-table reason as above, plus
+ * one of its own: one shared sentence cannot be written. "Nothing in Blocked"
+ * and "Nothing on Network" both read; "Nothing in Layla" and "Nothing in High"
+ * do not. The owner line deliberately drops the name — the column header is
+ * three centimetres above it, and "Nothing assigned to Unassigned" is the
+ * sentence a shared template produces.
+ */
+const COLUMN_EMPTY: Readonly<Record<BoardDim, string>> = {
+  status: 'board.columnEmptyStatus',
+  track: 'board.columnEmptyTrack',
+  owner: 'board.columnEmptyOwner',
+  priority: 'board.columnEmptyPriority',
 }
+
+interface BoardColumn {
+  /** The dimension value. `NO_VALUE` for the untracked/unassigned bucket. */
+  key: string
+  label: string
+  /** Inline custom properties painting this column's accent, or `{}`. */
+  vars: CSSProperties
+  /** Source only. Lives in the overflow rail and never accepts a drop. */
+  retired: boolean
+  entries: Entry[]
+  /** How many of this column's cards are past their SLA. */
+  breached: number
+}
+
+/** One card's arrival animation, resolved by the board and read by CSS. */
+interface CardEnter {
+  kind: 'new' | 'moved' | 'landed'
+  /** Physical px offset to slide in from. 0 for a card that did not travel. */
+  slide: number
+}
+
+interface BoardPrefs {
+  dimension: BoardDim
+  density: Density
+  /** Collapsed column keys, per dimension — a track id means nothing to the status axis. */
+  collapsed: Record<string, string[]>
+}
+
+const DEFAULT_PREFS: BoardPrefs = { dimension: 'status', density: 'comfortable', collapsed: {} }
 
 /** Nothing is ever pushed into this; one shared empty array keeps deps stable. */
 const NO_ENTRIES: readonly Entry[] = Object.freeze([])
+const NO_ENTER: ReadonlyMap<string, CardEnter> = new Map()
+
+function isDim(v: unknown): v is BoardDim {
+  return DIMENSIONS.some((d) => d.key === v)
+}
+
+/**
+ * Read the persisted choices.
+ *
+ * Every field is validated rather than trusted: this is user-writable storage
+ * that survives a schema change, and a stale `dimension: 'assignee'` from a
+ * future build must degrade to the default rather than render zero columns.
+ */
+function readPrefs(): BoardPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    if (raw === null) return DEFAULT_PREFS
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return DEFAULT_PREFS
+    const rec = parsed as Record<string, unknown>
+    const collapsed: Record<string, string[]> = {}
+    if (typeof rec.collapsed === 'object' && rec.collapsed !== null) {
+      for (const [dim, keys] of Object.entries(rec.collapsed as Record<string, unknown>)) {
+        if (Array.isArray(keys)) collapsed[dim] = keys.filter((k): k is string => typeof k === 'string')
+      }
+    }
+    return {
+      dimension: isDim(rec.dimension) ? rec.dimension : DEFAULT_PREFS.dimension,
+      density: rec.density === 'compact' ? 'compact' : 'comfortable',
+      collapsed,
+    }
+  } catch {
+    // Private mode, a quota wall, or a half-written value. A board that throws
+    // on mount because a preference is malformed is worse than a default board.
+    return DEFAULT_PREFS
+  }
+}
+
+function writePrefs(prefs: BoardPrefs): void {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+  } catch {
+    // Preferences are a convenience; losing them must never break a move.
+  }
+}
+
+/** Which column an entry belongs to, on a given axis. */
+function bucketOf(e: Entry, dim: BoardDim): string {
+  if (dim === 'status') return e.status
+  if (dim === 'priority') return e.priority
+  if (dim === 'track') return e.track_id ?? NO_VALUE
+  if (e.owner_id !== null) return e.owner_id
+  const name = (e.owner_name ?? '').trim()
+  return name === '' ? NO_VALUE : NAME_PREFIX + name
+}
+
+/**
+ * The write a drop onto `key` performs — THE ONE PLACE the axis becomes a
+ * mutation. Null for a bucket that cannot be a target.
+ *
+ * The owner case clears `owner_name` alongside setting `owner_id`, because
+ * types.ts declares the two mutually exclusive: leaving a vendor's name behind
+ * on a row now owned by a teammate makes every reader that falls back to
+ * owner_name (the digest, the CSV export) disagree with the board.
+ */
+function patchFor(dim: BoardDim, key: string): EntryPatch | null {
+  if (key.startsWith(NAME_PREFIX)) return null
+  switch (dim) {
+    case 'status':
+      return { status: key as EntryStatus }
+    case 'priority':
+      return { priority: key as EntryPriority }
+    case 'track':
+      return { trackId: key === NO_VALUE ? null : key }
+    case 'owner':
+      return { ownerId: key === NO_VALUE ? null : key, ownerName: null }
+  }
+}
+
+/** What a quick-add in `key`'s column pre-fills. Mirrors `patchFor`. */
+function seedFor(dim: BoardDim, key: string): Partial<NewEntry> {
+  switch (dim) {
+    case 'status':
+      return { status: key as EntryStatus }
+    case 'priority':
+      return { priority: key as EntryPriority }
+    case 'track':
+      return { trackId: key === NO_VALUE ? null : key }
+    case 'owner':
+      return { ownerId: key === NO_VALUE ? null : key }
+  }
+}
 
 /**
  * Resolved at the moment of the key press rather than from the locale, which is
@@ -194,31 +411,6 @@ function boxOf(el: Element): DndZone['box'] {
 }
 
 /**
- * Band a column's cards by track or owner.
- *
- * Lanes are ordered by FIRST APPEARANCE in the already-sorted card list, so the
- * band holding the most recent activity leads. Ordering them by the track's own
- * sort order instead would be defensible, but it parks a silent, empty-looking
- * band at the top of a column whose only work is in the last track.
- */
-function laneize(entries: readonly Entry[], keyOf: (e: Entry) => [string, string]): Lane[] {
-  const lanes: Lane[] = []
-  const index = new Map<string, Lane>()
-  for (const entry of entries) {
-    const [key, name] = keyOf(entry)
-    const found = index.get(key)
-    if (found) {
-      found.entries.push(entry)
-      continue
-    }
-    const lane: Lane = { key, name, entries: [entry] }
-    index.set(key, lane)
-    lanes.push(lane)
-  }
-  return lanes
-}
-
-/**
  * Open the sheet with the column's own order as the sibling list.
  *
  * store/entrySheet.ts takes the list from the CALLER precisely for this: prev
@@ -241,6 +433,36 @@ export default function Board(): ReactElement {
   // exists to prevent. EntrySheet and FollowUps resolve it the same way.
   const meId = profile?.id ?? null
   const role: UserRole = profile?.role ?? 'member'
+  // Every signed-in member may insert (0001's entries_insert), so quick-add is
+  // gated on a session and nothing else. There is no per-column variant of this
+  // question: a column is a value, not a permission.
+  const canCreate = meId !== null
+
+  // ── the three persisted choices ──────────────────────────────────────────
+
+  const [prefs, setPrefs] = useState<BoardPrefs>(readPrefs)
+  const { dimension, density } = prefs
+  useEffect(() => {
+    writePrefs(prefs)
+  }, [prefs])
+
+  const setDimension = useCallback((next: BoardDim) => {
+    setPrefs((p) => (p.dimension === next ? p : { ...p, dimension: next }))
+  }, [])
+  const setDensity = useCallback((next: Density) => {
+    setPrefs((p) => (p.density === next ? p : { ...p, density: next }))
+  }, [])
+  const toggleCollapsed = useCallback((dim: BoardDim, key: string) => {
+    setPrefs((p) => {
+      const current = p.collapsed[dim] ?? []
+      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
+      return { ...p, collapsed: { ...p.collapsed, [dim]: next } }
+    })
+  }, [])
+  const collapsedSet = useMemo(
+    () => new Set(prefs.collapsed[dimension] ?? []),
+    [prefs.collapsed, dimension],
+  )
 
   // ── filter, in the URL ───────────────────────────────────────────────────
   //
@@ -251,13 +473,15 @@ export default function Board(): ReactElement {
   const [params, setParams] = useSearchParams()
   const filter = useMemo(() => {
     const parsed = filterFromParams(params)
-    // A hand-edited or inherited URL can carry a status facet and a scope this
-    // screen has no control for. Dropping them HERE rather than only in
-    // `effective` is what stops the facet pill counting a filter the user can
-    // neither see nor switch off.
-    if (parsed.statuses.length === 0 && parsed.scope === EMPTY_FILTER.scope) return parsed
-    return { ...parsed, statuses: [], scope: EMPTY_FILTER.scope }
-  }, [params])
+    // A hand-edited or inherited URL can carry a scope this screen has no
+    // control for, and — when status is the axis — a status facet that would
+    // fight the columns. Dropping them HERE rather than only in `effective` is
+    // what stops the facet pill counting a filter the user can neither see nor
+    // switch off.
+    const dropStatus = dimension === 'status' && parsed.statuses.length > 0
+    if (!dropStatus && parsed.scope === EMPTY_FILTER.scope) return parsed
+    return { ...parsed, statuses: dropStatus ? [] : parsed.statuses, scope: EMPTY_FILTER.scope }
+  }, [params, dimension])
   const onFilterChange = useCallback(
     (next: FilterState) => {
       setParams(filterToParams(next), { replace: true })
@@ -265,6 +489,10 @@ export default function Board(): ReactElement {
     [setParams],
   )
   const effective = useMemo<FilterState>(() => ({ ...filter, scope: 'all' }), [filter])
+  const facets = useMemo<readonly FilterFacet[]>(
+    () => (dimension === 'status' ? BOARD_FACETS : [...BOARD_FACETS, 'status']),
+    [dimension],
+  )
 
   const entries = useFilteredEntries(effective)
   const entryMap = useEntryMap()
@@ -272,15 +500,17 @@ export default function Board(): ReactElement {
   const loading = useEntriesLoading()
   const errorKey = useEntriesError()
   const statusOptions = useVocabAll('status')
+  const priorityOptions = useVocabAll('priority')
   const vocabLabel = useVocabLabel()
   const trackLabel = useTrackLabel()
   const trackMap = useTrackMap()
   const activeTracks = useActiveTracks()
+  const members = useMembers()
   const memberMap = useMemberMap()
+  const memberLabel = useMemberLabel()
 
-  const [grouping, setGrouping] = useState<Grouping>('none')
-  const [expandedRetired, setExpandedRetired] = useState<ReadonlySet<string>>(() => new Set())
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set())
+  const [expandedOverflow, setExpandedOverflow] = useState<ReadonlySet<string>>(() => new Set())
 
   useEffect(() => {
     void loadEntries()
@@ -291,36 +521,109 @@ export default function Board(): ReactElement {
 
   // ── columns ──────────────────────────────────────────────────────────────
 
-  const { live, retired } = useMemo(() => {
+  const { live, overflow, membership } = useMemo(() => {
     const buckets = new Map<string, Entry[]>()
+    const membershipMap = new Map<string, string>()
     for (const entry of entries) {
-      const bucket = buckets.get(entry.status)
+      const key = bucketOf(entry, dimension)
+      membershipMap.set(entry.id, key)
+      const bucket = buckets.get(key)
       if (bucket) bucket.push(entry)
-      else buckets.set(entry.status, [entry])
+      else buckets.set(key, [entry])
     }
-    const liveCols: BoardColumn[] = []
-    const retiredCols: BoardColumn[] = []
-    for (const option of statusOptions) {
-      const held = buckets.get(option.key) ?? (NO_ENTRIES as Entry[])
-      const column: BoardColumn = {
-        // The cast is the boundary between a string-keyed store and the frozen
-        // union, and it is sound in one direction only: every key here came from
-        // useVocabAll(), which walks FROZEN_KEYS.status — the same list
-        // EntryStatus is declared from. FilterBar makes the identical cast for
-        // the identical reason.
-        key: option.key as EntryStatus,
-        label: option.label,
-        color: option.color,
-        retired: option.hidden,
-        entries: held,
+
+    // The declared columns, in the order the axis defines. `retired` marks the
+    // ones that exist as buckets but must never be targets.
+    const defs: { key: string; label: string; vars: CSSProperties; retired: boolean }[] = []
+
+    const residualLabel = (key: string): string => {
+      if (dimension === 'track') {
+        const track = trackMap.get(key)
+        return track ? trackLabel(track) : t('board.unknownColumn')
       }
-      if (!option.hidden) liveCols.push(column)
-      // A retired status with nothing in it is genuinely gone; one still holding
-      // work has to stay reachable or that work is stranded.
-      else if (held.length > 0) retiredCols.push(column)
+      if (dimension === 'owner') {
+        if (key.startsWith(NAME_PREFIX)) return key.slice(NAME_PREFIX.length)
+        return memberMap.has(key) ? memberLabel(key, null) : t('board.unknownColumn')
+      }
+      return vocabLabel(dimension, key)
     }
-    return { live: liveCols, retired: retiredCols }
-  }, [entries, statusOptions])
+
+    const residualVars = (key: string): CSSProperties => {
+      if (dimension !== 'track') return {}
+      const track = trackMap.get(key)
+      return track ? trackVars(track.color, track.color_light) : {}
+    }
+
+    if (dimension === 'status' || dimension === 'priority') {
+      // The cast is the boundary between a string-keyed store and the frozen
+      // unions, and it is sound in one direction only: every key here came from
+      // useVocabAll(), which walks FROZEN_KEYS — the same list EntryStatus and
+      // EntryPriority are declared from. FilterBar makes the identical cast for
+      // the identical reason.
+      for (const option of dimension === 'status' ? statusOptions : priorityOptions) {
+        defs.push({
+          key: option.key,
+          label: option.label,
+          vars: vocabVars(option.color),
+          retired: option.hidden,
+        })
+      }
+    } else if (dimension === 'track') {
+      // The residual bucket LEADS on both of the assignment axes: untracked and
+      // unassigned work is the queue, and a queue belongs at the front of the
+      // reading order, not past six columns of work that already has a home.
+      defs.push({ key: NO_VALUE, label: t('entry.noTrack'), vars: {}, retired: false })
+      for (const track of activeTracks) {
+        defs.push({
+          key: track.id,
+          label: trackLabel(track),
+          vars: trackVars(track.color, track.color_light),
+          retired: false,
+        })
+      }
+    } else {
+      defs.push({ key: NO_VALUE, label: memberLabel(null, null), vars: {}, retired: false })
+      for (const member of members) {
+        defs.push({ key: member.id, label: memberLabel(member.id, null), vars: {}, retired: false })
+      }
+    }
+
+    // Anything the data holds that the axis does not declare: an archived
+    // track, a deleted member, a free-text vendor, a key from a build that
+    // knew one more option than this one does. All source-only.
+    const declared = new Set(defs.map((d) => d.key))
+    for (const key of buckets.keys()) {
+      if (declared.has(key)) continue
+      defs.push({ key, label: residualLabel(key), vars: residualVars(key), retired: true })
+    }
+
+    const liveCols: BoardColumn[] = []
+    const overflowCols: BoardColumn[] = []
+    for (const def of defs) {
+      const held = buckets.get(def.key) ?? (NO_ENTRIES as Entry[])
+      let breached = 0
+      for (const entry of held) if (healthMap.get(entry.id)?.sla_breached) breached += 1
+      const column: BoardColumn = { ...def, entries: held, breached }
+      if (!def.retired) liveCols.push(column)
+      // A retired bucket with nothing in it is genuinely gone; one still holding
+      // work has to stay reachable or that work is stranded.
+      else if (held.length > 0) overflowCols.push(column)
+    }
+    return { live: liveCols, overflow: overflowCols, membership: membershipMap }
+  }, [
+    entries,
+    dimension,
+    statusOptions,
+    priorityOptions,
+    activeTracks,
+    members,
+    trackMap,
+    memberMap,
+    healthMap,
+    trackLabel,
+    memberLabel,
+    vocabLabel,
+  ])
 
   const tagOptions = useMemo(() => {
     const tags = new Set<string>()
@@ -351,14 +654,25 @@ export default function Board(): ReactElement {
   entryMapRef.current = entryMap
   const liveRef = useRef(live)
   liveRef.current = live
-  const labelRef = useRef(vocabLabel)
-  labelRef.current = vocabLabel
+  const dimRef = useRef(dimension)
+  dimRef.current = dimension
+
+  const labelOf = useCallback(
+    (key: string): string =>
+      live.find((c) => c.key === key)?.label ??
+      overflow.find((c) => c.key === key)?.label ??
+      key,
+    [live, overflow],
+  )
+  const labelRef = useRef(labelOf)
+  labelRef.current = labelOf
 
   const canEdit = useCallback((entry: Entry) => canEditEntry(entry, meId, role), [meId, role])
   const canEditRef = useRef(canEdit)
   canEditRef.current = canEdit
 
   const columnEls = useRef(new Map<string, HTMLElement>())
+  const cardEls = useRef(new Map<string, HTMLElement>())
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
   const sessionRef = useRef<DndSession | null>(null)
@@ -366,7 +680,9 @@ export default function Board(): ReactElement {
   const rafRef = useRef<number | null>(null)
   const draggedAtRef = useRef(0)
   const focusAfterMove = useRef<string | null>(null)
-  const announceAfterMove = useRef<{ id: string; status: EntryStatus } | null>(null)
+  const announceAfterMove = useRef<{ id: string; key: string } | null>(null)
+  /** Ids this reader moved, so their arrival springs instead of sliding in. */
+  const mineRef = useRef(new Set<string>())
 
   const [dragView, setDragView] = useState<{ itemId: string; overId: string | null } | null>(null)
 
@@ -383,9 +699,11 @@ export default function Board(): ReactElement {
   // ── the one write ────────────────────────────────────────────────────────
 
   const move = useCallback(
-    async (id: string, to: EntryStatus, via: 'drag' | 'key'): Promise<void> => {
+    async (id: string, toKey: string, via: 'drag' | 'key'): Promise<void> => {
       const entry = entryMapRef.current.get(id)
-      if (!entry || entry.status === to) return
+      if (!entry) return
+      const dim = dimRef.current
+      if (bucketOf(entry, dim) === toKey) return
       if (!canEditRef.current(entry)) {
         // Should be unreachable — a card the user cannot edit is not draggable
         // and its move menu is disabled — so this is the belt to that braces,
@@ -394,17 +712,28 @@ export default function Board(): ReactElement {
         announce(t('board.moveDisabledHint'))
         return
       }
+      const patch = patchFor(dim, toKey)
+      // A free-text owner column is a source, never a target. The hit test
+      // already refuses it (`accepts: false`) and no keyboard path indexes it,
+      // so this is the third guard on the same rule.
+      if (patch === null) return
 
       // Announced once the optimistic apply has landed and the card's real
       // position in its new column is knowable — see the effect below.
-      if (via === 'key') announceAfterMove.current = { id, status: to }
+      if (via === 'key') announceAfterMove.current = { id, key: toKey }
+      mineRef.current.add(id)
 
-      const result = await setStatus(id, to)
+      // `setStatus` for the status axis is not ceremony: it is the documented
+      // seam every other screen uses for a transition, and routing around it
+      // would mean two call paths for one event the day it grows a side effect.
+      const result =
+        patch.status !== undefined ? await setStatus(id, patch.status) : await patchEntry(id, patch)
 
       // A queued write is outstanding, not failed: the outbox replays it, and
       // the transition row queues behind it in dependency order.
       if (!result.ok && result.error !== QUEUED_ERROR_KEY) {
         announceAfterMove.current = null
+        mineRef.current.delete(id)
         // The store has already rolled the card back and toasted the REASON
         // (`entry.errNotYours` for an RLS refusal, and so on). This sentence is
         // the other half: what happened to the card.
@@ -419,12 +748,14 @@ export default function Board(): ReactElement {
       // A second `postUpdate()` from this screen would produce TWO rows for one
       // move — precisely what 0001's comment ("a trigger would race the client's
       // own insert and produce two rows for one transition") exists to prevent.
-      // Verified against the running app, not assumed.
+      // The same applies to a re-assignment: the assigned-notification trigger
+      // is server-side, so a drag onto a teammate's column notifies them with
+      // zero plumbing on this screen.
 
       if (via === 'key') {
         // A drag has its own motion for feedback; a keypress has none, so it
         // gets the toast.
-        toast(t('board.moved', { title: entry.title, status: labelRef.current('status', to) }))
+        toast(t('board.moved', { title: entry.title, column: labelRef.current(toKey) }))
       }
     },
     [announce],
@@ -440,7 +771,7 @@ export default function Board(): ReactElement {
   useEffect(() => {
     const target = announceAfterMove.current
     if (target === null) return
-    const column = live.find((c) => c.key === target.status)
+    const column = live.find((c) => c.key === target.key)
     if (!column) return
     const at = column.entries.findIndex((e) => e.id === target.id)
     if (at < 0) return
@@ -448,7 +779,7 @@ export default function Board(): ReactElement {
     announce(
       t('board.moveAnnounce', {
         title: entryMap.get(target.id)?.title ?? '',
-        status: column.label,
+        column: column.label,
         position: at + 1,
         total: column.entries.length,
       }),
@@ -467,14 +798,67 @@ export default function Board(): ReactElement {
     card.focus()
   }, [live])
 
+  // ── arrival motion ───────────────────────────────────────────────────────
+  //
+  // A card that changed column since the last render animates INTO its new one:
+  // a spring if this reader moved it, a directional slide if somebody else did
+  // (carrying the kit's own updated-by flash, which the store sets), a fade-up
+  // if it is new. Computed by comparing two membership snapshots rather than by
+  // measuring the DOM, so it costs one Map walk and needs no layout read.
+  //
+  // The slide's SIGN is physical and resolved here from `dir`, for the reason
+  // lib/dnd.ts's header gives: CSS has no logical transform, and direction is
+  // something this screen already knows.
+
+  const prevMembership = useRef<ReadonlyMap<string, string> | null>(null)
+  const [enter, setEnter] = useState<ReadonlyMap<string, CardEnter>>(NO_ENTER)
+
+  useEffect(() => {
+    const prev = prevMembership.current
+    prevMembership.current = membership
+    // First paint is not an event. Nothing "arrived" on a board that was not
+    // there a moment ago.
+    if (prev === null) return
+
+    const order = new Map(live.map((c, i) => [c.key, i]))
+    const sign = readDir() === 'rtl' ? -1 : 1
+    const next = new Map<string, CardEnter>()
+    for (const [id, key] of membership) {
+      const was = prev.get(id)
+      if (was === key) continue
+      if (was === undefined) {
+        next.set(id, { kind: 'new', slide: 0 })
+        continue
+      }
+      const mine = mineRef.current.delete(id)
+      const from = order.get(was)
+      const to = order.get(key)
+      const travel = from === undefined || to === undefined ? 0 : Math.sign(to - from) * sign
+      next.set(id, { kind: mine ? 'landed' : 'moved', slide: -travel * ENTER_SLIDE_PX })
+    }
+
+    if (next.size === 0) return
+    if (next.size > ENTER_BURST_MAX) {
+      // A filter change, an axis switch or a first load. Not an event.
+      mineRef.current.clear()
+      return
+    }
+    setEnter(next)
+    const timer = window.setTimeout(() => setEnter(NO_ENTER), ENTER_MS)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [membership, live])
+
   // ── pointer drag ─────────────────────────────────────────────────────────
 
   const measureZones = useCallback((): DndZone[] => {
     const zones: DndZone[] = []
     for (const column of liveRef.current) {
       const el = columnEls.current.get(column.key)
-      // Only live columns ever register an element, so a retired strip cannot
-      // become a drop target by accident.
+      // Only live columns ever register an element, so an overflow strip cannot
+      // become a drop target by accident. A COLLAPSED column still registers —
+      // dropping onto a slim rail is how you file something out of sight.
       if (el) zones.push({ id: column.key, box: boxOf(el), accepts: true })
     }
     return zones
@@ -485,11 +869,18 @@ export default function Board(): ReactElement {
     const session = sessionRef.current
     const el = scrollerRef.current
     if (!session || session.phase !== 'dragging' || !el) return
-    const delta = edgeScroll(session.x, boxOf(el))
+    const dx = edgeScroll(session.x, boxOf(el))
     // `scrollLeft` is physical, and so is edgeScroll's answer — see its header.
     // In RTL the browser reports a negative range and this arithmetic still
     // holds, because both sides of it live in the same physical space.
-    if (delta !== 0) el.scrollLeft += delta
+    if (dx !== 0) el.scrollLeft += dx
+    // …and the hovered column pans DOWN under the same finger, so a card can be
+    // dropped past the fold of a long column without letting go first.
+    const over = session.overId === null ? null : cardEls.current.get(session.overId)
+    if (over && over.scrollHeight > over.clientHeight) {
+      const dy = edgeScrollBlock(session.y, boxOf(over))
+      if (dy !== 0) over.scrollTop += dy
+    }
     rafRef.current = requestAnimationFrame(tick)
   }, [])
 
@@ -574,8 +965,8 @@ export default function Board(): ReactElement {
       // Announced at RELEASE rather than after the store settles: the motion is
       // the feedback for everyone who can see it, and this is the sentence for
       // everyone who cannot. A failure replaces it with errMove.
-      announce(t('board.dropped', { status: labelRef.current('status', drop.toId) }))
-      void moveRef.current(drop.itemId, drop.toId as EntryStatus, 'drag')
+      announce(t('board.dropped', { column: labelRef.current(drop.toId) }))
+      void moveRef.current(drop.itemId, drop.toId, 'drag')
     },
     [announce, onWindowCancel, onWindowKey, onWindowMove, onWindowUp],
   )
@@ -622,7 +1013,7 @@ export default function Board(): ReactElement {
       sessionRef.current = startDrag({
         pointerId: ev.pointerId,
         itemId: id,
-        fromId: entry.status,
+        fromId: bucketOf(entry, dimRef.current),
         x: ev.clientX,
         y: ev.clientY,
         // Touch and pen only: on a phone a mostly-vertical drag is the column
@@ -656,8 +1047,8 @@ export default function Board(): ReactElement {
   const onBoardKeyDown = useCallback((ev: ReactKeyboardEvent<HTMLElement>) => {
     if (ev.defaultPrevented || ev.altKey || ev.ctrlKey || ev.metaKey) return
     const target = ev.target as HTMLElement | null
-    // The card's own move menu is a <select>; its arrow keys and its type-ahead
-    // digits belong to it.
+    // The card's own move menu is a <select>, and the quick-add composer is an
+    // <input>; their arrow keys and their digits belong to them.
     if (isTypingTarget(target)) return
     const host = target?.closest<HTMLElement>('[data-entry-id]') ?? null
     const id = host?.dataset.entryId
@@ -674,14 +1065,15 @@ export default function Board(): ReactElement {
     const entry = entryMapRef.current.get(id)
     if (!entry) return
     const columns = liveRef.current
-    const at = columns.findIndex((c) => c.key === entry.status)
+    const at = columns.findIndex((c) => c.key === bucketOf(entry, dimRef.current))
     const step = arrowStep(ev.key, readDir())
-    // A card parked in a retired status has no position on the live axis, so
-    // the arrows have nothing to step from. Its move menu still works, and a
-    // digit still names a column outright.
+    // A card parked in a retired bucket has no position on the live axis, so
+    // the arrows have nothing to step from. A digit still names a column
+    // outright, which is how you get such a card back onto the board.
     if (step !== 0 && at < 0) return
 
-    const index = step !== 0 ? moveIndex(at, step, columns.length) : indexFromDigit(ev.key, columns.length)
+    const index =
+      step !== 0 ? moveIndex(at, step, columns.length) : indexFromDigit(ev.key, columns.length)
     if (index === null || index === at) return
     const to = columns[index]
     if (!to) return
@@ -695,29 +1087,66 @@ export default function Board(): ReactElement {
     openEntryFrom(liveRef.current, id)
   }, [])
 
+  /**
+   * The card's own StatusPill. ALWAYS a status change, whatever the column axis
+   * is — see the file header. Under the status axis it is the accessible move
+   * path; under the others it edits a field without leaving the column.
+   */
   const handleMenuMove = useCallback((id: string, status: EntryStatus) => {
     focusAfterMove.current = id
     void moveRef.current(id, status, 'key')
   }, [])
 
-  // ── lanes ────────────────────────────────────────────────────────────────
+  // ── quick add ────────────────────────────────────────────────────────────
 
-  const laneKey = useCallback(
-    (entry: Entry): [string, string] => {
-      if (grouping === 'track') {
-        const track = entry.track_id === null ? undefined : trackMap.get(entry.track_id)
-        return track ? [track.id, trackLabel(track)] : ['', t('board.noTrackLane')]
+  const [composeIn, setComposeIn] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [adding, setAdding] = useState(false)
+  const composerRef = useRef<HTMLInputElement | null>(null)
+
+  /** The single track the filter is pinned to, if it is pinned to exactly one. */
+  const filterTrackRef = useRef<string | null>(null)
+  filterTrackRef.current = filter.trackIds.length === 1 ? filter.trackIds[0] : null
+
+  const openComposer = useCallback((key: string) => {
+    setComposeIn((prev) => (prev === key ? null : key))
+    setDraft('')
+  }, [])
+
+  useEffect(() => {
+    if (composeIn !== null) composerRef.current?.focus()
+  }, [composeIn])
+
+  const submitAdd = useCallback(
+    async (column: BoardColumn): Promise<void> => {
+      const title = draft.trim()
+      if (title === '' || adding) return
+      setAdding(true)
+      const input: NewEntry = {
+        title,
+        ...seedFor(dimRef.current, column.key),
+        // A board filtered to one track is a board ABOUT that track, so a card
+        // added to it belongs to it — unless track is the axis, in which case
+        // the column already said so and wins.
+        ...(dimRef.current !== 'track' && filterTrackRef.current !== null
+          ? { trackId: filterTrackRef.current }
+          : {}),
       }
-      if (entry.owner_id !== null) {
-        return [
-          entry.owner_id,
-          memberMap.get(entry.owner_id)?.displayName ?? t('board.unassignedLane'),
-        ]
-      }
-      const name = (entry.owner_name ?? '').trim()
-      return name === '' ? ['', t('board.unassignedLane')] : [`name:${name}`, name]
+      const result = await createEntryOptimistic(input)
+      setAdding(false)
+      // The store toasts its own failure and removes the optimistic row; a
+      // queued write is a success that has not left the building yet.
+      if (!result.ok && result.error !== QUEUED_ERROR_KEY) return
+      // Cleared, not closed: "Enter adds it and keeps focus for the next one"
+      // is the whole point of a composer that lives in the column. The explicit
+      // refocus is for the CLICK path — the submit button disables itself the
+      // moment the draft empties, and a disabled control drops focus to the
+      // body, which is where a keyboard user would then be stranded.
+      setDraft('')
+      composerRef.current?.focus()
+      announce(t('board.quickAddDone', { title, column: column.label }))
     },
-    [grouping, memberMap, trackLabel, trackMap],
+    [adding, draft, announce],
   )
 
   // ── render ───────────────────────────────────────────────────────────────
@@ -727,39 +1156,45 @@ export default function Board(): ReactElement {
     else columnEls.current.delete(key)
   }, [])
 
-  const renderCards = (column: BoardColumn): ReactElement => {
+  const registerCards = useCallback((key: string, el: HTMLElement | null) => {
+    if (el) cardEls.current.set(key, el)
+    else cardEls.current.delete(key)
+  }, [])
+
+  const maxCards = MAX_CARDS[density]
+  const draggedTitle =
+    dragView === null ? '' : (entryMap.get(dragView.itemId)?.title ?? '')
+
+  const renderCards = (column: BoardColumn, slot: ReactNode): ReactElement => {
     const total = column.entries.length
     const open = unfolded.has(column.key)
-    const shown = open ? column.entries : column.entries.slice(0, MAX_CARDS_PER_COLUMN)
+    const shown = open ? column.entries : column.entries.slice(0, maxCards)
     const hidden = total - shown.length
-
-    const cards = (list: readonly Entry[]): ReactElement[] =>
-      list.map((entry) => (
-        <BoardCard
-          key={entry.id}
-          entry={entry}
-          health={healthMap.get(entry.id)}
-          canEdit={canEdit(entry)}
-          dragging={dragView?.itemId === entry.id}
-          onOpen={handleOpen}
-          onMove={handleMenuMove}
-          onDragStart={onDragStart}
-        />
-      ))
 
     return (
       <>
-        <ul className="bd-cards">
-          {grouping === 'none'
-            ? cards(shown)
-            : laneize(shown, laneKey).map((lane) => (
-                <li key={lane.key} className="bd-lane">
-                  <h4 className="bd-lane-title">{lane.name}</h4>
-                  <ul className="bd-cards">{cards(lane.entries)}</ul>
-                </li>
-              ))}
+        <ul
+          className="bd-cards"
+          ref={(el) => {
+            registerCards(column.key, el)
+          }}
+        >
+          {slot}
+          {shown.map((entry) => (
+            <BoardCard
+              key={entry.id}
+              entry={entry}
+              health={healthMap.get(entry.id)}
+              canEdit={canEdit(entry)}
+              dragging={dragView?.itemId === entry.id}
+              enter={enter.get(entry.id)}
+              onOpen={handleOpen}
+              onMove={handleMenuMove}
+              onDragStart={onDragStart}
+            />
+          ))}
         </ul>
-        {total > MAX_CARDS_PER_COLUMN ? (
+        {total > maxCards ? (
           <button
             type="button"
             className="btn btn-sm btn-ghost bd-fold"
@@ -781,16 +1216,211 @@ export default function Board(): ReactElement {
     )
   }
 
-  const showEmpty = !loading && errorKey === null && entries.length === 0
+  /** The count pill and the SLA badge — the two facts a column header carries. */
+  const renderCounts = (column: BoardColumn): ReactElement => (
+    <>
+      {/* The digit is for the eye; the label is for everyone else. A bare "2"
+          beside a heading announces as "2" and means nothing — `role="img"` +
+          aria-label is the same trick the entry kit's own pills use to give a
+          glyph a sentence. */}
+      <span
+        className="pill bd-col-count tabular"
+        role="img"
+        aria-label={t('board.columnCountLabel', { count: column.entries.length })}
+      >
+        {t('board.columnCount', { count: column.entries.length })}
+      </span>
+      {column.breached > 0 ? (
+        <span
+          className="pill bd-sla tabular"
+          role="img"
+          aria-label={t('board.slaBadgeLabel', { count: column.breached })}
+        >
+          {t('board.slaBadge', { count: column.breached })}
+        </span>
+      ) : null}
+    </>
+  )
+
+  /** The track glyph or owner disc that makes a column recognisable at a glance. */
+  const columnMark = (column: BoardColumn): ReactNode => {
+    if (dimension === 'track') return <TrackDot trackId={column.key || null} variant="glyph" />
+    if (dimension === 'owner' && !column.key.startsWith(NAME_PREFIX)) {
+      return <OwnerBadge ownerId={column.key || null} showName={false} />
+    }
+    return null
+  }
+
+  const renderColumn = (column: BoardColumn): ReactElement => {
+    const collapsed = collapsedSet.has(column.key)
+    const over = dragView !== null && dragView.overId === column.key
+    const composing = composeIn === column.key
+
+    return (
+      <section
+        key={column.key}
+        ref={(el) => {
+          registerColumn(column.key, el)
+        }}
+        className="bd-col"
+        data-dim={dimension}
+        data-over={over ? 'true' : undefined}
+        data-collapsed={collapsed ? 'true' : undefined}
+        style={column.vars}
+        aria-label={t('board.column', { column: column.label })}
+      >
+        {collapsed ? (
+          <button
+            type="button"
+            className="bd-rail"
+            aria-expanded={false}
+            // The label is rotated to fit a 56px rail, which is legible but not
+            // comfortable; the tooltip is the sighted reader's equivalent of the
+            // aria-label everyone else already gets.
+            title={column.label}
+            // The count rides IN the label because an aria-label on a button
+            // replaces its contents wholesale — the pill inside would otherwise
+            // be announced to nobody.
+            aria-label={t('board.expandColumn', {
+              column: column.label,
+              count: column.entries.length,
+            })}
+            onClick={() => toggleCollapsed(dimension, column.key)}
+          >
+            <span className="pill bd-col-count tabular" aria-hidden="true">
+              {t('board.columnCount', { count: column.entries.length })}
+            </span>
+            <span className="bd-rail-label" aria-hidden="true">
+              {column.label}
+            </span>
+          </button>
+        ) : (
+          <>
+            <header className="bd-col-head">
+              <button
+                type="button"
+                className="bd-col-fold"
+                aria-expanded
+                aria-label={t('board.collapseColumn', {
+                  column: column.label,
+                  count: column.entries.length,
+                })}
+                onClick={() => toggleCollapsed(dimension, column.key)}
+              >
+                <IconChevronDown size={16} className="bd-caret" />
+              </button>
+              {columnMark(column)}
+              <h3 className="bd-col-title">{column.label}</h3>
+              {renderCounts(column)}
+              {canCreate ? (
+                <button
+                  type="button"
+                  className="bd-col-add"
+                  aria-expanded={composing}
+                  aria-label={t('board.quickAdd', { column: column.label })}
+                  onClick={() => openComposer(column.key)}
+                >
+                  <IconPlus size={16} />
+                </button>
+              ) : null}
+            </header>
+
+            {composing ? (
+              <form
+                className="bd-add"
+                onSubmit={(ev) => {
+                  ev.preventDefault()
+                  void submitAdd(column)
+                }}
+              >
+                <input
+                  ref={composerRef}
+                  className="input bd-add-input"
+                  type="text"
+                  value={draft}
+                  maxLength={200}
+                  aria-label={t('board.quickAdd', { column: column.label })}
+                  placeholder={t('board.quickAddPlaceholder')}
+                  onChange={(ev) => setDraft(ev.target.value)}
+                  onKeyDown={(ev) => {
+                    if (ev.key !== 'Escape') return
+                    // Stopped, not just prevented: Escape also cancels a drag
+                    // from the window listener, and closing a composer must not
+                    // read as abandoning a gesture nobody started.
+                    ev.stopPropagation()
+                    setComposeIn(null)
+                  }}
+                />
+                <div className="bd-add-row">
+                  <button
+                    type="submit"
+                    className="btn btn-sm"
+                    aria-busy={adding}
+                    disabled={draft.trim() === '' || adding}
+                  >
+                    {t('board.quickAddSubmit')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => setComposeIn(null)}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                </div>
+                <p className="bd-add-hint">{t('board.quickAddHint')}</p>
+              </form>
+            ) : null}
+
+            {column.entries.length === 0 && !over ? (
+              <div className="bd-col-empty">
+                <p className="bd-col-empty-title">
+                  {t(COLUMN_EMPTY[dimension], { column: column.label })}
+                </p>
+                <p className="bd-col-empty-hint">{t('board.columnEmptyHint')}</p>
+              </div>
+            ) : (
+              renderCards(
+                column,
+                over ? (
+                  // The DROP PREVIEW, and it sits at the TOP because that is
+                  // where the card will actually be: every write bumps
+                  // last_activity_at, and every list in this app is ordered by
+                  // it. A placeholder promising the position under the pointer
+                  // would be a preview of something that never happens.
+                  <li className="bd-slot" aria-hidden="true">
+                    <span className="bd-slot-title">{draggedTitle}</span>
+                    <span className="bd-slot-hint">{t('board.dropTop')}</span>
+                  </li>
+                ) : null,
+              )
+            )}
+          </>
+        )}
+      </section>
+    )
+  }
+
+  // A filtered board that admits nothing needs a way back out; an EMPTY
+  // workspace needs the columns, because the quick-add composer lives in them
+  // and an empty state would be a dead end on day one.
+  const filtered = !isFilterEmpty(filter)
+  const showEmpty = !loading && errorKey === null && entries.length === 0 && filtered
 
   return (
-    <div className="bd" ref={boardRef} onKeyDown={onBoardKeyDown} onClickCapture={onClickCapture}>
+    <div
+      className="bd"
+      data-density={density}
+      ref={boardRef}
+      onKeyDown={onBoardKeyDown}
+      onClickCapture={onClickCapture}
+    >
       <p className="bd-sub">{t('board.subtitle')}</p>
 
       <FilterBar
         value={filter}
         onChange={onFilterChange}
-        facets={BOARD_FACETS}
+        facets={facets}
         tags={tagOptions}
         count={entries.length}
         resultLabel={(n) => t('board.total', { count: n })}
@@ -798,19 +1428,40 @@ export default function Board(): ReactElement {
       />
 
       <div className="bd-bar">
-        <div className="chip-row bd-group" role="group" aria-label={t('board.swimlanes')}>
-          {GROUPINGS.map((option) => (
+        <div className="chip-row bd-group" role="group" aria-label={t('board.groupBy')}>
+          <span className="bd-group-label" aria-hidden="true">
+            {t('board.groupBy')}
+          </span>
+          {DIMENSIONS.map((option) => (
             <button
               key={option.key}
               type="button"
               className="chip"
-              aria-pressed={grouping === option.key}
-              onClick={() => setGrouping(option.key)}
+              aria-pressed={dimension === option.key}
+              onClick={() => setDimension(option.key)}
             >
               {t(option.labelKey)}
             </button>
           ))}
         </div>
+
+        <div className="chip-row bd-group bd-density" role="group" aria-label={t('board.density')}>
+          <span className="bd-group-label" aria-hidden="true">
+            {t('board.density')}
+          </span>
+          {DENSITIES.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              className="chip"
+              aria-pressed={density === option.key}
+              onClick={() => setDensity(option.key)}
+            >
+              {t(option.labelKey)}
+            </button>
+          ))}
+        </div>
+
         <button
           type="button"
           className="btn btn-sm btn-ghost bd-refresh"
@@ -857,111 +1508,61 @@ export default function Board(): ReactElement {
           title={t('board.empty')}
           description={t('board.emptyHint')}
           action={
-            isFilterEmpty(filter) ? null : (
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={() => onFilterChange({ ...EMPTY_FILTER })}
-              >
-                {t('filter.clearAll')}
-              </button>
-            )
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => onFilterChange({ ...EMPTY_FILTER })}
+            >
+              {t('filter.clearAll')}
+            </button>
           }
         />
       ) : (
         <>
           <div className="bd-scroller" ref={scrollerRef}>
             <div className="bd-cols" role="group" aria-label={t('board.title')}>
-              {live.map((column) => (
-                <section
-                  key={column.key}
-                  ref={(el) => {
-                    registerColumn(column.key, el)
-                  }}
-                  className="bd-col"
-                  style={vocabVars(column.color)}
-                  data-over={dragView?.overId === column.key ? 'true' : undefined}
-                  aria-label={t('board.column', { status: column.label })}
-                >
-                  <header className="bd-col-head">
-                    <h3 className="bd-col-title">{column.label}</h3>
-                    {/* The digit is for the eye; the label is for everyone else.
-                        A bare "2" beside a heading announces as "2" and means
-                        nothing — `role="img"` + aria-label is the same trick the
-                        entry kit's own pills use to give a glyph a sentence. */}
-                    <span
-                      className="pill bd-col-count tabular"
-                      role="img"
-                      aria-label={t('board.columnCountLabel', { count: column.entries.length })}
-                    >
-                      {t('board.columnCount', { count: column.entries.length })}
-                    </span>
-                  </header>
-                  {dragView !== null && dragView.overId === column.key ? (
-                    <p className="bd-drop">{t('board.dropHere', { status: column.label })}</p>
-                  ) : null}
-                  {column.entries.length === 0 ? (
-                    <div className="bd-col-empty">
-                      <p className="bd-col-empty-title">
-                        {t('board.columnEmpty', { status: column.label })}
-                      </p>
-                      <p className="bd-col-empty-hint">{t('board.columnEmptyHint')}</p>
-                    </div>
-                  ) : (
-                    renderCards(column)
-                  )}
-                </section>
-              ))}
+              {live.map(renderColumn)}
             </div>
           </div>
 
-          {retired.length > 0 ? (
-            <section className="bd-retired" aria-label={t('board.hiddenColumns')}>
-              <h3 className="bd-retired-title">{t('board.hiddenColumns')}</h3>
-              <p className="bd-retired-hint">{t('board.hiddenColumnsHint')}</p>
-              <ul className="bd-retired-list">
-                {retired.map((column) => {
-                  const open = expandedRetired.has(column.key)
+          {overflow.length > 0 ? (
+            <section className="bd-overflow" aria-label={t(OVERFLOW_TITLE[dimension])}>
+              <h3 className="bd-overflow-title">{t(OVERFLOW_TITLE[dimension])}</h3>
+              <p className="bd-overflow-hint">{t('board.overflowHint')}</p>
+              <ul className="bd-overflow-list">
+                {overflow.map((column) => {
+                  const open = expandedOverflow.has(column.key)
                   return (
-                    <li
-                      key={column.key}
-                      className="bd-retired-item"
-                      style={vocabVars(column.color)}
-                    >
+                    <li key={column.key} className="bd-overflow-item" style={column.vars}>
                       <button
                         type="button"
-                        className="bd-retired-toggle"
+                        className="bd-overflow-toggle"
                         aria-expanded={open}
-                        // The count is INSIDE the label because an aria-label on
-                        // a button replaces its contents wholesale — without it
-                        // the "2" in the pill is announced to nobody, and how
-                        // much work is stranded in a retired status is the one
-                        // fact this rail exists to report.
                         aria-label={
                           open
                             ? t('board.collapseColumn', {
-                                status: column.label,
+                                column: column.label,
                                 count: column.entries.length,
                               })
                             : t('board.expandColumn', {
-                                status: column.label,
+                                column: column.label,
                                 count: column.entries.length,
                               })
                         }
                         onClick={() =>
-                          setExpandedRetired((prev) => {
+                          setExpandedOverflow((prev) => {
                             const next = new Set(prev)
                             if (!next.delete(column.key)) next.add(column.key)
                             return next
                           })
                         }
                       >
-                        <span className="bd-retired-label">{column.label}</span>
-                        <span className="pill tabular">
-                          {t('board.columnCount', { count: column.entries.length })}
-                        </span>
+                        <span className="bd-overflow-label">{column.label}</span>
+                        {renderCounts(column)}
                       </button>
-                      {open ? <div className="bd-retired-cards">{renderCards(column)}</div> : null}
+                      {open ? (
+                        <div className="bd-overflow-cards">{renderCards(column, null)}</div>
+                      ) : null}
                     </li>
                   )
                 })}
@@ -979,6 +1580,7 @@ interface BoardCardProps {
   health: EntryHealth | undefined
   canEdit: boolean
   dragging: boolean
+  enter: CardEnter | undefined
   onOpen: (id: string) => void
   onMove: (id: string, status: EntryStatus) => void
   onDragStart: (id: string, ev: ReactPointerEvent<HTMLElement>) => void
@@ -1006,6 +1608,7 @@ const BoardCard = memo(function BoardCard({
   health,
   canEdit,
   dragging,
+  enter,
   onOpen,
   onMove,
   onDragStart,
@@ -1030,7 +1633,15 @@ const BoardCard = memo(function BoardCard({
     // the card, and a third stop per card would triple the tab count of a
     // 60-card board. This exists so focus can be RESTORED here after a keyboard
     // move re-mounts the card in another column.
-    <li className="bd-card" data-entry-id={entry.id} tabIndex={-1}>
+    <li
+      className="bd-card"
+      data-entry-id={entry.id}
+      data-enter={enter?.kind}
+      // Physical, and resolved from `dir` by the board — CSS has no logical
+      // transform, and the sign is a fact this screen already holds.
+      style={enter && enter.slide !== 0 ? ({ '--bd-slide': `${enter.slide}px` } as CSSProperties) : undefined}
+      tabIndex={-1}
+    >
       <EntryCard
         entry={entry}
         health={health}

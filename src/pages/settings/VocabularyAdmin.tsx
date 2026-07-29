@@ -753,6 +753,15 @@ export default function VocabularyAdmin(): ReactElement {
   if (!isAdmin) return <Navigate to="/settings" replace />
 
   const loading = rows === null
+  /**
+   * The fetch worked and came back empty: 0003's table exists but its seed never
+   * ran (or RLS matched nothing). That is one fact about the whole workspace, so
+   * it is said once at the top — printing it under all seventeen rows tripled the
+   * page height and buried the controls it was explaining. The per-row copy below
+   * survives for the case it is actually about: SOME rows exist and this one does
+   * not, which is a partial seed rather than a missing install.
+   */
+  const noRows = rows !== null && rows.length === 0
 
   // Resolved once so each render site is a plain value rather than two calls TS
   // cannot narrow against each other.
@@ -827,6 +836,16 @@ export default function VocabularyAdmin(): ReactElement {
             {t('common.retry')}
           </button>
         </div>
+      )}
+
+      {/* Said once for the workspace, not once per option — see `noRows`. Not
+          role="alert": an unseeded table is a supported state the app runs fine
+          in, and interrupting a screen reader mid-sentence would rank it above
+          the load failure directly above, which is the one that IS a fault. */}
+      {!loading && !errorKey && noRows && (
+        <p className="card vocab-empty" role="status">
+          {t('vocabadmin.notInstalled')}
+        </p>
       )}
 
       {!loading &&
@@ -1025,10 +1044,14 @@ export default function VocabularyAdmin(): ReactElement {
                         </div>
                       </div>
 
-                      {/* A row with no database row behind it: the table is
-                          missing or partially seeded, the app is running on the
-                          built-in wording, and there is nothing to patch. */}
-                      {row === null && <p className="vocab-note">{t('vocabadmin.notInstalled')}</p>}
+                      {/* A row with no database row behind it while OTHER rows
+                          have one: a partial seed, the app is running on the
+                          built-in wording for this option, and there is nothing
+                          to patch. When no row exists at all the banner at the
+                          top has already said so, once. */}
+                      {row === null && !noRows && (
+                        <p className="vocab-note">{t('vocabadmin.notInstalled')}</p>
+                      )}
 
                       {rowError?.id === id && (
                         <p className="field-error" role="alert">

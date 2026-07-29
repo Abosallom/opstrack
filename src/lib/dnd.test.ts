@@ -13,6 +13,8 @@ import {
   arrowStep,
   dropOf,
   edgeScroll,
+  edgeScrollBlock,
+  edgeScrollRange,
   indexFromDigit,
   isDragging,
   moveDrag,
@@ -115,6 +117,25 @@ describe('edgeScroll', () => {
   it('saturates rather than accelerating without limit past the edge', () => {
     expect(edgeScroll(-400, box, 64, 22)).toBe(-22)
     expect(edgeScroll(1400, box, 64, 22)).toBe(22)
+  })
+
+  it('reads the BLOCK axis of the same box for the hovered column’s own pan', () => {
+    // A kanban has two scrollers under one finger: the board pans sideways and
+    // the column under the pointer pans down. Same arithmetic, other pair of
+    // numbers — which is the whole reason edgeScrollRange exists.
+    expect(edgeScrollBlock(300, box)).toBe(0)
+    expect(edgeScrollBlock(4, box)).toBeLessThan(0)
+    expect(edgeScrollBlock(596, box)).toBeGreaterThan(0)
+  })
+
+  it('refuses to scroll a range too short to hold two dead zones', () => {
+    // Every point in an 80px-tall column is inside both zones, so the first
+    // branch would win permanently and the column would scroll itself upward
+    // forever the moment a card passed over it.
+    expect(edgeScrollRange(10, 0, 80)).toBe(0)
+    expect(edgeScrollRange(70, 0, 80)).toBe(0)
+    // One pixel over two zones, and it works again.
+    expect(edgeScrollRange(1, 0, 129)).toBeLessThan(0)
   })
 })
 

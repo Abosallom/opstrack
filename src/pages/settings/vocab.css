@@ -78,6 +78,16 @@
   min-inline-size: 0;
 }
 
+/* The table is installed but empty — one fact about the workspace, stated once
+   above the three lists rather than under each of the seventeen rows. Quieter
+   than .vocab-error because nothing is broken: every screen is running on the
+   built-in wording, which is the designed fallback. */
+.vocab-empty {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
 /* ---------- one kind ---------- */
 
 .vocab-section {

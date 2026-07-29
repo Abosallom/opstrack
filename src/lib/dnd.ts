@@ -195,15 +195,43 @@ export function isDragging(s: DndSession | null): boolean {
 }
 
 /**
- * Auto-scroll speed for a pointer near a scroller's inline edges, in px per
+ * Auto-scroll speed for a coordinate near the two ends of ONE axis, in px per
  * frame. Negative scrolls toward the start of the scroll range.
+ *
+ * AXIS-AGNOSTIC, because a kanban has two scrollers under one finger: the
+ * board pans sideways between columns and the hovered column pans down through
+ * its own cards. Both are the same arithmetic over a different pair of numbers,
+ * and writing it twice is how the two drift.
+ *
+ * A pointer dragged clean off the end saturates rather than accelerating
+ * without limit — `max` is a speed cap, not a slope.
+ */
+export function edgeScrollRange(
+  pos: number,
+  start: number,
+  end: number,
+  zone: number = EDGE_SCROLL_ZONE_PX,
+  max: number = EDGE_SCROLL_MAX_PX,
+): number {
+  if (zone <= 0) return 0
+  // A scroller shorter than two dead zones would have every point in both of
+  // them, and the first branch would win permanently — a column 80px tall that
+  // scrolls itself upward forever the moment a card passes over it.
+  if (end - start < zone * 2) return 0
+  const fromStart = pos - start
+  const fromEnd = end - pos
+  if (fromStart < zone) return -Math.round(max * ramp((zone - fromStart) / zone))
+  if (fromEnd < zone) return Math.round(max * ramp((zone - fromEnd) / zone))
+  return 0
+}
+
+/**
+ * Auto-scroll speed for a pointer near a scroller's INLINE edges — the board's
+ * own column pan.
  *
  * PHYSICAL, deliberately: the caller writes it into `scrollLeft`, which is
  * itself physical (and negative in RTL on every current engine). Translating to
  * a logical axis here would mean the caller had to translate it straight back.
- *
- * A pointer dragged clean off the edge saturates rather than accelerating
- * without limit — `max` is a speed cap, not a slope.
  */
 export function edgeScroll(
   x: number,
@@ -211,12 +239,20 @@ export function edgeScroll(
   zone: number = EDGE_SCROLL_ZONE_PX,
   max: number = EDGE_SCROLL_MAX_PX,
 ): number {
-  if (zone <= 0) return 0
-  const fromStart = x - box.x0
-  const fromEnd = box.x1 - x
-  if (fromStart < zone) return -Math.round(max * ramp((zone - fromStart) / zone))
-  if (fromEnd < zone) return Math.round(max * ramp((zone - fromEnd) / zone))
-  return 0
+  return edgeScrollRange(x, box.x0, box.x1, zone, max)
+}
+
+/**
+ * Auto-scroll speed for a pointer near a scroller's BLOCK edges — the hovered
+ * column's own card list. Written into `scrollTop`.
+ */
+export function edgeScrollBlock(
+  y: number,
+  box: DndBox,
+  zone: number = EDGE_SCROLL_ZONE_PX,
+  max: number = EDGE_SCROLL_MAX_PX,
+): number {
+  return edgeScrollRange(y, box.y0, box.y1, zone, max)
 }
 
 function ramp(v: number): number {

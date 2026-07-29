@@ -55,8 +55,13 @@ type Field = 'username' | 'invite' | 'password' | 'confirm' | null
  * The edge function normalizes with the same two rules (upper-case, drop
  * everything outside A–Z0–9) before hashing, so nothing here can make a valid
  * code invalid — this only spares the member the shift key and the hyphen.
+ *
+ * Exported for Claim.test.tsx. The pairing with `normalizeCode()` in
+ * supabase/functions/claim-account is the whole reason the hyphen this function
+ * inserts is safe to send, and that pairing is worth a test that fails if
+ * either side drifts.
  */
-function formatInvite(raw: string): string {
+export function formatInvite(raw: string): string {
   const clean = raw
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '')
@@ -73,8 +78,11 @@ function formatInvite(raw: string): string {
  * tie-breaker, not a requirement — and it is Latin-centric by construction, so
  * an Arabic passphrase scores on length alone. That is the correct outcome
  * (nothing is rejected for it) and it is why the meter is advisory.
+ *
+ * Exported for Claim.test.tsx — the thresholds below are the only place the
+ * "long beats clever" policy is actually written down in code.
  */
-function strengthOf(password: string): 0 | 1 | 2 | 3 {
+export function strengthOf(password: string): 0 | 1 | 2 | 3 {
   if (password.length < MIN_PASSWORD_LENGTH) return 0
   let classes = 0
   if (/[a-z]/.test(password)) classes += 1
@@ -122,9 +130,13 @@ export default function Claim(): ReactElement {
   const matched = confirm.length > 0 && password === confirm
 
   // This route renders outside the shell, so nothing else sets the title.
+  //
+  // Keyed on `locale` for the reason SignIn's twin gives: the language toggle
+  // sits on this very screen, so an empty dep array leaves the browser tab in
+  // the language the member just switched away from.
   useEffect(() => {
     document.title = `${t('claim.title')} · ${t('app.name')}`
-  }, [])
+  }, [locale])
 
   useEffect(() => {
     if (configured) usernameRef.current?.focus()
