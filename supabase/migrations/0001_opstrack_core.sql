@@ -15,6 +15,17 @@
 
 create extension if not exists pgcrypto;  -- gen_random_uuid()
 
+
+-- ── profiles ────────────────────────────────────────────────────────────────
+-- One row per provisioned member, created by the auth.users trigger below.
+create table if not exists public.profiles (
+  id           uuid primary key references auth.users (id) on delete cascade,
+  display_name text not null default '',
+  role         text not null default 'member' check (role in ('admin', 'member')),
+  locale       text not null default 'en',
+  created_at   timestamptz not null default now()
+);
+
 -- ── helpers: identity predicates ────────────────────────────────────────────
 -- These are SECURITY DEFINER on purpose. A policy on public.profiles that
 -- selects from public.profiles inline recurses (Postgres re-evaluates the
@@ -49,16 +60,6 @@ $$;
 
 comment on function public.is_admin() is
   'Admin check for RLS. SECURITY DEFINER to avoid recursive policy evaluation on profiles.';
-
--- ── profiles ────────────────────────────────────────────────────────────────
--- One row per provisioned member, created by the auth.users trigger below.
-create table if not exists public.profiles (
-  id           uuid primary key references auth.users (id) on delete cascade,
-  display_name text not null default '',
-  role         text not null default 'member' check (role in ('admin', 'member')),
-  locale       text not null default 'en',
-  created_at   timestamptz not null default now()
-);
 
 alter table public.profiles enable row level security;
 
