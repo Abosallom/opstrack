@@ -10,9 +10,10 @@
 // has to stay debuggable, it just must not be rendered.
 //
 // The identifiers matched below are the contract with
-// supabase/migrations/0002_config_foundation.sql. Renaming an index or a
-// trigger's error token there silently demotes a precise message to
-// 'common.error', so keep the two files in step.
+// supabase/migrations/0002_config_foundation.sql and 0003_vocab_options.sql.
+// Renaming an index or a trigger's error token there silently demotes a precise
+// message to 'common.error', so keep the files in step. 0003 says so in a
+// comment above the raise, which is the other half of this handshake.
 
 /** The subset of a PostgrestError / PostgREST body this module reads. */
 interface PgLike {
@@ -63,7 +64,23 @@ export function pgErrorKey(error: unknown): string {
       // tracks_keep_one_active() — fires on archive as well as delete, so the
       // workspace always has somewhere to file work.
       if (text.includes('last_active_track')) return 'admin.tracks.errLastTrack'
+      // vocab_last_visible_option() — 0003. Hiding the final visible option of a
+      // kind would leave a picker with nothing to pick, and every entry already
+      // holding that key unreachable through the UI. The trigger raises on the
+      // whole statement, so a batch that hides several at once is rolled back
+      // entirely; the message says what must remain, not which row lost.
+      if (text.includes('last_visible_option')) return 'vocabadmin.errLastVisible'
       break
+    case '23502':
+      // NOT NULL violated. This should now be UNREACHABLE: the one column that
+      // ever produced it is `entries.description` (`not null default ''`), and
+      // toEntryRow()/toEntryPatchRow() coalesce to '' rather than null, with
+      // tests pinning both. Kept as an explicit case anyway — if it ever fires
+      // again a new nullable-looking column has been added somewhere, and the
+      // named warn below is the difference between finding it in a minute and
+      // reading it as one more anonymous 'common.error'.
+      console.warn('[pg] 23502 not-null violation — a column lost its coalesce:', e.message)
+      return 'common.error'
     case '22023':
       // delete_track() rejecting a destination it must not move rows onto. An
       // archived track is hidden from every picker and stops its recurring
@@ -80,6 +97,23 @@ export function pgErrorKey(error: unknown): string {
       // RLS rejected the write. In practice: the UI thinks this user is an
       // admin and profiles.role disagrees.
       return 'admin.errForbidden'
+    case 'PGRST116':
+      // Not a SQLSTATE — PostgREST's own code for ".single() got zero rows".
+      //
+      // This is the failure lib/permissions.ts exists to pre-empt. An
+      // RLS-blocked UPDATE is not an error to Postgres; the row simply does not
+      // match the policy, so the statement affects nothing and `.select()
+      // .single()` finds nothing to return. Left unmapped it reached the user as
+      // a generic "something went wrong" after their card had already animated
+      // into place and snapped back — the app looking broken when it was working
+      // exactly as designed.
+      //
+      // Honest caveat: a row deleted by another session between load and save
+      // lands here too, and this sentence is a shade wrong for that case. It is
+      // the far rarer of the two, and both end the same way — the change did not
+      // land and re-reading the screen is the next step. A message that hedged
+      // over which it was would help nobody.
+      return 'entry.errNotYours'
     default:
       break
   }

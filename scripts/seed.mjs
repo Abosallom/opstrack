@@ -19,10 +19,16 @@
 // It uses the SERVICE ROLE key, not the anon key, for two reasons that are not
 // convenience: entries_insert requires `created_by = auth.uid()` and this
 // script has no session, and every row here is backdated — created_at and
-// last_activity_at are written explicitly so the follow-ups sections, the age
-// pills and the SLA badges have something to show on the day you seed. The key
-// therefore never goes in .env (which Vite inlines into the bundle); pass it on
-// the command line or through `node --env-file=.env.seed`.
+// last_activity_at are written explicitly so the follow-ups sections and the age
+// pills have something to show on the day you seed. The key therefore never goes
+// in .env (which Vite inlines into the bundle); pass it on the command line or
+// through `node --env-file=.env.seed`.
+//
+// The SLA badges stay EMPTY after a seed, and that is correct: 0005 ships
+// sla_days NULL on all four priorities, so the workspace has made no timing
+// commitment yet and nothing can have missed one. To demo the SLA surfaces, set
+// a target first — that is the same one-statement act a real admin performs:
+//   update public.vocab_options set sla_days = 3 where kind='priority' and key='high';
 //
 // SIDE EFFECT, on purpose and worth knowing: every entry seeded with an
 // owner_id fires the `assigned` notification trigger from 0004, so the owners
