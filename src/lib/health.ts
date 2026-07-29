@@ -14,10 +14,11 @@
 // rather than fixed. Do not "fix" it by switching this file to UTC — "due today"
 // has to mean the user's today.
 //
-// TWO INPUTS THE VIEW READS FROM vocab_options AND THIS FUNCTION CANNOT:
-// `staleAfterDays` and `slaDays` for the entry's priority. They are passed in
-// rather than looked up because lib/** may not import from store/** — the
-// caller resolves them through store/vocab's staleDays()/slaDays().
+// TWO INPUTS THE VIEW READS FROM OTHER TABLES AND THIS FUNCTION CANNOT:
+// `staleAfterDays` (vocab_options, for the entry's priority) and `slaDays` (the
+// track × priority matrix — see resolveSlaDays below). They are passed in rather
+// than looked up because lib/** may not import from store/** — the caller
+// resolves them through store/vocab's staleDays() and through resolveSlaDays().
 //
 // STALENESS AND SLA ARE DIFFERENT QUESTIONS and neither substitutes for the
 // other. Staleness measures SILENCE, from last_activity_at. The SLA measures
@@ -25,7 +26,7 @@
 // stale and can still blow its SLA; an item finished in an hour and then ignored
 // is stale and never breaches. Both facts ride the row because both get asked.
 
-import type { Entry, EntryHealth, EntryStatus, HealthLevel } from '../types'
+import type { Entry, EntryHealth, EntryPriority, EntryStatus, HealthLevel } from '../types'
 import { diffDays, instantToIsoDate, todayIso } from './dates'
 
 /**
@@ -41,15 +42,98 @@ export function isOpen(status: EntryStatus): boolean {
 
 const DAY_MS = 86_400_000
 
+// ── the SLA matrix ─────────────────────────────────────────────────────────
+//
+// 0006 made the SLA a track × priority matrix, and this block is the client
+// mirror of the `coalesce(ts.sla_days, vp.sla_days)` in v_entry_health. The
+// order is the whole feature and it reads correctly out loud:
+//
+//   this track's promise for this priority
+//     → the workspace's default for this priority
+//       → this priority has no SLA
+//
+// It is a separate function rather than two more parameters on computeHealth()
+// because the two answers have different lifetimes: the matrix is fetched once
+// and shared by every row on a screen, while computeHealth runs per row. Callers
+// build the map once (buildTrackSlaMap) and hand the resolved number down.
+
+/**
+ * One row of `track_slas`, in the column names the table uses.
+ *
+ * It lives HERE rather than in api/tracks.ts because lib/** may not import from
+ * api/** and this is the module that consumes the shape; api/tracks.ts imports
+ * and re-exports it, so there is still exactly one definition to import.
+ */
+export interface TrackSlaRule {
+  track_id: string
+  priority: EntryPriority
+  sla_days: number
+}
+
+/**
+ * The matrix, flattened to `${trackId}:${priority}` — the same trick
+ * store/vocab.ts uses for vocab_options' composite key, and for the same
+ * reason: a nested Map costs two lookups and a null check at every call site.
+ */
+export type TrackSlaMap = ReadonlyMap<string, number>
+
+export function trackSlaKey(trackId: string, priority: EntryPriority): string {
+  return `${trackId}:${priority}`
+}
+
+/**
+ * Build the lookup once per fetch. NEVER call this inside a React selector or a
+ * render body: it returns a fresh Map every time, which under
+ * useSyncExternalStore means "the snapshot changed" forever — the hazard
+ * store/config.ts's header documents.
+ *
+ * A duplicate (track_id, priority) cannot reach here from the database — it is
+ * the primary key — so last-wins on collision needs no ceremony.
+ */
+export function buildTrackSlaMap(rules: readonly TrackSlaRule[]): TrackSlaMap {
+  return new Map(rules.map((r) => [trackSlaKey(r.track_id, r.priority), r.sla_days]))
+}
+
+/**
+ * `coalesce(ts.sla_days, vp.sla_days)`, in TypeScript.
+ *
+ * @param trackId         the entry's track, or null. A null track_id matches
+ *                        nothing and falls through to the default — the view's
+ *                        left join behaves identically, and entries.track_id is
+ *                        `on delete set null`, so this is a real case and not a
+ *                        defensive one.
+ * @param overrides       the matrix from buildTrackSlaMap, or null/undefined
+ *                        before it has loaded. NOT loaded is treated as NO
+ *                        override, which is the safe direction: the screen shows
+ *                        the workspace default for a beat rather than inventing
+ *                        a breach, and re-renders when the fetch lands.
+ * @param priorityDefault `vocab_options.sla_days` for this priority — null when
+ *                        the workspace has not armed one.
+ *
+ * Returns null when neither level carries a number, and that null is a VALUE
+ * meaning "no SLA", never a missing answer. Nothing downstream may `?? 7` it.
+ */
+export function resolveSlaDays(
+  trackId: string | null,
+  priority: EntryPriority,
+  overrides: TrackSlaMap | null | undefined,
+  priorityDefault: number | null,
+): number | null {
+  const override = trackId === null ? undefined : overrides?.get(trackSlaKey(trackId, priority))
+  return override ?? priorityDefault
+}
+
 /**
  * @param staleAfterDays this priority's threshold, from vocab_options (the view
  *                       coalesces the same column over 2/4/8/15).
- * @param slaDays        this priority's SLA, or null when it has none. Null
+ * @param slaDays        the RESOLVED SLA for this entry — resolveSlaDays()'s
+ *                       answer, not the raw priority default. Null
  *                       means `sla_due_at: null` and `sla_breached: false`, and
  *                       this function NEVER substitutes a default: whether a
- *                       priority carries an SLA is the workspace's decision,
- *                       held in vocab_options, and a client-side fallback would
- *                       silently overrule it on every screen at once.
+ *                       track or a priority carries an SLA is the workspace's
+ *                       decision, held in track_slas and vocab_options, and a
+ *                       client-side fallback would silently overrule it on every
+ *                       screen at once.
  * @param now            injected so every test is a fixed-clock assertion; the
  *                       default is the only clock read in this module.
  *

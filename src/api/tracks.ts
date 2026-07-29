@@ -14,7 +14,13 @@
 import { supabase } from './supabase'
 import { fail, notConfigured, type ApiResult } from './result'
 import { pgErrorKey } from '../lib/pgError'
-import type { Track, TrackInput, TrackUsage } from '../types'
+import type { TrackSlaRule } from '../lib/health'
+import type { EntryPriority, Track, TrackInput, TrackUsage } from '../types'
+
+// Re-exported so a caller reaching for the row type has ONE import path for it,
+// even though the definition lives in lib/health.ts (lib/** may not import from
+// api/**, and health.ts is what consumes the shape — see its header).
+export type { TrackSlaRule }
 
 /** The id of the signed-in user, or null when the session has gone. */
 async function currentUserId(): Promise<string | null> {
@@ -204,6 +210,87 @@ export async function getTrackUsage(id: string): Promise<ApiResult<TrackUsage>> 
     countReferencing('recurring_templates', id),
   ])
   return { ok: true, data: { entries, meetings, templates } }
+}
+
+// ── SLA overrides (0006) ────────────────────────────────────────────────────
+//
+// The track half of the track × priority matrix. The workspace default lives in
+// vocab_options and is edited in the vocabulary screen; these two functions edit
+// only the overrides, and the resolution order — track row, then priority
+// default, then no SLA — is lib/health.resolveSlaDays(), not something either
+// screen re-implements.
+//
+// SLA is off until somebody arms it, and an ABSENT ROW is how a track says
+// "inherit". There is no sentinel value and no zero: `sla_days` is `not null
+// check between 1 and 3650`, so the only two states a (track, priority) cell can
+// be in are "a row with a number" and "no row". That is why setTrackSla takes
+// `days: number | null` and DELETES on null rather than writing something.
+
+/**
+ * Every override, or just one track's. Ordered so two loads of the same data
+ * render in the same order — the pair is the primary key, so the ordering is
+ * total and stable.
+ *
+ * A member may read this (RLS `track_slas_select` is `is_member()`): the numbers
+ * are the workspace's stated commitments, not a secret from the people expected
+ * to meet them, and every SLA badge on every list needs them.
+ */
+export async function listTrackSlas(trackId?: string): Promise<ApiResult<TrackSlaRule[]>> {
+  if (!supabase) return notConfigured()
+  let query = supabase
+    .from('track_slas')
+    .select('track_id, priority, sla_days')
+    .order('track_id', { ascending: true })
+    .order('priority', { ascending: true })
+  if (trackId !== undefined) query = query.eq('track_id', trackId)
+  const { data, error } = await query
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: (data ?? []) as TrackSlaRule[] }
+}
+
+/**
+ * Set, change or clear one cell of the matrix.
+ *
+ * `days === null` clears the override so the track inherits again — a DELETE,
+ * because "inherit" is the absence of a row. Deleting a row that was never there
+ * is not an error and must not be reported as one: the editor saves whatever
+ * changed since it loaded, and a cell the admin emptied and then emptied again
+ * has to be a no-op, not a red banner.
+ *
+ * Otherwise an upsert on the composite key, so the caller never has to know
+ * whether this track already had a number for this priority. Resolves with the
+ * stored row, or null when the override was cleared.
+ *
+ * Range is enforced by the database (`track_slas_days_range`, 1–3650) and
+ * surfaces as 23514 through pgErrorKey. The editor validates the same bounds
+ * before calling so the common typo costs no round-trip, exactly as the hex
+ * fields do — but the database is the authority and this function does not
+ * duplicate the rule.
+ */
+export async function setTrackSla(
+  trackId: string,
+  priority: EntryPriority,
+  days: number | null,
+): Promise<ApiResult<TrackSlaRule | null>> {
+  if (!supabase) return notConfigured()
+
+  if (days === null) {
+    const { error } = await supabase
+      .from('track_slas')
+      .delete()
+      .eq('track_id', trackId)
+      .eq('priority', priority)
+    if (error) return fail(pgErrorKey(error))
+    return { ok: true, data: null }
+  }
+
+  const { data, error } = await supabase
+    .from('track_slas')
+    .upsert({ track_id: trackId, priority, sla_days: days }, { onConflict: 'track_id,priority' })
+    .select('track_id, priority, sla_days')
+    .single()
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: data as TrackSlaRule }
 }
 
 /**

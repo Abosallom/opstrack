@@ -1,0 +1,377 @@
+/* The board — the `.bd-*` prefix, per the class registry (§1.0.7).
+
+   NOTHING HERE STYLES A CARD. `.entry-card*` belongs to the entry kit's own
+   sheet, and the one hook the kit left for this screen is `.entry-card[data-
+   dragging]`, which it already styles. What this file owns is the space AROUND
+   the cards: the scroller, the columns, the lanes, the retired rail.
+
+   THE SCROLLER IS THE INLINE AXIS AND NOTHING ELSE. Columns scroll sideways as a
+   group; each column scrolls its own cards vertically. A board that scrolled the
+   page vertically AND the columns horizontally puts two scroll containers under
+   one finger, and on a phone the wrong one always wins.
+
+   LOGICAL PROPERTIES ONLY, so RTL is the same board mirrored with no rules of
+   its own — including the scroll direction, which the browser flips for free
+   because the container's `dir` comes from <html>. `overflow-x`, `scroll-snap-
+   type: x` and `scrollLeft` are the three physical names left in the drag path,
+   and every one of them is a scroll-axis name with no logical spelling yet;
+   lib/dnd.ts's header explains why the arithmetic behind them is physical too.
+
+   MOTION: 150–200ms, and every transition here is a property the reduced-motion
+   kill-switch in global.css already clamps. */
+
+.bd {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.bd-sub {
+  color: var(--text-dim);
+  margin-block-end: 12px;
+}
+
+/* ── the control bar under the filter ─────────────────────────────────── */
+
+.bd-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block-end: 8px;
+}
+
+.bd-group {
+  flex: 0 1 auto;
+  gap: 4px;
+}
+
+.bd-refresh {
+  margin-inline-start: auto;
+}
+
+.bd-hint {
+  color: var(--text-faint);
+  font-size: 13px;
+  margin-block-end: 12px;
+}
+
+/* ── error ─────────────────────────────────────────────────────────────── */
+
+.bd-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+  margin-block-end: 16px;
+}
+
+.bd-error-title {
+  font-weight: 700;
+  color: var(--red);
+}
+
+/* ── the scroller ──────────────────────────────────────────────────────── */
+
+.bd-scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* The columns carry their own bottom padding; this keeps the scrollbar off
+     the last row of cards. */
+  padding-block-end: 4px;
+  /* A drag that runs past the last column must not bounce the whole page. */
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.bd-cols {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  /* Columns size themselves; without this the flex line collapses to the
+     scroller's inline size and every column is squeezed instead of scrolled. */
+  inline-size: max-content;
+  min-inline-size: 100%;
+}
+
+.bd-col {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  inline-size: 300px;
+  max-block-size: min(72dvh, 900px);
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+/* The status's own colour, as a 3px cap on the block-start edge. One hex, both
+   themes — lib/vocabStyle.ts's header explains why this is a custom property
+   and not a colour picked in JavaScript. */
+.bd-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-block-end: 8px;
+  margin-block-end: 4px;
+  border-block-end: 2px solid color-mix(in oklab, var(--vocab-c, var(--text-dim)) 45%, transparent);
+}
+
+.bd-col-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+  color: var(--vocab-c, var(--text-dim));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+.bd-col-count {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+
+/* The live drop target. A 2px inset ring rather than a background flood: the
+   cards keep their contrast, and the ring reads at a glance from across a
+   six-column board. */
+.bd-col[data-over='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-elev));
+}
+
+.bd-drop {
+  padding-block: 6px;
+  padding-inline: 10px;
+  margin-block-end: 8px;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ── cards ─────────────────────────────────────────────────────────────── */
+
+.bd-cards {
+  display: block;
+  list-style: none;
+  overflow-y: auto;
+  min-block-size: 0;
+  /* Room for the lift shadow, so a dragged card is not clipped by its own
+     column. */
+  padding-inline: 2px;
+  padding-block: 2px;
+  overscroll-behavior-block: contain;
+}
+
+/* Nested lists (a lane's cards) must not add a second scroller. */
+.bd-cards .bd-cards {
+  overflow: visible;
+  padding: 0;
+}
+
+.bd-card {
+  display: block;
+  /* The browser keeps the vertical pan; a mostly-horizontal gesture is ours.
+     lib/dnd.ts's axis lock is the belt to this braces on engines that ignore
+     it mid-gesture. */
+  touch-action: pan-y;
+  border-radius: var(--radius-sm);
+}
+
+.bd-card + .bd-card {
+  margin-block-start: 8px;
+}
+
+/* Focus is RESTORED here after a keyboard move, so the ring has to be visible
+   even though this element is not in the tab order. */
+.bd-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.bd-fold {
+  inline-size: 100%;
+  margin-block-start: 8px;
+  gap: 6px;
+}
+
+/* ── lanes (the swimlane grouping) ─────────────────────────────────────── */
+
+.bd-lane {
+  display: block;
+}
+
+.bd-lane + .bd-lane {
+  margin-block-start: 14px;
+}
+
+.bd-lane-title {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  padding-block: 4px;
+  margin-block-end: 6px;
+  background: var(--bg-elev);
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── an empty column ───────────────────────────────────────────────────── */
+
+.bd-col-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-block: 20px;
+  padding-inline: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.bd-col-empty-title {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bd-col-empty-hint {
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ── the retired rail ──────────────────────────────────────────────────── */
+
+.bd-retired {
+  margin-block-start: 24px;
+  padding-block-start: 16px;
+  border-block-start: 1px solid var(--border);
+}
+
+.bd-retired-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.bd-retired-hint {
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-block: 2px 10px;
+}
+
+.bd-retired-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+}
+
+.bd-retired-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  overflow: hidden;
+}
+
+.bd-retired-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.bd-retired-toggle:hover {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+.bd-retired-toggle:active {
+  background: var(--bg-elev-2);
+}
+
+.bd-retired-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.bd-retired-label {
+  color: var(--vocab-c, var(--text-dim));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+.bd-retired-cards {
+  padding-block: 0 10px;
+  padding-inline: 10px;
+}
+
+/* ── loading ───────────────────────────────────────────────────────────── */
+
+.bd-col-skeleton {
+  gap: 10px;
+  max-block-size: none;
+}
+
+/* ── phone ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* One column at a time, snapped. A 300px column on a 375px screen shows a
+     sliver of the next one, which reads as a broken layout rather than as an
+     affordance; a snapped near-full-bleed column reads as a deck. */
+  .bd-cols {
+    scroll-snap-type: x mandatory;
+    gap: 10px;
+  }
+
+  .bd-scroller {
+    scroll-padding-inline: 0;
+  }
+
+  .bd-col {
+    scroll-snap-align: start;
+    inline-size: min(86vw, 340px);
+    max-block-size: none;
+  }
+
+  /* The page scrolls on a phone, not the column: two nested scrollers under one
+     thumb is the interaction people report as "it scrolls the wrong thing". */
+  .bd-cards {
+    overflow: visible;
+  }
+
+  .bd-lane-title {
+    position: static;
+  }
+}

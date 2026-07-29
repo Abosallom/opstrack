@@ -21,6 +21,7 @@
 7. **CSS prefix registry.** Each co-located sheet owns exactly one prefix and may not style another's, nor a `global.css` primitive:
    `global.css` → the primitives already there **plus** `.kanban-* .chart-* .segmented* .triage-* .rail-* .swipe-* .dnd-* .print-*`; it **retains `.entry-title`** as a typography primitive (carve-out — `entry.css` must not restyle it).
    `entry.css` → `.entry-row* .entry-card* .entry-sheet* .upd-* .status-pill .prio-dot .health-pill .age-pill .owner-badge .tag-chip .due-label .track-ref .link-list*` · `sheet.css → .sheetx-*` · `fields.css → .fld-*` · `pickers.css → .pick-*` · `filters.css → .flt-*` · `capture.css → .cap-*` · `followups.css → .fu-*` · `board.css → .bd-*` · `tracks.css → .tl-*` · `meetings.css → .mt-*` · `dashboard.css → .db-*` · `charts.css → .cht-*` · `digest.css → .dg-*` · `vocab.css → .vocab-*` · `members.css → .mem-*` · `cmd.css → .cmd-*`.
+   **Added at the Wave-2 close** (two sheets the wave plan did not anticipate, registered here per §1.0.4 rather than folded into a neighbour's prefix): `entry-page.css → .epg-*` — the `/entry/:id` page frame, distinct from `entry.css`, which owns the detail component the frame wraps · `track-sla.css → .tsla-*` — the SLA-override matrix inside TrackEditor, kept out of `admin.css` because it is the one part of that screen writing a second table (`track_slas`).
 
 ### 1.1 Audit/fix cadence — identical in every wave
 

@@ -1,31 +1,39 @@
 // Track create/edit (/settings/tracks/new and /settings/tracks/:id).
 //
-// A sub-route rather than a modal: this form has seven fields in two languages,
-// which is more than a sheet can hold on a 375px screen without scrolling behind
-// its own footer, and a real URL means a half-written track survives a mis-tap
-// and can be linked to from the list.
+// A sub-route rather than a modal: this form has seven fields in two languages
+// plus the SLA matrix, which is more than a sheet can hold on a 375px screen
+// without scrolling behind its own footer, and a real URL means a half-written
+// track survives a mis-tap and can be linked to from the list.
 //
-// Validation here mirrors the CHECK constraints in 0002 so the two mistakes
-// people actually make — an empty name, a mistyped hex — never cost a
-// round-trip. It does NOT replace the server's answer: the database is the
-// authority, and its errors come back as i18n keys and are rendered below.
+// Validation here mirrors the CHECK constraints in 0002 and 0006 so the three
+// mistakes people actually make — an empty name, a mistyped hex, an SLA of 0 —
+// never cost a round-trip. It does NOT replace the server's answer: the database
+// is the authority, and its errors come back as i18n keys and are rendered below.
+//
+// TWO TABLES, ONE SAVE BUTTON. The fields above write `tracks`; the SLA
+// overrides section writes `track_slas`, one row per changed priority. A form
+// that saved half of itself on a different gesture would be a worse contract
+// than the one extra await this costs.
 
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { IconArrowStart } from '../../components/icons'
 import { Skeleton } from '../../components/shared'
 import { TagsField } from '../../components/fields'
 import { confirm } from '../../components/Confirm'
 import { toast } from '../../components/toast'
-import { createTrack, updateTrack } from '../../api/tracks'
+import { createTrack, listTrackSlas, setTrackSla, updateTrack } from '../../api/tracks'
+import { resolveSlaDays, trackSlaKey } from '../../lib/health'
 import { TRACK_ICON_NAMES, trackIcon } from '../../lib/trackIcons'
 import { trackVars } from '../../lib/trackStyle'
 import { rovingTabIndex, useRadioGroupKeys } from '../../lib/radioGroup'
 import { t, useLocale } from '../../lib/i18n'
 import { invalidateConfig, loadConfig, useTrackMap } from '../../store/config'
+import { loadVocab, useSlaDays, useVocabLabel } from '../../store/vocab'
 import { useAuth } from '../../store/auth'
-import type { Track } from '../../types'
+import type { EntryPriority, Track } from '../../types'
 import './admin.css'
+import './track-sla.css'
 
 /** Mirrors the DB CHECK; the server rejects anything else with 23514. */
 const HEX = /^#[0-9a-fA-F]{6}$/
@@ -57,6 +65,63 @@ const SWATCHES: readonly { dark: string; light: string; labelKey: string }[] = [
   { dark: '#58a6ff', light: '#1560c9', labelKey: 'admin.tracks.colorBlue' }, // --accent
   { dark: '#ff7a7a', light: '#c02b2b', labelKey: 'admin.tracks.colorRed' }, // --red
 ]
+
+// ── SLA overrides ──────────────────────────────────────────────────────────
+//
+// One row per priority, and the resolution order this section exists to feed is
+// lib/health.resolveSlaDays() — the same function the entry lists use and the
+// mirror of `coalesce(ts.sla_days, vp.sla_days)` in v_entry_health. The greyed
+// value on each row is that function's answer, not a second calculation that
+// could drift from it.
+
+/**
+ * The frozen four, in 0003's seed order (low → critical), which is also the
+ * order of the union in types.ts and of every priority picker in the app.
+ * Written out rather than derived from the vocabulary store on purpose: a hidden
+ * priority still needs an SLA cell, because entries already filed under it are
+ * still open and still counting.
+ */
+const PRIORITIES: readonly EntryPriority[] = ['low', 'medium', 'high', 'critical']
+
+/** Mirrors `track_slas_days_range` in 0006. */
+const SLA_MIN = 1
+const SLA_MAX = 3650
+
+/** Raw input text per priority. '' means "inherit" — see parseSla. */
+type SlaForm = Record<EntryPriority, string>
+/** What the server last told us, for the dirty check and the save diff. */
+type SlaBaseline = Record<EntryPriority, number | null>
+
+function blankSlaForm(): SlaForm {
+  return { low: '', medium: '', high: '', critical: '' }
+}
+
+function blankSlaBaseline(): SlaBaseline {
+  return { low: null, medium: null, high: null, critical: null }
+}
+
+function slaText(days: number | null): string {
+  return days === null ? '' : String(days)
+}
+
+/**
+ * THREE outcomes, and the third is why this does not return `number | null`:
+ *
+ *   null       — empty, i.e. inherit. A real, saveable value (it deletes the row).
+ *   a number   — a valid override.
+ *   undefined  — the admin typed something that is not one of those.
+ *
+ * Collapsing "invalid" into "inherit" would silently discard a typo'd `12x` as
+ * "no override" and save that, which is the one outcome the admin cannot see
+ * happening.
+ */
+function parseSla(raw: string): number | null | undefined {
+  const s = raw.trim()
+  if (s === '') return null
+  if (!/^[0-9]{1,4}$/.test(s)) return undefined
+  const n = Number(s)
+  return n >= SLA_MIN && n <= SLA_MAX ? n : undefined
+}
 
 interface Form {
   name: string
@@ -132,6 +197,9 @@ export default function TrackEditor(): ReactElement {
   const trackMap = useTrackMap()
   const track = id ? (trackMap.get(id) ?? null) : null
 
+  const vocabLabel = useVocabLabel()
+  const priorityDefault = useSlaDays()
+
   const [form, setForm] = useState<Form>(blankForm)
   /** The last saved state, for the unsaved-changes guard. */
   const [baseline, setBaseline] = useState<Form>(blankForm)
@@ -142,6 +210,18 @@ export default function TrackEditor(): ReactElement {
   /** True once the config store has answered — distinguishes "still loading"
       from "no such track", which look identical in an empty map. */
   const [ready, setReady] = useState(false)
+
+  const [slaForm, setSlaForm] = useState<SlaForm>(blankSlaForm)
+  const [slaBaseline, setSlaBaseline] = useState<SlaBaseline>(blankSlaBaseline)
+  const [slaTouched, setSlaTouched] = useState<Partial<Record<EntryPriority, boolean>>>({})
+  /** True from the FIRST render on an edit route, not from the effect: starting
+      at false renders four empty "Inherit" inputs for a frame, which reads as
+      "this track has no overrides" a beat before the real answer arrives. */
+  const [slaLoading, setSlaLoading] = useState<boolean>(() => Boolean(id))
+  /** An i18n KEY. Kept apart from serverError: a matrix that would not load is a
+      different failure from a save that was rejected, and the section renders
+      its own message rather than blaming the whole form. */
+  const [slaLoadError, setSlaLoadError] = useState<string | null>(null)
 
   const alive = useRef(true)
   useEffect(() => {
@@ -156,6 +236,46 @@ export default function TrackEditor(): ReactElement {
       if (alive.current) setReady(true)
     })
   }, [])
+
+  // The priority DEFAULTS, so each row can show what it inherits. Never rejects
+  // and is deduped in-flight; a failure leaves every default null, which renders
+  // as "no SLA" — the honest answer when the workspace's own numbers could not
+  // be read.
+  useEffect(() => {
+    void loadVocab()
+  }, [])
+
+  // This track's OVERRIDES. Keyed on the id for the same reason the form seed
+  // below is: /settings/tracks/:id is one component across many ids, and a
+  // boolean guard would leave the previous track's numbers in the inputs.
+  useEffect(() => {
+    if (!id) return
+    setSlaLoading(true)
+    setSlaLoadError(null)
+    // Clear first. /settings/tracks/:id is one component across many ids, and
+    // the previous track's numbers left in state would count as unsaved changes
+    // against the NEXT track's baseline.
+    setSlaForm(blankSlaForm())
+    setSlaBaseline(blankSlaBaseline())
+    setSlaTouched({})
+    void listTrackSlas(id).then((result) => {
+      if (!alive.current) return
+      setSlaLoading(false)
+      if (!result.ok) {
+        setSlaLoadError(result.error)
+        return
+      }
+      const nextForm = blankSlaForm()
+      const nextBaseline = blankSlaBaseline()
+      for (const row of result.data) {
+        nextForm[row.priority] = String(row.sla_days)
+        nextBaseline[row.priority] = row.sla_days
+      }
+      setSlaForm(nextForm)
+      setSlaBaseline(nextBaseline)
+      setSlaTouched({})
+    })
+  }, [id])
 
   // Seed once per track. Keyed on the id rather than a plain boolean because
   // this component is reused across /settings/tracks/:id ids — a boolean would
@@ -198,15 +318,61 @@ export default function TrackEditor(): ReactElement {
     ),
   )
 
+  const setSla = useCallback((priority: EntryPriority, value: string): void => {
+    setSlaForm((current) => ({ ...current, [priority]: value }))
+  }, [])
+
   const errors = validate(form)
   const shows = (key: keyof Form): string | undefined =>
     submitted || touched[key] ? errors[key] : undefined
-  const dirty = JSON.stringify(form) !== JSON.stringify(baseline)
+
+  /**
+   * The typed overrides as lib/health sees them, so each row's greyed value is
+   * resolveSlaDays()' answer and not a second implementation of the same rule.
+   * Built in a memo, never in a selector — a fresh Map per render is the
+   * `getSnapshot should be cached` hazard store/config.ts documents.
+   */
+  const slaOverrides = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!id) return map
+    for (const priority of PRIORITIES) {
+      const parsed = parseSla(slaForm[priority])
+      if (typeof parsed === 'number') map.set(trackSlaKey(id, priority), parsed)
+    }
+    return map
+  }, [id, slaForm])
+
+  const slaInvalid = PRIORITIES.some((p) => parseSla(slaForm[p]) === undefined)
+  const slaDirty = PRIORITIES.some((p) => slaForm[p].trim() !== slaText(slaBaseline[p]))
+  const dirty = JSON.stringify(form) !== JSON.stringify(baseline) || slaDirty
+
+  /**
+   * Write only the cells that changed, one at a time. Four requests is the worst
+   * case and the common case is zero; running them in sequence keeps the
+   * config_audit trail in the order the admin sees the rows, and lets the first
+   * failure stop the rest rather than half-applying a matrix.
+   *
+   * Returns an i18n KEY on failure, null on success.
+   */
+  async function saveSlaOverrides(trackId: string): Promise<string | null> {
+    for (const priority of PRIORITIES) {
+      const next = parseSla(slaForm[priority])
+      // Guarded by slaInvalid before this runs; the check is here so a future
+      // caller cannot skip it and write `undefined` into the API.
+      if (next === undefined) continue
+      if (next === slaBaseline[priority]) continue
+      const result = await setTrackSla(trackId, priority, next)
+      if (!result.ok) return result.error
+      if (!alive.current) return null
+      setSlaBaseline((current) => ({ ...current, [priority]: next }))
+    }
+    return null
+  }
 
   async function save(): Promise<void> {
     setSubmitted(true)
     setServerError(null)
-    if (Object.keys(errors).length > 0) return
+    if (Object.keys(errors).length > 0 || slaInvalid) return
     setSaving(true)
     const input = {
       name: form.name.trim(),
@@ -220,14 +386,33 @@ export default function TrackEditor(): ReactElement {
     }
     const result = id ? await updateTrack(id, input) : await createTrack(input)
     if (!alive.current) return
-    setSaving(false)
     if (!result.ok) {
+      setSaving(false)
       // An i18n KEY from pgErrorKey — a duplicate name lands on the field it
       // belongs to rather than in a generic banner. t() passes an unknown key
       // through verbatim, so the "backend not configured" sentence also renders.
       setServerError(result.error)
       return
     }
+
+    // The second table. Only on edit: the overrides section is not offered on
+    // the create form precisely so this cannot half-apply — a track that was
+    // created and then failed its SLA writes would leave the page with no id to
+    // retry against and a name the server would now reject as a duplicate.
+    if (id) {
+      const slaError = await saveSlaOverrides(id)
+      if (!alive.current) return
+      if (slaError) {
+        setSaving(false)
+        setServerError(slaError)
+        // The track itself saved; the config store must reflect that even
+        // though the SLA half did not land.
+        invalidateConfig()
+        return
+      }
+    }
+
+    setSaving(false)
     invalidateConfig()
     toast(t(editing ? 'admin.tracks.saved' : 'admin.tracks.created'))
     void navigate('/settings/tracks')
@@ -527,6 +712,97 @@ export default function TrackEditor(): ReactElement {
                 )
               })}
             </div>
+          </fieldset>
+
+          {/* The track half of the track × priority SLA matrix (0006). The
+              workspace-wide default per priority lives in the vocabulary
+              screen; this section only overrides it, one priority at a time. */}
+          <fieldset className="admin-fieldset">
+            <legend className="field-label">{t('admin.tracks.slaOverrides')}</legend>
+            <p className="tsla-rule">{t('admin.tracks.slaRule')}</p>
+
+            {/* No id yet, so there is nothing to hang an override on. Saying so
+                beats four disabled inputs, and it keeps the create path from
+                being able to half-apply across two tables. */}
+            {!editing && <p className="tsla-note">{t('admin.tracks.slaAfterSave')}</p>}
+
+            {editing && slaLoading && <Skeleton height={44} count={4} />}
+
+            {editing && !slaLoading && slaLoadError && (
+              <p className="field-error" role="alert">
+                {t(slaLoadError)}
+              </p>
+            )}
+
+            {editing && !slaLoading && !slaLoadError && (
+              <div className="tsla-list">
+                {PRIORITIES.map((priority) => {
+                  const raw = slaForm[priority]
+                  const parsed = parseSla(raw)
+                  const invalid = parsed === undefined && (submitted || slaTouched[priority])
+                  const overridden = typeof parsed === 'number'
+                  // The SAME resolver the entry lists use, so what this line
+                  // promises is what the view will enforce.
+                  const effective = resolveSlaDays(
+                    id ?? null,
+                    priority,
+                    slaOverrides,
+                    priorityDefault(priority),
+                  )
+                  const inputId = `track-sla-${priority}`
+                  const label = vocabLabel('priority', priority)
+                  return (
+                    <div className="tsla-row" key={priority}>
+                      <label className="tsla-name" htmlFor={inputId}>
+                        {label}
+                      </label>
+                      {/* type="text" + inputMode="numeric", not type="number":
+                          the spinner is a 16px hit target, the scroll wheel
+                          silently changes a committed value, and Firefox
+                          reports a non-numeric entry as an empty string, which
+                          would read here as "inherit". dir="ltr" because a
+                          number of days is a Latin token inside a page that may
+                          be RTL. */}
+                      <input
+                        id={inputId}
+                        className="input tsla-input"
+                        type="text"
+                        inputMode="numeric"
+                        dir="ltr"
+                        value={raw}
+                        placeholder={t('admin.tracks.slaInherit')}
+                        maxLength={4}
+                        autoComplete="off"
+                        aria-invalid={invalid ? true : undefined}
+                        aria-describedby={
+                          invalid ? `${inputId}-eff ${inputId}-err` : `${inputId}-eff`
+                        }
+                        onChange={(e) => setSla(priority, e.target.value)}
+                        onBlur={() => setSlaTouched((c) => ({ ...c, [priority]: true }))}
+                      />
+                      <p
+                        className={`tsla-effective${overridden ? ' tsla-effective-own' : ''}`}
+                        id={`${inputId}-eff`}
+                      >
+                        {effective === null
+                          ? t('admin.tracks.slaEffectiveNone')
+                          : t(
+                              overridden
+                                ? 'admin.tracks.slaEffectiveOwn'
+                                : 'admin.tracks.slaEffectiveInherited',
+                              { days: effective },
+                            )}
+                      </p>
+                      {invalid && (
+                        <p className="field-error tsla-error" id={`${inputId}-err`}>
+                          {t('admin.tracks.errSlaRange', { min: SLA_MIN, max: SLA_MAX })}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </fieldset>
 
           {serverError && (

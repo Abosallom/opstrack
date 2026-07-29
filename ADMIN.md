@@ -43,6 +43,7 @@ the service role. Adding an address there does not make anyone an admin.
 | Reorder | Drag; writes `sort_order` for the tracks that actually moved |
 | Archive / restore | The normal way to retire a track. Its entries and history stay, it drops out of pickers, and its recurring templates stop producing entries |
 | Delete | Refused while anything still references the track. The UI then offers to move those rows to another track first, and does both in one transaction. The destination must be an **active** track: an archived one is hidden from every picker and stops its recurring templates, so moving rows there would lose them quietly. There is no "leave them unassigned" option — the database refuses that, since every `track_id` FK is `on delete set null` |
+| SLA overrides | One optional number of days per priority, in the track editor. Empty means the track inherits the workspace default for that priority. See [Service-level agreements](#service-level-agreements-sla) below |
 
 **Members** — provisioned through the `admin-members` edge function (see the
 README). The members *screen* is deferred until after entries CRUD.
@@ -68,6 +69,114 @@ RLS denies those operations to everyone — the same immutability trick
 `entry_updates` uses. Never add `force row level security` to it; the audit rows
 are written by a `SECURITY DEFINER` function that depends on the owner being
 exempt, and forcing RLS would turn every audited track edit into a failure.
+
+---
+
+## Service-level agreements (SLA)
+
+**SLA ships OFF, and nothing turns it on by itself.** No migration seeds a
+number, and there is no `DEFAULT_SLA_DAYS` anywhere in the client. That is
+deliberate: a breach is computed from `created_at` with no regard for *when* the
+number was chosen, so seeding one would retroactively report every open item
+older than the threshold as a missed commitment — against a target this workspace
+never agreed to.
+
+### The matrix
+
+An SLA is resolved per **(track, priority)** pair, in this order, by
+`v_entry_health` in the database and by `resolveSlaDays()` in
+[`src/lib/health.ts`](src/lib/health.ts) — which is a mirror of the view, not a
+second opinion:
+
+| Order | Where it lives | Who edits it | Meaning |
+| --- | --- | --- | --- |
+| 1 | `track_slas (track_id, priority)` | Track editor → **SLA overrides** | This track's own promise for this priority |
+| 2 | `vocab_options.sla_days` (priority rows) | Vocabulary screen → the priority's **Service deadline** field | The workspace default for this priority |
+| 3 | — | — | No SLA. `sla_due_at` is null and `sla_breached` is false |
+
+Read it as: the track's number wins; where the track is silent the priority
+default applies; where neither is set, that priority has no SLA. Both screens
+state that sentence on the screen itself.
+
+"Inherit" is the **absence of a row**, not a zero or a sentinel. Clearing the
+input in the track editor deletes the override; `sla_days` is `not null check
+between 1 and 3650`, so a cell can only ever be "a number" or "no row".
+
+### What it measures, and what it does not
+
+- **The SLA clock starts at `created_at`.** Staleness starts at
+  `last_activity_at`. They answer different questions and neither substitutes for
+  the other: an item updated hourly for a month is never stale and can still blow
+  its SLA; an item finished in an hour and then ignored is stale and never
+  breaches.
+- **`due_date` is unrelated.** That is what one person promised about one item.
+  The SLA is what the workspace promises about a *class* of items.
+- **Closed entries never report a breach.** `v_entry_health` has no row for
+  `done` or `cancelled`, so the view answers "what is at risk right now". "Was
+  this closed late" is a different question, asked of `entries.closed_at`.
+- **Breach is strict.** `now() > sla_due_at` — at exactly the deadline the
+  commitment has been met, not missed.
+
+### Turning it on and off
+
+Arm a workspace-wide default for one priority, from the vocabulary screen or
+directly:
+
+```sql
+-- 3 days for every critical item, in every track that does not override it.
+update public.vocab_options set sla_days = 3 where kind = 'priority' and key = 'critical';
+
+-- Off again, everywhere that inherits it.
+update public.vocab_options set sla_days = null where kind = 'priority' and key = 'critical';
+```
+
+Override one track (the track editor does this for you):
+
+```sql
+insert into public.track_slas (track_id, priority, sla_days)
+select id, 'critical', 1 from public.tracks where name = 'Network'
+on conflict (track_id, priority) do update set sla_days = excluded.sla_days;
+
+-- Back to inheriting:
+delete from public.track_slas
+ where priority = 'critical'
+   and track_id = (select id from public.tracks where name = 'Network');
+```
+
+What is actually in force, everywhere, in one query:
+
+```sql
+select t.name, p.key as priority,
+       ts.sla_days as track_override,
+       vp.sla_days as priority_default,
+       coalesce(ts.sla_days, vp.sla_days) as in_force
+  from public.tracks t
+ cross join (select key from public.vocab_options where kind = 'priority') p
+  left join public.vocab_options vp on vp.kind = 'priority' and vp.key = p.key
+  left join public.track_slas ts on ts.track_id = t.id and ts.priority = p.key
+ order by t.sort_order, vp.sort_order;
+```
+
+### Operational notes
+
+- **Overrides are audited** like tracks and vocabulary: every insert, update and
+  delete writes a `config_audit` row with `table_name = 'track_slas'`, the actor,
+  and full before/after images. `row_id` is the **track** id, so
+  `where table_name = 'track_slas' and row_id = '…'` reads back one track's whole
+  SLA history.
+- **Deleting a track removes its overrides.** `track_slas.track_id` is
+  `on delete cascade` — unlike every other `track_id` FK in the schema, which is
+  `on delete set null`. A row here has no content beyond the track it names.
+- **RLS:** any member may read the numbers (they are the commitments those
+  members are expected to meet); only an admin may write them.
+- **Changing a number is retroactive by construction.** Tightening a track's
+  critical SLA from 7 days to 1 re-colours every open critical item in that track
+  as breached, at once. That is why the change is audited, and why the editor
+  shows the resolved value on every row before you save.
+- **`0006_track_slas.sql` refuses to finish if the join it adds changes the row
+  count of `v_entry_health`.** It compares the view against a plain count of open
+  entries and raises. Everything in the file is idempotent, so a failure is
+  fix-and-re-run, not a repair job.
 
 ---
 
@@ -142,6 +251,12 @@ rejects is a `23514` at save time.
 `recurring_templates`. Both constraints (`entries_type_chk` **and**
 `recurring_templates_type_chk`) have to move together, or a template can never
 produce the entry it describes.
+
+**A new *priority* costs one more still: `track_slas_priority_frozen`** in
+[`0006_track_slas.sql`](supabase/migrations/0006_track_slas.sql), plus the
+`PRIORITIES` list in `src/pages/settings/TrackEditor.tsx`. Miss the CHECK and no
+track can ever be given an SLA for the new priority; miss the list and the cell
+simply never appears in the editor.
 
 ### If the new value is *terminal* (it closes an item): +3
 
@@ -224,6 +339,9 @@ Editor you see them raw.
 | `23514` | `last_active_track` | You tried to archive or delete the last active track. The workspace must always have somewhere to file work |
 | `23514` | `tracks_color_chk` | Colour must be a six-digit hex like `#06b6d4` |
 | `23514` | `tracks_name_len_chk` | Track name must be 1–40 characters after trimming |
+| `23514` | `track_slas_days_range` | An SLA override must be a whole number of days from 1 to 3650. Zero breaches the instant the entry is created; empty the field instead, which deletes the row and inherits |
+| `23514` | `track_slas_priority_frozen` | The priority is not one of `low`, `medium`, `high`, `critical`. Only reachable by hand-written SQL — the editor cannot produce it |
+| `23514` | `vocab_sla_range` | The same bounds for a *priority default*, in `vocab_options` |
 | `42501` | — | Not an admin. If the screen rendered but the write failed, `profiles.role` and the UI disagree: see recovery above |
 
 ---

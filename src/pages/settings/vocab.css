@@ -1,0 +1,482 @@
+/* Vocabulary admin (/settings/vocabulary).
+
+   CLASS REGISTRY (XP §1.0.7): this sheet owns `.vocab-*` and nothing else.
+   Everything structural comes from global.css primitives — .card, .btn, .pill,
+   .field, .input, .field-label, .field-error, .tabular, .sr-only — and every
+   variant here rides on a data-* attribute or on aria-checked rather than on a
+   modifier class, so an unregistered `.is-open` can never appear by habit. That
+   is the same constraint components/entry/entry.css states for the kit's atoms,
+   and it is what makes the registry checkable by grep instead of by trust.
+
+   LOGICAL PROPERTIES ONLY — inline/block axes, never a physical edge — so the
+   Arabic mirror costs nothing. The two exceptions are deliberate and marked:
+   the up/down chevron rotations (an axis-neutral direction that must NOT mirror)
+   and the swatch's decorative dot.
+
+   SPACING is the 4px grid: 4 / 8 / 12 / 16. MOTION is 150–200ms ease and is
+   switched off under prefers-reduced-motion, which global.css also enforces
+   globally — restated here so this file is honest on its own.
+
+   COLOUR arrives as ONE inline custom property, --vocab-c from vocabVars(), and
+   is resolved in CSS. Never in JavaScript: a hex chosen at render keeps
+   yesterday's value when the `auto` theme flips at sunset, because lib/theme.ts
+   rewrites data-theme on <html> from a matchMedia listener and nothing
+   re-renders. See lib/vocabStyle.ts's header. */
+
+.vocab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-inline-size: 760px;
+}
+
+.vocab-bar {
+  display: flex;
+  align-items: center;
+}
+
+/* The route's h1 lives in the app header, so this page opens on its standfirst
+   rather than repeating the title. The two rules under it are part of the same
+   thought, so they sit 4px apart inside this block rather than taking the
+   page's own 16px rhythm and reading as three separate announcements. */
+.vocab-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vocab-intro-lead {
+  font-size: 13px;
+  line-height: 1.55;
+  /* --text-dim, not --text-faint: this sits directly on --bg and dim is the
+     token that clears AA at every elevation. */
+  color: var(--text-dim);
+}
+
+.vocab-note {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+/* ---------- load failure ---------- */
+
+.vocab-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
+  color: var(--text);
+}
+
+.vocab-error-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+/* ---------- one kind ---------- */
+
+.vocab-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vocab-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vocab-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.vocab-section-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* The SLA resolution rule and the link to the other half of it. Dashed, like
+   the preview box: this is an explanation, not another editable surface. */
+.vocab-sla-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* "SLA is off everywhere" is the one sentence in that box that is a state of
+   the workspace rather than a rule, so it carries the full ink. */
+.vocab-sla-off {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.vocab-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+
+.vocab-link:hover {
+  color: var(--accent-hover);
+}
+
+/* ---------- rows ---------- */
+
+.vocab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vocab-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+/* A hidden option loses its fill, not its legibility: the admin reading it is
+   deciding whether to bring it back, so dimming the text would fight the only
+   reason the row is on screen. */
+.vocab-row[data-hidden='true'] {
+  background: transparent;
+  border-style: dashed;
+}
+
+.vocab-row[data-open='true'] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: var(--bg-elev);
+}
+
+.vocab-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Reorder is up/down buttons, not drag: a drag handle is unreachable by
+   keyboard and unusable one-handed, which is this app's primary posture. */
+.vocab-moves {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.vocab-move {
+  min-inline-size: 36px;
+  padding-inline: 6px;
+}
+
+/* One chevron glyph serves both directions. Up and down are axis-neutral, so
+   these must NOT carry .icon-directional — mirroring them in Arabic would point
+   them sideways. */
+.vocab-move-icon {
+  transition: transform 0.16s ease;
+}
+
+.vocab-move-up {
+  transform: rotate(-90deg);
+}
+
+.vocab-move-down {
+  transform: rotate(90deg);
+}
+
+/* One wrapping line, not a stack: the badges are a continuation of the label,
+   and giving them their own row made every edited option 28px taller than its
+   neighbours, which turned an otherwise even list ragged. */
+.vocab-row-main {
+  display: flex;
+  flex: 1 1 220px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.vocab-row-id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+/* The preview pill, drawn exactly as components/entry/entry.css draws
+   .status-pill: .pill supplies the shape and derives its tint and border from
+   currentColor, so this rule sets `color` and the pill follows. The fallback is
+   what renders when the option has no colour — which is the seeded state, and
+   the only one that clears AA for small text. */
+.vocab-pill {
+  color: var(--vocab-c, var(--text-dim));
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The stored key: developer-facing, deliberately quiet, and never translated —
+   it is what appears in SQL, in the parser's aliases and in an export. */
+.vocab-key {
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.vocab-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* A row with no badges must not still open a gap — the list twitched as the
+   priority badges arrived. */
+.vocab-badges:empty {
+  display: none;
+}
+
+.vocab-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+}
+
+/* ---------- the row editor ---------- */
+
+.vocab-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--border);
+  animation: vocab-open 0.17s ease both;
+}
+
+@keyframes vocab-open {
+  from {
+    opacity: 0;
+    /* Block axis only: vertical motion carries no reading direction, so this
+       needs no RTL mirror. */
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Two columns where there is room for two 44px-tall controls side by side, one
+   below that. auto-fit rather than a media query on the page width: this panel
+   is the same component at 375px and inside a 760px column. */
+.vocab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+/* Dashed: this is a rendering of the option, not another editable card. */
+.vocab-resolve {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+.vocab-resolve-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Fixed inline size so the two language rows line up their pills, which is the
+   whole point of showing them together. */
+.vocab-resolve-lang {
+  flex: 0 0 auto;
+  min-inline-size: 72px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.vocab-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: none;
+}
+
+.vocab-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* ---------- colour picker ---------- */
+
+/* auto-fill rather than a fixed column count, so the same grid works at 375px
+   and inside the editor's two-column layout. */
+.vocab-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 8px;
+}
+
+/* 44px block size: this is a touch target as much as a colour sample. The
+   swatch wears the option's own colour the way the pill will — an 18% tint with
+   the hex as ink — so the grid previews the result rather than showing a
+   saturated chip the app never draws. */
+.vocab-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--vocab-c, var(--text-dim)) 35%, transparent);
+  background: color-mix(in srgb, var(--vocab-c, var(--text-dim)) 18%, transparent);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.vocab-swatch:hover {
+  border-color: var(--vocab-c, var(--field-border));
+}
+
+.vocab-swatch:active {
+  transform: translateY(1px);
+}
+
+/* Selection is a double ring AND a size change: on a grid of pure colour, hue
+   alone cannot say which one is chosen to someone who cannot separate the hues.
+   box-shadow rather than a thicker border, so choosing does not resize the box
+   and reshuffle the grid on every tap; two rings so it reads against both a
+   light and a dark swatch, which one outline colour cannot. */
+.vocab-swatch[aria-checked='true'] {
+  box-shadow: 0 0 0 2px var(--bg-elev), 0 0 0 4px var(--text);
+}
+
+.vocab-swatch[aria-checked='true'] .vocab-swatch-dot {
+  inline-size: 24px;
+  block-size: 24px;
+}
+
+.vocab-swatch-dot {
+  inline-size: 18px;
+  block-size: 18px;
+  border-radius: 50%;
+  background: var(--vocab-c, var(--text-dim));
+  transition: inline-size 0.16s ease, block-size 0.16s ease;
+}
+
+/* "Default colour" — the option that stores NULL. An empty dashed ring says
+   "nothing set" in a way a grey disc (which is a colour) cannot. */
+.vocab-swatch[data-none='true'] .vocab-swatch-dot {
+  background: transparent;
+  border: 1px dashed var(--field-border);
+}
+
+/* Tabular figures only. `text-transform: lowercase` also lowercased the
+   translated placeholder ("Default colour" → "default colour"), and the value is
+   normalised on save anyway, so a typed #FF0000 is stored as #ff0000 without the
+   field having to shout about it. */
+.vocab-hex {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- arming an SLA ---------- */
+
+/* Amber, not red: turning a deadline on is a decision, not a mistake. It sits
+   directly above the save button because that is the moment it describes. */
+.vocab-arm {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--yellow) 10%, transparent);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.vocab-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- narrow screens ---------- */
+
+@media (max-width: 479px) {
+  /* At 375px the three row actions cannot share a line with the label, so they
+     take a full-width row of their own at full tap size rather than shrinking.
+     The move buttons deliberately STAY beside the label: giving them a line too
+     made every row three lines tall and pushed the third option below the fold.
+     That needs the basis dropped — 220px does not fit beside two 38px buttons in
+     the ~285px a row actually has at 375px, and a basis that cannot fit is what
+     put the buttons on their own line in the first place. */
+  .vocab-row-main {
+    flex-basis: 140px;
+  }
+
+  .vocab-row-actions {
+    inline-size: 100%;
+    margin-inline-start: 0;
+  }
+
+  .vocab-row-actions .btn {
+    flex: 1 1 auto;
+  }
+
+  .vocab-resolve-lang {
+    min-inline-size: 100%;
+  }
+}
+
+/* global.css already zeroes every duration under this query; restated so this
+   sheet does not depend on that to be honest about its own motion. */
+@media (prefers-reduced-motion: reduce) {
+  .vocab-editor {
+    animation: none;
+  }
+
+  .vocab-row,
+  .vocab-move-icon,
+  .vocab-swatch,
+  .vocab-swatch-dot,
+  .vocab-link {
+    transition: none;
+  }
+
+  .vocab-swatch:active {
+    transform: none;
+  }
+}

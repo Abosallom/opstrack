@@ -1,0 +1,352 @@
+/* /claim — first registration for a predefined username account. The second of
+   the two screens rendered outside the app shell, so like sign-in it owns its
+   own full-viewport frame and reuses the global primitives (.card, .field,
+   .field-label, .field-error, .input, .btn) for everything inside the card.
+
+   PREFIX: .claim-* (XP §1.0.7). It deliberately mirrors signin.css rule for
+   rule rather than sharing one: two screens that must look identical and are
+   owned by one worker are still two sheets, and a shared `.auth-*` prefix would
+   be a third owner nobody registered. Where the two agree, the rules are
+   byte-identical so a later change to one is an obvious diff against the other.
+
+   Spacing is on the 4px grid. Logical properties only — fully mirrored in
+   Arabic, including the field icons, the reveal button and the back arrow. */
+
+.claim {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 100dvh;
+  padding-block: calc(24px + env(safe-area-inset-top, 0px))
+    calc(24px + env(safe-area-inset-bottom, 0px));
+  /* Symmetric notch padding: a hardware cutout does not swap sides with the
+     writing direction. */
+  padding-inline: max(20px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+}
+
+.claim-card {
+  inline-size: 100%;
+  /* 4px wider than the sign-in card's 400px would be a visible jump between two
+     screens the user moves between; it is the same number on purpose. */
+  max-inline-size: 400px;
+  padding: 28px 24px;
+  box-shadow: var(--shadow);
+  animation: claim-rise 180ms ease-out both;
+}
+
+@keyframes claim-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- brand ---------- */
+
+.claim-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-block-end: 24px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+
+/* Never break the wordmark — see the matching note in signin.css. */
+.claim-brand-name {
+  white-space: nowrap;
+}
+
+/* Pushed to the trailing edge of the brand row — see the comment in Claim.tsx
+   for why a language control exists on a pre-auth screen at all. */
+.claim-lang {
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+}
+
+.claim-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  flex: 0 0 auto;
+}
+
+/* ---------- typography ---------- */
+
+.claim-title {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.claim-sub {
+  margin-block: 8px 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+.claim-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  text-wrap: pretty;
+}
+
+/* ---------- form ---------- */
+
+.claim-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.claim-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-block-start: 20px;
+}
+
+.claim-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.claim-field-icon {
+  position: absolute;
+  inset-inline-start: 12px;
+  color: var(--text-faint);
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+
+.claim-field:focus-within .claim-field-icon {
+  color: var(--accent);
+}
+
+.claim-input {
+  padding-inline-start: 40px;
+}
+
+.claim-input-secret {
+  padding-inline-end: 76px;
+}
+
+/* The code is 8 characters from a 32-symbol alphabet, transcribed off a note
+   rather than skimmed — same treatment as the six-digit code on sign-in. */
+.claim-invite-input {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.claim-reveal {
+  position: absolute;
+  inset-inline-end: 6px;
+  min-block-size: 32px;
+  padding-block: 6px;
+  padding-inline: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.claim-reveal:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.claim-reveal:active {
+  transform: translateY(1px);
+}
+
+.claim-reveal::after {
+  content: '';
+  position: absolute;
+  inset-block: -6px;
+  inset-inline: 0;
+}
+
+.claim-caps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--yellow);
+}
+
+/* ---------- strength meter ---------- */
+
+.claim-strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 2px;
+}
+
+.claim-meter {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.claim-meter-bar {
+  inline-size: 24px;
+  block-size: 4px;
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* Colour is a second channel here, never the only one — the sentence next to
+   the bars says the same thing in words. */
+.claim-meter-bar.s1 {
+  background: var(--red);
+  border-color: var(--red);
+}
+
+.claim-meter-bar.s2 {
+  background: var(--yellow);
+  border-color: var(--yellow);
+}
+
+.claim-meter-bar.s3 {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.claim-strength-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+/* ---------- confirm-field answer ----------
+   Reserved height so the row appearing and disappearing never shifts the
+   button below it. */
+
+.claim-match {
+  min-block-size: 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: transparent;
+}
+
+.claim-match.ok {
+  color: var(--green);
+}
+
+.claim-match.bad {
+  color: var(--red);
+}
+
+/* ---------- actions ---------- */
+
+.claim-error {
+  margin-block-start: 16px;
+}
+
+.claim-submit {
+  margin-block-start: 20px;
+}
+
+.claim-sep {
+  block-size: 1px;
+  margin-block: 20px;
+  background: var(--border);
+}
+
+.claim-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-block-size: 44px;
+  padding-inline: 8px;
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.claim-link:hover {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.claim-link:active {
+  transform: translateY(1px);
+}
+
+.claim-foot {
+  margin-block-start: 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-faint);
+  text-align: center;
+  text-wrap: pretty;
+}
+
+/* ---------- unconfigured build ---------- */
+
+.claim-notice {
+  padding: 16px;
+  border: 1px solid var(--yellow);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+.claim-notice-title {
+  margin-block-end: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.claim-notice-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* ---------- motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .claim-card {
+    animation: none;
+  }
+
+  .claim-reveal:active,
+  .claim-link:active {
+    transform: none;
+  }
+}

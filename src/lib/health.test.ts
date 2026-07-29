@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { CLOSED_STATUSES, computeHealth, isOpen } from './health'
+import {
+  buildTrackSlaMap,
+  CLOSED_STATUSES,
+  computeHealth,
+  isOpen,
+  resolveSlaDays,
+  trackSlaKey,
+  type TrackSlaRule,
+} from './health'
 import type { Entry } from '../types'
 
 // PARITY WITH v_entry_health IS WHAT THIS FILE ASSERTS. Every case below is the
@@ -200,6 +208,103 @@ describe('SLA — the created_at + sla_days boundary', () => {
     const h = computeHealth(entry({ created_at: 'not-a-timestamp' }), 4, 3, NOW)
     expect(h.sla_due_at).toBeNull()
     expect(h.sla_breached).toBe(false)
+  })
+})
+
+// PARITY WITH `coalesce(ts.sla_days, vp.sla_days)` in 0006's v_entry_health.
+//
+// The fixtures below are the SAME matrix the live probe ran against the project
+// inside a rolled-back transaction when 0006 was applied: priority default
+// critical = 7; track A overrides critical to 1 and low to 3650; track B
+// overrides critical to 3650; track C overrides nothing. The live view reported
+// 5 of 14 open rows breached under that matrix and 2 of 14 once the priority
+// default was cleared — the two assertions at the bottom of this block are those
+// same two counts, re-derived here row by row. If the view and this file ever
+// disagree, the view wins and this file is the bug.
+describe('resolveSlaDays — the track × priority matrix', () => {
+  const TRACK_A = 'aaaaaaaa-0000-4000-8000-000000000001'
+  const TRACK_B = 'bbbbbbbb-0000-4000-8000-000000000002'
+  const TRACK_C = 'cccccccc-0000-4000-8000-000000000003'
+
+  const RULES: TrackSlaRule[] = [
+    { track_id: TRACK_A, priority: 'critical', sla_days: 1 },
+    { track_id: TRACK_A, priority: 'low', sla_days: 3650 },
+    { track_id: TRACK_B, priority: 'critical', sla_days: 3650 },
+  ]
+  const MATRIX = buildTrackSlaMap(RULES)
+
+  it('keys the matrix on the pair, matching the table primary key', () => {
+    expect(trackSlaKey(TRACK_A, 'critical')).toBe(`${TRACK_A}:critical`)
+    expect(MATRIX.size).toBe(3)
+    expect(MATRIX.get(trackSlaKey(TRACK_A, 'low'))).toBe(3650)
+  })
+
+  it('prefers the track override over the priority default', () => {
+    expect(resolveSlaDays(TRACK_A, 'critical', MATRIX, 7)).toBe(1)
+    expect(resolveSlaDays(TRACK_B, 'critical', MATRIX, 7)).toBe(3650)
+  })
+
+  it('falls back to the priority default where the track has no row', () => {
+    expect(resolveSlaDays(TRACK_C, 'critical', MATRIX, 7)).toBe(7)
+    // Same track, a priority it did not override.
+    expect(resolveSlaDays(TRACK_B, 'low', MATRIX, null)).toBeNull()
+  })
+
+  it('falls through to null when neither level carries a number', () => {
+    expect(resolveSlaDays(TRACK_C, 'low', MATRIX, null)).toBeNull()
+    expect(resolveSlaDays(TRACK_C, 'high', new Map(), null)).toBeNull()
+  })
+
+  it('treats a null track_id as no override, exactly like the view left join', () => {
+    // entries.track_id is `on delete set null`, so this is a real row shape and
+    // not a defensive one. It must inherit, never disappear.
+    expect(resolveSlaDays(null, 'critical', MATRIX, 7)).toBe(7)
+    expect(resolveSlaDays(null, 'critical', MATRIX, null)).toBeNull()
+  })
+
+  it('treats a not-yet-loaded matrix as no override rather than as no SLA', () => {
+    // The safe direction: show the workspace default for a beat and re-render,
+    // rather than invent a breach or hide a real one.
+    expect(resolveSlaDays(TRACK_A, 'critical', null, 7)).toBe(7)
+    expect(resolveSlaDays(TRACK_A, 'critical', undefined, 7)).toBe(7)
+  })
+
+  it('does not read a zero override as absent', () => {
+    // `?? ` not `||`. The DB CHECK forbids 0, so this can only arrive from a
+    // hand-written map — but `||` here would silently promote it to the default
+    // and the bug would look like the override "not taking effect".
+    const zero = new Map([[trackSlaKey(TRACK_A, 'high'), 0]])
+    expect(resolveSlaDays(TRACK_A, 'high', zero, 7)).toBe(0)
+  })
+
+  it('reproduces the live probe: 5 of 14 open rows breached under the matrix', () => {
+    // Every entry created 30 days before NOW, so a resolved SLA of 1 or 7
+    // breaches and 3650 does not.
+    const created = '2026-06-29T12:00:00.000Z'
+    const rows: { track: string | null; priority: 'critical' | 'low' }[] = [
+      ...([TRACK_A, TRACK_B, TRACK_C] as const).flatMap((track) => [
+        { track, priority: 'critical' as const },
+        { track, priority: 'critical' as const },
+        { track, priority: 'low' as const },
+        { track, priority: 'low' as const },
+      ]),
+      { track: null, priority: 'critical' },
+      { track: null, priority: 'low' },
+    ]
+    expect(rows).toHaveLength(14)
+
+    const breachedWith = (defaults: { critical: number | null; low: number | null }): number =>
+      rows.filter((r) => {
+        const resolved = resolveSlaDays(r.track, r.priority, MATRIX, defaults[r.priority])
+        return computeHealth(entry({ created_at: created, priority: r.priority }), 4, resolved, NOW)
+          .sla_breached
+      }).length
+
+    // Priority default critical = 7: A's two criticals (1 day) and C's two
+    // (inherited 7) and the trackless critical (7) breach; B's are at 3650.
+    expect(breachedWith({ critical: 7, low: null })).toBe(5)
+    // Default cleared: only A's two criticals still have a number to miss.
+    expect(breachedWith({ critical: null, low: null })).toBe(2)
   })
 })
 

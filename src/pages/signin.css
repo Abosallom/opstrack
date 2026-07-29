@@ -1,7 +1,15 @@
-/* Sign-in is the only screen rendered outside the app shell, so it owns its own
-   full-viewport layout. Everything inside the card reuses the global primitives
-   (.card, .field, .input, .btn); the rules here are the ones the design system
-   has no opinion about — the centring frame and the leading field icon. */
+/* Sign-in is one of the two screens rendered outside the app shell (the other
+   is /claim), so it owns its own full-viewport layout. Everything inside the
+   card reuses the global primitives — .card, .field, .field-label,
+   .field-error, .input, .btn — and the rules here are only the ones the design
+   system has no opinion about: the centring frame, the leading field icon, the
+   trailing reveal control, and the "check your email" panel.
+
+   PREFIX: .signin-* (XP §1.0.7). This sheet styles nothing else, and nothing
+   else styles .signin-*. Spacing is on the 4px grid throughout.
+
+   Logical properties only — this screen is fully mirrored in Arabic, including
+   the field icon, the arrow on "use a different email", and the reveal button. */
 
 .signin {
   display: flex;
@@ -18,42 +26,121 @@
 .signin-card {
   inline-size: 100%;
   max-inline-size: 400px;
-  padding: 26px 22px;
+  padding: 28px 24px;
   box-shadow: var(--shadow);
+  /* The card is the only thing on the screen, so it gets the one entrance
+     animation in the app. 180ms, inside the 150–200ms band; the global
+     prefers-reduced-motion rule collapses it to 0.01ms, and the explicit block
+     at the foot of this file removes the movement as well as the duration. */
+  animation: signin-rise 180ms ease-out both;
 }
+
+@keyframes signin-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- brand ---------- */
 
 .signin-brand {
   display: flex;
   align-items: center;
-  gap: 9px;
-  margin-block-end: 22px;
+  gap: 10px;
+  margin-block-end: 24px;
   font-size: 19px;
   font-weight: 800;
   letter-spacing: -0.4px;
   color: var(--text);
 }
 
-.signin-form {
-  display: flex;
-  flex-direction: column;
+/* The shell's .sidebar-brand-mark is a plain accent square; this one carries
+   the app glyph, because on the front door the mark is the only branding the
+   user has seen. Declared here rather than reused so app-shell.css keeps sole
+   ownership of its own prefix. */
+/* The one string in the app that must never break: `overflow-wrap: anywhere`
+   here split the wordmark across two lines ("OpsTrac / k") once the language
+   button started competing for the row. */
+.signin-brand-name {
+  white-space: nowrap;
 }
+
+/* Pushed to the trailing edge of the brand row — see the comment in SignIn.tsx
+   for why a language control exists on a pre-auth screen at all. */
+.signin-lang {
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+}
+
+.signin-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  flex: 0 0 auto;
+}
+
+/* ---------- typography ---------- */
 
 .signin-title {
   font-size: 21px;
   font-weight: 800;
   letter-spacing: -0.4px;
+  line-height: 1.3;
   color: var(--text);
 }
 
 .signin-sub {
-  margin-block: 6px 20px;
+  margin-block: 8px 0;
   font-size: 14px;
   line-height: 1.55;
   color: var(--text-dim);
-  /* The address is echoed back on step 2 and can be long; break it rather than
-     letting it push the card wider than the viewport. */
+  /* The address is echoed back on the "check your email" panel and can be long;
+     break it rather than letting it push the card wider than the viewport. */
   overflow-wrap: anywhere;
   text-wrap: pretty;
+}
+
+/* Field-level guidance. Quieter than .signin-sub and tied to its input through
+   aria-describedby, so it is read as part of the control rather than as prose. */
+.signin-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  text-wrap: pretty;
+}
+
+/* Secondary explanation inside a panel — expiry, spam folder, what the code
+   disclosure is for. */
+.signin-note {
+  margin-block-start: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-faint);
+  text-wrap: pretty;
+}
+
+/* ---------- credentials form ---------- */
+
+.signin-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.signin-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-block-start: 20px;
 }
 
 /* Leading icon inside the field. inset-inline-start (not left) so it moves to
@@ -69,10 +156,205 @@
   inset-inline-start: 12px;
   color: var(--text-faint);
   pointer-events: none;
+  transition: color 0.15s ease;
+}
+
+.signin-field:focus-within .signin-field-icon {
+  color: var(--accent);
 }
 
 .signin-input {
   padding-inline-start: 40px;
+}
+
+/* Room for the reveal button on the trailing edge. 76px is the widest of the
+   four labels (EN "Show"/"Hide", AR "إظهار"/"إخفاء") plus its padding. */
+.signin-input-secret {
+  padding-inline-end: 76px;
+}
+
+.signin-reveal {
+  position: absolute;
+  inset-inline-end: 6px;
+  min-block-size: 32px;
+  padding-block: 6px;
+  padding-inline: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.signin-reveal:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.signin-reveal:active {
+  transform: translateY(1px);
+}
+
+/* The visible box stays small; the hit area is a full 44px in the block axis,
+   the same trick .btn-sm uses. Inline growth would reach under the input text. */
+.signin-reveal::after {
+  content: '';
+  position: absolute;
+  inset-block: -6px;
+  inset-inline: 0;
+}
+
+.signin-caps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--yellow);
+}
+
+.signin-error {
+  margin-block-start: 16px;
+}
+
+.signin-submit {
+  margin-block-start: 20px;
+}
+
+/* ---------- the one alternative under the submit ---------- */
+
+.signin-sep {
+  block-size: 1px;
+  margin-block: 20px;
+  background: var(--border);
+}
+
+.signin-alt {
+  /* .btn already supplies the box; this only tightens the weight so the
+     alternative reads as secondary to the primary above it. */
+  font-weight: 600;
+}
+
+/* Text link, sized to a 44px touch target without looking like a button. */
+.signin-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 44px;
+  padding-inline: 8px;
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.signin-link:hover {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.signin-link:active {
+  transform: translateY(1px);
+}
+
+/* ---------- "check your email" panel ---------- */
+
+.signin-sent {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Programmatic focus target — the panel is the announcement, so focus lands on
+   it rather than on a button. global.css keeps the ring for :focus-visible
+   only, so no outline is drawn for this scripted move. */
+.signin-sent:focus {
+  outline: none;
+}
+
+.signin-sent-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  margin-block-end: 16px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.signin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-start: 20px;
+}
+
+/* ---------- code disclosure ---------- */
+
+.signin-disclosure {
+  margin-block-start: 20px;
+  padding-block-start: 16px;
+  border-block-start: 1px solid var(--border);
+}
+
+.signin-disclosure-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  min-block-size: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: start;
+  transition: color 0.15s ease;
+}
+
+.signin-disclosure-toggle:hover {
+  color: var(--text);
+}
+
+/* +/− rather than a chevron: components/icons.tsx is closed after Wave 1, and
+   the two glyphs are symmetric so they need no RTL mirroring. */
+.signin-disclosure-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 18px;
+  block-size: 18px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 13px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.signin-code-form {
+  display: flex;
+  flex-direction: column;
+  margin-block-start: 4px;
+  animation: signin-rise 160ms ease-out both;
+}
+
+/* The explainer needs air under it — without this the "6-digit code" label
+   butts straight against the sentence above and the two read as one block. */
+.signin-code-form > .signin-note {
+  margin-block-end: 12px;
 }
 
 .signin-code-input {
@@ -85,18 +367,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.signin-submit {
-  margin-block-start: 18px;
-}
-
-.signin-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-block-start: 12px;
-}
+/* ---------- unconfigured build ---------- */
 
 .signin-notice {
   padding: 16px;
@@ -106,7 +377,7 @@
 }
 
 .signin-notice-title {
-  margin-block-end: 6px;
+  margin-block-end: 8px;
   font-size: 15px;
   font-weight: 700;
   color: var(--text);
@@ -118,4 +389,20 @@
   /* --text-dim rather than --text-faint: this sits on --bg-elev-2, the surface
      where the faint token bottoms out. */
   color: var(--text-dim);
+}
+
+/* ---------- motion ----------
+   global.css already collapses every duration for these users. This block
+   removes the MOVEMENT too: a 6px jump completed in 0.01ms is still a jump. */
+
+@media (prefers-reduced-motion: reduce) {
+  .signin-card,
+  .signin-code-form {
+    animation: none;
+  }
+
+  .signin-reveal:active,
+  .signin-link:active {
+    transform: none;
+  }
 }

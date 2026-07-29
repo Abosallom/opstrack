@@ -26,7 +26,7 @@ import { StatusPill } from './atoms'
 import { formatRelativeTime } from '../../lib/dates'
 import { t, useLocale } from '../../lib/i18n'
 import { useAuth } from '../../store/auth'
-import { postUpdate, useEntryUpdates } from '../../store/entries'
+import { loadUpdates, postUpdate, useEntryUpdates } from '../../store/entries'
 import { useMemberMap } from '../../store/members'
 import { useVocabLabel } from '../../store/vocab'
 import './entry.css'
@@ -81,6 +81,10 @@ export default function UpdateThread({
             value={body}
             placeholder={t('entry.updatePlaceholder')}
             aria-label={t('entry.addUpdate')}
+            // Announced rather than disabled: taking the box away mid-post
+            // moves focus to <body>, and the post takes one round trip during
+            // which the user may well want to keep typing the next one.
+            aria-busy={posting || undefined}
             autoFocus={autoFocusCompose}
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={(e) => {
@@ -108,9 +112,34 @@ export default function UpdateThread({
         </div>
       )}
 
-      {error !== null && <p className="upd-error">{t(error)}</p>}
+      {/* An error with no way out is just a label. The thread is the audit
+          trail, so "we could not load it" has to come with the one action that
+          might fix it — `force`, because the store would otherwise consider the
+          failed attempt good enough and return the same empty thread. */}
+      {error !== null && (
+        <>
+          <p className="upd-error" role="alert">
+            {t(error)}
+          </p>
+          {/* A sibling rather than a child of the paragraph, so the retry needs
+              no rule in entry.css — `.upd-error` is a two-line colour/size rule
+              belonging to another owner's sheet, and the global button
+              primitives already look right underneath it. */}
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost"
+            onClick={() => void loadUpdates(entryId, true)}
+          >
+            {t('common.retry')}
+          </button>
+        </>
+      )}
 
-      {loading && updates.length === 0 && <p className="muted">{t('common.loading')}</p>}
+      {loading && updates.length === 0 && (
+        <p className="muted" role="status">
+          {t('common.loading')}
+        </p>
+      )}
 
       {!loading && updates.length === 0 && (
         <div className="upd-empty">

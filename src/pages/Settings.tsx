@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState, type ReactElement, type ReactNode } f
 import { NavLink } from 'react-router-dom'
 import {
   IconChevronEnd,
+  IconClipboardList,
   IconGlobe,
   IconLayers,
   IconLogOut,
@@ -304,6 +305,22 @@ export default function Settings(): ReactElement {
                 <IconChevronEnd className="icon-directional" size={16} />
               </NavLink>
             </div>
+          </Section>
+          {/* The other half of the admin config, and the only entrance to it:
+              /settings/vocabulary is deliberately absent from both navs, so
+              without this row an admin can only reach the statuses, priorities
+              and types by typing the URL. */}
+          <Section
+            icon={IconClipboardList}
+            title={t('settings.vocabulary')}
+            description={t('settings.vocabularyHint')}
+          >
+            <NavLink to="/settings/vocabulary" className="btn btn-ghost">
+              {t('settings.vocabularyManage')}
+              {/* Forward through the hierarchy — forward is leftward in
+                  Arabic, hence icon-directional. */}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
           </Section>
           <Section
             icon={IconUsers}

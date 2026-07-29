@@ -9,7 +9,6 @@ import {
   IconChart,
   IconChecklist,
   IconColumns,
-  IconFile,
   IconGear,
   IconLayers,
   IconMic,
@@ -19,6 +18,9 @@ import {
   type IconComponent,
 } from './components/icons'
 import { t, useLocale } from './lib/i18n'
+// Extracted so the order of its prefix tests can be asserted — see the header
+// of that file. The nav table below is passed in rather than imported by it.
+import { titleKeyFor } from './lib/routeTitle'
 import { startRealtime, stopRealtime } from './api/realtime'
 import { useAuth } from './store/auth'
 import { loadConfig } from './store/config'
@@ -33,19 +35,31 @@ import './app-shell.css'
 // Route-level code splitting: each page loads on demand so the initial bundle
 // stays small. Every page ships a default export.
 const SignIn = lazy(() => import('./pages/SignIn'))
+// Signed-out, like SignIn: first registration for a predefined username
+// account. `store/auth.claimAccount()` signs the member in on success, so this
+// route unmounts itself — see the note on the signed-out branch below.
+const Claim = lazy(() => import('./pages/Claim'))
 const Capture = lazy(() => import('./pages/Capture'))
 const FollowUps = lazy(() => import('./pages/FollowUps'))
 const Board = lazy(() => import('./pages/Board'))
 const Tracks = lazy(() => import('./pages/Tracks'))
+const Entry = lazy(() => import('./pages/Entry'))
+// The overlay half of the same module, mounted once at the root (below). Lazy
+// so the detail surface stays out of the initial bundle; it renders null until
+// something calls openEntry(), so the chunk downloads in the background at boot
+// and the first row tap is instant.
+const EntryOverlay = lazy(() =>
+  import('./pages/Entry').then((m) => ({ default: m.EntryOverlayHost })),
+)
 const Meetings = lazy(() => import('./pages/Meetings'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Settings = lazy(() => import('./pages/Settings'))
-const Placeholder = lazy(() => import('./pages/Placeholder'))
 // Admin config. Under pages/settings/ rather than pages/, because pages/Tracks.tsx
 // is already the per-track timeline — two Tracks.tsx in one directory is a
 // permanent source of wrong-file edits.
 const TracksAdmin = lazy(() => import('./pages/settings/TracksAdmin'))
 const TrackEditor = lazy(() => import('./pages/settings/TrackEditor'))
+const VocabularyAdmin = lazy(() => import('./pages/settings/VocabularyAdmin'))
 
 /* ---------- navigation model ---------- */
 
@@ -105,25 +119,6 @@ const NAV: NavDest[] = [
     inTabBar: true,
   },
 ]
-
-/** Which title the header shows for the current path. */
-function titleKeyFor(pathname: string): string {
-  if (pathname.startsWith('/entry/')) return 'route.entry'
-  // Checked before the NAV scan: /tracks/:id is one track's log, not the track
-  // index, and the header is the only thing that says which screen this is.
-  if (pathname.startsWith('/tracks/')) return 'route.trackDetail'
-  const hit = NAV.find((n) => pathname === n.to)
-  if (hit) return hit.titleKey
-  // Most specific first. All three admin paths also match the plain '/settings'
-  // prefix below, so a shorter test placed earlier would title every one of
-  // them "Settings" — and the header is the only chrome that names these
-  // screens, since they are deliberately absent from both navs.
-  if (pathname === '/settings/tracks/new') return 'admin.tracks.add'
-  if (pathname.startsWith('/settings/tracks/')) return 'admin.tracks.edit'
-  if (pathname.startsWith('/settings/tracks')) return 'admin.tracks.title'
-  if (pathname.startsWith('/settings')) return 'route.settings'
-  return 'route.followups'
-}
 
 /**
  * Full-screen wait while the auth store restores the persisted session.
@@ -269,7 +264,7 @@ function AppHeader({ titleKey }: { titleKey: string }): ReactElement {
 
 function Shell({ children }: { children: ReactNode }): ReactElement {
   const { pathname } = useLocation()
-  const titleKey = titleKeyFor(pathname)
+  const titleKey = titleKeyFor(pathname, NAV)
 
   // Keep the document title in step with the route — the installed PWA's task
   // switcher and the browser's history menu both read it.
@@ -397,6 +392,12 @@ export default function App(): ReactElement {
         <Suspense fallback={<BootSplash />}>
           <Routes>
             <Route path="/signin" element={<SignIn />} />
+            {/* Reachable only from sign-in, and only while signed out — which
+                is the whole of its life: claimAccount() ends by publishing a
+                session, so a successful claim re-renders App down the branch
+                below and this route ceases to exist mid-submit. That is why
+                the screen has no success panel. */}
+            <Route path="/claim" element={<Claim />} />
             {/* Anything else while signed out lands on sign-in. `replace` so
                 the back button does not bounce between the two. */}
             <Route path="*" element={<Navigate to="/signin" replace />} />
@@ -421,16 +422,10 @@ export default function App(): ReactElement {
             <Route path="/board" element={<Board />} />
             <Route path="/tracks" element={<Tracks />} />
             <Route path="/tracks/:id" element={<Tracks />} />
-            <Route
-              path="/entry/:id"
-              element={
-                <Placeholder
-                  icon={<IconFile size={30} />}
-                  title={t('route.entry')}
-                  description={t('placeholder.entry')}
-                />
-              }
-            />
+            {/* The entry as a PAGE — a URL somebody was sent. Every in-app
+                tap opens the same detail surface as an overlay instead, via
+                openEntry() and the host mounted at the root below. */}
+            <Route path="/entry/:id" element={<Entry />} />
             <Route path="/meetings" element={<Meetings />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/settings" element={<Settings />} />
@@ -451,11 +446,23 @@ export default function App(): ReactElement {
               path="/settings/tracks/:id"
               element={isAdmin ? <TrackEditor /> : <Navigate to="/settings" replace />}
             />
+            <Route
+              path="/settings/vocabulary"
+              element={isAdmin ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
+            />
             <Route path="*" element={<Navigate to="/followups" replace />} />
           </Routes>
         </Suspense>
       </Shell>
       <Toaster />
+      {/* Every openEntry() in the app lands here. Follow-ups, the board and
+          capture all call it and none of them imports the detail surface —
+          that decoupling is what let Wave 2 run five workers wide, and this
+          single mount is the other half of it. Renders null until something is
+          open, and stands down while the /entry/:id route is showing. */}
+      <Suspense fallback={null}>
+        <EntryOverlay />
+      </Suspense>
       {/* Mounted once, at the root, beside the toaster: confirm() is called
           from anywhere and resolves a promise, so its dialog cannot live
           inside the component that asked — that component is often the one

@@ -19,11 +19,29 @@
 // back and toasts "something went wrong" — which is what an RLS-blocked UPDATE
 // actually produces (zero rows → PGRST116).
 //
-// It renders NOTHING of its own chrome: the surface, the focus trap, Escape and
-// the responsive panel/sheet switch all live in components/sheet/Sheet.tsx, so
-// the meeting sheet and the filter sheet behave identically to this one.
+// ── TWO PRESENTATIONS, ONE COMPONENT ──────────────────────────────────────
+//
+// `presentation='overlay'` (the default) wraps everything in
+// components/sheet/Sheet: an inline-end panel at ≥768px, a bottom sheet below,
+// with the focus trap, Escape and the scrim it owns. That is what openEntry()
+// from a list produces, and it is right there because there IS a list behind it.
+//
+// `presentation='inline'` renders the SAME content with NO chrome of its own —
+// no surface, no header, no close button — for a host that frames it. The only
+// host is `src/pages/Entry.tsx`, the `/entry/:id` route: a deep link from a chat
+// message or a notification has no list behind it, and a modal panel over an
+// empty background is a dialog over nothing, with a close button that leads
+// nowhere. So the route is a page, and this component supplies its body.
+//
+// The two modes share every class in the body — `.sheetx-section`,
+// `.sheetx-meta`, `.sheetx-provenance` and friends. sheet.css calls those
+// "generic groupings the sheet's children compose", and the page composes the
+// same ones rather than cloning sixty lines of CSS under a second prefix. The
+// page's own chrome is `.epg-*` in pages/entry-page.css, and nothing here emits
+// one of those — which is what keeps the class registry (XP §1.0.7) honest in
+// both directions.
 
-import { useEffect, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import Sheet from '../sheet/Sheet'
 import UpdateThread from './UpdateThread'
 import { AgePill, HealthPill, TrackDot } from './atoms'
@@ -35,25 +53,33 @@ import {
   TrackPicker,
   TypePicker,
 } from '../pickers'
-import { IconArrowStart, IconChevronEnd } from '../icons'
+import { EmptyState, Skeleton } from '../shared'
+import { IconArrowStart, IconChevronEnd, IconFile } from '../icons'
 import { formatTimestamp } from '../../lib/dates'
 import { t, useLocale } from '../../lib/i18n'
 import { canEditEntry } from '../../lib/permissions'
 import { useAuth } from '../../store/auth'
 import { loadConfig, useTrackMap } from '../../store/config'
 import {
+  applyServerRow,
   loadEntries,
+  loadUpdates,
   patchEntry,
-  useEntriesLoading,
   useEntry,
   useEntryFlash,
   useEntryHealth,
   usePendingOp,
 } from '../../store/entries'
 import { stepEntry, useSheetSiblings } from '../../store/entrySheet'
-import { loadMembers } from '../../store/members'
+import { loadMembers, useMemberMap } from '../../store/members'
 import { loadVocab } from '../../store/vocab'
+// The one api/ call this component makes, and it exists because store/entries
+// publishes no single-row read. See the probe below; the handoff note asks the
+// integrator for `store/entries.loadEntry(id)` so this import can go.
+import { getEntry } from '../../api/entries'
 import type { EntryPatch } from '../../api/entries'
+import type { Member } from '../../api/members'
+import type { FlashMark } from '../../store/entries'
 import type { EntryPriority, EntryStatus, EntryType } from '../../types'
 
 export interface EntrySheetProps {
@@ -65,22 +91,103 @@ export interface EntrySheetProps {
    * move the shared store directly, which is what a board or a list wants.
    */
   onNavigate?: (id: string) => void
+  /**
+   * `'inline'` drops this component's own chrome for a host that supplies it.
+   * See the header.
+   */
+  presentation?: 'overlay' | 'inline'
+  /**
+   * Overlay only: renders an "open full page" action that hands the entry's id
+   * to a host that can push `/entry/:id`. Omitted, the action is absent —
+   * a component cannot navigate, and a dead button is worse than none.
+   */
+  onOpenPage?: (id: string) => void
+}
+
+/**
+ * The single-row read behind the deep-link probe, as a state machine.
+ *
+ * `id` is carried so a probe answered after the user stepped to the next entry
+ * cannot be mistaken for an answer about THAT one — the whole surface swaps
+ * entry under a request that is still in flight every time J/K is held down.
+ */
+interface Probe {
+  id: string
+  done: boolean
+  /** An i18n KEY, per the ApiResult contract. Null on success. */
+  error: string | null
+}
+
+/**
+ * The "updated by ⟨name⟩" sentence.
+ *
+ * THE LIVE PROFILE WINS OVER THE SNAPSHOT, which is the resolution order
+ * api/notifications.ts's header freezes: `profiles_update` lets a member rename
+ * themselves, cause a change, and rename back, so a stored name can be made to
+ * say anything while `actorId` stays durable. store/entries' FlashMark comment
+ * sketches the opposite order, and the two agree in practice because realtime
+ * only ever supplies an id — `actorName` is null on every mark this app
+ * currently produces. Where they could disagree, the notifications contract is
+ * the one with the forgery argument behind it, so it governs.
+ *
+ * Never invents a name: an actor nobody can resolve gets the actor-less
+ * sentence, not "someone".
+ */
+export function flashSentence(mark: FlashMark, members: ReadonlyMap<string, Member>): string {
+  const live = mark.actorId === null ? undefined : members.get(mark.actorId)?.displayName
+  const name = (live ?? mark.actorName ?? '').trim()
+  if (name === '') return t('entry.updatedGeneric')
+  if (mark.kind === 'new') return t('entry.flashNew', { name })
+  if (mark.kind === 'update') return t('entry.flashUpdate', { name })
+  return t('entry.updatedBy', { name })
+}
+
+/**
+ * The wait, shaped like the thing being waited for.
+ *
+ * A spinner in a 460px panel says "something is happening"; three blocks in the
+ * proportions of a title, a meta row and a field list say "the entry is coming",
+ * and the surface does not jump when it lands. `.sheetx-section` supplies the
+ * rhythm so this stays five lines instead of a stylesheet.
+ */
+function DetailSkeleton(): ReactElement {
+  return (
+    <div role="status" aria-label={t('common.loading')}>
+      <div className="sheetx-section">
+        <Skeleton width="72%" height={22} />
+        <Skeleton width="46%" height={14} />
+      </div>
+      <div className="sheetx-section">
+        <Skeleton count={2} />
+      </div>
+      <div className="sheetx-section">
+        <Skeleton count={5} height={16} />
+      </div>
+    </div>
+  )
 }
 
 export default function EntrySheet({
   entryId,
   onClose,
   onNavigate,
+  onOpenPage,
+  presentation = 'overlay',
 }: EntrySheetProps): ReactElement | null {
   const locale = useLocale()
   const entry = useEntry(entryId)
   const health = useEntryHealth(entryId)
   const pending = usePendingOp(entryId)
   const flash = useEntryFlash(entryId)
-  const loading = useEntriesLoading()
   const siblings = useSheetSiblings()
   const { profile } = useAuth()
   const trackMap = useTrackMap()
+  const memberMap = useMemberMap()
+  const [probe, setProbe] = useState<Probe | null>(null)
+  // The in-flight guard is a ref rather than the state above so StrictMode's
+  // double-invoked effect cannot fire two reads, and so a re-render caused by
+  // anything else cannot fire a third.
+  const probing = useRef<string | null>(null)
 
   // Self-sufficient on a deep link. Every one of these is deduped and returns
   // immediately when its data is fresh, so the common case — the sheet opened
@@ -96,7 +203,37 @@ export default function EntrySheet({
     void loadMembers()
   }, [entryId])
 
+  // THE SINGLE-ROW PROBE, and it is not an optimisation.
+  //
+  // loadEntries() fetches OPEN entries only. A notification says "⟨name⟩
+  // completed ⟨title⟩", the recipient taps it, and the entry it names is by
+  // definition closed — so it is not in the working set, and without this the
+  // designed not-found state would be shown for an entry that exists and is
+  // three taps from the user's own inbox. It also decides the difference
+  // between "not loaded yet" and "gone", which is the distinction the not-found
+  // state has to be right about: reporting "deleted" for "still fetching" sends
+  // someone looking for a culprit.
+  //
+  // It runs in parallel with the list fetch rather than after it, so a deep link
+  // paints as soon as its one row lands instead of waiting for two thousand.
+  useEffect(() => {
+    if (entryId === null || entry !== undefined) return
+    if (probing.current === entryId) return
+    if (probe !== null && probe.id === entryId) return
+    probing.current = entryId
+    void getEntry(entryId)
+      .then((result) => {
+        if (result.ok && result.data !== null) applyServerRow(result.data, 'fetch')
+        setProbe({ id: entryId, done: true, error: result.ok ? null : result.error })
+      })
+      .finally(() => {
+        probing.current = null
+      })
+  }, [entryId, entry, probe])
+
   if (entryId === null) return null
+
+  const inline = presentation === 'inline'
 
   const step = (dir: 1 | -1): void => {
     const target = dir === 1 ? siblings.next : siblings.prev
@@ -107,6 +244,17 @@ export default function EntrySheet({
 
   const nav = (
     <>
+      {onOpenPage && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon sheetx-navbtn"
+          aria-label={t('entry.openFullPage')}
+          title={t('entry.openFullPage')}
+          onClick={() => onOpenPage(entryId)}
+        >
+          <IconFile size={18} />
+        </button>
+      )}
       <button
         type="button"
         className="btn btn-ghost btn-icon sheetx-navbtn"
@@ -131,14 +279,62 @@ export default function EntrySheet({
     </>
   )
 
-  // Not loaded yet, or gone. The two are genuinely different answers and
-  // reporting "deleted" for "still fetching" would send someone looking for a
-  // culprit.
-  if (!entry) {
-    return (
-      <Sheet open onClose={onClose} label={t('entry.details')} actions={nav}>
-        <p className="muted">{loading ? t('common.loading') : t('entry.errNotFound')}</p>
+  /**
+   * Inline mode is bare by contract, so the frame is either the Sheet or
+   * nothing at all. Written once here rather than at each of the four returns
+   * below — the states differ in content, never in chrome.
+   */
+  const frame = (node: ReactNode): ReactElement =>
+    inline ? (
+      <>{node}</>
+    ) : (
+      <Sheet open onClose={onClose} label={entry?.title ?? t('entry.details')} actions={nav}>
+        {node}
       </Sheet>
+    )
+
+  if (!entry) {
+    // Still fetching. The probe has not answered for THIS id yet, so nothing
+    // can be said about whether the entry exists.
+    if (probe === null || probe.id !== entryId || !probe.done) return frame(<DetailSkeleton />)
+
+    // The read itself failed — offline, misconfigured, or RLS in a state that
+    // returned an error rather than an empty set. That is not "deleted", and
+    // the action is to try again rather than to walk away.
+    if (probe.error !== null) {
+      return frame(
+        <EmptyState
+          icon={<IconFile size={28} />}
+          title={t('entry.errLoad')}
+          description={t(probe.error)}
+          action={
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => {
+                setProbe(null)
+                void loadEntries(true)
+              }}
+            >
+              {t('common.retry')}
+            </button>
+          }
+        />,
+      )
+    }
+
+    // The row is genuinely not readable: deleted, or an id that never existed.
+    return frame(
+      <EmptyState
+        icon={<IconFile size={28} />}
+        title={t('entry.notFound')}
+        description={t('entry.errNotFound')}
+        action={
+          <button type="button" className="btn btn-sm" onClick={onClose}>
+            {t('common.back')}
+          </button>
+        }
+      />,
     )
   }
 
@@ -153,13 +349,29 @@ export default function EntrySheet({
     void patchEntry(entry.id, fields)
   }
 
-  return (
-    <Sheet open onClose={onClose} label={entry.title} actions={nav}>
+  const changeStatus = (status: EntryStatus): void => {
+    // The transition row is NOT written here. api/entries.updateEntry() appends
+    // it inside the same call, after a pre-read that keeps a no-op change from
+    // appending `blocked → blocked` to a thread nobody can clean up — writing a
+    // second one from this component is how you get two rows per transition.
+    //
+    // What IS this component's job is making sure the open thread SHOWS it.
+    // Realtime normally delivers the row (applyServerUpdate merges into any
+    // loaded thread), but the channel can be down, and the audit trail arriving
+    // only after a reload is exactly the silence this screen exists to prevent.
+    // So: a forced re-read of the thread once the write settles. A read, not a
+    // write — it cannot duplicate anything, and the id dedupe in the store
+    // absorbs the race with the realtime echo.
+    void patchEntry(entry.id, { status }).then((result) => {
+      if (result.ok) void loadUpdates(entry.id, true)
+    })
+  }
+
+  return frame(
+    <>
       {flash && (
         <p className="sheetx-flash" aria-live="polite">
-          {flash.actorName
-            ? t('entry.updatedBy', { name: flash.actorName })
-            : t('entry.updatedGeneric')}
+          {flashSentence(flash, memberMap)}
         </p>
       )}
 
@@ -190,7 +402,12 @@ export default function EntrySheet({
           />
         )}
         {health && <AgePill days={health.days_since_activity} health={health.health} />}
-        {pending && <span className="pill">{t('entry.saving')}</span>}
+        {/* Two different facts, and conflating them costs the user a reload: a
+            write in flight settles by itself, a queued one is waiting for the
+            network and nothing will happen until it comes back. */}
+        {pending && (
+          <span className="pill">{pending.queued ? t('entry.queued') : t('entry.saving')}</span>
+        )}
         {readOnly && <span className="pill">{t('entry.readOnly')}</span>}
       </div>
 
@@ -217,7 +434,7 @@ export default function EntrySheet({
             label={t('entry.changeStatus')}
             value={entry.status}
             disabled={readOnly}
-            onChange={(status: EntryStatus) => patch({ status })}
+            onChange={changeStatus}
           />
         </FieldRow>
 
@@ -348,6 +565,6 @@ export default function EntrySheet({
           </>
         )}
       </p>
-    </Sheet>
+    </>,
   )
 }

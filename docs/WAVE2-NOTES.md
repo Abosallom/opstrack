@@ -27,8 +27,9 @@ Binding changes for the W2-SIGNIN worker:
 Aziz upgraded the SLA requirement: per-priority defaults (0003's `vocab_options.sla_days`,
 already in Wave 1) **plus per-track overrides**. Binding design:
 
-- **Migration `0005_track_slas.sql`** (the reserved slot — this is exactly the "a wave proves it
-  needs schema" case): `track_slas (track_id uuid fk on delete cascade, priority text check
+- **Migration `0006_track_slas.sql`** (0005 was consumed at the Wave-1 close by
+  `0005_sla_off_by_default.sql` — priority SLA defaults ship NULL so nothing is retroactively
+  breached; the admin arms SLAs deliberately in the vocabulary screen): `track_slas (track_id uuid fk on delete cascade, priority text check
   (same frozen list), sla_days int not null check > 0, primary key (track_id, priority))`,
   member-select / admin-write RLS, audited like tracks.
 - **Resolution order in `v_entry_health`** (and mirrored in `lib/health.ts` + its parity test):

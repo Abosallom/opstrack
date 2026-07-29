@@ -1,0 +1,101 @@
+/* The Track editor's "SLA overrides" section — one row per priority.
+
+   A sheet of its own rather than more rules in admin.css: TrackEditor.tsx is
+   this wave's file and admin.css is shared with TracksAdmin.tsx, which nobody in
+   this wave owns. It claims exactly one prefix, `.tsla-*`, and styles nothing
+   else — no admin-* rule, no global.css primitive. (XP §1.0.7 registry addition,
+   recorded in the handoff note.)
+
+   Everything visual comes from the existing primitives: .field-label for the
+   legend, .input for the number field, .field-error for the range message. What
+   is left is one layout that has no primitive — a label, a small number input
+   and a resolved value on one line, wrapping to two on a narrow screen — and the
+   4px spacing rhythm the polish mandate asks for.
+
+   Logical properties only, so the Arabic mirror comes free. */
+
+.tsla-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tsla-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-block: 4px;
+}
+
+/* The priority's own label, resolved through the vocabulary store — so a
+   workspace that renamed "critical" reads its own word here too. */
+.tsla-name {
+  flex: 0 0 auto;
+  /* Wide enough for the longest of the four in either language, so the four
+     inputs line up as a column instead of stepping. */
+  min-inline-size: 88px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* .input is inline-size:100%, which inside a flex row would swallow the whole
+   line. A number of days is at most four digits. */
+.tsla-input {
+  flex: 0 0 auto;
+  inline-size: 104px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The resolved effective value. --text-dim, NOT --text-faint: this is the line
+   that tells an admin what the workspace will actually enforce, and it sits on
+   --bg-elev where dim is the token that clears AA at every elevation. "Greyed"
+   here means secondary, not unreadable. */
+.tsla-effective {
+  flex: 1 1 160px;
+  min-inline-size: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  /* The day count is interpolated into this sentence, so the digits are the one
+     thing that changes as the admin types. Tabular figures stop the line from
+     re-flowing under the cursor. */
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+/* A cell the track overrides is the one fact worth emphasising in this column —
+   the other three rows are all inheriting and read as one block. Weight, not
+   colour: at 12.5px a hue shift alone is the kind of distinction that does not
+   survive a bright screen outdoors. */
+.tsla-effective-own {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The range message takes its own line rather than squeezing between the input
+   and the resolved value, where it would push the effective text off the row and
+   make the whole list jump as the admin types. */
+.tsla-error {
+  flex: 1 1 100%;
+}
+
+/* One sentence, stated on the screen and not only in the docs: what wins over
+   what. Sits directly under the legend so it is read before the first input. */
+.tsla-rule {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* The create form has no track id yet, so there is nothing to hang an override
+   on. Saying so is better than four disabled inputs. */
+.tsla-note {
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}

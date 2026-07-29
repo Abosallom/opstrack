@@ -1,0 +1,99 @@
+/* The `/entry/:id` page — the `.epg-*` prefix, per the class registry
+   (XP §1.0.7; this sheet's row is the one the registry was missing, and the
+   handoff note asks for it to be written in).
+
+   THIS FILE STYLES THE FRAME AND NOTHING INSIDE IT. The entry's own content —
+   heading, meta pills, sections, thread, provenance — belongs to the detail
+   component, and it carries sheet.css's `.sheetx-*` groupings in both of its
+   presentations because those are, in that file's words, "generic groupings the
+   sheet's children compose": a page and a panel showing the same entry want the
+   same rhythm, and the alternative is sixty duplicated lines under a second
+   prefix that then drift apart. So there is deliberately NO `.sheetx-*`
+   selector anywhere below — not even a descendant override — which is the
+   registry rule holding in the direction that is easy to break.
+
+   NOR DOES IT RE-SPECIFY A PRIMITIVE. Every control in the bar is a
+   `.btn` + `.btn-sm`/`.btn-icon`, and those already carry their 44px hit area
+   (44px min-block-size, or 32px plus a ±6px invisible overlay). An `::after`
+   overlay of this file's own would land on the same pseudo-element at the same
+   specificity, win on source order, and quietly shrink the tap target it was
+   written to guarantee. Hover, active and focus come from the same primitives,
+   which is why they are not repeated here.
+
+   Everything is a logical property. The only directional thing on the page is
+   the back arrow, and global.css mirrors that through `.icon-directional`. */
+
+.epg {
+  /* A reading column, not the full 1180px shell width. The entry is prose plus
+     a field table; at 720px the description wraps at a comfortable measure on a
+     laptop and the field rows do not stretch into two disconnected halves.
+     `margin-inline: auto` centres it in either writing direction without naming
+     a side. */
+  max-inline-size: 720px;
+  margin-inline: auto;
+  animation: epg-in 0.18s ease backwards;
+}
+
+/* `backwards`, never `both`. global.css's `.fade-in` uses `both`, which leaves
+   `transform: translateY(0)` on the element forever — and a lingering transform
+   makes an ancestor the containing block for any `position: fixed` descendant,
+   which is exactly how an overlay sheet ends up trapped inside a scrolling
+   column. `backwards` applies the start frame before the run and leaves nothing
+   behind after it. (global.css's reduced-motion block collapses this to nothing
+   for anyone who asked for less movement.) */
+@keyframes epg-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ---------- action bar ----------
+   Deliberately NOT sticky. The shell's own header is sticky at a height that
+   moves with the notch inset, and a second sticky strip pinned under it would
+   have to hard-code that number and would silently overlap the day the header's
+   padding changed. */
+
+.epg-bar {
+  display: flex;
+  align-items: center;
+  /* Wraps rather than overflowing: the bar holds three variable-width labels
+     and Arabic sets wider than English at the same point size. */
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-end: 16px;
+  padding-block-end: 12px;
+  border-block-end: 1px solid var(--border);
+}
+
+.epg-bar-end {
+  /* Pushed to the reading end. `margin-inline-start: auto` flips with the
+     document direction; a float or a `margin-left` would not. */
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.epg-steps {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ---------- body ----------
+   A pass-through wrapper, and that is the point: it gives the detail component
+   a block to live in without imposing a single rule on what it renders. The
+   block-end space is breathing room under the update thread's compose box;
+   .main-content's own 84px already clears the tab bar and the mobile FAB. */
+
+.epg-body {
+  padding-block-end: 8px;
+}
+
+@media (max-width: 767px) {
+  .epg-bar {
+    margin-block-end: 12px;
+    padding-block-end: 8px;
+  }
+}

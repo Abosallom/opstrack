@@ -1,0 +1,539 @@
+/* Quick capture (/capture) — the .cap-* prefix, per the §1.0.7 registry.
+   Nothing here styles a global.css primitive or another sheet's prefix: the
+   chip row, the buttons, the input and the track dot are all composed from
+   global classes and given only their capture-specific placement.
+
+   LOGICAL PROPERTIES ONLY, like every sheet in this repo. The one thing on this
+   screen that would break in Arabic if written physically is the clear button
+   inside the input — it must sit on the trailing edge of the field, which is
+   the right in English and the left in Arabic. inset-inline-end does that with
+   no mirror rule; `right` would strand it over the first letter the user types.
+
+   SPACING is on the 4px grid throughout (4/8/12/16/20/24). MOTION is 150–200ms
+   ease and inherits global.css's prefers-reduced-motion kill switch, which
+   already zeroes every transition and animation in the app — a local @media
+   block here would be a second copy of a rule that already covers this file. */
+
+.cap-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cap-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cap-subtitle {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* ---------- the bar ---------- */
+
+.cap-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cap-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* min-inline-size: 0 is what lets the field actually shrink — a flex item's
+   min-width defaults to auto, so without it a long line pushes the submit
+   button off the end of a 375px viewport instead of scrolling inside the
+   input. */
+.cap-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.cap-input {
+  /* Roomy for the trailing clear button, which overlays the field's own
+     padding box. The value is padding, not margin, so the caret never lands
+     underneath the button. */
+  padding-inline-end: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 32px visual box, 44px hit area through the ::after overlay — the same trick
+   global.css uses on .btn-sm, restated here because the button is absolutely
+   positioned and cannot inherit it. The glyph is drawn from two rotated
+   pseudo-elements so the control has NO text content and its aria-label is the
+   whole accessible name; a literal "×" would be announced as "multiplication
+   sign". */
+.cap-clear {
+  position: absolute;
+  inset-inline-end: 6px;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  inline-size: 32px;
+  block-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-faint);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cap-clear::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.cap-clear:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.cap-clear:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.cap-clear > span {
+  position: relative;
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+.cap-clear > span::before,
+.cap-clear > span::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-start: 0;
+  inline-size: 14px;
+  block-size: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.cap-clear > span::before {
+  transform: rotate(45deg);
+}
+
+.cap-clear > span::after {
+  transform: rotate(-45deg);
+}
+
+.cap-submit {
+  flex: 0 0 auto;
+  min-inline-size: 104px;
+}
+
+.cap-hint {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.cap-error {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--red);
+}
+
+/* ---------- the reading strip ---------- */
+
+/* Dashed rather than solid: this is a READING of the line, not a container the
+   user can edit — the border says "derived" the way a solid card would not.
+   The min-block-size holds the strip's height steady between the empty and the
+   parsed state so the whole page below it does not jump on the first
+   keystroke. */
+.cap-read {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 68px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.cap-read-empty,
+.cap-read-none {
+  color: var(--text-faint);
+  font-size: 13.5px;
+}
+
+/* Everything the tokens did not eat — the title, exactly as it will be stored.
+   Plain by design: an unrecognised fragment is not an error, it is the sentence. */
+.cap-read-plain {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- token chips ---------- */
+
+@keyframes cap-chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.cap-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 28px;
+  padding-block: 3px;
+  padding-inline: 10px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  max-inline-size: 100%;
+  animation: cap-chip-in 0.16s ease both;
+}
+
+/* A failed token reads as a question, not a crash: the tint is --red but the
+   fill stays quiet, because three red chips in a row on a half-typed line
+   would make the parser look broken while the user is still typing the word. */
+.cap-chip[data-ok='false'] {
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--red);
+}
+
+/* The track chip in the track's own colour.
+   global.css resolves the stored dark/light pair to --track-color for
+   .track-dot only — its selector list is frozen and this sheet may not extend
+   it — so the same choice is mirrored into a local property for the border.
+   The pair itself is set once, inline, by trackVars(). */
+.cap-chip[data-kind='track'] {
+  --cap-track-color: var(--track-c-dark, var(--field-border));
+  border-color: color-mix(in srgb, var(--cap-track-color) 55%, transparent);
+  background: color-mix(in srgb, var(--cap-track-color) 12%, transparent);
+}
+
+[data-theme='light'] .cap-chip[data-kind='track'] {
+  --cap-track-color: var(--track-c-light, var(--track-c-dark, var(--field-border)));
+}
+
+/* ISOLATED, and this is not cosmetic. `due:` and `every:` are Latin words
+   ending in punctuation; dropped into an Arabic paragraph the bidi algorithm
+   treats the trailing colon as neutral, resolves it to the surrounding RTL run
+   and renders `:due`. The sigil is a piece of GRAMMAR the user has to be able
+   to type back, so it must read the same in both languages. Isolation on the
+   value does the mirror job: an Arabic track name inside an English UI keeps
+   its own direction instead of dragging the chip's punctuation around with it. */
+.cap-chip-sigil {
+  color: var(--text-faint);
+  font-weight: 700;
+  font-size: 12px;
+  flex: 0 0 auto;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.cap-chip[data-ok='false'] .cap-chip-sigil {
+  color: currentColor;
+}
+
+.cap-chip-value {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-inline-size: 0;
+  unicode-bidi: isolate;
+}
+
+/* Same two-pseudo-element glyph as .cap-clear, at chip scale. */
+.cap-chip-x {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 50%;
+  color: var(--text-faint);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cap-chip-x::before,
+.cap-chip-x::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 9px;
+  inset-inline-start: 5px;
+  inline-size: 10px;
+  block-size: 1.5px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.cap-chip-x::before {
+  transform: rotate(45deg);
+}
+
+.cap-chip-x::after {
+  transform: rotate(-45deg);
+}
+
+.cap-chip-x:hover {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  color: var(--text);
+}
+
+.cap-chip[data-ok='false'] .cap-chip-x {
+  color: currentColor;
+}
+
+/* ---------- preview, notices ---------- */
+
+.cap-preview {
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+.cap-preview-label {
+  font-weight: 700;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 11.5px;
+}
+
+.cap-notice {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--yellow) 10%, transparent);
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+/* ---------- suggested tags & the ambiguity picker ---------- */
+
+.cap-suggest,
+.cap-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cap-suggest-title,
+.cap-pick-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.2px;
+}
+
+.cap-pick-hint {
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.cap-suggest-chip:active,
+.cap-pick-chip:active {
+  transform: translateY(1px);
+}
+
+/* ---------- problems ---------- */
+
+.cap-problems {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+}
+
+.cap-problems-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.2px;
+}
+
+.cap-problems-count {
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.cap-problem {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.cap-problem + .cap-problem {
+  margin-block-start: 8px;
+}
+
+.cap-problem[data-tone='danger'] {
+  color: var(--red);
+}
+
+.cap-problem[data-tone='muted'] {
+  color: var(--text-dim);
+}
+
+/* `flex: 0 1 auto`, not `1 1 …`: growing the sentence pushes its own Fix button
+   to the far edge of a 1180px page, where it reads as belonging to nothing. The
+   two stay adjacent and wrap together on a narrow screen. */
+.cap-problem-text {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.cap-problem-fix {
+  flex: 0 0 auto;
+  max-inline-size: 200px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* ---------- token cheatsheet ---------- */
+
+.cap-hints {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cap-hints-body {
+  inline-size: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+}
+
+/* `hidden` is an attribute the UA styles as display:none, but a flex parent
+   overrides it — the panel would stay visible with aria-expanded="false", which
+   is the worst of both worlds for a screen reader. */
+.cap-hints-body[hidden] {
+  display: none;
+}
+
+.cap-hints-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.2px;
+}
+
+.cap-hints-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 4px 16px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+.cap-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+/* A tappable example that fills the box. Monospace-ish alignment is not worth a
+   second font stack; tabular numerals are enough to keep the dates from
+   dancing. */
+.cap-example {
+  inline-size: 100%;
+  min-block-size: 36px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: start;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.cap-example:hover {
+  color: var(--text);
+  border-color: var(--field-border);
+}
+
+.cap-example:active {
+  transform: translateY(1px);
+}
+
+/* ---------- the session list ---------- */
+
+/* Its own heading rather than global.css's .section-title, which carries
+   `margin-block: 26px 12px` — inside a flex column with its own gap that stacks
+   into a 50px hole, and the §1.0.7 registry forbids this sheet from restyling a
+   global primitive to take it back out. Same weight and size, no margin. */
+.cap-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cap-recent-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.cap-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cap-empty {
+  color: var(--text-faint);
+  font-size: 13.5px;
+}
+
+/* ---------- desktop ---------- */
+
+@media (min-width: 768px) {
+  .cap-page {
+    gap: 24px;
+  }
+
+  /* The bar is the screen, so it gets the emphasis a search field gets: a
+     little taller than a form input, and the type scaled to match. */
+  .cap-input {
+    min-block-size: 52px;
+    font-size: 16px;
+  }
+
+  .cap-submit {
+    min-block-size: 52px;
+  }
+}

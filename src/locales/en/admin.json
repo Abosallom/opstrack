@@ -87,6 +87,14 @@
       "errLastTrack": "At least one active track has to remain.",
       "errReassignArchived": "That destination is archived. Items moved there would disappear from every list — pick an active track.",
       "errReassignSelf": "Pick a different track to move the items to.",
+      "slaOverrides": "Service deadlines for this track",
+      "slaRule": "A number here wins over the priority's workspace default. Leave it empty to inherit.",
+      "slaAfterSave": "Save the track first. Deadlines hang off a track, so this one needs an identity before it can carry any.",
+      "slaInherit": "Inherit",
+      "slaEffectiveNone": "No deadline",
+      "slaEffectiveOwn": "This track: {days} days",
+      "slaEffectiveInherited": "Inherited: {days} days",
+      "errSlaRange": "Enter a number between {min} and {max}, or leave it empty to inherit.",
       "errNotFound": "That track no longer exists. Reload the list."
     }
   }
