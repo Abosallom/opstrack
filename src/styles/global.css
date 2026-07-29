@@ -1,0 +1,1046 @@
+/* OpsTrack design system — neutral slate, calm blue accent.
+
+   This is an operations tool that people stare at for an hour at a time while
+   triaging, so the base is a desaturated blue-grey rather than a media app's
+   warm black, and the accent is a working blue instead of a brand yellow.
+   Colour is reserved for meaning here: --green/--yellow/--red carry entry
+   health, and --track-* carry track identity. Nothing else gets to be colourful.
+
+   EVERY contrast ratio in this file was computed, not eyeballed. The reference
+   codebase shipped --text-faint at 3.2–3.9:1 on its elevated surfaces: it passed
+   against the page background, which is the only surface people check, and
+   failed on cards and inside inputs, which is where that token is actually used.
+   So the ratios below are annotated against all three surfaces —
+   --bg / --bg-elev / --bg-elev-2 — and the number that matters is the smallest.
+
+   Direction and theme are applied on <html> by src/lib/theme.ts and
+   src/lib/i18n.ts (data-theme + dir + lang). No CSS here reads a physical
+   direction: layout uses logical properties only, so RTL needs no mirror rules. */
+
+:root {
+  /* ---------- surfaces (dark, default) ---------- */
+  --bg: #101519;
+  --bg-elev: #171d23;
+  --bg-elev-2: #212932;
+  /* Dividers and card outlines only — 1.46:1 on --bg, deliberately quiet.
+     Form-control boundaries need to be identifiable on their own and use
+     --field-border below instead. */
+  --border: #2b343f;
+  /* Boundary of a real control (input/select/textarea). 4.07:1 on --bg,
+     3.77:1 on --bg-elev, 3.26:1 on --bg-elev-2 — clears the 3:1 that WCAG
+     1.4.11 asks of non-text UI boundaries. A field whose only cue is its fill
+     is 1.5:1 against the page and effectively invisible to low-vision users. */
+  --field-border: #6b7886;
+
+  /* ---------- text ---------- */
+  --text: #e9eef4; /* 15.74 / 14.56 / 12.61 on bg / elev / elev-2 */
+  --text-dim: #a8b4c0; /*  8.71 /  8.05 /  6.97  — AA at every elevation */
+  --text-faint: #8d9aa8; /*  6.40 /  5.92 /  5.13  — worst case 5.13:1, AA */
+
+  /* ---------- accent ---------- */
+  --accent: #58a6ff; /* 7.27 / 6.72 / 5.82 — readable as link text anywhere */
+  --accent-hover: #79b8ff;
+  --accent-soft: rgba(88, 166, 255, 0.14);
+  /* Foreground for text sitting ON a filled accent surface. 7.51:1 on
+     --accent. Never use --bg here: the light theme flips which one is dark. */
+  --accent-ink: #08111c;
+
+  /* ---------- semantic status ---------- */
+  /* Ratios quoted against --bg-elev-2, the worst (lightest) dark surface —
+     these are used as text on cards and inside filled pills. */
+  --green: #3ddc97; /* 8.32:1 */
+  --yellow: #f2c14e; /* 8.76:1 */
+  --red: #ff7a7a; /* 5.82:1 */
+  --blue: #58a6ff; /* 5.82:1 */
+
+  /* ---------- track identity ----------
+     Five hues ~70–90° apart on the wheel so they survive being rendered as a
+     3px bar with no label. Ratios are against --bg-elev-2 (worst dark
+     surface); all clear the 3:1 that a meaningful non-text graphic needs.
+     These are re-declared in the light theme rather than reused: cyan and
+     amber that read well on near-black are ~2.5:1 on white, which is exactly
+     the failure mode that makes track bars vanish in light mode. */
+  --track-pmo: #8b7bf5; /* violet  4.38:1 */
+  --track-itops: #22b8d6; /* cyan    6.23:1 */
+  --track-network: #e0a020; /* amber   6.46:1 */
+  --track-infra: #46c26a; /* green   6.43:1 */
+  --track-sre: #f2678f; /* rose    4.98:1 */
+
+  /* ---------- geometry ---------- */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  /* Noto Sans Arabic / Geeza Pro are in the stack because the Latin faces
+     ahead of them have no Arabic coverage — without them the Arabic UI falls
+     back to whatever the OS picks and line-height jumps between locales. */
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue',
+    'Noto Sans Arabic', 'Geeza Pro', sans-serif;
+}
+
+/* ---------- light theme (data-theme="light" on <html>) ----------
+   Every token above is redeclared. A partial override is how you end up with
+   dark-theme --red at 1.6:1 on a white card. */
+
+:root[data-theme='light'] {
+  --bg: #f4f6f8;
+  --bg-elev: #ffffff;
+  --bg-elev-2: #e9edf1;
+  --border: #d4dbe3; /* 1.40:1 on --bg-elev — divider weight, as intended */
+  --field-border: #7c8794; /* 3.37 / 3.65 / 3.10 vs bg / white / elev-2 */
+
+  --text: #131820; /* 16.44 / 17.81 / 15.14 */
+  --text-dim: #4e5a67; /*  6.50 /  7.04 /  5.98 */
+  --text-faint: #5d6a77; /*  5.11 /  5.54 /  4.71  — worst case 4.71:1, AA */
+
+  --accent: #1560c9; /*  5.46 /  5.92 /  5.03 */
+  --accent-hover: #0f4fa8;
+  --accent-soft: rgba(21, 96, 201, 0.12);
+  --accent-ink: #ffffff; /* 5.92:1 on --accent */
+
+  /* Against --bg-elev-2 (#e9edf1), the darkest light surface. The dark-theme
+     values are 1.4–1.9:1 here, which is why none of them are inherited. */
+  --green: #0d7a55; /* 4.54:1 */
+  --yellow: #8a6100; /* 4.71:1 */
+  --red: #c02b2b; /* 4.93:1 */
+  --blue: #1560c9; /* 5.03:1 */
+
+  /* Same five hues, pushed dark enough to hold 3:1 against white. Ratios below
+     are against --bg-elev-2 / --bg-elev(white). */
+  --track-pmo: #5b4bd6; /* violet  5.22 / 6.14 */
+  --track-itops: #0a7d94; /* cyan    4.08 / 4.80 */
+  --track-network: #9c6600; /* amber   4.14 / 4.87 */
+  --track-infra: #2c7a45; /* green   4.49 / 5.28 */
+  --track-sre: #c2385f; /* rose    4.43 / 5.22 */
+
+  --shadow: 0 10px 34px rgba(15, 24, 33, 0.12);
+
+  /* --radius, --radius-sm and --font are intentionally NOT redeclared: they
+     carry no colour and are identical in both themes. Duplicating them here
+     would just be two places to keep in sync. */
+}
+
+/* ---------- preset swatch palette ----------
+   The options the track colour picker offers. Each swatch is a PAIR — one hex
+   per theme — and both halves are declared here in a single :root instead of
+   being redeclared under [data-theme='light'].
+
+   That is not an oversight. These are not theme tokens. A track stores BOTH
+   hexes in the database (tracks.color / tracks.color_light) and the rules in
+   the "track colour" section below choose between them at render time, so the
+   picker has to be able to read both halves at once, under either theme, to
+   write them into a row.
+
+   Five of the twelve are the --track-* values above, unchanged, so the seeded
+   tracks' colours appear in the picker instead of being unreachable one-offs.
+   The wheel is sampled at roughly 30°, with an extra sample in the blue/violet
+   arc because that is where people reach first for a work tool.
+
+   Every value was measured against the WORST surface of its own theme —
+   --bg-elev-2, #212932 dark and #e9edf1 light — since that is where a track
+   chip actually sits. The quoted ratios are dark-on-#212932 and
+   light-on-#e9edf1; the lowest in the table is 4.08:1, well past the 3:1 that
+   WCAG 1.4.11 asks of a meaningful non-text graphic. A track bar is 3px wide
+   with no label, so it is the colour or it is nothing. */
+
+:root {
+  --swatch-violet-dark: #8b7bf5; /* 4.38 — same as --track-pmo */
+  --swatch-violet-light: #5b4bd6; /* 5.22 */
+  --swatch-indigo-dark: #7f8ffb; /* 5.06 */
+  --swatch-indigo-light: #4356cc; /* 5.19 */
+  --swatch-blue-dark: #45aef2; /* 6.02 */
+  --swatch-blue-light: #1560c9; /* 5.03 */
+  --swatch-cyan-dark: #22b8d6; /* 6.23 — same as --track-itops */
+  --swatch-cyan-light: #0a7d94; /* 4.08 */
+  --swatch-teal-dark: #2fc5ac; /* 6.80 */
+  --swatch-teal-light: #0d7a6b; /* 4.45 */
+  --swatch-green-dark: #46c26a; /* 6.43 — same as --track-infra */
+  --swatch-green-light: #2c7a45; /* 4.49 */
+  --swatch-lime-dark: #9ec93f; /* 7.62 */
+  --swatch-lime-light: #5c7a12; /* 4.20 */
+  --swatch-amber-dark: #e0a020; /* 6.46 — same as --track-network */
+  --swatch-amber-light: #9c6600; /* 4.14 */
+  --swatch-orange-dark: #f5904e; /* 6.29 */
+  --swatch-orange-light: #a55418; /* 4.60 */
+  --swatch-rose-dark: #f2678f; /* 4.98 — same as --track-sre */
+  --swatch-rose-light: #c2385f; /* 4.43 */
+  --swatch-magenta-dark: #cf87e8; /* 5.80 */
+  --swatch-magenta-light: #8a3fb0; /* 5.22 */
+  --swatch-slate-dark: #93a3b5; /* 5.71 */
+  --swatch-slate-light: #56646f; /* 5.18 */
+}
+
+/* ---------- reset ---------- */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  block-size: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+img,
+svg {
+  max-inline-size: 100%;
+}
+
+/* Headings inherit weight/size from the class that styles them; the UA's
+   h1..h6 sizes fight every card header otherwise. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+/* Tables (digest previews, load-per-owner) default to start-aligned so they
+   mirror in Arabic without a per-table rule. */
+th,
+td {
+  text-align: start;
+}
+
+/* ---------- native touch feel ---------- */
+
+html {
+  /* No grey flash box on tap. Inherited, so it covers every control. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  /* No rubber-band bounce revealing browser chrome behind the app. Any
+     pull-to-refresh added later must be JS-driven and set
+     overscroll-behavior-y: contain on its own scroller while mounted. */
+  overscroll-behavior-y: none;
+}
+
+body {
+  /* Kills the 300ms double-tap-to-zoom delay. Pinch-zoom still works —
+     touch-action intersects down the ancestor chain, and nothing below
+     re-declares it. Without this, every status change on mobile felt laggy. */
+  touch-action: manipulation;
+}
+
+/* Chrome must not sprout a text-selection caret on long-press. Real content
+   (prose, update bodies, inputs) is re-enabled right below so people can still
+   copy an entry title or a digest out of the app. */
+button,
+.btn,
+.chip,
+.pill,
+.nav-item,
+.sidebar,
+.tabbar,
+.app-header,
+.page-title,
+.section-title,
+.tabbar-label {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+p,
+input,
+textarea,
+code,
+pre,
+.entry-title,
+.update-body,
+.digest-output {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ---------- focus ----------
+   One ring, visible on every surface including a filled accent button. The
+   offset gap lets the ring read against both the control and whatever is
+   behind it; on --accent fills the ring switches to --text because blue on
+   blue is invisible. Mouse users never see it (:focus-visible only). */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.btn-primary:focus-visible,
+.pill.filled:focus-visible {
+  outline-color: var(--text);
+}
+
+/* Programmatic focus (route change / sheet close moves focus here for screen
+   readers) must not paint a ring around the whole viewport — Chrome treats a
+   focus() outside a user gesture as :focus-visible. Keyboard users lose
+   nothing: these regions are only ever focused programmatically. */
+.main-content:focus,
+.main-content:focus-visible {
+  outline: none;
+}
+
+/* ---------- directional icons ----------
+   Chevrons, back arrows, "next" arrows and progress caps carry a direction and
+   must mirror in Arabic. Everything else (a clock, a person) must not — hence
+   an opt-in class rather than a blanket flip on .icon. */
+
+[dir='rtl'] .icon-directional {
+  transform: scaleX(-1);
+}
+
+/* ---------- typography helpers ---------- */
+
+.page-title {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+
+.page-subtitle {
+  color: var(--text-dim);
+  margin-block-end: 22px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  margin-block: 26px 12px;
+}
+
+.muted {
+  color: var(--text-dim);
+}
+
+/* Visually hidden but still announced — used for the labels of icon-only
+   controls where an aria-label would lose the translated string. */
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Numbers that line up in a column: ages, counts, dates. Arabic UI uses
+   Western digits (this is a work tool), so this applies in both locales. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- buttons ----------
+   Min block-size 44px on every variant. A 32px button is fine with a mouse and
+   unusable one-handed on a phone, which is the stated primary posture. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-block-size: 44px;
+  padding-block: 10px;
+  padding-inline: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-elev-2) 70%, var(--text) 8%);
+  border-color: var(--field-border);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-elev-2);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.btn-danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+  color: var(--red);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border-color: var(--red);
+}
+
+.btn-block {
+  inline-size: 100%;
+}
+
+/* Compact button for dense rows. Keeps the small visual box but carries a
+   44px hit area through an invisible overlay. The overlay grows in the block
+   axis only — inline growth would overlap the neighbouring control in a row
+   of quick actions and steal its taps. */
+.btn-sm {
+  min-block-size: 32px;
+  padding-block: 6px;
+  padding-inline: 10px;
+  font-size: 13px;
+  position: relative;
+}
+
+.btn-sm::after {
+  content: '';
+  position: absolute;
+  inset-block: -6px;
+  inset-inline: 0;
+}
+
+/* Icon-only button. Always needs an aria-label — there is no text to fall back
+   on and the glyph carries the whole meaning. */
+.btn-icon {
+  min-inline-size: 44px;
+  padding-inline: 10px;
+}
+
+/* ---------- form controls ---------- */
+
+.input,
+.select,
+textarea.input {
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding-block: 10px;
+  padding-inline: 13px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+  text-align: start;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* 16px on touch widths: iOS Safari zooms the viewport on focus for anything
+   smaller and never zooms back out, which stranded the capture input
+   off-screen mid-typing. */
+@media (max-width: 767px) {
+  .input,
+  .select,
+  textarea.input {
+    font-size: 16px;
+  }
+}
+
+/* Border + glow are an ADDITIONAL affordance, never the only one: the accent
+   border against --field-border is ~1.8:1 and the soft glow composites to
+   ~1.3:1, both well under the 3:1 WCAG 2.4.11 asks of a focus indicator. The
+   compliant ring is the global :focus-visible rule, so this block must not
+   declare `outline: none` — doing so silently cancelled it (same specificity,
+   later in the file) and left inputs with no conforming indicator at all. */
+.input:focus,
+.select:focus,
+textarea.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--red);
+}
+
+.select {
+  /* The native arrow is drawn on the physical trailing edge by the UA and
+     already follows `dir`, so no custom chevron is used here — a background
+     image would need an inset-inline rule and would desync in Arabic. */
+  appearance: auto;
+  cursor: pointer;
+}
+
+textarea.input {
+  min-block-size: 88px;
+  resize: vertical;
+}
+
+::placeholder {
+  color: var(--text-faint);
+  opacity: 1; /* Firefox dims placeholders to 0.54 and drops them below AA */
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.2px;
+}
+
+.field-error {
+  font-size: 13px;
+  color: var(--red);
+}
+
+/* ---------- surfaces ---------- */
+
+.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.card-tight {
+  padding: 12px;
+}
+
+/* Side panel — entry detail on desktop. Anchored to the inline-end edge, so it
+   opens on the right in English and the left in Arabic with no extra rule. */
+.panel {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 90;
+  inline-size: min(460px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border-inline-start: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Bottom sheet — the mobile counterpart of .panel. max-block-size leaves the
+   page visible behind it so the sheet reads as a layer, not a navigation. */
+.sheet {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 90;
+  max-block-size: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border-start-start-radius: var(--radius);
+  border-start-end-radius: var(--radius);
+  border-block-start: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block-end: env(safe-area-inset-bottom, 0px);
+}
+
+/* Grab handle. Decorative only — the sheet is always dismissible by the
+   labelled close button and by Esc. */
+.sheet-handle {
+  inline-size: 38px;
+  block-size: 4px;
+  margin-block: 8px 4px;
+  margin-inline: auto;
+  border-radius: 999px;
+  background: var(--field-border);
+  flex: 0 0 auto;
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+  background: rgba(4, 8, 12, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ---------- pills & chips ----------
+   .pill is a non-interactive status/age badge. .chip is a tappable filter. */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-block: 2px;
+  padding-inline: 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* Health/status colouring. currentColor drives both the tint and the border,
+   so a variant only sets `color` and the whole pill follows. */
+.pill.ok {
+  color: var(--green);
+}
+.pill.warn {
+  color: var(--yellow);
+}
+.pill.danger {
+  color: var(--red);
+}
+.pill.info {
+  color: var(--blue);
+}
+
+/* Solid variant for the one badge that must win attention (overdue count).
+   Foreground is --bg, never white: --red is a *light* coral on the dark theme,
+   where white text on it measures 2.52:1. --bg flips with the theme and gives
+   7.27:1 on dark / 5.35:1 on light. */
+.pill.filled {
+  background: var(--red);
+  border-color: var(--red);
+  color: var(--bg);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 32px;
+  padding-block: 5px;
+  padding-inline: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  position: relative;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Filter chips sit in horizontally scrolling rows on mobile where they are
+   tapped with a thumb; the overlay restores a 44px block hit area without
+   making the row visually chunky. */
+.chip::after {
+  content: '';
+  position: absolute;
+  inset-block: -6px;
+  inset-inline: 0;
+}
+
+.chip:hover {
+  color: var(--text);
+  border-color: var(--field-border);
+}
+
+.chip.active,
+.chip[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* Horizontal chip rail. Scrollbar hidden on touch — the overflow itself is the
+   affordance, and a visible bar eats 8px of a 375px viewport. */
+.chip-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-block-end: 4px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- track colour bar ----------
+   The 3px identity bar on every entry row. Uses border-inline-start so it
+   lands on the reading-start edge in both directions. Consumers set
+   --track-color from the track's token (or the row's inline style). */
+
+.track-bar {
+  border-inline-start: 3px solid var(--track-color, var(--field-border));
+  padding-inline-start: 10px;
+}
+
+/* Resolving a track's two stored hexes down to one, with ZERO JavaScript.
+   Callers set the pair inline and never touch --track-color themselves:
+
+     style={{ '--track-c-dark': track.color,
+              '--track-c-light': track.colorLight ?? track.color }}
+
+   A trackColor(theme) helper would read the theme once, at render. When the
+   'auto' preference flips at sunset, lib/theme.ts rewrites data-theme on
+   <html> from a matchMedia listener — nothing re-renders, and every bar in the
+   app would keep painting yesterday's hex until the user navigated. Custom
+   properties re-cascade on that attribute change for free. This is the same
+   failure the whole theme layer was written to avoid.
+
+   The fallbacks are load-bearing in two real cases: a row rendered before the
+   track list has loaded gets --field-border rather than an invalid value, and
+   a track that only ever had one hex reuses the dark one in light mode instead
+   of vanishing. */
+
+.track-bar,
+.track-dot,
+.track-glyph,
+.swatch {
+  --track-color: var(--track-c-dark, var(--field-border));
+}
+
+[data-theme='light'] .track-bar,
+[data-theme='light'] .track-dot,
+[data-theme='light'] .track-glyph,
+[data-theme='light'] .swatch {
+  --track-color: var(--track-c-light, var(--track-c-dark, var(--field-border)));
+}
+
+/* The bar's counterpart for a list row that has no edge to draw on — a track
+   manager row, a filter chip's leading mark. */
+.track-dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  background: var(--track-color);
+}
+
+/* The same mark as a glyph rather than a disc — a track icon inside a chip or a
+   list row, tinted with the track's own colour. `color`, not `background`, so
+   the currentColor-stroked icons in components/icons.tsx pick it up. Same
+   two-hex resolution above, for the same reason: an inline `color: track.color`
+   set in JS paints the DARK hex in the light theme, where the seeded track hues
+   land between 1.9:1 and 2.9:1 and the mark all but disappears. */
+.track-glyph {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--track-color);
+}
+
+/* ---------- admin configuration ----------
+   Shared by the track manager and, next sitting, the vocabulary editor. */
+
+/* One configuration row: colour, icon, labels, then actions at the reading
+   end. A row, not a card — a settings list of fifteen cards is a wall.
+
+   Mark the track with .track-dot, NOT .track-bar: this rule's `border`
+   shorthand resets all four edges, so it overwrites the bar's
+   border-inline-start no matter which class the element lists second. The dot
+   exists for exactly this case. */
+.admin-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-block-size: 56px;
+  padding-block: 10px;
+  padding-inline: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+}
+
+.admin-row + .admin-row {
+  margin-block-start: 8px;
+}
+
+/* min-inline-size: 0 is what actually produces the ellipsis. A flex item's
+   min-width defaults to auto, so it refuses to shrink below its own text and a
+   long Arabic track name pushed the action buttons off the end of the row
+   instead of truncating. */
+.admin-row-main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.admin-row-title,
+.admin-row-sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.admin-row-title {
+  font-weight: 600;
+}
+
+.admin-row-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.admin-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+/* An archived row loses its fill, not its legibility: the admin reading it is
+   deciding whether to restore it, so dimming the text would fight the only
+   reason the row is still on screen. */
+.admin-row.is-archived {
+  background: transparent;
+  border-style: dashed;
+}
+
+/* Colour picker. auto-fill rather than a fixed column count so the same grid
+   works at 375px and inside a 460px desktop form. */
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 8px;
+}
+
+/* 44px square: this is a touch target as much as a colour sample. Selection is
+   drawn with box-shadow, not a thicker border — a border change would alter
+   the box and shuffle the whole grid on every tap. The double ring reads
+   against both light and dark swatches, which an outline in one colour cannot. */
+.swatch {
+  block-size: 44px;
+  border: 1px solid color-mix(in srgb, var(--track-color) 55%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--track-color);
+}
+
+.swatch[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px var(--bg-elev), 0 0 0 4px var(--text);
+}
+
+/* Toggle. Expects <button role="switch" aria-checked="…">, so the accessible
+   name is the button's own label and there is no hidden checkbox to keep in
+   sync.
+
+   The thumb travels on inset-inline-start, NOT transform: translateX is a
+   physical axis and would slide the thumb toward the wrong edge in Arabic,
+   which is the one direction bug you cannot see while testing in English. */
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: 44px;
+  block-size: 26px;
+  border: 1px solid var(--field-border);
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* 44px hit area without a 44px-tall control, same trick as .btn-sm. It grows
+   in the block axis only, so it cannot steal taps from a neighbouring control
+   in the same row. */
+.switch::after {
+  content: '';
+  position: absolute;
+  inset-block: -9px;
+  inset-inline: 0;
+}
+
+.switch::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 3px;
+  inset-inline-start: 3px;
+  inline-size: 18px;
+  block-size: 18px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: inset-inline-start 0.18s ease, background 0.18s ease;
+}
+
+.switch[aria-checked='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+/* 100% is the padding box (42px), so the thumb lands 3px from the far edge —
+   the same gap it starts with. */
+.switch[aria-checked='true']::before {
+  inset-inline-start: calc(100% - 21px);
+  background: var(--accent);
+}
+
+/* ---------- empty & loading states ---------- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding-block: 48px 40px;
+  padding-inline: 20px;
+  color: var(--text-dim);
+}
+
+.empty-state-icon {
+  font-size: 34px;
+  line-height: 1;
+  margin-block-end: 6px;
+  opacity: 0.8;
+}
+
+.empty-state-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.empty-state-body {
+  max-inline-size: 340px;
+}
+
+/* An empty state always names the next action — a blank screen with "nothing
+   here" tells an operations lead nothing about what to do. */
+.empty-state .btn {
+  margin-block-start: 14px;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    100deg,
+    var(--bg-elev) 40%,
+    var(--bg-elev-2) 50%,
+    var(--bg-elev) 60%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.skeleton-line {
+  block-size: 12px;
+  margin-block-end: 8px;
+}
+
+.skeleton-row {
+  block-size: 62px;
+  margin-block-end: 10px;
+}
+
+/* ---------- motion ---------- */
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fade-in-up 0.24s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- print (the weekly digest gets printed / PDF'd) ---------- */
+
+@media print {
+  .sidebar,
+  .tabbar,
+  .app-header,
+  .offline-banner,
+  .toast-host,
+  .fab {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff;
+    color: #000000;
+  }
+}

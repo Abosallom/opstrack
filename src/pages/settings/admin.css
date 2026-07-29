@@ -1,0 +1,354 @@
+/* Admin screens under /settings/tracks — the track list and the track editor.
+   Cards, buttons, pills, fields and skeletons all come from global.css; this
+   file owns only the two layouts that have no primitive: the reorderable row
+   and the colour/icon pickers.
+
+   Layout is logical-properties-only, like the rest of the repo — inline/block
+   axes, never a physical edge — so the Arabic mirror comes free. */
+
+.admin {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-inline-size: 720px;
+}
+
+.admin-bar {
+  display: flex;
+  align-items: center;
+}
+
+/* The route's h1 lives in the app header, so these pages open on their standfirst
+   rather than repeating the title. */
+.admin-intro-desc {
+  font-size: 13px;
+  line-height: 1.55;
+  /* --text-dim, not --text-faint: this sits directly on --bg and dim is the
+     token that clears AA at every elevation. */
+  color: var(--text-dim);
+}
+
+.admin-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- track list ---------- */
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The colour bar lives on this inner block rather than the card so it hugs the
+   name and does not stretch down past the wrapped action row. .track-bar (from
+   global.css) supplies the 3px border-inline-start and its padding. */
+.admin-row-head {
+  display: flex;
+  flex: 1 1 220px;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Both hexes arrive as inline custom properties and CSS chooses between them,
+   so a track's bar is correct in light AND dark with no JS involved — and it
+   stays correct when the `auto` theme flips at sunset under a mounted page,
+   which a trackColor() helper computed at render time would not. */
+.admin-track-bar {
+  --track-color: var(--track-c-dark);
+}
+
+:root[data-theme='light'] .admin-track-bar {
+  --track-color: var(--track-c-light);
+}
+
+.admin-row-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: var(--radius-sm);
+  /* Tinted with the track's own colour so the icon and the bar read as one
+     identity instead of two unrelated marks. A flat --bg-elev-2 chip was also
+     invisible inside the editor's preview box, which is that same colour. The
+     tint stays at 12% so the glyph keeps well over the 3:1 a meaningful
+     non-text graphic needs against it. */
+  background: color-mix(in srgb, var(--track-color, var(--accent)) 12%, transparent);
+  color: var(--track-color, var(--accent));
+}
+
+.admin-row-text {
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+.admin-row-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.admin-row-alt {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.admin-row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 5px;
+}
+
+/* A track whose counts have not landed yet and is not archived renders this row
+   with no children; without the collapse its margin still opens a gap that made
+   the list twitch as the counts arrived. */
+.admin-row-tags:empty {
+  display: none;
+}
+
+.admin-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+}
+
+/* Reorder is up/down buttons, not drag: a drag handle is unreachable by
+   keyboard and unusable one-handed, which is this app's primary posture. */
+.admin-move {
+  min-inline-size: 40px;
+  padding-inline: 8px;
+}
+
+/* One chevron glyph serves both directions. Up and down are axis-neutral, so
+   these must NOT carry .icon-directional — mirroring them in Arabic would
+   point them sideways. */
+.admin-move-icon {
+  transition: transform 0.15s ease;
+}
+
+.admin-move-up {
+  transform: rotate(-90deg);
+}
+
+.admin-move-down {
+  transform: rotate(90deg);
+}
+
+/* ---------- delete → reassign ---------- */
+
+.admin-reassign {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-block-start: 4px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--red) 8%, transparent);
+}
+
+.admin-reassign-usage {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.admin-reassign-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------- error state ---------- */
+
+.admin-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
+  color: var(--text);
+}
+
+/* ---------- editor form ---------- */
+
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  /* Dashed: this is a rendering of the track, not another editable card. */
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+/* .admin-row-head's flex-basis is sized for the list's ROW container. Inside
+   this column one it lands on the block axis instead and stretches the preview
+   to 220px tall. */
+.admin-preview .admin-row-head {
+  flex: 0 0 auto;
+}
+
+.admin-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.admin-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: none;
+}
+
+/* ---------- colour picker ---------- */
+
+.admin-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.admin-swatch:hover {
+  border-color: var(--field-border);
+}
+
+/* Selection is a ring AND a size change: on a grid of pure colour, hue alone
+   cannot say which one is chosen to someone who cannot separate the hues. */
+.admin-swatch.active {
+  border-color: var(--text);
+}
+
+.admin-swatch.active .admin-swatch-dot {
+  inline-size: 26px;
+  block-size: 26px;
+}
+
+.admin-swatch-dot {
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 50%;
+  background: var(--track-c-dark);
+  transition: inline-size 0.15s ease, block-size 0.15s ease;
+}
+
+:root[data-theme='light'] .admin-swatch-dot {
+  background: var(--track-c-light);
+}
+
+.admin-hex-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-hex-row .field {
+  flex: 1 1 150px;
+  min-inline-size: 0;
+}
+
+.admin-hex {
+  font-variant-numeric: tabular-nums;
+  text-transform: lowercase;
+}
+
+/* ---------- icon picker ---------- */
+
+.admin-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-icon-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-icon-option:hover {
+  color: var(--text);
+  border-color: var(--field-border);
+}
+
+.admin-icon-option.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* ---------- editor footer ---------- */
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 4px;
+}
+
+.admin-actions .btn {
+  flex: 1 1 140px;
+}
+
+@media (max-width: 479px) {
+  /* At 375px the five row actions cannot share a line with the name. Dropping
+     the head to full width puts them on their own row at full tap size instead
+     of shrinking either one. */
+  .admin-row-head {
+    flex-basis: 100%;
+  }
+
+  .admin-row-actions {
+    inline-size: 100%;
+    margin-inline-start: 0;
+  }
+
+  .admin-row-actions .btn:not(.admin-move) {
+    flex: 1 1 auto;
+  }
+}

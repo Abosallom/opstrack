@@ -1,0 +1,25 @@
+/* The toast stack itself (.toast-host, .toast, .toast-message, .toast-action
+   and the .error / .success tone modifiers) is styled in app-shell.css, which
+   owns the shell's fixed layers and their z-index ladder. Nothing here may
+   restate those selectors — two files setting .toast would make the winner
+   depend on CSS import order, which changes between the dev server and a
+   production build.
+
+   This file adds only the one part the shell does not know about: the optional
+   leading icon slot. */
+
+.toast-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  line-height: 0;
+  color: var(--text-dim);
+}
+
+.toast.success .toast-icon {
+  color: var(--green);
+}
+
+.toast.error .toast-icon {
+  color: var(--red);
+}

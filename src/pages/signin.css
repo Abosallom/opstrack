@@ -1,0 +1,121 @@
+/* Sign-in is the only screen rendered outside the app shell, so it owns its own
+   full-viewport layout. Everything inside the card reuses the global primitives
+   (.card, .field, .input, .btn); the rules here are the ones the design system
+   has no opinion about — the centring frame and the leading field icon. */
+
+.signin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 100dvh;
+  padding-block: calc(24px + env(safe-area-inset-top, 0px))
+    calc(24px + env(safe-area-inset-bottom, 0px));
+  /* Symmetric notch padding: a hardware cutout does not swap sides with the
+     writing direction. */
+  padding-inline: max(20px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+}
+
+.signin-card {
+  inline-size: 100%;
+  max-inline-size: 400px;
+  padding: 26px 22px;
+  box-shadow: var(--shadow);
+}
+
+.signin-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-block-end: 22px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+
+.signin-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.signin-title {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+
+.signin-sub {
+  margin-block: 6px 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  /* The address is echoed back on step 2 and can be long; break it rather than
+     letting it push the card wider than the viewport. */
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+/* Leading icon inside the field. inset-inline-start (not left) so it moves to
+   the right-hand edge in Arabic along with the text it introduces. */
+.signin-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.signin-field-icon {
+  position: absolute;
+  inset-inline-start: 12px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.signin-input {
+  padding-inline-start: 40px;
+}
+
+.signin-code-input {
+  font-size: 20px;
+  font-weight: 700;
+  /* Generous tracking: a six-digit code is transcribed character by character
+     off an email, not skimmed. Arabic UI keeps Western digits (spec §5), so
+     this applies in both locales. */
+  letter-spacing: 0.3em;
+  font-variant-numeric: tabular-nums;
+}
+
+.signin-submit {
+  margin-block-start: 18px;
+}
+
+.signin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-start: 12px;
+}
+
+.signin-notice {
+  padding: 16px;
+  border: 1px solid var(--yellow);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+.signin-notice-title {
+  margin-block-end: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.signin-notice-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  /* --text-dim rather than --text-faint: this sits on --bg-elev-2, the surface
+     where the faint token bottoms out. */
+  color: var(--text-dim);
+}

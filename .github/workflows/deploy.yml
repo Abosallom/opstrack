@@ -1,0 +1,61 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  # Never cancel a run that may be inside deploy-pages: cancelling there can
+  # wedge the Pages deployment, and the NEXT push then fails on the stuck lock.
+  # Queued runs simply supersede each other instead.
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      # Fail fast if the secrets are absent. Without this check a missing secret
+      # produces a SUCCESSFUL deploy of a "not configured" build — the worst
+      # failure mode, because nothing looks wrong until someone tries to sign in.
+      - name: Require Supabase secrets
+        run: |
+          test -n "${{ secrets.VITE_SUPABASE_URL }}" || { echo "::error::VITE_SUPABASE_URL secret is not set"; exit 1; }
+          test -n "${{ secrets.VITE_SUPABASE_ANON_KEY }}" || { echo "::error::VITE_SUPABASE_ANON_KEY secret is not set"; exit 1; }
+      - run: npm run build
+        env:
+          # Repository secrets. Vite inlines these at build time, so they must be
+          # present here and not at deploy time. The anon key is public by
+          # design — RLS is the boundary — but keeping it in secrets means
+          # rotating the Supabase project does not need a code change.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

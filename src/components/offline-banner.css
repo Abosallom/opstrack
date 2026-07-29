@@ -1,0 +1,10 @@
+/* Wrapper for the always-mounted offline live region. The banner inside it is
+   styled by app-shell.css — this file must not restate .offline-banner, or the
+   winner would depend on CSS import order.
+
+   :empty collapses the region so a connected app has no phantom row between the
+   header and the content. */
+
+.offline-region:empty {
+  display: none;
+}

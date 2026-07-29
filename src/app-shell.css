@@ -1,0 +1,564 @@
+/* App shell chrome — the frame every route renders inside.
+
+   One breakpoint, 768px:
+     < 768px   fixed bottom tab bar, no sidebar. Thumb-reachable, safe-area aware.
+     >= 768px  persistent inline-start sidebar + a sticky header row.
+
+   Everything positional here is a logical property (inset-inline-*,
+   border-inline-*, padding-inline-*, margin-inline). That is the whole reason
+   the Arabic build needs no mirror stylesheet: the sidebar lands on the right
+   in RTL because it is `inline-start`, not because a [dir='rtl'] rule moved it.
+   The only physical values in this file are env(safe-area-inset-left/right),
+   which describe the device's notch and are applied symmetrically for exactly
+   that reason — a notch does not swap sides when the language does. */
+
+/* ---------- layout skeleton ---------- */
+
+.app-layout {
+  display: flex;
+  /* dvh, not vh: on iOS Safari the collapsing URL bar makes 100vh taller than
+     the visible viewport, which pushed the tab bar under the browser chrome. */
+  min-block-size: 100dvh;
+}
+
+.app-main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tolerated shorthand: some routes render <main class="main-content"> as a
+   direct child of .app-layout with no .app-main wrapper. */
+.app-layout > .main-content {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.main-content {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  inline-size: 100%;
+  max-inline-size: 1180px;
+  padding-block: 22px 56px;
+  padding-inline: 18px;
+}
+
+/* ---------- sidebar (>= 768px) ---------- */
+
+.sidebar {
+  display: none;
+  flex: 0 0 232px;
+  inline-size: 232px;
+  flex-direction: column;
+  gap: 2px;
+  padding-block: 18px 14px;
+  padding-inline: 10px;
+  background: var(--bg-elev);
+  border-inline-end: 1px solid var(--border);
+  position: sticky;
+  inset-block-start: 0;
+  block-size: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-block: 6px 16px;
+  padding-inline: 12px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+
+.sidebar-brand-mark {
+  inline-size: 26px;
+  block-size: 26px;
+  border-radius: 7px;
+  background: var(--accent);
+  flex: 0 0 auto;
+}
+
+.nav-section {
+  padding-block: 16px 6px;
+  padding-inline: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-faint);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-block-size: 44px;
+  padding-block: 9px;
+  padding-inline: 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: 14.5px;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-item:hover {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+/* Active state carries a second, non-colour cue (the inline-start marker
+   below) because colour alone is not a sufficient indicator. aria-current is
+   matched as well as .active so the visual and the accessible state can never
+   drift apart. */
+.nav-item.active,
+.nav-item[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--text);
+  position: relative;
+}
+
+.nav-item.active::before,
+.nav-item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  inset-block: 9px;
+  inset-inline-start: 0;
+  inline-size: 3px;
+  /* Logical corner radii: the marker hugs the inline-start edge, so the round
+     corners must be on its inline-end side in both directions. The physical
+     `0 3px 3px 0` form rounded the wrong two corners in Arabic. */
+  border-start-end-radius: 3px;
+  border-end-end-radius: 3px;
+  background: var(--accent);
+}
+
+/* Fixed icon box keeps every label's inline-start edge aligned no matter which
+   glyph is used, in both directions. */
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 22px;
+  block-size: 22px;
+  line-height: 0;
+}
+
+.nav-icon svg {
+  inline-size: 22px;
+  block-size: 22px;
+}
+
+.nav-label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Count bubble (overdue / follow-ups due). margin-inline-start: auto pushes it
+   to the row's trailing edge in both directions. */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 20px;
+  block-size: 19px;
+  margin-inline-start: auto;
+  padding-inline: 6px;
+  border-radius: 999px;
+  background: var(--red);
+  /* --bg, not white: --red is a light coral on the dark theme and white on it
+     is 2.52:1. --bg tracks the theme and measures 7.27:1 dark / 5.35:1 light. */
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.sidebar-footer {
+  margin-block-start: auto;
+  padding-block-start: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---------- header row ---------- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-block-size: 56px;
+  padding-block: 10px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-block-end: 1px solid var(--border);
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 60;
+  /* Landscape notch: symmetric because a hardware cutout does not follow the
+     writing direction. */
+  padding-inline: max(18px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  padding-block-start: max(10px, env(safe-area-inset-top, 0px));
+}
+
+.app-header-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+/* Trailing cluster: theme toggle, language toggle, account. */
+.app-header-actions {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* ---------- bottom tab bar (< 768px) ---------- */
+
+.tabbar {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 80;
+  display: flex;
+  align-items: stretch;
+  background: color-mix(in srgb, var(--bg-elev) 92%, transparent);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-block-start: 1px solid var(--border);
+  /* Home-indicator clearance. Without this the last row of tab labels sat
+     under the iPhone gesture bar and the outer tabs were unhittable. */
+  padding-block-end: env(safe-area-inset-bottom, 0px);
+  padding-inline: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+}
+
+.tabbar-item {
+  /* Five equal tabs. min-inline-size: 0 is what lets them fit a 320px
+     viewport instead of overflowing the bar. */
+  flex: 1 1 0;
+  min-inline-size: 0;
+  min-block-size: 52px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding-block: 7px 6px;
+  padding-inline: 2px;
+  color: var(--text-dim);
+  transition: color 0.15s ease;
+}
+
+.tabbar-item.active,
+.tabbar-item[aria-current='page'] {
+  color: var(--accent);
+}
+
+/* Active marker, centred by margin-inline: auto inside a zeroed inline inset
+   rather than by a 50% offset + translateX — the percentage form resolves off
+   the wrong edge in RTL and the bar drifted off the tab in Arabic. */
+.tabbar-item.active::before,
+.tabbar-item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  inline-size: 26px;
+  block-size: 3px;
+  margin-inline: auto;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+}
+
+/* Fixed 24px box, not just line-height: 0. The badge below is positioned
+   against this element, and when the icon was allowed to collapse to its
+   content height the badge landed on top of the tab label instead of on the
+   icon's corner. */
+.tabbar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: 24px;
+  block-size: 24px;
+  line-height: 0;
+  transition: transform 0.15s ease;
+}
+
+.tabbar-icon svg {
+  inline-size: 24px;
+  block-size: 24px;
+}
+
+.tabbar-item:active .tabbar-icon {
+  transform: scale(0.88);
+}
+
+.tabbar-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-inline-size: 100%;
+}
+
+/* Badge pinned to the icon's trailing-top corner; inset-inline-end follows the
+   direction so it never covers the glyph in Arabic. */
+.tab-badge {
+  position: absolute;
+  inset-block-start: -5px;
+  inset-inline-end: -11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 16px;
+  block-size: 16px;
+  padding-inline: 4px;
+  border-radius: 999px;
+  background: var(--red);
+  color: var(--bg); /* see .nav-badge — white fails on the dark theme's --red */
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  border: 2px solid var(--bg-elev);
+  box-sizing: content-box;
+}
+
+/* ---------- floating capture button (< 768px) ----------
+   Capture is the app's reason to exist and must be reachable in one thumb
+   movement from any tab, so it floats above the bar rather than living in it. */
+
+.fab {
+  position: fixed;
+  inset-inline-end: 16px;
+  inset-block-end: calc(74px + env(safe-area-inset-bottom, 0px));
+  z-index: 81;
+  inline-size: 56px;
+  block-size: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: var(--shadow);
+  border: none;
+}
+
+.fab:active {
+  transform: scale(0.94);
+}
+
+.fab:focus-visible {
+  outline-color: var(--text);
+}
+
+/* ---------- offline banner ----------
+   Sticks to the top of the scroller so it stays on screen while the user keeps
+   working — captures queue in the outbox and this is the only signal that they
+   have not synced yet. z-index is deliberately ABOVE .app-header (60): both are
+   sticky at inset-block-start: 0, and letting the header win meant the banner
+   scrolled out of sight behind it, which is the one thing it must not do. It is
+   full-bleed, so overlaying the header reads as the banner replacing it. */
+
+.offline-banner {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 8px;
+  padding-inline: 16px;
+  background: color-mix(in srgb, var(--yellow) 16%, var(--bg-elev));
+  border-block-end: 1px solid color-mix(in srgb, var(--yellow) 40%, transparent);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: start;
+}
+
+.offline-banner-dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--yellow);
+  flex: 0 0 auto;
+}
+
+.offline-banner-count {
+  margin-inline-start: auto;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- toast host ----------
+   aria-live region owned by the shell. Sits above the tab bar on mobile and in
+   the block-end inline-start corner on desktop. pointer-events: none on the
+   host so a stack of toasts never blocks the list underneath; each toast opts
+   back in for its undo button. */
+
+.toast-host {
+  position: fixed;
+  inset-inline: 0;
+  /* Clears the tab bar AND the capture FAB stacked above it (74px offset +
+     56px tall + 8px gap). A toast sitting at tab-bar height covered the FAB
+     exactly when it is most wanted — the "Entry captured / Undo" toast fires
+     at the moment the user wants to capture the next thing. */
+  inset-block-end: calc(138px + env(safe-area-inset-bottom, 0px));
+  z-index: 95;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 14px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  inline-size: 100%;
+  max-inline-size: 460px;
+  padding-block: 11px;
+  padding-inline: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  border: 1px solid var(--field-border);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 14px;
+  text-align: start;
+  animation: toast-in 0.2s ease both;
+}
+
+.toast-message {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.toast-action {
+  flex: 0 0 auto;
+  min-block-size: 32px;
+  padding-block: 5px;
+  padding-inline: 10px;
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.toast.error {
+  border-color: var(--red);
+}
+
+.toast.success {
+  border-color: var(--green);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- mobile (< 768px) ---------- */
+
+@media (max-width: 767px) {
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .main-content {
+    padding-block: 16px calc(84px + env(safe-area-inset-bottom, 0px));
+    /* Symmetric notch padding — see the note at the top of this file. */
+    padding-inline: max(14px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  }
+
+  .app-header {
+    min-block-size: 50px;
+  }
+}
+
+/* ---------- desktop (>= 768px) ---------- */
+
+@media (min-width: 768px) {
+  .sidebar {
+    display: flex;
+  }
+
+  .tabbar,
+  .fab {
+    display: none;
+  }
+
+  .main-content {
+    padding-block: 26px 64px;
+    padding-inline: 28px;
+  }
+
+  /* No tab bar to clear, so toasts drop to the corner and stop covering the
+     centre of the list. */
+  .toast-host {
+    inset-inline-start: auto;
+    inset-block-end: 20px;
+    align-items: flex-end;
+    padding-inline-end: 20px;
+    max-inline-size: 520px;
+    margin-inline-start: auto;
+  }
+}
+
+/* Installed PWA: some devices report env(safe-area-inset-top) as 0 while still
+   drawing the status bar over the page, which buried the header title. Floor
+   the inset so the first row always clears it. */
+@media (display-mode: standalone) {
+  .app-header {
+    padding-block-start: max(10px, env(safe-area-inset-top, 0px), 12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabbar-item,
+  .tabbar-icon,
+  .nav-item {
+    transition: none;
+  }
+
+  .tabbar-item:active .tabbar-icon,
+  .fab:active {
+    transform: none;
+  }
+}

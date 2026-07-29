@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- OpsTrack mark: three timeline nodes with progress bars of different
+       lengths — several tracks, each at a different point. Geometry is kept in
+       sync with scripts that emit the PNG variants in this folder. -->
+  <rect width="1024" height="1024" rx="225" fill="#101215"/>
+  <g transform="translate(512 512) scale(0.94) translate(-512 -512)">
+    <rect x="237" y="300" width="22" height="424" rx="11" fill="#2e3747"/>
+
+    <rect x="368" y="263" width="380" height="74" rx="37" fill="#4d8dff"/>
+    <circle cx="248" cy="300" r="62" fill="#4d8dff"/>
+    <circle cx="248" cy="300" r="26" fill="#101215"/>
+
+    <rect x="368" y="475" width="280" height="74" rx="37" fill="#3a69c2"/>
+    <circle cx="248" cy="512" r="62" fill="#3a69c2"/>
+    <circle cx="248" cy="512" r="26" fill="#101215"/>
+
+    <rect x="368" y="687" width="470" height="74" rx="37" fill="#2a4a8c"/>
+    <circle cx="248" cy="724" r="62" fill="#2a4a8c"/>
+    <circle cx="248" cy="724" r="26" fill="#101215"/>
+  </g>
+</svg>
