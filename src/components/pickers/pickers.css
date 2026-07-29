@@ -1,0 +1,125 @@
+/* The picker set — the `.pick-*` prefix, per the class registry.
+
+   Options are `.chip`, the global filter-chip primitive, so a status picker in
+   the entry sheet and a status facet in the filter bar are recognisably the
+   same control doing the same thing. What this sheet adds is the two layouts
+   (a wrapping chip row, a stacked list), the vocabulary colour, the retired
+   treatment, and the member avatar.
+
+   COLOUR COMES FROM --vocab-c, never from JavaScript. vocabVars() puts the
+   admin's hex on the element as a custom property and the rules below mix it;
+   a hex resolved in JS is resolved once, at render, and keeps yesterday's value
+   when lib/theme.ts flips data-theme at sunset without re-rendering anything.
+   The 18% mix reads as a tint on near-black and as a wash on white, which is
+   why one stored hex works in both themes.
+
+   LOGICAL PROPERTIES ONLY. */
+
+.pick {
+  display: flex;
+  gap: 6px;
+}
+
+.pick-chips {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Stacked full-width rows, for a member list that outgrows a chip row. */
+.pick-list {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.pick-list .pick-option {
+  justify-content: flex-start;
+  border-radius: var(--radius-sm);
+}
+
+.pick-option {
+  /* The chip's own transition covers background/border/colour; this adds
+     nothing so that reduced-motion has nothing extra to suppress. */
+  gap: 6px;
+}
+
+/* The selected option. `.chip.active` already carries the accent treatment for
+   a plain filter chip; an option that has an admin colour uses that instead, so
+   "critical" is red in the picker and red in the pill it produces. */
+.pick-option[aria-checked='true'],
+.pick-option[aria-pressed='true'] {
+  background: color-mix(in oklab, var(--vocab-c, var(--accent)) 18%, transparent);
+  border-color: var(--vocab-c, var(--accent));
+  color: var(--text);
+}
+
+.pick-option[aria-checked='true'] .pick-label,
+.pick-option[aria-pressed='true'] .pick-label {
+  font-weight: 700;
+}
+
+/* Read-only. global.css dims `.btn[aria-disabled='true']` but not `.chip`, and
+   these options are chips — so the state is drawn here. It stays FOCUSABLE on
+   purpose: the value is what a read-only reader came for, and a `disabled`
+   attribute would take the whole group out of the tab order. */
+.pick-option[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.pick-option[aria-disabled='true']:hover {
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+
+/* A hidden vocabulary option or an archived track that an entry still holds.
+   Dashed, quieter, and still fully operable — the point is to say "this is on
+   its way out", not to make the user's own data look broken. */
+.pick-option.is-retired {
+  border-style: dashed;
+  color: var(--text-faint);
+}
+
+.pick-tick {
+  flex: 0 0 auto;
+  margin-inline-start: -2px;
+}
+
+.pick-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- owner ---------- */
+
+.pick-owner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Initials, not an image: there are no avatars in this system and a coloured
+   disc with two letters is a better mark than a generic silhouette repeated
+   down a list. lib/text.initials() is Arabic-safe. */
+.pick-avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: 20px;
+  block-size: 20px;
+  margin-inline-start: -4px;
+  border-radius: 50%;
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.pick-owner-name {
+  min-block-size: 38px;
+  padding-block: 7px;
+  font-size: 14px;
+}

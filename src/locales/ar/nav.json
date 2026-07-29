@@ -1,0 +1,15 @@
+{
+  "nav": {
+    "capture": "تسجيل",
+    "followups": "المتابعات",
+    "board": "اللوحة",
+    "tracks": "المسارات",
+    "more": "المزيد",
+    "primary": "التنقّل الرئيسي",
+    "openMenu": "فتح القائمة",
+    "closeMenu": "إغلاق القائمة",
+    "skipToContent": "تخطٍّ إلى المحتوى",
+    "digest": "الملخّص",
+    "dashboardShort": "المؤشرات"
+  }
+}

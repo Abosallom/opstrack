@@ -1,0 +1,231 @@
+/* The overlay surface — the `.sheetx-*` prefix, per the class registry.
+
+   The positioning, the fill, the shadow and the scroll containment all come
+   from global.css's `.panel` and `.sheet`. This file adds the chrome those two
+   primitives deliberately do not carry: a sticky header, a scrolling body, a
+   pinned footer, and the content rhythm the entry sheet reads in.
+
+   MOTION IS ON THE BLOCK AXIS ONLY, and that is a direction decision. `transform:
+   translateX()` is a PHYSICAL axis: a panel that slides in from +24px enters
+   from the right in English and from the wrong side entirely in Arabic, where
+   the panel is anchored to the left edge. There is no logical translate, so
+   rather than adding the app's first `[dir='rtl']` override, the panel fades
+   and rises and the bottom sheet slides up — both identical in either
+   direction. global.css's reduced-motion block already collapses these to
+   nothing for anyone who asked. */
+
+.sheetx {
+  /* Above the scrim (z-index 89) and the shell's fab. */
+  z-index: 90;
+}
+
+.sheetx-scrim {
+  animation: sheetx-fade 0.16s ease both;
+}
+
+.sheetx-panel {
+  animation: sheetx-rise 0.18s ease both;
+}
+
+.sheetx-bottom {
+  animation: sheetx-up 0.2s ease both;
+}
+
+/* A wider panel for two-column content. This modifies the element that also
+   carries `.panel`; it does not restyle `.panel` itself, which belongs to
+   global.css. */
+.sheetx-lg.panel {
+  inline-size: min(620px, 100vw);
+}
+
+@keyframes sheetx-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheetx-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sheetx-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* ---------- header ----------
+   Sticky rather than fixed: the surface is the scroller (both primitives set
+   overflow-y: auto), so a fixed header would scroll away with the content it is
+   supposed to anchor. */
+
+.sheetx-header {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-block: 12px;
+  padding-inline: 16px;
+  background: var(--bg-elev);
+  border-block-end: 1px solid var(--border);
+}
+
+.sheetx-title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  /* Two lines, then ellipsis. A twelve-word Arabic title otherwise pushes the
+     close button below the fold on a 375px screen. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.sheetx-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.sheetx-close,
+.sheetx-navbtn {
+  position: relative;
+  min-block-size: 36px;
+  min-inline-size: 36px;
+  padding-inline: 8px;
+}
+
+/* 44px hit area without a 44px box, the same overlay trick .btn-sm uses. It
+   grows in the block axis only, so it cannot steal taps from the action button
+   beside it. */
+.sheetx-close::after,
+.sheetx-navbtn::after {
+  content: '';
+  position: absolute;
+  inset-block: -4px;
+  inset-inline: 0;
+}
+
+/* ---------- body & footer ---------- */
+
+.sheetx-body {
+  flex: 1 1 auto;
+  padding-block: 12px 20px;
+  padding-inline: 16px;
+}
+
+.sheetx-footer {
+  position: sticky;
+  inset-block-end: 0;
+  padding-block: 10px;
+  padding-inline: 16px;
+  background: var(--bg-elev);
+  border-block-start: 1px solid var(--border);
+}
+
+/* ---------- content rhythm ----------
+   Generic groupings the sheet's children compose. They carry no entry-specific
+   styling on purpose: a meeting sheet and a filter sheet want the same rhythm,
+   and `.entry-*` belongs to entry.css. */
+
+.sheetx-section + .sheetx-section {
+  margin-block-start: 18px;
+  padding-block-start: 14px;
+  border-block-start: 1px solid var(--border);
+}
+
+.sheetx-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-end: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--text-dim);
+}
+
+/* The body's own heading — the entry's title, which is editable and therefore
+   lives in the body rather than in the header. Sized here rather than through
+   global.css's `.entry-title`, which is a documented carve-out this file must
+   not restyle. */
+.sheetx-heading {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.2px;
+  margin-block-end: 10px;
+}
+
+/* A quiet explanation, not a warning: "you cannot edit this" is a fact about
+   the row, and painting it red would read as an error the user caused. */
+.sheetx-note {
+  margin-block-end: 12px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.sheetx-provenance {
+  margin-block-start: 18px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
+/* A wrapping row of pills — the health/age/SLA line under the title. */
+.sheetx-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-block-end: 12px;
+}
+
+/* The "updated by ⟨name⟩" flash. Fades rather than vanishing, because a mark
+   that disappears between two glances reads as a misread rather than a timeout. */
+.sheetx-flash {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-block: 6px;
+  padding-inline: 10px;
+  margin-block-end: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 12.5px;
+  animation: sheetx-fade 0.2s ease both;
+}
+
+.sheetx-error {
+  margin-block-end: 12px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--red);
+  font-size: 13px;
+}

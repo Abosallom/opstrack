@@ -8,8 +8,10 @@
 // instead of rendering as blank space.
 
 import { useSyncExternalStore } from 'react'
-import en from '../locales/en.json'
-import ar from '../locales/ar.json'
+// One file per namespace under locales/{en,ar}/, merged there. The two
+// monolithic bundles this used to import were the build's worst contention
+// point; the key space and everything below is unchanged by the split.
+import { ar, en } from '../locales'
 
 export type Locale = 'en' | 'ar'
 

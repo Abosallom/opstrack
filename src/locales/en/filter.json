@@ -1,0 +1,30 @@
+{
+  "filter": {
+    "title": "Filters",
+    "open": "Filter",
+    "apply": "Apply",
+    "clear": "Clear",
+    "clearAll": "Clear all",
+    "active": "Active filters",
+    "activeCount": "{count} filters",
+    "track": "Track",
+    "owner": "Owner",
+    "priority": "Priority",
+    "type": "Type",
+    "tag": "Tag",
+    "health": "Health",
+    "status": "Status",
+    "search": "Search",
+    "searchPlaceholder": "Search titles, notes and tags",
+    "scopeOpen": "Open",
+    "scopeClosed": "Closed",
+    "scopeAll": "All",
+    "mine": "Mine",
+    "everyone": "Everyone",
+    "anyOwner": "Any owner",
+    "unassigned": "Unassigned",
+    "noResults": "Nothing matches these filters",
+    "noResultsHint": "Try clearing a filter or widening the date range.",
+    "savedView": "Saved view"
+  }
+}

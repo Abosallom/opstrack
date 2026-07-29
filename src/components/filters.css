@@ -1,0 +1,140 @@
+/* The filter bar — the `.flt-*` prefix, per the class registry.
+
+   Two layers: a rail that is always visible and holds the controls people touch
+   every minute (search, scope, mine, the disclosure, the clear), and a panel
+   that holds the ten facets they touch once a week. Putting all eleven on
+   screen at once costs a phone's entire first viewport before a single entry
+   appears, which is the fastest way to make a list screen feel like a form.
+
+   The rail SCROLLS in the inline axis on a narrow screen rather than wrapping
+   into three rows. A wrapping rail changes height as facets activate, and the
+   list below it jumps under the user's thumb every time they toggle a chip.
+
+   LOGICAL PROPERTIES ONLY. */
+
+.flt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-block-end: 14px;
+}
+
+.flt-rail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-block-end: 2px;
+  /* The overflow itself is the affordance; a visible bar eats 8px of a 375px
+     viewport. Matches .chip-row in global.css. */
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.flt-rail::-webkit-scrollbar {
+  display: none;
+}
+
+/* Search takes the slack and stops shrinking at a width that still fits a word.
+   flex-basis rather than a fixed size so the rail collapses gracefully between
+   375px and a desktop sidebar. */
+.flt-search {
+  flex: 1 1 180px;
+  min-inline-size: 140px;
+  min-block-size: 40px;
+  padding-block: 8px;
+}
+
+.flt-scope {
+  flex: 0 0 auto;
+  gap: 4px;
+  padding-block-end: 0;
+}
+
+.flt-mine,
+.flt-toggle,
+.flt-clear {
+  flex: 0 0 auto;
+}
+
+/* Down when closed ("expand"), up when open ("collapse"). A HALF TURN, not a
+   quarter: 180° is its own mirror, so this needs no [dir='rtl'] rule and cannot
+   point the wrong way in Arabic. A 90° rotation would — and it would also
+   collide with the global `.icon-directional` mirror, which sets the same
+   `transform` property. */
+.flt-caret {
+  transition: transform 0.18s ease;
+}
+
+.flt-caret.is-open {
+  transform: rotate(180deg);
+}
+
+/* The active-facet badge. Accent rather than red: filters are a normal state,
+   not a warning, and the red pill in this app means overdue. */
+.flt-count {
+  min-inline-size: 20px;
+  justify-content: center;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.flt-result {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  color: var(--text-dim);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ---------- the facet panel ---------- */
+
+.flt-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  padding-block: 14px;
+  padding-inline: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  animation: flt-open 0.18s ease both;
+}
+
+/* `hidden` is an attribute the UA styles as display:none, and `display: grid`
+   above would override it — a panel that is closed to a screen reader and open
+   on screen. This restores the attribute's meaning. */
+.flt-panel[hidden] {
+  display: none;
+}
+
+@keyframes flt-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.flt-facet {
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flt-facet-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--text-dim);
+}
+
+.flt-hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}

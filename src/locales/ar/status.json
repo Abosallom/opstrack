@@ -1,0 +1,10 @@
+{
+  "status": {
+    "new": "جديد",
+    "in_progress": "قيد التنفيذ",
+    "blocked": "محجوب",
+    "waiting_on": "بانتظار طرف آخر",
+    "done": "منجز",
+    "cancelled": "ملغى"
+  }
+}

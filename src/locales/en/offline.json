@@ -1,0 +1,17 @@
+{
+  "offline": {
+    "banner": "You're offline — showing the last loaded data.",
+    "backOnline": "Back online.",
+    "pending": "{count} change waiting to sync",
+    "queued": "Saved on this device — it'll sync when you're back online.",
+    "syncing": "Syncing…",
+    "synced": "Everything is synced.",
+    "syncFailed": "{count} change couldn't sync.",
+    "retry": "Retry now",
+    "outbox": "Pending changes",
+    "outboxHint": "These are saved on this device and will be sent when you're back online.",
+    "discardTitle": "Discard this change?",
+    "discardBody": "It hasn't reached the server yet, and discarding it can't be undone.",
+    "discarded": "Change discarded."
+  }
+}

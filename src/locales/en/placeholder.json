@@ -1,0 +1,14 @@
+{
+  "placeholder": {
+    "comingSoon": "Coming soon",
+    "phase1": "Phase 1 builds the foundation: database, sign-in, and the app shell. This screen arrives in a later phase.",
+    "capture": "Quick capture with inline token parsing arrives in phase 3.",
+    "followups": "Your overdue, due, stale, blocked and unassigned items will gather here in phase 4.",
+    "board": "The status board arrives in phase 5.",
+    "tracks": "Track timelines arrive in phase 5.",
+    "trackDetail": "This track's chronological log arrives in phase 5.",
+    "entry": "The entry detail panel and its update thread arrive in phase 2.",
+    "meetings": "Meeting mode arrives in phase 6.",
+    "dashboard": "Charts and the weekly digest arrive in phase 8."
+  }
+}

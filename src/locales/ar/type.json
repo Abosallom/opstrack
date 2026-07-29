@@ -1,0 +1,11 @@
+{
+  "type": {
+    "action": "إجراء",
+    "decision": "قرار",
+    "issue": "مشكلة",
+    "request": "طلب",
+    "change": "تغيير",
+    "escalation": "تصعيد",
+    "note": "ملاحظة"
+  }
+}

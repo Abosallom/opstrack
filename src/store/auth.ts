@@ -2,8 +2,10 @@
 //
 // Membership model: project signups are DISABLED in Supabase. Members are
 // provisioned by an admin through the `admin-members` edge function, which
-// creates the auth user and its profiles row together. Sign-in is therefore a
-// 6-digit email OTP against an account that must already exist.
+// creates the auth user and its profiles row together. Sign-in is therefore
+// always against an account that must already exist, by one of two paths:
+// a 6-digit email OTP (real addresses — the owner's), or a username and the
+// password the member chose when they claimed it.
 //
 // Every exported function returns an error STRING or null instead of throwing.
 // Sign-in errors are shown inline on the form; a thrown promise there just
@@ -14,7 +16,7 @@ import type { Session } from '@supabase/supabase-js'
 import { materializeRecurring } from '../api/entries'
 import { supabase } from '../api/supabase'
 import { setLocale, t } from '../lib/i18n'
-import type { UserRole } from '../types'
+import type { ClaimInput, UserRole } from '../types'
 
 /** View-model of the profiles row — camelCase, unlike the DB row in types.ts. */
 export interface Profile {
@@ -65,15 +67,18 @@ function notConfigured(): string {
  * ends in a t() key, and the raw text goes to the console so a failure that
  * matches nothing specific is still debuggable.
  *
- * `step` disambiguates the two shapes that only make sense in one place: the
+ * `step` disambiguates the shapes that only make sense in one place: the
  * "signups not allowed" reply means "no such account" only when requesting a
- * code, and the token/expired family only ever comes back from verification.
+ * code, the token/expired family only ever comes back from verification, and
+ * "invalid login credentials" only from a password grant.
  */
-function authErrorMessage(message: string, step: 'request' | 'verify'): string {
+type AuthStep = 'request' | 'verify' | 'password'
+
+function authErrorMessage(message: string, step: AuthStep): string {
   const m = message.toLowerCase()
   // With shouldCreateUser:false this is also what an UNKNOWN address produces,
   // so it is the real "no such account" message for this project.
-  if (/signups? not allowed|user not found|does not exist/.test(m)) {
+  if (step !== 'password' && /signups? not allowed|user not found|does not exist/.test(m)) {
     return t('signin.errNoAccount')
   }
   if (/rate limit|after \d+ seconds|too many requests|429/.test(m)) {
@@ -85,10 +90,21 @@ function authErrorMessage(message: string, step: 'request' | 'verify'): string {
   if (step === 'verify' && /token|otp|expired|invalid|incorrect/.test(m)) {
     return t('signin.errCodeInvalid')
   }
+  // ONE message for every credential failure, on purpose. Supabase already
+  // answers "Invalid login credentials" for both a wrong password and an
+  // address that does not exist; keeping that conflation here is what stops the
+  // form becoming a username oracle, and usernames are handed out in person
+  // precisely so they are not public. It also absorbs "email not confirmed",
+  // which for a provisioned account means the claim never finished — telling a
+  // member to check an inbox that cannot receive mail (@opstrack.internal is
+  // RFC 6761 reserved) would be worse than telling them the password is wrong.
+  if (step === 'password' && /credentials|password|not confirmed|grant/.test(m)) {
+    return t('signin.errCredentials')
+  }
   return t('signin.errGeneric')
 }
 
-function toFormError(error: { message: string } | null, step: 'request' | 'verify'): string | null {
+function toFormError(error: { message: string } | null, step: AuthStep): string | null {
   if (!error) return null
   console.warn(`[auth] ${step} failed:`, error.message)
   return authErrorMessage(error.message, step)
@@ -118,6 +134,160 @@ export async function verifyOtp(email: string, code: string): Promise<string | n
     type: 'email',
   })
   return toFormError(error, 'verify')
+}
+
+// ── username accounts ──────────────────────────────────────────────────────
+//
+// Implemented by W1-AUTH alongside the `admin-members` v2 and `claim-account`
+// edge functions, against the contracts the Wave-1 keystone published here.
+//
+// WHY USERNAMES AT ALL. Email OTP costs a round trip to an inbox the member may
+// not have on their phone, and Supabase's built-in SMTP is capped at a handful
+// of mails an hour project-wide — fine for one owner, not for a team signing in
+// on a Sunday morning. So an admin predefines a USERNAME, the member claims it
+// once with a one-time invite code and a password they choose, and every
+// sign-in after that is local.
+//
+// OTP IS NOT REMOVED. Accounts with a real email address — the owner's — keep
+// it, and both paths stay valid for them. That is the migration guarantee: the
+// existing admin cannot be locked out by this change.
+
+/**
+ * The synthetic address a predefined username authenticates against.
+ *
+ * `.internal` is reserved by RFC 6761 and can never resolve, which is the
+ * point: these addresses must be unable to receive mail, so that nothing in the
+ * product ever quietly depends on emailing them. Password reset for a username
+ * account is an admin reissuing an invite code — an honest path, rather than a
+ * "check your inbox" screen for an inbox that does not exist.
+ */
+export const USERNAME_EMAIL_DOMAIN = '@opstrack.internal'
+
+/**
+ * username → the synthetic email, deterministically.
+ *
+ * Pure and total; it validates nothing, because the authority on what a legal
+ * username is lives in the edge function that mints the account, and a second
+ * opinion here could only ever disagree with it. Lowercased and trimmed so
+ * `Ahmed`, `ahmed ` and `ahmed` are one account rather than three.
+ */
+export function usernameToEmail(username: string): string {
+  return `${username.trim().toLowerCase()}${USERNAME_EMAIL_DOMAIN}`
+}
+
+/**
+ * Sign in with a password.
+ *
+ * `identifier` is a username OR a real email — branch on whether it contains
+ * '@', and map a bare username through usernameToEmail(). One field, because
+ * asking a user to first classify their own credential is a worse form than
+ * guessing correctly from the one character that distinguishes them.
+ *
+ * Returns a TRANSLATED sentence or null, matching this file's convention (see
+ * the header) rather than api/'s i18n-key convention: sign-in errors render
+ * inline on the form through role="alert", and the form has no key resolver.
+ *
+ * The generic-credentials branch must NOT distinguish "no such username" from
+ * "wrong password" — that difference is a username oracle, and usernames here
+ * are handed out in person specifically so they are not public.
+ */
+export async function signInPassword(
+  identifier: string,
+  password: string,
+): Promise<string | null> {
+  if (!supabase) return notConfigured()
+  const id = identifier.trim()
+  if (!id) return t('signin.errUsernameRequired')
+  if (!password) return t('signin.errPasswordRequired')
+  // One character decides it: an '@' means the user typed a real address, and
+  // anything else is a predefined username that maps onto its synthetic one.
+  const email = id.includes('@') ? id.toLowerCase() : usernameToEmail(id)
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  // No session handling here: onAuthStateChange fires SIGNED_IN and adopt()
+  // loads the profile, exactly as it does after an OTP verify.
+  return toFormError(error, 'password')
+}
+
+/** The floor this app enforces before the request leaves the browser. */
+export const MIN_PASSWORD_LENGTH = 8
+
+/** The failure codes `claim-account` returns, mapped to what the member reads. */
+const CLAIM_ERROR_KEYS: Record<string, string> = {
+  already_claimed: 'signin.errAlreadyClaimed',
+  invalid_invite: 'signin.errInviteInvalid',
+  rate_limited: 'signin.errRateLimited',
+  network: 'signin.errNetwork',
+}
+
+/**
+ * Dig the machine-readable failure code out of a functions.invoke() error.
+ *
+ * supabase-js collapses every non-2xx into a FunctionsHttpError whose message is
+ * the constant "Edge Function returned a non-2xx status code" — the JSON body,
+ * where our `code` lives, is reachable only through `.context`, the raw
+ * Response. Without this the claim screen could say nothing more specific than
+ * "something went wrong" for a wrong code, an expired one, and an account that
+ * was already claimed alike.
+ */
+async function edgeErrorCode(error: unknown): Promise<string> {
+  const err = error as { name?: string; context?: unknown }
+  // The one case with no response at all: the request never reached the edge.
+  if (err.name === 'FunctionsFetchError') return 'network'
+  const ctx = err.context
+  if (ctx instanceof Response) {
+    try {
+      const body = (await ctx.clone().json()) as { code?: unknown }
+      if (typeof body.code === 'string') return body.code
+    } catch {
+      // A non-JSON body (a gateway HTML error page) tells us nothing; fall
+      // through to the generic message rather than surfacing markup.
+      return ''
+    }
+  }
+  return ''
+}
+
+/**
+ * First registration: exchange a username + one-time invite code for a password
+ * the member chooses, then sign them in.
+ *
+ * Runs UNAUTHENTICATED — the caller has no session yet, which is the whole
+ * point of claiming — so the invite code is the only credential and the
+ * service-role work happens inside the `claim-account` edge function. The code
+ * is single-use; a second attempt with the same code must fail even if the
+ * first one crashed after setting the password, because a reusable invite is a
+ * standing key to someone else's account.
+ */
+export async function claimAccount(input: ClaimInput): Promise<string | null> {
+  if (!supabase) return notConfigured()
+  const username = input.username.trim().toLowerCase()
+  const inviteCode = input.inviteCode.trim()
+  const { password } = input
+  if (!username) return t('signin.errUsernameRequired')
+  if (!inviteCode) return t('signin.errInviteRequired')
+  // Checked here as well as in the function so a too-short password costs a
+  // keystroke rather than a round trip — and so it costs no rate-limit budget.
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return t('signin.errPasswordShort', { min: MIN_PASSWORD_LENGTH })
+  }
+
+  const { error } = await supabase.functions.invoke('claim-account', {
+    body: { username, inviteCode, password },
+  })
+  if (error) {
+    const code = await edgeErrorCode(error)
+    // The CODE, never the code: log which failure happened, never the invite
+    // itself and never the password. A console line survives in a bug report.
+    console.warn('[auth] claim failed:', code || 'unknown')
+    if (code === 'weak_password') return t('signin.errPasswordShort', { min: MIN_PASSWORD_LENGTH })
+    return t(CLAIM_ERROR_KEYS[code] ?? 'signin.errGeneric')
+  }
+
+  // Claiming does not hand back a session — it runs with the service role and
+  // has no browser to issue tokens to — so sign in with the password the member
+  // just chose. Landing them on the sign-in form to type it again immediately
+  // after proving they know it would be a gratuitous second chance to fail.
+  return signInPassword(username, password)
 }
 
 export async function signOut(): Promise<void> {

@@ -7,6 +7,8 @@ import App from './App'
 import { applyTheme } from './lib/theme'
 import { applyLocale, t } from './lib/i18n'
 import { initAuth } from './store/auth'
+import { setNotificationsSubmit } from './store/notifications'
+import { submit } from './store/outbox'
 import { toast } from './components/toast'
 
 // Theme and direction are applied BEFORE the first render so the very first
@@ -22,6 +24,21 @@ applyLocale()
 // changes. Safe to call with no credentials configured: it just settles into a
 // signed-out state instead of throwing.
 initAuth()
+
+// Point the notification store's write seam at the real outbox.
+//
+// store/notifications.ts ships with a send-now default because store/outbox.ts
+// belonged to a different worker while both were being written, and a direct
+// import would have been an ownership violation for the length of the wave. The
+// injection point is resolved HERE rather than by making that import now,
+// because the composition root is where a swappable transport belongs — and
+// because it keeps the store importable from a node test without dragging the
+// queue, its `online` listener and every api/ write function in behind it.
+//
+// The effect is that marking a notification read queues while offline instead of
+// failing, exactly like every other write. Contracts rule 3 has no exceptions;
+// this was the last one outstanding.
+setNotificationsSubmit(submit)
 
 /**
  * Service worker registration with a "new version available" prompt.

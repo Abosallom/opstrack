@@ -57,6 +57,26 @@ async function nextSortOrder(): Promise<number> {
   return (row?.sort_order ?? 0) + 1
 }
 
+/**
+ * Trim, drop blanks, dedupe — the shape `tracks.suggested_tags` is written in.
+ *
+ * `text[] not null default '{}'`, so an empty list is `[]` and never null. The
+ * dedupe is plain string equality, not the fold-key dedupe TagsField applies:
+ * this is the last line of defence against a duplicate reaching the column, and
+ * folding here would silently rewrite a team's own spelling of a tag on save.
+ */
+function cleanTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of tags) {
+    const tag = raw.trim()
+    if (tag === '' || seen.has(tag)) continue
+    seen.add(tag)
+    out.push(tag)
+  }
+  return out
+}
+
 export async function createTrack(input: TrackInput): Promise<ApiResult<Track>> {
   if (!supabase) return notConfigured()
   const name = input.name.trim()
@@ -73,6 +93,7 @@ export async function createTrack(input: TrackInput): Promise<ApiResult<Track>> 
     color: input.color,
     color_light: input.colorLight,
     icon: input.icon,
+    suggested_tags: cleanTags(input.suggestedTags),
     sort_order: await nextSortOrder(),
     created_by: userId,
   }
@@ -97,6 +118,7 @@ export async function updateTrack(
   if (input.color !== undefined) row.color = input.color
   if (input.colorLight !== undefined) row.color_light = input.colorLight
   if (input.icon !== undefined) row.icon = input.icon
+  if (input.suggestedTags !== undefined) row.suggested_tags = cleanTags(input.suggestedTags)
 
   // A no-op PATCH would come back with zero rows and .single() would then error
   // out on a request that did nothing wrong. Read the row back instead.

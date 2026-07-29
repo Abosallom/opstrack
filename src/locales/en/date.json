@@ -1,0 +1,22 @@
+{
+  "date": {
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "yesterday": "Yesterday",
+    "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "overdue": "Overdue",
+    "never": "Never",
+    "justNow": "Just now",
+    "minutesAgo": "{count} min ago",
+    "hoursAgo": "{count} h ago",
+    "daysAgo": "{count} d ago",
+    "inDays": "in {count} d",
+    "daysShort": "{count}d",
+    "hoursShort": "{count}h",
+    "overdueByDays": "{count} d overdue",
+    "dueInDays": "due in {count} d",
+    "weekStart": "Week of {from}",
+    "rangeSep": "–"
+  }
+}

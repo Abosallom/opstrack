@@ -1,0 +1,8 @@
+{
+  "health": {
+    "ok": "On track",
+    "stale": "Stale",
+    "overdue": "Overdue",
+    "critical": "Critical"
+  }
+}

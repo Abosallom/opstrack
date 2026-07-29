@@ -1,0 +1,296 @@
+/* Field primitives — the `.fld-*` prefix, per the class registry.
+
+   Everything here composes the global primitives rather than restating them:
+   the inputs are `.input`, the chips are `.chip`, the buttons are `.btn`, and
+   the stacked label/hint/error stack is `.field` / `.field-label` /
+   `.field-error`. What this sheet adds is the two-column row the entry sheet
+   reads as, the click-to-edit affordance, and the four composite controls
+   (date, tags, links) that have no global counterpart.
+
+   LOGICAL PROPERTIES ONLY. The repo has zero physical layout properties and
+   this file keeps it that way — inline-size, inset-inline-*, margin-inline,
+   padding-inline. The only `max-width` here is a media feature, which has no
+   logical form. */
+
+/* ---------- Field ---------- */
+
+.fld-optional {
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.fld-hint {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+/* ---------- FieldRow — the entry sheet's label/value line ---------- */
+
+.fld-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding-block: 8px;
+}
+
+.fld-row + .fld-row {
+  border-block-start: 1px solid var(--border);
+}
+
+/* The label sits on the value's first line rather than centred: a value that
+   grows to three lines (a tag list, a link list) would otherwise drag its own
+   label into the middle of nowhere. */
+.fld-row-label {
+  padding-block-start: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text-dim);
+}
+
+.fld-row-value {
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The opt-in stack, for a value that needs the whole line (tags, links). */
+.fld-row-stacked {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+.fld-row-stacked .fld-row-label {
+  padding-block-start: 0;
+}
+
+/* Below 380px a 104px label column leaves the value about four characters
+   wide, which is narrower than the shortest status label in either language. */
+@media (max-width: 379px) {
+  .fld-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .fld-row-label {
+    padding-block-start: 0;
+  }
+}
+
+/* ---------- InlineText ---------- */
+
+/* A button that has to read as text until it is hovered or focused. The
+   transparent border is load-bearing: swapping to a visible border on hover
+   would change the box and shift every line below it by 2px. */
+.fld-inline-read {
+  display: block;
+  inline-size: 100%;
+  min-block-size: 34px;
+  padding-block: 6px;
+  padding-inline: 8px;
+  margin-inline: -8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  text-align: start;
+  color: inherit;
+  font: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.fld-inline-read:hover:not([aria-disabled='true']) {
+  background: var(--bg-elev-2);
+  border-color: var(--border);
+}
+
+.fld-inline-read[aria-disabled='true'] {
+  cursor: default;
+}
+
+.fld-inline-read.is-empty .fld-inline-text {
+  color: var(--text-faint);
+}
+
+/* Long descriptions keep their paragraph breaks — the thread is written in
+   them, and collapsing newlines turns a three-item list into one run-on line. */
+.fld-inline-text {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.fld-inline-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fld-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------- DateField ---------- */
+
+.fld-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fld-date-input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.fld-date-clear {
+  flex: 0 0 auto;
+  min-inline-size: 36px;
+  min-block-size: 36px;
+  padding-inline: 6px;
+}
+
+/* Quick-set chips, shared by the date field and the tag suggestions. */
+.fld-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.fld-quick-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+/* ---------- TagsField ---------- */
+
+/* The whole control reads as one field: the chips and the input share a border
+   and a focus state, so it does not look like a list next to a text box. */
+.fld-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 44px;
+  padding-block: 6px;
+  padding-inline: 8px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+.fld-tags:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.fld-tag {
+  padding-inline-end: 4px;
+}
+
+/* 28px, not 44px: it sits inside a 32px chip in a wrapping row, where a 44px
+   target would overlap the neighbouring chip's remove button and steal its
+   taps. The chip itself is the large target; this is the precision one. */
+.fld-tag-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: 50%;
+  color: var(--text-faint);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.fld-tag-x:hover {
+  background: color-mix(in srgb, var(--red) 16%, transparent);
+  color: var(--red);
+}
+
+/* Borderless because the wrapper draws the field's box. Grows to fill the last
+   row so the whole control is a click target for "add a tag". */
+.fld-tag-input {
+  flex: 1 1 90px;
+  min-inline-size: 90px;
+  min-block-size: 30px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: start;
+}
+
+.fld-tag-input:focus {
+  outline: none;
+}
+
+.fld-suggest {
+  color: var(--text-faint);
+  border-style: dashed;
+}
+
+.fld-suggest:hover {
+  color: var(--text);
+  border-style: solid;
+}
+
+/* ---------- LinksField ---------- */
+
+.fld-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fld-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 36px;
+}
+
+.fld-link-a {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fld-link-a:hover {
+  color: var(--accent-hover);
+}
+
+.fld-link-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  gap: 6px;
+}
+
+.fld-link-label,
+.fld-link-url {
+  min-block-size: 38px;
+  padding-block: 7px;
+  font-size: 14px;
+}
+
+.fld-link-btn {
+  white-space: nowrap;
+}
+
+/* The three-up add row does not survive a phone: the URL field ends up about
+   nine characters wide. */
+@media (max-width: 479px) {
+  .fld-link-add {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

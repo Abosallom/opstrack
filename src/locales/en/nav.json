@@ -1,0 +1,15 @@
+{
+  "nav": {
+    "capture": "Capture",
+    "followups": "Follow-ups",
+    "board": "Board",
+    "tracks": "Tracks",
+    "more": "More",
+    "primary": "Main navigation",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "skipToContent": "Skip to content",
+    "digest": "Digest",
+    "dashboardShort": "Stats"
+  }
+}

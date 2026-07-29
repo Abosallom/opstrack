@@ -28,6 +28,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # Added at the Wave-1 close, and it is the gate the locale parity check
+      # actually lives or dies by. Until now `npm run test` ran only on whoever
+      # remembered to type it, which is precisely the kind of check that quietly
+      # stops running — and en/ar parity, the frozen unions and the parser's
+      # totality proof are all asserted nowhere else. Placed before the build so
+      # a red suite costs 20 seconds rather than a full Vite run.
+      - run: npm run test
       # Fail fast if the secrets are absent. Without this check a missing secret
       # produces a SUCCESSFUL deploy of a "not configured" build — the worst
       # failure mode, because nothing looks wrong until someone tries to sign in.

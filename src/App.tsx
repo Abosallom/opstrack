@@ -19,9 +19,14 @@ import {
   type IconComponent,
 } from './components/icons'
 import { t, useLocale } from './lib/i18n'
+import { startRealtime, stopRealtime } from './api/realtime'
 import { useAuth } from './store/auth'
 import { loadConfig } from './store/config'
+import { resetEntries } from './store/entries'
+import { initNotificationsRealtime, resetNotifications } from './store/notifications'
+import { resetOutbox } from './store/outbox'
 import { setLocaleSetting, setTheme, useSettings } from './store/settings'
+import { loadVocab } from './store/vocab'
 import type { ThemePref } from './lib/theme'
 import './app-shell.css'
 
@@ -278,15 +283,43 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
     window.scrollTo(0, 0)
   }, [pathname])
 
-  // Warm the config store once per session. Tracks are needed by pickers,
-  // colour bars and the admin list alike, so fetching them per screen would
-  // mean the same query on nearly every navigation. Deliberately unawaited:
-  // loadConfig() de-duplicates, never throws, and every consumer already
-  // renders its own loading state — the shell must not wait on it to paint.
-  // Placed in Shell rather than App because Shell only mounts once a session
-  // exists, and this query is RLS-gated on being signed in.
+  // Warm the workspace-wide stores once per session, and open the one realtime
+  // channel. Tracks and vocabulary are needed by pickers, colour bars, pills and
+  // the admin lists alike, so fetching them per screen would mean the same two
+  // queries on nearly every navigation. Deliberately unawaited: both loaders
+  // de-duplicate, neither throws, and every consumer already renders its own
+  // loading state — the shell must not wait on either to paint.
+  //
+  // Placed in Shell rather than App because Shell mounts only once a session
+  // exists, and every one of these is RLS-gated on being signed in. That is also
+  // what makes the cleanup below the sign-out hook: losing the session unmounts
+  // Shell, and there is no other way out of it.
+  //
+  // Entries are NOT loaded here. They are a screen's working set, they are the
+  // one dataset large enough for the fetch to be worth deferring, and the
+  // screens that need them are Wave 2's — each self-loads through
+  // store/entries.loadEntries(), which dedupes exactly like these two.
   useEffect(() => {
     void loadConfig()
+    void loadVocab()
+    // The notification stream rides the shared channel, so the channel has to be
+    // open first; both calls are idempotent, and subscribing before SUBSCRIBED
+    // lands is fine — api/realtime.ts registers handlers, not sockets.
+    startRealtime()
+    const stopNotifications = initNotificationsRealtime()
+
+    return () => {
+      stopNotifications()
+      stopRealtime()
+      // Sign-out, not just unmount — see above. Each of these three stores holds
+      // rows the NEXT account in this tab must not see: a per-recipient inbox
+      // that RLS would never have handed them, another user's working set, and
+      // worst of all queued writes that would leave under the new session's
+      // credentials. Clearing them here is why those reset functions exist.
+      resetNotifications()
+      resetEntries()
+      resetOutbox()
+    }
   }, [])
 
   return (

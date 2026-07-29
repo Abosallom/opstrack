@@ -7,6 +7,8 @@
     "dev": "vite --host",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "vitest run",
+    "seed": "node scripts/seed.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -24,6 +26,7 @@
     "oxlint": "^1.71.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
-    "vite-plugin-pwa": "^1.3.0"
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.10"
   }
 }

@@ -1,0 +1,11 @@
+{
+  "type": {
+    "action": "Action",
+    "decision": "Decision",
+    "issue": "Issue",
+    "request": "Request",
+    "change": "Change",
+    "escalation": "Escalation",
+    "note": "Note"
+  }
+}

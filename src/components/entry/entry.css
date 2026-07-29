@@ -1,0 +1,828 @@
+/* The entry kit's stylesheet. Atoms, list rows and board cards.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly:
+     .entry-row*  .entry-card*  .entry-sheet*  .upd-*  .link-list*
+     .status-pill .prio-dot .health-pill .age-pill .owner-badge .tag-chip
+     .due-label   .track-ref
+   The eight bare names are BARE — no `-modifier` suffixes exist for them — so
+   every variant here rides on a data-* attribute instead of an unregistered
+   class. That is a deliberate constraint, not a stylistic preference: it is
+   what makes the registry checkable by grep rather than by trust.
+
+   `.entry-title` is global.css's typography primitive and is a documented
+   CARVE-OUT — this file must not restyle it. `.entry-row-title` /
+   `.entry-card-title` add only truncation and the row's hit area on top of it.
+
+   `.entry-sheet*` and `.upd-*` are NOT in this file. EntrySheet and
+   UpdateThread transfer to W2-DETAIL at the Wave-2 open and bring their rules
+   with them; writing them here first would hand that worker a stylesheet they
+   do not own and cannot fix.
+
+   LOGICAL PROPERTIES ONLY, like the rest of the repo — inline/block axes, never
+   a physical edge. The Arabic mirror then costs nothing, and there is no
+   direction bug that only appears in the language nobody tests in.
+
+   Colours arrive as INLINE CUSTOM PROPERTIES (--vocab-c from vocabVars(),
+   --track-c-dark/--track-c-light from trackVars()) and are resolved HERE, in
+   CSS. Never in JavaScript: a hex chosen at render keeps yesterday's value when
+   the `auto` theme flips at sunset, because lib/theme.ts rewrites data-theme on
+   <html> from a matchMedia listener and nothing re-renders. */
+
+/* ══════════════════════════════════════════════════════════════════
+   ATOMS
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ---------- StatusPill ----------
+   .pill (global.css) supplies the whole shape: the tint, the border and the
+   radius all derive from currentColor, so this rule sets `color` and the pill
+   follows. --vocab-c is the admin's own hex, and the fallback is what renders
+   before vocab_options has loaded — or forever, if migration 0003 was never
+   run, which is a supported state (store/vocab.ts: "MISSING TABLE IS FINE"). */
+
+.status-pill {
+  color: var(--vocab-c, var(--text-dim));
+}
+
+.status-pill[data-size='md'] {
+  padding-block: 3px;
+  padding-inline: 10px;
+  font-size: 13px;
+}
+
+/* The editable variant is a native <select> wearing the pill.
+
+   appearance:none strips the platform chrome so it matches its read-only twin,
+   and NO custom chevron is drawn: global.css's .select rule explains that a
+   background-image arrow needs an inset-inline rule and desyncs in Arabic, and
+   at 12px a chevron beside six characters of text is noise. The affordance is
+   the hover state and the cursor.
+
+   32px is the floor .chip already sets, and it is the smallest target this app
+   ships. It cannot borrow .chip's ::after hit-area trick — a <select> is a
+   replaced element and its pseudo-elements are not rendered — so the row's own
+   spacing has to carry the rest of the reach. Flagged for the W5 audit. */
+.status-pill[data-editable='true'] {
+  appearance: none;
+  -webkit-appearance: none;
+  min-block-size: 32px;
+  padding-block: 4px;
+  padding-inline: 10px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.status-pill[data-editable='true']:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.status-pill[data-editable='true']:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* The dropdown list is painted by the OS against the OS's own palette, which on
+   a dark theme is a white menu with our --text ink on it — unreadable. Setting
+   both halves explicitly is the only portable fix. */
+.status-pill option {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+/* ---------- PriorityDot ----------
+   Size ramps with severity as well as hue, and critical carries a halo, so
+   priority is never conveyed by colour alone (WCAG 1.4.1). The admin's --vocab-c
+   overrides the semantic token when one is set; the tokens are the fallback,
+   not the other way round. */
+
+.prio-dot {
+  --prio-c: var(--vocab-c, var(--text-faint));
+  --prio-size: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.prio-dot::before {
+  content: '';
+  flex: 0 0 auto;
+  inline-size: var(--prio-size);
+  block-size: var(--prio-size);
+  border-radius: 50%;
+  background: var(--prio-c);
+}
+
+.prio-dot[data-priority='low'] {
+  --prio-c: var(--vocab-c, var(--text-faint));
+  --prio-size: 6px;
+}
+
+.prio-dot[data-priority='medium'] {
+  --prio-c: var(--vocab-c, var(--blue));
+  --prio-size: 8px;
+}
+
+.prio-dot[data-priority='high'] {
+  --prio-c: var(--vocab-c, var(--yellow));
+  --prio-size: 9px;
+}
+
+.prio-dot[data-priority='critical'] {
+  --prio-c: var(--vocab-c, var(--red));
+  --prio-size: 9px;
+}
+
+.prio-dot[data-priority='critical']::before {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--prio-c) 28%, transparent);
+}
+
+/* ---------- HealthPill ----------
+   The tone is one of global.css's .pill modifiers; this rule owns only the SLA
+   overlay. A breach gets three cues — tone, a dashed border, and a text marker
+   — because an SLA miss is the one signal in this app that a colour-blind
+   reader must not be able to miss. */
+
+.health-pill[data-sla='breached'] {
+  border-style: dashed;
+}
+
+/* The SLA marker: a second, quieter word sharing the pill, fenced off by a hair
+   rule in currentColor so it inherits whatever tone the pill resolved to. */
+.health-pill > span {
+  margin-inline-start: 5px;
+  padding-inline-start: 5px;
+  border-inline-start: 1px solid currentColor;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* ---------- AgePill ---------- */
+
+/* An age with no health verdict is information, not a warning. Left on .pill's
+   default --text-dim it reads as a state; --text-faint says "context". Both
+   clear AA at every elevation — that was the point of the token pair. */
+.age-pill:not(.ok):not(.warn):not(.danger):not(.filled) {
+  color: var(--text-faint);
+}
+
+/* Blocked and quiet are different failures. The dashed edge says which without
+   spending a second colour on it. */
+.age-pill[data-reason='blocked'] {
+  border-style: dashed;
+}
+
+/* ---------- OwnerBadge ----------
+   The initials disc is ::before content drawn from data-initials. It is
+   decoration in both modes — the name is either rendered beside it or on the
+   element's own aria-label — so generated content is the honest tool here, and
+   it keeps this atom to the single bare class name the registry grants it. */
+
+.owner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.owner-badge::before {
+  content: attr(data-initials);
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: 20px;
+  block-size: 20px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.owner-badge[data-size='md'] {
+  font-size: 13px;
+}
+
+.owner-badge[data-size='md']::before {
+  inline-size: 26px;
+  block-size: 26px;
+  font-size: 11px;
+}
+
+/* Unassigned is a hole in the roster, and a triage screen exists to find those.
+   A dashed empty disc reads as a gap at scanning speed; a grey filled one reads
+   as a person whose name failed to load. No italic — Arabic has no italic form
+   and browsers synthesise a slanted mess. */
+.owner-badge[data-assigned='false'] {
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+.owner-badge[data-assigned='false']::before {
+  border-style: dashed;
+  background: transparent;
+}
+
+/* ---------- TagChip ----------
+   .chip (global.css) supplies the shape. Tags are smaller than filter chips:
+   a row can carry three of them plus five other marks. */
+
+.tag-chip {
+  min-block-size: 26px;
+  padding-block: 3px;
+  padding-inline: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+/* .chip::after is global.css's invisible 44px hit-area extender, which is
+   exactly right for a tappable filter and exactly wrong for a static label
+   inside a row: it would sit on top of the row's own hit area and swallow the
+   tap that was meant to open the entry. Killed on the non-button shapes only —
+   the toggle variant renders as <button class="chip tag-chip"> and keeps it. */
+span.tag-chip::after {
+  content: none;
+}
+
+.tag-chip[data-removable='true'] {
+  padding-inline-end: 4px;
+}
+
+/* The dismiss control. It has NO text content — the × is two rotated bars drawn
+   here — so its aria-label is the entire accessible name and no screen reader
+   announces "multiplication sign". Centred with inset+margin:auto rather than a
+   translate, because a percentage translate against an inset-inline offset does
+   not land in the same place under `dir=rtl`. */
+.tag-chip > button {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 50%;
+  color: var(--text-faint);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.tag-chip > button:hover {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  color: var(--text);
+}
+
+.tag-chip > button::before,
+.tag-chip > button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  inline-size: 9px;
+  block-size: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.tag-chip > button::before {
+  transform: rotate(45deg);
+}
+
+.tag-chip > button::after {
+  transform: rotate(-45deg);
+}
+
+/* ---------- TrackDot / .track-ref ----------
+   The wrapper carries the track's two hexes; .track-dot, .track-glyph and
+   .track-bar (all global.css primitives) inherit them and resolve --track-color
+   per theme. Nothing here re-declares --track-color. */
+
+.track-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The bar variant is a stripe, not a token: it has no content, so it needs its
+   own block extent and stretches to the row it sits in. .track-bar's 10px of
+   inline padding exists to separate a bar from TEXT it precedes; here the flex
+   gap does that job, so it is zeroed. */
+.track-ref[data-variant='bar'] {
+  flex: 0 0 auto;
+  align-self: stretch;
+  min-block-size: 1.6em;
+  padding-inline-start: 0;
+}
+
+/* Same reasoning as span.tag-chip::after: a track chip in a row must not
+   intercept the row's tap. */
+.track-ref[data-variant='chip']::after {
+  content: none;
+}
+
+.track-ref[data-variant='chip'] {
+  min-block-size: 26px;
+  padding-block: 3px;
+  padding-inline: 9px;
+  font-size: 12px;
+}
+
+/* ---------- DueLabel ----------
+   Overdue carries weight as well as hue; a due date that has passed is the one
+   thing on a row that has to survive being printed in greyscale. */
+
+.due-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.due-label svg {
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+
+.due-label[data-tone='overdue'] {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.due-label[data-tone='today'] {
+  color: var(--yellow);
+}
+
+.due-label[data-tone='later'] {
+  color: var(--text-faint);
+}
+
+/* A follow-up is a note to self; a due date is a promise to someone else. The
+   lighter weight keeps the two from blurring together in a dense meta line. */
+.due-label[data-kind='followUp'] {
+  font-weight: 500;
+}
+
+/* ---------- LinkList ----------
+   PROVIDED AS A CONTRACT, not as a guess. LinkList ships in this wave from
+   another worker's file, and entry.css is the only sheet §1.0.7 lets it use —
+   so the classes are defined here and the markup is stated rather than
+   inferred:
+
+     <ul class="link-list">
+       <li class="link-list-item">
+         <a href=…>label</a>
+         <button type="button" aria-label=…/>   ← optional, remove
+       </li>
+     </ul>
+
+   If the shipped markup differs, change it HERE (this file's owner) or hand the
+   diff to the wave integrator — do not fork these rules into another sheet. */
+
+.link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.link-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.link-list-item a {
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-overflow: ellipsis;
+}
+
+.link-list-item a:hover {
+  color: var(--accent-hover);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ENTRY ROW
+   ══════════════════════════════════════════════════════════════════ */
+
+.entry-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding-block: 10px;
+  padding-inline: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.entry-row + .entry-row {
+  margin-block-start: 8px;
+}
+
+.entry-row:hover {
+  border-color: var(--field-border);
+}
+
+.entry-row[data-density='compact'] {
+  gap: 8px;
+  padding-block: 7px;
+}
+
+.entry-row[data-selected='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* An in-flight write is dimmed, never hidden and never replaced by a spinner:
+   the optimistic row is already showing the user's own text, and swapping it
+   for a placeholder is how a fast save looks like a bug. */
+.entry-row[data-pending='true'] {
+  opacity: 0.72;
+}
+
+/* min-inline-size: 0 is what actually produces the ellipsis. A flex item's
+   min-width defaults to auto, so it refuses to shrink below its own text and a
+   long Arabic title pushes the actions off the end of the row instead of
+   truncating — the same fix .admin-row-main documents in global.css. */
+.entry-row-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 5px;
+  min-inline-size: 0;
+}
+
+.entry-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.entry-row-title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  text-align: start;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* THE row's hit area, stretched from the title button over the whole row.
+   Everything interactive that must stay reachable (the action buttons) is
+   lifted above it with position+z-index below. */
+.entry-row-title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-sm);
+}
+
+/* The global :focus-visible ring would outline the TEXT, which on a truncated
+   title is a ring around three words in the middle of a row. It is moved to the
+   stretched overlay so it outlines what the button actually activates.
+   `outline: none` here is safe ONLY because the next rule re-supplies an
+   identical, conforming ring — global.css warns about exactly this pattern
+   going one rule too far. */
+.entry-row-title:focus-visible {
+  outline: none;
+}
+
+.entry-row-title:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.entry-row-desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.entry-row-meta,
+.entry-row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-inline-size: 0;
+}
+
+.entry-row-more,
+.entry-card-more {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.entry-row-note,
+.entry-card-note {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.entry-row-note[data-tone='danger'],
+.entry-card-note[data-tone='danger'] {
+  color: var(--red);
+}
+
+.entry-row-note[data-tone='info'],
+.entry-card-note[data-tone='info'] {
+  color: var(--accent);
+}
+
+.entry-row-note[data-tone='muted'],
+.entry-card-note[data-tone='muted'] {
+  color: var(--text-faint);
+}
+
+.entry-row-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: center;
+  gap: 4px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ENTRY CARD
+   ══════════════════════════════════════════════════════════════════ */
+
+.entry-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.entry-card + .entry-card {
+  margin-block-start: 8px;
+}
+
+.entry-card:hover {
+  border-color: var(--field-border);
+}
+
+/* The lifted state. The drag CURSOR is deliberately not set here: W2-BOARD owns
+   `.dnd-*` in global.css and the grab/grabbing affordance belongs with the
+   gesture that produces it, not with the card that happens to be under it. */
+.entry-card[data-dragging='true'] {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+  opacity: 0.92;
+}
+
+.entry-card[data-pending='true'] {
+  opacity: 0.72;
+}
+
+.entry-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+/* Three lines, not one: a card is read, not scanned past, and a kanban of
+   ellipsised titles forces a click to learn anything. */
+.entry-card-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  text-align: start;
+}
+
+.entry-card-title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-sm);
+}
+
+/* Same move as the row: ring the card, not the clipped text. */
+.entry-card-title:focus-visible {
+  outline: none;
+}
+
+.entry-card-title:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.entry-card-meta,
+.entry-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 7px;
+  min-inline-size: 0;
+}
+
+/* Above the title's stretched overlay — this is where the keyboard move control
+   lives, and it has to be clickable. */
+.entry-card-foot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-start: 2px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   REALTIME FLASH
+   ══════════════════════════════════════════════════════════════════
+
+   `.entry-row.is-flash` / `.entry-card.is-flash` is the hook api/realtime.ts
+   names in plan §2.14: someone else changed this row, it glows for 1.2s and
+   fades. `both` so the animation settles on the resting state rather than
+   snapping back at the end.
+
+   No prefers-reduced-motion block is needed — global.css's kill-switch clamps
+   every animation-duration in the app to 0.01ms, which lands this one on its
+   `to` frame instantly. A local @media here would be a second thing to keep in
+   step with it. */
+
+@keyframes entry-flash {
+  from {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  to {
+    border-color: var(--border);
+    background: var(--bg-elev);
+  }
+}
+
+.entry-row.is-flash,
+.entry-card.is-flash {
+  animation: entry-flash 1.2s ease-out both;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LINK LIST — the two states LinkList.tsx adds beyond .link-list-item
+   ══════════════════════════════════════════════════════════════════ */
+
+/* The empty sentence replaces the <ul> entirely, so it re-declares the
+   layout box rather than inheriting a flex column that holds one <p>. */
+.link-list-empty {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* A stored URL whose scheme is not http/https/mailto renders as text, never as
+   an anchor — see LinkList.tsx's header. It is dimmed rather than hidden: the
+   user stored it, and silently dropping a row reads as data loss. */
+.link-list-unsafe {
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--text-dim);
+  text-decoration: line-through;
+  text-overflow: ellipsis;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ENTRY SECTION — the titled, counted group every list screen renders
+   ══════════════════════════════════════════════════════════════════ */
+
+.entry-section + .entry-section {
+  margin-block-start: 24px;
+}
+
+.entry-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-end: 10px;
+}
+
+.entry-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* The whole heading is the disclosure target, so it is a full-width button with
+   the heading's own typography — not a chevron the user has to hit. */
+.entry-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.entry-section-toggle:hover .entry-section-name {
+  color: var(--accent);
+}
+
+.entry-section-caret {
+  display: inline-flex;
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+
+/* Rotates rather than swapping glyphs, so the motion says "this opened" and one
+   icon covers both states. -90deg (not +90) points the closed caret toward the
+   inline start under a rotation that is direction-agnostic. */
+.entry-section-caret[data-open='false'] {
+  transform: rotate(-90deg);
+}
+
+.entry-section-count {
+  display: inline-flex;
+  align-items: center;
+  padding-block: 1px;
+  padding-inline: 7px;
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Tone colours the COUNT, not the title: a screen with five sections would
+   otherwise be five different coloured headings, and the point of the tone is
+   to say "this many need you now", which is the number. */
+.entry-section.tone-danger .entry-section-count {
+  background: color-mix(in oklab, var(--red) 18%, transparent);
+  color: var(--red);
+}
+
+.entry-section.tone-warn .entry-section-count {
+  background: color-mix(in oklab, var(--yellow) 18%, transparent);
+  color: var(--yellow);
+}
+
+.entry-section-empty {
+  margin: 0;
+  padding-block: 10px;
+  color: var(--text-faint);
+  font-size: 13px;
+}

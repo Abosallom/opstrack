@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { IconArrowStart } from '../../components/icons'
 import { Skeleton } from '../../components/shared'
+import { TagsField } from '../../components/fields'
 import { confirm } from '../../components/Confirm'
 import { toast } from '../../components/toast'
 import { createTrack, updateTrack } from '../../api/tracks'
@@ -65,6 +66,7 @@ interface Form {
   color: string
   colorLight: string
   icon: string
+  suggestedTags: string[]
 }
 
 type FieldErrors = Partial<Record<keyof Form, string>>
@@ -78,6 +80,7 @@ function blankForm(): Form {
     color: SWATCHES[0].dark,
     colorLight: SWATCHES[0].light,
     icon: TRACK_ICON_NAMES[0] ?? '',
+    suggestedTags: [],
   }
 }
 
@@ -94,6 +97,9 @@ function formOf(track: Track): Form {
     // that had no override writes the colour it was already being drawn in.
     colorLight: track.color_light ?? track.color,
     icon: track.icon,
+    // `text[] not null default '{}'` — copied, not aliased, so editing the form
+    // cannot mutate the array the config store is still handing to every row.
+    suggestedTags: [...track.suggested_tags],
   }
 }
 
@@ -210,6 +216,7 @@ export default function TrackEditor(): ReactElement {
       color: form.color.toLowerCase(),
       colorLight: form.colorLight.toLowerCase(),
       icon: form.icon,
+      suggestedTags: form.suggestedTags,
     }
     const result = id ? await updateTrack(id, input) : await createTrack(input)
     if (!alive.current) return
@@ -387,6 +394,23 @@ export default function TrackEditor(): ReactElement {
               rows={2}
               value={form.descriptionAr}
               onChange={(e) => set('descriptionAr', e.target.value)}
+            />
+          </div>
+
+          {/* The decided-requirement hop: Onboarding's two integration paths
+              ship as `{direct-integration, portal}` on the track, not as a
+              hardcoded list — nothing in this codebase names a track, so a
+              seventh one needs no code change. Consumed by capture's `+tag`
+              suggestions, the track view's breakdown and the digest. */}
+          <div className="field">
+            <TagsField
+              label={t('admin.tracks.suggestedTags')}
+              hint={t('admin.tracks.suggestedTagsHint')}
+              value={form.suggestedTags}
+              onChange={(next) => set('suggestedTags', next)}
+              addLabel={t('admin.tracks.addTag')}
+              placeholder={t('admin.tracks.tagPlaceholder')}
+              removeLabel={(name) => t('admin.tracks.removeTag', { name })}
             />
           </div>
 

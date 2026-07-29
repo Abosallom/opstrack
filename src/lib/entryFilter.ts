@@ -1,0 +1,525 @@
+// THE one filter model. `FilterState` has exactly one import path — this file —
+// and every screen that filters entries uses it: follow-ups, board, timeline,
+// dashboard, digest, the shared FilterBar. Two filter shapes would mean two URL
+// round-trips and two definitions of "mine".
+//
+// This is client-side filtering over one working-set fetch, not a query builder.
+// The decision is in EXECUTION-PLAN §2.3 and it is what stops five agents
+// writing five query builders: the dataset is a small trusted team's ops log
+// with full read visibility under RLS, so `api/entries.ts` exposes loaders and
+// nothing takes a filter.
+//
+// PURE BY CONSTRUCTION. Nothing here reads a store, a clock or a locale — `meId`
+// and `today` arrive in FilterContext precisely so this module stays testable
+// with zero mocking, which is the whole reason the layering rule exists.
+
+import type { Entry, EntryHealth, EntryPriority, EntryStatus, EntryType, HealthLevel } from '../types'
+import { instantToIsoDate, type IsoDate } from './dates'
+import { isOpen } from './health'
+import { normalizeSearch } from './text'
+
+export type OwnerFilter =
+  | { kind: 'any' }
+  | { kind: 'me' }
+  | { kind: 'unassigned' }
+  | { kind: 'id'; id: string }
+  | { kind: 'name'; name: string }
+
+export type EntryScope = 'open' | 'closed' | 'all'
+export type EntrySort = 'activity' | 'due' | 'priority' | 'created' | 'title'
+
+export interface FilterState {
+  /** [] = all tracks. */
+  trackIds: string[]
+  statuses: EntryStatus[]
+  priorities: EntryPriority[]
+  types: EntryType[]
+  owner: OwnerFilter
+  /** AND semantics — a row must carry EVERY listed tag, not any of them. */
+  tags: string[]
+  health: HealthLevel[]
+  /** Folded match over title + description + tags, via lib/text.normalizeSearch. */
+  search: string
+  scope: EntryScope
+  /** owner_id = me OR created_by = me. Independent of `owner`, deliberately. */
+  mine: boolean
+  from: IsoDate | null
+  to: IsoDate | null
+  sort: EntrySort
+}
+
+/**
+ * What the filter needs that the filter cannot know. Passed explicitly so
+ * selectEntries stays pure and testable with zero mocking — `me` and `today`
+ * are the two values that would otherwise drag a store and a clock into lib/.
+ */
+export interface FilterContext {
+  meId: string | null
+  today: IsoDate
+  weekStartsOn?: 0 | 1 | 6
+}
+
+/**
+ * The neutral filter. Frozen so a screen cannot mutate the shared default into
+ * its own state and quietly change every other screen's starting point.
+ */
+export const EMPTY_FILTER: Readonly<FilterState> = Object.freeze({
+  trackIds: [],
+  statuses: [],
+  priorities: [],
+  types: [],
+  owner: { kind: 'any' },
+  tags: [],
+  health: [],
+  search: '',
+  scope: 'open',
+  mine: false,
+  from: null,
+  to: null,
+  sort: 'activity',
+} satisfies FilterState)
+
+// ── frozen-union guards ────────────────────────────────────────────────────
+//
+// A filter can arrive from a hand-edited URL, so filterFromParams validates
+// every closed-vocabulary value instead of casting it. These are written as
+// exhaustive `Record<Union, true>` literals ON PURPOSE rather than as string
+// arrays: adding a member to one of the four frozen unions in types.ts reds THIS
+// FILE at compile time. A string array would silently accept the new value
+// nowhere and drop it from every URL — a bug that presents as "my saved view
+// lost a status" three waves later.
+//
+// Object.hasOwn, not `in`: `in` walks the prototype chain, so a URL carrying
+// `status=toString` would pass.
+
+const STATUS_KEYS: Readonly<Record<EntryStatus, true>> = {
+  new: true,
+  in_progress: true,
+  blocked: true,
+  waiting_on: true,
+  done: true,
+  cancelled: true,
+}
+
+const PRIORITY_KEYS: Readonly<Record<EntryPriority, true>> = {
+  low: true,
+  medium: true,
+  high: true,
+  critical: true,
+}
+
+const TYPE_KEYS: Readonly<Record<EntryType, true>> = {
+  action: true,
+  decision: true,
+  issue: true,
+  request: true,
+  change: true,
+  escalation: true,
+  note: true,
+}
+
+const HEALTH_KEYS: Readonly<Record<HealthLevel, true>> = {
+  ok: true,
+  stale: true,
+  overdue: true,
+  critical: true,
+}
+
+const SCOPE_KEYS: Readonly<Record<EntryScope, true>> = { open: true, closed: true, all: true }
+
+const SORT_KEYS: Readonly<Record<EntrySort, true>> = {
+  activity: true,
+  due: true,
+  priority: true,
+  created: true,
+  title: true,
+}
+
+/** Rank for the `priority` sort. Descending — critical first. */
+const PRIORITY_RANK: Readonly<Record<EntryPriority, number>> = {
+  critical: 3,
+  high: 2,
+  medium: 1,
+  low: 0,
+}
+
+/** `YYYY-MM-DD` and nothing else, so a junk `from=` cannot silently shrink a list. */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+// ── matching ───────────────────────────────────────────────────────────────
+
+/** True when the entry carries an owner of any kind. Free text counts. */
+function hasOwner(e: Entry): boolean {
+  return e.owner_id !== null || (e.owner_name ?? '').trim() !== ''
+}
+
+function matchesOwner(e: Entry, owner: OwnerFilter, meId: string | null): boolean {
+  switch (owner.kind) {
+    case 'any':
+      return true
+    case 'me':
+      return meId !== null && e.owner_id === meId
+    case 'unassigned':
+      return !hasOwner(e)
+    case 'id':
+      return e.owner_id === owner.id
+    case 'name': {
+      // Folded EQUALITY, not substring: the picker emits a name it read off an
+      // entry, so this is an identity test between two spellings of one person,
+      // not a search. Substring matching here would quietly collect "Ali
+      // Hassan" and "Alia" under a facet labelled "Ali".
+      const wanted = normalizeSearch(owner.name)
+      if (wanted === '') return false
+      return normalizeSearch(e.owner_name ?? '') === wanted
+    }
+  }
+}
+
+/**
+ * Every whitespace-separated term must appear somewhere in title + description +
+ * tags, ANDed. Two terms narrow rather than widen, which is what a person typing
+ * a second word means; a whole-phrase match would make `network outage` miss
+ * "outage on the network".
+ */
+function matchesSearch(e: Entry, search: string): boolean {
+  const terms = normalizeSearch(search).split(' ').filter(Boolean)
+  if (terms.length === 0) return true
+  const haystack = normalizeSearch([e.title, e.description, e.tags.join(' ')].join(' '))
+  return terms.every((term) => haystack.includes(term))
+}
+
+function matchesTags(e: Entry, tags: string[]): boolean {
+  if (tags.length === 0) return true
+  // Folded on both sides so an Arabic tag typed with a different hamza carrier
+  // still matches. normalizeSearch, not foldKey: a hyphen is meaningful inside a
+  // tag (`direct-integration` is one tag, and foldKey would merge it with
+  // `directintegration`).
+  const carried = new Set(e.tags.map((tag) => normalizeSearch(tag)))
+  return tags.every((tag) => carried.has(normalizeSearch(tag)))
+}
+
+function matchesScope(e: Entry, scope: EntryScope): boolean {
+  if (scope === 'all') return true
+  // isOpen(), never a local status list — lib/health.CLOSED_STATUSES is the one
+  // definition of closed in the repo.
+  return scope === 'open' ? isOpen(e.status) : !isOpen(e.status)
+}
+
+export function matchesFilter(
+  e: Entry,
+  f: FilterState,
+  h: EntryHealth | undefined,
+  c: FilterContext,
+): boolean {
+  if (!matchesScope(e, f.scope)) return false
+  if (f.trackIds.length > 0 && (e.track_id === null || !f.trackIds.includes(e.track_id)))
+    return false
+  if (f.statuses.length > 0 && !f.statuses.includes(e.status)) return false
+  if (f.priorities.length > 0 && !f.priorities.includes(e.priority)) return false
+  if (f.types.length > 0 && !f.types.includes(e.type)) return false
+  if (!matchesOwner(e, f.owner, c.meId)) return false
+
+  // `mine` is deliberately not an owner kind: "assigned to me" and "anything I
+  // touched" are different questions, and the follow-ups screen asks the second
+  // while the owner picker asks the first. Signed out, `mine` matches nothing
+  // rather than everything — meId === null must not make `null === null` true
+  // for every unassigned, unattributed row.
+  if (f.mine && (c.meId === null || !(e.owner_id === c.meId || e.created_by === c.meId)))
+    return false
+
+  if (!matchesTags(e, f.tags)) return false
+
+  // A health facet is a question about OPEN work — v_entry_health has no row for
+  // anything else. An entry with no health row therefore cannot answer it and is
+  // excluded rather than silently passed, so `scope: all` + `health: [overdue]`
+  // returns overdue open items instead of those plus every closed one.
+  if (f.health.length > 0 && (h === undefined || !f.health.includes(h.health))) return false
+
+  // The date range is over LAST ACTIVITY, not creation. Every screen that shows
+  // a range asks "what moved in this window" — the digest is "since Sunday", the
+  // timeline is activity in a period, the dashboard is a reporting window — and
+  // a month-old item worked on yesterday belongs in all three.
+  if (f.from !== null || f.to !== null) {
+    const day = instantToIsoDate(e.last_activity_at)
+    if (f.from !== null && day < f.from) return false
+    if (f.to !== null && day > f.to) return false
+  }
+
+  return matchesSearch(e, f.search)
+}
+
+// ── sorting ────────────────────────────────────────────────────────────────
+
+/**
+ * Sorts a COPY. `list` in store/entries is reference-stable and shared by every
+ * screen; sorting it in place would reorder the board while the dashboard was
+ * reading it.
+ *
+ * Every comparator ends on `id` so the order is TOTAL. Array.prototype.sort is
+ * stable in every engine that matters, but stability only preserves an order the
+ * caller already had — two rows with the same last_activity_at arriving from two
+ * fetches in two orders would render in two orders, which reads as the list
+ * jumping for no reason.
+ */
+export function sortEntries(e: Entry[], s: EntrySort): Entry[] {
+  const copy = [...e]
+  copy.sort((a, b) => compareBy(a, b, s) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  return copy
+}
+
+function compareBy(a: Entry, b: Entry, s: EntrySort): number {
+  switch (s) {
+    case 'activity':
+      return Date.parse(b.last_activity_at) - Date.parse(a.last_activity_at)
+    case 'created':
+      return Date.parse(b.created_at) - Date.parse(a.created_at)
+    case 'due':
+      // Nulls LAST under an ascending sort: "no due date" is the absence of an
+      // answer, and floating it to the top buries the one item due tomorrow
+      // under fifty that are never due at all.
+      if (a.due_date === b.due_date) return 0
+      if (a.due_date === null) return 1
+      if (b.due_date === null) return -1
+      return a.due_date < b.due_date ? -1 : 1
+    case 'priority':
+      return (
+        PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] ||
+        Date.parse(b.last_activity_at) - Date.parse(a.last_activity_at)
+      )
+    case 'title': {
+      // Folded, then compared by code point rather than through localeCompare:
+      // the result has to be identical in the test runner and in the browser,
+      // and localeCompare with no explicit locale is host-dependent. Folding is
+      // what makes code-point order sane in both languages — case, tashkeel and
+      // Arabic-Indic digits are all gone before the comparison.
+      const x = normalizeSearch(a.title)
+      const y = normalizeSearch(b.title)
+      return x < y ? -1 : x > y ? 1 : 0
+    }
+  }
+}
+
+export function selectEntries(
+  e: Entry[],
+  f: FilterState,
+  h: ReadonlyMap<string, EntryHealth>,
+  c: FilterContext,
+): Entry[] {
+  return sortEntries(
+    e.filter((entry) => matchesFilter(entry, f, h.get(entry.id), c)),
+    f.sort,
+  )
+}
+
+// ── facets ─────────────────────────────────────────────────────────────────
+
+/**
+ * Drives the "3 filters" pill. Counts FACETS, not values — three selected
+ * priorities are ONE narrowing decision the user made, and reporting "3" next to
+ * a Clear button that removes all three at once is a lie about what the button
+ * does.
+ *
+ * `from`/`to` count as one facet for the same reason: two ends of one date-range
+ * control. `sort` counts as none — ordering a list is not filtering it, and a
+ * sort that lit the pill would make "clear filters" look broken when the order
+ * stayed put.
+ */
+export function countActiveFacets(f: FilterState): number {
+  let n = 0
+  if (f.trackIds.length > 0) n += 1
+  if (f.statuses.length > 0) n += 1
+  if (f.priorities.length > 0) n += 1
+  if (f.types.length > 0) n += 1
+  if (f.owner.kind !== 'any') n += 1
+  if (f.tags.length > 0) n += 1
+  if (f.health.length > 0) n += 1
+  if (f.search.trim() !== '') n += 1
+  if (f.scope !== EMPTY_FILTER.scope) n += 1
+  if (f.mine) n += 1
+  if (f.from !== null || f.to !== null) n += 1
+  return n
+}
+
+/** Defined through countActiveFacets so the pill and the empty state can never disagree. */
+export function isFilterEmpty(f: FilterState): boolean {
+  return countActiveFacets(f) === 0
+}
+
+/**
+ * A stable useMemo dependency for a filter object.
+ *
+ * NEVER JSON.stringify a filter at a call site: key order is not guaranteed
+ * across construction paths, so two identical filters can produce two different
+ * strings and re-run every memo on every render.
+ *
+ * The multi-value facets are SORTED before joining, so a filter assembled by the
+ * FilterBar and the same filter restored from a URL key identically even though
+ * their arrays came out in different orders. `search` is folded and placed last:
+ * folded so a stray capital does not invalidate a memo the filter did not
+ * change, last so a `|` typed into it cannot shift the meaning of a later field.
+ */
+export function filterKey(f: FilterState): string {
+  return [
+    [...f.trackIds].sort().join(','),
+    [...f.statuses].sort().join(','),
+    [...f.priorities].sort().join(','),
+    [...f.types].sort().join(','),
+    ownerKey(f.owner),
+    [...f.tags].sort().join(','),
+    [...f.health].sort().join(','),
+    f.scope,
+    f.mine ? '1' : '0',
+    f.from ?? '',
+    f.to ?? '',
+    f.sort,
+    normalizeSearch(f.search),
+  ].join('|')
+}
+
+function ownerKey(owner: OwnerFilter): string {
+  switch (owner.kind) {
+    case 'any':
+      return ''
+    case 'me':
+      return 'me'
+    case 'unassigned':
+      return 'none'
+    case 'id':
+      return `id:${owner.id}`
+    case 'name':
+      return `name:${normalizeSearch(owner.name)}`
+  }
+}
+
+// ── URL round-trip ─────────────────────────────────────────────────────────
+//
+// One object names the params, because filterToParams and filterFromParams are
+// two halves of one contract and a typo in either is a saved view that silently
+// loses a facet.
+
+const P = {
+  track: 'track',
+  status: 'status',
+  priority: 'priority',
+  type: 'type',
+  owner: 'owner',
+  tag: 'tag',
+  health: 'health',
+  q: 'q',
+  scope: 'scope',
+  mine: 'mine',
+  from: 'from',
+  to: 'to',
+  sort: 'sort',
+} as const
+
+/**
+ * Neutral facets are OMITTED, so a clean list has a clean URL and a shared link
+ * carries only what the sender actually chose.
+ *
+ * Tags are repeated params (`tag=a&tag=b`) rather than a comma list: a tag is
+ * free-form user text, and the day someone creates `q3,q4` a comma list becomes
+ * two tags that match nothing. The closed unions stay comma-joined — their
+ * values cannot contain a comma, and one short param reads better in an address
+ * bar.
+ */
+export function filterToParams(f: FilterState): URLSearchParams {
+  const p = new URLSearchParams()
+  if (f.trackIds.length > 0) p.set(P.track, f.trackIds.join(','))
+  if (f.statuses.length > 0) p.set(P.status, f.statuses.join(','))
+  if (f.priorities.length > 0) p.set(P.priority, f.priorities.join(','))
+  if (f.types.length > 0) p.set(P.type, f.types.join(','))
+  if (f.health.length > 0) p.set(P.health, f.health.join(','))
+  for (const tag of f.tags) p.append(P.tag, tag)
+  // The `name` variant is written RAW rather than folded: a URL is where a
+  // person reads their own filter back, and `owner=name:Ali Hassan` beats
+  // `owner=name:ali hassan`. Matching folds both sides anyway.
+  if (f.owner.kind === 'name') p.set(P.owner, `name:${f.owner.name}`)
+  else {
+    const owner = ownerKey(f.owner)
+    if (owner !== '') p.set(P.owner, owner)
+  }
+  if (f.search.trim() !== '') p.set(P.q, f.search.trim())
+  if (f.scope !== EMPTY_FILTER.scope) p.set(P.scope, f.scope)
+  if (f.mine) p.set(P.mine, '1')
+  if (f.from !== null) p.set(P.from, f.from)
+  if (f.to !== null) p.set(P.to, f.to)
+  if (f.sort !== EMPTY_FILTER.sort) p.set(P.sort, f.sort)
+  return p
+}
+
+/**
+ * Total over any URLSearchParams — an unparseable value is DROPPED, never thrown
+ * on and never passed through. This runs on every route render with whatever is
+ * in the address bar, including whatever a user pasted into it.
+ *
+ * The result is freshly constructed rather than spread from EMPTY_FILTER:
+ * Object.freeze is SHALLOW, so a spread would hand the caller EMPTY_FILTER's own
+ * arrays, and the first screen to push a track id into its filter state would
+ * corrupt the shared default for the entire app.
+ */
+export function filterFromParams(p: URLSearchParams): FilterState {
+  return {
+    trackIds: splitList(p.get(P.track)),
+    statuses: splitList(p.get(P.status)).filter(isStatus),
+    priorities: splitList(p.get(P.priority)).filter(isPriority),
+    types: splitList(p.get(P.type)).filter(isType),
+    owner: parseOwner(p.get(P.owner)),
+    tags: p.getAll(P.tag).filter((tag) => tag !== ''),
+    health: splitList(p.get(P.health)).filter(isHealth),
+    search: p.get(P.q) ?? EMPTY_FILTER.search,
+    scope: parseScope(p.get(P.scope)),
+    mine: p.get(P.mine) === '1',
+    from: parseIso(p.get(P.from)),
+    to: parseIso(p.get(P.to)),
+    sort: parseSort(p.get(P.sort)),
+  }
+}
+
+function splitList(raw: string | null): string[] {
+  if (raw === null || raw === '') return []
+  return raw.split(',').filter((v) => v !== '')
+}
+
+function isStatus(v: string): v is EntryStatus {
+  return Object.hasOwn(STATUS_KEYS, v)
+}
+
+function isPriority(v: string): v is EntryPriority {
+  return Object.hasOwn(PRIORITY_KEYS, v)
+}
+
+function isType(v: string): v is EntryType {
+  return Object.hasOwn(TYPE_KEYS, v)
+}
+
+function isHealth(v: string): v is HealthLevel {
+  return Object.hasOwn(HEALTH_KEYS, v)
+}
+
+function parseScope(raw: string | null): EntryScope {
+  return raw !== null && Object.hasOwn(SCOPE_KEYS, raw) ? (raw as EntryScope) : EMPTY_FILTER.scope
+}
+
+function parseSort(raw: string | null): EntrySort {
+  return raw !== null && Object.hasOwn(SORT_KEYS, raw) ? (raw as EntrySort) : EMPTY_FILTER.sort
+}
+
+function parseIso(raw: string | null): IsoDate | null {
+  return raw !== null && ISO_DATE_RE.test(raw) ? raw : null
+}
+
+function parseOwner(raw: string | null): OwnerFilter {
+  if (raw === null || raw === '') return { kind: 'any' }
+  if (raw === 'me') return { kind: 'me' }
+  if (raw === 'none') return { kind: 'unassigned' }
+  if (raw.startsWith('id:')) {
+    const id = raw.slice(3)
+    return id === '' ? { kind: 'any' } : { kind: 'id', id }
+  }
+  if (raw.startsWith('name:')) {
+    const name = raw.slice(5)
+    return name === '' ? { kind: 'any' } : { kind: 'name', name }
+  }
+  return { kind: 'any' }
+}

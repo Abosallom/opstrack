@@ -1,0 +1,13 @@
+{
+  "notif": {
+    "title": "Notifications",
+    "openInbox": "Open notifications",
+    "unread": "{count} unread",
+    "empty": "You're all caught up",
+    "emptyHint": "You'll be notified when something is assigned to you, or when an item you asked for is completed.",
+    "markAllRead": "Mark all as read",
+    "allRead": "All notifications marked as read.",
+    "assigned": "{actor} assigned you “{title}”",
+    "completed": "{actor} completed “{title}”"
+  }
+}

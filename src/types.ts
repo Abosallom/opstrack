@@ -90,6 +90,13 @@ export interface Track {
   color_light: string | null
   /** Free text, resolved by lib/trackIcons.ts — the DB holds no icon CHECK. */
   icon: string
+  /**
+   * Tags this track proposes at capture and breaks out in the track view and
+   * the digest — `text[] not null default '{}'` (0004). Onboarding seeds
+   * `{direct-integration,portal}`; the mechanism is per-track on purpose, so a
+   * seventh track needs no code change. NOTHING in the codebase names a track.
+   */
+  suggested_tags: string[]
   sort_order: number
   archived: boolean
   /** Maintained by the tracks_touch() trigger in both directions from `archived`. */
@@ -113,6 +120,22 @@ export interface TrackInput {
   color: string
   colorLight: string
   icon: string
+  /**
+   * Tags this track proposes at capture — `tracks.suggested_tags` (0004).
+   *
+   * REQUIRED, as of the Wave-1 integration. It shipped optional for the length
+   * of the wave because the keystone published types.ts an hour before the
+   * worker owning TrackEditor.tsx and api/tracks.ts started, and a required
+   * field would have redded the `tsc -b` handshake that gates every other
+   * Wave-1 worker on a file the keystone must not edit. The editor field and
+   * the column read/write landed in the same commit that tightened it, per
+   * WAVE1-ADDENDUM §2.1.
+   *
+   * An empty array is the honest value for "this track proposes nothing", and
+   * it is what the column defaults to; optional would have made "unset" and
+   * "deliberately empty" indistinguishable at every call site.
+   */
+  suggestedTags: string[]
 }
 
 /**
@@ -215,6 +238,64 @@ export interface EntryUpdate {
   created_at: string
 }
 
+/**
+ * Fields a caller may set when creating an entry. Only `title` is required —
+ * capture must never be blocked on a missing field; everything else can be
+ * filled in later from the entry sheet.
+ *
+ * camelCase because this is a WRITE VIEW-MODEL, not a row: api/entries.ts maps
+ * it to snake_case columns through `toEntryRow()`, exactly as `TrackInput`
+ * above is mapped by api/tracks.ts. Same boundary, same convention.
+ *
+ * IT LIVES HERE RATHER THAN IN api/entries.ts, and that is a layering fix, not
+ * a filing preference. `lib/capture/parse.ts` returns one from `toNewEntry()`
+ * (plan §2.13), and contracts rule 2 forbids `src/lib/**` importing from
+ * `src/api/**` — the parser was reaching across the layer for a type alone.
+ * api/entries.ts re-exports all three of these, so no call site moved.
+ */
+export interface NewEntry {
+  title: string
+  trackId?: string | null
+  description?: string | null
+  type?: EntryType
+  status?: EntryStatus
+  priority?: EntryPriority
+  ownerId?: string | null
+  ownerName?: string | null
+  requester?: string | null
+  dueDate?: string | null
+  followUpDate?: string | null
+  tags?: string[]
+  links?: EntryLink[]
+  meetingId?: string | null
+  templateId?: string | null
+}
+
+/** Fields an editor may change. Undefined keys are left untouched. */
+export interface EntryPatch {
+  title?: string
+  description?: string | null
+  type?: EntryType
+  status?: EntryStatus
+  priority?: EntryPriority
+  ownerId?: string | null
+  ownerName?: string | null
+  requester?: string | null
+  dueDate?: string | null
+  followUpDate?: string | null
+  tags?: string[]
+  links?: EntryLink[]
+  trackId?: string | null
+}
+
+/** One appended thread post. `statusFrom`/`statusTo` mark a transition row. */
+export interface NewEntryUpdate {
+  entryId: string
+  body: string
+  statusFrom?: EntryStatus | null
+  statusTo?: EntryStatus | null
+}
+
 /** meetings — a live capture session; entries link back via meeting_id. */
 export interface Meeting {
   id: string
@@ -269,4 +350,177 @@ export interface EntryHealth {
   /** 0 (not null) when there is no due date or the item is not yet overdue. */
   days_overdue: number
   health: HealthLevel
+  /**
+   * SLA deadline, computed by the view as `created_at + sla_days` for this
+   * entry's priority (0003). NULL when the admin has left that priority's
+   * `sla_days` unset — which is the seeded state, so SLA is off until someone
+   * turns it on. This is a SERVICE commitment and is deliberately distinct from
+   * `due_date`: due_date is what a human promised about one item, sla_due_at is
+   * what the workspace promised about every item of that priority. An entry can
+   * be inside its due date and past its SLA, and both facts matter.
+   */
+  sla_due_at: string | null
+  /** `sla_due_at is not null and now() > sla_due_at` — false whenever SLA is off. */
+  sla_breached: boolean
+}
+
+// ── vocabulary (0003) ──────────────────────────────────────────────────────
+//
+// Sitting 2's payoff: the four frozen unions above become RENAMEABLE and
+// RECOLOURABLE without becoming editable. An admin can call `waiting_on`
+// "Awaiting vendor" in English and "بانتظار المورّد" in Arabic; nobody can add
+// a seventh status or merge two, because a merge silently rewrites every
+// historical entry and there is no undo.
+//
+// The frozen keys are what makes a label edit cost ZERO writes: entry rows and
+// entry_updates.status_from/status_to keep storing the key, and every screen
+// resolves the label at render.
+
+export type VocabKind = 'status' | 'priority' | 'type'
+
+/** One row of `vocab_options`, primary key (kind, key). */
+export interface VocabRow {
+  kind: VocabKind
+  /** A key from the matching frozen union. Never edited, never added to. */
+  key: string
+  /**
+   * `not null default ''` in BOTH languages, seeded empty on purpose: an empty
+   * label means "no override", so the i18n default (`t('status.blocked')`)
+   * wins until an admin actually types something. That is also why the
+   * fallback chain tests for EMPTY rather than null, and why a blank Arabic
+   * label falls through to the i18n default and never to the English override.
+   */
+  label: string
+  label_ar: string
+  /** Hex, or null for "use the theme's default ink for this kind". */
+  color: string | null
+  sort_order: number
+  /** Hidden options leave pickers but never hide data that already holds them. */
+  hidden: boolean
+  /**
+   * Days of silence before an OPEN entry of this priority reads as stale.
+   * PRIORITY ROWS ONLY — a CHECK constraint keeps it null on status and type.
+   * `v_entry_health` coalesces it over the hardcoded 2/4/8/15 fallback, so
+   * clearing it restores the default rather than disabling staleness.
+   */
+  stale_after_days: number | null
+  /**
+   * The admin-defined SLA for this priority, in days from `created_at`.
+   * PRIORITY ROWS ONLY, same CHECK. NULL means this priority has no SLA — the
+   * seeded state, so nothing is retroactively "breached" the day 0003 runs.
+   *
+   * Distinct from stale_after_days on purpose: staleness measures SILENCE
+   * (`last_activity_at`), the SLA measures ELAPSED TIME (`created_at`). An item
+   * updated hourly for a month is never stale and can still blow its SLA.
+   */
+  sla_days: number | null
+  updated_at: string
+  updated_by: string | null
+}
+
+// ── meetings (0004) ────────────────────────────────────────────────────────
+
+export type MeetingLineState = 'pending' | 'committed' | 'discarded' | 'note'
+
+/**
+ * One line typed during a live meeting, PERSISTED AS TYPED rather than held in
+ * client state — killing the tab mid-meeting must not lose the meeting, and a
+ * discarded line has to survive as a note per spec.
+ */
+export interface MeetingLine {
+  id: string
+  meeting_id: string
+  seq: number
+  /** `not null default ''` — the raw capture string, before triage. */
+  raw: string
+  /** A serialized ParsedEntry, or null when the line was never parsed. */
+  parsed: Record<string, unknown> | null
+  state: MeetingLineState
+  /** Set when triage committed this line into an entry. */
+  entry_id: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ── notifications (0004) ───────────────────────────────────────────────────
+
+/** Why a notification exists. Written by DB triggers, never by the client. */
+export type NotificationKind = 'assigned' | 'completed'
+
+/**
+ * A notification as the UI consumes it — camelCase because this is a VIEW
+ * MODEL, not a row. api/notifications.ts maps the snake_case `notifications`
+ * row and resolves the two denormalized display fields; the api layer is the
+ * boundary between the two conventions (see this file's header).
+ *
+ * Named AppNotification, not Notification, because `Notification` is a DOM
+ * global — shadowing it inside a Web Push module would be a genuinely nasty
+ * hour.
+ *
+ * `entryTitle` and `actorName` are SNAPSHOTS resolved at read time rather than
+ * ids the renderer joins: an inbox row has to stay readable after the entry is
+ * retitled, and the alternative is every notification row triggering a lookup
+ * in a store the notification center may not have loaded.
+ */
+export interface AppNotification {
+  /**
+   * A STRING here, a `bigint generated always as identity` on the live table —
+   * verified against the project, not assumed, and the one id in this schema
+   * that is not a uuid. PostgREST serialises int8 as a JSON *number*, so
+   * `toAppNotification()` does `String(row.id)`; without that every realtime
+   * dedupe and every React key compares a number against the string the rest of
+   * the app carries, and silently loses. Wave 3's notification centre must not
+   * assume uuid.
+   */
+  id: string
+  /** The profile this is for. RLS restricts SELECT to `recipient_id = auth.uid()`. */
+  recipientId: string
+  kind: NotificationKind
+  entryId: string
+  entryTitle: string
+  /** Null when the acting profile has since been deleted (`on delete set null`). */
+  actorId: string | null
+  /** `not null default ''` — falls back to the members store, then to a generic label. */
+  actorName: string
+  /** Null while unread. The unread badge counts nulls; there is no `read` boolean. */
+  readAt: string | null
+  createdAt: string
+}
+
+/**
+ * Per-user delivery preferences.
+ *
+ * `assigned` and `completed` mirror the two trigger kinds. `allCompletions` is
+ * the admin-only opt-in to every completion in the workspace, not just the ones
+ * they raised — a member setting it changes nothing, because the trigger's
+ * fan-out is gated on `profiles.role`. `push` is Wave 4's Web Push channel and
+ * is independent: switching it off keeps the in-app inbox working.
+ */
+export interface NotificationPrefs {
+  assigned: boolean
+  completed: boolean
+  allCompletions: boolean
+  push: boolean
+}
+
+// ── username auth ──────────────────────────────────────────────────────────
+
+/**
+ * What a member types on the claim screen, once, to turn the account an admin
+ * predefined into an account they can sign in to.
+ *
+ * The invite code is what stops a stranger claiming a known username first —
+ * usernames are guessable by construction (they are handed out in person), so
+ * the code, not the username, is the secret. It is single-use; an admin
+ * reissues one as the password-reset path, because a synthetic
+ * `<username>@opstrack.internal` address cannot receive a reset mail.
+ *
+ * `password` NEVER reaches this app's own storage: it goes straight to the
+ * claim-account edge function, which sets it with the service role.
+ */
+export interface ClaimInput {
+  username: string
+  inviteCode: string
+  password: string
 }

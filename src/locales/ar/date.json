@@ -1,0 +1,22 @@
+{
+  "date": {
+    "today": "اليوم",
+    "tomorrow": "غدًا",
+    "yesterday": "أمس",
+    "thisWeek": "هذا الأسبوع",
+    "nextWeek": "الأسبوع القادم",
+    "overdue": "متأخّر",
+    "never": "أبدًا",
+    "justNow": "الآن",
+    "minutesAgo": "قبل {count} دقيقة",
+    "hoursAgo": "قبل {count} ساعة",
+    "daysAgo": "قبل {count} يوم",
+    "inDays": "خلال {count} يوم",
+    "daysShort": "{count}ي",
+    "hoursShort": "{count}س",
+    "overdueByDays": "متأخّر {count} يوم",
+    "dueInDays": "يستحق خلال {count} يوم",
+    "weekStart": "أسبوع {from}",
+    "rangeSep": "–"
+  }
+}

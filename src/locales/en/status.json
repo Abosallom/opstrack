@@ -1,0 +1,10 @@
+{
+  "status": {
+    "new": "New",
+    "in_progress": "In progress",
+    "blocked": "Blocked",
+    "waiting_on": "Waiting on",
+    "done": "Done",
+    "cancelled": "Cancelled"
+  }
+}
