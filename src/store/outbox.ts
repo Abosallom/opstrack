@@ -16,10 +16,10 @@
 // queue, dedupe by collapse key, and answer `fail('offline.queued')`, which the
 // caller renders as a neutral notice rather than an error. flushOutbox() drains
 // in insertion order, rewriting temp ids as the inserts that mint them land, and
-// stops at the first failure. WHAT WAVE 4 ADDS, inside this file only:
-// localStorage persistence under `opstrack_outbox_v1`, exponential backoff, and
-// the focus/online wiring moved out to main.tsx. Every signature below is
-// already its final shape.
+// stops at the first failure. WAVE 4 ADDED, inside this file: localStorage
+// persistence under `opstrack_outbox_v1`, exponential backoff, and the
+// focus/online wiring moved out to main.tsx behind startOutboxSync(). The
+// envelope shape was frozen in Wave 1 and did not have to change.
 //
 // WHY THE TEMP-ID REWRITE IS HERE AND NOT DEFERRED. A queue that can hold a
 // create and a follow-up update on the same row, and cannot connect them, is a
@@ -34,6 +34,32 @@
 //
 // CONFLICT RULE (spec §6): last-write-wins on entry fields; updates never
 // conflict, because the thread is append-only.
+//
+// ── WHAT WAVE 4 ACTUALLY ADDED, and why each piece is not optional ─────────
+//
+// PERSISTENCE under `opstrack_outbox_v1`, through lib/cache.ts. Until this
+// landed, `fail('offline.queued')` — rendered to the user as "saved on this
+// device" — was false: the queue lived in a module-scope zustand store and a
+// reload, a crash or iOS evicting a backgrounded WKWebView destroyed every
+// unsent write silently. A promise the app cannot keep is worse than an error.
+//
+// TEMP IDS ARE RESOLVED INTO THE STORED QUEUE, not into a Map that lives for
+// one drain. The per-drain map was correct only while the create and its
+// dependents drained together; one transient failure in between and the
+// dependent's `dependsOn: ['temp_…']` could never be satisfied again, so every
+// subsequent flush stamped it 'offline.syncFailed' forever. Resolving into the
+// queue also means the mapping is persisted with it, so it survives a reload.
+//
+// REMOVAL IS REVISION-AWARE. `enqueue()` collapses onto an item's ID, so an
+// edit made while that item was in flight inherited the id and the in-flight
+// `removeItem(itemId)` deleted the NEWER, never-sent payload — silent write
+// loss, with the caller told 'offline.queued'. Every item carries a `revision`
+// that a collapse bumps, and the drain only removes what it actually sent.
+//
+// BACKOFF AND FLUSH TRIGGERS live in `startOutboxSync()`, called by main.tsx.
+// The `online` event alone left a queue that failed on a 500 parked until the
+// device next transitioned offline→online — which, on a desktop that never
+// leaves wifi, is never.
 
 import { create } from 'zustand'
 import {
@@ -56,6 +82,8 @@ import {
 } from '../api/meetings'
 import { markAllRead, markRead } from '../api/notifications'
 import { fail, type ApiResult } from '../api/result'
+import { supabase } from '../api/supabase'
+import { isDurable, readCache, removeCache, writeCache } from '../lib/cache'
 
 export type MutTable =
   | 'entries'
@@ -95,6 +123,16 @@ export interface OutboxItem {
   queuedAt: number
   /** i18n key of the last failure, or null. */
   error: string | null
+  /**
+   * Bumped every time `enqueue()` collapses a newer op onto this item.
+   *
+   * The drain reads it before sending and re-checks it after, because a collapse
+   * keeps the item's ID: without this the drain's `removeItem(id)` deleted a
+   * payload that had replaced the one it sent, and the newer write vanished with
+   * no error anywhere. Identity of the op object would work in one tab, but this
+   * survives the localStorage round-trip and is inspectable in devtools.
+   */
+  revision: number
 }
 
 /**
@@ -169,7 +207,18 @@ async function send(op: MutOp): Promise<ApiResult<unknown>> {
     return fail('common.error')
   }
   try {
-    return await transport(op)
+    const result = await transport(op)
+    // The drain's "never throws" contract covers a transport that answers with
+    // something that is not an ApiResult at all, not only one that rejects: a
+    // `result.ok` on undefined throws out of drain(), rejects the promise
+    // flushOutbox() handed every caller, and the ones that said `void
+    // flushOutbox()` — the online listener, the visibility handler, the retry
+    // timer — turn it into an unhandled rejection.
+    if (typeof result !== 'object' || result === null || typeof result.ok !== 'boolean') {
+      console.warn('[outbox] transport did not answer with an ApiResult:', route)
+      return fail('common.error')
+    }
+    return result
   } catch (e) {
     // The api layer returns ApiResult and does not throw — but "does not throw"
     // is a convention, and submit()'s contract of never throwing is load-bearing
@@ -188,11 +237,195 @@ interface OutboxState {
   pending: number
 }
 
-const useOutboxStore = create<OutboxState>(() => ({ items: [], pending: 0 }))
+/**
+ * The persisted queue. Versioned in the key, per lib/cache.ts's convention: a
+ * shape change bumps the suffix and the old key is simply never read again,
+ * which is the whole migration story for data that is at most a few days old.
+ */
+const OUTBOX_KEY = 'opstrack_outbox_v1'
 
-/** Every write of `items` goes through here so `pending` cannot drift from it. */
+const MUT_TABLES: ReadonlySet<string> = new Set<MutTable>([
+  'entries',
+  'entry_updates',
+  'meetings',
+  'meeting_lines',
+  'recurring_templates',
+  'vocab_options',
+  'tracks',
+  'notifications',
+])
+
+const MUT_OPS: ReadonlySet<string> = new Set(['insert', 'update', 'delete'])
+
+function isStringOrNull(v: unknown): v is string | null {
+  return v === null || typeof v === 'string'
+}
+
+/** Reject anything that is not exactly an op envelope. See readCache's note. */
+function acceptOp(v: unknown): MutOp | null {
+  if (typeof v !== 'object' || v === null) return null
+  const o = v as Record<string, unknown>
+  if (typeof o.table !== 'string' || !MUT_TABLES.has(o.table)) return null
+  if (typeof o.op !== 'string' || !MUT_OPS.has(o.op)) return null
+  if (!isStringOrNull(o.id) || !isStringOrNull(o.tempId)) return null
+  if (typeof o.dedupeKey !== 'string') return null
+  if (!Array.isArray(o.dependsOn) || o.dependsOn.some((d) => typeof d !== 'string')) return null
+  return {
+    table: o.table as MutTable,
+    op: o.op as MutOp['op'],
+    id: o.id,
+    tempId: o.tempId,
+    payload: o.payload,
+    dedupeKey: o.dedupeKey,
+    dependsOn: o.dependsOn as string[],
+  }
+}
+
+/**
+ * Validate a rehydrated queue, dropping only the items that are unusable.
+ *
+ * ONE BAD ITEM MUST NOT DISCARD THE REST. The realistic corruption is a single
+ * op written by a previous version of this file, and throwing the whole array
+ * away over it would lose every other write the user is owed. An item that
+ * cannot be replayed is dropped with a warning rather than kept, because a
+ * malformed envelope reaches Postgres as a 22P02 and parks the drain forever.
+ */
+interface PersistedOutbox {
+  /**
+   * The `auth.uid()` these writes will be attributed to, or null if the queue
+   * was built before the session was known.
+   *
+   * THE QUEUE IS NOT A CACHE, and this is where that stops being a slogan. A
+   * cached roster shown to the wrong account is a privacy bug you can see; a
+   * QUEUED WRITE replayed under the wrong account is content authored by one
+   * person and posted as another, with `created_by = auth.uid()` making it
+   * indistinguishable from the real thing. App.tsx's sign-out effect already
+   * calls resetOutbox() for exactly this reason ("worst of all queued writes
+   * that would leave under the new session's credentials") — but a tab CLOSED
+   * with unsent writes never runs that cleanup, and persistence is what turned
+   * that from impossible into likely on a shared machine.
+   */
+  owner: string | null
+  items: OutboxItem[]
+}
+
+function acceptQueue(value: unknown): PersistedOutbox | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
+  const env = value as Record<string, unknown>
+  if (!isStringOrNull(env.owner) || !Array.isArray(env.items)) return null
+  return { owner: env.owner, items: acceptItems(env.items) }
+}
+
+function acceptItems(value: unknown[]): OutboxItem[] {
+  const out: OutboxItem[] = []
+  for (const raw of value) {
+    if (typeof raw !== 'object' || raw === null) continue
+    const r = raw as Record<string, unknown>
+    const op = acceptOp(r.op)
+    if (!op || typeof r.id !== 'string' || !isStringOrNull(r.error)) {
+      console.warn('[outbox] dropping an unreadable queued item')
+      continue
+    }
+    out.push({
+      id: r.id,
+      op,
+      attempts: typeof r.attempts === 'number' ? r.attempts : 0,
+      queuedAt: typeof r.queuedAt === 'number' ? r.queuedAt : Date.now(),
+      error: r.error,
+      revision: typeof r.revision === 'number' ? r.revision : 0,
+    })
+  }
+  return out
+}
+
+// Rehydrate at module load rather than from a wiring call: a component reading
+// `usePendingCount()` during the first render must not see 0 and then flicker.
+const restored = readCache(OUTBOX_KEY, acceptQueue)
+
+/** Who the queue currently on disk belongs to. See PersistedOutbox.owner. */
+let queueOwner: string | null = restored?.owner ?? null
+
+const useOutboxStore = create<OutboxState>(() => ({
+  items: restored?.items ?? [],
+  pending: restored?.items.length ?? 0,
+}))
+
+/**
+ * Every write of `items` goes through here, so `pending` cannot drift from it
+ * and so nothing can change the queue without persisting the change.
+ */
 function setItems(items: OutboxItem[]): void {
   useOutboxStore.setState({ items, pending: items.length })
+  writeCache(OUTBOX_KEY, { owner: queueOwner, items } satisfies PersistedOutbox)
+}
+
+// ── whose writes are these ─────────────────────────────────────────────────
+
+/**
+ * The signed-in user's id, synchronously, exactly as store/entries.ts caches it
+ * and for the same reason: store/auth.ts exposes a hook and `hasSession()`, and
+ * neither can be read from inside a drain. Same source one layer lower — it is
+ * the id `auth.uid()` will be for every op this queue sends.
+ */
+let sessionUserId: string | null = null
+/** False until the stored session has been read once. Not the same as "null". */
+let sessionKnown = false
+
+if (supabase) {
+  void supabase.auth.getSession().then(({ data }) => {
+    sessionUserId = data.session?.user.id ?? null
+    sessionKnown = true
+    // A queue restored from disk cannot be sent until this moment, so this is
+    // the flush that actually delivers a reload's worth of unsent writes.
+    void flushOutbox()
+  })
+  // Synchronous body ON PURPOSE: supabase-js serialises auth work behind a lock
+  // and awaiting a client call inside this callback deadlocks it. Reading a
+  // field off the session and scheduling a flush needs neither.
+  supabase.auth.onAuthStateChange((_event, session) => {
+    sessionUserId = session?.user.id ?? null
+    sessionKnown = true
+    void flushOutbox()
+  })
+} else {
+  // No credentials configured (tests, `?shell`). There is no account to confuse
+  // the queue with, so the owner check is vacuous rather than blocking.
+  sessionKnown = true
+}
+
+/**
+ * May this queue be sent under the session that is signed in right now?
+ *
+ * Three answers, and the middle one is the one worth having: YES when the queue
+ * has no owner or the owner is the current user; NO-AND-WAIT while the session
+ * is still being restored or nobody is signed in, because a 401 would burn an
+ * attempt and back the queue off for no reason; and NO-AND-DROP for a different
+ * account, which is a foreign queue this device must never send.
+ */
+function ownerAllowsSend(): boolean {
+  if (queueOwner === null) return true
+  if (!sessionKnown || sessionUserId === null) return false
+  if (sessionUserId === queueOwner) return true
+  console.warn('[outbox] discarding a queue belonging to a different account')
+  resetOutbox()
+  return false
+}
+
+/**
+ * Warn once when "saved on this device" is not true.
+ *
+ * Safari's private mode and a full quota both leave lib/cache.ts on its
+ * in-memory fallback, where the queue survives a route change but not a reload.
+ * The caller still gets 'offline.queued' — the write IS held, and refusing to
+ * queue would be strictly worse — but the console says so, because this is the
+ * one condition under which the notice over-promises.
+ */
+let warnedVolatile = false
+
+function warnIfVolatile(): void {
+  if (warnedVolatile || isDurable()) return
+  warnedVolatile = true
+  console.warn('[outbox] storage is not durable — queued writes will not survive a reload')
 }
 
 /**
@@ -202,8 +435,18 @@ function setItems(items: OutboxItem[]): void {
  * back. Position is the only ordering information a Wave-1 queue has, and an
  * edit that jumped the queue past the create it depends on would invert the one
  * relationship `dependsOn` exists to preserve.
+ *
+ * It also keeps the original ID, which is what makes the `revision` bump
+ * load-bearing: the drain holds an id across an `await`, and without a revision
+ * it could not tell "the op I sent" from "an op that replaced it while I was
+ * sending". See OutboxItem.revision.
  */
 function enqueue(op: MutOp): void {
+  warnIfVolatile()
+  // Stamp the queue with whoever is writing it. Only ever set from null or to
+  // the same id: a queue that reached a different account was dropped by
+  // ownerAllowsSend() before it could get here.
+  if (sessionUserId !== null) queueOwner = sessionUserId
   const items = useOutboxStore.getState().items
   const at = items.findIndex((item) => item.op.dedupeKey === op.dedupeKey)
   const item: OutboxItem = {
@@ -212,9 +455,15 @@ function enqueue(op: MutOp): void {
     attempts: 0,
     queuedAt: Date.now(),
     error: null,
+    revision: 0,
   }
   if (at === -1) setItems([...items, item])
-  else setItems(items.map((existing, i) => (i === at ? { ...item, id: existing.id } : existing)))
+  else
+    setItems(
+      items.map((existing, i) =>
+        i === at ? { ...item, id: existing.id, revision: existing.revision + 1 } : existing,
+      ),
+    )
 }
 
 /**
@@ -251,16 +500,25 @@ export async function submit<T>(op: MutOp): Promise<ApiResult<T>> {
 
 // ── queue reads ────────────────────────────────────────────────────────────
 
+// STILL UNRENDERED, and saying so here rather than in a comment that reads like
+// a description of live behaviour. The strings exist (offline.pending,
+// offline.syncFailed, offline.retry, offline.outbox, offline.discardTitle), the
+// class exists (`.offline-banner-count` in app-shell.css), and both hooks below
+// have zero call sites — components/OfflineBanner.tsx renders `navigator.onLine`
+// and nothing else. So a user with a stranded write sees no count, no list and
+// no retry button, while the queue does now retry on its own. Wiring the banner
+// is the remaining half of FIX-BACKLOG's "the queue is entirely unsurfaced".
+
 export function useOutbox(): OutboxItem[] {
   return useOutboxStore((s) => s.items)
 }
 
-/** Feeds `.offline-banner-count`, which already exists in app-shell.css. */
+/** Intended for `.offline-banner-count`. Not yet rendered — see above. */
 export function usePendingCount(): number {
   return useOutboxStore((s) => s.pending)
 }
 
-/** Non-React read, for tests and for Wave 4's flush wiring. */
+/** Non-React read, for tests and for the flush wiring. */
 export function getOutboxSnapshot(): readonly OutboxItem[] {
   return useOutboxStore.getState().items
 }
@@ -311,21 +569,32 @@ let flushing: Promise<void> | null = null
  *
  * Temp ids are rewritten as the inserts that mint them succeed, so a
  * `create → update` pair queued offline lands in dependency order with the
- * update pointing at the row the create actually produced. An op still waiting
- * on an unresolved temp id is left alone — it can only become sendable after the
- * insert ahead of it lands, and that insert is the thing that just failed.
+ * update pointing at the row the create actually produced. THE REWRITE GOES
+ * INTO THE STORED QUEUE, not into a Map scoped to this drain: an op that missed
+ * its create's drain — one transient 500 between the two is enough — would
+ * otherwise hold `dependsOn: ['temp_…']` for ever, be stamped
+ * 'offline.syncFailed' on every later flush, and never be sendable again even
+ * though the row it points at exists on the server.
+ *
+ * An op still waiting on a temp id that no queued insert can mint any more (the
+ * user discarded the create) is marked and skipped: nothing in the queue will
+ * ever resolve it, so retrying it is spinning.
  */
 export function flushOutbox(): Promise<void> {
   if (flushing) return flushing
+  cancelRetry()
   flushing = drain().finally(() => {
     flushing = null
+    scheduleRetry()
   })
   return flushing
 }
 
 async function drain(): Promise<void> {
-  /** temp id → the real id the server minted for it, within this drain. */
-  const resolved = new Map<string, string>()
+  // Nothing leaves under the wrong credentials, and nothing leaves before the
+  // stored session has been read. This runs first because it is the one check
+  // whose failure mode is a wrong write rather than a missing one.
+  if (!ownerAllowsSend()) return
 
   // Clear last round's errors first, so a retry is a retry. Leaving them set
   // and then skipping errored items would quietly reorder the queue: a create
@@ -342,22 +611,30 @@ async function drain(): Promise<void> {
     const item = useOutboxStore.getState().items.find((i) => i.id === itemId)
     if (!item) continue
 
-    const op = rewrite(item.op, resolved)
+    // Already resolved into the stored op by whichever drain landed the insert,
+    // so this is the op as it will be sent.
+    const op = item.op
     // A target or dependency still holding a temp id cannot be sent, and no
-    // amount of retrying fixes it — the insert that would have resolved it is
-    // the thing that just failed. Mark it and move on rather than spin.
+    // queued insert will ever mint it — resolveTempId() rewrites the queue the
+    // instant one does. Mark it and move on rather than spin.
     if ((op.id !== null && isTempId(op.id)) || op.dependsOn.some(isTempId)) {
       patchItem(itemId, { error: 'offline.syncFailed' })
       continue
     }
 
+    const sentRevision = item.revision
     const result = await send(op)
     if (result.ok) {
-      if (item.op.tempId) {
+      // Before removal, so a dependent queued mid-drain is rewritten too.
+      if (op.tempId) {
         const real = serverIdOf(result.data)
-        if (real) resolved.set(item.op.tempId, real)
+        if (real) resolveTempId(op.tempId, real)
       }
-      removeItem(itemId)
+      // Revision-aware: a collapse that landed on this id while the request was
+      // out replaced the payload with one that has NOT been sent. Removing by id
+      // would delete it, and the user was told it was saved. Left in place, it
+      // keeps its position and goes out on the pass flushOutbox() schedules.
+      removeIfUnchanged(itemId, sentRevision)
       // Hand the row back to whoever queued it. Wrapped, because this file's
       // contract is that a drain never throws, and a store's settle is code the
       // outbox does not own — one bad row must not strand the rest of the queue.
@@ -377,6 +654,33 @@ async function drain(): Promise<void> {
 }
 
 /**
+ * An insert landed: replace its temp id everywhere in the QUEUE, permanently.
+ *
+ * Not a drain-local map. The pair this exists for — capture offline, then post a
+ * note on it — is only guaranteed to drain together in the happy path, and the
+ * unhappy path is the one that matters: the create lands, the note hits one
+ * transient failure, and from that moment a per-drain map has nothing to say
+ * about `temp_…`. Writing the real id into the stored ops means the queue is
+ * self-consistent no matter how many flushes, reloads or days it takes.
+ *
+ * The dedupeKey is rewritten too, by substring: it embeds the target id
+ * (`entries:update:temp_a:title`), so leaving it alone would stop a later edit
+ * of the same field from collapsing onto the queued one and send two writes
+ * where the user made one edit.
+ */
+function resolveTempId(tempId: string, realId: string): void {
+  const map = new Map([[tempId, realId]])
+  let changed = false
+  const next = useOutboxStore.getState().items.map((item) => {
+    const op = rewrite(item.op, map)
+    if (op === item.op) return item
+    changed = true
+    return { ...item, op }
+  })
+  if (changed) setItems(next)
+}
+
+/**
  * Substitute any temp id this drain has already resolved — in the target, in the
  * dependency list, AND inside the payload.
  *
@@ -392,11 +696,38 @@ async function drain(): Promise<void> {
  * resolved temp id" is unambiguous wherever it turns up, and the next table to
  * queue a write gets the behaviour for free. `tempId` itself is deliberately
  * left alone — it is how the settle path finds the optimistic row.
+ *
+ * RETURNS THE SAME OBJECT when nothing matched, so resolveTempId() can tell a
+ * rewritten queue from an untouched one by identity and skip the write.
  */
 function rewrite(op: MutOp, resolved: ReadonlyMap<string, string>): MutOp {
   const id = op.id !== null ? (resolved.get(op.id) ?? op.id) : null
   const dependsOn = op.dependsOn.map((dep) => resolved.get(dep) ?? dep)
-  return { ...op, id, dependsOn, payload: rewritePayload(op.payload, resolved) }
+  const payload = rewritePayload(op.payload, resolved)
+  const dedupeKey = rewriteKey(op.dedupeKey, resolved)
+  if (
+    id === op.id &&
+    payload === op.payload &&
+    dedupeKey === op.dedupeKey &&
+    dependsOn.every((dep, i) => dep === op.dependsOn[i])
+  ) {
+    return op
+  }
+  return { ...op, id, dependsOn, payload, dedupeKey }
+}
+
+/**
+ * The dedupeKey embeds the target id by convention
+ * (`${table}:${op}:${id ?? tempId}:${keys}`), so it is a substring substitution
+ * rather than a lookup. Safe because a temp id is `temp_` + a uuid: it cannot
+ * occur inside a table name, an op name or a sorted key list by accident.
+ */
+function rewriteKey(key: string, resolved: ReadonlyMap<string, string>): string {
+  let out = key
+  for (const [temp, real] of resolved) {
+    if (out.includes(temp)) out = out.split(temp).join(real)
+  }
+  return out
 }
 
 function rewritePayload(payload: unknown, resolved: ReadonlyMap<string, string>): unknown {
@@ -420,6 +751,20 @@ function removeItem(id: string): void {
   setItems(useOutboxStore.getState().items.filter((i) => i.id !== id))
 }
 
+/**
+ * Remove an item only if it still holds the revision that was sent.
+ *
+ * Returns false when the item was superseded mid-flight, which is not an error:
+ * the newer payload is queued, unsent, and must stay that way.
+ */
+function removeIfUnchanged(id: string, revision: number): boolean {
+  const item = useOutboxStore.getState().items.find((i) => i.id === id)
+  if (!item) return true
+  if (item.revision !== revision) return false
+  removeItem(id)
+  return true
+}
+
 /** Drop one op the user gave up on. The optimistic row is the caller's problem. */
 export function discardOutboxItem(id: string): void {
   removeItem(id)
@@ -427,21 +772,101 @@ export function discardOutboxItem(id: string): void {
 
 /** Sign-out. Another account's queued writes must never leave on this session. */
 export function resetOutbox(): void {
+  cancelRetry()
+  queueOwner = null
   setItems([])
+  // setItems has already written `[]`; this drops the key entirely, including
+  // from lib/cache.ts's in-memory fallback, so nothing of one account's queue
+  // is left on the device for the next one.
+  removeCache(OUTBOX_KEY)
+}
+
+// ── retry and flush triggers ───────────────────────────────────────────────
+
+/**
+ * Backoff bounds. 2s is short enough that a blip is invisible; 60s is long
+ * enough that a server that is genuinely down is not hammered by every open tab
+ * in the building. Both are wall-clock, not per-op: the drain stops at the first
+ * failure, so there is only ever one op being retried.
+ */
+const RETRY_BASE_MS = 2_000
+const RETRY_MAX_MS = 60_000
+
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * True once startOutboxSync() has run.
+ *
+ * Nothing schedules a timer before then, which keeps the queue inert in tests
+ * and in `?shell` — a module-scope timer that outlives a test file is how a
+ * suite starts hanging for reasons nobody can find.
+ */
+let syncInstalled = false
+
+function cancelRetry(): void {
+  if (retryTimer === null) return
+  clearTimeout(retryTimer)
+  retryTimer = null
 }
 
 /**
- * Retry the moment connectivity comes back.
+ * Schedule the next attempt, backing off on the failure count the queue itself
+ * records. `attempts` was incremented and never read until this existed, which
+ * is why a single 500 parked the whole queue until the device next transitioned
+ * offline→online.
  *
- * Installed here rather than in main.tsx because Wave 1's queue has no
- * persistence: it lives and dies with this module, so the listener that drains
- * it belongs in the same place. store/config.ts installs its focus listener at
- * module scope for the same reason. Wave 4 moves both this and an app-focus
- * flush into main.tsx once the queue survives a reload and the wiring has
- * something to reload it from.
+ * Retrying does not stop after N attempts. There is nothing better to do with a
+ * write the user was told was saved, the interval is capped, and the queue is
+ * discardable by hand — a queue that gives up silently is the failure this whole
+ * file exists to avoid.
  */
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => {
+function scheduleRetry(): void {
+  if (!syncInstalled || retryTimer !== null || flushing) return
+  const items = useOutboxStore.getState().items
+  if (items.length === 0 || isOffline()) return
+  const attempts = items.reduce((max, i) => Math.max(max, i.attempts), 0)
+  const delay = Math.min(RETRY_BASE_MS * 2 ** Math.max(0, attempts - 1), RETRY_MAX_MS)
+  retryTimer = setTimeout(() => {
+    retryTimer = null
     void flushOutbox()
-  })
+  }, delay)
+}
+
+/**
+ * Install every flush trigger. Called by main.tsx; returns its own teardown.
+ *
+ * THREE TRIGGERS, because each covers a case the others cannot:
+ *   `online`          — the network came back. The only one Wave 1 had.
+ *   `visibilitychange`— the tab was foregrounded. A phone that slept through the
+ *                       outage never fires `online`, because it was never told
+ *                       it went offline; it just wakes up connected.
+ *   the backoff timer — the failure was the SERVER, not the link. No connectivity
+ *                       event will ever fire, and without this the queue sits
+ *                       there with the user told their work is saved.
+ *
+ * Wired from the composition root rather than at module scope so that importing
+ * this store from a node test does not install listeners or timers — the reason
+ * the Wave-1 note gave for keeping the `online` listener here no longer holds
+ * now that the queue is rehydrated from storage instead of being born empty.
+ */
+export function startOutboxSync(): () => void {
+  if (typeof window === 'undefined') return () => {}
+  syncInstalled = true
+  const onOnline = (): void => {
+    void flushOutbox()
+  }
+  const onVisible = (): void => {
+    if (document.visibilityState === 'visible') void flushOutbox()
+  }
+  window.addEventListener('online', onOnline)
+  document.addEventListener('visibilitychange', onVisible)
+  // Drain whatever survived the last session, without waiting for an event that
+  // may never come: a reload with a queue in localStorage is the common case.
+  void flushOutbox()
+  return () => {
+    syncInstalled = false
+    cancelRetry()
+    window.removeEventListener('online', onOnline)
+    document.removeEventListener('visibilitychange', onVisible)
+  }
 }

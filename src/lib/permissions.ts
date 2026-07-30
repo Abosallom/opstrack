@@ -36,12 +36,35 @@ export const ENTRIES_UPDATE_IS_OPEN: boolean = true
  * follow-ups for snooze, and by the board for drag.
  */
 export function canEditEntry(e: Entry, meId: string | null, role: UserRole): boolean {
+  return canEditEntryUnder(ENTRIES_UPDATE_IS_OPEN, e, meId, role)
+}
+
+/**
+ * The same rule with the policy decision as an ARGUMENT, so both branches are
+ * reachable from a test.
+ *
+ * WHY IT IS SPLIT OUT. permissions.test.ts branched on ENTRIES_UPDATE_IS_OPEN at
+ * runtime, so the narrow-policy assertions were dead code and the narrow line
+ * itself was never executed — everything that ran reduced to `meId !== null`
+ * (FIX-BACKLOG **PERM-BRANCH**). This is the module the board's drag affordance,
+ * every disabled control and the follow-ups snooze read, and an unexecuted line
+ * in it is a screen that lies about what the server will accept.
+ *
+ * Nothing outside this file and its test may call this. Branching on the policy
+ * is the one thing the constant exists to prevent everywhere else.
+ */
+export function canEditEntryUnder(
+  open: boolean,
+  e: Entry,
+  meId: string | null,
+  role: UserRole,
+): boolean {
   // A signed-out reader edits nothing under either branch — RLS keys every
   // write policy off auth.uid(), so a null id can only ever produce a rejection.
   // Testing it first means the open branch is `!!meId` rather than an
   // unqualified `true`, which is what the policy actually says.
   if (meId === null) return false
-  if (ENTRIES_UPDATE_IS_OPEN) return true
+  if (open) return true
   return e.created_by === meId || e.owner_id === meId || role === 'admin'
 }
 

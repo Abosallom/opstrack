@@ -1,4 +1,4 @@
-// Two halves: the helpers, and the locale tree they codify.
+// Two halves: the helpers, and the locale trees they codify.
 //
 // The tree half is the part that earns its keep. localeParity.test.ts compares
 // the two bundles to each other and localeReach.test.ts compares them to the
@@ -6,6 +6,13 @@
 // carried zero isolates across 23 namespaces and every string interpolating a
 // Latin name rendered back to front (FIX-BACKLOG S5). Nothing would have
 // reported the next one either.
+//
+// The gate then shipped scoped to `ar` — which was the shape of the BUG REPORT,
+// not the shape of the rule. The rule is about the direction of the VALUE, and
+// this app's data is bilingual in one set of columns: an Arabic entry title, an
+// Arabic member name or an admin-renamed Arabic label lands in an English
+// sentence exactly as often as the mirror. 101 English strings were bare when
+// the check was widened. Both trees are checked below.
 
 import { describe, expect, it } from 'vitest'
 import {
@@ -21,7 +28,7 @@ import {
   rtlIsolate,
   stripIsolates,
 } from './bidi'
-import { AR_NAMESPACES, type LocaleTree } from '../locales'
+import { AR_NAMESPACES, EN_NAMESPACES, type LocaleTree } from '../locales'
 import { isPluralNode } from './plural'
 
 describe('the four controls', () => {
@@ -130,7 +137,7 @@ describe('isolatesBalanced', () => {
   })
 })
 
-/* ────────────────────────── the Arabic tree ────────────────────────────── */
+/* ────────────────────────── both locale trees ──────────────────────────── */
 
 /** Every leaf string in a namespace, as `key → value`, plural forms included. */
 function strings(tree: LocaleTree, prefix = '', out: [string, string][] = []): [string, string][] {
@@ -143,9 +150,16 @@ function strings(tree: LocaleTree, prefix = '', out: [string, string][] = []): [
   return out
 }
 
-const AR_STRINGS = Object.entries(AR_NAMESPACES).flatMap(([ns, tree]) =>
-  strings(tree).map(([key, value]) => [ns, key, value] as const),
-)
+function flatten(
+  namespaces: Readonly<Record<string, LocaleTree>>,
+): (readonly [string, string, string])[] {
+  return Object.entries(namespaces).flatMap(([ns, tree]) =>
+    strings(tree).map(([key, value]) => [ns, key, value] as const),
+  )
+}
+
+const AR_STRINGS = flatten(AR_NAMESPACES)
+const EN_STRINGS = flatten(EN_NAMESPACES)
 
 // THE GATE BELOW IS UNCONDITIONAL, and it took a wave to get there. Wave 3
 // shipped with a `IN_FLIGHT = new Set(['dashboard', 'recurring'])` mute in front
@@ -158,8 +172,15 @@ const AR_STRINGS = Object.entries(AR_NAMESPACES).flatMap(([ns, tree]) =>
 // takes microseconds and the fix is two characters.
 
 /**
- * Placeholder names whose VALUE is user data, or is otherwise not known to be
- * Arabic at the moment the sentence is written.
+ * Placeholder names whose VALUE is user data, or is otherwise not known — at the
+ * moment the sentence is written — to run the same way the sentence does.
+ *
+ * ONE LIST FOR BOTH TREES. The membership question is "can this value's first
+ * strong character disagree with the paragraph?", and the answer does not depend
+ * on which locale file the sentence lives in: `title` is a single free-text
+ * column, member names and tags are single fields, and a vocabulary label is
+ * whatever an admin last typed. FSI answers that question at render time, in
+ * either direction, which is why the fence is FSI in both trees and never RLI.
  *
  * This is the generalisation the quoted-interpolation gate could not be. A
  * token only reorders its sentence when a NEUTRAL sits beside it, and a quote
@@ -225,11 +246,13 @@ const CALLER_ISOLATES: ReadonlySet<string> = new Set(['digest'])
 /**
  * `namespace.key:token` for a number wearing a user-value name.
  *
- * `dashboard.pct` is `{value}٪`. The value is a percentage and U+066A is a
- * European Terminator, which the UBA glues to the digits beside it — exactly
- * how `Intl.NumberFormat('ar', { style: 'percent' })` renders `82٪`, sign
- * trailing and LRM-pinned. An FSI cuts that tie, the sign resolves to the
- * paragraph instead, and the number reads `٪82`.
+ * `dashboard.pct` is `{value}٪` in ar and `{value}%` in en. The value is a
+ * percentage and both U+066A and U+0025 are European Terminators, which the UBA
+ * glues to the digits beside them — exactly how `Intl.NumberFormat('ar', {
+ * style: 'percent' })` renders `82٪`, sign trailing and LRM-pinned. An FSI cuts
+ * that tie, the sign resolves to the paragraph instead, and the number reads
+ * `٪82`. Exempt in both trees, because the reason is the character class rather
+ * than the paragraph direction.
  */
 const NUMERIC_TOKENS: ReadonlySet<string> = new Set(['dashboard.pct:value'])
 
@@ -247,17 +270,41 @@ function fenced(value: string, token: string, at: number): boolean {
   return /[⁦-⁨]$/.test(value.slice(0, at)) && value.startsWith(PDI, at + token.length + 2)
 }
 
-describe('ar locale tree', () => {
+// THE GATE RUNS OVER BOTH TREES, and that is the second thing this file got
+// wrong. It shipped as `describe('ar locale tree')`, because the defect that
+// prompted it was found in Arabic — but the rule it encodes has nothing to do
+// with which language the SENTENCE is in. It is about the direction of the
+// VALUE, and the data is bilingual either way: `title` is one free-text column
+// (src/types.ts), member names and tags are single fields, and an admin renames
+// a vocabulary label to whatever they like. lib/bidi.ts's own header says so —
+// "RLI is the mirror of LRI… the en/ tree needs it for the same reason the ar/
+// tree needs LRI" — and lib/digest/bidi.test.ts already asserts the mirror case
+// directly, `needsIsolate('ترقية المحوّل', 'ltr') === true`.
+//
+// So an Arabic entry title in an English sentence was unguarded, and 101 English
+// strings were bare: `“{title}” and its whole update thread go with it` swapped
+// its own curly quotes around an Arabic title, and `{from} → {to}` with two
+// Arabic status labels resolved the arrow into one RTL run and showed the status
+// change BACKWARDS — not a broken string, a different and entirely plausible
+// one.
+//
+// FSI, never RLI, in the en/ tree. FSI takes the direction of the value's own
+// first strong character, so a Latin value in the same slot renders exactly as
+// it did before the fence went in; the English-of-English case is untouched.
+describe.each([
+  ['ar', AR_STRINGS],
+  ['en', EN_STRINGS],
+])('%s locale tree', (_locale, STRINGS) => {
   it('reads a plausible number of strings', () => {
     // A flattener that silently returned nothing would make every assertion
     // below vacuously true.
-    expect(AR_STRINGS.length).toBeGreaterThan(500)
+    expect(STRINGS.length).toBeGreaterThan(500)
   })
 
   it('never leaves an isolate open', () => {
     // The one direction failure that escapes the string it is in: an unclosed
     // FSI reorders every character after it, to the end of the paragraph.
-    const broken = AR_STRINGS.filter(([, , v]) => !isolatesBalanced(v)).map(([, k]) => k)
+    const broken = STRINGS.filter(([, , v]) => !isolatesBalanced(v)).map(([, k]) => k)
     expect(broken).toEqual([])
   })
 
@@ -266,11 +313,11 @@ describe('ar locale tree', () => {
     // highest-frequency instance of S5b, and the one a machine can spot without
     // judgement. Fix by wrapping the token: `«⁨{title}⁩»`.
     const QUOTED = /[«»“”"']\{(\w+)\}[«»“”"']/
-    const bare = AR_STRINGS.filter(([, , v]) => QUOTED.test(v)).map(([, k, v]) => `${k} :: ${v}`)
+    const bare = STRINGS.filter(([, , v]) => QUOTED.test(v)).map(([, k, v]) => `${k} :: ${v}`)
     expect(bare).toEqual([])
   })
 
-  it('isolates every interpolation whose value can be Latin', () => {
+  it('isolates every interpolation whose value can run the other way', () => {
     // The gate the wave actually needed. `dashboard.blockedOldest` was only one
     // of twenty-two bare tokens across those two namespaces; the other
     // nineteen carry no quotes and the check above could never have seen them.
@@ -278,7 +325,7 @@ describe('ar locale tree', () => {
     // localeReach (it compares keys to source) — direction is nobody else's
     // job.
     const bare: string[] = []
-    for (const [ns, key, value] of AR_STRINGS) {
+    for (const [ns, key, value] of STRINGS) {
       if (CALLER_ISOLATES.has(ns)) continue
       for (const m of value.matchAll(/\{(\w+)\}/g)) {
         const token = m[1]
@@ -290,7 +337,14 @@ describe('ar locale tree', () => {
     }
     expect(bare.sort()).toEqual([])
   })
+})
 
+// The one check that is genuinely Arabic-only, and stays outside the shared
+// block for that reason: a literal `0–3` is a neutral between two EUROPEAN
+// numbers, which resolve LTR whatever the paragraph does. Under dir="ltr" the
+// separator therefore takes the same direction as its neighbours and the range
+// reads correctly with no fence at all. Only an RTL paragraph reverses it.
+describe('ar locale tree — literal ranges', () => {
   it('isolates every literal numeric range', () => {
     // `0–3 يوم` interpolates nothing, so no token list can reach it. The UBA
     // resolves a neutral BETWEEN two European numbers to the paragraph

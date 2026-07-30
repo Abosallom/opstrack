@@ -38,12 +38,15 @@ import {
   instantToIsoDate,
   isoWeekday,
   lastNDays,
+  MAX_ISO_YEAR,
+  MIN_ISO_YEAR,
   parseIsoDate,
   parseRelativeDate,
   toIsoDate,
   todayIso,
   weekBounds,
 } from './dates'
+import type { IsoDate } from './dates'
 import type { Locale } from './i18n'
 
 /** 2026-07-29, a WEDNESDAY — the anchor every worked example in plan §2.13 uses. */
@@ -161,6 +164,98 @@ describe('calendar primitives', () => {
     expect(daysSince(localInstant(2026, 7, 28, 23, 50), new Date(2026, 6, 29, 0, 10))).toBe(1)
     expect(daysSince(localInstant(2026, 7, 29, 8, 0), NOW)).toBe(0)
     expect(daysSince(localInstant(2026, 7, 15, 12, 0), NOW)).toBe(14)
+  })
+})
+
+// ── the year range (FIX-BACKLOG DATE-YEAR) ─────────────────────────────────
+//
+// `\d{4}` is a shape check. Every helper here used to re-enter JavaScript's
+// two-digit-year trap through `Date.UTC(y, …)` — which maps 0-99 to 1900-1999
+// exactly like `new Date(y, …)` — and none of them padded the year on the way
+// out. The four reproductions below are the auditor's, verbatim; each one is a
+// different way for a four-digit-looking year to produce a plausible wrong
+// answer, which is worse than a refusal.
+
+describe('year range and totality', () => {
+  it('rejects a year outside the supported range', () => {
+    for (const bad of [
+      '0026-08-14', // the reproduction: accepted, then arithmetic read it as 1926
+      '0000-01-01',
+      '0050-01-31',
+      '0099-06-15',
+      '1899-12-31',
+      '3000-01-01',
+    ]) {
+      expect(parseIsoDate(bad), bad).toBeNull()
+    }
+    // …and the boundaries themselves are IN.
+    expect(parseIsoDate('1900-01-01')).not.toBeNull()
+    expect(parseIsoDate('2999-12-31')).not.toBeNull()
+    expect(MIN_ISO_YEAR).toBe(1900)
+    expect(MAX_ISO_YEAR).toBe(2999)
+  })
+
+  it('never returns a string it would not accept back', () => {
+    // `addMonths('0050-01-31', -12)` returned '49-01-31': not YYYY-MM-DD, and
+    // parseIsoDate rejected this module's own output. The round trip is the
+    // invariant, so it is asserted as a round trip.
+    const cases: IsoDate[] = []
+    for (const iso of ['1900-01-01', '2026-07-29', '2999-12-31', '2028-02-29']) {
+      for (const n of [-400, -31, -1, 0, 1, 31, 400]) {
+        cases.push(addDays(iso, n), addMonths(iso, n))
+      }
+    }
+    for (const out of cases) {
+      expect(out, out).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      // Either a real date, or the argument handed back untouched — never a
+      // third thing.
+      expect(parseIsoDate(out), out).not.toBeNull()
+    }
+  })
+
+  it('hands the argument back rather than folding out of range', () => {
+    // TOTAL, and visibly so: an answer outside the range is not silently
+    // wrapped into a plausible one.
+    expect(addDays('2999-12-31', 1)).toBe('2999-12-31')
+    expect(addMonths('2999-12-31', 1)).toBe('2999-12-31')
+    expect(addDays('1900-01-01', -1)).toBe('1900-01-01')
+    expect(addMonths('1900-01-01', -1)).toBe('1900-01-01')
+    // An out-of-range ARGUMENT is unparseable and comes back verbatim, exactly
+    // like 'tomorrow' or ''.
+    expect(addDays('0026-08-14', 1)).toBe('0026-08-14') // was '1926-08-15'
+    expect(addMonths('0050-01-31', -12)).toBe('0050-01-31') // was '49-01-31'
+    expect(addDays('nonsense', 1)).toBe('nonsense')
+  })
+
+  it('refuses to measure a distance it cannot measure', () => {
+    // 9862 was the answer this returned: the gap from 1999, not from 99.
+    expect(diffDays('0099-06-15', '2026-06-15')).toBe(0)
+    expect(diffDays('2026-06-15', '0099-06-15')).toBe(0)
+    expect(diffDays('2026-06-15', '2026-06-20')).toBe(5)
+  })
+
+  it('does not let a two-digit year reach a formatter', () => {
+    // `formatDate('0026-08-14')` rendered '14/08/26' — a date that looks fine
+    // and is nineteen centuries wrong. Unparseable input is passed through
+    // verbatim on purpose: bad data must look like bad data.
+    expect(formatDate('0026-08-14', EN)).toBe('0026-08-14')
+    expect(formatDateLong('0026-08-14', EN)).toBe('0026-08-14')
+    expect(formatWeekday('0026-08-14', EN)).toBe('')
+    // `formatDue` said '36509 d overdue'.
+    expect(formatDue('0026-08-14', EN, NOW)).toBe('—')
+    expect(dueBucket('0026-08-14', NOW)).toBe('none')
+  })
+
+  it('refuses a relative offset that would leave the range', () => {
+    // `due:-9999m` is 833 years back. Returning today would file the item on a
+    // date the user never typed, with no problem chip — so this is a MISS, and
+    // the capture screen renders it red.
+    expect(rel('-9999m')).toBeNull()
+    expect(rel('+9999m')).toBe('2859-10-29')
+    expect(rel('-9999w')).toBeNull()
+    expect(rel('+9999d')).toBe('2053-12-13')
+    expect(rel('0026-08-14')).toBeNull()
+    expect(rel('14/8/1899')).toBeNull()
   })
 })
 

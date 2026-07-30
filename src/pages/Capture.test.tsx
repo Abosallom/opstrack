@@ -38,6 +38,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactElement } from 'react'
 import type { Track } from '../types'
+import { stripIsolates } from '../lib/bidi'
 
 const fx = vi.hoisted(() => {
   // lib/i18n reads localStorage at module scope. Installed in vi.hoisted because
@@ -181,6 +182,20 @@ function plainOf(html: string): string {
   return /<span class="cap-read-plain">([^<]*)<\/span>/.exec(html)?.[1] ?? ''
 }
 
+/**
+ * The markup with the four bidi isolates removed, for assertions about WORDS.
+ *
+ * The en/ locale tree fences every user-value interpolation with FSI…PDI, the
+ * same way ar/ does — the value can be Arabic whatever language the sentence is
+ * in (see lib/bidi.test.ts). Those controls are invisible and correct, and a
+ * `toContain('Creates one item in Network.')` that fails on them is asserting
+ * the fence, not the sentence. Assertions that are ABOUT direction keep reading
+ * the raw markup.
+ */
+function words(html: string): string {
+  return stripIsolates(html)
+}
+
 describe('Capture — empty', () => {
   it('mounts and offers its empty states in both languages', () => {
     const { en, ar } = bilingual('')
@@ -238,7 +253,7 @@ describe('Capture — a line that parses', () => {
   it('enables the submit control and says what Enter will do', () => {
     const { en, ar } = bilingual(LINE)
     expect(en).not.toMatch(/cap-submit"[^>]*disabled/)
-    expect(en).toContain('Creates one item in Network.')
+    expect(words(en)).toContain('Creates one item in Network.')
     expect(ar).toContain('الشبكات')
     for (const html of [en, ar]) expect(untranslated(html)).toEqual([])
   })
@@ -316,9 +331,9 @@ describe('Capture — problems', () => {
 
   it('names the duplicated FIELD in a human word, not a TokenKind', () => {
     const html = render('#pmo Kickoff deck #network !low !critical')
-    expect(html).toContain('Track was set twice')
-    expect(html).toContain('Priority was set twice')
-    expect(html).not.toContain('track was set twice')
+    expect(words(html)).toContain('Track was set twice')
+    expect(words(html)).toContain('Priority was set twice')
+    expect(words(html)).not.toContain('track was set twice')
   })
 
   it('offers a two-option picker for an ambiguous track', () => {
@@ -348,7 +363,7 @@ describe('Capture — suggested tags', () => {
 
   it('drops a suggestion the line already carries', () => {
     const html = render('#onboarding New vendor portal access +portal')
-    expect(html).toContain('Add the tag direct-integration')
+    expect(words(html)).toContain('Add the tag direct-integration')
     // `portal` is on the line, so it is a chip and no longer an offer.
     expect(html).toContain('data-kind="tag" data-ok="true"')
     expect(html).not.toContain('Add the tag portal')

@@ -18,21 +18,21 @@
     "densityComfortable": "Comfortable",
     "densityCompact": "Compact",
 
-    "column": "Column: {column}",
+    "column": "Column: ⁨{column}⁩",
     "columnCount": "{count}",
     "columnCountLabel": { "one": "{count} item", "other": "{count} items" },
-    "columnEmptyStatus": "Nothing in {column}",
-    "columnEmptyTrack": "Nothing on {column}",
+    "columnEmptyStatus": "Nothing in ⁨{column}⁩",
+    "columnEmptyTrack": "Nothing on ⁨{column}⁩",
     "columnEmptyOwner": "Nothing assigned here",
-    "columnEmptyPriority": "Nothing at {column}",
+    "columnEmptyPriority": "Nothing at ⁨{column}⁩",
     "columnEmptyHint": "Drag a card here, or add one with the + button.",
     "collapseColumn": {
-      "one": "Collapse {column} — {count} item",
-      "other": "Collapse {column} — {count} items"
+      "one": "Collapse ⁨{column}⁩ — {count} item",
+      "other": "Collapse ⁨{column}⁩ — {count} items"
     },
     "expandColumn": {
-      "one": "Expand {column} — {count} item",
-      "other": "Expand {column} — {count} items"
+      "one": "Expand ⁨{column}⁩ — {count} item",
+      "other": "Expand ⁨{column}⁩ — {count} items"
     },
     "unknownColumn": "Unknown",
 
@@ -42,11 +42,11 @@
       "other": "{count} items past their SLA in this column"
     },
 
-    "quickAdd": "Add to {column}",
+    "quickAdd": "Add to ⁨{column}⁩",
     "quickAddPlaceholder": "New item…",
     "quickAddSubmit": "Add",
     "quickAddHint": "Enter adds it and keeps this open for the next one. Esc closes.",
-    "quickAddDone": "Added “{title}” to {column}.",
+    "quickAddDone": "Added “⁨{title}⁩” to ⁨{column}⁩.",
 
     "overflowStatus": "Retired statuses",
     "overflowTrack": "Archived tracks",
@@ -54,14 +54,14 @@
     "overflowPriority": "Retired priorities",
     "overflowHint": "These still hold work, so they keep a place here — but they can't take new cards. Move items out of them.",
 
-    "moved": "“{title}” moved to {column}.",
-    "moveAnnounce": "{title}, now in {column}, position {position} of {total}.",
+    "moved": "“⁨{title}⁩” moved to ⁨{column}⁩.",
+    "moveAnnounce": "⁨{title}⁩, now in ⁨{column}⁩, position {position} of {total}.",
     "moveDisabled": "You can't move this one",
     "moveDisabledHint": "Only the person who created or owns an item can move it.",
     "errMove": "That move didn't stick — the card is back where it was.",
 
-    "grabbed": "Picked up {title}. Drag it over a column, or press Escape to cancel.",
-    "dropped": "Dropped in {column}.",
+    "grabbed": "Picked up ⁨{title}⁩. Drag it over a column, or press Escape to cancel.",
+    "dropped": "Dropped in ⁨{column}⁩.",
     "dragCancelled": "Move cancelled.",
     "dropTop": "Lands at the top",
 

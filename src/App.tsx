@@ -26,7 +26,7 @@ import { titleKeyFor } from './lib/routeTitle'
 import { startRealtime, stopRealtime } from './api/realtime'
 import { useAuth } from './store/auth'
 import { loadConfig } from './store/config'
-import { resetEntries, startEntriesRealtime } from './store/entries'
+import { loadTrackSlas, resetEntries, startEntriesRealtime } from './store/entries'
 import { loadMembers, resetMembers } from './store/members'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
 import { resetOutbox } from './store/outbox'
@@ -365,6 +365,11 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
     void loadConfig()
     void loadVocab()
     void loadMembers()
+    // The `track_slas` matrix joins them: store/entries.derive() resolves every
+    // fallback health row against it, so a screen that renders before it lands
+    // shows the workspace default and corrects itself one fetch later. Tiny
+    // table, changes only when an admin edits a track, deduped like the rest.
+    void loadTrackSlas()
     // The notification stream rides the shared channel, so the channel has to be
     // open first; both calls are idempotent, and subscribing before SUBSCRIBED
     // lands is fine — api/realtime.ts registers handlers, not sockets.

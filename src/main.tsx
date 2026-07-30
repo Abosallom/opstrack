@@ -6,11 +6,12 @@ import './styles/global.css'
 import App from './App'
 import { applyTheme } from './lib/theme'
 import { applyLocale, t } from './lib/i18n'
+import { initNative } from './lib/native'
 import { initAuth } from './store/auth'
 import { setEntriesSubmit, settleOutboxWrite } from './store/entries'
 import { setMeetingsSubmit } from './store/meetings'
 import { setNotificationsSubmit } from './store/notifications'
-import { setOutboxSettle, submit } from './store/outbox'
+import { setOutboxSettle, startOutboxSync, submit } from './store/outbox'
 import { toast } from './components/toast'
 
 // Theme and direction are applied BEFORE the first render so the very first
@@ -21,6 +22,15 @@ import { toast } from './components/toast'
 // so 'auto' keeps tracking the OS without any wiring here.)
 applyTheme()
 applyLocale()
+
+// Platform chrome for the iOS build: stamps `data-native="ios"` on <html> and
+// dismisses the launch splash now that the shell is about to paint. Every export
+// of lib/native.ts is a no-op in a browser tab and in the installed PWA, so this
+// costs a `typeof window.Capacitor` check on the web and nothing else — the
+// Capacitor plugins are behind `await import(...)` inside that module and are
+// never fetched here. applyTheme() above pushes the resolved theme at the native
+// status bar on its own, including when 'auto' flips at sunset.
+initNative()
 
 // Restores the persisted Supabase session and starts listening for auth state
 // changes. Safe to call with no credentials configured: it just settles into a
@@ -64,6 +74,19 @@ setEntriesSubmit(submit)
 setMeetingsSubmit(submit)
 setNotificationsSubmit(submit)
 setOutboxSettle(settleOutboxWrite)
+
+// Install the flush triggers — `online`, tab-visible, and the bounded backoff
+// timer — and drain whatever the last session left in `opstrack_outbox_v1`.
+//
+// This is the line that makes 'offline.queued' true. The queue itself only ever
+// sends when something asks it to, and until Wave 4 the only thing that asked
+// was the `online` event: a write that failed on a server error, a rate limit or
+// an RLS hiccup sat in the queue, invisible, until the device next transitioned
+// offline→online — which on a desktop that never leaves wifi is never.
+//
+// Not disposed of on unload: the listeners live exactly as long as the document,
+// and the returned teardown exists for tests rather than for a caller here.
+startOutboxSync()
 
 /**
  * Service worker registration with a "new version available" prompt.

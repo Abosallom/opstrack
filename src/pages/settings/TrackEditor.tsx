@@ -29,6 +29,7 @@ import { trackVars } from '../../lib/trackStyle'
 import { rovingTabIndex, useRadioGroupKeys } from '../../lib/radioGroup'
 import { t, useLocale } from '../../lib/i18n'
 import { invalidateConfig, loadConfig, useTrackMap } from '../../store/config'
+import { invalidateTrackSlas } from '../../store/entries'
 import { loadVocab, useSlaDays, useVocabLabel } from '../../store/vocab'
 import { useAuth } from '../../store/auth'
 import type { EntryPriority, Track } from '../../types'
@@ -353,20 +354,35 @@ export default function TrackEditor(): ReactElement {
    * failure stop the rest rather than half-applying a matrix.
    *
    * Returns an i18n KEY on failure, null on success.
+   *
+   * A WRITE HERE CHANGES EVERY SLA BADGE IN THE APP, so the entries store is
+   * invalidated in the `finally` — including on the partial-failure path, where
+   * some cells landed and the rest did not. store/entries holds the matrix that
+   * derive() resolves against (FIX-BACKLOG **SLA-MATRIX**); leaving it stale
+   * would mean the admin saves a new deadline and the board goes on showing the
+   * old one until the next full reload.
    */
   async function saveSlaOverrides(trackId: string): Promise<string | null> {
-    for (const priority of PRIORITIES) {
-      const next = parseSla(slaForm[priority])
-      // Guarded by slaInvalid before this runs; the check is here so a future
-      // caller cannot skip it and write `undefined` into the API.
-      if (next === undefined) continue
-      if (next === slaBaseline[priority]) continue
-      const result = await setTrackSla(trackId, priority, next)
-      if (!result.ok) return result.error
-      if (!alive.current) return null
-      setSlaBaseline((current) => ({ ...current, [priority]: next }))
+    let wrote = false
+    try {
+      for (const priority of PRIORITIES) {
+        const next = parseSla(slaForm[priority])
+        // Guarded by slaInvalid before this runs; the check is here so a future
+        // caller cannot skip it and write `undefined` into the API.
+        if (next === undefined) continue
+        if (next === slaBaseline[priority]) continue
+        const result = await setTrackSla(trackId, priority, next)
+        if (!result.ok) return result.error
+        wrote = true
+        if (!alive.current) return null
+        setSlaBaseline((current) => ({ ...current, [priority]: next }))
+      }
+      return null
+    } finally {
+      // Not awaited and not gated on `alive`: the store outlives this screen and
+      // the refetch has to happen whether or not the admin navigated away.
+      if (wrote) void invalidateTrackSlas()
     }
-    return null
   }
 
   async function save(): Promise<void> {

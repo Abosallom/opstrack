@@ -12,7 +12,7 @@
     "languageAr": "العربية",
     "languageHint": "Applies everywhere, including reports.",
     "account": "Account",
-    "signedInAs": "Signed in as {email}",
+    "signedInAs": "Signed in as ⁨{email}⁩",
     "role": "Role",
     "roleAdmin": "Admin",
     "roleMember": "Member",

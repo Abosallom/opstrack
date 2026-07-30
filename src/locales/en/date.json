@@ -16,7 +16,7 @@
     "hoursShort": "{count}h",
     "overdueByDays": "{count} d overdue",
     "dueInDays": "due in {count} d",
-    "weekStart": "Week of {from}",
+    "weekStart": "Week of ⁨{from}⁩",
     "rangeSep": "–"
   }
 }

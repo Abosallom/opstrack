@@ -143,7 +143,10 @@ const fx = vi.hoisted(() => {
     loading: boolean
     error: string | null
     truncated: boolean
-    slaResult: { ok: true; data: unknown[] } | { ok: false; error: string }
+    /** The matrix now comes from store/entries, not a private fetch — see the
+     *  Dashboard header and FIX-BACKLOG SLA-MATRIX. */
+    slaMatrix: ReadonlyMap<string, number> | null
+    slaMatrixError: string | null
   } = {
     entries,
     health: new Map([
@@ -157,7 +160,8 @@ const fx = vi.hoisted(() => {
     loading: false,
     error: null,
     truncated: false,
-    slaResult: { ok: true, data: [] },
+    slaMatrix: null,
+    slaMatrixError: null,
   }
 
   return { at, entry, health, entries, net, inf, members, counts, state, mem }
@@ -177,7 +181,10 @@ vi.mock('../store/entries', () => ({
   countEntries: () => fx.counts,
   loadEntries: () => Promise.resolve(),
   loadClosedSince: () => Promise.resolve(),
+  loadTrackSlas: () => Promise.resolve(),
   refreshEntries: () => Promise.resolve(),
+  useTrackSlaMatrix: () => fx.state.slaMatrix,
+  useTrackSlaError: () => fx.state.slaMatrixError,
 }))
 
 vi.mock('../store/vocab', () => {
@@ -223,10 +230,6 @@ vi.mock('../store/members', () => ({
 vi.mock('../store/config', () => ({
   useTrackMap: () => new Map([fx.net, fx.inf].map((tr) => [tr.id, tr])),
   useActiveTracks: () => [fx.net, fx.inf],
-}))
-
-vi.mock('../api/tracks', () => ({
-  listTrackSlas: () => Promise.resolve(fx.state.slaResult),
 }))
 
 const { MemoryRouter } = await import('react-router-dom')
@@ -456,5 +459,15 @@ describe('Dashboard — states', () => {
     const html = render()
     expect(html).toContain('class="skeleton"')
     expect(html).not.toContain('cht-svg')
+  })
+
+  // The matrix moved into store/entries (FIX-BACKLOG SLA-MATRIX) so that this
+  // screen and every list resolve the same track × priority answer. The note is
+  // how a reader learns the compliance figure was computed against the
+  // workspace default rather than the track's actual commitment.
+  it('caveats compliance when the SLA matrix could not be read', () => {
+    expect(render()).not.toContain(esc(t('dashboard.slaMatrixFailed')))
+    fx.state.slaMatrixError = 'common.error'
+    expect(render()).toContain(esc(t('dashboard.slaMatrixFailed')))
   })
 })

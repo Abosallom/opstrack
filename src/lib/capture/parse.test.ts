@@ -329,6 +329,85 @@ describe('token kinds', () => {
     }
   })
 
+  // REGRESSION — FIX-BACKLOG PARSE-PUNCT.
+  //
+  // The quoted-empty guard tested HAS_WORD_CHAR rather than emptiness, so a
+  // quoted value made only of punctuation or emoji took the 'unknown' path:
+  // consumed, no field set, NO PROBLEM. `Fix #"---" now` was stored as
+  // "Fix now" — typed text deleted in silence, the one thing this module
+  // promises never to do.
+  //
+  // The fix is not "put the text back in the title": the user quoted a value
+  // after a sigil, and that is a value. What must be true is that it lands
+  // SOMEWHERE VISIBLE — a red chip for a closed vocabulary, a filled field for
+  // an open one — and never nowhere.
+  it('a punctuation-only QUOTED value is a value, not an empty quote', () => {
+    const track = run('Fix #"---" now')
+    expect(track.title).toBe('Fix now')
+    expect(track.trackId).toBeNull()
+    expect(problemKeys(track)).toEqual([PROBLEM_KEYS.trackUnknown])
+    expect(track.tokens[0]?.kind).toBe('track')
+    expect(track.tokens[0]?.ok).toBe(false)
+
+    const tag = run('Fix +"***" now')
+    expect(tag.title).toBe('Fix now')
+    expect(tag.tags).toEqual(['***']) // a visible chip, not a silent deletion
+
+    const owner = run('Fix @"???" now')
+    expect(owner.title).toBe('Fix now')
+    expect(owner.ownerName).toBe('???')
+    expect(problemKeys(owner)).toEqual([PROBLEM_KEYS.newOwner])
+
+    // Emoji are letters to nobody and values to everybody. Same rule.
+    const emoji = run('Fix #"🔥" now')
+    expect(problemKeys(emoji)).toEqual([PROBLEM_KEYS.trackUnknown])
+
+    // …and the genuinely EMPTY quote still takes the 'unknown' path, unchanged.
+    const empty = run('Fix #"" bar')
+    expect(empty.tokens[0]?.kind).toBe('unknown')
+    expect(problemKeys(empty)).toEqual([])
+  })
+
+  // REGRESSION — FIX-BACKLOG PARSE-ESCAPE.
+  //
+  // ESCAPED_SIGIL_RE covered the five sigil CHARACTERS and none of the keyed
+  // prefixes, so `capture.hintEscape`'s promised workaround did not exist for
+  // half the grammar: `Restore \D:\backup` shipped the backslash to the
+  // database. The escape table is now derived from the token tables, so the two
+  // cannot drift apart again.
+  it('the escape covers every sigil the parser recognises, keyed prefixes included', () => {
+    for (const [input, title] of [
+      ['a \\#network b', 'a #network b'],
+      ['a \\@ahmed b', 'a @ahmed b'],
+      ['a \\!high b', 'a !high b'],
+      ['a \\+portal b', 'a +portal b'],
+      ['a \\/issue b', 'a /issue b'],
+      ['a \\due:thu b', 'a due:thu b'],
+      ['a \\d:thu b', 'a d:thu b'],
+      ['a \\fu:thu b', 'a fu:thu b'],
+      ['a \\f:thu b', 'a f:thu b'],
+      ['a \\every:daily b', 'a every:daily b'],
+      ['a \\ev:daily b', 'a ev:daily b'],
+      // KEYED_RE is case-insensitive, so the escape has to be too — otherwise
+      // `\DUE:` suppresses the token and keeps the backslash.
+      ['a \\DUE:thu b', 'a DUE:thu b'],
+      ['Restore \\D:\\backup', 'Restore D:\\backup'],
+    ] as const) {
+      const p = run(input)
+      expect(p.title, input).toBe(title)
+      expect(p.tokens, input).toHaveLength(0)
+      expect(problemKeys(p), input).toEqual([])
+      expect(p.dueDate, input).toBeNull()
+      expect(p.recurrence, input).toBeNull()
+    }
+  })
+
+  it('leaves a backslash that escapes nothing the parser recognises', () => {
+    // `\b` is not an escape here, and inventing one would eat a Windows path's
+    // separators. Only the documented sigils are consumed.
+    expect(run('C:\\backup\\data').title).toBe('C:\\backup\\data')
+  })
+
   it('a backslash escapes a sigil to a literal', () => {
     expect(run(String.raw`Ship \#hashtag please`).title).toBe('Ship #hashtag please')
     expect(run(String.raw`Ship \#hashtag please`).trackId).toBeNull()

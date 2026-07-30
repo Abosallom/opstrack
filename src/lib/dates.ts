@@ -74,6 +74,44 @@ const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 
 const MS_PER_DAY = 86_400_000
 
+/**
+ * THE YEAR RANGE, AND WHY THERE IS ONE.
+ *
+ * `\d{4}` is a shape check, not a sanity check, and every helper below used to
+ * re-enter JavaScript's two-digit-year trap through `Date.UTC(y, …)` — which,
+ * exactly like `new Date(y, …)`, maps 0-99 to 1900-1999. The consequences were
+ * not theoretical (FIX-BACKLOG **DATE-YEAR**, reproduced verbatim):
+ *
+ *   parseIsoDate('0026-08-14')            → accepted, and `due:0026-08-14`
+ *                                           parsed clean with no problem chip
+ *   addDays('0026-08-14', 1)              → '1926-08-15'   (19 centuries)
+ *   addMonths('0050-01-31', -12)          → '49-01-31'     (not YYYY-MM-DD —
+ *                                           parseIsoDate then REJECTS its own
+ *                                           module's output)
+ *   diffDays('0099-06-15', '2026-06-15')  → 9862           (should be ~703k)
+ *
+ * The last one is the reason a range beats a pad4-everywhere fix on its own: a
+ * total function that returns a *wrong number* is worse than one that refuses.
+ * So the range is enforced at the ONE door — parseIsoDate — and every helper
+ * routes through it, which makes "this string is a date this app can reason
+ * about" a single decision instead of six.
+ *
+ * 1900-2999 rather than something tighter: `instantToIsoDate(0)` is legitimately
+ * 1970, Postgres `date` reaches far past either end, and the job here is to
+ * reject the two failure modes that actually occur — a mis-typed or mis-migrated
+ * two-digit year read as four (`0026`), and arithmetic overflowing into five
+ * digits (`10000-01-01`, which no consumer can parse back). A due date in 1899
+ * or 3000 is data corruption in an operations tracker, and corruption should
+ * render as itself (formatDate passes an unparseable string through verbatim)
+ * rather than as a plausible wrong date.
+ */
+export const MIN_ISO_YEAR = 1900
+export const MAX_ISO_YEAR = 2999
+
+function inYearRange(year: number): boolean {
+  return Number.isInteger(year) && year >= MIN_ISO_YEAR && year <= MAX_ISO_YEAR
+}
+
 const EM_DASH = '—'
 
 // ── locale strings ─────────────────────────────────────────────────────────
@@ -153,8 +191,43 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n)
 }
 
+/**
+ * Four-digit year, ALWAYS — the half of `YYYY-MM-DD` that was being assumed
+ * rather than produced.
+ *
+ * `addMonths('0050-01-31', -12)` returned the string `'49-01-31'`, which is not
+ * an ISO date, does not sort with one, and is rejected by this module's own
+ * parseIsoDate. Every string this file emits goes through here or through a
+ * helper that does.
+ */
+function pad4(n: number): string {
+  const abs = Math.abs(n)
+  const digits = abs < 10 ? `000${abs}` : abs < 100 ? `00${abs}` : abs < 1000 ? `0${abs}` : String(abs)
+  return n < 0 ? `-${digits}` : digits
+}
+
+/**
+ * A UTC midnight with NO two-digit-year special case.
+ *
+ * `Date.UTC(26, 7, 14)` is 1926, identically to `new Date(26, 7, 14)`, and that
+ * is what every arithmetic helper below used to call. `setUTCFullYear` is the
+ * only constructor in the language that takes the year literally, so it is the
+ * only one this module uses for arithmetic.
+ */
+function utcMs(year: number, monthIndex: number, day: number): number {
+  const d = new Date(0)
+  d.setUTCFullYear(year, monthIndex, day)
+  d.setUTCHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+/** Days in a month, year-safe (see utcMs). Day 0 is the previous month's last. */
+function daysInMonth(year: number, monthIndex: number): number {
+  return new Date(utcMs(year, monthIndex + 1, 0)).getUTCDate()
+}
+
 export function toIsoDate(d: Date): IsoDate {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  return `${pad4(d.getFullYear())}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
 export function todayIso(now: Date = new Date()): IsoDate {
@@ -168,6 +241,11 @@ export function todayIso(now: Date = new Date()): IsoDate {
  * Aug 13 west of Greenwich, and `new Date('14/8/2026')` is a browser-specific
  * coin flip — so neither is used. The round-trip check at the end is what
  * rejects 2026-02-30, which the Date constructor would silently roll to Mar 2.
+ *
+ * THE YEAR-RANGE GATE IS HERE AND NOWHERE ELSE. Everything in this module that
+ * takes an IsoDate calls this first, so refusing an out-of-range year once is
+ * what makes addDays, addMonths, diffDays, endOfMonth, every formatter and
+ * parseRelativeDate's ISO branch total in one move. See MIN_ISO_YEAR.
  */
 export function parseIsoDate(str: string | null | undefined): Date | null {
   if (typeof str !== 'string') return null
@@ -176,14 +254,54 @@ export function parseIsoDate(str: string | null | undefined): Date | null {
   const year = Number(m[1])
   const month = Number(m[2])
   const day = Number(m[3])
+  if (!inYearRange(year)) return null
   if (month < 1 || month > 12 || day < 1 || day > 31) return null
   const d = new Date(year, month - 1, day)
   d.setHours(0, 0, 0, 0)
   // setFullYear, not the constructor's two-digit-year special case: `new
-  // Date(26, 0, 1)` is 1926 and would round-trip clean without this.
+  // Date(26, 0, 1)` is 1926. Unreachable now that the range gate above refuses
+  // anything under 1900, and kept because the gate and the constructor are two
+  // separate decisions — a future range that reaches lower must not silently
+  // reintroduce the trap.
   d.setFullYear(year)
   if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null
   return d
+}
+
+/**
+ * addDays / addMonths, but null when the answer would leave the supported year
+ * range instead of quietly folding back into it.
+ *
+ * TWO CALLERS, TWO DIFFERENT RIGHT ANSWERS, which is the whole reason these are
+ * split out. The public addDays/addMonths promise an IsoDate and are called from
+ * render paths, so they degrade to the input — the same rule they already used
+ * for an unparseable argument. parseRelativeDate is answering "did the user type
+ * a date?", and there the honest answer to `due:-9999m` is NO: returning today
+ * would silently file the item on a date nobody typed, and the capture screen
+ * has a red chip for exactly this.
+ */
+function shiftDays(iso: IsoDate, n: number): IsoDate | null {
+  const d = parseIsoDate(iso)
+  if (!d || !Number.isFinite(n)) return null
+  const out = new Date(utcMs(d.getFullYear(), d.getMonth(), d.getDate()) + n * MS_PER_DAY)
+  const year = out.getUTCFullYear()
+  if (!inYearRange(year)) return null
+  return `${pad4(year)}-${pad2(out.getUTCMonth() + 1)}-${pad2(out.getUTCDate())}`
+}
+
+function shiftMonths(iso: IsoDate, n: number): IsoDate | null {
+  const d = parseIsoDate(iso)
+  if (!d || !Number.isFinite(n)) return null
+  const month = d.getMonth() + Math.trunc(n)
+  const targetYear = d.getFullYear() + Math.floor(month / 12)
+  const targetMonth = ((month % 12) + 12) % 12
+  if (!inYearRange(targetYear)) return null
+  // CLAMPED to the target month's length: Jan 31 + 1 month is Feb 28 (or 29),
+  // never Mar 3. The clamp is what makes a monthly recurrence anchored on the
+  // 31st behave — the naive version silently migrates such a template to the
+  // 3rd of March and then to the 3rd of every following month.
+  const day = Math.min(d.getDate(), daysInMonth(targetYear, targetMonth))
+  return `${pad4(targetYear)}-${pad2(targetMonth + 1)}-${pad2(day)}`
 }
 
 /**
@@ -193,45 +311,34 @@ export function parseIsoDate(str: string | null | undefined): Date | null {
  * `setDate(getDate() + 1)` across a spring-forward boundary can land on the
  * same calendar day in a zone with a 23-hour day. The result is converted back
  * through local components, so the returned string is still a local calendar
- * date. An unparseable input is returned verbatim — a formatter that mangles
- * bad data into a plausible-looking date is worse than one that passes it
- * through visibly.
+ * date. An unparseable input — which now includes an out-of-range year, and an
+ * in-range one whose answer would fall outside it — is returned verbatim: a
+ * formatter that mangles bad data into a plausible-looking date is worse than
+ * one that passes it through visibly.
+ *
+ * TOTAL: the return value is always either a well-formed `YYYY-MM-DD` inside the
+ * supported range or, byte for byte, the argument. It is never a third thing,
+ * which is what `'1926-08-15'` and `'49-01-31'` both were.
  */
 export function addDays(iso: IsoDate, n: number): IsoDate {
-  const d = parseIsoDate(iso)
-  if (!d) return iso
-  const anchor = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) + n * MS_PER_DAY
-  const out = new Date(anchor)
-  return `${out.getUTCFullYear()}-${pad2(out.getUTCMonth() + 1)}-${pad2(out.getUTCDate())}`
+  return shiftDays(iso, n) ?? iso
 }
 
 /**
- * Months added, CLAMPED to the target month's length: Jan 31 + 1 month is
- * Feb 28 (or 29), never Mar 3.
- *
- * The clamp is what makes a monthly recurrence anchored on the 31st behave —
- * the naive version silently migrates such a template to the 3rd of March and
- * then to the 3rd of every following month.
+ * Months added, clamped to the target month's length. Same totality contract as
+ * addDays — see shiftMonths for the clamp and shiftDays for the contract.
  */
 export function addMonths(iso: IsoDate, n: number): IsoDate {
-  const d = parseIsoDate(iso)
-  if (!d) return iso
-  const year = d.getFullYear()
-  const month = d.getMonth() + n
-  const targetYear = year + Math.floor(month / 12)
-  const targetMonth = ((month % 12) + 12) % 12
-  const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate()
-  const day = Math.min(d.getDate(), lastDay)
-  return `${targetYear}-${pad2(targetMonth + 1)}-${pad2(day)}`
+  return shiftMonths(iso, n) ?? iso
 }
 
-/** `b - a`, in whole days. 0 when either side is unparseable. */
+/** `b - a`, in whole days. 0 when either side is unparseable OR out of range. */
 export function diffDays(a: IsoDate, b: IsoDate): number {
   const from = parseIsoDate(a)
   const to = parseIsoDate(b)
   if (!from || !to) return 0
-  const fromUtc = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate())
-  const toUtc = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate())
+  const fromUtc = utcMs(from.getFullYear(), from.getMonth(), from.getDate())
+  const toUtc = utcMs(to.getFullYear(), to.getMonth(), to.getDate())
   return Math.round((toUtc - fromUtc) / MS_PER_DAY)
 }
 
@@ -376,9 +483,13 @@ export function parseRelativeDate(input: string, o: RelativeDateOptions): IsoDat
   if (offset) {
     const sign = offset[1] === '-' ? -1 : 1
     const n = sign * Number(offset[2])
-    if (offset[3] === 'd') return addDays(today, n)
-    if (offset[3] === 'w') return addDays(today, n * 7)
-    return addMonths(today, n)
+    // shiftDays/shiftMonths, not addDays/addMonths: `+9999m` is 833 years and
+    // this function's contract is "null on no match". The public helpers return
+    // the input on overflow, which here would mean `due:-9999m` resolving to
+    // TODAY — a date the user never typed, filed with no problem chip.
+    if (offset[3] === 'd') return shiftDays(today, n)
+    if (offset[3] === 'w') return shiftDays(today, n * 7)
+    return shiftMonths(today, n)
   }
 
   // ISO first: it is the only unambiguous written form and the one the DB uses.
@@ -405,8 +516,8 @@ export function parseRelativeDate(input: string, o: RelativeDateOptions): IsoDat
 function endOfMonth(iso: IsoDate): IsoDate {
   const d = parseIsoDate(iso)
   if (!d) return iso
-  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(last)}`
+  const last = daysInMonth(d.getFullYear(), d.getMonth())
+  return `${pad4(d.getFullYear())}-${pad2(d.getMonth() + 1)}-${pad2(last)}`
 }
 
 // ── ranges and buckets ─────────────────────────────────────────────────────

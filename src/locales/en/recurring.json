@@ -50,8 +50,8 @@
 
     "firstRun": "First run",
     "firstRunHint": "The day the first item is created. Everything after it follows the cadence.",
-    "clamped": "That day has already passed, so the first run moved forward to {date} — same rhythm, no backdated items.",
-    "alignPrompt": "The first run is a {from}. Move it to {date} so it starts on a {target}?",
+    "clamped": "That day has already passed, so the first run moved forward to ⁨{date}⁩ — same rhythm, no backdated items.",
+    "alignPrompt": "The first run is a ⁨{from}⁩. Move it to ⁨{date}⁩ so it starts on a ⁨{target}⁩?",
     "alignApply": "Move the first run",
 
     "leadDays": "Due this many days after it appears",
@@ -59,7 +59,7 @@
 
     "previewTitle": "Next runs",
     "previewHint": "Left: the day the item is created. Right: the day it is due.",
-    "previewDue": "due {date}",
+    "previewDue": "due ⁨{date}⁩",
     "previewSameDay": "due that day",
     "previewNone": "Pick a valid first run to preview the schedule.",
 
@@ -85,8 +85,8 @@
     },
     "behindBody": "The next pass will create every one of them. Skip ahead to keep only the next run.",
     "behindCapped": "One pass creates at most {cap} items, so a long gap catches up over several days.",
-    "skipAhead": "Skip to {date}",
-    "skippedToast": "Next run moved to {date}.",
+    "skipAhead": "Skip to ⁨{date}⁩",
+    "skippedToast": "Next run moved to ⁨{date}⁩.",
     "skipNothingToast": "Nothing to skip — this one isn't behind.",
 
     "runNow": "Run now",

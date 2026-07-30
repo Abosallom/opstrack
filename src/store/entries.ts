@@ -52,12 +52,19 @@ import {
   updateEntry as apiUpdateEntry,
 } from '../api/entries'
 import { onRealtimeBatch, onRealtimeResync } from '../api/realtime'
+import { listTrackSlas } from '../api/tracks'
 import { fail } from '../api/result'
 import { supabase } from '../api/supabase'
 import { TEMP_PREFIX, isTempId } from './outbox'
 import { useAuth } from './auth'
 import { getVocabSnapshot, slaDays, staleDays } from './vocab'
-import { CLOSED_STATUSES, computeHealth } from '../lib/health'
+import {
+  CLOSED_STATUSES,
+  buildTrackSlaMap,
+  computeHealth,
+  resolveSlaDays,
+  type TrackSlaMap,
+} from '../lib/health'
 import { selectEntries, filterKey } from '../lib/entryFilter'
 import { todayIso, addDays } from '../lib/dates'
 import { t } from '../lib/i18n'
@@ -166,6 +173,28 @@ interface EntriesState {
    *  optimistic and offline rows, which have no view row and would otherwise be
    *  invisible to every section and badge in the app. */
   health: Map<string, EntryHealth>
+  /**
+   * The `track_slas` matrix (0006), or null before it has loaded / after a
+   * failed read.
+   *
+   * IT LIVES IN THIS STORE BECAUSE derive() NEEDS IT. `v_entry_health` resolves
+   * `coalesce(ts.sla_days, vp.sla_days)`; the client fallback fed computeHealth
+   * the PRIORITY DEFAULT, so the first row an admin wrote into `track_slas` made
+   * every optimistic, offline and temp row disagree with the server and flip on
+   * settle (FIX-BACKLOG **SLA-MATRIX**). Dashboard had grown a second, private
+   * fetch of the same table to avoid inheriting the bug, which is how the board
+   * and the dashboard came to hold two different answers to one question.
+   *
+   * Null is a VALUE meaning "no overrides", not a missing answer —
+   * resolveSlaDays() treats it as "the workspace default applies", which is the
+   * safe direction: a screen shows a slightly-too-generous deadline for a beat
+   * rather than inventing a breach.
+   */
+  slaMatrix: TrackSlaMap | null
+  /** i18n key from a failed matrix read. Surfaced by the dashboard's compliance
+   *  panel, because a number computed against the wrong commitment must not look
+   *  identical to one computed against the right one. */
+  slaMatrixError: string | null
   /** Per entry, created_at asc, lazily loaded. */
   updates: Map<string, EntryUpdate[]>
   updatesLoading: Set<string>
@@ -344,7 +373,7 @@ function byActivityDesc(a: Entry, b: Entry): number {
  * sides come from the same column through the same client, so the timestamps are
  * byte-identical whenever they are genuinely the same.
  */
-function healthMatches(h: EntryHealth | undefined, e: Entry): boolean {
+export function healthMatches(h: EntryHealth | undefined, e: Entry): boolean {
   return (
     h !== undefined &&
     h.last_activity_at === e.last_activity_at &&
@@ -374,6 +403,7 @@ function healthMatches(h: EntryHealth | undefined, e: Entry): boolean {
 function derive(
   byId: Map<string, Entry>,
   serverHealth: Map<string, EntryHealth>,
+  slaMatrix: TrackSlaMap | null,
 ): Pick<EntriesState, 'list' | 'health'> {
   const list = [...byId.values()].sort(byActivityDesc)
 
@@ -391,7 +421,17 @@ function derive(
   for (const entry of stale) {
     health.set(
       entry.id,
-      computeHealth(entry, staleDays(snapshot, entry.priority), slaDays(snapshot, entry.priority)),
+      computeHealth(
+        entry,
+        staleDays(snapshot, entry.priority),
+        // resolveSlaDays(), NOT slaDays() — the third argument is the entry's
+        // RESOLVED track × priority SLA, which is what lib/health.computeHealth
+        // documents and what `coalesce(ts.sla_days, vp.sla_days)` in
+        // v_entry_health computes. Passing the priority default here meant the
+        // client mirror and the authoritative view disagreed for every entry on
+        // a track with an override — see `slaMatrix`.
+        resolveSlaDays(entry.track_id, entry.priority, slaMatrix, slaDays(snapshot, entry.priority)),
+      ),
     )
   }
   return { list, health }
@@ -476,6 +516,8 @@ function initialState(): EntriesState {
     list: [...byId.values()].sort(byActivityDesc),
     health: serverHealth,
     serverHealth,
+    slaMatrix: null,
+    slaMatrixError: null,
     updates: new Map(),
     updatesLoading: new Set(),
     updatesError: new Map(),
@@ -529,7 +571,17 @@ function commit(byId: Map<string, Entry>, serverHealth: Map<string, EntryHealth>
     stagedDirty = true
     return
   }
-  useEntriesStore.setState({ byId, serverHealth, ...derive(byId, serverHealth), ...rest })
+  // The matrix is state, so a commit that also carries a new one must derive
+  // against the NEW value — `rest` is applied after derive()'s result and would
+  // otherwise leave `health` computed against the previous matrix.
+  const slaMatrix =
+    rest.slaMatrix !== undefined ? rest.slaMatrix : useEntriesStore.getState().slaMatrix
+  useEntriesStore.setState({
+    byId,
+    serverHealth,
+    ...derive(byId, serverHealth, slaMatrix),
+    ...rest,
+  })
   scheduleCacheWrite()
 }
 
@@ -558,6 +610,24 @@ export function useEntriesError(): string | null {
 
 export function useEntriesCoverage(): EntriesCoverage {
   return useEntriesStore((s) => s.coverage)
+}
+
+/**
+ * The track × priority SLA matrix, and whether reading it failed.
+ *
+ * TWO NARROW SELECTORS, NOT ONE OBJECT: a hook returning `{ matrix, error }`
+ * mints a fresh object every render, which under useSyncExternalStore is "the
+ * snapshot changed" forever — this file's header opens with that hazard. The
+ * dashboard reads both; every other screen reads neither, because it consumes
+ * the already-resolved `health` map.
+ */
+export function useTrackSlaMatrix(): TrackSlaMap | null {
+  return useEntriesStore((s) => s.slaMatrix)
+}
+
+/** An i18n KEY, or null. */
+export function useTrackSlaError(): string | null {
+  return useEntriesStore((s) => s.slaMatrixError)
 }
 
 /**
@@ -936,6 +1006,80 @@ export function refreshEntries(): Promise<void> {
   return loadEntries(true)
 }
 
+// ── the SLA matrix ─────────────────────────────────────────────────────────
+
+let slaInFlight: Promise<void> | null = null
+let slaLoaded = false
+
+/**
+ * Fetch `track_slas` and re-derive every health row against it.
+ *
+ * SEPARATE FROM loadEntries() on purpose. It is a small admin-configured table
+ * with a completely different lifetime from the working set: it changes when an
+ * admin edits a track, not when work happens, so pulling it on every focus
+ * refetch would be a request per tab switch for data that is almost never
+ * different. The Shell warms it once alongside config/vocab/members;
+ * TrackEditor invalidates it after a write.
+ *
+ * A FAILED READ IS NOT A FAILED LOAD, and specifically does not clear a matrix
+ * already held: resolveSlaDays() reads null as "no overrides", so dropping a
+ * good matrix on one bad response would silently relax every deadline on screen.
+ * The error key is recorded so the compliance panel can say the number is
+ * provisional.
+ *
+ * IT IS ALSO NOT A LOAD FOR DEDUPE PURPOSES. `slaLoaded` is the latch that makes
+ * this idempotent, and setting it on a failure meant one transient error retired
+ * the read for the life of the tab: the Shell warm-up and Dashboard's mount
+ * effect both short-circuited, `slaMatrix` stayed null, and every SLA badge and
+ * the compliance chart quietly fell back to the priority default — a
+ * too-generous deadline shown with no indication it was a guess, and no path
+ * back short of a reload. The latch is now only set on a response we actually
+ * kept, so the next mount retries.
+ *
+ * Deduped and idempotent exactly like loadEntries(), because four screens mount
+ * at once on a cold start.
+ */
+export function loadTrackSlas(force = false): Promise<void> {
+  if (slaInFlight) return slaInFlight
+  if (!force && slaLoaded) return Promise.resolve()
+
+  slaInFlight = listTrackSlas()
+    .then((result) => {
+      const st = useEntriesStore.getState()
+      if (!result.ok) {
+        useEntriesStore.setState({ slaMatrixError: result.error })
+        return
+      }
+      slaLoaded = true
+      // buildTrackSlaMap() mints a fresh Map, which is why it runs HERE and
+      // never in a selector — see its own header.
+      const slaMatrix = buildTrackSlaMap(result.data)
+      useEntriesStore.setState({
+        slaMatrix,
+        slaMatrixError: null,
+        // Re-derive: every fallback health row on screen was computed against
+        // the previous matrix, and this is the moment they stop being right.
+        ...derive(st.byId, st.serverHealth, slaMatrix),
+      })
+    })
+    .catch(() => {
+      // listTrackSlas() returns an ApiResult and does not reject; this is the
+      // belt for a transport that throws before the wrapper sees it. No latch
+      // here either — a transport that threw is exactly a read worth retrying.
+      useEntriesStore.setState({ slaMatrixError: 'common.error' })
+    })
+    .finally(() => {
+      slaInFlight = null
+    })
+
+  return slaInFlight
+}
+
+/** After an admin writes `track_slas`. Refetches and re-derives. */
+export function invalidateTrackSlas(): Promise<void> {
+  return loadTrackSlas(true)
+}
+
 export function invalidateEntries(): void {
   const st = useEntriesStore.getState()
   useEntriesStore.setState({ coverage: { ...st.coverage, loadedAt: null } })
@@ -951,6 +1095,11 @@ export function resetEntries(): void {
   stopFlashSweep()
   updatesInFlight.clear()
   inFlight = null
+  // The matrix is workspace-wide, not per-user, but `slaLoaded` is a dedupe
+  // latch and leaving it set would mean the next account in this tab never
+  // fetches — the empty matrix it inherits would then read as "no overrides".
+  slaInFlight = null
+  slaLoaded = false
   // Both are keyed by entry id and both outlive a single call, so the next
   // account in this tab would inherit them: a busy badge that never clears, and
   // a stashed row RLS would never have handed the new user.
@@ -967,6 +1116,8 @@ export function resetEntries(): void {
     list: [],
     serverHealth: new Map(),
     health: new Map(),
+    slaMatrix: null,
+    slaMatrixError: null,
     updates: new Map(),
     updatesLoading: new Set(),
     updatesError: new Map(),
@@ -1098,9 +1249,33 @@ export function getEntriesSnapshot(): {
   pending: ReadonlyMap<string, PendingOp>
   updates: ReadonlyMap<string, EntryUpdate[]>
   health: ReadonlyMap<string, EntryHealth>
+  slaMatrix: TrackSlaMap | null
 } {
   const st = useEntriesStore.getState()
-  return { byId: st.byId, pending: st.pending, updates: st.updates, health: st.health }
+  return {
+    byId: st.byId,
+    pending: st.pending,
+    updates: st.updates,
+    health: st.health,
+    slaMatrix: st.slaMatrix,
+  }
+}
+
+/**
+ * The snapshot getter's other half: notify me when the store changes.
+ *
+ * Exists so §2.14's frozen rule — "a meeting bulk-commit of 20 rows produces one
+ * setState, not twenty" — is a COUNTABLE assertion rather than a comment. That
+ * rule and the whole `staged`/`stagedDirty`/`finally` machinery under it shipped
+ * with no test (FIX-BACKLOG **BATCH-SETSTATE**), and there is no way to count
+ * notifications from outside a store that exposes only a getter.
+ *
+ * Returns zustand's own unsubscribe. Fires once per setState, which is exactly
+ * the quantity being measured — do NOT reach for this to build a React
+ * subscription; the narrow hooks above already do that correctly.
+ */
+export function subscribeEntries(listener: () => void): () => void {
+  return useEntriesStore.subscribe(listener)
 }
 
 /** Copy one column across. A generic key parameter is the only shape TypeScript

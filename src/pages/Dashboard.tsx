@@ -17,14 +17,14 @@
 // descriptions — mixing a windowed and an instantaneous number under one
 // heading is how a "12" in one card fails to reconcile with a "9" in the next.
 //
-// THE SLA MATRIX IS LOADED HERE, AND THAT IS A KNOWN SEAM (FIX-BACKLOG S3a).
-// `track_slas` (migration 0006) is the track half of the SLA, and nothing in
-// `store/**` holds it — `store/entries.derive()` still feeds computeHealth the
-// PRIORITY DEFAULT, so `EntryHealth.sla_breached` is wrong the moment an admin
-// sets a track override. Compliance may not inherit that bug, so this screen
-// fetches the matrix itself through `api/tracks.listTrackSlas()` and resolves
-// per entry. When a store finally owns the matrix, delete `useTrackSlaMatrix()`
-// below and read it from there; nothing else here changes. See the handoff.
+// THE SLA MATRIX COMES FROM store/entries, AND THAT SEAM IS NOW CLOSED.
+// `track_slas` (migration 0006) is the track half of the SLA. This screen used
+// to fetch it privately, because `store/entries.derive()` fed computeHealth the
+// PRIORITY DEFAULT and compliance could not inherit that bug — which left the
+// board and the dashboard holding two different answers to one question, the
+// moment an admin wrote the first override. The store owns the matrix now
+// (FIX-BACKLOG **SLA-MATRIX**), so both read the same Map from the same fetch
+// and `useTrackSlaMatrix()` here is a selector, not a loader.
 //
 // WHY IT CANNOT JUST READ `sla_breached` ANYWAY: the view returns no row for a
 // closed entry and computeHealth() collapses one to the calm shape, so both
@@ -51,7 +51,6 @@ import {
 } from '../components/charts'
 import { IconChart } from '../components/icons'
 import { EmptyState } from '../components/shared'
-import { listTrackSlas } from '../api/tracks'
 import {
   agingHistogram,
   loadPerOwner,
@@ -62,7 +61,6 @@ import {
   type AgeBasis,
 } from '../lib/aggregate'
 import { addDays, formatDateRange, todayIso, weekBounds } from '../lib/dates'
-import { buildTrackSlaMap, type TrackSlaMap } from '../lib/health'
 import { EMPTY_FILTER, type FilterState } from '../lib/entryFilter'
 import { t, useLocale } from '../lib/i18n'
 import { useTrackLabel } from '../lib/labels'
@@ -72,6 +70,7 @@ import {
   countEntries,
   loadClosedSince,
   loadEntries,
+  loadTrackSlas,
   refreshEntries,
   useEntriesError,
   useEntriesLoading,
@@ -80,6 +79,8 @@ import {
   useFilterContext,
   useFilteredEntries,
   useHealthMap,
+  useTrackSlaError,
+  useTrackSlaMatrix,
 } from '../store/entries'
 import { memberLabel, useMemberMap } from '../store/members'
 import { useSlaDays, useVocabLabel } from '../store/vocab'
@@ -115,46 +116,6 @@ let basisPref: AgeBasis = 'created'
 /** Nothing loads threads on this screen; an empty map is the honest input. */
 const NO_UPDATES: ReadonlyMap<string, EntryUpdate[]> = new Map()
 
-/**
- * The track × priority SLA matrix, fetched once per mount.
- *
- * A LOCAL FETCH RATHER THAN A STORE, deliberately and temporarily — see the
- * file header. It is one small admin-configured table, read once, and putting
- * it in a store is a contract change that belongs to whoever owns
- * `store/entries.derive()`, not to a chart.
- *
- * A failure resolves to `null`, which `resolveSlaDays()` treats as "no
- * overrides" — the workspace default still applies, so the number degrades to
- * slightly-too-generous rather than disappearing. The error is surfaced as a
- * note on the panel, because a compliance figure computed against the wrong
- * commitment must not look identical to one computed against the right one.
- */
-function useTrackSlaMatrix(): { matrix: TrackSlaMap | null; error: string | null } {
-  const [state, setState] = useState<{ matrix: TrackSlaMap | null; error: string | null }>({
-    matrix: null,
-    error: null,
-  })
-
-  useEffect(() => {
-    let alive = true
-    void listTrackSlas().then((result) => {
-      if (!alive) return
-      // buildTrackSlaMap() mints a fresh Map, which is exactly why it runs HERE
-      // and never in a selector — see its own header.
-      setState(
-        result.ok
-          ? { matrix: buildTrackSlaMap(result.data), error: null }
-          : { matrix: null, error: result.error },
-      )
-    })
-    return () => {
-      alive = false
-    }
-  }, [])
-
-  return state
-}
-
 export default function Dashboard(): ReactElement {
   const locale = useLocale()
   const [weeks, setWeeks] = useState(weeksPref)
@@ -173,7 +134,8 @@ export default function Dashboard(): ReactElement {
   const members = useMemberMap()
   const vocabLabel = useVocabLabel()
   const priorityDefault = useSlaDays()
-  const { matrix, error: matrixError } = useTrackSlaMatrix()
+  const matrix = useTrackSlaMatrix()
+  const matrixError = useTrackSlaError()
 
   // The window: whole weeks, ending with the one we are in. `weekBounds` is
   // Sunday-anchored because that is where this team's week starts — see it.
@@ -186,6 +148,9 @@ export default function Dashboard(): ReactElement {
 
   useEffect(() => {
     void loadEntries()
+    // Deduped in the store: the Shell already warms this on sign-in, and a
+    // second call from a screen that genuinely needs it costs nothing.
+    void loadTrackSlas()
   }, [])
 
   // Closed rows are NOT in the default working set (api/entries.listEntries is

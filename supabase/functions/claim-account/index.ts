@@ -41,6 +41,16 @@ const RATE_MAX_KEYS = 5_000
 // The durable half of the throttle: wrong guesses against ONE account, counted
 // in that account's own metadata. See recordFailure() for why this exists on
 // top of the in-memory map.
+//
+// It is a read-modify-write through an admin API with no compare-and-set, so
+// guesses issued in PARALLEL can read the same count and each write the same
+// increment: the ceiling below bounds rounds of concurrent guessing, not
+// individual guesses. That is deliberate and it is bounded by the credential,
+// not by this number — the code is 40 uniform bits (2^40 ≈ 1.1e12), single-use,
+// and dead after 14 days, so even a hundredfold widening of this ceiling leaves
+// a guessing run astronomically short. If the throttle ever has to bound
+// guesses exactly, the counter has to move out of the metadata bag and into a
+// row this project can `update … returning` atomically.
 const ACCOUNT_MAX_FAILURES = 10
 const ACCOUNT_WINDOW_MS = 15 * 60_000
 
@@ -275,14 +285,71 @@ Deno.serve(async (req) => {
     return tooMany()
   }
 
-  /** Count this wrong guess against the account, then answer identically. */
+  /**
+   * Count this wrong guess against the account, then answer identically.
+   *
+   * IT NAMES ONLY THE TWO COUNTER KEYS, and that is the whole security
+   * property. It used to spread the `meta` snapshot read at the top of the
+   * request back into the write, which was a lost update with teeth:
+   * `updateUserById` MERGES `user_metadata` key by key — verified against this
+   * project, a write naming one key left the other nine untouched, and an
+   * explicit `null` deletes a key rather than blanking it — so re-asserting a
+   * stale snapshot re-asserts every key that snapshot held, `invite_hash` and
+   * `claimed` among them.
+   *
+   * The window was not small: between the snapshot and this write sit up to
+   * five paged admin-API round trips, a SHA-256, and the write itself. Two
+   * outcomes, both reproduced against this project before the fix:
+   *
+   *   REISSUE UNDONE — the sharp one, because reissue IS the documented remedy
+   *   for a leaked code. Attacker spams guesses with leaked code H1; the admin
+   *   runs `reissue-code`, which mints H2 and hands it over in person; an
+   *   in-flight guess whose snapshot predates the reissue lands and restores
+   *   H1. The rotation is silently undone and the leaked code is live again for
+   *   the rest of the 14-day TTL. The attacker chooses the timing and can
+   *   prompt the reissue socially ("my code doesn't work, send a new one").
+   *
+   *   BURN UNDONE — the success path below clears `invite_hash` and sets
+   *   `claimed` in one call, by design. A concurrent wrong guess whose snapshot
+   *   predates it wrote back `claimed: false` and the original hash, leaving an
+   *   account that has the member's password AND a still-redeemable single-use
+   *   code.
+   *
+   * Naming only what it intends to change makes both impossible rather than
+   * unlikely: this path can no longer write `invite_hash` or `claimed` at all,
+   * whatever it races with.
+   *
+   * The counter is re-read immediately before the increment rather than reused
+   * from the top-of-request snapshot, so it advances from the freshest value
+   * the admin API will give us. That shrinks the read-modify-write to a single
+   * round trip. It does not make it ATOMIC, and it cannot be — the admin API
+   * has no compare-and-set. If two guesses interleave inside that trip, one
+   * goes uncounted; see ACCOUNT_MAX_FAILURES for why that is a speed bump and
+   * not the boundary.
+   */
   async function recordFailure(reason: string): Promise<Response> {
     console.warn(`[claim] rejected: ${reason} (${username})`)
+
+    // Fall back to this request's own snapshot if the re-read fails, so a
+    // transient error still costs the attacker a count rather than zero.
+    let baseCount = failCount
+    let baseSince: string | null = windowLive ? (meta.claim_fail_since ?? null) : null
+
+    const { data: fresh, error: readErr } = await admin.auth.admin.getUserById(user.id)
+    if (readErr) {
+      console.error('[claim] could not re-read before counting:', readErr.message)
+    } else if (fresh?.user) {
+      const freshMeta = (fresh.user.user_metadata ?? {}) as InviteMeta
+      const since = freshMeta.claim_fail_since ? new Date(freshMeta.claim_fail_since).getTime() : 0
+      const live = Number.isFinite(since) && since > 0 && Date.now() - since < ACCOUNT_WINDOW_MS
+      baseCount = live ? (freshMeta.claim_fail_count ?? 0) : 0
+      baseSince = live ? (freshMeta.claim_fail_since ?? null) : null
+    }
+
     const { error } = await admin.auth.admin.updateUserById(user.id, {
       user_metadata: {
-        ...meta,
-        claim_fail_count: failCount + 1,
-        claim_fail_since: windowLive ? meta.claim_fail_since : new Date().toISOString(),
+        claim_fail_count: baseCount + 1,
+        claim_fail_since: baseSince ?? new Date().toISOString(),
       },
     })
     if (error) console.error('[claim] could not record failure:', error.message)
@@ -308,11 +375,15 @@ Deno.serve(async (req) => {
   // credential has to survive: a reusable invite is a standing key to someone
   // else's account. `invite_hash: null` deletes the key from the metadata bag
   // rather than blanking it, so there is nothing left to compare against.
+  //
+  // Like recordFailure(), this names only the keys it means to change. The
+  // merge keeps `display_name`, `created_by` and `email_verified`; spreading
+  // the request's opening snapshot over them added nothing and would revert a
+  // rename an admin made while the member was typing their password.
   const { error: updateErr } = await admin.auth.admin.updateUserById(user.id, {
     password,
     email_confirm: true,
     user_metadata: {
-      ...meta,
       username,
       account_kind: 'username',
       invite_hash: null,

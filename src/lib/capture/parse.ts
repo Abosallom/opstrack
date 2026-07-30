@@ -248,8 +248,17 @@ const CUSTOM_CADENCE_RE = /^(\d{1,4})d$/
  * The keyed tokens. Longest alternative first: `due` has to win over `d`, `fu`
  * over `f` and `every` over `ev`, or `due:thu` parses as `d` with the value
  * `ue:thu`.
+ *
+ * Written as a LIST rather than inline in the regex because ESCAPED_SIGIL_RE is
+ * built from it too. `\` is documented as escaping "a sigil", and the escape
+ * table and the token table drifting apart is precisely the defect being fixed
+ * — see ESCAPED_SIGIL_RE.
  */
-const KEYED_RE = /^(due|d|fu|f|every|ev):/i
+const KEYED_PREFIXES = ['due', 'd', 'fu', 'f', 'every', 'ev'] as const
+
+const KEYED_ALTERNATION = KEYED_PREFIXES.join('|')
+
+const KEYED_RE = new RegExp(`^(${KEYED_ALTERNATION}):`, 'i')
 
 const KEYED_KIND: Readonly<Record<string, TokenKind>> = {
   due: 'due',
@@ -292,8 +301,33 @@ const SIGIL_KIND: Readonly<Record<string, TokenKind>> = {
   '/': 'type',
 }
 
-/** The sigils `\` escapes to a literal, per plan §2.13. */
-const ESCAPED_SIGIL_RE = /\\([#@!+/])/g
+/**
+ * The sigils `\` escapes to a literal, per plan §2.13 — ALL of them, built from
+ * the two tables that define what a sigil is.
+ *
+ * It used to be the literal `/\\([#@!+/])/g`: the five prefix characters and
+ * nothing else. The keyed prefixes were not in it, so the escape hatch
+ * `capture.hintEscape` advertises did not exist for the half of the grammar most
+ * likely to collide with real text — `Restore \D:\backup` stored the backslash
+ * (title: `Restore \D:\backup`) instead of consuming it (FIX-BACKLOG
+ * **PARSE-ESCAPE**). Two tables, one of which the reader had no reason to
+ * suspect was incomplete.
+ *
+ * Derived rather than duplicated, so adding a sigil or a keyed prefix extends
+ * the escape in the same edit. Case-insensitive because KEYED_RE is: `\DUE:` has
+ * to unescape or the two halves disagree again, one keystroke later.
+ *
+ * NOTE the escape never has to SUPPRESS anything — the leading `\` already stops
+ * tokenAt() matching, because neither SIGIL_KIND nor KEYED_RE can start on it and
+ * scan() then skips the whole word. All this regex does is take the backslash
+ * back out of the title on the way to the database.
+ */
+const ESCAPED_SIGIL_RE = new RegExp(
+  `\\\\(${Object.keys(SIGIL_KIND)
+    .map((s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'))
+    .join('|')}|(?:${KEYED_ALTERNATION}):)`,
+  'gi',
+)
 
 /**
  * The invisible bidi controls an Arabic keyboard, a paste from Word, or an RTL
@@ -455,10 +489,18 @@ function tokenAt(input: string, p: number): FoundToken | null {
 
   // A BARE SIGIL IS NOT A TOKEN. `####`, `@@`, `+` and a lone `due:` carry no
   // value, and treating them as failed tokens would strip `####` out of a title
-  // that is deliberately shouting. A QUOTED empty value is different: the quote
-  // marks are unambiguous intent, so it is consumed and classified 'unknown'.
-  if (!HAS_WORD_CHAR.test(read.value)) {
-    if (!read.quoted) return null
+  // that is deliberately shouting.
+  //
+  // A QUOTED value is different: the quote marks are unambiguous intent. But the
+  // test for "the quotes were empty" is EMPTINESS, and it was written as "no
+  // letter or digit" — so `#"---"`, `+"***"` and `@"???"` all took the
+  // quoted-empty path, which consumes the span, sets no field and reports no
+  // problem. `Fix #"---" now` was stored as "Fix now": text the user typed,
+  // deleted in silence, which is the one thing this module promises never to do
+  // (FIX-BACKLOG **PARSE-PUNCT**). Punctuation and emoji are values — they will
+  // fail to resolve against a closed vocabulary and say so, or land in a free-
+  // text field as a visible chip. Either way the user can see where it went.
+  if (read.value === '' && read.quoted) {
     return {
       kind: 'unknown',
       end: read.end,
@@ -468,6 +510,7 @@ function tokenAt(input: string, p: number): FoundToken | null {
       shortKey: false,
     }
   }
+  if (!read.quoted && !HAS_WORD_CHAR.test(read.value)) return null
 
   return {
     kind,
