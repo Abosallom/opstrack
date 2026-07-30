@@ -572,6 +572,14 @@ the live site returns to exactly what it was. It does not touch `main`, which
 means the bad commit is still there and the next push will re-deploy it — this
 buys you time, it is not the fix.
 
+**`v1.0.0` is the anchor when "the last good run" is not obvious.** The tag marks
+the commit that passed the full release smoke
+([`docs/EVIDENCE/wave5-release-smoke.md`](EVIDENCE/wave5-release-smoke.md)), so
+`gh run list --limit 20 --json headSha,databaseId,conclusion` and then re-running
+the run whose `headSha` is `git rev-list -n1 v1.0.0` puts the site back on a build
+that is known to work rather than one that merely went green in CI. Later releases
+should carry their own tag for the same reason.
+
 ### 6.2 Undo the commit (the actual fix)
 
 ```bash

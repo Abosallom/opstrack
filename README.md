@@ -32,6 +32,47 @@ native call sits behind a no-op that a browser tab takes instead.
 
 ---
 
+## Status at v1.0.0
+
+Released 30 July 2026. Live at <https://abosallom.github.io/opstrack/>, built from
+`main` by GitHub Actions, backed by a real Supabase project. The v1.0.0 release
+smoke — every screen in both languages, both themes, at 1280 and 375, against the
+deployed origin rather than a dev server — is
+[`docs/EVIDENCE/wave5-release-smoke.md`](docs/EVIDENCE/wave5-release-smoke.md).
+
+Three things are commonly assumed about a release like this one, and the honest
+answer differs for each.
+
+**How you install it: as a PWA.** Add to Home Screen from Safari on iOS or Chrome
+on Android and it runs standalone, offline-capable, from that URL. That is the
+supported distribution channel today and the one the team should use.
+
+**Web push: real, and proven on desktop.** The whole chain is built and was
+exercised end to end against the live project on 30 July 2026 — a browser
+subscribed through the product's own button, the trigger enqueued, `pg_net` woke
+the sender, FCM accepted the VAPID token, and the browser decrypted the payload
+and displayed the notification. The ledger, with row ids, is
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md) §9.4. What is **not** proven: iOS/Safari (a
+notification there requires the PWA to be installed to the Home Screen first, and
+that path has no headless equivalent), delivery to a locked screen, and clicking
+a notification focusing the right entry. Treat push on a phone as unverified until
+someone verifies it — §9.4 ends with the five-minute manual procedure.
+
+**iOS as a native App Store app: not shipped, and not close.** The Capacitor shell
+compiles, installs and launches in the Simulator, repeatedly and with evidence
+([`docs/APP-STORE.md`](docs/APP-STORE.md) §2). It has never run on a physical
+iPhone. There is no signing team in the project, no `PrivacyInfo.xcprivacy`, no
+Release-configuration build, no archive, no TestFlight build and no store listing;
+§4 of that file is the full outstanding list, and the largest items on it are
+Apple's paperwork rather than code. The Apple Developer account exists, so this is
+work that can start — it just has not.
+
+**Known defects and their dispositions** are
+[`docs/FIX-BACKLOG.md`](docs/FIX-BACKLOG.md). Nothing there is a release blocker;
+several entries are deliberate "won't fix, here is why" records rather than debt.
+
+---
+
 ## Setup
 
 Follow these in order. Steps 1–5 are one-time server-side setup; you cannot sign
@@ -323,7 +364,7 @@ prefix.
 | `npm run dev`       | Vite dev server, exposed on the LAN                       |
 | `npm run build`     | `tsc -b` then a production build to `dist/`               |
 | `npm run lint`      | oxlint                                                    |
-| `npm run test`      | vitest, once. 47 files / 1217 tests at the time of writing |
+| `npm run test`      | vitest, once. 57 files / 1583 tests at v1.0.0              |
 | `npm run preview`   | serve the built `dist/` locally                           |
 | `npm run seed`      | insert demo tracks and entries into the configured project |
 | `npm run icons`     | regenerate PWA and iOS icons from `assets/icon.png`       |

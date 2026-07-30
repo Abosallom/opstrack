@@ -28,6 +28,7 @@ import {
   IconChevronEnd,
   IconClipboardList,
   IconClock,
+  IconCompass,
   IconDatabase,
   IconGlobe,
   IconLayers,
@@ -435,6 +436,24 @@ export default function Settings(): ReactElement {
           <p className="muted">{t('settings.membersAdminOnly')}</p>
         </Section>
       )}
+
+      {/* ABOUT — the build the user is actually looking at.
+          `settings.about` and `settings.version` shipped in both bundles from
+          Wave 1 and were rendered by nothing until the v1.0.0 cut, which is
+          also when src/vite-env.d.ts's promise that __APP_VERSION__ is "shown
+          in Settings › About" stopped being false. It earns its card at
+          release rather than before it: the app is a PWA that updates itself
+          behind a prompt, so "which version am I on" is a question a tester
+          on a phone can otherwise only answer by downloading an export and
+          reading its metadata. Last card on the page on purpose — it is the
+          thing you go looking for, never the thing you came for.
+
+          The Arabic string carries U+2068/U+2069 around {version} itself, so
+          a Latin dotted number stays left-to-right inside an RTL sentence
+          without this call site knowing anything about direction. */}
+      <Section icon={IconCompass} title={t('settings.about')}>
+        <p className="muted">{t('settings.version', { version: __APP_VERSION__ })}</p>
+      </Section>
     </div>
   )
 }

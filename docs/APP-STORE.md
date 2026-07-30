@@ -325,9 +325,20 @@ advertised English only.
 - ⬜ Provisioning profile (automatic signing needs the team first).
 
 ### Versioning
-- ⬜ **Version drift**: `MARKETING_VERSION = 1.0` and `CURRENT_PROJECT_VERSION = 1`
-  in `project.pbxproj`, but `package.json` is `0.1.0`. Wave 5 targets v1.0.0 —
-  pick one source of truth and make the iOS build read it.
+- ✅ **The drift is closed for v1.0.0.** `package.json` is `1.0.0` and
+  `MARKETING_VERSION` is `1.0` — the same release, spelled the two ways each
+  platform spells it (Apple's field is a 1-to-3-component string, so `1.0` and
+  `1.0.0` are the same version to App Store Connect). `CURRENT_PROJECT_VERSION`
+  stays `1`: it is the build number, it is not the marketing version, and it
+  increments per upload rather than per release.
+- ⬜ **They are still two hand-maintained numbers, and they will drift again on
+  the next bump.** `package.json` is the source of truth — Vite already inlines
+  it as `__APP_VERSION__` (Settings › About renders it; every export is stamped
+  with it). Nothing propagates it into `project.pbxproj`. The fix is a
+  `cap sync` companion script that writes `MARKETING_VERSION` from `pkg.version`
+  before an archive, and it is worth writing the first time an archive is
+  actually cut — not before, because until then there is nothing to disagree
+  with in the wild.
 
 ### Privacy — likely the biggest remaining item
 - ⬜ **No `PrivacyInfo.xcprivacy` in the app target.** Capacitor's own frameworks
