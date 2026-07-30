@@ -587,3 +587,36 @@ round trip is proven at the database and in 1615 unit tests, not on the deployed
 page, and `STICKY-OFFSET` is verified by reading the computed formula (65px at
 both widths) rather than by re-measuring `elementFromPoint` on the deployed CSS.
 Both are named here so nobody reads §7 as a repeat of §1.
+
+### 7.5 `live == HEAD`, byte-verified
+
+Deployed by run `30585330065` (`build` and `deploy` both green) from `fb1c8a8`.
+Every asset the deployed page references, plus the six lazy chunks that carry the
+v1.0.1 changes, downloaded from the origin and `sha256`-compared against the local
+`dist/` built from the same tree. **14 of 14 identical.**
+
+| Asset | `sha256` (both sides) |
+| --- | --- |
+| `index-XKeBLgBU.js` | `50fa9aaad5580e980925e4193e562b262bdedf404d45d124cb3601f2b03ce7cc` |
+| `index-DbgNrQ0V.css` | `e11d8da710569ba5accd032f9b47c9ce595572b0b40ac4c4f79439c11a5890f3` |
+| `auth-CElagPIr.js` | `fb2f23d28903bb96ceb542a0e8cd7eb614ef59c721892d1441cd31f8e316617c` |
+| `realtime-Eo5oZ8Sw.js` | `9e602bc000e17e39bf9de7d2a3a456d7798432d5de061fd4c6c7ce506f0b6f2a` |
+| `config-DsWregIa.js` | `d6bcba23b9278fea224f586d41c5079067cd6b23d42b88c2941f6a3ad8e1c676` |
+| `toast-BiULFOqT.js` | `28f87cd1e7a0b943582758cf04701a1b9e3fa8c521627e8ce7d83dc646a756dd` |
+| `toast-1BAe6noy.css` | `7f00cb9330c82b65fae05e8af5d464bcbd38fb4dedc4e8615e52ae69edb13b00` |
+| `preload-helper-HclGiUj8.js` | `bba5840eec0028b00854bcd58fba80694d02d41e98417656424c05b26db7120c` |
+| `Capture`, `MeetingLive`, `Members`, `Settings`, `Export`, `Digest` | all `HTTP 200`, all matching |
+
+The lazy chunks are checked by name because they are where the release actually
+lives: the entry chunk would be byte-identical even if every fix had been dropped
+from the routes. Two spot values read straight out of the deployed bytes rather
+than inferred: `Settings-MSFqmy4Q.js` contains `1.0.1` (the About card), and
+`Export-xNNXN0yH.js` contains `coretrack-export-`.
+
+**Why this section postdates the `v1.0.1` tag, and why the tag did not move.** A
+build cannot contain the hash of its own deployment — the deploy happens after
+the push, and the push after the commit. `v1.0.0` resolved that by moving its tag
+three times, and §0 above then declared that a thing not to repeat. So `v1.0.1`
+resolves to `fb1c8a8` and stays there; this subsection lands in the commit after
+it. The tag is the code; the evidence that the code reached the origin is
+necessarily one commit later, and saying so is cheaper than a moving tag.
