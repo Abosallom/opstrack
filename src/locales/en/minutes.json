@@ -1,0 +1,47 @@
+{
+  "minutes": {
+    "untitled": "Untitled meeting",
+    "inProgress": "still running",
+
+    "fieldDate": "Date",
+    "fieldTime": "Time",
+    "fieldTrack": "Track",
+    "fieldAttendees": "Attendees",
+    "fieldRecordedBy": "Recorded by",
+
+    "listSep": ", ",
+    "metaSep": " · ",
+    "timeSep": " – ",
+
+    "secDecisions": "Decisions",
+    "secActions": "Actions",
+    "secItems": "Other items",
+    "secNotes": "Notes",
+    "secUntriaged": "Not triaged",
+    "secClosingNotes": "Closing notes",
+
+    "metaOwner": "Owner",
+    "metaDue": "Due",
+    "metaStatus": "Status",
+    "metaPriority": "Priority",
+    "metaTrack": "Track",
+    "metaType": "Type",
+    "unassigned": "Unassigned",
+
+    "emptyBody": "No items were captured in this meeting.",
+
+    "copyMarkdown": "Copy as Markdown",
+    "copyPlain": "Copy as text",
+    "copied": "Minutes copied.",
+    "errCopy": "Couldn't reach the clipboard — select the text and copy it.",
+    "print": "Print",
+    "docLanguage": "Minutes language",
+    "langEn": "English",
+    "langAr": "Arabic",
+
+    "errLoad": "Couldn't load this meeting.",
+    "notFound": "This meeting no longer exists.",
+    "notFoundHint": "It may have been deleted by an admin.",
+    "openEntry": "Open item"
+  }
+}

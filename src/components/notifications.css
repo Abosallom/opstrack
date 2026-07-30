@@ -1,0 +1,484 @@
+/* The notification centre — the `.notif-*` prefix, a REGISTRY ADDITION for
+   Wave 3 (EXECUTION-PLAN §1.0.7 lists no sheet for it; the handoff note asks
+   the integrator to register it at the wave close, the way `.epg-*` and
+   `.tsla-*` were registered at the Wave-2 close).
+
+   ONE SHEET FOR TWO FILES. The bell's popover and the /notifications page share
+   `.notif-item*` and `.notif-list` down to the pixel, because they are the same
+   inbox at two sizes — a second sheet for the page would drift the row the first
+   time either surface was touched. What differs is only the frame: `.notif-pop`
+   / `.notif-sheet` around the peek, `.notif-page*` around the full history.
+
+   NOTHING HERE RESTYLES A PRIMITIVE OR ANOTHER SHEET'S PREFIX. The bell is a
+   `.btn.btn-ghost.btn-icon` and takes its hover, active and focus states from
+   global.css unchanged; this file adds only the badge that sits on top of it,
+   and `.notif-bell` itself declares nothing but `position: relative` so the
+   badge has an anchor. The one `.notif-page-actions .btn` rule is layout only
+   and is scoped under an owned class, following digest.css's `.dg-actions .btn`
+   precedent; the count beside the settings row carries its own
+   `.notif-settings-count` rather than being a rule on `.pill`; and the mobile
+   sheet is bled out with a negative margin on our own wrapper instead of a rule
+   on `.sheetx-body`, which belongs to components/sheet/sheet.css.
+
+   LOGICAL PROPERTIES ONLY — there is not one physical direction in this file.
+   The popover hangs off `inset-inline-end`, so it opens under the bell on the
+   right in English and on the left in Arabic with no RTL rule at all, and the
+   unread dot sits on the row's `inline-end` in both.
+
+   MOTION is 150–200ms. global.css's `prefers-reduced-motion` block clamps every
+   animation and transition in the app to 0.01ms, so nothing here re-declares it.
+
+   SPACING is on the 4px grid throughout — 4 / 8 / 12 / 16 / 20 / 24, nothing
+   else. TOUCH TARGETS are 44px: the row is 56px tall and the mark-read control
+   is a 44px square, which is also why a read row renders a 44px spacer rather
+   than collapsing and shifting the text column. */
+
+/* ── the bell and its badge ───────────────────────────────────────────── */
+
+.notif-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.notif-bell {
+  position: relative;
+}
+
+/* Count, not a plain dot: "how many" is the question the bell is glanced at to
+   answer. Anchored with a negative inset on BOTH logical edges so it clears the
+   glyph identically in either direction. */
+.notif-badge {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-end: 2px;
+  min-inline-size: 18px;
+  block-size: 18px;
+  padding-inline: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--red);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  /* Punches a hole in the header behind it so the badge reads as sitting on
+     the bell rather than merging with the glyph's stroke. */
+  box-shadow: 0 0 0 2px var(--bg);
+  animation: notif-bump 180ms ease-out;
+}
+
+/* The badge remounts on an increase (a `key` change in the component), which is
+   what replays this — a class toggle cannot restart an animation already
+   declared on the element. */
+@keyframes notif-bump {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── the desktop popover ──────────────────────────────────────────────── */
+
+.notif-pop {
+  position: absolute;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-end: 0;
+  z-index: 20;
+  inline-size: min(380px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  max-block-size: min(72vh, 520px);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: notif-pop-in 160ms ease-out;
+}
+
+@keyframes notif-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The panel takes focus on open (see the component) and is not a control, so
+   the global focus ring would be noise on a surface the user just summoned. */
+.notif-pop:focus {
+  outline: none;
+}
+
+.notif-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 12px;
+  padding-inline: 16px 8px;
+  border-block-end: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.notif-head-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+  margin-inline-end: auto;
+  min-inline-size: 0;
+}
+
+.notif-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.notif-foot {
+  display: flex;
+  padding: 8px;
+  border-block-start: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.notif-seeall {
+  inline-size: 100%;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* The mobile branch is components/sheet/Sheet.tsx, and the inbox goes full
+   bleed inside its padded body.
+
+   A NEGATIVE MARGIN ON OUR OWN WRAPPER, not a rule on `.sheetx-body`: that
+   prefix belongs to components/sheet/sheet.css and the class registry
+   (EXECUTION-PLAN §1.0.7) forbids one sheet styling another's. The three values
+   are that file's body padding — 12px / 16px / 20px — and cancelling them is
+   what lets a row divider run edge to edge on a 375px phone instead of floating
+   16px short of it on both sides. */
+.notif-sheet-body {
+  margin-inline: -16px;
+  margin-block: -12px -20px;
+}
+
+/* ── the list ─────────────────────────────────────────────────────────── */
+
+.notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notif-item {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding-inline: 8px 4px;
+  border-block-end: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  position: relative;
+}
+
+.notif-item:last-child {
+  border-block-end: none;
+}
+
+/* Unread carries a tint AND a dot — colour is never the only signal. The tint
+   is a mix rather than a flat hex so it lands correctly in both themes. */
+.notif-item[data-unread] {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+/* The realtime arrival. Slides from the reading start, which mirrors itself:
+   `translateX(-8px)` would come from the wrong side in Arabic. */
+@keyframes notif-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notif-item[data-fresh] {
+  animation: notif-arrive 180ms ease-out;
+}
+
+/* A hairline in the accent colour on the reading-start edge, so a row that
+   arrived while the user was reading is still findable after the animation has
+   played out and the marker class is gone. */
+.notif-item[data-fresh]::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 3px;
+  background: var(--accent);
+}
+
+.notif-item-main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-block: 10px;
+  padding-inline: 8px;
+  min-block-size: 56px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.notif-item-main:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.notif-item-main:active {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.notif-kind {
+  flex: 0 0 auto;
+  inline-size: 26px;
+  block-size: 26px;
+  margin-block-start: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.notif-kind-assigned {
+  color: var(--blue);
+}
+
+.notif-kind-completed {
+  color: var(--green);
+}
+
+.notif-item-body {
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Two lines, then an ellipsis. A notification is a pointer at an entry, not the
+   entry — a five-line title would push the next row off a 375px sheet. */
+.notif-item-sentence {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.notif-item[data-unread] .notif-item-sentence {
+  font-weight: 600;
+}
+
+.notif-item-time {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ── the mark-read control ────────────────────────────────────────────── */
+
+.notif-item-read {
+  /* The check below is absolutely positioned so it can sit exactly on top of
+     the dot rather than beside it. */
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: 44px;
+  min-block-size: 44px;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+/* The read half of the list. Same 44px so the text column never shifts. */
+.notif-item-spacer {
+  cursor: default;
+}
+
+/* `:not(.notif-item-spacer)` because the read rows reuse this box purely to
+   hold the column open — a placeholder that lights up under the cursor reads
+   as a control that does nothing. */
+.notif-item-read:not(.notif-item-spacer):hover {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+}
+
+.notif-item-read:not(.notif-item-spacer):active {
+  background: color-mix(in srgb, var(--text) 13%, transparent);
+}
+
+.notif-dot {
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: opacity 150ms ease;
+}
+
+/* The check is revealed on hover and on keyboard focus, and the dot fades under
+   it. On touch neither pointer state exists, so the dot simply stays — the
+   control still works, and the affordance is never hidden behind a gesture the
+   device does not have. */
+.notif-check {
+  position: absolute;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+}
+
+.notif-item-read:hover .notif-dot,
+.notif-item-read:focus-visible .notif-dot {
+  opacity: 0;
+}
+
+.notif-item-read:hover .notif-check,
+.notif-item-read:focus-visible .notif-check {
+  opacity: 1;
+}
+
+.notif-loading {
+  padding-block: 12px;
+  padding-inline: 16px;
+}
+
+/* ── the page ─────────────────────────────────────────────────────────── */
+
+.notif-page {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.notif-page-head {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-end: 16px;
+}
+
+.notif-page-titles {
+  min-inline-size: 0;
+  flex: 1 1 240px;
+}
+
+.notif-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.notif-page-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-end: 12px;
+  flex-wrap: wrap;
+}
+
+/* The list sits in a card on the page so the rows have an edge to end against;
+   in the popover the panel itself is that edge. */
+.notif-page-list {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.notif-group + .notif-group {
+  border-block-start: 1px solid var(--border);
+}
+
+/* Sticky within the card, so the day a row belongs to stays legible while a
+   long history scrolls under it. */
+.notif-group-head {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  padding-block: 8px;
+  padding-inline: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  background: var(--bg-elev-2);
+  border-block-end: 1px solid var(--border);
+}
+
+/* Arabic has no case, so the uppercase transform is a no-op there — but the
+   letter-spacing is not, and it breaks the joins between Arabic letters. */
+[lang='ar'] .notif-group-head {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.notif-settings-row {
+  inline-size: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+/* An owned class carried ALONGSIDE `.pill info`, never a rule on `.pill` —
+   digest.css's `.dg-count` note makes the same point: a primitive keeps its
+   look, and only the layout around it is ours to set. */
+.notif-settings-count {
+  margin-inline-start: auto;
+}
+
+@media (max-width: 767px) {
+  .notif-page-actions {
+    inline-size: 100%;
+  }
+
+  .notif-page-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}

@@ -96,6 +96,17 @@ const NOT_KEYS = new Set<string>([
   // A prefix test, not a lookup: Capture.tsx tints a parser problem red when
   // its key starts with 'capture.err' and grey otherwise.
   'capture.err',
+  // Two more prefix tests, in lib/digest/locale.test.ts. That test enumerates
+  // the per-kind `digest.section*` / `digest.sum*` families and subtracts the
+  // three keys that merely share the prefix (`sectionsLegend`, `sectionsHint`,
+  // `summaryEmpty`) by name, because loosening the filter is how a genuinely
+  // missing per-kind key would hide. Neither string is ever handed to t().
+  'digest.sections',
+  'digest.summary',
+  // A key that must NOT exist: the same test asserts ds() echoes an unknown
+  // path rather than returning blank. Adding it to either bundle would make
+  // that assertion vacuous.
+  'digest.nope',
 ])
 
 /** Files whose key-shaped strings are documentation rather than requests. */

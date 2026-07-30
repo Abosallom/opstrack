@@ -40,6 +40,19 @@
 // region. A board that only works for a mouse is a board half this team cannot
 // use on the day they most need it.
 //
+// ON A PHONE, A DRAG STARTS WITH A HOLD — and the pan belongs to the browser
+// until it does. The first cut of this screen gave cards `touch-action: pan-y`
+// and claimed any sideways finger as a drag, which on a 375px screen left the
+// 8px gutter between two cards as the only surface that could swipe to the next
+// column. Now a card is `touch-action: manipulation` (the page and the board
+// pan from anywhere, as they should), and the card is only lifted after
+// HOLD_MS of a finger resting on it — at which point this screen cancels the
+// browser's scrolling for the rest of the gesture by preventing the first
+// touchmove, which is the only moment at which that is still possible. The
+// press itself is visible while the clock runs (`data-press`), so the hold is
+// an affordance rather than a secret. lib/dnd.ts's header has the full
+// argument, and dnd.test.ts asserts both halves of the handshake.
+//
 // THE CARD'S OWN MENU IS ALWAYS A STATUS MENU, whatever the column axis is. It
 // is a StatusPill; it is labelled with statuses; making it mean "owner" when
 // the board happens to be grouped by owner would be a control that lies. So
@@ -85,12 +98,16 @@ import { IconChevronDown, IconPlus } from '../components/fields'
 import { IconColumns } from '../components/icons'
 import { toast } from '../components/toast'
 import {
+  HOLD_MS,
   arrowStep,
   dropOf,
   edgeScroll,
   edgeScrollBlock,
+  holdDrag,
   indexFromDigit,
   isDragging,
+  isHeld,
+  isHoldGesture,
   moveDrag,
   moveIndex,
   startDrag,
@@ -677,6 +694,7 @@ export default function Board(): ReactElement {
   const boardRef = useRef<HTMLDivElement | null>(null)
   const sessionRef = useRef<DndSession | null>(null)
   const listeningRef = useRef(false)
+  const holdTimerRef = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
   const draggedAtRef = useRef(0)
   const focusAfterMove = useRef<string | null>(null)
@@ -685,6 +703,15 @@ export default function Board(): ReactElement {
   const mineRef = useRef(new Set<string>())
 
   const [dragView, setDragView] = useState<{ itemId: string; overId: string | null } | null>(null)
+  /**
+   * The card a finger is currently resting on, while its hold clock runs.
+   *
+   * One id in state rather than a class written onto the node: the press is a
+   * RENDERED state of one memoised card (board.css turns it into the squeeze
+   * that makes the hold discoverable), and reaching into the DOM to paint it
+   * would put the board's appearance in two places.
+   */
+  const [pressId, setPressId] = useState<string | null>(null)
 
   // ── the live region ──────────────────────────────────────────────────────
   //
@@ -886,6 +913,23 @@ export default function Board(): ReactElement {
 
   const endRef = useRef<(commit: boolean) => void>(() => {})
 
+  /**
+   * The card has just been lifted — by distance under a mouse, or by the hold
+   * under a finger. Both paths arrive here so the announcement, the auto-scroll
+   * loop and the lifted rendering cannot drift apart between them.
+   */
+  const beginDrag = useCallback(
+    (session: DndSession) => {
+      draggedAtRef.current = Date.now()
+      const entry = entryMapRef.current.get(session.itemId)
+      announce(t('board.grabbed', { title: entry?.title ?? '' }))
+      if (rafRef.current === null) rafRef.current = requestAnimationFrame(tick)
+      setPressId(null)
+      setDragView({ itemId: session.itemId, overId: session.overId })
+    },
+    [announce, tick],
+  )
+
   const onWindowMove = useCallback(
     (ev: PointerEvent) => {
       const session = sessionRef.current
@@ -895,21 +939,23 @@ export default function Board(): ReactElement {
       if (next === session) return
 
       if (next.phase === 'abandoned') {
+        // Either a mouse gesture that was never a drag, or — far more often — a
+        // finger that panned before its hold landed. In the second case the
+        // browser is ALREADY scrolling and this is simply the board letting go.
         endRef.current(false)
         return
       }
       if (next.phase !== 'dragging') return
 
-      // Held card, still page. `touch-action: pan-y` on the card already leaves
-      // vertical scrolling to the browser; this stops the rubber-banding a
-      // horizontal drag produces at the ends of the scroller.
+      // Held card, still page. On a mouse this is what stops the native
+      // text-drag and the rubber-band at the ends of the scroller; on a finger
+      // the scroll is cancelled at `onWindowTouchMove` instead, because
+      // pointermove cannot cancel a pan and touchmove can.
       if (ev.cancelable) ev.preventDefault()
 
       if (session.phase !== 'dragging') {
-        draggedAtRef.current = Date.now()
-        const entry = entryMapRef.current.get(next.itemId)
-        announce(t('board.grabbed', { title: entry?.title ?? '' }))
-        if (rafRef.current === null) rafRef.current = requestAnimationFrame(tick)
+        beginDrag(next)
+        return
       }
 
       setDragView((prev) =>
@@ -918,8 +964,40 @@ export default function Board(): ReactElement {
           : { itemId: next.itemId, overId: next.overId },
       )
     },
-    [announce, measureZones, tick],
+    [beginDrag, measureZones],
   )
+
+  /**
+   * THE ONE CALL THAT MAKES A TOUCH DRAG POSSIBLE.
+   *
+   * `touch-action: manipulation` on a card means the browser is willing to pan
+   * from it — which is the whole point of the hold, and is also why it would
+   * happily pan out from under a card that has just been lifted. A touchmove is
+   * cancelable only until the pan actually begins, and the pan cannot have
+   * begun yet: the finger has been still for HOLD_MS. So the FIRST move after
+   * the lift is both the last chance to say no and a guaranteed one.
+   *
+   * Non-passive by necessity, and registered only for the length of a touch
+   * gesture, so the board never taxes ordinary scrolling with a listener.
+   */
+  const onWindowTouchMove = useCallback((ev: TouchEvent) => {
+    if (!isHeld(sessionRef.current)) return
+    if (ev.cancelable) ev.preventDefault()
+  }, [])
+
+  /**
+   * A long press on a phone otherwise means "select this text" (both engines)
+   * and "open the context menu" (Android, at around 500ms — which is why the
+   * lift at 420ms wins the race and this is the belt to that braces).
+   *
+   * Both are suppressed for the whole touch gesture rather than only once the
+   * hold has landed: a caret that appears at 300ms and is dismissed at 420ms is
+   * a flicker, and the user pressing a card never meant either of them.
+   */
+  const onWindowSuppress = useCallback((ev: Event) => {
+    if (!isHoldGesture(sessionRef.current)) return
+    ev.preventDefault()
+  }, [])
 
   const onWindowUp = useCallback((ev: PointerEvent) => {
     if (sessionRef.current?.pointerId !== ev.pointerId) return
@@ -944,6 +1022,15 @@ export default function Board(): ReactElement {
       window.removeEventListener('pointerup', onWindowUp)
       window.removeEventListener('pointercancel', onWindowCancel)
       window.removeEventListener('keydown', onWindowKey)
+      window.removeEventListener('touchmove', onWindowTouchMove)
+      window.removeEventListener('selectstart', onWindowSuppress)
+      window.removeEventListener('contextmenu', onWindowSuppress)
+      if (holdTimerRef.current !== null) {
+        // A press that ended — by release, by pan, or by the route unmounting —
+        // must not lift a card four hundred milliseconds after it is over.
+        window.clearTimeout(holdTimerRef.current)
+        holdTimerRef.current = null
+      }
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current)
         rafRef.current = null
@@ -951,6 +1038,7 @@ export default function Board(): ReactElement {
 
       const session = sessionRef.current
       sessionRef.current = null
+      setPressId(null)
       setDragView(null)
       if (!isDragging(session)) return
       // A real drag just ended, so the click that follows this mouseup is the
@@ -968,7 +1056,15 @@ export default function Board(): ReactElement {
       announce(t('board.dropped', { column: labelRef.current(drop.toId) }))
       void moveRef.current(drop.itemId, drop.toId, 'drag')
     },
-    [announce, onWindowCancel, onWindowKey, onWindowMove, onWindowUp],
+    [
+      announce,
+      onWindowCancel,
+      onWindowKey,
+      onWindowMove,
+      onWindowSuppress,
+      onWindowTouchMove,
+      onWindowUp,
+    ],
   )
   endRef.current = endGesture
 
@@ -1010,15 +1106,17 @@ export default function Board(): ReactElement {
       const entry = entryMapRef.current.get(id)
       if (!entry || !canEditRef.current(entry)) return
 
+      // Everything that is not a mouse pans the page and the board, so the card
+      // has to be EARNED with a hold. See the file header and lib/dnd.ts's.
+      const held = ev.pointerType !== 'mouse'
+
       sessionRef.current = startDrag({
         pointerId: ev.pointerId,
         itemId: id,
         fromId: bucketOf(entry, dimRef.current),
         x: ev.clientX,
         y: ev.clientY,
-        // Touch and pen only: on a phone a mostly-vertical drag is the column
-        // being scrolled, and claiming it makes the board unreadable.
-        lockToInlineAxis: ev.pointerType !== 'mouse',
+        requireHold: held,
       })
       listeningRef.current = true
       // On WINDOW, not on the card: an optimistic move re-parents the card into
@@ -1028,8 +1126,40 @@ export default function Board(): ReactElement {
       window.addEventListener('pointerup', onWindowUp)
       window.addEventListener('pointercancel', onWindowCancel)
       window.addEventListener('keydown', onWindowKey)
+
+      if (!held) return
+
+      window.addEventListener('touchmove', onWindowTouchMove, { passive: false })
+      window.addEventListener('selectstart', onWindowSuppress)
+      window.addEventListener('contextmenu', onWindowSuppress)
+      setPressId(id)
+      holdTimerRef.current = window.setTimeout(() => {
+        holdTimerRef.current = null
+        const session = sessionRef.current
+        if (session === null) return
+        const next = holdDrag(session, measureZones())
+        // Same reference: the finger panned away, or this is not the gesture
+        // the timer was set for. Either way there is no card to lift.
+        if (next === session) return
+        sessionRef.current = next
+        // Feedback for a hand that is looking at the card, not at the screen.
+        // Guarded because iOS has no Vibration API at all and Firefox gates it
+        // behind a setting — a board must not depend on a buzz nobody gets, and
+        // the card's own squeeze-then-lift is the feedback that always lands.
+        if (typeof navigator.vibrate === 'function') navigator.vibrate(8)
+        beginDrag(next)
+      }, HOLD_MS)
     },
-    [onWindowCancel, onWindowKey, onWindowMove, onWindowUp],
+    [
+      beginDrag,
+      measureZones,
+      onWindowCancel,
+      onWindowKey,
+      onWindowMove,
+      onWindowSuppress,
+      onWindowTouchMove,
+      onWindowUp,
+    ],
   )
 
   const onClickCapture = useCallback((ev: ReactMouseEvent<HTMLElement>) => {
@@ -1187,6 +1317,7 @@ export default function Board(): ReactElement {
               health={healthMap.get(entry.id)}
               canEdit={canEdit(entry)}
               dragging={dragView?.itemId === entry.id}
+              pressed={pressId === entry.id}
               enter={enter.get(entry.id)}
               onOpen={handleOpen}
               onMove={handleMenuMove}
@@ -1411,6 +1542,11 @@ export default function Board(): ReactElement {
     <div
       className="bd"
       data-density={density}
+      // Read by board.css for exactly one rule: a mandatory scroll-snap and a
+      // per-frame `scrollLeft` are two things steering one scroller, and the
+      // snap wins — the phone's edge auto-scroll would be dragged back to the
+      // nearest column every frame. Snapping resumes the moment the card lands.
+      data-dragging={dragView !== null ? 'true' : undefined}
       ref={boardRef}
       onKeyDown={onBoardKeyDown}
       onClickCapture={onClickCapture}
@@ -1471,7 +1607,14 @@ export default function Board(): ReactElement {
         </button>
       </div>
 
-      <p className="bd-hint">{t('board.dragHint')}</p>
+      {/* Two sentences, one shown: the gesture a phone offers is not the
+          gesture a mouse offers, and a hint that describes the wrong one is
+          worse than none. The choice is a media query rather than a matchMedia
+          read because it must survive a window being dragged onto a touch
+          screen mid-session, and because `display: none` is the one way to
+          hide a string from a screen reader as well as from an eye. */}
+      <p className="bd-hint bd-hint-fine">{t('board.dragHint')}</p>
+      <p className="bd-hint bd-hint-touch">{t('board.holdHint')}</p>
       <p className="sr-only">{t('board.keyboardHint')}</p>
 
       {/* One polite region for every move, however it was made. Assertive would
@@ -1580,6 +1723,8 @@ interface BoardCardProps {
   health: EntryHealth | undefined
   canEdit: boolean
   dragging: boolean
+  /** A finger is resting on this card and its hold clock is running. */
+  pressed: boolean
   enter: CardEnter | undefined
   onOpen: (id: string) => void
   onMove: (id: string, status: EntryStatus) => void
@@ -1608,6 +1753,7 @@ const BoardCard = memo(function BoardCard({
   health,
   canEdit,
   dragging,
+  pressed,
   enter,
   onOpen,
   onMove,
@@ -1637,6 +1783,12 @@ const BoardCard = memo(function BoardCard({
       className="bd-card"
       data-entry-id={entry.id}
       data-enter={enter?.kind}
+      // The grab cursor is the pointer half of "this card can be moved", and it
+      // has to be conditional for the same reason the drag handler is: a card
+      // this reader may not edit must not advertise a gesture the server would
+      // refuse. On touch the same fact is carried by the press animation.
+      data-draggable={canEdit ? 'true' : undefined}
+      data-press={pressed ? 'true' : undefined}
       // Physical, and resolved from `dir` by the board — CSS has no logical
       // transform, and the sign is a fact this screen already holds.
       style={enter && enter.slide !== 0 ? ({ '--bd-slide': `${enter.slide}px` } as CSSProperties) : undefined}

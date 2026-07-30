@@ -85,7 +85,9 @@ describe('vocabLabel — the frozen resolution order', () => {
     // The rule that bites: an admin renames only the English label, and the
     // Arabic UI must not silently switch half a screen into English.
     const s = snap([row({ kind: 'status', key: 'blocked', label: 'Held', label_ar: '   ' })])
-    expect(vocabLabel(s, 'status', 'blocked', 'ar')).toBe('محجوب')
+    // The literal is locales/ar/status.json's built-in, so it moves when the
+    // wording does — it was محجوب until FIX-BACKLOG S5g retired that reading.
+    expect(vocabLabel(s, 'status', 'blocked', 'ar')).toBe('متعثّر')
     expect(vocabLabel(s, 'status', 'blocked', 'ar')).not.toBe('Held')
   })
 

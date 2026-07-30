@@ -1,0 +1,56 @@
+{
+  "track": {
+    "back": "All tracks",
+    "notFound": "No such track",
+    "notFoundHint": "It may have been deleted. Pick another one from the tracks list.",
+
+    "now": "As it stands today",
+    "statOpen": "Open",
+    "statOverdue": "Overdue",
+    "statStale": "Stale",
+    "statBlocked": "Blocked",
+    "statUnassigned": "Unassigned",
+    "statSla": "Past SLA",
+    "statsHint": "These count the track as it stands right now. The timeline below follows the dates you pick.",
+    "statsPartial": "Only part of the workspace is loaded, so these counts describe what is in view.",
+
+    "range": "Range",
+    "rangeFrom": "From",
+    "rangeTo": "To",
+    "rangeLast": { "one": "Last day", "other": "Last {count} days" },
+    "rangeShowing": "Showing ⁨{range}⁩",
+
+    "search": "Search this timeline",
+    "searchPlaceholder": "Titles, notes, updates…",
+    "kind": "Show",
+    "kindAll": "Everything",
+    "kindEntry": "Items raised",
+    "kindUpdate": "Updates",
+    "refresh": "Refresh",
+    "refreshed": "Timeline reloaded.",
+
+    "tags": "Tag breakdown",
+    "tagsHint": "How this window splits across the track's tags. An item carrying two tags is counted under both, so the rows do not add up to the total.",
+    "tagsOpen": "open",
+    "tagsClosed": "closed",
+    "tagsNone": "No tag",
+    "tagsRow": "⁨{tag}⁩: {open} open, {closed} closed",
+    "tagsEmpty": "Nothing in this window carries a tag.",
+    "tagsEmptyHint": "An admin can suggest tags for a track from Settings, then Tracks.",
+
+    "feed": "Timeline",
+    "total": { "one": "{count} event", "other": "{count} events" },
+    "raised": "Raised",
+    "update": "Update",
+    "statusChange": "Status change",
+    "openItem": "Open ⁨{title}⁩",
+    "orphan": "An item outside this window",
+
+    "empty": "Nothing happened in this window",
+    "emptyHint": "Widen the dates, or clear the search.",
+    "emptyTrack": "Nothing has been filed here yet",
+    "emptyTrackHint": "Capture something and choose this track, and it shows up here.",
+    "errLoad": "This track's timeline could not be loaded.",
+    "truncated": "This window holds more events than can load at once, so the oldest are missing. Narrow the dates."
+  }
+}

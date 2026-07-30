@@ -1,0 +1,139 @@
+{
+  "recurring": {
+    "title": "Recurring items",
+    "subtitle": "A recurring item is a recipe, not an item. Each one creates a real entry on its own schedule — the daily standup note, the monthly capacity report, the quarterly review.",
+    "scheduleHint": "The schedule runs once a night at 03:15 UTC and again whenever someone opens the app, so a missed night catches up on the first visit of the day.",
+    "leadExplainer": "An item appears on its run date and is due a few days later. Zero days means it is due the day it appears.",
+
+    "add": "New recurring item",
+    "newTitle": "New recurring item",
+    "editTitle": "Edit “{title}”",
+
+    "emptyTitle": "Nothing repeats yet",
+    "emptyBody": "Set up the work that comes back every week or every month, and it will be waiting in follow-ups instead of in somebody's memory.",
+    "errLoad": "Couldn't load the recurring items.",
+
+    "sectionActive": "Running",
+    "sectionPaused": "Paused",
+    "countRunning": {
+      "one": "1 running",
+      "other": "{count} running"
+    },
+
+    "fieldTitle": "What repeats",
+    "fieldTitlePlaceholder": "Monthly capacity report",
+    "fieldTitleHint": "Every item this creates will carry this title.",
+    "fieldTrack": "Track",
+    "fieldType": "Type",
+    "fieldPriority": "Priority",
+    "fieldOwner": "Owner",
+    "ownerUnassigned": "Nobody yet",
+    "ownerExternal": "Someone outside the workspace",
+    "ownerExternalPlaceholder": "Vendor or department",
+    "noTrack": "No track",
+
+    "cadence": "Repeats",
+    "cadenceDaily": "Every day",
+    "cadenceWeekly": "Weekly",
+    "cadenceBiweekly": "Every other week",
+    "cadenceMonthly": "Monthly",
+    "cadenceQuarterly": "Quarterly",
+    "cadenceCustom": "Every few days",
+
+    "intervalDays": "Days between runs",
+    "intervalHint": "Counted from one run to the next, not from the start of a week or a month.",
+    "dayOfWeek": "On which day",
+    "dayOfWeekHint": "Every run after the first lands on this day.",
+    "dayOfMonth": "Day of the month",
+    "dayOfMonthHint": "Stored on the item, so a run clamped to a short month recovers afterwards.",
+    "dayOfMonthClamp": "A month too short for it clamps to its last day: 31 becomes 28 in February, then 31 again in March.",
+
+    "firstRun": "First run",
+    "firstRunHint": "The day the first item is created. Everything after it follows the cadence.",
+    "clamped": "That day has already passed, so the first run moved forward to {date} — same rhythm, no backdated items.",
+    "alignPrompt": "The first run is a {from}. Move it to {date} so it starts on a {target}?",
+    "alignApply": "Move the first run",
+
+    "leadDays": "Due this many days after it appears",
+    "leadHint": "Zero means due the day it appears. Three gives whoever owns it three days of warning.",
+
+    "previewTitle": "Next runs",
+    "previewHint": "Left: the day the item is created. Right: the day it is due.",
+    "previewDue": "due {date}",
+    "previewSameDay": "due that day",
+    "previewNone": "Pick a valid first run to preview the schedule.",
+
+    "nextRun": "Next run",
+    "summaryDaily": "Every day",
+    "summaryWeekly": "Every {day}",
+    "summaryBiweekly": "Every other {day}",
+    "summaryMonthly": "Monthly, day {day}",
+    "summaryQuarterly": "Quarterly, day {day}",
+    "summaryCustom": {
+      "one": "Every day",
+      "other": "Every {count} days"
+    },
+
+    "paused": "Paused",
+    "behind": "Behind",
+    "trackArchived": "Track archived",
+    "trackArchivedHint": "An archived track stops its recurring items. Restore the track and the schedule resumes, including the runs it missed.",
+
+    "behindCount": {
+      "one": "1 run is overdue",
+      "other": "{count} runs are overdue"
+    },
+    "behindBody": "The next pass will create every one of them. Skip ahead to keep only the next run.",
+    "behindCapped": "One pass creates at most {cap} items, so a long gap catches up over several days.",
+    "skipAhead": "Skip to {date}",
+    "skippedToast": "Next run moved to {date}.",
+    "skipNothingToast": "Nothing to skip — this one isn't behind.",
+
+    "runNow": "Run now",
+    "running": "Running…",
+    "runNowHint": "Creates one item dated today. Running it twice in a day creates nothing the second time.",
+    "ranToast": "Item created for today.",
+    "openItem": "Open",
+    "errRun": "Couldn't create the item.",
+
+    "pause": "Pause",
+    "resume": "Resume",
+    "pausedToast": "Paused. Nothing is created until you resume it.",
+    "resumedToast": "Running again.",
+
+    "deleteTitle": "Delete “{title}”?",
+    "deleteBody": "The recipe goes. Nothing has been created from it yet.",
+    "deleteBodyWithEntries": {
+      "one": "The recipe goes. The 1 item it already created stays, and stops naming this schedule.",
+      "other": "The recipe goes. The {count} items it already created stay, and stop naming this schedule."
+    },
+    "deleteAdminOnly": "Only an admin can delete a recurring item. Pausing it is available to everyone.",
+    "deletedToast": "Recurring item deleted.",
+
+    "create": "Create",
+    "creating": "Creating…",
+    "createdToast": "Recurring item created.",
+    "save": "Save",
+    "saving": "Saving…",
+    "savedToast": "Saved.",
+    "unsaved": "Unsaved changes",
+    "discardTitle": "Discard changes?",
+    "discardBody": "The edits to this recurring item haven't been saved.",
+    "discard": "Discard",
+
+    "editRow": "Edit {title}",
+    "closeRow": "Close {title}",
+    "pauseRow": "Pause {title}",
+    "resumeRow": "Resume {title}",
+    "runRow": "Run {title} now",
+    "deleteRow": "Delete {title}",
+
+    "errTitleRequired": "Give it a title — that is what every item it creates will be called.",
+    "errFirstRun": "Pick a valid first-run date.",
+    "errInterval": "Between {min} and {max} days.",
+    "errLead": "Between {min} and {max} days.",
+    "errDayOfMonth": "A day between {min} and {max}.",
+    "errSave": "Couldn't save the recurring item.",
+    "errNotFound": "That recurring item is gone — someone else deleted it."
+  }
+}

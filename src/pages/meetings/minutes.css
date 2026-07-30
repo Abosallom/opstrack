@@ -1,0 +1,422 @@
+/* The minutes document — `/meetings/:id/minutes`.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.mdoc-*` and styles
+   nothing else. It is a REGISTRY ADDITION, filed the way `entry-page.css →
+   .epg-*` and `track-sla.css → .tsla-*` were at the Wave-2 close: the meetings
+   folder's own sheet (`meetings.css → .mt-*`) belongs to the live-capture
+   worker, and two owners on one file is the one thing §1.0.1 forbids outright.
+   `.mdoc-`, not `.mt-doc-`, so no selector here can ever be mistaken for a
+   `.mt-*` one at a glance. See the handoff note.
+
+   Every primitive it leans on — .card, .btn, .chip, .chip-row, .empty-state,
+   .tabular, .sr-only — belongs to global.css and is USED here, never
+   redeclared.
+
+   THE SHEET CARRIES ITS OWN DIRECTION. The document can be written in the
+   opposite direction from the app around it (an Arabic record sent to an
+   English vendor), so `dir` is set on `.mdoc-sheet` rather than inherited from
+   <html>. That works ONLY because everything below is logical properties —
+   there is not one physical side in this file, so the whole document mirrors on
+   that one attribute with no direction-aware rule anywhere.
+
+   SPACING is on the 4px grid: 4 inside a row, 8 between rows, 12–16 between
+   bands, 24 between the header and the body.
+
+   MOTION is one 160ms fade-and-rise on the sheet. global.css's
+   prefers-reduced-motion block flattens it to 0.01ms, so there is no
+   reduced-motion rule here.
+
+   PRINT is at the bottom, and it is not decoration: minutes are the one screen
+   in this app that people put on paper or into a PDF for someone who was not
+   in the room. */
+
+.mdoc {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---------- toolbar (stays in the UI's language and direction) ---------- */
+
+.mdoc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.mdoc-back {
+  flex: 0 0 auto;
+}
+
+.mdoc-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 4px inside the switch against 8px between tool groups: two chips at the same
+   gap as their neighbours would read as four unrelated buttons. */
+.mdoc-seg {
+  gap: 4px;
+}
+
+/* ---------- the sheet ---------- */
+
+.mdoc-sheet {
+  padding: 24px;
+  animation: mdoc-rise 160ms ease-out;
+}
+
+@keyframes mdoc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Not `.page-title`: global.css turns OFF text selection on that class, and the
+   one thing a document must always allow is selecting it by hand — which is
+   also what the clipboard-failure toast tells the user to do. */
+.mdoc-title {
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* ---------- header fields ---------- */
+
+.mdoc-head {
+  display: grid;
+  /* The label column sizes to the longest label and stops; `max-content` would
+     let a long Arabic label push the values off a 375px screen. */
+  grid-template-columns: minmax(auto, 10rem) 1fr;
+  gap: 4px 12px;
+  margin-block: 16px 24px;
+  padding-block-end: 16px;
+  border-block-end: 1px solid var(--border);
+  font-size: 14px;
+}
+
+/* The wrapper exists to pair a dt with its dd in the DOM; on this axis the two
+   are grid items of the LIST, so the wrapper must not generate a box. */
+.mdoc-field {
+  display: contents;
+}
+
+.mdoc-label {
+  color: var(--text-dim);
+}
+
+.mdoc-value {
+  color: var(--text);
+  /* A long attendee list wraps inside its own cell rather than widening the
+     grid, which on a phone is the difference between a document and a
+     horizontal scroller. */
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.mdoc-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+/* Each name is its own bidi context (see the `dir="auto"` in the page). The
+   separator is drawn rather than typed, so a mixed roster cannot reorder around
+   a comma the way a joined string does. */
+.mdoc-person + .mdoc-person::before {
+  content: '·';
+  color: var(--text-faint);
+  margin-inline-end: 8px;
+}
+
+/* ---------- bands ---------- */
+
+.mdoc-section + .mdoc-section {
+  margin-block-start: 24px;
+}
+
+/* Not `.section-title`, for the same selection reason as .mdoc-title. */
+.mdoc-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-block-end: 8px;
+}
+
+.mdoc-count {
+  min-inline-size: 20px;
+  padding-inline: 6px;
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* MARKERS ARE DRAWN, NOT NATIVE, and that is a correctness fix rather than a
+   preference: an `<li>` set to `display: flex` is no longer `display: list-item`
+   and loses its marker entirely, so a numbered band would render unnumbered.
+   A counter on a ::before is a flex item like any other, which also lets the
+   number, the bullet and the checkbox share one alignment instead of three.
+   `role="list"` in the page restores the semantics WebKit drops from a list
+   styled `list-style: none`. */
+.mdoc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: mdoc-item;
+}
+
+.mdoc-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-block-size: 24px;
+}
+
+.mdoc-list-numbers .mdoc-item::before {
+  counter-increment: mdoc-item;
+  content: counter(mdoc-item) '.';
+  flex: 0 0 auto;
+  min-inline-size: 1.5em;
+  color: var(--text-faint);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  /* Optically on the first line of 15px/1.45 text, like .mdoc-check. */
+  line-height: 1.5;
+}
+
+.mdoc-list-bullets .mdoc-item::before {
+  content: '•';
+  flex: 0 0 auto;
+  min-inline-size: 1em;
+  color: var(--text-faint);
+  line-height: 1.45;
+}
+
+.mdoc-body {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mdoc-check {
+  flex: 0 0 auto;
+  inline-size: 16px;
+  block-size: 16px;
+  /* Optically centred on the first line of 15px/1.45 text rather than on the
+     row: a checkbox that floats between two wrapped lines reads as belonging to
+     neither. */
+  margin-block-start: 3px;
+  border: 1.5px solid var(--field-border);
+  border-radius: 4px;
+}
+
+.mdoc-item.is-done .mdoc-check,
+.mdoc-item.is-cancelled .mdoc-check {
+  border-color: var(--green);
+  background: var(--green);
+  /* The tick is drawn with a gradient rather than a glyph so it needs no font
+     and no icon export from a file this worker may not open. */
+  background-image: linear-gradient(45deg, transparent 46%, var(--accent-ink) 46% 54%, transparent 54%),
+    linear-gradient(-45deg, transparent 46%, var(--accent-ink) 46% 54%, transparent 54%);
+  background-size: 60% 60%, 60% 60%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.mdoc-item.is-cancelled .mdoc-check {
+  border-color: var(--text-faint);
+  background-color: var(--text-faint);
+}
+
+.mdoc-text {
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.mdoc-item.is-cancelled .mdoc-text {
+  text-decoration: line-through;
+  color: var(--text-dim);
+}
+
+.mdoc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.mdoc-meta-part + .mdoc-meta-part::before {
+  content: '·';
+  color: var(--text-faint);
+  margin-inline-end: 8px;
+}
+
+.mdoc-meta-label::after {
+  /* The colon is punctuation of the DOCUMENT's language, and both languages use
+     this one — but it is drawn here rather than typed into the locale files so
+     no translator has to remember to include it on eleven separate strings. */
+  content: ':\00a0';
+  color: var(--text-faint);
+}
+
+.mdoc-detail {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  /* Indented under the item's own text, mirroring the continuation indent both
+     text renderers use. */
+  padding-inline-start: 8px;
+  border-inline-start: 2px solid var(--border);
+}
+
+.mdoc-notes {
+  padding-inline-start: 12px;
+}
+
+.mdoc-notes + .mdoc-notes {
+  margin-block-start: 8px;
+}
+
+/* Present at 44px for a finger, quiet until it is wanted. It never carries
+   information — the row's text is the document; this is a way out of it. */
+.mdoc-open {
+  flex: 0 0 auto;
+  opacity: 0.55;
+  transition: opacity 150ms ease;
+}
+
+.mdoc-open:hover,
+.mdoc-open:focus-visible {
+  opacity: 1;
+}
+
+.mdoc-empty {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* ---------- narrow ---------- */
+
+@media (max-width: 767px) {
+  .mdoc-sheet {
+    padding: 16px;
+  }
+
+  /* Stacked: a 10rem label column against a 200px value column turns every
+     attendee list into a two-word-per-line ribbon.
+
+     The grid is abandoned rather than narrowed, because `display: contents`
+     leaves .mdoc-field with no box to space its neighbours against — a margin
+     on it would do nothing at all. Flex gives each pair a box again. */
+  .mdoc-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mdoc-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mdoc-label {
+    font-size: 12px;
+  }
+}
+
+/* ---------- print ----------
+   global.css already hides the shell (sidebar, tabbar, header, toasts) and
+   forces black on white. What is left is this screen's own chrome, and the
+   controls inside the document itself — a printed page with a greyed-out
+   "Copy as Markdown" button on it looks like a screenshot, not a record. */
+
+@media print {
+  .mdoc-bar,
+  .mdoc-open {
+    display: none !important;
+  }
+
+  .mdoc-sheet {
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    animation: none;
+  }
+
+  .mdoc-title,
+  .mdoc-heading,
+  .mdoc-text,
+  .mdoc-value {
+    color: #000000;
+  }
+
+  .mdoc-label,
+  .mdoc-meta,
+  .mdoc-detail,
+  .mdoc-count {
+    color: #333333;
+  }
+
+  .mdoc-count {
+    background: none;
+  }
+
+  /* Browsers strip backgrounds when printing unless the user opts in, which
+     would turn every completed action back into an empty box — the one thing a
+     printed minutes document must not get wrong. So on paper the tick is a
+     GLYPH inside an outlined box rather than a painted fill. */
+  .mdoc-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-color: #333333;
+    background: none;
+  }
+
+  .mdoc-item.is-done .mdoc-check::after,
+  .mdoc-item.is-cancelled .mdoc-check::after {
+    content: '✓';
+    font-size: 12px;
+    line-height: 1;
+    color: #000000;
+  }
+
+  /* A band's heading must not be the last thing on a page, and an item must not
+     be split across two — both make a printed minutes document read as if a
+     line went missing. */
+  .mdoc-heading {
+    break-after: avoid;
+  }
+
+  .mdoc-item,
+  .mdoc-section {
+    break-inside: avoid;
+  }
+}

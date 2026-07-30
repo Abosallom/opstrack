@@ -1,0 +1,499 @@
+/* The distribution tree — the `.tree-*` prefix, added to the class registry by
+   WAVE3-NOTES §2 (`.tl-` stays with the per-track timeline at /tracks/:id).
+
+   NOTHING HERE STYLES AN ENTRY ROW. `.entry-row*` belongs to the entry kit's own
+   sheet; what this file owns is the scaffolding around it — the node, its
+   heading, the indent, the selection checkbox, the owner select and the bulk
+   bar. The one place the two meet is `.tree-row[data-selected]`, which paints
+   the wrapper rather than reaching into the kit's `[data-selected]` (that one
+   means "current", and a multi-select list must not claim aria-current on
+   fifteen rows at once).
+
+   THE COLOUR CHIP IS `.track-bar`, the global primitive, so the node wears its
+   track's identity on the reading-start edge in both directions and resolves the
+   dark/light hex pair in CSS — never in JS (lib/trackStyle.ts's header). That is
+   also why `.tree-node` declares its own border with LONGHANDS: the `border`
+   shorthand resets all four edges and would silently erase the bar, which is the
+   exact trap `.admin-row` documents in global.css.
+
+   LOGICAL PROPERTIES ONLY. There is not one physical layout value in this file;
+   the fixed bulk bar's safe-area padding is the sole `env()` read, matching
+   app-shell.css's convention. The chevron rotates 180°, never ±90°, precisely so
+   RTL needs no rule of its own.
+
+   MOTION is 150–200ms and is clamped by the reduced-motion kill-switch in
+   global.css, so nothing here re-declares it.
+
+   SPACING is on the 4px grid throughout — 4 / 8 / 12 / 16 / 24, nothing else. */
+
+.tree {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tree-sub {
+  color: var(--text-dim);
+  margin-block-end: 12px;
+}
+
+/* ── the control bar under the filter ─────────────────────────────────── */
+
+.tree-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block-end: 8px;
+}
+
+/* The distribution workflow's home base, so it reads as a mode and not as one
+   more facet: a filled chip beside the filter bar rather than inside its panel. */
+.tree-unassigned[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--yellow) 18%, transparent);
+  border-color: var(--yellow);
+  color: var(--text);
+}
+
+.tree-folds {
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+}
+
+.tree-hint {
+  color: var(--text-faint);
+  font-size: 13px;
+  margin-block-end: 12px;
+}
+
+/* The working set is a window, so every count above is a count of what loaded.
+   Said in the amber that means "true, with a caveat" everywhere else in the app. */
+.tree-hint-warn {
+  color: var(--yellow);
+}
+
+/* ── error ─────────────────────────────────────────────────────────────── */
+
+.tree-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+  margin-block-end: 16px;
+}
+
+.tree-error-title {
+  font-weight: 700;
+  color: var(--red);
+}
+
+/* ── nodes ─────────────────────────────────────────────────────────────── */
+
+.tree-nodes,
+.tree-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+}
+
+.tree-node {
+  /* LONGHANDS, not `border` — see the file header. The inline-start edge is the
+     track's colour bar and the shorthand would reset it. */
+  border-block: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  /* padding-inline-start belongs to .track-bar (10px); setting it here would
+     fight the primitive depending on stylesheet order. */
+  padding-inline-end: 12px;
+  padding-block: 4px;
+  transition: border-color 0.15s ease;
+}
+
+.tree-node:hover {
+  border-color: var(--field-border);
+}
+
+/* Archived, or gone entirely, and still holding open work. Dimmed so it reads
+   as an exception, never hidden — hiding it strands the work inside it. */
+.tree-node[data-residual='true'] {
+  background: var(--bg);
+}
+
+/* padding-inline-start stays with .track-bar, exactly as on a real node — a
+   skeleton that does not occupy the same box as the thing it stands in for
+   makes the whole list shift when the data lands. */
+.tree-node-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-inline-end: 12px;
+  padding-block: 12px;
+}
+
+.tree-node-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 4px;
+}
+
+/* The whole heading is the fold control — a 16px chevron is not a target. */
+.tree-node-toggle {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  min-block-size: 44px;
+  padding-inline: 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.tree-node-toggle:hover {
+  background: var(--bg-elev-2);
+}
+
+.tree-node-toggle:active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.tree-node-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 180°, never ±90°: a quarter turn has a side and would need an RTL rule; a
+   half turn reads as open/closed in both directions. */
+.tree-caret {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  transition: transform 0.18s ease;
+}
+
+.tree-node[data-open='true'] .tree-caret {
+  transform: rotate(180deg);
+}
+
+.tree-node-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.tree-node-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tree-count {
+  flex: 0 0 auto;
+}
+
+.tree-archived {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+/* ── the all-clear ─────────────────────────────────────────────────────── */
+
+/* Low-key on purpose: an empty track is good news, and good news that shouts is
+   noise on a screen whose whole job is showing you what still needs a person. */
+.tree-clear {
+  padding-inline: 4px;
+  padding-block: 4px 12px;
+  margin-inline-start: 24px;
+}
+
+.tree-clear-title {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tree-clear-hint {
+  color: var(--text-faint);
+  font-size: 12px;
+  margin-block-start: 4px;
+}
+
+/* ── rows ──────────────────────────────────────────────────────────────── */
+
+.tree-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  /* The indent that makes it a tree rather than a list of headings. */
+  margin-inline-start: 24px;
+  padding-block: 4px 12px;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 4px;
+  padding-block: 2px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Selection is painted on the WRAPPER, not passed to EntryRow's `selected` —
+   that prop also sets aria-current, which means "the one you are on" and not
+   "one of fifteen you ticked". */
+.tree-row[data-selected='true'] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.tree-row-body {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+/* ── the selection checkbox ────────────────────────────────────────────── */
+
+/* appearance:none rather than accent-color, for one reason that decides it: a
+   native checkbox is a replaced element, so ::before does not render on it, and
+   ::before is what gives a 20px mark a 44px pointer target without turning the
+   mark itself into a 44px square beside a 14px title. Drawing it also gets the
+   disabled, hover and focus states the polish mandate asks for, and an
+   indeterminate DASH that cannot be mistaken for a tick. */
+.tree-check {
+  position: relative;
+  flex: 0 0 auto;
+  appearance: none;
+  -webkit-appearance: none;
+  inline-size: 20px;
+  block-size: 20px;
+  margin: 0;
+  border: 1.5px solid var(--field-border);
+  border-radius: 5px;
+  background: var(--bg-elev-2);
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+/* The pointer target: 44px of transparent overlay around a 20px control. */
+.tree-check::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+}
+
+.tree-check:hover {
+  border-color: var(--accent);
+}
+
+.tree-check:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.tree-check:checked,
+.tree-check:indeterminate {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* The tick and the dash are masks, not glyphs: a mask takes its colour from
+   `background`, so --accent-ink follows the theme. A hardcoded hex here would
+   be invisible in whichever theme it was not chosen for. */
+.tree-check:checked::after,
+.tree-check:indeterminate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent-ink);
+}
+
+.tree-check:checked::after {
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 14px 14px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 14px 14px no-repeat;
+}
+
+/* "Some of these", never "all of these". */
+.tree-check:indeterminate::after {
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M6 12h12'/%3E%3C/svg%3E") center / 14px 14px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.5' stroke-linecap='round'%3E%3Cpath d='M6 12h12'/%3E%3C/svg%3E") center / 14px 14px no-repeat;
+}
+
+.tree-check:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* HIDDEN ON HOVER-CAPABLE POINTERS ONLY, and never with `display` or
+   `visibility` — the box stays laid out and focusable, so Tab still reaches it
+   and focusing it brings it back. A coarse pointer has no hover state to reveal
+   anything with, so on a phone every checkbox is simply always there. */
+@media (hover: hover) and (pointer: fine) {
+  .tree-check {
+    opacity: 0;
+  }
+
+  .tree-row:hover .tree-check,
+  .tree-row:focus-within .tree-check,
+  .tree-node-head:hover .tree-check,
+  .tree-node-head:focus-within .tree-check,
+  .tree-check:focus,
+  .tree-check:checked,
+  .tree-check:indeterminate,
+  /* Once anything is picked, every checkbox is on show: extending a selection
+     must not be a hunt for controls that appear one at a time. */
+  .tree[data-picking='true'] .tree-check {
+    opacity: 1;
+  }
+}
+
+/* ── the inline owner picker ───────────────────────────────────────────── */
+
+/* THE row control. It is the owner display as well as the owner editor, which
+   is why it is a real <select> and not a badge that turns into one on click:
+   the fastest assignment is the one that needs no discovery, and a native select
+   is also the only version of this that is keyboard- and screen-reader-complete
+   on day one. */
+.tree-owner {
+  min-inline-size: 132px;
+  max-inline-size: 176px;
+  min-block-size: 36px;
+  padding-block: 4px;
+  font-size: 12.5px;
+}
+
+/* The prominent Unassigned state. Amber rather than red: nobody has picked this
+   up yet, which is the queue working as intended — it is not a failure. */
+.tree-owner[data-unassigned='true'] {
+  border-color: color-mix(in srgb, var(--yellow) 55%, var(--field-border));
+  color: var(--yellow);
+  font-weight: 700;
+}
+
+.tree-owner:disabled {
+  cursor: not-allowed;
+}
+
+/* ── the bulk bar ──────────────────────────────────────────────────────── */
+
+.tree-bulk {
+  position: sticky;
+  inset-block-end: 12px;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 12px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-elev-2);
+  box-shadow: var(--shadow);
+  animation: tree-bulk-in 180ms ease-out both;
+}
+
+@keyframes tree-bulk-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tree-bulk-count {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tree-bulk-select {
+  flex: 0 1 auto;
+  min-inline-size: 132px;
+  min-block-size: 36px;
+  padding-block: 4px;
+  font-size: 13px;
+}
+
+.tree-bulk-busy {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.tree-bulk-clear {
+  margin-inline-start: auto;
+}
+
+/* ── mobile ────────────────────────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Tracks become cards: the indent that reads as hierarchy on a 1280px screen
+     is 6% of a 375px one, and spending it on whitespace costs the titles the
+     room they need more. */
+  .tree-rows,
+  .tree-clear {
+    margin-inline-start: 0;
+  }
+
+  .tree-node {
+    padding-inline-end: 8px;
+  }
+
+  .tree-folds {
+    margin-inline-start: 0;
+  }
+
+  .tree-owner {
+    min-inline-size: 104px;
+    max-inline-size: 132px;
+    /* A 44px target, because this is the control the whole screen exists for. */
+    min-block-size: 44px;
+  }
+
+  /* Docked above the tab bar (74px + the home indicator), and above the capture
+     FAB's z-index 81 rather than beside it: while a selection is live, bulk
+     action is the mode, and a round button floating on top of the bar it
+     overlaps reads as a rendering bug. Toasts stay above both at 95. */
+  .tree-bulk {
+    position: fixed;
+    inset-inline: 10px;
+    inset-block-end: calc(74px + env(safe-area-inset-bottom, 0px));
+    z-index: 82;
+    padding-inline: max(12px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  }
+
+  .tree-bulk-select {
+    flex: 1 1 128px;
+    min-block-size: 44px;
+  }
+
+  .tree-bulk-clear {
+    min-block-size: 44px;
+  }
+
+  /* Room for the docked bar, so the last row is never parked underneath it. */
+  .tree[data-picking='true'] {
+    padding-block-end: 84px;
+  }
+}

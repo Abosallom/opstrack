@@ -1,0 +1,498 @@
+/* The chart kit's own rules.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.cht-*` and styles nothing
+   else. `.skeleton`, `.sr-only`, `.tabular`, `.chip`, `.chip-row` and `.card`
+   belong to global.css and are USED here, never redeclared. The dashboard's own
+   layout — the grid these panels sit in, the stat tiles — is `.db-*` in
+   pages/dashboard.css and is not touched from here.
+
+   LOGICAL PROPERTIES ONLY, in the CSS. Inside the <svg> there is no such thing:
+   SVG has `x` and nothing else, so direction is resolved in ARITHMETIC by
+   components/charts/geometry.ts and no rule below flips anything. The only
+   direction-aware CSS in this file is text alignment in the fallback table,
+   which uses `end` and therefore needs no mirror rule either.
+
+   COLOUR CARRIES MEANING, TWICE OVER, and the two ramps are deliberately
+   different kinds:
+     · HEALTH is categorical-with-an-order — ok, going quiet, overdue,
+       critical — and is drawn in the app's existing semantic tokens so a band
+       here is the same colour as the pill on the row it counts.
+     · AGE is purely sequential, so it gets a single-hue accent ramp. Drawing an
+       ordered distribution in four unrelated hues invites the reader to look
+       for a meaning in the colours that is not there.
+   Every fill is mixed against `--bg-elev` (the card it sits on) rather than
+   against `transparent`, so the composited result is a known colour in both
+   themes instead of whatever alpha happens to produce.
+
+   SPACING is on the 4px grid. MOTION is 180ms and only ever transform/opacity;
+   global.css's prefers-reduced-motion block flattens it, so nothing here needs
+   its own query. */
+
+/* ---------- the panel ---------- */
+
+.cht {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.cht-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.cht-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+}
+
+.cht-desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  max-inline-size: 52ch;
+  /* Pulls the description up against its title; the panel's own 8px gap plus a
+     descender makes them read as two unrelated lines otherwise. */
+  margin-block-start: -4px;
+}
+
+.cht-note {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.cht-tools {
+  flex: 0 0 auto;
+}
+
+/* Two chips answering one question read as one control at 4px and as two at 8. */
+.cht-seg {
+  gap: 4px;
+  overflow-x: visible;
+}
+
+/* ---------- the plot ---------- */
+
+.cht-plot {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.cht-svg {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  overflow: visible;
+}
+
+.cht-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* ---------- axes ---------- */
+
+.cht-gridline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+/* The zero line is not a gridline: every bar is measured from it. */
+.cht-baseline {
+  stroke: var(--field-border);
+  stroke-width: 1;
+}
+
+.cht-tick,
+.cht-cat,
+.cht-rowlabel,
+.cht-value {
+  fill: var(--text-faint);
+  font-family: var(--font);
+  font-variant-numeric: tabular-nums;
+}
+
+.cht-tick {
+  font-size: 10.5px;
+}
+
+.cht-cat {
+  font-size: 11px;
+  fill: var(--text-dim);
+}
+
+.cht-rowlabel {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--text-dim);
+}
+
+.cht-value {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--text-dim);
+}
+
+/* ---------- marks ---------- */
+
+.cht-bar {
+  shape-rendering: crispEdges;
+  transition: opacity 0.15s ease;
+}
+
+/* The empty channel a horizontal bar is measured inside. */
+.cht-track {
+  fill: var(--bg-elev-2);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+/* The track's identity tick under each column, painted from the two hexes
+   lib/trackStyle.trackVars() sets inline. CSS chooses between them so the mark
+   re-colours when the `auto` theme flips at sunset without anything
+   re-rendering — see that module's header. */
+.cht-trackmark {
+  fill: var(--track-c-dark, var(--field-border));
+}
+
+[data-theme='light'] .cht-trackmark {
+  fill: var(--track-c-light, var(--track-c-dark, var(--field-border)));
+}
+
+.cht-trackmark.is-none {
+  fill: var(--field-border);
+}
+
+/* One tab stop per category. `outline` does paint on an SVG <g> in Chromium but
+   not everywhere, so the stroke is the guarantee and the outline is the bonus —
+   a focus indicator is not somewhere to rely on one implementation. */
+.cht-mark {
+  outline-offset: 2px;
+}
+
+.cht-mark:focus-visible .cht-bar,
+.cht-mark:focus-visible .cht-track {
+  stroke: var(--text);
+  stroke-width: 2;
+  paint-order: stroke fill;
+}
+
+.cht-mark:hover .cht-bar {
+  opacity: 0.82;
+}
+
+@keyframes cht-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.cht-series .cht-bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: cht-rise 0.18s ease-out both;
+}
+
+/* Horizontal bars grow along the inline axis, which mirrors — and a
+   transform-origin cannot be expressed logically. Rather than ship a rule that
+   animates the wrong way in Arabic, these simply do not animate. */
+.cht-h .cht-bar {
+  animation: none;
+}
+
+/* ---------- series colours ---------- */
+
+.cht-c-ok {
+  fill: color-mix(in srgb, var(--blue) 52%, var(--bg-elev));
+}
+
+.cht-c-stale {
+  fill: color-mix(in srgb, var(--yellow) 74%, var(--bg-elev));
+}
+
+.cht-c-overdue {
+  fill: color-mix(in srgb, var(--red) 72%, var(--bg-elev));
+}
+
+.cht-c-critical {
+  fill: var(--red);
+}
+
+/* Sequential, one hue, oldest darkest. */
+.cht-c-a1 {
+  fill: color-mix(in srgb, var(--accent) 32%, var(--bg-elev));
+}
+
+.cht-c-a2 {
+  fill: color-mix(in srgb, var(--accent) 54%, var(--bg-elev));
+}
+
+.cht-c-a3 {
+  fill: color-mix(in srgb, var(--accent) 76%, var(--bg-elev));
+}
+
+.cht-c-a4 {
+  fill: var(--accent);
+}
+
+.cht-c-created {
+  fill: color-mix(in srgb, var(--accent) 78%, var(--bg-elev));
+}
+
+.cht-c-closed {
+  fill: color-mix(in srgb, var(--green) 78%, var(--bg-elev));
+}
+
+.cht-c-good {
+  fill: var(--green);
+}
+
+.cht-c-warn {
+  fill: var(--yellow);
+}
+
+.cht-c-bad {
+  fill: var(--red);
+}
+
+/* ---------- legend ---------- */
+
+.cht-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.cht-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cht-swatch {
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+/* The swatch is a <span>, so it needs `background` where the SVG rect above
+   needed `fill`. Same tokens, so the key and the chart cannot drift. */
+.cht-swatch.cht-c-ok {
+  background: color-mix(in srgb, var(--blue) 52%, var(--bg-elev));
+}
+.cht-swatch.cht-c-stale {
+  background: color-mix(in srgb, var(--yellow) 74%, var(--bg-elev));
+}
+.cht-swatch.cht-c-overdue {
+  background: color-mix(in srgb, var(--red) 72%, var(--bg-elev));
+}
+.cht-swatch.cht-c-critical {
+  background: var(--red);
+}
+.cht-swatch.cht-c-created {
+  background: color-mix(in srgb, var(--accent) 78%, var(--bg-elev));
+}
+.cht-swatch.cht-c-closed {
+  background: color-mix(in srgb, var(--green) 78%, var(--bg-elev));
+}
+
+.cht-legend-value {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ---------- the table fallback ---------- */
+
+.cht-fallback {
+  border-block-start: 1px solid var(--border);
+  padding-block-start: 8px;
+}
+
+.cht-fallback-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 32px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.15s ease;
+  /* The marker is kept: it is the only affordance saying this opens, and a
+     custom chevron would need mirroring in Arabic for no gain. */
+  list-style-position: inside;
+}
+
+.cht-fallback-toggle:hover {
+  color: var(--text);
+}
+
+.cht-tablewrap {
+  /* Wide tables scroll INSIDE the card. A page that scrolls sideways because
+     one panel has six columns is the failure this container exists to prevent. */
+  overflow-x: auto;
+  margin-block-start: 8px;
+}
+
+.cht-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cht-table th,
+.cht-table td {
+  padding-block: 6px;
+  padding-inline: 8px;
+  border-block-end: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.cht-table thead th {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+.cht-table tbody th {
+  font-weight: 600;
+}
+
+.cht-table tbody tr:last-child th,
+.cht-table tbody tr:last-child td {
+  border-block-end: none;
+}
+
+.cht-num {
+  text-align: end;
+}
+
+/* ---------- owner load ---------- */
+
+.cht-ownertable tbody th {
+  position: relative;
+  min-inline-size: 12ch;
+  max-inline-size: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cht-ownername {
+  position: relative;
+  z-index: 1;
+}
+
+/* Decoration behind the name, not a control: the number in the next cell is the
+   fact. It grows from the reading-start edge, so it mirrors for free. */
+.cht-loadbar {
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-start: 0;
+  z-index: 0;
+  border-radius: 0 3px 3px 0;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  transition: inline-size 0.18s ease;
+}
+
+.cht-ownertable tr.is-unassigned th {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.cht-ownertable td.is-bad {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.cht-ownertable td.is-warn {
+  color: var(--yellow);
+  font-weight: 700;
+}
+
+.cht-ownerskeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- the SLA headline ---------- */
+
+.cht-headline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cht-headline-value {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -1.5px;
+  color: var(--text);
+}
+
+.cht-headline.is-good .cht-headline-value {
+  color: var(--green);
+}
+
+.cht-headline.is-warn .cht-headline-value {
+  color: var(--yellow);
+}
+
+.cht-headline.is-bad .cht-headline-value {
+  color: var(--red);
+}
+
+.cht-headline.is-none .cht-headline-value {
+  color: var(--text-faint);
+}
+
+.cht-headline-note {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.cht-headline-aside {
+  color: var(--text-faint);
+}
+
+/* ---------- print ----------
+   A dashboard gets printed for a steering meeting, so a panel must not be split
+   across a page break. A CLOSED <details> is NOT forced open here: whether a
+   collapsed disclosure's children can be revealed by a stylesheet differs
+   between engines, and a rule that works in one of them is worse than an honest
+   "open the tables you want before printing". */
+
+@media print {
+  .cht {
+    break-inside: avoid;
+    border-color: #999999;
+  }
+
+  .cht-tablewrap {
+    overflow: visible;
+  }
+}

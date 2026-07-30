@@ -5,6 +5,7 @@ import { LoadingSpinner } from './components/shared'
 import { Toaster } from './components/toast'
 import { ConfirmHost } from './components/Confirm'
 import OfflineBanner from './components/OfflineBanner'
+import NotificationBell from './components/NotificationBell'
 import {
   IconBolt,
   IconChart,
@@ -44,7 +45,12 @@ const Claim = lazy(() => import('./pages/Claim'))
 const Capture = lazy(() => import('./pages/Capture'))
 const FollowUps = lazy(() => import('./pages/FollowUps'))
 const Board = lazy(() => import('./pages/Board'))
-const Tracks = lazy(() => import('./pages/Tracks'))
+// The two halves of the Tracks tab. Wave 3 split the shared placeholder that
+// used to serve both: /tracks is the distribution TREE (every active track with
+// its open work, for handing items out), /tracks/:id is one track's
+// chronological log. Two files, two prefixes — `.tree-` and `.tl-`.
+const TracksIndex = lazy(() => import('./pages/tracks/TracksIndex'))
+const TrackTimeline = lazy(() => import('./pages/tracks/TrackTimeline'))
 const Entry = lazy(() => import('./pages/Entry'))
 // The overlay half of the same module, mounted once at the root (below). Lazy
 // so the detail surface stays out of the initial bundle; it renders null until
@@ -53,8 +59,18 @@ const Entry = lazy(() => import('./pages/Entry'))
 const EntryOverlay = lazy(() =>
   import('./pages/Entry').then((m) => ({ default: m.EntryOverlayHost })),
 )
-const Meetings = lazy(() => import('./pages/Meetings'))
+// Meeting mode is a four-screen flow, not one page: the list, live capture,
+// triage, and the minutes document. Each is its own chunk — a phone that only
+// ever reads minutes never downloads the triage table.
+const MeetingsIndex = lazy(() => import('./pages/meetings/MeetingsIndex'))
+const MeetingLive = lazy(() => import('./pages/meetings/MeetingLive'))
+const MeetingTriage = lazy(() => import('./pages/meetings/MeetingTriage'))
+const MeetingMinutes = lazy(() => import('./pages/meetings/MeetingMinutes'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Digest = lazy(() => import('./pages/Digest'))
+// The inbox HISTORY. The bell in the header is the peek at it, and it is not
+// lazy — it lives in the chrome, so it is part of every screen.
+const Notifications = lazy(() => import('./pages/Notifications'))
 const Settings = lazy(() => import('./pages/Settings'))
 // Admin config. Under pages/settings/ rather than pages/, because pages/Tracks.tsx
 // is already the per-track timeline — two Tracks.tsx in one directory is a
@@ -62,6 +78,10 @@ const Settings = lazy(() => import('./pages/Settings'))
 const TracksAdmin = lazy(() => import('./pages/settings/TracksAdmin'))
 const TrackEditor = lazy(() => import('./pages/settings/TrackEditor'))
 const VocabularyAdmin = lazy(() => import('./pages/settings/VocabularyAdmin'))
+// NOT route-gated on admin, unlike the three above: the screen renders the
+// schedule read-only for a member and hides its own edit affordances, because
+// "what is going to be raised for me next Sunday" is everybody's question.
+const RecurringAdmin = lazy(() => import('./pages/settings/RecurringAdmin'))
 
 /* ---------- navigation model ---------- */
 
@@ -225,6 +245,12 @@ function AppHeader({ titleKey }: { titleKey: string }): ReactElement {
     <header className="app-header">
       <h1 className="app-header-title">{t(titleKey)}</h1>
       <div className="app-header-actions">
+        {/* First in the row, and eagerly imported: the bell is chrome, so it is
+            on every screen, and its unread count is the one thing here that
+            changes without the user doing anything. It owns its own popover
+            (sheet under 768px) and its own realtime subscription; Shell already
+            opened the channel it rides. */}
+        <NotificationBell />
         {/* Icon-only, so it needs a label. `title` adds the current value on top
             of it — the glyph alone cannot distinguish "auto, currently dark"
             from "forced dark". */}
@@ -436,7 +462,7 @@ export default function App(): ReactElement {
   return (
     <>
       <Shell>
-        {/* One boundary for all fourteen lazy routes, INSIDE Shell so the tab
+        {/* One boundary for all the lazy routes, INSIDE Shell so the tab
             bar, header and sign-out survive a screen that crashes — the user
             can navigate out of the failure instead of being left on a page
             whose only control is Reload. `resetKey` is what makes that work:
@@ -451,14 +477,23 @@ export default function App(): ReactElement {
               <Route path="/capture" element={<Capture />} />
               <Route path="/followups" element={<FollowUps />} />
               <Route path="/board" element={<Board />} />
-              <Route path="/tracks" element={<Tracks />} />
-              <Route path="/tracks/:id" element={<Tracks />} />
+              <Route path="/tracks" element={<TracksIndex />} />
+              <Route path="/tracks/:id" element={<TrackTimeline />} />
               {/* The entry as a PAGE — a URL somebody was sent. Every in-app
                   tap opens the same detail surface as an overlay instead, via
                   openEntry() and the host mounted at the root below. */}
               <Route path="/entry/:id" element={<Entry />} />
-              <Route path="/meetings" element={<Meetings />} />
+              <Route path="/meetings" element={<MeetingsIndex />} />
+              {/* Ranked by React Router, not by order: '/meetings/:id/triage'
+                  and '/meetings/:id/minutes' both out-rank '/meetings/:id'
+                  because a static segment beats a dynamic one, so no id can be
+                  read as a sub-screen and no sub-screen as an id. */}
+              <Route path="/meetings/:id" element={<MeetingLive />} />
+              <Route path="/meetings/:id/triage" element={<MeetingTriage />} />
+              <Route path="/meetings/:id/minutes" element={<MeetingMinutes />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/digest" element={<Digest />} />
+              <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
               {/* Admin config hangs off /settings rather than taking a top-level
                   route: NAV is capped at five tab-bar slots, and these screens
@@ -481,6 +516,9 @@ export default function App(): ReactElement {
                 path="/settings/vocabulary"
                 element={isAdmin ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
               />
+              {/* No isAdmin ternary — see the lazy import. A member reads the
+                  schedule; the page itself withholds the editing. */}
+              <Route path="/settings/recurring" element={<RecurringAdmin />} />
               <Route path="*" element={<Navigate to="/followups" replace />} />
             </Routes>
           </Suspense>

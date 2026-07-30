@@ -29,21 +29,28 @@ import enBoard from './en/board.json'
 import enCapture from './en/capture.json'
 import enClaim from './en/claim.json'
 import enCommon from './en/common.json'
+import enDashboard from './en/dashboard.json'
 import enDate from './en/date.json'
+import enDigest from './en/digest.json'
 import enEntry from './en/entry.json'
 import enFilter from './en/filter.json'
 import enFollowups from './en/followups.json'
 import enHealth from './en/health.json'
+import enMeeting from './en/meeting.json'
+import enMinutes from './en/minutes.json'
 import enNav from './en/nav.json'
 import enNotif from './en/notif.json'
 import enOffline from './en/offline.json'
 import enPlaceholder from './en/placeholder.json'
 import enPriority from './en/priority.json'
 import enPwa from './en/pwa.json'
+import enRecurring from './en/recurring.json'
 import enRoute from './en/route.json'
 import enSettings from './en/settings.json'
 import enSignin from './en/signin.json'
 import enStatus from './en/status.json'
+import enTrack from './en/track.json'
+import enTree from './en/tree.json'
 import enType from './en/type.json'
 import enVocabadmin from './en/vocabadmin.json'
 
@@ -53,21 +60,28 @@ import arBoard from './ar/board.json'
 import arCapture from './ar/capture.json'
 import arClaim from './ar/claim.json'
 import arCommon from './ar/common.json'
+import arDashboard from './ar/dashboard.json'
 import arDate from './ar/date.json'
+import arDigest from './ar/digest.json'
 import arEntry from './ar/entry.json'
 import arFilter from './ar/filter.json'
 import arFollowups from './ar/followups.json'
 import arHealth from './ar/health.json'
+import arMeeting from './ar/meeting.json'
+import arMinutes from './ar/minutes.json'
 import arNav from './ar/nav.json'
 import arNotif from './ar/notif.json'
 import arOffline from './ar/offline.json'
 import arPlaceholder from './ar/placeholder.json'
 import arPriority from './ar/priority.json'
 import arPwa from './ar/pwa.json'
+import arRecurring from './ar/recurring.json'
 import arRoute from './ar/route.json'
 import arSettings from './ar/settings.json'
 import arSignin from './ar/signin.json'
 import arStatus from './ar/status.json'
+import arTrack from './ar/track.json'
+import arTree from './ar/tree.json'
 import arType from './ar/type.json'
 import arVocabadmin from './ar/vocabadmin.json'
 
@@ -91,21 +105,28 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   capture: enCapture,
   claim: enClaim,
   common: enCommon,
+  dashboard: enDashboard,
   date: enDate,
+  digest: enDigest,
   entry: enEntry,
   filter: enFilter,
   followups: enFollowups,
   health: enHealth,
+  meeting: enMeeting,
+  minutes: enMinutes,
   nav: enNav,
   notif: enNotif,
   offline: enOffline,
   placeholder: enPlaceholder,
   priority: enPriority,
   pwa: enPwa,
+  recurring: enRecurring,
   route: enRoute,
   settings: enSettings,
   signin: enSignin,
   status: enStatus,
+  track: enTrack,
+  tree: enTree,
   type: enType,
   vocabadmin: enVocabadmin,
 }
@@ -117,21 +138,28 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   capture: arCapture,
   claim: arClaim,
   common: arCommon,
+  dashboard: arDashboard,
   date: arDate,
+  digest: arDigest,
   entry: arEntry,
   filter: arFilter,
   followups: arFollowups,
   health: arHealth,
+  meeting: arMeeting,
+  minutes: arMinutes,
   nav: arNav,
   notif: arNotif,
   offline: arOffline,
   placeholder: arPlaceholder,
   priority: arPriority,
   pwa: arPwa,
+  recurring: arRecurring,
   route: arRoute,
   settings: arSettings,
   signin: arSignin,
   status: arStatus,
+  track: arTrack,
+  tree: arTree,
   type: arType,
   vocabadmin: arVocabadmin,
 }
@@ -152,21 +180,28 @@ export const en: LocaleTree = {
   ...enCapture,
   ...enClaim,
   ...enCommon,
+  ...enDashboard,
   ...enDate,
+  ...enDigest,
   ...enEntry,
   ...enFilter,
   ...enFollowups,
   ...enHealth,
+  ...enMeeting,
+  ...enMinutes,
   ...enNav,
   ...enNotif,
   ...enOffline,
   ...enPlaceholder,
   ...enPriority,
   ...enPwa,
+  ...enRecurring,
   ...enRoute,
   ...enSettings,
   ...enSignin,
   ...enStatus,
+  ...enTrack,
+  ...enTree,
   ...enType,
   ...enVocabadmin,
 }
@@ -178,21 +213,28 @@ export const ar: LocaleTree = {
   ...arCapture,
   ...arClaim,
   ...arCommon,
+  ...arDashboard,
   ...arDate,
+  ...arDigest,
   ...arEntry,
   ...arFilter,
   ...arFollowups,
   ...arHealth,
+  ...arMeeting,
+  ...arMinutes,
   ...arNav,
   ...arNotif,
   ...arOffline,
   ...arPlaceholder,
   ...arPriority,
   ...arPwa,
+  ...arRecurring,
   ...arRoute,
   ...arSettings,
   ...arSignin,
   ...arStatus,
+  ...arTrack,
+  ...arTree,
   ...arType,
   ...arVocabadmin,
 }

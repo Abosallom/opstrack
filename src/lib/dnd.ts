@@ -12,7 +12,7 @@
 // be styled, does not fire on touch at all, and insists on a text/plain payload
 // nobody wanted; every library that repairs it is a runtime dependency the plan
 // forbids. Pointer events cover mouse, touch and pen in one path, and the whole
-// gesture is the ~90 lines below.
+// gesture is the handful of pure functions below.
 //
 // THE SESSION IS A VALUE, NOT A CONTROLLER. moveDrag() returns the next session
 // rather than mutating one, and returns the SAME REFERENCE while a gesture is
@@ -20,6 +20,26 @@
 // two fields it renders (`itemId`, `overId`) into React state, so a drag across
 // 400 pixels re-renders on the two or three moves that change a column, not on
 // all 400.
+//
+// A TOUCH DRAG IS A HOLD, NOT A SWIPE, and that is the correction that made
+// this board usable on a phone at all. The first cut claimed any mostly-inline
+// finger movement on a card as a drag and left the browser only the vertical
+// axis (`touch-action: pan-y`). On a 375px screen a column IS the screen and a
+// card IS the column, so the only surface left that could pan the board
+// sideways was the 8px gutter between two cards: the second column was, in
+// practice, unreachable with a thumb. The rule now is the one every mobile
+// kanban converged on — the browser owns every pan until a finger has RESTED
+// on a card for HOLD_MS without drifting HOLD_SLOP_PX, and only then does the
+// card belong to the gesture. Nothing is claimed speculatively, so nothing has
+// to be given back.
+//
+// WHICH IS WHY THE AXIS LOCK IS GONE. It was the mitigation for claiming a
+// touch gesture too early: guess from the first few pixels whether the finger
+// meant "scroll" or "drag". A hold does not guess — by the time the card lifts,
+// the intent is not in doubt and a drag may travel in any direction (a phone
+// board drags toward the edge and waits for the auto-scroll). The caller passes
+// `requireHold` for touch and pen and nothing for a mouse, where a held button
+// is already unambiguous.
 //
 // COORDINATES ARE PHYSICAL AND VIEWPORT-RELATIVE, because that is exactly what
 // `PointerEvent.clientX` and `getBoundingClientRect()` hand you, and converting
@@ -35,6 +55,26 @@
 
 /** Travel, in px, that turns a press into a drag rather than a tap. */
 export const DRAG_THRESHOLD_PX = 6
+
+/**
+ * How long a finger must rest on a card before the card is its to move, in ms.
+ *
+ * 420ms is the window every touch platform already trained people on: iOS's own
+ * drag-and-drop lift and Android's long-press both sit between 400 and 500ms.
+ * Shorter and a slow tap steals the card; longer and the gesture feels broken
+ * before it starts. It is also comfortably under Android's ~500ms context-menu
+ * timer, so the lift wins that race rather than fighting a menu.
+ */
+export const HOLD_MS = 420
+
+/**
+ * How far a finger may drift during the hold before the gesture is a pan, in px.
+ *
+ * Deliberately larger than DRAG_THRESHOLD_PX: a thumb resting on glass is not
+ * still, and a 6px budget would make the hold unreachable for anyone whose
+ * hands shake. A real pan clears 10px within a frame or two of starting.
+ */
+export const HOLD_SLOP_PX = 10
 
 /** How close to a scroller's inline edge auto-scroll starts, in px. */
 export const EDGE_SCROLL_ZONE_PX = 64
@@ -69,13 +109,24 @@ export interface DndZone {
 }
 
 /**
- * `armed` — pressed, not yet moved far enough to be a drag.
+ * `armed` — pressed, not yet a drag: under the threshold (mouse) or still
+ * waiting out the hold (touch).
  * `dragging` — committed; the card is lifted and a drop will land.
  * `abandoned` — the gesture turned out to be a scroll. Terminal: it is never
  * re-tested, because a wobbly finger must not hand control back and forth
  * mid-swipe (the same rule useSwipeActions' axis lock follows).
  */
 export type DndPhase = 'armed' | 'dragging' | 'abandoned'
+
+/**
+ * `off` — a mouse. Distance alone decides, and the browser is not panning
+ * anything with a button held down.
+ * `waiting` — a finger is down and the clock is running. The BROWSER still owns
+ * this gesture: any real travel is a pan and the session abandons itself.
+ * `held` — the hold landed, the card is lifted, and the caller may now cancel
+ * the browser's own scrolling for the rest of the gesture.
+ */
+export type DndHold = 'off' | 'waiting' | 'held'
 
 export interface DndSession {
   readonly pointerId: number
@@ -90,12 +141,8 @@ export interface DndSession {
   readonly phase: DndPhase
   /** The accepting column under the pointer, or null. */
   readonly overId: string | null
-  /**
-   * True for touch and pen: a mostly-vertical gesture is the column being
-   * scrolled and must not be claimed. False for a mouse, where the button is
-   * already down and there is nothing else the movement could mean.
-   */
-  readonly lockToInlineAxis: boolean
+  /** Where this gesture sits in the long-press handshake. See DndHold. */
+  readonly hold: DndHold
 }
 
 export interface DndDrop {
@@ -110,7 +157,8 @@ export function startDrag(init: {
   fromId: string
   x: number
   y: number
-  lockToInlineAxis?: boolean
+  /** Touch and pen. A mouse press is already unambiguous — see the header. */
+  requireHold?: boolean
 }): DndSession {
   return {
     pointerId: init.pointerId,
@@ -122,7 +170,7 @@ export function startDrag(init: {
     y: init.y,
     phase: 'armed',
     overId: null,
-    lockToInlineAxis: init.lockToInlineAxis ?? false,
+    hold: init.requireHold === true ? 'waiting' : 'off',
   }
 }
 
@@ -142,17 +190,55 @@ export function moveDrag(
 ): DndSession {
   if (s.phase === 'abandoned') return s
 
+  // A finger that moves before the hold lands was panning all along, and the
+  // browser has been panning with it — nothing was ever claimed, so there is
+  // nothing to give back. Terminal, like every other abandon: a finger that
+  // wanders and then stops must not lift the card out from under a scroll
+  // already in flight.
+  if (s.hold === 'waiting') {
+    if (Math.abs(x - s.startX) < HOLD_SLOP_PX && Math.abs(y - s.startY) < HOLD_SLOP_PX) return s
+    return { ...s, x, y, phase: 'abandoned', overId: null }
+  }
+
   if (s.phase === 'armed') {
     const dx = x - s.startX
     const dy = y - s.startY
     if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return s
-    if (s.lockToInlineAxis && Math.abs(dy) >= Math.abs(dx)) {
-      return { ...s, x, y, phase: 'abandoned', overId: null }
-    }
     return { ...s, x, y, phase: 'dragging', overId: zoneAt(zones, x, y) }
   }
 
   return { ...s, x, y, overId: zoneAt(zones, x, y) }
+}
+
+/**
+ * The hold landed: lift the card where the finger already is.
+ *
+ * Called from a timer, so it takes the zones rather than reading them — the
+ * pointer has not moved since the press and `overId` still has to be resolved,
+ * or the first frame of the drag would show no target under a card that is
+ * plainly sitting in one.
+ *
+ * A no-op (same reference) for every other session, which is what lets the
+ * caller fire the timer without first re-testing what it fired for.
+ */
+export function holdDrag(s: DndSession, zones: readonly DndZone[]): DndSession {
+  if (s.hold !== 'waiting' || s.phase !== 'armed') return s
+  return { ...s, hold: 'held', phase: 'dragging', overId: zoneAt(zones, s.x, s.y) }
+}
+
+/**
+ * Is this gesture a touch press — waiting out its hold, or past it?
+ *
+ * The caller uses it for the two suppressions a long press needs on a phone:
+ * no text-selection caret and no context menu on a card somebody is picking up.
+ */
+export function isHoldGesture(s: DndSession | null): boolean {
+  return s !== null && s.hold !== 'off'
+}
+
+/** Has the hold landed? Only then may the caller cancel the browser's pan. */
+export function isHeld(s: DndSession | null): boolean {
+  return s !== null && s.hold === 'held'
 }
 
 /**

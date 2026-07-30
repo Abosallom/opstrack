@@ -52,7 +52,7 @@
       "many": "يستحق خلال {count} يومًا",
       "other": "يستحق خلال {count} يوم"
     },
-    "weekStart": "أسبوع {from}",
+    "weekStart": "أسبوع ⁨{from}⁩",
     "rangeSep": "–"
   }
 }

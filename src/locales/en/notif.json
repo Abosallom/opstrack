@@ -1,13 +1,32 @@
 {
   "notif": {
     "title": "Notifications",
+    "subtitle": "Work assigned to you, and items you asked for that are now done.",
     "openInbox": "Open notifications",
-    "unread": "{count} unread",
+    "list": "Notification inbox",
+    "unread": {
+      "one": "1 unread",
+      "other": "{count} unread"
+    },
+    "unreadRow": "Unread",
     "empty": "You're all caught up",
     "emptyHint": "You'll be notified when something is assigned to you, or when an item you asked for is completed.",
+    "noUnread": "Nothing unread",
+    "noUnreadHint": "You've read everything. Switch to All to see the history.",
     "markAllRead": "Mark all as read",
+    "markRead": "Mark as read",
     "allRead": "All notifications marked as read.",
-    "assigned": "{actor} assigned you “{title}”",
-    "completed": "{actor} completed “{title}”"
+    "assigned": "⁨{actor}⁩ assigned you “⁨{title}⁩”",
+    "completed": "⁨{actor}⁩ completed “⁨{title}⁩”",
+    "assignedNoActor": "You were assigned “⁨{title}⁩”",
+    "completedNoActor": "“⁨{title}⁩” was completed",
+    "untitled": "Untitled item",
+    "seeAll": "See all notifications",
+    "errLoad": "Couldn't load your notifications.",
+    "errLoadHint": "The inbox is read-only, so nothing was lost. Try again.",
+    "refresh": "Refresh",
+    "showAll": "All",
+    "showUnread": "Unread only",
+    "earlier": "Earlier"
   }
 }

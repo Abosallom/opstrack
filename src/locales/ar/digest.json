@@ -1,0 +1,157 @@
+{
+  "digest": {
+    "title": "الملخّص",
+    "subtitle": "حوّل مدّة زمنية إلى تقرير حالة جاهز للإرسال.",
+
+    "rangeLegend": "المدّة",
+    "presetWeek": "آخر 7 أيام",
+    "presetTwoWeeks": "آخر 14 يومًا",
+    "presetMonth": "آخر 30 يومًا",
+    "presetThisWeek": "هذا الأسبوع",
+    "presetCustom": "مدّة مخصّصة",
+    "from": "من",
+    "to": "إلى",
+    "errRange": "لا يصحّ أن يسبق تاريخُ النهاية تاريخَ البداية.",
+
+    "tracksLegend": "المسارات",
+    "tracksHint": "إن لم تختر شيئًا شمل التقرير كل المسارات.",
+    "sectionsLegend": "الأقسام",
+    "sectionsHint": "يظهر البند مرّة واحدة، في أول قسم ينطبق عليه.",
+    "errNoSections": "اختر قسمًا واحدًا على الأقل.",
+
+    "optionsLegend": "خيارات",
+    "includeNotes": "اقتباس آخر تحديث",
+    "includeEmptyTracks": "إبقاء المسارات التي لا جديد فيها",
+    "includeTags": "تفصيل الوسوم المقترحة",
+    "includeTagsHint": "أعداد لكل وسم في أي مسار يقترح وسومًا — ومسار الانضمام يقترحها.",
+
+    "langLegend": "لغة الملخّص",
+    "langEn": "English",
+    "langAr": "العربية",
+    "langHint": "لغة التقرير وحده، مستقلّة عن لغة التطبيق.",
+
+    "formatLegend": "الصيغة",
+    "formatMarkdown": "Markdown",
+    "formatPlain": "نصّ عادي",
+    "formatHtml": "بريد ⁦HTML⁩",
+    "formatMarkdownHint": "للويكي أو التذاكر أو مستودع الشيفرة.",
+    "formatPlainHint": "لواتساب و⁦Teams⁩ — بلا رموز تنسيق.",
+    "formatHtmlHint": "نصّ بريد مكتفٍ بذاته بأنماط مضمّنة.",
+
+    "previewLegend": "معاينة",
+    "previewSource": "المصدر",
+    "previewRendered": "بعد العرض",
+    "previewFrame": "الملخّص بعد العرض",
+    "outputLabel": "مخرجات الملخّص",
+    "size": {
+      "one": "حرف واحد",
+      "two": "حرفان",
+      "few": "{count} أحرف",
+      "many": "{count} حرفًا",
+      "other": "{count} حرف"
+    },
+
+    "copyRich": "نسخ منسّقًا",
+    "copiedToast": "نُسخ الملخّص",
+    "copiedRichToast": "نُسخ الملخّص مع التنسيق",
+    "errCopy": "تعذّر الوصول إلى الحافظة. حدّد النصّ وانسخه يدويًا.",
+    "downloadedToast": "حُفظ باسم ⁨{name}⁩",
+    "errDownload": "تعذّر حفظ الملف.",
+    "print": "طباعة",
+    "refresh": "تحديث البيانات",
+    "loadingData": "يجري جمع بيانات المدّة…",
+    "errLoad": "تعذّر تحميل بيانات هذه المدّة.",
+    "emptyTitle": "لا شيء في هذه المدّة",
+    "emptyHint": "وسّع المدّة، أو أعِد تفعيل أحد الأقسام.",
+
+    "docTitle": "ملخّص الحالة",
+    "rangeLabel": "يغطّي {range}",
+    "generatedLabel": "أُنشئ في {at}",
+    "sep": " · ",
+    "summaryEmpty": "لا جديد يُذكر في هذه المدّة.",
+    "sumClosed": {
+      "one": "بند مُغلق واحد",
+      "two": "بندان مُغلقان",
+      "few": "{count} بنود مُغلقة",
+      "many": "{count} بندًا مُغلقًا",
+      "other": "{count} بند مُغلق"
+    },
+    "sumInProgress": {
+      "one": "بند قيد التنفيذ",
+      "two": "بندان قيد التنفيذ",
+      "few": "{count} بنود قيد التنفيذ",
+      "many": "{count} بندًا قيد التنفيذ",
+      "other": "{count} بند قيد التنفيذ"
+    },
+    "sumBlocked": {
+      "one": "بند متوقّف",
+      "two": "بندان متوقّفان",
+      "few": "{count} بنود متوقّفة",
+      "many": "{count} بندًا متوقّفًا",
+      "other": "{count} بند متوقّف"
+    },
+    "sumOverdue": {
+      "one": "بند متأخّر",
+      "two": "بندان متأخّران",
+      "few": "{count} بنود متأخّرة",
+      "many": "{count} بندًا متأخّرًا",
+      "other": "{count} بند متأخّر"
+    },
+    "sumSlaBreached": {
+      "one": "بند تجاوز المهلة",
+      "two": "بندان تجاوزا المهلة",
+      "few": "{count} بنود تجاوزت المهلة",
+      "many": "{count} بندًا تجاوز المهلة",
+      "other": "{count} بند تجاوز المهلة"
+    },
+
+    "sectionClosed": "أُغلقت",
+    "sectionInProgress": "قيد التنفيذ",
+    "sectionBlocked": "متوقّفة",
+    "sectionOverdue": "متأخّرة",
+    "sectionSlaBreached": "تجاوزت مهلة الخدمة",
+
+    "detailClosed": "أُغلق {when}",
+    "detailDue": "يستحق {date}",
+    "detailQuiet": {
+      "one": "بلا تحديث منذ يوم",
+      "two": "بلا تحديث منذ يومين",
+      "few": "بلا تحديث منذ {count} أيام",
+      "many": "بلا تحديث منذ {count} يومًا",
+      "other": "بلا تحديث منذ {count} يوم"
+    },
+    "detailQuietToday": "حُدِّث اليوم",
+    "detailBlocked": {
+      "one": "{status} · منذ يوم",
+      "two": "{status} · منذ يومين",
+      "few": "{status} · منذ {count} أيام",
+      "many": "{status} · منذ {count} يومًا",
+      "other": "{status} · منذ {count} يوم"
+    },
+    "detailBlockedToday": "{status} · اليوم",
+    "detailOverdue": {
+      "one": "متأخّر بيوم",
+      "two": "متأخّر بيومين",
+      "few": "متأخّر بـ{count} أيام",
+      "many": "متأخّر بـ{count} يومًا",
+      "other": "متأخّر بـ{count} يوم"
+    },
+    "detailSla": "كانت مهلة الخدمة {date}",
+    "detailSlaNoDate": "تجاوز مهلة الخدمة",
+
+    "noTrack": "بلا مسار",
+    "untitled": "بلا عنوان",
+    "unassigned": "بلا مسؤول",
+    "tagHeading": "تفصيل الوسوم",
+    "tagColumn": "الوسم",
+    "openColumn": "مفتوحة",
+    "closedColumn": "مُغلقة",
+    "totalColumn": "الإجمالي",
+    "tagOther": "أخرى",
+    "trackAllClear": "لا جديد يُذكر.",
+    "emptyWindow": "لم يقع أي بند داخل هذه المدّة.",
+    "notePrefix": "ملاحظة:",
+    "truncatedNote": "يغطّي هذا التقرير أحدث 1000 بند فقط — وما قبلها لم يُقرأ.",
+    "footer": "أُرسل من ⁦OpsTrack⁩"
+  }
+}

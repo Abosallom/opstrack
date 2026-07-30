@@ -471,6 +471,18 @@ describe('Board — the accessible move path', () => {
     expect(html).toContain(esc(t('board.keyboardHint')))
     expect(html).toContain(esc(t('board.dragHint')))
   })
+
+  it('ships BOTH gesture hints, because the media query has to have a choice', () => {
+    // A phone is told to press and hold; a mouse is told to drag. Which one is
+    // visible is board.css's `(pointer: coarse)` call, and that rule can only
+    // pick between strings that are actually in the document — a hint rendered
+    // by a matchMedia read would be a single string that is wrong half the
+    // time, and one that is missing here is a media query with nothing to show.
+    const html = render()
+    expect(html).toContain(esc(t('board.holdHint')))
+    expect(html).toContain('bd-hint bd-hint-touch')
+    expect(html).toContain('bd-hint bd-hint-fine')
+  })
 })
 
 describe('Board — permission is decided before the affordance renders', () => {
@@ -484,10 +496,17 @@ describe('Board — permission is decided before the affordance renders', () => 
     expect(countOf(html, 'data-locked="true"')).toBe(onBoard)
     expect(countOf(html, 'disabled=""')).toBe(onBoard)
     expect(html).toContain(esc(t('entry.cannotEdit')))
+    // And the grab cursor goes with it: an affordance that says "pick me up" on
+    // a card the server would refuse is the same lie as an enabled control.
+    expect(html).not.toContain('data-draggable="true"')
   })
 
   it('leaves the cards unlocked for a signed-in member', () => {
-    expect(render()).not.toContain('data-locked="true"')
+    const html = render()
+    expect(html).not.toContain('data-locked="true"')
+    expect(countOf(html, 'data-draggable="true"')).toBe(
+      fx.entries.filter((e) => e.status !== 'waiting_on').length,
+    )
   })
 })
 

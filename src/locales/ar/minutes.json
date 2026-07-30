@@ -1,0 +1,47 @@
+{
+  "minutes": {
+    "untitled": "اجتماع بلا عنوان",
+    "inProgress": "ما زال جاريًا",
+
+    "fieldDate": "التاريخ",
+    "fieldTime": "الوقت",
+    "fieldTrack": "المسار",
+    "fieldAttendees": "الحضور",
+    "fieldRecordedBy": "أعدّه",
+
+    "listSep": "، ",
+    "metaSep": " · ",
+    "timeSep": " – ",
+
+    "secDecisions": "القرارات",
+    "secActions": "الإجراءات",
+    "secItems": "بنود أخرى",
+    "secNotes": "ملاحظات",
+    "secUntriaged": "بنود لم تُصنَّف",
+    "secClosingNotes": "ملاحظات ختامية",
+
+    "metaOwner": "المسؤول",
+    "metaDue": "الاستحقاق",
+    "metaStatus": "الحالة",
+    "metaPriority": "الأولوية",
+    "metaTrack": "المسار",
+    "metaType": "النوع",
+    "unassigned": "بلا مسؤول",
+
+    "emptyBody": "لم تُسجَّل أي بنود في هذا الاجتماع.",
+
+    "copyMarkdown": "نسخ بصيغة Markdown",
+    "copyPlain": "نسخ كنص عادي",
+    "copied": "نُسخ المحضر.",
+    "errCopy": "تعذّر الوصول إلى الحافظة — حدّد النص وانسخه يدويًا.",
+    "print": "طباعة",
+    "docLanguage": "لغة المحضر",
+    "langEn": "الإنجليزية",
+    "langAr": "العربية",
+
+    "errLoad": "تعذّر تحميل هذا الاجتماع.",
+    "notFound": "لم يعد هذا الاجتماع موجودًا.",
+    "notFoundHint": "ربما حذفه أحد المشرفين.",
+    "openEntry": "فتح البند"
+  }
+}

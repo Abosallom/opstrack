@@ -25,7 +25,11 @@
    two places is how the two disagree.
 
    MOTION: 150–200ms, and every transition and keyframe here is clamped by the
-   reduced-motion kill-switch in global.css.
+   reduced-motion kill-switch in global.css. The ONE exception is `bd-press`,
+   which is not decoration but a clock: it has to last as long as the touch hold
+   it visualises (lib/dnd.ts's HOLD_MS), and it carries its own reduced-motion
+   rule because a duration the kill-switch collapses to nothing would leave the
+   hold with no feedback at all.
 
    SPACING is on the 4px grid throughout — 4 / 8 / 12 / 16 / 24, nothing else. */
 
@@ -76,6 +80,26 @@
   color: var(--text-faint);
   font-size: 13px;
   margin-block-end: 12px;
+}
+
+/* ONE of these two is rendered, and the media query picks which. A mouse is
+   told to drag; a thumb is told to hold, because on a phone a plain drag is how
+   you reach the next column and the board deliberately does not take it. Both
+   strings exist in the markup, so `display: none` is doing real work here — it
+   is the only hiding mechanism a screen reader also respects, and a hint that
+   describes the wrong gesture is worse read aloud than seen. */
+.bd-hint-touch {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .bd-hint-fine {
+    display: none;
+  }
+
+  .bd-hint-touch {
+    display: block;
+  }
 }
 
 /* ── error ─────────────────────────────────────────────────────────────── */
@@ -350,11 +374,66 @@
 
 .bd-card {
   display: block;
-  /* The browser keeps the vertical pan; a mostly-horizontal gesture is ours.
-     lib/dnd.ts's axis lock is the belt to this braces on engines that ignore
-     it mid-gesture. */
-  touch-action: pan-y;
+  /* THE BROWSER KEEPS EVERY PAN, IN BOTH AXES — and this line is the mobile
+     pass's MB2. It used to read `pan-y`, which handed the inline axis to the
+     drag: on a phone the card IS the column and the column IS the screen, so
+     the only surface left that could swipe to the next column was the 8px
+     gutter between two cards. A drag is claimed by a HOLD instead (lib/dnd.ts),
+     and the browser's scrolling is cancelled from the touchmove listener at the
+     one moment that is still possible — after the card has been lifted.
+     `manipulation` rather than `auto` only to keep body's double-tap-zoom
+     suppression from being widened back out by the intersection. */
+  touch-action: manipulation;
+  /* No iOS callout menu or magnifier growing out of the press that lifts a
+     card. The selection half is suppressed in JS for the length of the gesture
+     (`selectstart`), because the card's title is deliberately selectable text
+     and must stay that way once the finger is off it. */
+  -webkit-touch-callout: none;
   border-radius: var(--radius-sm);
+}
+
+/* The pointer half of "this card can be moved". Conditional, because a card
+   this reader may not edit is not draggable and must not say otherwise. */
+.bd-card[data-draggable='true'] {
+  cursor: grab;
+}
+
+/* Cursor only, and only while a card is actually in the air. The descendant
+   universal is load-bearing rather than lazy: `cursor` inherits, but the card's
+   own title button sets `pointer` explicitly, and the pointer spends the whole
+   drag sitting exactly on top of it. */
+.bd[data-dragging='true'] .bd-card,
+.bd[data-dragging='true'] .bd-card * {
+  cursor: grabbing;
+}
+
+/* THE HOLD, MADE VISIBLE. A gesture with a 420ms tax and no feedback reads as a
+   dead card, so the card compresses under the finger and the animation lands
+   exactly as the lift does. The 120ms delay is what keeps an ordinary tap
+   silent: nothing renders at all unless the finger has already stayed put
+   longer than a tap ever does. */
+@keyframes bd-press {
+  from {
+    scale: 1;
+  }
+  to {
+    scale: 0.97;
+  }
+}
+
+.bd-card[data-press='true'] {
+  animation: bd-press 0.3s 0.12s ease-out both;
+}
+
+/* Reduced motion gets the same information without the squeeze — the global
+   kill-switch only collapses DURATION, which would turn this into an instant
+   jump rather than into nothing. A ring is the honest still equivalent. */
+@media (prefers-reduced-motion: reduce) {
+  .bd-card[data-press='true'] {
+    animation: none;
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 }
 
 .bd-card + .bd-card,
@@ -622,14 +701,30 @@
 @media (max-width: 767px) {
   /* One column at a time, snapped. A 300px column on a 375px screen shows a
      sliver of the next one, which reads as a broken layout rather than as an
-     affordance; a snapped near-full-bleed column reads as a deck. */
-  .bd-cols {
+     affordance; a snapped near-full-bleed column reads as a deck.
+
+     MB1: `scroll-snap-type` belongs to the SCROLL CONTAINER, and the container
+     is `.bd-scroller` — the element with `overflow-x: auto`. It sat on
+     `.bd-cols` (a `max-content` flex child that scrolls nothing) from the day
+     this block was written, where it is simply inert: it has no effect on a
+     non-scrolling box, and `scroll-snap-align` on the columns had nothing to
+     align to. Snapping was dead the whole time and looked implemented. */
+  .bd-scroller {
     scroll-snap-type: x mandatory;
+    scroll-padding-inline: 0;
+  }
+
+  .bd-cols {
     gap: 8px;
   }
 
-  .bd-scroller {
-    scroll-padding-inline: 0;
+  /* A mandatory snap and a per-frame `scrollLeft` are two hands on one wheel,
+     and the snap wins every frame — edge auto-scroll would crawl a few pixels
+     and be yanked back to the current column, which is precisely the "it won't
+     let me carry this card anywhere" report. The board hands the wheel over for
+     the length of the drag and takes it back at the drop. */
+  .bd[data-dragging='true'] .bd-scroller {
+    scroll-snap-type: none;
   }
 
   .bd-col {

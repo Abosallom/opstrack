@@ -1,0 +1,75 @@
+{
+  "tree": {
+    "subtitle": "Every active track and the work still open on it — hand it out, re-file it, or open it.",
+    "hint": "Change an owner from the row and the teammate is notified. Tick rows (hold ⁦Shift⁩ for a range) to act on several at once.",
+    "refresh": "Refresh",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "unassignedOnly": "Unassigned only",
+    "trackTree": "Tracks and their open work",
+    "total": {
+      "one": "{count} open item",
+      "other": "{count} open items"
+    },
+    "tagHint": "A row must carry every tag you pick.",
+    "truncated": "Only part of the workspace is loaded, so these counts describe what is in view.",
+    "errLoad": "The open work could not be loaded.",
+    "empty": "No tracks yet",
+    "emptyHint": "An admin creates tracks from Settings, then Tracks.",
+    "emptyFiltered": "Nothing matches these filters",
+    "emptyFilteredHint": "Clear a filter to see the rest of the work.",
+    "countOpen": {
+      "one": "{count} open",
+      "other": "{count} open"
+    },
+    "countUnassigned": {
+      "one": "{count} unassigned",
+      "other": "{count} unassigned"
+    },
+    "countBreached": {
+      "one": "{count} past SLA",
+      "other": "{count} past SLA"
+    },
+    "allClear": "All clear",
+    "allClearHint": "Nothing open on this track.",
+    "noMatch": "Nothing here matches the filters.",
+    "archived": "Archived",
+    "archivedHint": "This track is archived and still holds open work.",
+    "unknownTrack": "Unknown track",
+    "unknownOwner": "Unknown owner",
+    "selectTrack": "Select every row under ⁨{track}⁩",
+    "selectRow": "Select ⁨{title}⁩",
+    "ownerFor": "Owner of ⁨{title}⁩",
+    "assigned": "⁨{title}⁩ assigned to ⁨{name}⁩",
+    "cleared": "⁨{title}⁩ is now unassigned",
+    "bulkTitle": "Bulk actions",
+    "selected": {
+      "one": "{count} selected",
+      "other": "{count} selected"
+    },
+    "bulkAssign": "Assign to",
+    "bulkPriority": "Set priority",
+    "bulkTrack": "Move to track",
+    "bulkClear": "Clear",
+    "bulkBusy": "Applying…",
+    "bulkDone": {
+      "one": "{count} item updated",
+      "other": "{count} items updated"
+    },
+    "bulkQueued": {
+      "one": "{count} item queued — it sends when you are back online",
+      "other": "{count} items queued — they send when you are back online"
+    },
+    "bulkPartial": "{done} updated · {failed} could not be changed",
+    "bulkFailed": {
+      "one": "{count} item could not be changed",
+      "other": "{count} items could not be changed"
+    },
+    "confirmTitle": "Apply to every selected item?",
+    "confirmBody": {
+      "one": "This changes one item.",
+      "other": "This changes {count} items."
+    },
+    "selectionCleared": "Selection cleared"
+  }
+}

@@ -33,11 +33,26 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   // Checked before the NAV scan: /tracks/:id is one track's log, not the track
   // index, and the header is the only thing that says which screen this is.
   if (pathname.startsWith('/tracks/')) return 'route.trackDetail'
+  // Same shape, one level deeper. The three meeting sub-screens are ordered
+  // longest-first for the same reason the admin block below is: '/meetings/'
+  // matches all three, so a shorter test placed above them would title triage
+  // and the minutes document "Meeting". The NAV scan is an exact-match lookup,
+  // so it cannot claim these — but it also cannot be relied on not to, since
+  // that is a property of the scan and not of this ordering.
+  if (pathname.startsWith('/meetings/') && pathname.endsWith('/minutes')) return 'route.minutes'
+  if (pathname.startsWith('/meetings/') && pathname.endsWith('/triage')) return 'meeting.triage'
+  if (pathname.startsWith('/meetings/')) return 'route.meeting'
   const hit = nav.find((n) => pathname === n.to)
   if (hit) return hit.titleKey
   // Most specific first. All four admin paths also match the plain '/settings'
   // prefix below, so a shorter test placed earlier would title every one of
   // them "Settings".
+  // Two screens outside every nav, named out of their OWN namespaces rather
+  // than through route.* — the same call the vocabulary screen makes below:
+  // `digest.title` and `notif.title` already ship in both languages, and a
+  // route.* twin would only ever hold the same two strings.
+  if (pathname.startsWith('/digest')) return 'digest.title'
+  if (pathname.startsWith('/notifications')) return 'notif.title'
   if (pathname === '/settings/tracks/new') return 'admin.tracks.add'
   if (pathname.startsWith('/settings/tracks/')) return 'admin.tracks.edit'
   if (pathname.startsWith('/settings/tracks')) return 'admin.tracks.title'
@@ -45,6 +60,10 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   // through route.*: 'vocabadmin.title' already ships in both languages and a
   // route.vocabulary key would only ever hold the same two strings.
   if (pathname.startsWith('/settings/vocabulary')) return 'vocabadmin.title'
+  // Same rule, same namespace argument: 'recurring.title' is "Recurring items"
+  // in both languages, which is a better header than route.recurring's bare
+  // "Recurring" and costs no new key.
+  if (pathname.startsWith('/settings/recurring')) return 'recurring.title'
   if (pathname.startsWith('/settings')) return 'route.settings'
   return 'route.followups'
 }

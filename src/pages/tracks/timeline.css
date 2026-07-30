@@ -1,0 +1,621 @@
+/* The per-track timeline — /tracks/:id.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.tl-*` and styles nothing
+   else. The prefix is the one the plan reserved for the timeline; only the FILE
+   moved, from the planned `tracks.css` to `timeline.css`, because Wave 3 split
+   the old pages/Tracks.tsx in two and the distribution tree took the tracks
+   name along with its own `.tree-*` prefix.
+
+   Every primitive here belongs to global.css and is USED, never redeclared:
+   .btn .chip .chip-row .input .pill .section-title .muted .tabular .sr-only
+   .empty-state .skeleton .track-dot .track-glyph .icon-directional. The entry
+   rows and their pills belong to entry.css and are not touched at all — there
+   is deliberately no `.tl-item .entry-row` selector anywhere below, because a
+   sheet reaching into another component's class is how two screens end up
+   disagreeing about what a row looks like. Where this page needs its own row
+   (an update), it draws one from scratch under its own prefix and matches the
+   kit's geometry by hand.
+
+   LOGICAL PROPERTIES ONLY, like the rest of the repo — inline-size/block-size,
+   inset-inline, border-inline-start, padding-inline. There is not one physical
+   direction in this file, so RTL needs no mirror rules: the rail runs down the
+   reading-start edge in both languages because it is a grid column, and the
+   back arrow flips through global.css's .icon-directional opt-in.
+
+   SPACING is on the 4px grid: 4 inside a control, 8 between related controls,
+   12 between a group and its label, 16 between the page's bands, 24 between
+   days in the feed.
+
+   MOTION is 150-200ms on transform/opacity/colour/size only. global.css's
+   prefers-reduced-motion block flattens every transition in the app to 0.01ms
+   with !important, so nothing here needs its own reduced-motion rule. */
+
+.tl {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---------- header band ---------- */
+
+.tl-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tl-back {
+  align-self: flex-start;
+  gap: 6px;
+}
+
+.tl-id {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* The glyph sits in a tinted disc rather than loose on the page: at 20px a
+   stroked icon against the page background reads as a stray mark, and the disc
+   is what makes it a badge. color-mix on the resolved --track-color, so one
+   stored hex works in both themes with no JS theme read. */
+.tl-glyph {
+  justify-content: center;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--track-color, var(--field-border)) 16%, transparent);
+}
+
+.tl-id-text {
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tl-name {
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.tl-desc {
+  max-inline-size: 62ch;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* ---------- the "as it stands today" tiles ---------- */
+
+.tl-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.tl-stats-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* auto-fit rather than a fixed count: the SLA tile is absent until an admin
+   arms an SLA, so this band is legitimately five tiles wide or six. */
+.tl-stat-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 8px;
+  list-style: none;
+}
+
+.tl-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-block: 8px;
+  padding-inline: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  /* The tone is carried by a 3px edge on the reading-start side, not by a
+     coloured fill: six filled tiles is a traffic light nobody can read, and the
+     edge still lands the signal in peripheral vision. */
+  border-inline-start: 3px solid transparent;
+}
+
+.tl-stat[data-tone='danger'] {
+  border-inline-start-color: var(--red);
+}
+
+.tl-stat[data-tone='warn'] {
+  border-inline-start-color: var(--yellow);
+}
+
+.tl-stat-n {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.tl-stat-k {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.tl-stats-hint,
+.tl-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  max-inline-size: 76ch;
+}
+
+/* A truncated read, a failed refresh, a window bigger than one page — three
+   different sentences, one treatment: a quiet strip that never displaces
+   content the reader is already looking at. */
+.tl-note {
+  padding-block: 8px;
+  padding-inline: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* ---------- range, search and kind ---------- */
+
+.tl-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.tl-range,
+.tl-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+
+.tl-presets {
+  flex: 0 1 auto;
+}
+
+.tl-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tl-date {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tl-date-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* A date input reserves room for the platform's own calendar affordance, and
+   the two ends of a range must be the same size or the pair reads as broken.
+   Sized through a `.tl-*` class the JSX puts ON the input, never through a
+   `.tl-date .input` descendant selector — global.css owns .input, and reaching
+   into it from here is how one screen's field quietly stops matching the rest. */
+.tl-date-input {
+  min-inline-size: 148px;
+}
+
+.tl-search {
+  flex: 1 1 220px;
+  min-inline-size: 0;
+}
+
+.tl-kinds {
+  flex: 0 1 auto;
+}
+
+.tl-refresh {
+  flex: 0 0 auto;
+}
+
+.tl-showing {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+/* ---------- tag breakdown ---------- */
+
+.tl-tags,
+.tl-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tl-tag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+}
+
+/* Name, bar, numbers. The name column is capped in ch rather than px so a long
+   Arabic tag and a long Latin one get the same amount of room in their own
+   script's terms. */
+.tl-tag-row {
+  display: grid;
+  grid-template-columns: minmax(0, 20ch) 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding-block: 6px;
+  padding-inline: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  transition: background 0.15s ease;
+}
+
+.tl-tag-row:hover {
+  background: var(--bg-elev-2);
+}
+
+.tl-tag-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.tl-tag-bar {
+  display: flex;
+  gap: 2px;
+  block-size: 8px;
+  min-inline-size: 40px;
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  overflow: hidden;
+}
+
+.tl-tag-fill {
+  block-size: 100%;
+  border-radius: 999px;
+  transition: inline-size 0.2s ease;
+}
+
+.tl-tag-fill[data-part='open'] {
+  background: var(--accent);
+}
+
+/* Closed work is DONE, not good or bad — cancelled lands here too — so it is
+   drawn in ink rather than in green. */
+.tl-tag-fill[data-part='closed'] {
+  background: var(--text-faint);
+}
+
+.tl-tag-n {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.tl-tag-open,
+.tl-tag-closed {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tl-tag-sep {
+  color: var(--text-faint);
+}
+
+.tl-tag-sep:not(:last-child) {
+  padding-inline-end: 6px;
+}
+
+.tl-tags-empty {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* ---------- the feed ---------- */
+
+.tl-feed-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tl-count {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.tl-days {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  list-style: none;
+}
+
+.tl-day {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Sticky, because the day is the only thing telling you where you are once you
+   have scrolled a screen into a busy month.
+
+   The offset is the app header's own height (app-shell.css: 56px, 50px under
+   768px) because the document is the scroll container — .main-content sets no
+   overflow — so `0` would park this UNDER the header rather than below it. The
+   z-index stays far below the header's 60 so that if the offline banner is also
+   showing, this tucks behind both instead of over them. */
+.tl-day-head {
+  position: sticky;
+  inset-block-start: 56px;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding-block: 6px;
+  background: var(--bg);
+}
+
+.tl-day-weekday {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tl-day-date {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.tl-day-count {
+  margin-inline-start: auto;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.tl-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+}
+
+/* Rail then content. A grid rather than an absolutely-positioned line, so the
+   rail is a real column that both item kinds hang off and nothing has to know
+   how tall its neighbour is. */
+.tl-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.tl-rail {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.tl-rail::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inline-size: 2px;
+  background: var(--border);
+  border-radius: 999px;
+}
+
+/* The line stops at the last dot of a day instead of running into the gap —
+   an unterminated rail reads as content that failed to load. */
+.tl-item:last-child .tl-rail::before {
+  inset-block-end: auto;
+  block-size: 26px;
+}
+
+/* .track-dot supplies the size and the two-hex track colour; this only lifts
+   the dot to the row's first line and punches it out of the rail. */
+.tl-dot {
+  position: relative;
+  margin-block-start: 14px;
+  box-shadow: 0 0 0 3px var(--bg);
+}
+
+.tl-item[data-kind='update'] .tl-dot {
+  /* An update is a smaller event than an item being raised, and the rail says
+     so before any label is read. */
+  transform: scale(0.7);
+}
+
+.tl-body {
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tl-kind {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* ---------- an update row ---------- */
+
+/* Matches .entry-row's geometry by hand — 1px border, --radius-sm, --bg-elev,
+   10px/12px padding — so the two kinds sit in one stream instead of looking
+   like two components that met by accident. */
+.tl-upd {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-block: 10px;
+  padding-inline: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  transition: border-color 0.15s ease;
+}
+
+.tl-upd:hover {
+  border-color: var(--field-border);
+}
+
+.tl-upd-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.tl-upd-author {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tl-upd-time {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.tl-upd-transition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tl-upd-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The parent item, as the way back into the entry. A button and not a link:
+   openEntry() opens the detail surface over this page, and a real <a> would
+   promise a navigation that does not happen. */
+.tl-upd-parent {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  max-inline-size: 100%;
+  min-block-size: 32px;
+  padding-block: 4px;
+  padding-inline: 0;
+  border: 0;
+  background: none;
+  text-align: start;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: color 0.15s ease;
+}
+
+/* The 44px tap target the visible box does not have, restored the same way
+   global.css restores it for .chip — an overlay, not extra chrome. */
+.tl-upd-parent::after {
+  content: '';
+  position: absolute;
+  inset-block: -6px;
+  inset-inline: -4px;
+}
+
+.tl-upd-parent:hover,
+.tl-upd-parent:active {
+  color: var(--text);
+}
+
+.tl-upd-parent-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-block-end: 1px solid transparent;
+  transition: border-color 0.15s ease;
+}
+
+.tl-upd-parent:hover .tl-upd-parent-title,
+.tl-upd-parent:focus-visible .tl-upd-parent-title {
+  border-block-end-color: var(--field-border);
+}
+
+.tl-upd-orphan {
+  font-size: 12.5px;
+}
+
+/* ---------- loading ---------- */
+
+.tl-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- narrow viewports ---------- */
+
+@media (max-width: 639px) {
+  /* The tag row's three columns collapse to name-over-bar: at 375px a 20ch name
+     column leaves the bar 60px wide, which is a chart that says nothing. */
+  .tl-tag-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 8px;
+  }
+
+  .tl-tag-bar {
+    grid-column: 1 / -1;
+  }
+
+  /* Both ends of the range share the row rather than stacking: they are one
+     control and reading them as two is the whole confusion. */
+  .tl-date {
+    flex: 1 1 140px;
+  }
+
+  .tl-date-input {
+    min-inline-size: 0;
+    inline-size: 100%;
+  }
+
+  .tl-stat-list {
+    grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  }
+}

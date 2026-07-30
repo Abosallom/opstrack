@@ -1,0 +1,382 @@
+/* The digest generator — the `.dg-*` prefix, per the class registry (§1.0.7).
+
+   THIS SHEET STYLES NOTHING IT DOES NOT OWN. `.btn`, `.chip`, `.chip-row`,
+   `.card`, `.input`, `.field-label`, `.switch`, `.empty-state`, `.skeleton`,
+   `.muted`, `.tabular`, `.page-title`, `.page-subtitle` and `.digest-output` all
+   belong to global.css and are USED here, never redeclared. Where a primitive
+   needs to look different inside this screen, the difference rides on a `.dg-*`
+   class passed in alongside it.
+
+   `.digest-output` is a global TYPOGRAPHY primitive (it re-enables text
+   selection on the preview so the report can be selected and copied by hand
+   when the clipboard API is unavailable). The layout of the same element is
+   `.dg-out`, here. Two classes, two owners, no overlap.
+
+   LOGICAL PROPERTIES ONLY. There is not one physical direction in this file:
+   the preview pane carries the DOCUMENT's direction on its own `dir` attribute,
+   which may differ from the app's, and every rule below is written so that the
+   pane mirrors on that attribute alone with no direction-aware CSS anywhere.
+
+   SPACING is on the 4px grid: 4 inside a control group, 8 between controls, 12
+   between a group and its neighbour, 16/24 between the screen's bands.
+
+   MOTION is 150–200ms on transform/opacity/colour only; global.css's
+   prefers-reduced-motion block flattens all of it, so nothing here needs its own
+   reduced-motion rule.
+
+   PRINT is at the bottom and is load-bearing: this is the one screen in the app
+   people put on paper, and Wave-3 gate (g) checks it. */
+
+.dg {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-inline-size: 0;
+}
+
+.dg-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.dg-sub {
+  max-inline-size: 52ch;
+  /* The global rule gives .page-subtitle a 22px bottom margin sized for a page
+     that starts with content; here the controls card provides that gap. */
+  margin-block-end: 0;
+}
+
+/* ── the control panel ─────────────────────────────────────────────────── */
+
+.dg-controls {
+  display: grid;
+  gap: 12px;
+  /* One column on a phone, two once there is room for two groups side by side.
+     `minmax(0, …)` rather than `1fr`: a chip row with a long track name would
+     otherwise push the grid wider than its container and give the page a
+     horizontal scrollbar. */
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 900px) {
+  .dg-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    /* Groups sit at the top of their row rather than stretching to the height
+       of the tallest one beside them: a short group followed by a rule of empty
+       space reads as a rendering fault, and every group here is a top-aligned
+       stack of controls anyway. */
+    align-items: start;
+    column-gap: 24px;
+  }
+}
+
+/* A fieldset's default border, padding and min-inline-size are all wrong for a
+   control group and the last one is actively harmful — `min-inline-size: min-
+   content` on a fieldset is what makes a flex child refuse to shrink. */
+.dg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.dg-legend {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/*
+  A wrapping chip row.
+
+  `.chip-row` is a horizontal RAIL — `overflow-x: auto` with the scrollbar
+  hidden, because on a filter bar the overflow itself is the affordance. That is
+  wrong for this screen: these chips are not filters over a list you can see, they
+  are the DEFINITION of the document below, and a fifth section chip parked
+  off-screen behind an invisible scrollbar is a section the reader never learns
+  they can turn on. Wrapping costs a line of height and makes every choice
+  visible at once.
+
+  Set on a `.dg-*` class passed in ALONGSIDE `.chip-row`, never by reaching into
+  the primitive — the registry gives this sheet `.dg-*` and nothing else.
+*/
+.dg-chips {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  /* The rail reserves 4px for the scrollbar it hides; a wrapped row uses the
+     same space as the gap between its lines instead. */
+  padding-block-end: 0;
+  row-gap: 8px;
+}
+
+.dg-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.dg-err {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--red);
+}
+
+/* The count that prices a section toggle. Inside a .chip, so it inherits the
+   chip's own colour transitions and needs only its own weight and gap. */
+.dg-count {
+  margin-inline-start: 6px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip[aria-pressed='true'] .dg-count {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* The track chip wraps a TrackDot, which brings its own dot + label; all this
+   has to do is stop the two colliding with the chip's padding. */
+.dg-track {
+  gap: 6px;
+}
+
+/* ── the two custom-range inputs ───────────────────────────────────────── */
+
+.dg-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.dg-date {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 150px;
+  min-inline-size: 0;
+}
+
+/* Safari renders a date input at its intrinsic width and ignores width:100%
+   unless the box is told to; without this the two inputs sit at different
+   widths on iOS and the row looks broken. */
+.dg-date .input {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+/* ── the toggle rows ───────────────────────────────────────────────────── */
+
+.dg-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+}
+
+.dg-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.dg-toggle-label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.dg-toggle:hover .switch {
+  border-color: var(--accent);
+}
+
+/* The ring goes round the whole row, not round the 26px switch — the row is the
+   control, and a ring on the thumb reads as a separate widget. */
+.dg-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── the output toolbar ────────────────────────────────────────────────── */
+
+.dg-outbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.dg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dg-warn {
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--yellow) 12%, transparent);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* ── the preview pane ──────────────────────────────────────────────────── */
+
+.dg-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+  /* The card's own padding is generous for prose; the preview is a document and
+     wants the frame closer to it. */
+  padding: 12px;
+}
+
+.dg-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+/*
+  The document.
+
+  `white-space: pre-wrap` and not `pre`: a WhatsApp-bound digest has no line
+  length of its own, and a horizontally scrolling preview hides the ends of
+  exactly the lines a reader is checking. Long unbroken tokens (a URL in a
+  quoted update) get `overflow-wrap: anywhere` so they wrap instead of widening
+  the pane — this element is inside a grid track that must never grow the page.
+
+  The font is the UI font, not a monospace one. The Markdown and plain outputs
+  are prose with punctuation, the HTML source is the only one that reads as
+  code, and a monospace Arabic face is a lottery on every platform.
+*/
+.dg-out {
+  margin: 0;
+  padding: 12px;
+  max-block-size: 60vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-family: var(--font);
+  font-size: 13.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+}
+
+.dg-meta {
+  font-size: 12px;
+  text-align: end;
+}
+
+/* The sandboxed HTML preview. A fixed block-size rather than a content-sized
+   one: an iframe cannot be measured cross-origin-safely, and 60vh matches the
+   text preview's ceiling so switching between the two does not jump the page. */
+.dg-frame {
+  inline-size: 100%;
+  block-size: 60vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+}
+
+/* ── phone ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 599px) {
+  .dg-out {
+    max-block-size: 52vh;
+    font-size: 13px;
+  }
+
+  .dg-frame {
+    block-size: 52vh;
+  }
+
+  /* Full-width action buttons wrap into a tidy two-up grid instead of a ragged
+     row of five; each keeps the 44px block size .btn already guarantees. */
+  .dg-actions {
+    inline-size: 100%;
+  }
+
+  .dg-actions .btn {
+    flex: 1 1 calc(50% - 4px);
+  }
+}
+
+/* ── print ─────────────────────────────────────────────────────────────── */
+/*
+  Wave-3 gate (g). global.css's print block already hides the app chrome; this
+  one hides the CONTROLS and lets the document run to its natural length.
+
+  `max-block-size` and `overflow` must both be reset — a scrolling box prints
+  only its first viewport, which is the classic way a three-page report becomes
+  a one-page report with no warning.
+*/
+@media print {
+  .dg-head,
+  .dg-controls,
+  .dg-outbar,
+  .dg-meta {
+    display: none !important;
+  }
+
+  .dg-pane {
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .dg-out {
+    max-block-size: none;
+    overflow: visible;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #000000;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  .dg-warn {
+    border-color: #999999;
+    background: none;
+    color: #000000;
+  }
+
+  .dg-frame {
+    block-size: auto;
+    min-block-size: 60vh;
+    border: 0;
+  }
+}

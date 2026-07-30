@@ -2,12 +2,19 @@
 // summary that hands off to the admin screens under /settings/tracks. Members
 // management is still a later sitting, and says so rather than rendering a
 // control that looks editable and does nothing.
+//
+// IT IS ALSO THE APP'S "MORE" SURFACE. NAV in App.tsx is capped at five tab-bar
+// slots, so every screen that is not one of the five is reached from a row on
+// this page: the vocabulary and tracks admin, the recurring schedule, and the
+// notification history. A screen with no row here and no tab is a screen only a
+// typed URL can reach.
 
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   IconChevronEnd,
   IconClipboardList,
+  IconClock,
   IconGlobe,
   IconLayers,
   IconLogOut,
@@ -19,6 +26,10 @@ import {
   IconUsers,
   type IconComponent,
 } from '../components/icons'
+// The bell publishes both halves of its own surface: the header control and
+// this row. Imported rather than re-implemented so the unread count, the
+// chevron and the RTL behaviour stay in the file that owns them.
+import { IconBell, NotificationsSettingsRow } from '../components/NotificationBell'
 import { toast } from '../components/toast'
 import { healthCheck } from '../api/entries'
 import { isConfigured } from '../api/supabase'
@@ -246,6 +257,34 @@ export default function Settings(): ReactElement {
           <IconLogOut className="icon-directional" size={18} />
           {signingOut ? t('settings.signingOut') : t('settings.signOut')}
         </button>
+      </Section>
+
+      {/* Two rows every member gets, admin or not, and Settings is where they
+          live for the same reason the vocabulary row does: the tab bar is
+          capped at five and neither destination is in it. On a phone this page
+          IS the More menu — the header bell opens a dismissible sheet, so
+          without the first row there is no durable way to the inbox history at
+          all, and the second is the only entrance to /settings/recurring. */}
+      <Section icon={IconBell} title={t('notif.title')} description={t('notif.subtitle')}>
+        <NotificationsSettingsRow />
+      </Section>
+
+      {/* NOT inside the isAdmin block below. RecurringAdmin renders the
+          schedule read-only for a member and withholds its own editing — "what
+          gets raised for me next Sunday" is everybody's question, and hiding
+          the answer from non-admins would be hiding work from the person who
+          has to do it. */}
+      <Section
+        icon={IconClock}
+        title={t('settings.recurring')}
+        description={t('settings.recurringHint')}
+      >
+        <NavLink to="/settings/recurring" className="btn btn-ghost">
+          {t('settings.recurringManage')}
+          {/* Forward through the hierarchy — forward is leftward in Arabic,
+              hence icon-directional. */}
+          <IconChevronEnd className="icon-directional" size={16} />
+        </NavLink>
       </Section>
 
       {isAdmin ? (

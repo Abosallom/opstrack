@@ -2,7 +2,7 @@
   "status": {
     "new": "جديد",
     "in_progress": "قيد التنفيذ",
-    "blocked": "محجوب",
+    "blocked": "متعثّر",
     "waiting_on": "بانتظار طرف آخر",
     "done": "منجز",
     "cancelled": "ملغى"

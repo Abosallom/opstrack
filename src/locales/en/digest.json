@@ -1,0 +1,130 @@
+{
+  "digest": {
+    "title": "Digest",
+    "subtitle": "Turn a date range into a status report you can send.",
+
+    "rangeLegend": "Date range",
+    "presetWeek": "Last 7 days",
+    "presetTwoWeeks": "Last 14 days",
+    "presetMonth": "Last 30 days",
+    "presetThisWeek": "This week",
+    "presetCustom": "Custom",
+    "from": "From",
+    "to": "To",
+    "errRange": "The start date can't be after the end date.",
+
+    "tracksLegend": "Tracks",
+    "tracksHint": "Nothing selected reports every track.",
+    "sectionsLegend": "Sections",
+    "sectionsHint": "An item is reported once, in the first section it qualifies for.",
+    "errNoSections": "Pick at least one section.",
+
+    "optionsLegend": "Options",
+    "includeNotes": "Quote the latest update",
+    "includeEmptyTracks": "Keep tracks with nothing to report",
+    "includeTags": "Break out suggested tags",
+    "includeTagsHint": "Per-tag counts for any track that proposes tags — Onboarding does.",
+
+    "langLegend": "Digest language",
+    "langEn": "English",
+    "langAr": "العربية",
+    "langHint": "The report's language, independent of the app's.",
+
+    "formatLegend": "Format",
+    "formatMarkdown": "Markdown",
+    "formatPlain": "Plain text",
+    "formatHtml": "HTML email",
+    "formatMarkdownHint": "For a wiki, a ticket, or a repo.",
+    "formatPlainHint": "For WhatsApp and Teams — no formatting characters.",
+    "formatHtmlHint": "A self-contained email body with inline styles.",
+
+    "previewLegend": "Preview",
+    "previewSource": "Source",
+    "previewRendered": "Rendered",
+    "previewFrame": "Rendered digest",
+    "outputLabel": "Digest output",
+    "size": {
+      "one": "1 character",
+      "other": "{count} characters"
+    },
+
+    "copyRich": "Copy formatted",
+    "copiedToast": "Digest copied",
+    "copiedRichToast": "Digest copied with formatting",
+    "errCopy": "Couldn't reach the clipboard. Select the text and copy it by hand.",
+    "downloadedToast": "Saved {name}",
+    "errDownload": "Couldn't save the file.",
+    "print": "Print",
+    "refresh": "Refresh data",
+    "loadingData": "Gathering the window…",
+    "errLoad": "Couldn't load the data for this range.",
+    "emptyTitle": "Nothing in this window",
+    "emptyHint": "Widen the range, or switch a section back on.",
+
+    "docTitle": "Status digest",
+    "rangeLabel": "Covering {range}",
+    "generatedLabel": "Generated {at}",
+    "sep": " · ",
+    "summaryEmpty": "Nothing to report in this window.",
+    "sumClosed": {
+      "one": "1 closed",
+      "other": "{count} closed"
+    },
+    "sumInProgress": {
+      "one": "1 in progress",
+      "other": "{count} in progress"
+    },
+    "sumBlocked": {
+      "one": "1 blocked",
+      "other": "{count} blocked"
+    },
+    "sumOverdue": {
+      "one": "1 overdue",
+      "other": "{count} overdue"
+    },
+    "sumSlaBreached": {
+      "one": "1 past deadline",
+      "other": "{count} past deadline"
+    },
+
+    "sectionClosed": "Closed",
+    "sectionInProgress": "In progress",
+    "sectionBlocked": "Blocked",
+    "sectionOverdue": "Overdue",
+    "sectionSlaBreached": "Past service deadline",
+
+    "detailClosed": "closed {when}",
+    "detailDue": "due {date}",
+    "detailQuiet": {
+      "one": "no update in 1 day",
+      "other": "no update in {count} days"
+    },
+    "detailQuietToday": "updated today",
+    "detailBlocked": {
+      "one": "{status} · 1 day",
+      "other": "{status} · {count} days"
+    },
+    "detailBlockedToday": "{status} · today",
+    "detailOverdue": {
+      "one": "1 day overdue",
+      "other": "{count} days overdue"
+    },
+    "detailSla": "service deadline was {date}",
+    "detailSlaNoDate": "past its service deadline",
+
+    "noTrack": "No track",
+    "untitled": "Untitled",
+    "unassigned": "Unassigned",
+    "tagHeading": "Tag breakdown",
+    "tagColumn": "Tag",
+    "openColumn": "Open",
+    "closedColumn": "Closed",
+    "totalColumn": "Total",
+    "tagOther": "Other",
+    "trackAllClear": "Nothing to report.",
+    "emptyWindow": "No items fell inside this window.",
+    "notePrefix": "Note:",
+    "truncatedNote": "This report covers the newest 1000 items only — anything older was not read.",
+    "footer": "Sent from OpsTrack"
+  }
+}

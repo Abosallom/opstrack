@@ -1,0 +1,426 @@
+/* Recurring items (/settings/recurring).
+
+   CLASS REGISTRY (XP §1.0.7): this sheet owns `.rec-*` and nothing else.
+   `recurring.css` was not in the registry the plan published — the Wave-3 brief
+   names the file without naming a prefix — so `.rec-` is claimed here and filed
+   as a registry addition in the W3-TEMPLATES handoff, following the precedent
+   the Wave-2 close set for `entry-page.css → .epg-*` and
+   `track-sla.css → .tsla-*`. Grepped clean before claiming it.
+
+   Everything structural comes from global.css primitives — .card, .btn, .pill,
+   .chip, .field, .input, .field-label, .field-error, .tabular, .sr-only,
+   .track-dot, .empty-state, .skeleton — and every variant here rides on a
+   data-* attribute rather than on a modifier class, so an unregistered
+   `.is-open` cannot appear by habit. Same constraint vocab.css states.
+
+   LOGICAL PROPERTIES ONLY — inline/block axes, never a physical edge — so the
+   Arabic mirror costs nothing and the repo's standing grep stays empty.
+
+   SPACING is the 4px grid: 4 / 8 / 12 / 16. MOTION is 150–200ms ease and is
+   switched off under prefers-reduced-motion, restated at the bottom so this
+   file is honest on its own rather than relying on global.css's kill switch.
+
+   DATES ARE TABULAR EVERYWHERE. This screen is read as a column of dates — the
+   preview list, the next-run column, the due column — and proportional figures
+   make a five-row schedule look ragged and, worse, hard to compare down the
+   column. `.tabular` is the global primitive; these rules only place it. */
+
+.rec {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-inline-size: 820px;
+}
+
+.rec-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* The route's h1 lives in the app header, so the page opens on its standfirst.
+   The three lines are one thought — what a template is, when it runs, what
+   lead days mean — so they sit 4px apart rather than taking the page's 16px
+   rhythm and reading as three unrelated announcements. */
+.rec-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rec-lead {
+  font-size: 13px;
+  line-height: 1.55;
+  /* --text-dim, not --text-faint: this sits directly on --bg and dim is the
+     token that clears AA at every elevation. */
+  color: var(--text-dim);
+}
+
+.rec-note {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+/* ---------- load failure ---------- */
+
+.rec-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
+  color: var(--text);
+}
+
+/* ---------- one section (Running / Paused) ---------- */
+
+/* The heading row and its list are one block, 8px apart, so the 16px page
+   rhythm separates the two SECTIONS rather than separating each heading from
+   the rows it names. */
+.rec-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rec-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.rec-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ---------- rows ---------- */
+
+.rec-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rec-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+/* A paused template loses its fill, not its legibility: the person reading it
+   is deciding whether to resume it, so dimming the text would fight the only
+   reason the row is on screen. Same call vocab.css makes for a hidden option. */
+.rec-row[data-paused='true'] {
+  background: transparent;
+  border-style: dashed;
+}
+
+/* Behind on its schedule. Amber on the edge only — the row is not broken, it is
+   owed a catch-up, and the box inside it carries the actual explanation. */
+.rec-row[data-behind='true'] {
+  border-color: color-mix(in srgb, var(--yellow) 45%, var(--border));
+}
+
+.rec-row[data-open='true'] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: var(--bg-elev);
+}
+
+.rec-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.rec-row-main {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.rec-row-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  /* Long titles wrap rather than ellipsing: this is the string every created
+     item will be named, so it is the one thing on the row that must be read in
+     full before anyone edits it. */
+  overflow-wrap: anywhere;
+}
+
+.rec-meta,
+.rec-sched {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.rec-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+/* Label and value are one unit and wrap together — "Next run" landing on one
+   line with its date on the next reads as two separate facts. */
+.rec-sched-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.rec-sched-label {
+  color: var(--text-faint);
+}
+
+.rec-sched-value {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.rec-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+}
+
+/* ---------- behind on schedule ---------- */
+
+/* Amber, not red: a catch-up is work that is owed, not a failure. It sits
+   inside the row it describes, with the escape hatch on the same line. */
+.rec-behind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--yellow) 10%, transparent);
+}
+
+.rec-behind-text {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.rec-behind-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ---------- the editor ---------- */
+
+.rec-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--border);
+  animation: rec-open 0.17s ease both;
+}
+
+@keyframes rec-open {
+  from {
+    opacity: 0;
+    /* Block axis only: vertical motion carries no reading direction, so this
+       needs no RTL mirror. */
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Two columns where there is room for two 44px-tall controls side by side, one
+   below that. auto-fit rather than a page-width media query: this panel is the
+   same component at 375px and inside an 820px column. */
+.rec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.rec-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: none;
+}
+
+.rec-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* A day count is two or three digits and does not want the full width of a
+   grid cell — a 320px-wide box for "7" reads as a text field. Capped, not
+   fixed, so it still shrinks at 375px. */
+.rec-number {
+  max-inline-size: 140px;
+}
+
+/* ---------- the clamp and the alignment offer ---------- */
+
+/* The C2 clamp, announced before the save rather than after it. Amber for the
+   same reason .rec-behind is: the date moved, nothing broke. */
+.rec-clamp {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--yellow) 10%, transparent);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+/* An offer, not a warning — the anchor is legal, it just produces one odd
+   first interval. Accent-tinted and dashed so it reads as a suggestion. */
+.rec-align {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+.rec-align-text {
+  flex: 1 1 220px;
+  min-inline-size: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* ---------- next-runs preview ---------- */
+
+/* Dashed, like vocab.css's resolution box: this is a rendering of the schedule,
+   not another editable surface. */
+.rec-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+.rec-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Run date at the reading start, due date at the reading end — the two facts
+   the row is comparing, on one line, in both directions. */
+.rec-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.rec-preview-run {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.rec-preview-due {
+  color: var(--text-faint);
+}
+
+/* The first row is the one the rest of the screen calls "next run", so it gets
+   a weight the others do not — without it the preview reads as five equally
+   likely dates. */
+.rec-preview-row:first-child .rec-preview-due {
+  color: var(--text-dim);
+}
+
+.rec-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- narrow screens ---------- */
+
+@media (max-width: 479px) {
+  /* At 375px the four row actions cannot share a line with the title, so they
+     take a full-width row of their own at full tap size rather than shrinking
+     below 44px. */
+  .rec-row-main {
+    flex-basis: 100%;
+  }
+
+  .rec-row-actions {
+    inline-size: 100%;
+    margin-inline-start: 0;
+  }
+
+  .rec-row-actions .btn {
+    flex: 1 1 auto;
+  }
+
+  .rec-behind .btn,
+  .rec-align .btn {
+    inline-size: 100%;
+  }
+
+  /* One-handed reach: the number inputs are the only controls a thumb has to
+     hit precisely, so they take the full width here. */
+  .rec-number {
+    max-inline-size: 100%;
+  }
+}
+
+/* global.css already zeroes every duration under this query; restated so this
+   sheet does not depend on that to be honest about its own motion. */
+@media (prefers-reduced-motion: reduce) {
+  .rec-editor {
+    animation: none;
+  }
+
+  .rec-row {
+    transition: none;
+  }
+}

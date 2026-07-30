@@ -1,0 +1,887 @@
+/* Meeting mode — the .mt-* prefix, per the §1.0.7 registry.
+
+   Nothing here styles a global.css primitive or another sheet's prefix. The
+   buttons, inputs, selects, pills, chips, cards, track bar and track dot are all
+   global classes; this file gives them their meeting-specific placement and
+   nothing else.
+
+   LOGICAL PROPERTIES ONLY. Three things on these screens would break in Arabic
+   if written physically — the "same as above" button pinned to a cell's trailing
+   edge, the track colour bar on the inline-start of a list row, and the sticky
+   commit bar's alignment — and all three are inline-start/inline-end here, so
+   RTL needs no mirror rule at all.
+
+   SPACING is on the 4px grid throughout (4/8/12/16/20/24/32). MOTION is
+   150–200ms ease and inherits global.css's prefers-reduced-motion kill switch,
+   which already zeroes every transition and animation in the app; a local
+   @media block would be a second copy of a rule that already covers this file.
+
+   TOUCH: every control here is either a global .btn / .input / .select (all
+   already 44px minimum) or carries its own ::after hit-area expansion — see
+   .mt-same and .mt-guest-x, which are 28px squares with 44px targets. */
+
+.mt-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mt-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mt-subtitle {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.mt-hint {
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mt-error {
+  color: var(--red);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.mt-footnote {
+  color: var(--text-faint);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* ---------- starting a meeting (index) ---------- */
+
+.mt-start {
+  padding: 16px;
+}
+
+.mt-start-toggle {
+  inline-size: 100%;
+  gap: 8px;
+}
+
+.mt-start-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mt-guests {
+  margin-block-start: 8px;
+}
+
+.mt-guest {
+  gap: 6px;
+  padding-inline-end: 6px;
+}
+
+.mt-guest-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 20px visual box, 44px hit area through the ::after overlay — the same trick
+   global.css uses on .btn-sm. Drawn from two rotated pseudo-elements so the
+   control has NO text content and its aria-label is the whole accessible name;
+   a literal "×" is announced as "multiplication sign". */
+.mt-guest-x {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: 20px;
+  block-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-faint);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mt-guest-x::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+}
+
+.mt-guest-x:hover {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+.mt-guest-x:active {
+  transform: scale(0.92);
+}
+
+.mt-guest-x > span {
+  position: relative;
+  inline-size: 11px;
+  block-size: 11px;
+}
+
+.mt-guest-x > span::before,
+.mt-guest-x > span::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 5px;
+  inset-inline-start: 0;
+  inline-size: 11px;
+  block-size: 1.6px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.mt-guest-x > span::before {
+  transform: rotate(45deg);
+}
+
+.mt-guest-x > span::after {
+  transform: rotate(-45deg);
+}
+
+.mt-guest-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 8px;
+}
+
+.mt-start-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---------- the meeting list ---------- */
+
+.mt-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+}
+
+.mt-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  overflow: hidden;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.mt-row:hover {
+  border-color: var(--field-border);
+  background: var(--bg-elev-2);
+}
+
+.mt-row:active {
+  transform: scale(0.995);
+}
+
+.mt-row-btn {
+  inline-size: 100%;
+  min-block-size: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 12px;
+  padding-inline: 14px;
+  text-align: start;
+  color: inherit;
+}
+
+/* The 3px identity stripe. `.track-bar` is the global primitive that resolves
+   --track-color from the two hexes trackVars() sets on the row. */
+.mt-row-bar {
+  flex: 0 0 auto;
+  inline-size: 3px;
+  block-size: 32px;
+  border-radius: 2px;
+}
+
+.mt-row-main {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mt-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.mt-row-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mt-badge {
+  flex: 0 0 auto;
+}
+
+.mt-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+.mt-row-track,
+.mt-row-when,
+.mt-row-attendees {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mt-row-counts {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.mt-count-clear {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mt-count-total {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-row-go {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+/* ---------- the live screen ---------- */
+
+.mt-live-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.mt-back {
+  gap: 6px;
+  /* Pull the ghost button's own padding back so the label lines up with the
+     heading below it rather than sitting indented under nothing. */
+  margin-inline-start: -10px;
+}
+
+/* Back on one end, the minutes on the other. `.mt-live-head` is a column, so
+   the two controls need a row of their own; `auto` on the inline-start margin
+   is what pushes the forward link to the far edge, and it mirrors in Arabic
+   for free because it is a logical property. */
+.mt-head-nav {
+  inline-size: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mt-head-minutes {
+  gap: 6px;
+  margin-inline-start: auto;
+}
+
+.mt-live-title {
+  inline-size: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.mt-live-name {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Pushed to the trailing edge of the title row, which is the inline-end in both
+   directions — no mirror rule, and it never collides with a long title because
+   the name above it shrinks first. */
+.mt-live-count {
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* DELIBERATELY NOT STICKY. The lines render newest-first directly beneath this
+   box, so a meeting never scrolls the input away — the page sits at offset zero
+   for its whole length and only moves when somebody chooses to look back.
+   Sticking it would also mean hard-coding a clearance for app-shell.css's own
+   sticky header, which is another sheet's number to keep in step. */
+.mt-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+/* Bigger than the app's default field, deliberately: this is the screen's only
+   real control and it is used at speed, often one-handed. */
+.mt-capture-input {
+  min-block-size: 52px;
+  font-size: 16px;
+}
+
+.mt-live-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mt-ended-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.mt-ended-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* ---------- captured lines ---------- */
+
+.mt-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+}
+
+.mt-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-block: 10px;
+  padding-inline: 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.mt-line:hover,
+.mt-line:focus-within {
+  border-color: var(--border);
+}
+
+.mt-line[data-state='note'] {
+  background: transparent;
+  border-inline-start: 2px solid var(--border);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+.mt-line[data-state='discarded'] {
+  opacity: 0.55;
+}
+
+.mt-line[data-state='committed'] {
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+}
+
+.mt-line[data-saving='true'] {
+  opacity: 0.7;
+}
+
+.mt-line-seq {
+  flex: 0 0 auto;
+  min-inline-size: 22px;
+  padding-block-start: 3px;
+  color: var(--text-faint);
+  font-size: 12px;
+  text-align: end;
+}
+
+.mt-line-body {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+/* A button, because clicking the words is how you fix a typo — but it must read
+   as text, not as a control, until it is reached. */
+.mt-line-text {
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  text-align: start;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  border-radius: 4px;
+  transition: color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* global.css turns selection off on every <button>, and re-enables it for the
+   three prose classes it knows about. A meeting line is prose that happens to
+   live in a button, and "copy that line into the ticket" is a thing people do
+   constantly — so it is re-enabled here, on this sheet's own class. Clicking
+   still opens the editor; only a drag selects. */
+.mt-line-text,
+.mt-committed-text {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.mt-line-text:hover {
+  box-shadow: inset 0 -1px 0 var(--field-border);
+}
+
+.mt-line-text.is-static {
+  cursor: default;
+}
+
+.mt-line-edit {
+  flex: 1 1 100%;
+  min-block-size: 40px;
+}
+
+.mt-line-state,
+.mt-line-saving {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+}
+
+.mt-line-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* Present but recessive until the row is reached, so forty rows do not read
+     as eighty buttons. Never display:none — a hidden control is out of the tab
+     order, and the keyboard path has to reach it. */
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.mt-line:hover .mt-line-actions,
+.mt-line:focus-within .mt-line-actions {
+  opacity: 1;
+}
+
+/* No hover on a touch screen, so the actions are simply always visible there.
+   Hiding the only way to discard a line behind a gesture that does not exist is
+   the worst possible place to save a few pixels. */
+@media (hover: none) {
+  .mt-line-actions {
+    opacity: 1;
+  }
+}
+
+.mt-line-discard:hover:not(:disabled) {
+  color: var(--red);
+}
+
+/* ---------- triage ---------- */
+
+.mt-table-wrap {
+  /* The table's own scroll, never the page's: a body that scrolls sideways on a
+     phone is the single most common way a responsive layout breaks. Under 900px
+     the rows restack and this never engages. */
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.mt-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.mt-table thead th {
+  padding-block: 10px;
+  padding-inline: 10px;
+  border-block-end: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-align: start;
+  white-space: nowrap;
+}
+
+/* The column-wide quick-fill toolbar. Always visible: it is the control that
+   turns twenty decisions into one, and burying it behind a hover would hide the
+   feature from every phone. */
+.mt-fill-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mt-fill-label {
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.mt-fill {
+  font-size: 12.5px;
+}
+
+.mt-tr {
+  border-block-start: 1px solid var(--border);
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.mt-tr:hover {
+  background: var(--bg-elev-2);
+}
+
+.mt-tr[data-state='discarded'] {
+  opacity: 0.6;
+}
+
+.mt-tr[data-state='note'] {
+  background: color-mix(in srgb, var(--bg-elev-2) 60%, transparent);
+}
+
+.mt-td {
+  padding-block: 8px;
+  padding-inline: 10px;
+  vertical-align: top;
+}
+
+.mt-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.mt-cell-select,
+.mt-cell-date {
+  min-block-size: 40px;
+  font-size: 13.5px;
+  padding-inline: 9px;
+}
+
+/* Room for the "same as above" button so it never covers the value. */
+.mt-cell-select,
+.mt-cell-owner-name {
+  padding-inline-end: 34px;
+}
+
+.mt-cell-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-inline-size: 320px;
+}
+
+.mt-cell-line-body {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mt-title-input {
+  min-block-size: 40px;
+  font-size: 14px;
+}
+
+.mt-cell-raw {
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 24px visual disc, 44px hit area. The glyph is `content` rather than a child
+   node so the button has no text content at all and its aria-label is the
+   entire accessible name. An up arrow carries no direction, so it does not
+   mirror in Arabic and must not be given .icon-directional. */
+.mt-same {
+  position: absolute;
+  inset-inline-end: 5px;
+  inset-block-start: 8px;
+  inline-size: 24px;
+  block-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.mt-same::before {
+  content: '↑';
+}
+
+.mt-same::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+
+.mt-tr:hover .mt-same,
+.mt-tr:focus-within .mt-same,
+.mt-same:focus-visible {
+  opacity: 1;
+}
+
+.mt-same:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mt-same:active {
+  transform: scale(0.9);
+}
+
+@media (hover: none) {
+  .mt-same {
+    opacity: 1;
+  }
+}
+
+.mt-cell-decision {
+  min-inline-size: 132px;
+  /* No quick-fill on this column, so the value may use the full width. */
+  padding-inline-end: 9px;
+}
+
+/* ---------- the commit bar ---------- */
+
+.mt-commit-bar {
+  position: sticky;
+  /* Clears the mobile tab bar; the desktop rule below drops it to the corner. */
+  inset-block-end: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 10px;
+  padding-inline: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-elev) 94%, transparent);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow: var(--shadow);
+}
+
+.mt-commit-count {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-commit-btn {
+  flex: 0 0 auto;
+}
+
+/* ---------- committed lines ---------- */
+
+.mt-committed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mt-committed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+}
+
+.mt-committed-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--green) 7%, transparent);
+}
+
+.mt-committed-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- notes ---------- */
+
+.mt-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mt-notes-input {
+  min-block-size: 96px;
+  resize: vertical;
+}
+
+/* ---------- narrow: the table becomes cards ---------- */
+
+@media (max-width: 899px) {
+  /* Column headings move into each cell as a ::before label, so the header row
+     has nothing left to say — and nothing focusable left in it, since fill-down
+     moved to its own toolbar above the table. display:none is therefore the
+     honest answer rather than a clip that would leave phantom tab stops. */
+  .mt-table thead {
+    display: none;
+  }
+
+  .mt-table,
+  .mt-table tbody,
+  .mt-tr,
+  .mt-td {
+    display: block;
+    inline-size: 100%;
+  }
+
+  .mt-table-wrap {
+    /* Nothing overflows once the rows stack, and leaving the scroll port on
+       would let a stray 1px make the whole card jiggle sideways. */
+    overflow-x: visible;
+    border: none;
+    background: transparent;
+  }
+
+  .mt-tr {
+    margin-block-end: 8px;
+    padding-block: 10px;
+    padding-inline: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+  }
+
+  .mt-td {
+    display: grid;
+    grid-template-columns: minmax(0, 84px) minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding-inline: 0;
+    padding-block: 5px;
+  }
+
+  .mt-td::before {
+    content: attr(data-label);
+    color: var(--text-faint);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* The line itself is the card's headline; a "Line" label over it is noise. */
+  .mt-col-line {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block-end: 8px;
+  }
+
+  .mt-col-line::before {
+    content: none;
+  }
+
+  .mt-cell-line {
+    min-inline-size: 0;
+  }
+
+  .mt-commit-bar {
+    /* The bar is the screen's one action down here, so it earns full width. */
+    inset-inline: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .mt-commit-bar {
+    inset-block-end: 16px;
+  }
+}
+
+/* ---------- wide ---------- */
+
+@media (min-width: 900px) {
+  .mt-col-track {
+    inline-size: 15%;
+  }
+
+  .mt-col-type,
+  .mt-col-priority {
+    inline-size: 12%;
+  }
+
+  .mt-col-owner {
+    inline-size: 16%;
+  }
+
+  .mt-col-due {
+    inline-size: 13%;
+  }
+}
