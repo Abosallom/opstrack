@@ -410,6 +410,46 @@ export default function TracksIndex(): ReactElement {
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
   /** The last row ticked by hand — where a shift-range measures from. */
   const anchorRef = useRef<string | null>(null)
+  /** The tree root, so focus restoration can scope its lookup to this screen. */
+  const treeRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * The bulk bar's real height, published to CSS as `--tree-bulk-h`.
+   *
+   * On a phone the bar is `position: fixed` above the tab bar, and the sheet
+   * reserves room for it at the end of the tree so the last row is not parked
+   * underneath. That reservation was a hardcoded 84px against a bar that wraps
+   * to 166px in English and more in Arabic — so the last row, the one a
+   * distribution pass ends on, was always unreachable. Measuring is the only
+   * honest answer: the height depends on the wrap, which depends on the
+   * language, the width and how many controls the bar is showing.
+   */
+  const [bulkHeight, setBulkHeight] = useState(0)
+  const bulkObserver = useRef<ResizeObserver | null>(null)
+  const registerBulk = useCallback((el: HTMLDivElement | null) => {
+    bulkObserver.current?.disconnect()
+    bulkObserver.current = null
+    if (el === null) {
+      setBulkHeight(0)
+      return
+    }
+    setBulkHeight(el.offsetHeight)
+    // Guarded because the render tests run in node, where the constructor does
+    // not exist; the CSS fallback covers that case and every other one where a
+    // measurement has not landed yet.
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => setBulkHeight(el.offsetHeight))
+    observer.observe(el)
+    bulkObserver.current = observer
+  }, [])
+
+  useEffect(
+    () => () => {
+      bulkObserver.current?.disconnect()
+      bulkObserver.current = null
+    },
+    [],
+  )
 
   // Prune to what is on screen. See the file header: a bulk bar counting rows
   // behind a collapsed node offers an action nobody can review.
@@ -479,6 +519,21 @@ export default function TracksIndex(): ReactElement {
   }, [])
 
   const clearSelection = useCallback(() => {
+    // FOCUS FIRST. The Clear button lives inside the bulk bar, and the bar is
+    // rendered only while something is selected — so this call unmounts the
+    // control that made it, and focus falls to <body> with the next Tab
+    // restarting at the top of the document (WCAG 2.4.3). The row last ticked
+    // by hand is where the reader's attention already is, and its checkbox is
+    // still mounted at this point: React batches the re-render to the end of
+    // the handler, so focusing now means the bar unmounts from an element that
+    // is no longer focused. No anchor (a whole-track tick) leaves focus alone
+    // rather than guessing at a row nobody pointed at.
+    const back = anchorRef.current
+    if (back !== null) {
+      treeRef.current
+        ?.querySelector<HTMLInputElement>(`.tree-row[data-entry="${back}"] .tree-check`)
+        ?.focus()
+    }
     setSelected(new Set())
     anchorRef.current = null
     announce(t('tree.selectionCleared'))
@@ -694,7 +749,14 @@ export default function TracksIndex(): ReactElement {
   }
 
   return (
-    <div className="tree" data-picking={selectedCount > 0 ? 'true' : undefined}>
+    <div
+      className="tree"
+      ref={treeRef}
+      data-picking={selectedCount > 0 ? 'true' : undefined}
+      style={
+        bulkHeight > 0 ? ({ '--tree-bulk-h': `${bulkHeight}px` } as CSSProperties) : undefined
+      }
+    >
       <p className="tree-sub">{t('tree.subtitle')}</p>
 
       <FilterBar
@@ -796,7 +858,7 @@ export default function TracksIndex(): ReactElement {
       )}
 
       {selectedCount > 0 ? (
-        <div className="tree-bulk" role="region" aria-label={t('tree.bulkTitle')}>
+        <div className="tree-bulk" ref={registerBulk} role="region" aria-label={t('tree.bulkTitle')}>
           <p className="tree-bulk-count tabular" aria-live="polite">
             {t('tree.selected', { count: selectedCount })}
           </p>
@@ -905,6 +967,17 @@ const TreeRow = memo(function TreeRow({
   onOpen,
   onOwner,
 }: TreeRowProps): ReactElement {
+  // SUBSCRIBED TO THE LOCALE, because this row calls t() directly and memo()
+  // would otherwise never re-run it. Every prop above is reference-stable
+  // across a language switch — the entry and health come from the store, the
+  // members from theirs, `selected` is a boolean and the three callbacks have
+  // no locale in their deps — so the shallow compare passes and the row keeps
+  // its previous-language strings. The <EntryRow> child does subscribe, but the
+  // owner <select> reaches it as a pre-built element, and React's identity
+  // bailout means that subtree is not re-rendered either: the amber
+  // "Unassigned" option on exactly the rows this screen exists to fix would
+  // stay in the old language. lib/labels.ts's header names this hazard.
+  useLocale()
   const pending = usePendingOp(entry.id)
   const flash = useEntryFlash(entry.id)
 
@@ -917,7 +990,9 @@ const TreeRow = memo(function TreeRow({
   const orphan = entry.owner_id !== null && !memberMap.has(entry.owner_id)
 
   return (
-    <li className="tree-row" data-selected={selected ? 'true' : undefined}>
+    // `data-entry` is how the bulk bar's Clear finds this row's checkbox to
+    // hand focus back to — see clearSelection().
+    <li className="tree-row" data-entry={entry.id} data-selected={selected ? 'true' : undefined}>
       <TriCheckbox
         className="tree-check"
         checked={selected}

@@ -156,6 +156,30 @@
   transition: opacity 0.15s ease;
 }
 
+/* One segment of a STACKED bar, and the hairline that makes the stack readable.
+
+   THE BAND BOUNDARY IS THE WHOLE POINT of stacking, and it was the one edge
+   with no contrast: `stale` and `overdue` are 1.10:1 apart in the light theme,
+   so a bar that is half one and half the other rendered as a single block. The
+   pairs cannot be fixed by re-picking the hues — they are the app's semantic
+   status tokens and the pill on the row this bar counts is the same colour.
+
+   So the separator is the SURFACE, not a fifth colour: every band clears 3:1
+   against `--bg-elev` (see the series block below), which makes every boundary a
+   ≥3.28:1 edge no matter which two bands meet at it. `paint-order: stroke fill`
+   paints the stroke first and the fill over it, so only the outer half of the
+   1px shows — the segment keeps its full height and a one-item band is still a
+   visible line rather than something the stroke ate.
+
+   Specificity 0,1,0 on purpose: `.cht-mark:focus-visible .cht-bar` is 0,2,0 and
+   must keep winning, so the focus ring replaces this hairline instead of
+   fighting it. */
+.cht-band {
+  stroke: var(--bg-elev);
+  stroke-width: 1;
+  paint-order: stroke fill;
+}
+
 /* The empty channel a horizontal bar is measured inside. */
 .cht-track {
   fill: var(--bg-elev-2);
@@ -219,39 +243,74 @@
   animation: none;
 }
 
-/* ---------- series colours ---------- */
+/* ---------- series colours ----------
+
+   EVERY STEP CLEARS 3:1 AGAINST `--bg-elev`, in both themes, and the ratios
+   below were computed rather than eyeballed — the same discipline global.css
+   applies to its own tokens, and for the same reason: a fill mixed toward the
+   surface is a colour nobody checks until it is invisible. WCAG 1.4.11 asks 3:1
+   of a graphical object you need in order to read the content, and a bar IS the
+   content. The ramp shipped its first two steps at 1.64:1 and 2.41:1 on white,
+   which drew the aging chart's biggest bucket as an empty plot.
+
+   The percentage is the SMALLEST that clears the bar on the worse surface, so
+   the ramp keeps as much of its range as the constraint allows. */
 
 .cht-c-ok {
-  fill: color-mix(in srgb, var(--blue) 52%, var(--bg-elev));
+  /* 4.36:1 dark · 3.61:1 light */
+  fill: color-mix(in srgb, var(--blue) 75%, var(--bg-elev));
 }
 
 .cht-c-stale {
+  /* 6.09:1 dark · 3.28:1 light */
   fill: color-mix(in srgb, var(--yellow) 74%, var(--bg-elev));
 }
 
 .cht-c-overdue {
+  /* 4.07:1 dark · 3.60:1 light */
   fill: color-mix(in srgb, var(--red) 72%, var(--bg-elev));
 }
 
 .cht-c-critical {
+  /* 6.73:1 dark · 5.80:1 light */
   fill: var(--red);
 }
 
-/* Sequential, one hue, oldest darkest. */
+/* Sequential, one hue, oldest most saturated.
+
+   THE FOUR STEPS ARE PER THEME, because the two surfaces do not leave the same
+   room. `--accent` is a light blue on near-black and a dark blue on white, so
+   the mix that puts step 1 exactly on 3:1 is 58% against #171d23 and 68%
+   against #ffffff. One shared number would either fail the light theme or throw
+   away a tenth of the dark theme's range — the same trap global.css's header
+   describes when it refuses to inherit a single --red across both themes. */
+
 .cht-c-a1 {
-  fill: color-mix(in srgb, var(--accent) 32%, var(--bg-elev));
+  fill: color-mix(in srgb, var(--accent) 58%, var(--bg-elev)); /* 3.14:1 */
 }
 
 .cht-c-a2 {
-  fill: color-mix(in srgb, var(--accent) 54%, var(--bg-elev));
+  fill: color-mix(in srgb, var(--accent) 72%, var(--bg-elev)); /* 4.13:1 */
 }
 
 .cht-c-a3 {
-  fill: color-mix(in srgb, var(--accent) 76%, var(--bg-elev));
+  fill: color-mix(in srgb, var(--accent) 86%, var(--bg-elev)); /* 5.32:1 */
 }
 
 .cht-c-a4 {
-  fill: var(--accent);
+  fill: var(--accent); /* 6.72:1 */
+}
+
+[data-theme='light'] .cht-c-a1 {
+  fill: color-mix(in srgb, var(--accent) 68%, var(--bg-elev)); /* 3.14:1 */
+}
+
+[data-theme='light'] .cht-c-a2 {
+  fill: color-mix(in srgb, var(--accent) 79%, var(--bg-elev)); /* 3.91:1 */
+}
+
+[data-theme='light'] .cht-c-a3 {
+  fill: color-mix(in srgb, var(--accent) 90%, var(--bg-elev)); /* 4.86:1 */
 }
 
 .cht-c-created {
@@ -300,7 +359,7 @@
 /* The swatch is a <span>, so it needs `background` where the SVG rect above
    needed `fill`. Same tokens, so the key and the chart cannot drift. */
 .cht-swatch.cht-c-ok {
-  background: color-mix(in srgb, var(--blue) 52%, var(--bg-elev));
+  background: color-mix(in srgb, var(--blue) 75%, var(--bg-elev));
 }
 .cht-swatch.cht-c-stale {
   background: color-mix(in srgb, var(--yellow) 74%, var(--bg-elev));

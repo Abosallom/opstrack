@@ -131,6 +131,16 @@ export interface EntriesCoverage {
    * showing totals should say so; see useEntriesTruncated().
    */
   truncated: boolean
+  /**
+   * The same, for the CLOSED window loadClosedSince() fetched.
+   *
+   * Stored separately rather than folded into `truncated` because the two reads
+   * are clipped independently and an open refetch must not be able to clear a
+   * closed clip it knows nothing about — mergeOpenFetch() writes `truncated`
+   * outright on every pass, so a single shared field would silently self-heal
+   * back to false. `useEntriesTruncated()` is where the two are combined.
+   */
+  closedTruncated: boolean
 }
 
 export interface EntryCounts {
@@ -450,6 +460,7 @@ function emptyCoverage(): EntriesCoverage {
     trackHistory: {},
     loadedAt: null,
     truncated: false,
+    closedTruncated: false,
   }
 }
 
@@ -550,15 +561,35 @@ export function useEntriesCoverage(): EntriesCoverage {
 }
 
 /**
+ * Coverage without React, the twin of getEntriesSnapshot().
+ *
+ * Exists because api/digestCollect.ts is a module function and cannot call a
+ * hook, so it used to hard-code `truncated: false` into every DigestRows and
+ * leave the screen to OR the real answer back in — which meant the collector
+ * was structurally incapable of reporting a clip, and the closed half of the
+ * window had no path to the document at all.
+ */
+export function getEntriesCoverage(): EntriesCoverage {
+  return useEntriesStore.getState().coverage
+}
+
+/**
  * True while the loaded working set is a WINDOW, not the whole table.
  *
  * Narrow on purpose: a screen that only wants to caveat its totals subscribes
  * to one boolean instead of re-rendering on every coverage change. Any list
  * showing a count off `useEntryCounts()` is showing a count of what LOADED —
  * this is how it knows to say so.
+ *
+ * BOTH HALVES, because a screen asking "is what I am showing complete?" does not
+ * care which of the two reads was clipped. The dashboard computes throughput and
+ * SLA compliance entirely from closed rows, so for months the one screen most
+ * exposed to a closed clip was reading a flag that could only ever describe the
+ * open fetch. A caller that genuinely needs to tell them apart reads
+ * `useEntriesCoverage()` and looks at the two fields.
  */
 export function useEntriesTruncated(): boolean {
-  return useEntriesStore((s) => s.coverage.truncated)
+  return useEntriesStore((s) => s.coverage.truncated || s.coverage.closedTruncated)
 }
 
 export function useHealthMap(): ReadonlyMap<string, EntryHealth> {
@@ -799,13 +830,25 @@ export function loadClosedSince(since: IsoDate): Promise<void> {
       console.warn('[entries] closed load failed:', result.error)
       return
     }
+    if (result.data.truncated) {
+      console.warn(
+        `[entries] closed read clipped at PostgREST's ceiling (${result.data.rows.length} rows) — throughput and SLA compliance describe a window.`,
+      )
+    }
     const current = useEntriesStore.getState()
     const byId = new Map(current.byId)
-    for (const row of result.data) {
+    for (const row of result.data.rows) {
       if (!current.pending.has(row.id)) byId.set(row.id, row)
     }
     commit(byId, current.serverHealth, {
-      coverage: { ...current.coverage, closedSince: since },
+      // OR, never assignment: a narrower window fetched later returns fewer rows
+      // and would otherwise report the working set as complete when the rows the
+      // wider one clipped are still missing from it.
+      coverage: {
+        ...current.coverage,
+        closedSince: since,
+        closedTruncated: current.coverage.closedTruncated || result.data.truncated,
+      },
     })
   })
 }

@@ -346,7 +346,7 @@ Editor you see them raw.
 
 ---
 
-## Two behaviours that surprise people
+## Three behaviours that surprise people
 
 **Archiving a track pauses its recurring templates; un-archiving replays what was
 missed.** `materialize_due_recurring()` skips templates whose track is archived,
@@ -356,6 +356,23 @@ skipped template's `next_run_on` is never advanced either, so restoring a track
 after three weeks materialises those three weeks of occurrences on the next run
 (capped at 60 per template). If that is not what you want, deactivate the
 templates before archiving the track.
+
+**"Run now" consumes one occurrence, not the whole backlog.** On a template that
+is eleven runs overdue, Run now creates one entry dated today and moves
+`next_run_on` forward by exactly one occurrence — so the template is still
+overdue afterwards and the scheduler creates the other ten on its next pass,
+which is what the overdue banner on the screen says will happen. Discarding a
+backlog on purpose is the separate **Skip to <date>** button. Clicking Run now
+repeatedly on the same day is a no-op: the due date is anchored to today, so the
+`(template_id, due_date)` unique index absorbs the second insert and the schedule
+does not advance again.
+
+> This became true only with migration **0008**. Between `0004` and `0008`, one
+> Run now click walked `next_run_on` past today in a loop and silently cancelled
+> every owed occurrence — measured live: a weekly template 70 days behind
+> produced 1 entry instead of 11, with no record of the other 10. If your project
+> has not applied `0008`, apply it. Nothing repairs occurrences already lost;
+> re-create them by hand from the template if you need them.
 
 **Moving entries between tracks does not count as activity.** `entries_touch()`
 bumps `updated_at` on a track change but leaves `last_activity_at` alone, so a

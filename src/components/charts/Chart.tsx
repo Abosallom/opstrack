@@ -34,6 +34,7 @@
 
 import { useId, type ReactElement, type ReactNode } from 'react'
 import { Skeleton } from '../shared'
+import { isolate } from '../../lib/bidi'
 import { t, useLocale } from '../../lib/i18n'
 import { DEFAULT_INSETS, plotArea, useChartSize, type Insets, type Plot } from './geometry'
 import './charts.css'
@@ -295,6 +296,14 @@ export function ChartAxis({
  * "Infrastructure and Facilities" is 29 characters into a 60px slot, and
  * measuring text inside an SVG means a second layout pass per render for a
  * label whose full text is one row away in the table.
+ *
+ * THE LABEL IS ISOLATED, because it is a track name and a track name is
+ * whatever an admin typed. SVG <text> is laid out by the same bidi algorithm as
+ * everything else and inherits `direction: rtl` from <html>, so under Arabic a
+ * label of `2026 Refresh` renders `Refresh 2026` and `شبكة / Network` renders
+ * `Network / شبكة` — reordered, not broken, which is the kind nobody reports.
+ * Isolate AFTER truncating: slicing a string that already carries an FSI cuts
+ * the control off and leaves the run open over the rest of the group.
  */
 export function ChartCategories({
   plot,
@@ -316,7 +325,7 @@ export function ChartCategories({
           y={plot.bottom + 16}
           textAnchor="middle"
         >
-          {label.length > budget ? `${label.slice(0, Math.max(1, budget - 1))}…` : label}
+          {isolate(label.length > budget ? `${label.slice(0, Math.max(1, budget - 1))}…` : label)}
         </text>
       ))}
     </g>

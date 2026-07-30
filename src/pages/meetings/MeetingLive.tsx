@@ -26,6 +26,13 @@
 // writes each line as it is typed; killing the tab mid-meeting and reloading
 // loses nothing. That is the acceptance gate's second clause and it is the
 // reason the meeting_lines table exists at all.
+//
+// EVERYONE CAPTURES; ONLY THE CREATOR CLOSES. `meeting_lines` insert/update are
+// `is_member()` — the whole room can type, fix and re-state lines. The meeting
+// ROW is creator-or-admin, so End and Resume ask ./access.canEditMeeting()
+// before they render. They used to be shown to every attendee, which meant a
+// confirmation dialog, an optimistic close and then a rollback: the exact
+// sequence lib/permissions.ts's header was written to forbid.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -37,6 +44,7 @@ import { IconArrowStart, IconFile, IconMic } from '../../components/icons'
 import type { ParseContext, ParseMember, ParseTrack } from '../../lib/capture/parse'
 import { t, useLocale } from '../../lib/i18n'
 import { truncate } from '../../lib/text'
+import { useAuth } from '../../store/auth'
 import { useActiveTracks } from '../../store/config'
 import { loadMembers, useMembers } from '../../store/members'
 import { getVocabSnapshot, useVocabAll } from '../../store/vocab'
@@ -55,7 +63,8 @@ import {
   useMeeting,
   useMeetingLines,
 } from '../../store/meetings'
-import type { MeetingLine, VocabKind, VocabRow } from '../../types'
+import { canEditMeeting } from './access'
+import type { MeetingLine, UserRole, VocabKind, VocabRow } from '../../types'
 import './meetings.css'
 
 /** Debounce before the screen-reader region announces the line count. */
@@ -138,6 +147,12 @@ export default function MeetingLive(): ReactElement {
   const loading = useLinesLoading(id)
   const linesError = useLinesError(id)
   const makeCtx = useParseContext()
+
+  // Capture is the room's; closing the meeting is the creator's. See ./access.
+  const { profile } = useAuth()
+  const meId = profile?.id ?? null
+  const role: UserRole = profile?.role ?? 'member'
+  const canEndMeeting = canEditMeeting(meeting, meId, role)
 
   const [text, setText] = useState('')
   const [ending, setEnding] = useState(false)
@@ -392,9 +407,16 @@ export default function MeetingLive(): ReactElement {
             </p>
           )}
           <div className="mt-live-actions">
-            <button type="button" className="btn btn-sm" onClick={() => void handleEnd()} disabled={ending}>
-              {ending ? t('meeting.ending') : t('meeting.end')}
-            </button>
+            {/* Hidden, not disabled: a disabled End on somebody else's meeting
+                is a control that reads as broken, and there is nothing the
+                attendee can do to enable it. The line below says who can. */}
+            {canEndMeeting ? (
+              <button type="button" className="btn btn-sm" onClick={() => void handleEnd()} disabled={ending}>
+                {ending ? t('meeting.ending') : t('meeting.end')}
+              </button>
+            ) : (
+              <p className="mt-hint">{t('meeting.errNotYours')}</p>
+            )}
             {pendingCount > 0 && (
               <button
                 type="button"
@@ -419,9 +441,13 @@ export default function MeetingLive(): ReactElement {
             >
               {t('meeting.triage')}
             </button>
-            <button type="button" className="btn btn-sm" onClick={() => void handleResume()}>
-              {t('meeting.resume')}
-            </button>
+            {/* Resume writes `ended_at`, so it belongs to the same people End
+                does. Triage and the minutes stay open to the whole room. */}
+            {canEndMeeting && (
+              <button type="button" className="btn btn-sm" onClick={() => void handleResume()}>
+                {t('meeting.resume')}
+              </button>
+            )}
             {/* The third thing an ended meeting is for. Added at integration:
                 /meetings/:id/minutes had no entrance in the app at all, and a
                 document nobody can navigate to is a document that does not
@@ -514,9 +540,29 @@ function LineItem({ line, editable, makeCtx }: LineItemProps): ReactElement {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(line.raw)
   const editRef = useRef<HTMLInputElement>(null)
+  const textRef = useRef<HTMLButtonElement>(null)
+  /**
+   * Set when the editor is left by KEYBOARD, so focus can go home.
+   *
+   * Closing the editor unmounts the focused <input>, and the button that opened
+   * it does not exist while it is open — so focus lands on <body> and the next
+   * Tab restarts at the top of the document (WCAG 2.4.3). It cannot be restored
+   * synchronously for that reason; it has to wait for the button to come back,
+   * which is what the effect below is for.
+   *
+   * NOT set on blur: blur means focus has already gone somewhere the user
+   * chose, and dragging it back would be the more annoying bug.
+   */
+  const returnFocus = useRef(false)
 
   useEffect(() => {
-    if (editing) editRef.current?.select()
+    if (editing) {
+      editRef.current?.select()
+      return
+    }
+    if (!returnFocus.current) return
+    returnFocus.current = false
+    textRef.current?.focus()
   }, [editing])
 
   // A realtime patch from another attendee replaces the row under an open
@@ -566,11 +612,13 @@ function LineItem({ line, editable, makeCtx }: LineItemProps): ReactElement {
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
+                returnFocus.current = true
                 commitEdit()
                 return
               }
               if (e.key !== 'Escape') return
               e.preventDefault()
+              returnFocus.current = true
               setDraft(line.raw)
               setEditing(false)
             }}
@@ -581,6 +629,7 @@ function LineItem({ line, editable, makeCtx }: LineItemProps): ReactElement {
           // hear "edit line 7" with no way to learn what line 7 says. The edit
           // affordance rides on `title` and on the button role instead.
           <button
+            ref={textRef}
             type="button"
             className="mt-line-text"
             onClick={() => setEditing(true)}

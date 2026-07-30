@@ -60,7 +60,7 @@
     "willCreate": "Creates one item in {track}.",
     "willCreateNoTrack": "Creates one item with no track.",
     "willCreateTemplate": "Creates a repeating item, not a one-off.",
-    "templateSoon": "Repeating items get their own screen in a later release. Capture it as a one-off for now, or drop the every: token.",
+    "templateWhere": "This is saved as a schedule, not an item — it creates its own entry every time it comes due.",
     "suggested": "Suggested for this track",
     "addTag": "Add the tag {tag}",
     "openTemplates": "Manage repeating items",

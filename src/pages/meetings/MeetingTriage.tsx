@@ -20,12 +20,21 @@
 //    in the entry sheet where there is room and the value is the point; in a
 //    seven-column table it is four times the height, and a native select is
 //    already keyboard-complete, already RTL-correct and already a 44px target
-//    through the global `.input` rule.
+//    through the global `.input` rule. meetings.css compacts that to 40px for
+//    the wide table, but only behind `(hover: hover) and (pointer: fine)` — a
+//    touch pointer keeps the full 44.
 //
 // TRIAGE SURVIVES A RELOAD. Every dropdown writes through
 // store/meetings.setLinePlan, which debounces into `meeting_lines.parsed` — the
 // same column the parser seeded. There is no second place triage state lives,
 // so there is nothing to lose and nothing to reconcile.
+//
+// TRIAGE IS OPEN TO THE ROOM; THE MEETING ROW IS NOT. `meeting_lines` update is
+// `is_member()`, so every decision on this screen is everyone's to make. The
+// meeting HEADER is creator-or-admin, which is exactly two controls here — the
+// notes field and Resume — and both ask ./access.canEditMeeting() BEFORE they
+// render. The notes field in particular used to eat what a non-creator typed:
+// the optimistic rollback restored the stored value and the field followed it.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -59,7 +68,9 @@ import {
   useMeetingLines,
 } from '../../store/meetings'
 import type { LinePlan } from '../../api/meetings'
-import type { EntryPriority, EntryType, MeetingLine, MeetingLineState } from '../../types'
+import { useAuth } from '../../store/auth'
+import { canEditMeeting } from './access'
+import type { EntryPriority, EntryType, MeetingLine, MeetingLineState, UserRole } from '../../types'
 import './meetings.css'
 
 /** The synthetic owner key for "somebody outside the workspace". Never stored. */
@@ -130,6 +141,14 @@ export default function MeetingTriage(): ReactElement {
   const linesError = useLinesError(id)
   const committing = useCommitting(id)
 
+  // `meetings_update` is creator-or-admin (see ./access.ts). The LINES are open
+  // to every member, so triage itself is not gated — only the two controls that
+  // write the meeting row: the notes field and Resume.
+  const { profile } = useAuth()
+  const meId = profile?.id ?? null
+  const role: UserRole = profile?.role ?? 'member'
+  const canEditHeader = canEditMeeting(meeting, meId, role)
+
   const [settled, setSettled] = useState(false)
   const [notes, setNotes] = useState('')
   const [notesDirty, setNotesDirty] = useState(false)
@@ -195,8 +214,20 @@ export default function MeetingTriage(): ReactElement {
     setNotesDirty(false)
     if (notes === (meeting?.notes ?? '')) return
     void saveMeetingNotes(id, notes).then((result) => {
-      if (result.ok) toast(t('meeting.notesSaved'))
-      else toast(t(result.error), { tone: 'error' })
+      if (result.ok) {
+        toast(t('meeting.notesSaved'))
+        return
+      }
+      toast(t(result.error), { tone: 'error' })
+      // A NON-DESTRUCTIVE failure. The store has already rolled the row back to
+      // the stored notes, and the effect above copies the store into this field
+      // whenever the field is clean — so leaving `notesDirty` false here would
+      // wipe what was just typed and leave a toast where the paragraph used to
+      // be. Marking it dirty again pins the text in the box so it can at least
+      // be copied out. (The read-only branch below means this should now be
+      // unreachable through the notes field; it stays because a policy can
+      // refuse a write for reasons the client cannot mirror.)
+      setNotesDirty(true)
     })
   }, [id, meeting?.notes, notes, notesDirty])
 
@@ -303,7 +334,10 @@ export default function MeetingTriage(): ReactElement {
           title={t('meeting.nothingToTriage')}
           description={t('meeting.nothingToTriageHint')}
           action={
-            live ? (
+            // Resume writes `meetings.ended_at`, so it is offered only to
+            // whoever may write the row. Everyone else gets the exit that
+            // always works rather than a button that snaps back.
+            live || !canEditHeader ? (
               <button type="button" className="btn" onClick={() => navigate(`/meetings/${id}`)}>
                 {t('meeting.backToMeetings')}
               </button>
@@ -426,6 +460,12 @@ export default function MeetingTriage(): ReactElement {
         </section>
       )}
 
+      {/* The notes belong to the meeting ROW, which RLS gives to its creator and
+          to admins — so the answer is computed before the field renders rather
+          than discovered on blur, and the reason is written under it instead of
+          being left as a mystery. `readOnly`, not `disabled`: the text stays
+          selectable, copyable and reachable by a screen reader, which is the
+          whole point of showing it to somebody who cannot change it. */}
       <section className="mt-notes">
         <label className="field-label" htmlFor="mt-notes">
           {t('meeting.notesLabel')}
@@ -434,13 +474,21 @@ export default function MeetingTriage(): ReactElement {
           id="mt-notes"
           className="input mt-notes-input"
           value={notes}
-          placeholder={t('meeting.notesPlaceholder')}
+          placeholder={canEditHeader ? t('meeting.notesPlaceholder') : ''}
+          readOnly={!canEditHeader}
+          aria-describedby={canEditHeader ? undefined : 'mt-notes-why'}
+          title={canEditHeader ? undefined : t('meeting.errNotYours')}
           onChange={(e) => {
             setNotes(e.target.value)
             setNotesDirty(true)
           }}
           onBlur={handleNotesBlur}
         />
+        {!canEditHeader && (
+          <p className="mt-hint" id="mt-notes-why">
+            {t('meeting.errNotYours')}
+          </p>
+        )}
       </section>
     </div>
   )

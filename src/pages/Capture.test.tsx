@@ -363,15 +363,22 @@ describe('Capture — suggested tags', () => {
 describe('Capture — recurrence', () => {
   const LINE = 'Capacity review #network every:weekly @ahmed'
 
-  it('refuses to create a one-off from a repeat rule, and says why', () => {
+  // A repeat rule is SUBMITTABLE — it writes `recurring_templates` instead of
+  // `entries`. It used to disable the button and say the feature shipped "in a
+  // later release", with /settings/recurring already live and this screen's own
+  // hints teaching the token.
+  it('accepts a repeat rule and says which table it lands in', () => {
     const { en, ar } = bilingual(LINE)
     for (const html of [en, ar]) {
       expect(html).toContain('data-kind="recurring" data-ok="true"')
-      expect(html).toMatch(/cap-submit"[^>]*disabled/)
+      expect(html).not.toMatch(/cap-submit"[^>]*disabled/)
       expect(html).toContain('cap-notice')
+      // The way to the screen that owns what this line creates.
+      expect(html).toContain('cap-notice-link')
       expect(untranslated(html)).toEqual([])
     }
     expect(en).toContain('Creates a repeating item, not a one-off.')
+    expect(en).toContain('Manage repeating items')
     expect(en).toContain('Weekly')
     expect(ar).toContain('أسبوعيًا')
   })

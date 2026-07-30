@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, type ReactElement, type ReactNode } from 'react'
+import { Suspense, lazy, useEffect, useRef, type ReactElement, type ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingSpinner } from './components/shared'
@@ -301,9 +301,41 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
   }, [titleKey])
 
   // A new route starts at the top rather than inheriting the previous page's
-  // scroll offset.
+  // scroll offset — and picks up the keyboard focus the transition orphaned.
+  //
+  // WHY THE FOCUS MOVE IS CONDITIONAL. Half the routes in this app claim focus
+  // themselves on mount: Capture, MeetingLive, SignIn, Claim and the follow-ups
+  // search all put the caret in their own field, and child effects run BEFORE a
+  // parent's, so an unconditional `#main.focus()` here would run last and steal
+  // it from every one of them. `document.activeElement` at this point is the
+  // answer to exactly the right question — the new route has already had its
+  // turn, so a real element means somebody claimed focus and `<body>` means
+  // nobody did.
+  //
+  // WHEN NOBODY DID, which Wave 3 made the common case. A NavLink survives the
+  // transition and keeps focus; a `<button>` that navigates does not — it
+  // unmounts itself, focus falls to `<body>`, the next Tab restarts at the skip
+  // link and a screen-reader user hears nothing at all (an SPA `document.title`
+  // change is not reliably announced). Nearly every route Wave 3 added is
+  // entered that way: the meeting rows on the index, live → triage → minutes,
+  // and the dashboard's empty-state actions.
+  //
+  // `<main>` is `tabIndex={-1}` and carries the route's name below, so the move
+  // announces "Board, main" and the next Tab continues into the page. global.css
+  // suppresses the focus ring for precisely this programmatic case.
+  const settled = useRef(false)
   useEffect(() => {
     window.scrollTo(0, 0)
+    // Not on first paint: the initial route has not replaced anything, and
+    // stealing focus on load would fight the browser's own restoration.
+    if (!settled.current) {
+      settled.current = true
+      return
+    }
+    const active = document.activeElement
+    if (active === null || active === document.body || active === document.documentElement) {
+      document.getElementById('main')?.focus()
+    }
   }, [pathname])
 
   // Warm the workspace-wide stores once per session, and open the one realtime
@@ -377,9 +409,11 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       <div className="app-main">
         <AppHeader titleKey={titleKey} />
         <OfflineBanner />
-        {/* tabIndex -1 so a later route-change focus move has somewhere to land;
-            global.css suppresses the ring for exactly this programmatic case. */}
-        <main className="main-content" id="main" tabIndex={-1}>
+        {/* tabIndex -1 so the route-change focus move above has somewhere to
+            land; global.css suppresses the ring for exactly this programmatic
+            case. aria-label names the landmark with the route, so the move is
+            an announcement rather than a silent jump. */}
+        <main className="main-content" id="main" tabIndex={-1} aria-label={t(titleKey)}>
           {children}
         </main>
       </div>

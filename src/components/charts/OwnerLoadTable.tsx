@@ -17,6 +17,7 @@
 // because it has no name would be hiding the answer.
 
 import { useId, type ReactElement } from 'react'
+import { isolate } from '../../lib/bidi'
 import { t, useLocale } from '../../lib/i18n'
 import type { OwnerLoad } from '../../lib/aggregate'
 import './charts.css'
@@ -78,7 +79,11 @@ export function OwnerLoadTable({
               {rows.map((row) => (
                 <tr key={row.ownerKey || 'unassigned'} className={row.unassigned ? 'is-unassigned' : undefined}>
                   <th scope="row">
-                    <span className="cht-ownername">{row.label}</span>
+                    {/* A member's display name, or a free-text owner somebody
+                        typed — direction unknown either way, and the cell sits
+                        against a number. Isolated so `2026 Vendor` does not
+                        arrive as `Vendor 2026` in the Arabic table. */}
+                    <span className="cht-ownername">{isolate(row.label)}</span>
                     <span
                       className="cht-loadbar"
                       aria-hidden="true"

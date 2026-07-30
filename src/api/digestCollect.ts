@@ -23,14 +23,16 @@
 // TRUNCATION IS CARRIED, NOT SWALLOWED. PostgREST clips every read at 1000 rows
 // and reports it as a 200 with fewer rows (FIX-BACKLOG C8). A status report
 // missing its oldest rows with no caveat is worse than one that fails, so the
-// flag rides on `DigestRows.truncated` all the way into the document itself.
+// flag rides on `DigestRows.truncated` all the way into the document itself —
+// for BOTH the open working set and the closed tail, which are fetched and
+// clipped independently.
 
 import { listUpdatesFor } from './entries'
 import { listTracks } from './tracks'
 import { fail } from './result'
 import { getVocabSnapshot, loadVocab, vocabLabel } from '../store/vocab'
 import { getMembersSnapshot, loadMembers } from '../store/members'
-import { getEntriesSnapshot, loadClosedSince, loadEntries } from '../store/entries'
+import { getEntriesCoverage, getEntriesSnapshot, loadClosedSince, loadEntries } from '../store/entries'
 import { instantToIsoDate, addDays } from '../lib/dates'
 import type { ApiResult } from './result'
 import type { DigestQuery, DigestRows } from '../lib/digest'
@@ -69,6 +71,8 @@ export async function collectDigest(q: DigestQuery): Promise<ApiResult<DigestRow
   if (!tracks.ok) return tracks
 
   const snapshot = getEntriesSnapshot()
+  // Read AFTER the warms above, so it describes the fetches this call made.
+  const coverage = getEntriesCoverage()
   const entries = inRange([...snapshot.byId.values()], q)
 
   let lastUpdate = new Map<string, EntryUpdate>()
@@ -89,17 +93,17 @@ export async function collectDigest(q: DigestQuery): Promise<ApiResult<DigestRow
       lastUpdate,
       tracks: tracks.data,
       members: getMembersSnapshot(),
-      // FALSE HERE, AND THE SCREEN ORs IN THE REAL ANSWER. Truncation is a
-      // property of the working-set fetch, and `store/entries` records it on
-      // `EntriesCoverage.truncated` — reachable only through the
-      // `useEntriesCoverage()` HOOK, which cannot be called from a module
-      // function. `getEntriesSnapshot()` carries byId/pending/updates/health and
-      // no coverage. Rather than duplicate the store's state shape here, the
-      // screen reads the hook and merges (see Digest.tsx). EXTENSION SLOT in
-      // this worker's handoff: a `getEntriesCoverage()` getter beside
-      // `getEntriesSnapshot()` collapses this to one line and deletes the
-      // merge.
-      truncated: false,
+      // BOTH HALVES OF THE WINDOW. This used to be a hard-coded `false` with a
+      // note asking the screen to OR the real answer back in, because coverage
+      // was reachable only through a hook and this is a module function. That
+      // made the collector structurally unable to report a clip — and the
+      // screen's merge only ever saw `coverage.truncated`, which describes the
+      // OPEN fetch, so a clipped CLOSED read (the entire Closed section of this
+      // document, plus every throughput number derived from it) reached the
+      // reader with no caveat at all. `getEntriesCoverage()` is the getter that
+      // note asked for; Digest.tsx's merge is now belt-and-braces rather than
+      // the only path.
+      truncated: coverage.truncated || coverage.closedTruncated,
     },
   }
 }

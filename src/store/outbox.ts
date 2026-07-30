@@ -1,6 +1,6 @@
 // The write seam. Contracts rule 3: every write in the application funnels
 // through submit(). store/entries.ts never calls api/entries.ts for a mutation;
-// neither does notifications, and neither will meetings, templates or vocab.
+// neither do notifications or meetings, and neither will templates or vocab.
 // That is not tidiness — it is what makes the Wave-4 offline story a one-file
 // change instead of surgery across a dozen modules that each grew their own
 // retry.
@@ -44,6 +44,16 @@ import {
   type NewEntry,
   type NewEntryUpdate,
 } from '../api/entries'
+import {
+  appendLine,
+  createMeeting,
+  patchLine,
+  patchMeeting,
+  type MeetingLinePatch,
+  type MeetingPatch,
+  type NewMeeting,
+  type NewMeetingLine,
+} from '../api/meetings'
 import { markAllRead, markRead } from '../api/notifications'
 import { fail, type ApiResult } from '../api/result'
 
@@ -105,12 +115,21 @@ type Transport = (op: MutOp) => Promise<ApiResult<unknown>>
 /**
  * `${table}:${op}` → the api function that performs it.
  *
- * Deliberately covers only the routes something actually submits in Wave 1.
- * `MutTable` names four more tables because the envelope is frozen for waves
- * 2–4, but registering transports nothing calls would be dead code today and,
- * worse, a SECOND write path for tracks and vocab — whose admin screens call
- * api/ directly and predate this seam. Wave 2 moves those screens onto submit()
- * and adds their rows here, in one place, with the registry as the checklist.
+ * Deliberately covers only the routes something actually submits. `MutTable`
+ * names three more tables because the envelope is frozen for waves 2–4, but
+ * registering transports nothing calls would be dead code today and, worse, a
+ * SECOND write path for tracks and vocab — whose admin screens call api/
+ * directly and predate this seam. The wave that moves those screens onto
+ * submit() adds their rows here, in one place, with the registry as the
+ * checklist.
+ *
+ * THE REGISTRY AND main.tsx's WIRING ARE ONE CHANGE. A store whose submit seam
+ * is pointed here without its routes registered fails every write with
+ * 'common.error'; routes registered without the seam pointed here are dead code
+ * and the store keeps sending directly, so it can never queue. The meetings
+ * rows below shipped in the wrong order once and cost meeting mode its entire
+ * offline story — `outbox.test.ts` now asserts both halves off the source, so
+ * the next store to grow a seam cannot repeat it.
  */
 const TRANSPORTS: Readonly<Record<string, Transport>> = {
   'entries:insert': (op) => createEntry(op.payload as NewEntry),
@@ -119,11 +138,27 @@ const TRANSPORTS: Readonly<Record<string, Transport>> = {
     // Postgres as a malformed uuid (22P02) — a confusing way to learn it.
     op.id ? updateEntry(op.id, op.payload as EntryPatch) : Promise.resolve(fail('common.error')),
   'entry_updates:insert': (op) => addUpdate(op.payload as NewEntryUpdate),
+  // Meetings mint every uuid on the client (see api/meetings.ts's header), so
+  // these four carry no temp id and nothing here has to be rewritten on drain:
+  // a meeting queued offline already has the id its lines point at, and the
+  // queue drains in insertion order so the header lands before them.
+  'meetings:insert': (op) => createMeeting(op.payload as NewMeeting),
+  'meetings:update': (op) =>
+    op.id ? patchMeeting(op.id, op.payload as MeetingPatch) : Promise.resolve(fail('common.error')),
+  'meeting_lines:insert': (op) => appendLine(op.payload as NewMeetingLine),
+  'meeting_lines:update': (op) =>
+    op.id ? patchLine(op.id, op.payload as MeetingLinePatch) : Promise.resolve(fail('common.error')),
   // `op.id === null` means the whole inbox and a row id means that one row —
   // two op shapes distinguished by a field the envelope already has, which is
   // what makes mark-all one op whatever the unread count is.
   'notifications:update': (op) => (op.id === null ? markAllRead() : markRead([op.id])),
 }
+
+/**
+ * The registered routes, for the coverage test. Exported rather than inferred,
+ * because the assertion it feeds is the thing that keeps this table honest.
+ */
+export const OUTBOX_ROUTES: readonly string[] = Object.freeze(Object.keys(TRANSPORTS))
 
 /** Run one op against its transport. Never throws; failures come back as keys. */
 async function send(op: MutOp): Promise<ApiResult<unknown>> {

@@ -18,7 +18,10 @@
 
    TOUCH: every control here is either a global .btn / .input / .select (all
    already 44px minimum) or carries its own ::after hit-area expansion — see
-   .mt-same and .mt-guest-x, which are 28px squares with 44px targets. */
+   .mt-same and .mt-guest-x, which are 28px squares with 44px targets. The one
+   place this sheet takes a control BELOW 44px is the triage table's row
+   density, and that block is scoped to `(hover: hover) and (pointer: fine)` so
+   it can never reach a finger — see "density, for a fine pointer only". */
 
 .mt-page {
   display: flex;
@@ -483,9 +486,10 @@
   cursor: default;
 }
 
+/* Height is NOT set here — it stays on global.css's 44px floor and is
+   compacted only for a fine pointer, in the density block further down. */
 .mt-line-edit {
   flex: 1 1 100%;
-  min-block-size: 40px;
 }
 
 .mt-line-state,
@@ -610,8 +614,6 @@
 
 .mt-cell-select,
 .mt-cell-date {
-  min-block-size: 40px;
-  font-size: 13.5px;
   padding-inline: 9px;
 }
 
@@ -636,9 +638,41 @@
   gap: 4px;
 }
 
-.mt-title-input {
-  min-block-size: 40px;
-  font-size: 14px;
+/* ---------- density, for a fine pointer only ----------
+
+   A triage row carries five controls and a review pass scrolls a lot of rows,
+   so 40px instead of 44 is worth having WHEN THE POINTER IS A MOUSE. It is not
+   worth having on a phone, and that is exactly where it was landing: these
+   three rules sat unconditional, beat global.css's `.input/.select` floor on
+   equal specificity by loading later, and the `max-width: 899px` block that
+   restacks each row into a card never put the 44px back. The smallest-pointer
+   layout shipped the smallest targets — five of them stacked, on a 375px
+   screen — while this file's own header promised 44px.
+
+   The font size travels with the height for the same reason. global.css lifts
+   every control to 16px under 768px because iOS Safari zooms the viewport on
+   focus for anything smaller and never zooms back out; leaving 13.5px here
+   unconditional overrode that fix too. Scoping the whole compaction to
+   `(pointer: fine)` hands both back to touch in one rule.
+
+   `hover: hover` is paired with `pointer: fine` deliberately — a stylus is
+   `pointer: fine` with no hover, and it needs the large target. */
+
+@media (hover: hover) and (pointer: fine) {
+  .mt-cell-select,
+  .mt-cell-date {
+    min-block-size: 40px;
+    font-size: 13.5px;
+  }
+
+  .mt-title-input {
+    min-block-size: 40px;
+    font-size: 14px;
+  }
+
+  .mt-line-edit {
+    min-block-size: 40px;
+  }
 }
 
 .mt-cell-raw {

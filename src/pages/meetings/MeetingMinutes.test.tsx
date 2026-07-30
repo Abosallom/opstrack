@@ -163,6 +163,7 @@ vi.mock('../../store/vocab', () => ({
 
 vi.mock('../../store/entries', () => ({
   loadEntries: () => Promise.resolve(),
+  loadClosedSince: () => Promise.resolve(),
   useEntryList: () => fx.entries,
   useEntryMap: () => new Map(fx.entries.map((e) => [e.id, e])),
 }))

@@ -313,13 +313,29 @@
   font-size: 11.5px;
 }
 
+/* Where an `every:` line is about to land. Amber because it is a REDIRECTION,
+   not a refusal — the same colour the tree uses for "unassigned": true, with a
+   caveat the reader should see before pressing Enter. */
 .cap-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--yellow) 40%, transparent);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--yellow) 10%, transparent);
   color: var(--text);
   font-size: 13.5px;
+}
+
+/* The way to the screen that owns what this line creates. A button rather than
+   a Link because it is an action inside a notice, and .btn-sm already carries
+   the hover, active and focus states plus its own hit-area expansion. */
+.cap-notice-link {
+  flex: 0 0 auto;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ---------- suggested tags & the ambiguity picker ---------- */

@@ -121,7 +121,11 @@ export function TrackLoadChart({
                     {segments.map((s) => (
                       <rect
                         key={s.level}
-                        className={`cht-bar cht-c-${s.level}`}
+                        // `cht-band` is the stacked-segment hairline: adjacent
+                        // health colours are as close as 1.10:1, so the edge
+                        // between two bands is drawn in the surface colour
+                        // rather than left to the fills. See charts.css.
+                        className={`cht-bar cht-band cht-c-${s.level}`}
                         x={band.x(i)}
                         y={y(s.to)}
                         width={band.bandWidth}

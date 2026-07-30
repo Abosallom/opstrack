@@ -53,7 +53,7 @@ import {
   type NewMeeting,
   type NewMeetingLine,
 } from '../api/meetings'
-import { onRealtime } from '../api/realtime'
+import { onRealtime, onRealtimeResync } from '../api/realtime'
 import { fail, type ApiResult } from '../api/result'
 import { toast } from '../components/toast'
 import { t } from '../lib/i18n'
@@ -439,14 +439,38 @@ export async function loadLineCounts(meetingIds: string[]): Promise<void> {
 const linesInFlight = new Map<string, Promise<void>>()
 
 /**
+ * Meetings with one forced re-read already chained behind the in-flight fetch.
+ *
+ * Caps the chain at one. Without it, a flapping socket firing several resyncs
+ * during one load would queue a reload per resync and each of those would queue
+ * another behind itself — a refetch loop driven by the very condition that makes
+ * refetching expensive.
+ */
+const linesForceQueued = new Set<string>()
+
+/**
  * Fetch one meeting's lines, and the meeting header if the list has not landed.
  *
  * Deduped per meeting id: MeetingLive and MeetingTriage both ask on mount, and a
  * realtime resync asks again while they are open.
+ *
+ * A FORCED CALL IS NEVER ANSWERED BY THE FETCH ALREADY RUNNING. Returning it
+ * looks like deduplication and is not: that request may have been issued BEFORE
+ * the rows the caller is asking us to go and find, so a resync arriving during a
+ * load would be silently swallowed and the missed lines would stay missed for
+ * the session. Chained instead — the caller still awaits one promise, and the
+ * re-read starts after the in-flight one has cleared itself out of the map.
  */
 export function loadLines(meetingId: string, force = false): Promise<void> {
   const existing = linesInFlight.get(meetingId)
-  if (existing) return existing
+  if (existing) {
+    if (!force || linesForceQueued.has(meetingId)) return existing
+    linesForceQueued.add(meetingId)
+    return existing.then(() => {
+      linesForceQueued.delete(meetingId)
+      return loadLines(meetingId, true)
+    })
+  }
 
   const st = useMeetingsStore.getState()
   if (!force && st.linesLoadedAt.has(meetingId)) return Promise.resolve()
@@ -514,6 +538,7 @@ export function resetMeetings(): void {
   unsaved.clear()
   meetingsInFlight = null
   linesInFlight.clear()
+  linesForceQueued.clear()
   useMeetingsStore.setState({
     ...deriveMeetings([]),
     loading: false,
@@ -954,6 +979,18 @@ export async function commitTriage(
  *
  * Ref-counted, because MeetingLive and MeetingTriage can both be mounted across
  * a route transition and two registrations would apply every row twice.
+ *
+ * TWO REGISTRATIONS, NOT ONE, and the second is the one that was missing. A
+ * batch handler only ever hears what the socket delivered; postgres_changes has
+ * NO REPLAY, so everything written while the connection was down is simply gone
+ * (api/realtime.ts says so at the top). api/realtime.ts emits a resync on any
+ * SUBSCRIBED that follows a CHANNEL_ERROR or CLOSED, and after a tab has been
+ * hidden for a minute — which during a meeting is a phone screen locking — and
+ * for a whole wave store/entries.ts was its only subscriber. Meetings heard
+ * nothing, loadLines() short-circuits permanently on `linesLoadedAt`, and the
+ * lines a colleague typed in that minute never arrived: the live screen, the
+ * triage table and the minutes all rendered an incomplete meeting, with no
+ * error anywhere to suggest it.
  */
 let realtimeStop: (() => void) | null = null
 let realtimeUsers = 0
@@ -961,7 +998,7 @@ let realtimeUsers = 0
 export function startMeetingsRealtime(): () => void {
   realtimeUsers += 1
   if (realtimeUsers === 1) {
-    realtimeStop = onRealtime<MeetingLine>('meeting_lines', (batch) => {
+    const offBatch = onRealtime<MeetingLine>('meeting_lines', (batch) => {
       for (const event of batch) {
         if (event.eventType === 'DELETE') {
           if (!event.oldId) continue
@@ -978,6 +1015,22 @@ export function startMeetingsRealtime(): () => void {
         putLine(event.row, true)
       }
     })
+
+    // Re-read every meeting whose lines this tab holds — which is one, or two
+    // across a live→triage transition, not the whole index. Forced, because
+    // `linesLoadedAt` is exactly what has to be overridden here; putLine's
+    // `unsaved` check is what stops the re-read stamping over a triage draft
+    // the user is part-way through.
+    const offResync = onRealtimeResync(() => {
+      for (const meetingId of useMeetingsStore.getState().lines.keys()) {
+        void loadLines(meetingId, true)
+      }
+    })
+
+    realtimeStop = () => {
+      offBatch()
+      offResync()
+    }
   }
   return () => {
     realtimeUsers -= 1

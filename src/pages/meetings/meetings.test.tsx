@@ -163,6 +163,18 @@ const fx = vi.hoisted(() => {
     meetings: [live, done] as Meeting[],
     lines,
     plans,
+    /**
+     * Who is signed in. Both fixture meetings are `created_by: 'u1'`, so the
+     * default is the creator and the two controls RLS reserves for them (End
+     * and Resume, plus the notes field in triage) render; a test that wants the
+     * other side sets this to 'u2' and puts it back afterwards.
+     */
+    me: { id: 'u1', displayName: 'Me', role: 'member' as const, locale: 'en' } as {
+      id: string
+      displayName: string
+      role: 'member' | 'admin'
+      locale: string
+    } | null,
     counts: new Map([
       ['m1', { total: 5, pending: 2, note: 1, discarded: 1, committed: 1 }],
       ['m2', { total: 0, pending: 0, note: 0, discarded: 0, committed: 0 }],
@@ -231,6 +243,12 @@ vi.mock('../../store/vocab', () => {
 
 vi.mock('../../store/entrySheet', () => ({ openEntry: () => {} }))
 
+// `meetings_update` is creator-or-admin, and ./access mirrors it — so who is
+// signed in decides whether End, Resume and the notes field render at all.
+vi.mock('../../store/auth', () => ({
+  useAuth: () => ({ loading: false, session: null, profile: fx.state.me }),
+}))
+
 const { MemoryRouter, Route, Routes } = await import('react-router-dom')
 const MeetingsIndex = (await import('./MeetingsIndex')).default
 const MeetingLive = (await import('./MeetingLive')).default
@@ -258,6 +276,7 @@ afterEach(() => {
   fx.state.lines = fx.lines
   fx.state.loading = false
   fx.state.error = null
+  fx.state.me = { id: 'u1', displayName: 'Me', role: 'member', locale: 'en' }
   fx.mem.clear()
 })
 
@@ -352,6 +371,34 @@ describe('MeetingLive', () => {
     expect(html).not.toContain('mt-capture-input')
   })
 
+  // `meetings_update` is creator-or-admin. An attendee who is shown End gets a
+  // confirmation dialog, an optimistic close and then a rollback — the sequence
+  // lib/permissions.ts exists to prevent — so the answer is computed before the
+  // control renders.
+  it('withholds End from an attendee who did not start the meeting, and says why', () => {
+    fx.state.me = { id: 'u2', displayName: 'Layla', role: 'member', locale: 'en' }
+    const html = live()
+    expect(html).not.toContain(t('meeting.end'))
+    expect(html).toContain(t('meeting.errNotYours'))
+    // Capturing stays open to the room: `meeting_lines` insert is is_member().
+    expect(html).toContain('mt-capture-input')
+  })
+
+  it('withholds Resume from an attendee on an ended meeting', () => {
+    fx.state.me = { id: 'u2', displayName: 'Layla', role: 'member', locale: 'en' }
+    const html = live('m2')
+    expect(html).not.toContain(t('meeting.resume'))
+    // The two read paths are still there — nobody is locked out of the record.
+    expect(html).toContain(t('meeting.triage'))
+    expect(html).toContain(t('route.minutes'))
+  })
+
+  it('gives an admin the same controls as the creator', () => {
+    fx.state.me = { id: 'u2', displayName: 'Layla', role: 'admin', locale: 'en' }
+    expect(live()).toContain(t('meeting.end'))
+    expect(live('m2')).toContain(t('meeting.resume'))
+  })
+
   it('waits rather than claiming the meeting is missing before the load lands', () => {
     // The not-found panel is gated on a `settled` flag an effect sets, and a
     // server render runs no effects — so this is the branch a static render CAN
@@ -433,8 +480,28 @@ describe('MeetingTriage', () => {
     expect(html).not.toContain('mt-commit-bar')
   })
 
-  it('carries the meeting notes field', () => {
-    expect(triage()).toContain(t('meeting.notesLabel'))
+  it('carries the meeting notes field, writable for whoever started it', () => {
+    const html = triage()
+    expect(html).toContain(t('meeting.notesLabel'))
+    expect(html).toContain(t('meeting.notesPlaceholder'))
+    expect(html).not.toContain('mt-notes-why')
+    expect(html).not.toContain(t('meeting.errNotYours'))
+  })
+
+  // The notes column is on the meeting row, which RLS gives to its creator. An
+  // attendee who typed into it lost the paragraph on blur: the write was
+  // refused, the optimistic apply rolled back, and the field — clean again —
+  // followed the store back to the stored value.
+  it('shows an attendee the notes read-only, with the reason', () => {
+    fx.state.me = { id: 'u2', displayName: 'Layla', role: 'member', locale: 'en' }
+    const html = triage()
+    expect(html).toContain(t('meeting.notesLabel'))
+    // React server-renders the DOM property name as written.
+    expect(html).toMatch(/<textarea[^>]*readOnly/i)
+    expect(html).toContain('mt-notes-why')
+    expect(html).toContain(t('meeting.errNotYours'))
+    // Triage itself is NOT gated: `meeting_lines` update is is_member().
+    expect(html).toContain('mt-col-decision')
   })
 })
 

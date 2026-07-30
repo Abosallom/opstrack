@@ -210,8 +210,17 @@ export async function listEntries(opts?: {
  * Filtered on `closed_at`, which the entries_set_closed_at() trigger maintains
  * in both directions (0001), rather than on `updated_at`: a tag cleanup on a
  * six-month-old done item is not that item becoming recently closed.
+ *
+ * RETURNS `Loaded<Entry>` FOR THE SAME REASON THE OTHER TWO DO, and it was the
+ * one clamped loader that did not. It carried `.limit(MAX_ROWS)` and then handed
+ * back a bare array, so a twelve-week window past the ceiling looked exactly
+ * like a small one — and every number the dashboard computes from closed rows
+ * (throughput, the closed count, SLA compliance) and the digest's whole Closed
+ * section under-reported with no banner and no caveat. See the header on
+ * `Loaded<T>`: making the flag part of the return type is what stops the next
+ * caller from forgetting to ask.
  */
-export async function listClosedSince(since: IsoDate): Promise<ApiResult<Entry[]>> {
+export async function listClosedSince(since: IsoDate): Promise<ApiResult<Loaded<Entry>>> {
   if (!supabase) return notConfigured()
   const { data, error } = await supabase
     .from('entries')
@@ -222,7 +231,7 @@ export async function listClosedSince(since: IsoDate): Promise<ApiResult<Entry[]
     .order('id', { ascending: true })
     .limit(MAX_ROWS)
   if (error) return fail(pgErrorKey(error))
-  return { ok: true, data: (data ?? []) as Entry[] }
+  return { ok: true, data: loaded((data ?? []) as Entry[]) }
 }
 
 /**

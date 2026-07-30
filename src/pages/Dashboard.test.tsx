@@ -260,8 +260,14 @@ const countOf = (haystack: string, needle: string): number => haystack.split(nee
  * and mixing four charts' bars into one list would make it meaningless.
  */
 function trackBarXs(html: string): number[] {
+  // `[^"]*` between the two classes rather than the literal class string: the
+  // stacked segments also carry `cht-band` (the hairline that separates two
+  // health colours), and a helper that pins the exact attribute value reports a
+  // MIRRORING failure — zero bars found — when the real change was a class
+  // being added. The health alternation is what keeps the aging chart's
+  // `cht-c-a*` bars out of the result.
   return [
-    ...html.matchAll(/<rect class="cht-bar cht-c-(?:ok|stale|overdue|critical)" x="([\d.]+)"/g),
+    ...html.matchAll(/<rect class="cht-bar[^"]*cht-c-(?:ok|stale|overdue|critical)" x="([\d.]+)"/g),
   ].map((m) => Number(m[1]))
 }
 

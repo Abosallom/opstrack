@@ -7,7 +7,7 @@
 
     "add": "New recurring item",
     "newTitle": "New recurring item",
-    "editTitle": "Edit “{title}”",
+    "editTitle": "Edit “⁨{title}⁩”",
 
     "emptyTitle": "Nothing repeats yet",
     "emptyBody": "Set up the work that comes back every week or every month, and it will be waiting in follow-ups instead of in somebody's memory.",
@@ -101,7 +101,7 @@
     "pausedToast": "Paused. Nothing is created until you resume it.",
     "resumedToast": "Running again.",
 
-    "deleteTitle": "Delete “{title}”?",
+    "deleteTitle": "Delete “⁨{title}⁩”?",
     "deleteBody": "The recipe goes. Nothing has been created from it yet.",
     "deleteBodyWithEntries": {
       "one": "The recipe goes. The 1 item it already created stays, and stops naming this schedule.",
@@ -121,12 +121,12 @@
     "discardBody": "The edits to this recurring item haven't been saved.",
     "discard": "Discard",
 
-    "editRow": "Edit {title}",
-    "closeRow": "Close {title}",
-    "pauseRow": "Pause {title}",
-    "resumeRow": "Resume {title}",
-    "runRow": "Run {title} now",
-    "deleteRow": "Delete {title}",
+    "editRow": "Edit ⁨{title}⁩",
+    "closeRow": "Close ⁨{title}⁩",
+    "pauseRow": "Pause ⁨{title}⁩",
+    "resumeRow": "Resume ⁨{title}⁩",
+    "runRow": "Run ⁨{title}⁩ now",
+    "deleteRow": "Delete ⁨{title}⁩",
 
     "errTitleRequired": "Give it a title — that is what every item it creates will be called.",
     "errFirstRun": "Pick a valid first-run date.",

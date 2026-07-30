@@ -8,6 +8,7 @@ import { applyTheme } from './lib/theme'
 import { applyLocale, t } from './lib/i18n'
 import { initAuth } from './store/auth'
 import { setEntriesSubmit, settleOutboxWrite } from './store/entries'
+import { setMeetingsSubmit } from './store/meetings'
 import { setNotificationsSubmit } from './store/notifications'
 import { setOutboxSettle, submit } from './store/outbox'
 import { toast } from './components/toast'
@@ -41,7 +42,7 @@ initAuth()
 // marked read — queues while offline instead of failing, and lands back in its
 // store when the queue drains. Contracts rule 3 has no exceptions.
 //
-// ALL THREE LINES ARE ONE WIRING, and wiring only two of them is worse than
+// ALL FOUR LINES ARE ONE WIRING, and wiring only some of them is worse than
 // wiring none. Without `setEntriesSubmit`, `store/entries.ts` called
 // `api/entries.ts` directly and an offline capture was DESTROYED rather than
 // queued: the fetch failed, pgErrorKey() saw no code, the caller read
@@ -49,7 +50,18 @@ initAuth()
 // Without `setOutboxSettle`, the write that eventually drained never reached the
 // store, and the temp row stayed on screen stamped "queued" beside the real row
 // forever.
+//
+// `setMeetingsSubmit` was the line Wave 3 forgot, and meeting mode is the
+// feature that needs it most: with the store still on its send-now default,
+// startMeeting() hit the network in a room with no wifi, failed, and dropped
+// the optimistic meeting — so a meeting could not be STARTED offline at all,
+// and every line typed into one came back as an error. It is added here
+// together with the four `meetings`/`meeting_lines` routes in store/outbox.ts,
+// because either half alone breaks the feature: an unregistered route answers
+// 'common.error' for every write, online or off. src/store/outbox.test.ts
+// asserts both halves off the source so the pairing cannot drift again.
 setEntriesSubmit(submit)
+setMeetingsSubmit(submit)
 setNotificationsSubmit(submit)
 setOutboxSettle(settleOutboxWrite)
 

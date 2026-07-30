@@ -26,6 +26,17 @@
 // failure: the optimistic row stays, and the toast says so and still offers
 // Undo. Treating that key as an error would roll back a row the queue owns.
 //
+// ONE BOX, TWO TABLES. A line carrying `every:` describes a RECIPE, not an
+// item: `toNewEntry()` refuses it by contract and `toRecurringTemplateInput()`
+// is the other half of that pair, so Enter writes `recurring_templates` instead
+// and the notice under the box names the screen that manages them. It used to
+// refuse the line outright and say the feature shipped "in a later release" —
+// with /settings/recurring already two taps away in Settings and this screen's
+// own hint teaching the token. A screen must never teach a grammar it then
+// rejects. The template write is NOT optimistic and NOT queued: there is no
+// template store to hold a provisional row, so offline is a plain failure and
+// the words go back in the box, exactly as a failed entry write does.
+//
 // ROUTING. `/capture` is reached from the mobile FAB (App.tsx hides it on this
 // route) and, from Wave 4, the `C` hotkey and the command palette. All three are
 // plain navigations — the screen self-loads everything it needs, so none of them
@@ -38,9 +49,9 @@
 // survives none of them. Nothing else reads the route.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { FormEvent, ReactElement } from 'react'
-import { canSubmit, parse, toNewEntry } from '../lib/capture/parse'
+import { canSubmit, parse, toNewEntry, toRecurringTemplateInput } from '../lib/capture/parse'
 import type { ParseContext, ParseMember, ParseTrack, ParsedEntry, ParsedToken, TokenKind } from '../lib/capture/parse'
 import {
   createEntryOptimistic,
@@ -56,9 +67,13 @@ import { loadMembers, useMembers } from '../store/members'
 import { getVocabSnapshot, useVocabAll, useVocabLabel } from '../store/vocab'
 import type { VocabItem } from '../store/vocab'
 import { openEntry } from '../store/entrySheet'
+// The one write on this screen that has no store in front of it — see
+// submitTemplate(). Stores first, then the api layer, as MeetingTriage orders it.
+import { createTemplate } from '../api/templates'
 import { EntryRow } from '../components/entry'
 import { toast } from '../components/toast'
-import { IconBolt, IconWifiOff } from '../components/icons'
+import { IconBolt, IconClock, IconWifiOff } from '../components/icons'
+import { isolateTokens } from '../lib/bidi'
 import { formatDate } from '../lib/dates'
 import { t, useLocale } from '../lib/i18n'
 import { useTrackLabel } from '../lib/labels'
@@ -218,6 +233,7 @@ export default function Capture(): ReactElement {
 
   const [params] = useSearchParams()
   const seed = params.get('q') ?? ''
+  const navigate = useNavigate()
 
   const [text, setText] = useState(seed)
   const [busy, setBusy] = useState(false)
@@ -364,6 +380,76 @@ export default function Capture(): ReactElement {
     [handleUndo],
   )
 
+  /**
+   * A write that genuinely failed, put back where its author can act on it.
+   *
+   * ONLY IF THE BOX IS STILL EMPTY. Capture clears on Enter precisely so the
+   * next thought can start immediately, and on a slow network that next thought
+   * is often already half-typed when the failure lands — pasting the old line
+   * over it would lose a sentence to a screen whose one promise is that it never
+   * does. When that happens the failed line is NAMED in the notice instead, so
+   * it can be retyped from what is on screen.
+   */
+  const restoreLine = useCallback(
+    (kept: string, title: string): void => {
+      if (textRef.current === '') {
+        setText(kept)
+        setError('capture.errSave')
+      } else {
+        setHeldTitle(truncate(title, 48))
+        setError('capture.errSaveHeld')
+      }
+      focusInput()
+    },
+    [focusInput],
+  )
+
+  /**
+   * The `every:` path: one row in `recurring_templates`, not one in `entries`.
+   *
+   * No optimism and no outbox, unlike the entry path — there is no template
+   * store holding a provisional row, so a queued write would have nowhere to
+   * live and nothing to roll back. The toast therefore reports a real server
+   * answer, and carries the way to the screen that owns the thing just created;
+   * a recipe you cannot find is worse than no recipe.
+   */
+  const submitTemplate = useCallback(
+    async (fresh: ParsedEntry, ctx: ParseContext): Promise<void> => {
+      const input = toRecurringTemplateInput(fresh, ctx)
+      // Unreachable — the caller already tested `fresh.recurrence` and a title
+      // is required by both this and canSubmit() — but a null here must never
+      // reach the API as a blank row.
+      if (!input) return
+
+      const kept = text
+      setText('')
+      setError(null)
+      setBusy(true)
+      focusInput()
+
+      const result = await createTemplate(input)
+      setBusy(false)
+
+      if (result.ok) {
+        toast(t('capture.capturedTemplate', { title: truncate(input.title, 48) }), {
+          tone: 'success',
+          icon: <IconClock size={16} />,
+          action: {
+            label: t('capture.openTemplates'),
+            onClick: () => void navigate('/settings/recurring'),
+          },
+        })
+        return
+      }
+
+      // api/templates.ts answers with an i18n KEY, and unlike the entry path
+      // there is no store behind this write to have toasted it already.
+      toast(t(result.error), { tone: 'error' })
+      restoreLine(kept, input.title)
+    },
+    [focusInput, navigate, restoreLine, text],
+  )
+
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>): Promise<void> => {
       event.preventDefault()
@@ -381,9 +467,12 @@ export default function Capture(): ReactElement {
         return
       }
       // A cadence describes a TEMPLATE, not an entry — the parser refuses to
-      // turn one into the other and toNewEntry() returns null. The submit
-      // control is already disabled here; this is the belt to that's braces.
-      if (fresh.recurrence) return
+      // turn one into the other and toNewEntry() returns null for it. Same box,
+      // same Enter, the other table.
+      if (fresh.recurrence) {
+        await submitTemplate(fresh, ctx)
+        return
+      }
 
       const input = toNewEntry(fresh, ctx)
       if (!input) return
@@ -418,23 +507,9 @@ export default function Capture(): ReactElement {
 
       // A genuine failure. The store has already rolled the optimistic row back
       // and toasted the reason, so this adds the one thing it cannot: the words.
-      //
-      // ONLY IF THE BOX IS STILL EMPTY. Capture clears on Enter precisely so the
-      // next thought can start immediately, and on a slow network that next
-      // thought is often already half-typed when the failure lands — pasting the
-      // old line over it would lose a sentence to a screen whose one promise is
-      // that it never does. When that happens the failed line is named in the
-      // notice instead, so it can be retyped from what is on screen.
-      if (textRef.current === '') {
-        setText(kept)
-        setError('capture.errSave')
-      } else {
-        setHeldTitle(truncate(title, 48))
-        setError('capture.errSaveHeld')
-      }
-      focusInput()
+      restoreLine(kept, title)
     },
-    [busy, focusInput, makeCtx, raiseCaptured, remember, text],
+    [busy, focusInput, makeCtx, raiseCaptured, remember, restoreLine, submitTemplate, text],
   )
 
   /** Cut a token out of the line and hand the caret back. */
@@ -523,7 +598,9 @@ export default function Capture(): ReactElement {
     ? parsedTrack.suggested_tags.filter((tag) => !parsed.tags.includes(tag.trim().toLowerCase()))
     : []
 
-  const submitDisabled = busy || !canSubmit(parsed) || parsed.recurrence !== null
+  // A recurrence no longer blocks the button: `every:` writes a template, and a
+  // screen that teaches a token in its own hints may not then refuse it.
+  const submitDisabled = busy || !canSubmit(parsed)
   const longTitle = parsed.title.length > LONG_TITLE
 
   return (
@@ -615,9 +692,20 @@ export default function Capture(): ReactElement {
         </p>
       ) : null}
 
+      {/* Where the row is about to land, and how to get to it. Not a warning:
+          the line is perfectly valid and Enter will save it — this says which of
+          the app's two tables it goes into, because "repeating item" and "item"
+          are one word apart and land on different screens. */}
       {parsed.recurrence ? (
         <p className="cap-notice" role="status">
-          {t('capture.templateSoon')}
+          {t('capture.templateWhere')}{' '}
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost cap-notice-link"
+            onClick={() => void navigate('/settings/recurring')}
+          >
+            {t('capture.openTemplates')}
+          </button>
         </p>
       ) : null}
 
@@ -743,6 +831,15 @@ export default function Capture(): ReactElement {
           </ul>
           <h2 className="cap-hints-title">{t('capture.examples')}</h2>
           <div className="cap-examples">
+            {/* DISPLAYED isolated, INSERTED raw. Under `dir="rtl"` the Unicode
+                algorithm resolves the neutral sigils from their neighbours, so
+                `@sara` renders as `sara@` and `due:+7d +portal` comes out in
+                the opposite order — the examples are the grammar this screen is
+                teaching, and a lesson that reads back-to-front teaches the
+                wrong thing. lib/bidi.isolateTokens() wraps only the Latin
+                tokens, which is why the locale strings themselves stay
+                isolate-free: the parser must never see U+2066 (see that
+                module's header), and setText() below hands it the raw line. */}
             {['capture.exampleMinimal', 'capture.exampleFull', 'capture.exampleRecurring'].map((key) => (
               <button
                 key={key}
@@ -753,7 +850,7 @@ export default function Capture(): ReactElement {
                   focusInput()
                 }}
               >
-                {t(key)}
+                {isolateTokens(t(key))}
               </button>
             ))}
           </div>

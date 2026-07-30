@@ -1238,9 +1238,38 @@ export default function Board(): ReactElement {
   const filterTrackRef = useRef<string | null>(null)
   filterTrackRef.current = filter.trackIds.length === 1 ? filter.trackIds[0] : null
 
+  /**
+   * The `+` button of each column, so closing a composer can hand focus back.
+   *
+   * Esc and Cancel both unmount the <form> the focused <input> lives in. The
+   * button that opened it stays mounted, but nothing was refocusing it, so
+   * focus fell to <body> and the next Tab restarted at the top of the document
+   * — WCAG 2.4.3, and a direct contradiction of the success path two callbacks
+   * down, which refocuses on purpose so the next card can be typed straight in.
+   */
+  const addEls = useRef(new Map<string, HTMLButtonElement>())
+
+  const registerAdd = useCallback((key: string, el: HTMLButtonElement | null) => {
+    if (el) addEls.current.set(key, el)
+    else addEls.current.delete(key)
+  }, [])
+
   const openComposer = useCallback((key: string) => {
     setComposeIn((prev) => (prev === key ? null : key))
     setDraft('')
+  }, [])
+
+  /**
+   * Close it and give the keyboard somewhere to be.
+   *
+   * The focus call comes BEFORE the state change on purpose: React batches the
+   * re-render to the end of the event handler, so the `+` button is still the
+   * live DOM node here and focusing it now means the input unmounts from an
+   * element that is no longer focused. Nothing flickers and no effect is needed.
+   */
+  const closeComposer = useCallback((key: string) => {
+    addEls.current.get(key)?.focus()
+    setComposeIn(null)
   }, [])
 
   useEffect(() => {
@@ -1445,6 +1474,9 @@ export default function Board(): ReactElement {
               {renderCounts(column)}
               {canCreate ? (
                 <button
+                  ref={(el) => {
+                    registerAdd(column.key, el)
+                  }}
                   type="button"
                   className="bd-col-add"
                   aria-expanded={composing}
@@ -1479,7 +1511,7 @@ export default function Board(): ReactElement {
                     // from the window listener, and closing a composer must not
                     // read as abandoning a gesture nobody started.
                     ev.stopPropagation()
-                    setComposeIn(null)
+                    closeComposer(column.key)
                   }}
                 />
                 <div className="bd-add-row">
@@ -1494,7 +1526,7 @@ export default function Board(): ReactElement {
                   <button
                     type="button"
                     className="btn btn-sm btn-ghost"
-                    onClick={() => setComposeIn(null)}
+                    onClick={() => closeComposer(column.key)}
                   >
                     {t('common.cancel')}
                   </button>

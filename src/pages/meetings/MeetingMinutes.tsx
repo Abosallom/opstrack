@@ -21,12 +21,23 @@
 // `store/meetings` — the same store MeetingLive and MeetingTriage write, so a
 // line discarded in triage is a note here without a refetch. The ENTRIES are
 // derived from `store/entries`: the committed lines carry `entry_id`, and any
-// entry filed straight against the meeting carries `meeting_id`. That working
-// set holds OPEN entries, so an action closed during the meeting can be absent
-// — `buildMinutes` renders such a line as its own captured text rather than
-// dropping it, and the `entries` prop below is the seam for a caller that has
-// the full set. See the handoff note: the fix is one meeting-scoped read in
-// `api/meetings.ts`, and this page needs no change when it lands.
+// entry filed straight against the meeting carries `meeting_id`.
+//
+// THAT WORKING SET IS OPEN-ONLY (`api/entries.listEntries` excludes the closed
+// statuses), and a meeting's whole point is that its actions get FINISHED. So
+// this page also asks for the closed tail from the meeting's own start date:
+// without it, every committed line whose entry has since been done or cancelled
+// silently degraded to its raw captured text under the generic Items heading —
+// losing the owner, the status, the due date and the Decisions/Actions section
+// the type had earned — and it did so only when the reader had not visited a
+// screen that happens to warm closed rows first, which made the document's
+// correctness depend on how you navigated to it.
+//
+// `loadClosedSince()` is additive and short-circuits on a window already
+// covered, so the cost is one fetch, and the meeting's `started_at` is the
+// exact and minimal window. `buildMinutes`'s raw-text fallback stays for the
+// genuinely deleted entry, and the `entries` prop below stays the seam for a
+// caller that already holds the full set.
 
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -43,8 +54,9 @@ import {
   type MinutesModel,
   type MinutesSection,
 } from '../../lib/minutes'
+import { instantToIsoDate } from '../../lib/dates'
 import { useTrackMap, loadConfig } from '../../store/config'
-import { loadEntries, useEntryList, useEntryMap } from '../../store/entries'
+import { loadClosedSince, loadEntries, useEntryList, useEntryMap } from '../../store/entries'
 import { openEntry } from '../../store/entrySheet'
 import {
   loadLines,
@@ -115,6 +127,18 @@ export default function MeetingMinutes({
       setSettled(true)
     })
   }, [id])
+
+  // The closed tail, as soon as the header lands — see the file's third note.
+  // Keyed on the instant rather than the meeting object so a realtime patch to
+  // the notes does not re-ask, and guarded on '' because instantToIsoDate()
+  // answers that for an unparseable timestamp and a blank date is not a window.
+  const startedAt = meeting?.started_at
+  useEffect(() => {
+    if (startedAt === undefined) return
+    const from = instantToIsoDate(startedAt)
+    if (from === '') return
+    void loadClosedSince(from)
+  }, [startedAt])
 
   /* ── the three lookups lib/minutes may not perform for itself ── */
 

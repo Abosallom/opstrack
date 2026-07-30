@@ -55,6 +55,18 @@ export default function MeetingsIndex(): ReactElement {
   const [formError, setFormError] = useState<string | null>(null)
 
   const titleRef = useRef<HTMLInputElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  /**
+   * Set when the form is closed BY THE USER, so focus can go back to the button
+   * that opened it.
+   *
+   * The disclosure swaps the toggle for the form, so the button does not exist
+   * while the form is open and focus cannot be restored synchronously — it has
+   * to wait for the button to come back, which the effect below does. The flag
+   * is what keeps that effect from stealing focus on first mount, where `open`
+   * is already false and nobody asked for anything.
+   */
+  const closedByUser = useRef(false)
 
   // Both loaders dedupe and neither rejects, so this is safe unawaited and safe
   // beside another screen doing the same. Members are warmed by the Shell; the
@@ -65,11 +77,18 @@ export default function MeetingsIndex(): ReactElement {
     void loadMembers()
   }, [])
 
-  // Focus follows the disclosure, so "start a meeting" is one tap and then
-  // typing. A ref rather than autoFocus: autoFocus fires only on an element's
-  // first mount and silently does nothing when the panel is reopened.
+  // Focus follows the disclosure IN BOTH DIRECTIONS, so "start a meeting" is one
+  // tap and then typing, and cancelling puts the caret back where it started
+  // rather than on <body>. A ref rather than autoFocus: autoFocus fires only on
+  // an element's first mount and silently does nothing when the panel reopens.
   useEffect(() => {
-    if (open) titleRef.current?.focus()
+    if (open) {
+      titleRef.current?.focus()
+      return
+    }
+    if (!closedByUser.current) return
+    closedByUser.current = false
+    toggleRef.current?.focus()
   }, [open])
 
   const memberOptions = useMemo<PickerOption[]>(
@@ -143,6 +162,7 @@ export default function MeetingsIndex(): ReactElement {
       <section className="mt-start card">
         {!open ? (
           <button
+            ref={toggleRef}
             type="button"
             className="btn btn-primary mt-start-toggle"
             onClick={() => setOpen(true)}
@@ -253,7 +273,14 @@ export default function MeetingsIndex(): ReactElement {
               <button type="submit" className="btn btn-primary" disabled={busy}>
                 {busy ? t('meeting.starting') : t('meeting.startNow')}
               </button>
-              <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  closedByUser.current = true
+                  setOpen(false)
+                }}
+              >
                 {t('common.cancel')}
               </button>
             </div>

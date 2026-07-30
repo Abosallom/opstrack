@@ -112,6 +112,11 @@ create policy meeting_lines_update on public.meeting_lines
 -- Deleting someone else's line removes it from the record with no trace, so it
 -- stays with the author (or an admin). Triage does not delete anyway — it moves
 -- a line to 'discarded', which keeps it in the minutes.
+--
+-- THIS POLICY WAS UNENFORCEABLE AS SHIPPED, and 0008 is what closes it: the
+-- permissive UPDATE above had no column guard behind it, so any member could
+-- rewrite `created_by` to their own id and then pass this `using` clause. See
+-- 0008 for the reproduction and the meeting_lines_guard_update() trigger.
 drop policy if exists meeting_lines_delete on public.meeting_lines;
 create policy meeting_lines_delete on public.meeting_lines
   for delete using (created_by = auth.uid() or public.is_admin());
@@ -439,6 +444,13 @@ begin
     v_next := public.advance_recurrence(
       r.next_run_on, r.cadence, r.custom_interval_days, r.day_of_week, r.day_of_month);
 
+    -- SUPERSEDED BY 0008 — this loop is wrong and the comment below is wrong
+    -- about itself. Walking next_run_on past today made one "Run now" click
+    -- cancel every overdue occurrence the screen had just promised to create,
+    -- and there is no guard here at all (materialize_due_recurring has one;
+    -- this never did). 0008 replaces the whole function with a single
+    -- advance_recurrence() step. Left in place because migrations are history.
+    --
     -- advance_recurrence() steps exactly one occurrence. A template that has
     -- been due for a fortnight needs several steps to get past today, and the
     -- guard caps a pathological one (bad cadence data, next_run_on years back)

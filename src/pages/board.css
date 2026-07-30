@@ -275,9 +275,10 @@
 
    The `[data-density]` in the selector is not decoration: the compact rule far
    below is `.bd[data-density='compact'] .bd-col`, which outweighs a bare
-   `.bd-col[data-collapsed]` and made every collapsed column 264px wide on a
-   compact board. Matching its weight here, earlier in the file, is the fix that
-   does not depend on source order alone. */
+   `.bd-col[data-collapsed]` — it once carried an `inline-size` and made every
+   collapsed column 264px wide on a compact board. It carries only padding now,
+   but the weight match still has to hold: `padding` from a rule further down
+   would otherwise fatten the rail. */
 .bd[data-density] .bd-col[data-collapsed='true'] {
   inline-size: 64px;
   padding-block: 8px;
@@ -660,9 +661,17 @@
 /* What this toggle can reach is the space AROUND the cards: EntryCardProps has
    no `density`, unlike EntryRowProps, so the card's own internals keep their
    comfortable spacing. Filed as an extension-slot gap rather than reached for
-   across the registry — `.entry-card*` belongs to entry.css. */
+   across the registry — `.entry-card*` belongs to entry.css.
+
+   AND THAT IS EXACTLY WHY COMPACT MUST NOT NARROW THE COLUMN. It used to set
+   264px against the comfortable 300px, which squeezed the card's meta row into
+   a second line: measured over six cards, two grew (193→216px, 174→193px) and
+   none shrank, so "compact" made the board TALLER — the one thing the toggle
+   promises not to do. A column this sheet cannot compact from the inside is a
+   column it must leave at its natural width; what compact buys is vertical, and
+   it is real: 4px between cards instead of 8, a tighter gutter, no drop hint,
+   and MAX_CARDS 40 instead of 25 before the overflow strip takes over. */
 .bd[data-density='compact'] .bd-col {
-  inline-size: 264px;
   padding: 4px 8px 8px;
 }
 
@@ -741,9 +750,8 @@
     scroll-snap-align: none;
   }
 
-  .bd[data-density='compact'] .bd-col {
-    inline-size: min(86vw, 340px);
-  }
+  /* No compact width override down here either — it existed only to undo the
+     264px the density rule used to set, and that rule no longer sets one. */
 
   /* The page scrolls on a phone, not the column: two nested scrollers under one
      thumb is the interaction people report as "it scrolls the wrong thing". */

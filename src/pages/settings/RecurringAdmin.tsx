@@ -729,29 +729,66 @@ export default function RecurringAdmin(): ReactElement {
     return ok && alive.current
   }, [])
 
+  /**
+   * The control that opened the editor, so closing it can hand focus back.
+   *
+   * TemplateEditor focuses its first field on open (see its own effect); every
+   * way OUT of it — Cancel, Save, Escape'd discard — unmounts the subtree the
+   * focus is inside, and focus then falls to <body> so the next Tab restarts at
+   * the top of the document (WCAG 2.4.3). Both openers (a row's Edit button and
+   * the page's Add button) stay mounted the whole time, so the node stored here
+   * is still live when the editor goes away.
+   */
+  const opener = useRef<HTMLElement | null>(null)
+  /** The toolbar's Add button — always mounted, so it is the safe fallback. */
+  const addRef = useRef<HTMLButtonElement>(null)
+  /** Where focus goes once the editor has actually gone. */
+  const returnFocus = useRef<HTMLElement | null>(null)
+
   const closeEditor = useCallback((): void => {
     dirty.current = false
+    returnFocus.current = opener.current ?? addRef.current
+    opener.current = null
     setOpenId(null)
     setCreating(false)
   }, [])
+
+  /**
+   * AFTER the render that removed the editor, not during the handler that asked
+   * for it — because the Add button is `disabled` while `creating` is true, and
+   * focusing a disabled control does nothing at all. Waiting one commit is what
+   * makes the create path work as well as the edit path.
+   */
+  useEffect(() => {
+    if (openId !== null || creating) return
+    const back = returnFocus.current
+    if (back === null) return
+    returnFocus.current = null
+    back.focus()
+  }, [openId, creating])
 
   const cancelEditor = useCallback(async (): Promise<void> => {
     if (await confirmDiscard()) closeEditor()
   }, [confirmDiscard, closeEditor])
 
-  async function toggleEdit(id: string): Promise<void> {
+  async function toggleEdit(id: string, from: HTMLElement | null): Promise<void> {
     if (!(await confirmDiscard())) return
     dirty.current = false
     setCreating(false)
     setRowError(null)
-    setOpenId(openId === id ? null : id)
+    const closing = openId === id
+    // Closing from the same button leaves focus where it already is; opening
+    // records where to come back to.
+    opener.current = closing ? null : from
+    setOpenId(closing ? null : id)
   }
 
-  async function beginCreate(): Promise<void> {
+  async function beginCreate(from: HTMLElement | null): Promise<void> {
     if (!(await confirmDiscard())) return
     dirty.current = false
     setOpenId(null)
     setRowError(null)
+    opener.current = from
     setCreating(true)
   }
 
@@ -894,6 +931,10 @@ export default function RecurringAdmin(): ReactElement {
       failRow(row.id, saveErrorKey(result.error))
       return
     }
+    // The row is going away, so its Edit button is not somewhere to send focus.
+    // Clearing the opener makes closeEditor() fall back to the toolbar's Add
+    // button, which survives the deletion.
+    opener.current = null
     if (openId === row.id) closeEditor()
     setRows((current) => (current ? current.filter((r) => r.id !== row.id) : current))
     // The toast says the act succeeded; this says the LIST changed, which is
@@ -1018,7 +1059,12 @@ export default function RecurringAdmin(): ReactElement {
                 title: row.title,
               })}
               disabled={busy || saving}
-              onClick={() => void toggleEdit(row.id)}
+              onClick={(ev) => {
+                // Read synchronously: `currentTarget` is only valid during
+                // dispatch, and toggleEdit awaits a confirmation first.
+                const from = ev.currentTarget
+                void toggleEdit(row.id, from)
+              }}
             >
               {t(open ? 'common.close' : 'common.edit')}
             </button>
@@ -1112,10 +1158,14 @@ export default function RecurringAdmin(): ReactElement {
           {t('common.back')}
         </Link>
         <button
+          ref={addRef}
           type="button"
           className="btn btn-primary btn-sm"
           disabled={loading || creating}
-          onClick={() => void beginCreate()}
+          onClick={(ev) => {
+            const from = ev.currentTarget
+            void beginCreate(from)
+          }}
         >
           {t('recurring.add')}
         </button>
@@ -1166,7 +1216,15 @@ export default function RecurringAdmin(): ReactElement {
           title={t('recurring.emptyTitle')}
           description={t('recurring.emptyBody')}
           action={
-            <button type="button" className="btn btn-primary" onClick={() => void beginCreate()}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              // No opener recorded: this button is inside the empty state,
+              // which unmounts the moment the editor opens, so the node would
+              // be detached by the time focus came back. closeEditor() falls
+              // back to the toolbar's Add button, which is always mounted.
+              onClick={() => void beginCreate(null)}
+            >
               {t('recurring.add')}
             </button>
           }

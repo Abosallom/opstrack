@@ -16,11 +16,17 @@
 //
 // THE TRANSPORTS ARE MOCKED because the real ones import api/supabase and would
 // answer notConfigured() with no credentials — a uniform failure that could not
-// distinguish "the queue sent it" from "the queue dropped it". Mocking the two
+// distinguish "the queue sent it" from "the queue dropped it". Mocking the three
 // api modules the registry imports leaves every line of the queue itself real.
+//
+// THE ONE THING MOCKS CANNOT SEE is at the bottom of this file: whether the
+// registry and main.tsx actually agree with the stores about which routes exist.
+// That gate reads the sources instead, because supplying the missing half is
+// precisely what a mock does.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  OUTBOX_ROUTES,
   TEMP_PREFIX,
   discardOutboxItem,
   flushOutbox,
@@ -32,12 +38,19 @@ import {
   type MutOp,
 } from './outbox'
 import { addUpdate, createEntry, updateEntry } from '../api/entries'
+import { appendLine, createMeeting, patchLine, patchMeeting } from '../api/meetings'
 import { markAllRead, markRead } from '../api/notifications'
 
 vi.mock('../api/entries', () => ({
   createEntry: vi.fn(),
   updateEntry: vi.fn(),
   addUpdate: vi.fn(),
+}))
+vi.mock('../api/meetings', () => ({
+  createMeeting: vi.fn(),
+  patchMeeting: vi.fn(),
+  appendLine: vi.fn(),
+  patchLine: vi.fn(),
 }))
 vi.mock('../api/notifications', () => ({
   markRead: vi.fn(),
@@ -79,6 +92,10 @@ beforeEach(() => {
   vi.mocked(createEntry).mockReset()
   vi.mocked(updateEntry).mockReset()
   vi.mocked(addUpdate).mockReset()
+  vi.mocked(createMeeting).mockReset()
+  vi.mocked(patchMeeting).mockReset()
+  vi.mocked(appendLine).mockReset()
+  vi.mocked(patchLine).mockReset()
   vi.mocked(markRead).mockReset()
   vi.mocked(markAllRead).mockReset()
   setOnline(true)
@@ -123,7 +140,9 @@ describe('submit — online', () => {
   })
 
   it('answers common.error for a route with no transport instead of throwing', async () => {
-    const result = await submit(op({ table: 'meetings', op: 'insert', id: null }))
+    // `tracks` is one of the tables the frozen envelope names and nothing
+    // submits yet — see the registry's note on why unused routes stay out.
+    const result = await submit(op({ table: 'tracks', op: 'delete', id: 't1' }))
     expect(result).toEqual({ ok: false, error: 'common.error' })
   })
 
@@ -131,6 +150,40 @@ describe('submit — online', () => {
     const result = await submit(op({ id: null }))
     expect(result).toEqual({ ok: false, error: 'common.error' })
     expect(updateEntry).not.toHaveBeenCalled()
+  })
+
+  it('routes the four meeting writes, which is what makes meeting mode work offline', async () => {
+    // These four were submitted by store/meetings.ts and registered nowhere, so
+    // every meeting write answered 'common.error' and a meeting could not be
+    // started away from wifi at all. No temp ids: meetings mint their uuids on
+    // the client, so the envelope target IS the row the server will store.
+    vi.mocked(createMeeting).mockResolvedValue(ok({ id: 'm1' }) as never)
+    vi.mocked(patchMeeting).mockResolvedValue(ok({ id: 'm1' }) as never)
+    vi.mocked(appendLine).mockResolvedValue(ok({ id: 'l1' }) as never)
+    vi.mocked(patchLine).mockResolvedValue(ok({ id: 'l1' }) as never)
+
+    await submit(op({ table: 'meetings', op: 'insert', id: null, payload: { title: 'Standup' } }))
+    await submit(op({ table: 'meetings', op: 'update', id: 'm1', payload: { notes: 'n' } }))
+    await submit(op({ table: 'meeting_lines', op: 'insert', id: null, payload: { raw: 'a line' } }))
+    await submit(op({ table: 'meeting_lines', op: 'update', id: 'l1', payload: { state: 'note' } }))
+
+    expect(createMeeting).toHaveBeenCalledWith({ title: 'Standup' })
+    expect(patchMeeting).toHaveBeenCalledWith('m1', { notes: 'n' })
+    expect(appendLine).toHaveBeenCalledWith({ raw: 'a line' })
+    expect(patchLine).toHaveBeenCalledWith('l1', { state: 'note' })
+  })
+
+  it('refuses a targetless meeting update rather than sending a bad uuid', async () => {
+    expect(await submit(op({ table: 'meetings', op: 'update', id: null }))).toEqual({
+      ok: false,
+      error: 'common.error',
+    })
+    expect(await submit(op({ table: 'meeting_lines', op: 'update', id: null }))).toEqual({
+      ok: false,
+      error: 'common.error',
+    })
+    expect(patchMeeting).not.toHaveBeenCalled()
+    expect(patchLine).not.toHaveBeenCalled()
   })
 
   it('routes a null-id notifications update to mark-all', async () => {
@@ -186,6 +239,51 @@ describe('submit — offline', () => {
     await submit(op({ id: 'e1', dedupeKey: 'k1' }))
     await submit(op({ id: 'e2', dedupeKey: 'k2' }))
     expect(getOutboxSnapshot()).toHaveLength(2)
+  })
+})
+
+describe('offline meeting mode, end to end through the queue', () => {
+  it('queues the header and its lines and drains them in that order', async () => {
+    // The scenario the feature exists for: a room with no wifi. The meeting is
+    // real to the tab from the first frame (client-minted uuid), the lines carry
+    // a foreign key to a row that does not exist yet, and the queue's insertion
+    // order is what makes that safe — the header goes out first.
+    setOnline(false)
+    const started = await submit(
+      op({ table: 'meetings', op: 'insert', id: null, dedupeKey: 'm-ins', payload: { id: 'm1' } }),
+    )
+    await submit(
+      op({
+        table: 'meeting_lines',
+        op: 'insert',
+        id: null,
+        dedupeKey: 'l1-ins',
+        payload: { id: 'l1', meetingId: 'm1', seq: 1, raw: 'first' },
+      }),
+    )
+    await submit(
+      op({
+        table: 'meeting_lines',
+        op: 'insert',
+        id: null,
+        dedupeKey: 'l2-ins',
+        payload: { id: 'l2', meetingId: 'm1', seq: 2, raw: 'second' },
+      }),
+    )
+
+    // A NOTICE, not an error — store/meetings.ts keeps the optimistic row on it.
+    expect(started).toEqual({ ok: false, error: 'offline.queued' })
+    expect(getOutboxSnapshot()).toHaveLength(3)
+    expect(createMeeting).not.toHaveBeenCalled()
+
+    setOnline(true)
+    vi.mocked(createMeeting).mockResolvedValue(ok({ id: 'm1' }) as never)
+    vi.mocked(appendLine).mockResolvedValue(ok({ id: 'l1' }) as never)
+    await flushOutbox()
+
+    expect(createMeeting).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(appendLine).mock.calls.map((c) => c[0].raw)).toEqual(['first', 'second'])
+    expect(getOutboxSnapshot()).toHaveLength(0)
   })
 })
 
@@ -397,5 +495,90 @@ describe('the settle seam — a drained write finds its way home', () => {
 
     expect(vi.mocked(addUpdate).mock.calls[0][0]).toEqual({ entryId: 'server-uuid', body: 'a note' })
     expect(getOutboxSnapshot()).toHaveLength(0)
+  })
+})
+
+/* ─────────────────── the registry ↔ stores coverage gate ───────────────────
+ *
+ * WHY A SOURCE SCAN AND NOT A UNIT TEST. The defect this replaces was not a
+ * wrong line anywhere — every line in store/meetings.ts and every line in
+ * store/outbox.ts was correct on its own. The bug lived in the SPACE between
+ * two files: a store submitted four routes the registry did not know, and the
+ * composition root never pointed that store at the queue. Nothing that mocks
+ * either side can see that, because mocking is exactly the act of supplying the
+ * half that is missing. So this reads the sources.
+ *
+ * Both halves are asserted because either alone is a broken state: routes with
+ * no wiring are dead code and the store keeps sending directly (it can never
+ * queue); wiring with no routes fails every write, online and off.
+ *
+ * Source is read through import.meta.glob('?raw') rather than node:fs, for the
+ * reason lib/localeReach.test.ts spells out: tsconfig.app.json pins
+ * `types: ["vite/client"]`, and adding "node" would leak node globals into the
+ * type space of every app file.
+ */
+
+// The options object has to be an inline literal — Vite parses this statically.
+const STORE_FILES: Record<string, string> = import.meta.glob('./*.ts', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+const MAIN_FILE: Record<string, string> = import.meta.glob('../main.tsx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+
+function storeSource(): { file: string; text: string }[] {
+  return Object.entries(STORE_FILES)
+    .filter(([path]) => !path.endsWith('.test.ts'))
+    .map(([path, text]) => ({ file: path.replace('./', 'src/store/'), text }))
+}
+
+/** Every `${table}:${op}` a store builds a MutOp for, with the file it is in. */
+function submittedRoutes(): { file: string; route: string }[] {
+  // Matches the MutOp literal's first two fields, tolerating a comment line
+  // between them. Stores build these inline at the submit call; there is no
+  // other shape in the codebase, and a new one that does not match here would
+  // simply not be covered — which is why the count is asserted too.
+  const RE = /table:\s*'(\w+)',\s*(?:\/\/[^\n]*\n\s*)*op:\s*'(insert|update|delete)'/g
+  const out: { file: string; route: string }[] = []
+  for (const { file, text } of storeSource()) {
+    for (const m of text.matchAll(RE)) out.push({ file, route: `${m[1]}:${m[2]}` })
+  }
+  return out
+}
+
+describe('transport registry coverage', () => {
+  it('finds the op literals it is supposed to be checking', () => {
+    // A regex that silently matched nothing would make the assertion below
+    // vacuously true — the precise failure mode that let this ship.
+    const routes = submittedRoutes()
+    expect(routes.length).toBeGreaterThanOrEqual(9)
+    expect(new Set(routes.map((r) => r.file)).size).toBeGreaterThanOrEqual(3)
+  })
+
+  it('registers a transport for every route a store actually submits', () => {
+    const missing = submittedRoutes()
+      .filter((r) => !OUTBOX_ROUTES.includes(r.route))
+      .map((r) => `${r.file} submits ${r.route}, which has no transport`)
+    expect([...new Set(missing)]).toEqual([])
+  })
+
+  it('points every store that owns a submit seam at the queue, in main.tsx', () => {
+    // The other half. store/meetings.ts exported setMeetingsSubmit for a whole
+    // wave while main.tsx never called it, so the seam stayed on its send-now
+    // default and every QUEUED_KEY branch in that store was dead code.
+    const main = Object.values(MAIN_FILE)[0] ?? ''
+    expect(main).toContain('createRoot') // the glob resolved to the real file
+    const seams = storeSource().flatMap(({ file, text }) =>
+      [...text.matchAll(/export function (set\w+Submit)\(/g)].map((m) => ({ file, fn: m[1] })),
+    )
+    expect(seams.length).toBeGreaterThanOrEqual(3)
+    const unwired = seams
+      .filter((s) => !main.includes(`${s.fn}(submit)`))
+      .map((s) => `${s.file} exports ${s.fn} but main.tsx never calls it`)
+    expect(unwired).toEqual([])
   })
 })

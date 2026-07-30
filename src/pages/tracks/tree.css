@@ -427,9 +427,20 @@
   color: var(--text);
 }
 
+/* `inline-size: auto` is LOAD-BEARING, not a tidy-up. global.css gives every
+   .select `inline-size: 100%`, and in a wrapping flex row `flex-basis: auto`
+   resolves to that used size — so each of the three selects asked for the full
+   width of the bar (966px measured inside a 992px bar), and `flex-wrap` gives an
+   item that cannot fit a line of its own BEFORE shrinking is considered. The
+   result was a 213px stacked panel — a quarter of the viewport — covering the
+   very rows it acts on, where the spec asks for a one-line floating bar.
+   `auto` makes the base size content-sized again; `min-inline-size` keeps the
+   shortest option from collapsing the control to its arrow. */
 .tree-bulk-select {
   flex: 0 1 auto;
+  inline-size: auto;
   min-inline-size: 132px;
+  max-inline-size: 200px;
   min-block-size: 36px;
   padding-block: 4px;
   font-size: 13px;
@@ -484,7 +495,9 @@
   }
 
   .tree-bulk-select {
+    /* Two per row at 375px, which is the widest a legible option gets here. */
     flex: 1 1 128px;
+    max-inline-size: none;
     min-block-size: 44px;
   }
 
@@ -492,8 +505,15 @@
     min-block-size: 44px;
   }
 
-  /* Room for the docked bar, so the last row is never parked underneath it. */
+  /* Room for the docked bar, so the last row is never parked underneath it.
+     MEASURED, not guessed: at 375px the bar wraps to three rows of 44px
+     controls plus its own padding and gaps, and the 84px this used to reserve
+     left the last row of the tree permanently parked underneath it — the exact
+     thing the rule exists to prevent. `--tree-bulk-h` is written by TracksIndex
+     from a ResizeObserver on the bar itself, so the reservation tracks the bar
+     at any width, in any language, however it wraps. The fallback is the
+     three-row worst case, for the frame before the observer reports. */
   .tree[data-picking='true'] {
-    padding-block-end: 84px;
+    padding-block-end: calc(var(--tree-bulk-h, 176px) + 12px);
   }
 }
