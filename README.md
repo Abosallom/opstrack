@@ -1,8 +1,16 @@
-# OpsTrack
+# CoreTrack
 
 A multi-track action and decision tracker for an operations lead who owns several
 domains at once (PMO, IT Operations, Network, Infrastructure, SRE) and delegates
 most of the execution.
+
+> **On the name.** The product is **CoreTrack** for the team-testing period. Every
+> technical identifier still reads `opstrack` on purpose — the repo, the Pages URL,
+> the `package.json` name, the `opstrack_*` storage keys, the CSS prefixes, the
+> Supabase project, the iOS bundle id and the `@opstrack.internal` auth domain.
+> Renaming those mid-testing would break installed PWAs, bookmarks and stored
+> sessions for no gain. They are swapped in one clean cut at launch, under the
+> launch name — see [`docs/WAVE5-NOTES.md`](docs/WAVE5-NOTES.md) §1.
 
 Two things it optimises for, and everything else bends around them:
 
@@ -51,7 +59,7 @@ Leave the **service_role** key where it is. It never goes into the client.
   function or by you in the dashboard, and no address ever confirms itself. The
   live project runs with it on.
 
-Disabling signups is load-bearing, not a hardening extra. OpsTrack has no public
+Disabling signups is load-bearing, not a hardening extra. CoreTrack has no public
 sign-up flow: members are provisioned by an admin through the `admin-members`
 edge function, which creates the auth user and its `profiles` row together.
 Sign-in calls `signInWithOtp` with `shouldCreateUser: false`, so an unknown
@@ -216,7 +224,9 @@ npm run dev              # http://localhost:5173
 Sign in at `/#/signin`. Your account is an email address, so you get two ways in:
 type your password, or ask for a magic link and open it. Everyone else you
 provision is a **username** with a password and no inbox — a different form on
-the same screen.
+the same screen. Those are the only two ways in: there is no external identity
+provider, and the admin-managed member list *is* the directory
+([`ADMIN.md`](ADMIN.md#member-accounts-usernames-invites-and-claiming)).
 
 Two things about the link that surprise people. It signs in whichever device
 opens it, and it always lands on the project's Site URL — so **it will not sign

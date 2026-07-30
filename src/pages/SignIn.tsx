@@ -34,11 +34,18 @@
 // are provisioned by an admin.
 //
 // DORMANT KEYS. `signin.sendCode`, `signin.codeSent`, `signin.codeResent`,
-// `signin.errEmailRequired`, `signin.useEmail`, `signin.useUsername` and
-// `signin.microsoft` are unused by this screen. The first four are the
-// vocabulary of the custom-SMTP path above, the next two belonged to the
-// two-button flow this one replaced, and the last is Wave 4's. They cannot be
-// deleted regardless: localeParity.test.ts pins all 213 pre-split keys.
+// `signin.errEmailRequired`, `signin.useEmail` and `signin.useUsername` are
+// unused by this screen. The first four are the vocabulary of the custom-SMTP
+// path above; the last two belonged to the two-button flow this one replaced.
+// They cannot be deleted: localeParity.test.ts pins all 213 pre-split keys.
+//
+// `signin.microsoft` WAS on that list and is now gone, which is the one case the
+// pin did not cover. It was added by the same commit that performed the namespace
+// split rather than inherited from the monolithic bundle, so it was never one of
+// the 213 — and WAVE5-NOTES §2 cancelled the button it labelled. It is deleted in
+// both languages rather than left dormant, because a dormant key for a feature
+// that is coming reads differently from one for a feature that was cancelled, and
+// only the first is worth carrying.
 
 import {
   useEffect,
@@ -51,7 +58,6 @@ import {
 import { Link } from 'react-router-dom'
 import { isConfigured } from '../api/supabase'
 import { IconArrowStart, IconBolt, IconKey, IconMail, IconUser } from '../components/icons'
-import SsoButtons from '../components/SsoButtons'
 import { toast } from '../components/toast'
 import { t, useLocale } from '../lib/i18n'
 import { sendOtp, signInPassword, verifyOtp } from '../store/auth'
@@ -110,7 +116,7 @@ export default function SignIn(): ReactElement {
   // Keyed on `locale`, unlike Shell's equivalent effect, because this screen
   // carries the language toggle itself: without the dep, switching to Arabic
   // repaints every string on the page and leaves the browser tab reading
-  // "Sign in · OpsTrack" — the one label the toggle visibly failed to reach.
+  // "Sign in · CoreTrack" — the one label the toggle visibly failed to reach.
   useEffect(() => {
     document.title = `${t('route.signin')} · ${t('app.name')}`
   }, [locale])
@@ -406,14 +412,13 @@ export default function SignIn(): ReactElement {
               </Link>
             )}
 
-            {/* Microsoft Entra, in the alternatives slot under the one separator
-                this form owns. It renders NOTHING until `/auth/v1/settings`
-                reports `external.azure: true` — false on this project today — so
-                there is no button to fail until the tenant supplies a client id.
-                It draws no separator of its own, by agreement: the `.signin-sep`
-                above is the only one, and a second would double the rule on the
-                one screen that mounts both. */}
-            <SsoButtons />
+            {/* Nothing follows the alternatives slot. Wave 4b mounted
+                `<SsoButtons />` here — a Microsoft Entra button that rendered only
+                once `/auth/v1/settings` reported `external.azure: true`, which it
+                never did. WAVE5-NOTES §2 removed the provider outright: the
+                admin-managed Members directory IS the directory, so this screen's
+                two paths — a username + password, or an emailed link — are the
+                only ways in, and both terminate at an account an admin created. */}
           </form>
         ) : (
           <div

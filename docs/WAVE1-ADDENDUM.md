@@ -20,11 +20,29 @@ without re-deriving it from a chat log.
 | 1 | **Notifications** — a `notifications` table written by DB triggers (assigned → owner; done → the entry's **creator**; never self-notify), in-app centre first, Web Push after | 0004 (table + triggers) · `api/notifications.ts` + `store/notifications.ts` (W1-DATA) · bell/inbox UI (W3) · Web Push (W4) |
 | 2 | **App-Store-ready** — Capacitor iOS wrapper, verified in the Simulator | W4. Submission needs an Apple Developer account: documented, not blocking. No Wave-1 surface. |
 | 3 | **Username sign-in** — admin predefines a username, member claims it once with a one-time invite code and a password they choose | `admin-members` v2 + new `claim-account` edge function, `store/auth.ts`, `api/members.ts` (W1-AUTH) · SignIn rewrite (W2) · Members page (W4) |
-| 4 | **Active Directory** — read as Azure AD / Entra SSO through Supabase's Azure OIDC provider. On-prem LDAP is unreachable from a static PWA and is flagged as such. | W4, button-only until the owner's tenant supplies a client id/secret. Wave 1 ships `signin.microsoft` and nothing else. |
+| 4 | ~~**Active Directory** — read as Azure AD / Entra SSO through Supabase's Azure OIDC provider. On-prem LDAP is unreachable from a static PWA and is flagged as such.~~ **CANCELLED in Wave 5** — see the note below the table. | ~~W4, button-only until the owner's tenant supplies a client id/secret. Wave 1 ships `signin.microsoft` and nothing else.~~ Built in W4b, removed whole in W5. |
 | 5 | **SLA on tasks** — `sla_days` per **priority** row in `vocab_options`, admin-editable; `v_entry_health` computes `sla_due_at` and `sla_breached` | 0003 (column + view) · `types.ts` (keystone) · `lib/health.ts` (W1-DOMAIN) · badges/sections (W2) · compliance % (W3) |
 
 Additions 2 and 4 have **no Wave-1 code surface** and are listed only so an auditor does not go
 looking for one.
+
+> **Addition 4 was cancelled by the owner on 2026-07-30 — `docs/WAVE5-NOTES.md` §2, which wins over
+> this file the same way this file wins over the plan.** "I don't want to sign in using the
+> company's active directory; I want my own directory to be set by the admin." **The admin-managed
+> Members directory IS this product's directory**: an admin provisions a username, the member claims
+> it once with a one-time invite code and a password they choose, and that is the only way an
+> account comes into existence. There is no external IdP and no plan for one.
+>
+> Wave 4b did build addition 4 as specified — an Entra button that rendered only once the provider
+> was enabled, plus a post-sign-in membership guard — and Wave 5 removed all of it: `src/lib/sso.ts`
+> and its test, `src/components/SsoButtons.tsx`, `src/components/sso.css`, both `sso.json` files and
+> their registration in `src/locales/index.ts`, the `installSsoGuard(supabase)` line in
+> `src/main.tsx`, the `<SsoButtons />` slot in `src/pages/SignIn.tsx`, `docs/AZURE-AD-SETUP.md`, and
+> the `signin.microsoft` key this table promised Wave 1 would ship. Nothing was left inert. The
+> provider was never enabled on the live project, so there is nothing to revert server-side —
+> `/auth/v1/settings` reported `external.azure: false` for the whole life of the feature. An auditor
+> reading this row should expect to find **no** SSO surface anywhere, and the standing grep for it
+> is part of the Wave-5 gate.
 
 ---
 
@@ -179,7 +197,7 @@ Shipped: 17 namespaces × 2 languages, **333 keys at exact parity** (213 pre-exi
 | `date` (18), `filter` (26) | **new**, populated up front per plan §4.2 so `lib/dates.ts` and `FilterBar` can use them in Wave 1 |
 | `notif` (9) | **new** — bell, inbox, and the two trigger sentences. Seeded by the keystone, **integrator-owned**, extended by the Wave-3 notification-centre worker. Not in plan §4.2's table. |
 | `common` +23, `route` +5, `nav` +2, `offline` +10 | plan §4.2's enumerated additions (`route.entry` already existed; `route.meeting` is the singular live-meeting route) |
-| `signin` +27 | username / password / invite-code / claim / Microsoft-button strings |
+| `signin` +27 | username / password / invite-code / claim / Microsoft-button strings. **26 of the 27 survive**; `signin.microsoft` was deleted in Wave 5 with the rest of addition 4. It was never one of the 213 pre-split keys, so `localeParity.test.ts`'s baseline arithmetic is unaffected and `RETIRED_KEYS` did not need it. |
 
 All of the above are in the **shared, integrator-only** set. A feature worker needing a key in any of
 them puts the exact key plus EN and AR strings in its handoff note; it never opens the file.

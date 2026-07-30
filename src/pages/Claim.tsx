@@ -220,7 +220,7 @@ export default function Claim(): ReactElement {
           {/* The only language control before sign-in — the header's toggle
               lives inside the shell, which nobody on this screen has reached
               yet. A member claiming an account is the single most likely person
-              to need the other language, since this is the first OpsTrack
+              to need the other language, since this is the first CoreTrack
               screen they have ever seen. */}
           <button
             type="button"

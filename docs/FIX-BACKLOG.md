@@ -1,4 +1,4 @@
-# OpsTrack — fix backlog
+# CoreTrack — fix backlog
 
 **Consolidation of 8 deep audits, opened after Wave 2 and dispositioned at the
 Wave-4b close.** Baseline is now HEAD `8a0b2f2`+ (Wave 4's fix reconciliation);
@@ -25,6 +25,35 @@ Baseline caveat worth stating plainly: `47 files / 1217 tests` is the count at
 `8a0b2f2`. The Wave-4b tree adds the command palette, export, web push, the
 Members screen and migrations `0010`/`0011`, so the number at merge will be
 higher. Re-run `npm run test` and update this line rather than assuming it.
+
+Doing exactly that at the Wave-5 close: **57 files / 1583 tests green**, measured
+2026-07-30 on the tree this commit carries. Arithmetic, because a count nobody can
+reconstruct is a count nobody checks — `1217 → 1498` over Wave 4b, then within
+Wave 5:
+
+| | files | tests |
+| --- | ---: | ---: |
+| `c1b5138` (Wave-4b close) | 52 | 1498 |
+| **+** five new suites: `CommandPalette` 42, `Export` 19, `Cheatsheet` 14, `Members` 14, `brand` 10 | +5 | +99 |
+| **+** additions to `toast.test.ts` and `push.test.ts` | — | +16 |
+| **−** `src/lib/sso.test.ts`, deleted whole by the SSO strip | −1 | **−30** |
+| **this commit** | **57** | **1583** |
+
+The subtraction is the row worth pausing on. A test count that only ever rises is
+one nobody is reading; this one fell by 30 on purpose, and §2 of the Wave-5 notes
+is the reason. Nothing was lost with it: that file's non-SSO half — the parity,
+token, empty-value and bidi-fencing checks it applied to `push.json` because
+`locales/index.ts` had not yet registered the namespace — is now covered by
+`localeParity.test.ts`, `localeReach.test.ts` and `bidi.test.ts` walking the
+registered tree, exactly as its own header predicted ("this block becomes a
+duplicate — and harmless").
+
+**`<wave5>` in a disposition below means the commit this file arrives in** —
+`feat(wave5): close 4b gaps, strip SSO, complete CoreTrack rename`. It is written
+as a placeholder rather than a sha for the reason the `fixed-in-<wave4b>` row of
+the legend gives: the integrator cannot know the sha of the commit they are
+composing. Resolve it by `git log --oneline --grep 'close 4b gaps'` rather than by
+guessing.
 
 ---
 
@@ -134,7 +163,7 @@ blocker, and every major except **P2** is closed.
 | **C3** | major | `fixed-in-c4bf788` | Resolved better than prescribed: rather than dropping `d`/`f` from `KEYED_RE`, an abbreviation is now a keyword **only when it resolves**. `d:`/`f:`/`fu:`/`ev:` that fail to parse were never tokens; `due:`/`every:` keep the red-chip behaviour, because a misspelled explicit keyword is a typo and should say so. All four reported shapes fixed. |
 | **C4** | major | `fixed-in-c4bf788` | `quoted && unterminated` now warns for `@` and `+` specifically — the two kinds that never fail on their own. Every other kind already surfaces its own miss. |
 | **C5** | major | `fixed-in-c4bf788` | Routed through `lib/dates.parseIsoDate`, and the test that claimed to cover it (whose input carried a trailing `x`) was fixed in the same commit. Cross-reference **M3**: the strict parser C5 now uses is the one M3 repaired. |
-| **C6** | major | `fixed-in-c4bf788` | Eviction now takes the oldest **auto-dismissing** toast, so the sticky update prompt cannot be evicted — its button is the only reference to `updateSW` in the app. Still compounded by **M6**, which is open: nothing re-checks for an update in a long-lived session, so the prompt that can no longer be lost also does not reliably appear. |
+| **C6** | major | `fixed-in-c4bf788` | Eviction now takes the oldest **auto-dismissing** toast, so the sticky update prompt cannot be evicted — its button is the only reference to `updateSW` in the app. **M6**, which compounded it, is fixed in the same Wave-5 commit — so the prompt that can no longer be lost now also reliably appears. |
 | **C7** | major | `fixed-in-c4bf788` | One boundary, placed **inside** `Shell` so the tab bar survives the crash, resetting on navigation. Verified by making a route throw. Wave 3 then added ten more lazy routes under it. |
 | **C8** | major | `fixed-in-c4bf788` | `MAX_ROWS = 1000`, and both reads share one ceiling **and one ordering** — the sharper version of the finding: `listHealth()` returned an *arbitrary* thousand, a different thousand from `listEntries()`, which is why most rows looked uncovered. Truncation is now state; `src/api/digestCollect.ts:24` and `digest.truncatedNote` carry it to the user. |
 | **S3a** | major | `fixed-in-8a0b2f2` | The matrix moved into `store/entries`; `derive()` resolves track × priority through `resolveSlaDays()`. Dashboard's private duplicate fetch was deleted in the same commit, so there is one Map from one fetch. **Still latent in production** — `select count(*) from track_slas` → **0** on the live project, so the override branch has never executed against real data. `docs/EVIDENCE/wave4-live-proof.md` §4 exists to close that. |
@@ -183,7 +212,7 @@ blocker, and every major except **P2** is closed.
 | **S5f** | minor | `fixed-in-e4b9b62` | `الحالة الصحية` → `مؤشّر الحالة` in both `entry.json` and `filter.json`. |
 | **S5g** | minor | `fixed-in-e4b9b62` | `محجوب` → `متعثّر`. The auditor's report was truncated before their proposed wording; this is the replacement that shipped, and `store/vocab.test.ts:89` pins it with a comment naming the reading that was retired. |
 | **M5** | minor | `open` | `vite.config.ts` still has bare `navigateFallback: 'index.html'` with no allowlist. Reach is genuinely low under HashRouter, but the SW strictly makes GitHub's 404 worse than having none. |
-| **M6** | minor | `open` | No `onRegisteredSW`, no periodic `registration.update()`. **This is now the binding constraint on the update path**, because **C6** made the prompt unloseable and nothing makes it appear. A long-lived session on a phone still never re-checks. |
+| **M6** | minor | `fixed-in-<wave5>` | `onRegisteredSW` now installs two triggers in `src/main.tsx`: a 6-hour `setInterval` and a `visibilitychange → visible` handler floored at a 5-minute gap, both calling `registration.update()` with the rejection swallowed (it rejects when offline, which is the normal state this app is built for). The pair is deliberate — the interval covers a tab left visible on a second monitor all week, the visibility handler covers the phone that is opened once and lives in the app switcher, and neither alone reaches the other's session. Landed with **G5**, which is the other half: the prompt is now raised under `key: 'sw-update'`, so a tab that sees several deploys keeps **one** prompt updated in place instead of a growing pile of identical sticky ones. Fixing the re-check without the key would have made the pile the common case rather than the rare one. |
 | **M7** | minor | `open` | No `globPatterns`. Latent — the auditor diffed 51 precache entries against 51 files, zero missing — and Wave 4 has since added icon and splash assets, which moves it from latent towards live. Set it explicitly. |
 
 ---
@@ -262,7 +291,7 @@ blocker, and every major except **P2** is closed.
 - **[fixed-in-e4b9b62]** `[minor][polish] src/locales/ar/{entry,filter}.json` — **S5f** `health` = `"الحالة الصحية"` (medical register), one line from `entry.status` = `"الحالة"`. *Prescribed fix: `"مؤشر الحالة"`.*
 - **[fixed-in-e4b9b62]** `[minor][polish] src/locales/ar/{status,followups,entry}.json` — **S5g** `status.blocked` = `"محجوب"` reads as *access-blocked/censored* in Saudi usage. *(Auditor's text truncated before the proposed replacement — re-run for the wording.)*
 - **[open]** `[minor][pwa] vite.config.ts:49` — **M5** `navigateFallback: 'index.html'` with no denylist converts GitHub's 404 into a white screen under `/opstrack/` (`base: './'` makes the shell's module script resolve against the bogus path). — **CONFIRMED** mechanism; reach is genuinely low under HashRouter, but the SW strictly makes this worse than having none. *Prescribed fix: `navigateFallbackAllowlist: [/^\/opstrack\/(index\.html)?$/]`.*
-- **[open]** `[minor][pwa] src/main.tsx:66-88` — **M6** No `onRegisteredSW`, no periodic `registration.update()`, and HashRouter means every route change is a hashchange, not a navigation — so a long-lived session never re-checks. Compounds **C6**. *Prescribed fix: hourly `r.update()` + one on `visibilitychange → visible`.*
+- **[fixed-in-\<wave5\>]** `[minor][pwa] src/main.tsx:66-88` — **M6** No `onRegisteredSW`, no periodic `registration.update()`, and HashRouter means every route change is a hashchange, not a navigation — so a long-lived session never re-checks. Compounds **C6**. *Prescribed fix: hourly `r.update()` + one on `visibilitychange → visible`.* — Fixed as prescribed, with two deliberate departures. The interval is **6 hours**, not hourly: the visibility trigger is what actually catches the common case (deploy happened over lunch, phone unlocked, app resumed), and hourly refetches of the worker script on cellular buy nothing on top of it. And the visibility trigger carries a **5-minute floor**, because `visibilitychange` fires on every alt-tab and an app kept beside a mail client would otherwise refetch dozens of times an hour to learn nothing. Both constants are named at the call site.
 - **[open]** `[minor][pwa] vite.config.ts:47-59` — **M7** No `globPatterns`, so workbox's default `**/*.{js,wasm,css,html}` applies; the first `.woff2`/`.webp`/JSON imported into `dist/assets/` is silently left out of the precache, and an over-2 MiB chunk is dropped with a warning CI never reads (`index-*.js` is 498 KB today). Latent — auditor diffed 51 precache entries against 51 files, zero missing. *Prescribed fix: set it explicitly.*
 
 ---
@@ -329,32 +358,110 @@ reading directly even if RLS let you.
 
 ---
 
+## Wave-5 security lens — received 2026-07-30, recorded here at integration
+
+The Wave-4b security lens died before it reported; Wave 5 re-ran it against
+`c1b5138`. **It produced no file changes** — it is an audit, and under the hard
+rules an auditor reports and does not fix — so this section is the whole of its
+landing in the repo. Two things about how to read it.
+
+**What the integrator verified independently.** The lens opened by establishing
+ground truth for "as deployed now": it pulled all three edge-function eszips from
+the Management API, transpiled HEAD with the repo's own `typescript`, and compared
+normalised token streams — `claim-account`, `admin-members` and `send-push`
+deployed bodies are **HEAD, prefix-identical**, the differences being TS type
+erasure and transpiler cosmetics only. The version numbers it reported for that
+comparison were **re-queried at integration and match**:
+
+```
+admin-members        v12   ACTIVE     verify_jwt=True
+claim-account        v12   ACTIVE     verify_jwt=True
+send-push            v6    ACTIVE     verify_jwt=True
+```
+
+That matters beyond bookkeeping: the **S1** cluster's fixes live in
+`claim-account` and `admin-members`, and this file has said since the Wave-4b
+close that for those two files *deployment is the type check* because neither
+`tsc` nor `oxlint` sees them. v12/v12 is the evidence that the S1 dispositions
+above describe production and not just the repo.
+
+**What was received truncated.** The lens reported *"one high-severity finding …,
+one config finding, one correctness finding, plus residuals."* The handoff text
+that reached integration is cut off inside the high-severity item and never
+reaches the other two. **S5-1 is recorded below from what did arrive; the config
+and correctness findings are recorded as known-missing rather than invented.**
+This is the same failure mode as **S5g** above (an auditor's report truncated
+before its proposed wording) and the same treatment: write down the hole so that
+somebody goes and gets it, rather than letting a green wave imply there was
+nothing there.
+
+| Ref | Severity | Disposition | Note |
+| --- | --- | --- | --- |
+| **S5-1** | **high** | `open` — **owner decision, escalated** | The whole member directory is enumerable, unauthenticated, from the public anon key: `POST /auth/v1/recover` on the same host answers "does this username exist?" using only the anon key that ships in `dist/assets/index-*.js` **by design**. `claim-account` was rewritten in Wave 4b so that no caller could learn that (**S1a**); a sibling GoTrue endpoint on the same project answers it anyway. The bypass is at the **platform** level — there is no repo change that closes it, which is exactly why it is not fixed in this commit. |
+| **S5-2** | unknown | `open` — **not received** | The lens's config finding. Content did not reach integration. |
+| **S5-3** | unknown | `open` — **not received** | The lens's correctness finding. Content did not reach integration. |
+| **S5-R** | — | `open` — **not received** | "Residuals". |
+
+Everything the lens was told to attack and could not break is worth recording too,
+because a clean surface that nobody writes down gets re-audited every wave: the
+**claim/invite** flow, **push RLS**, **key hygiene**, **export**, the **bundle**,
+the **admin guard** and **notification forgery** all held under live probing.
+
+### Why S5-1 is not fixed here, and what fixing it would cost
+
+Three responses exist and the choice is the owner's, not the integrator's,
+because each spends something the owner picked on purpose:
+
+1. **Accept it.** A username is not a secret in the way a password is — it is
+   printed on the Members screen for every admin and typed by its owner on every
+   sign-in. What **S1a** actually bought was that a stranger cannot walk the
+   directory *through the claim flow*, and the claim flow still holds. The cost of
+   accepting is that the "no username oracle" property is a local one, not a
+   project-wide one, and this file should stop implying otherwise.
+2. **Turn the recover path off in Supabase auth config.** Closes the oracle, and
+   costs the owner the emailed sign-in link — which `README.md` documents as one
+   of exactly two ways the owner's own account gets in, and `ADMIN.md` documents
+   as the recovery path when a password is lost. Trading the owner's recovery path
+   for an enumeration property is not obviously the right trade and is certainly
+   not the integrator's trade to make.
+3. **Rate-limit or front it.** Real, and the most expensive: it means a proxy in
+   front of GoTrue, which this architecture (static PWA on GitHub Pages, no
+   server) does not have and was designed not to need.
+
+**No live auth setting was changed by this pass.** The lens probed read-only, and
+the integrator's remit is to land the wave's code, not to reconfigure the owner's
+project — a config change here would alter how a human being signs in, which is
+the owner's call to make with the tradeoff in front of him. Put S5-1 in front of
+Aziz with options 1–3 before v1.0.0 is called done.
+
+---
+
 ## What is still open, ranked
 
-Ten items, one major (**P2**) and nine minors. None is a blocker; the ranking
+Nine items, one major (**P2**) and eight minors. None is a blocker; the ranking
 is by what will hurt first, not by severity label.
 
-1. **M6** — nothing re-checks for a new version, so **C6**'s unloseable update
-   prompt is also an unreliable one. Cheapest real user-facing win in the list,
-   and the two halves of the update path are now split across a fixed item and
-   an open one, which is the worst place to leave it.
-2. **P3** — a paste of RTL-heavy text hangs the capture box. Arabic is a
+**M6 has left this list** — it was item 1, and Wave 5 closed it together with
+**G5**. The update path is now whole in both halves: the prompt cannot be evicted
+(**C6**), it cannot stack (**G5**), and something makes it appear (**M6**).
+
+1. **P3** — a paste of RTL-heavy text hangs the capture box. Arabic is a
    first-class locale; 331.8 ms at 20 000 marks, quadratic.
-3. **P8** — decide `entries.updated_by`: surface it (index + `Entry` field + UI)
+2. **P8** — decide `entries.updated_by`: surface it (index + `Entry` field + UI)
    or drop it and its stamp. It has been "deferred" for three waves, and the
    auditor's cheaper option (drop it, which also fixed **C1**) expired when
    `0007` fixed C1 the other way.
-4. **P2** — the title comparator, 11.4× on the measurement that survived
+3. **P2** — the title comparator, 11.4× on the measurement that survived
    scrutiny. Skip the activity half unless a profile disagrees.
-5. **M5**, **M7** — two `vite.config.ts` lines: the navigate-fallback allowlist
+4. **M5**, **M7** — two `vite.config.ts` lines: the navigate-fallback allowlist
    and an explicit `globPatterns`. M7 moved from latent towards live when Wave 4
    added icon and splash assets.
-6. **P4**, **P5** — quadratic Map cloning in staged batches; a hoist in
+5. **P4**, **P5** — quadratic Map cloning in staged batches; a hoist in
    `matchesSearch`. Both need a test that would notice the regression.
-7. **P7** — drop two unreachable GIN indexes and a standalone `(created_at
+6. **P7** — drop two unreachable GIN indexes and a standalone `(created_at
    desc)`. Reversible; the write cost is real and the read benefit is zero while
    filtering is client-side by design.
-8. **`STICKY-OFFSET`** — `.offline-region` sticks at `inset-block-start: 0`, the
+7. **`STICKY-OFFSET`** — `.offline-region` sticks at `inset-block-start: 0`, the
    same slot `.app-header` sticks in, and wins on `z-index` (65 vs 60). Now that
    the sticky actually travels (the Wave-4b audit moved it off `.offline-banner`,
    whose containing block was its own height — see the header of

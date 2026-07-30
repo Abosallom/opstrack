@@ -1,4 +1,4 @@
-# OpsTrack — Final Execution Plan (merged, critique-applied)
+# CoreTrack — Final Execution Plan (merged, critique-applied)
 
 **Document precedence, binding on every worker.** This document supersedes the three source designs. Where it is silent, `/Users/aziz/Claude/opstrack-prompt.md` (the 9-phase spec) governs *behaviour*, and the previously approved plan `/Users/aziz/.claude/plans/sparkling-wibbling-umbrella.md` governs *decisions already made*. No worker may rename, relocate, or re-shape anything in §2. A worker that believes a contract is wrong records the gap and hands it to the wave integrator; it does not edit another worker's file.
 

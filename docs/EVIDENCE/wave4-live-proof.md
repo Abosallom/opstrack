@@ -6,10 +6,19 @@ on 2026-07-30 against the live project in a real browser. A section is finished
 when its artifact block holds something a third party could re-derive without
 asking anyone a question.
 
+**[§9](#9-authenticated-proofs) was added later the same day by the Wave-5
+4b-G2 run**, against the deployed Pages bundle rather than the dev server. It
+closes what the GAP-6 pass could not reach without a second signed-in identity:
+the invite redemption, the **valid code accepted after wrong guesses** (§8's gap
+#1), `verifyCode()`'s legacy branch, reissue, the export, and the member's
+`403`/`42501`. Verdicts in §5 and §6 that §9 has since closed carry a pointer to
+it; the original verdict text is left standing so the record still shows what
+each pass did and did not do.
+
 **Sections still empty, and nobody should read them as passing:** §2 (the build
 gate), §3.2–3.5 (dependency order, duplicate suppression, two-device conflict,
-`last_activity_at` under a track move), §6.1–6.6 (keyboard, function redeploy,
-export round-trip, update prompt, web push, Capacitor). They carry a
+`last_activity_at` under a track move), §6.1, §6.2, §6.4–6.6 (keyboard, function
+redeploy, update prompt, web push, Capacitor). They carry a
 `NOT RUN BY THE GAP-6 PASS` verdict rather than a blank one, so an empty
 artifact block cannot be mistaken for a proven claim.
 
@@ -287,6 +296,19 @@ been deleted. So `zzprobe.pending` is the *only* row on this project whose
 digest is a bare pre-pepper SHA-256, and `verifyCode()`'s legacy branch has
 still never executed against live data. Deleting it retires that branch's only
 live witness. §8 #3.
+
+> **SUPERSEDED 2026-07-30 17:11Z — `zzprobe.pending` NO LONGER EXISTS.** The
+> Wave-5 4b-G2 run used it and then retired it per §7's cleanup instruction; see
+> [§9.4](#94-d-verifycodes-pre-pepper-legacy-branch--and-the-tag-that-gates-it).
+> Two things a future reader needs from that section rather than from this one.
+> **Its original invite code was never recorded and is unrecoverable** (40 bits),
+> so the fixture could only ever have proven that the legacy branch *rejects* —
+> §9.4 replaced the stored digest, by the same direct-metadata write that made
+> the fixture, in order to prove that it *accepts*, and says so. And the branch
+> is now proven together with its gate, so **the fixture's scarcity value is
+> spent**: no live account carries an untagged digest, and anyone who needs one
+> again should plant it deliberately rather than hunt for a survivor.
+> `zzprobe.claimed` is still present and still untouched.
 
 ### 1.3 Live data this pass changed, at a glance
 
@@ -1155,6 +1177,10 @@ against `Aziz` and only against `Aziz`, while the other three rows carry live
 
 > **Verdict** — `PARTIAL — create, list and delete are PROVEN through the app.
 > Reissue ("New code") was NOT exercised.`
+>
+> **CLOSED by [§9.2](#92-a-members--create-the-code-shown-once-reissue-and-the-old-code-dying).**
+> Reissue was exercised on the live bundle, the digest rotated
+> `7d7a592d → 5d5bf73b`, and the superseded code was shown to be dead.
 
 ### 5.2 A member cannot
 
@@ -1168,6 +1194,12 @@ against `Aziz` and only against `Aziz`, while the other three rows carry live
 > **Verdict** — `NOT RUN BY THE GAP-6 PASS`. It needs a signed-in non-admin
 > session, and that pass never authenticated as anybody but the existing admin
 > — see the note under §5.4.
+>
+> **CLOSED by [§9.6](#96-c-the-members-ceiling--what-a-claimed-non-admin-session-can-and-cannot-do).**
+> The Wave-5 run claimed a throwaway, held its session, and got both halves:
+> `403 {"code":"forbidden"}` from `admin-members` and `42501` from PostgREST on
+> a `vocab_options` insert, with the admin's identical insert succeeding as the
+> negative control.
 
 ### 5.3 The second admin
 
@@ -1229,6 +1261,17 @@ part S1a was actually about.
 > **Verdict** — `PARTIAL — the rejection half is PROVEN in §5.5 across four
 > distinct internal outcomes; issue → redeem → sign in → replay is NOT PROVEN,
 > by choice, and is the one thing in this ledger that needs a human.`
+>
+> **CLOSED by [§9.2.4](#924-the-claim-in-a-second-context-through-claim) and
+> [§9.3](#93-a-three-wrong-guesses-must-not-cost-a-member-their-account).** The
+> Wave-5 run redeemed **throwaway fixtures it created and then deleted** —
+> never a real member, never a real credential — through the app's own `#/claim`
+> screen and through the function. `invite_hash` went present → *key deleted*,
+> `claimed` false → true, `claimed_at` set, the replay returned the same
+> `403 invalid_invite` with digest `c00beebc…`, and the sign-in landed with
+> `amr: password`. The legacy branch of step 2 is [§9.4](#94-d-verifycodes-pre-pepper-legacy-branch--and-the-tag-that-gates-it),
+> which also explains why `zzprobe.pending` had to be rewritten before it could
+> be used, and why it no longer exists.
 
 Never paste an invite code or a password into this file. Paste the **first eight
 hex characters** of `invite_hash` and the response bodies; that is enough to show
@@ -1403,6 +1446,12 @@ It is the single most important unproven claim in this ledger, because it is the
 one whose failure locks a real person out of their own account. §8 carries it
 first.
 
+**It is no longer unproven. [§9.3](#93-a-three-wrong-guesses-must-not-cost-a-member-their-account)
+shows it on live data**: three wrong codes against a fresh throwaway
+(`claim_counters` at `username/w5probe2 n=3`, `ip n=4` when the good code
+arrived), then the valid code returning `200 {"ok":true,"username":"w5probe2"}`
+on the fourth request. Delay, never refusal — observed, not argued.
+
 ---
 
 ## 6. Gates (d), (f), (h), (i)
@@ -1452,6 +1501,14 @@ which only shows up the next time somebody provisions. RUNBOOK §4.1.
 > for the awkward field.
 > **Negative control** —
 > **Verdict** — `NOT RUN BY THE GAP-6 PASS`.
+>
+> **HALF-CLOSED by [§9.5](#95-b-the-export-as-admin-both-formats).** Both files
+> were produced from the live app by the admin and verified byte-for-byte — row
+> counts equal to the live counts relation by relation, the UTF-8 BOM, CRLF
+> termination, RFC-4180 escaping, Arabic intact, and the formula guard turning
+> `=cmd|'/c calc'!A0` into `'=cmd|…`. **The `re-import` half of this claim is
+> still NOT RUN** — nothing has read an export back in — so this section stays
+> open on the round trip, which is the part its wording is actually about.
 
 ### 6.4 (i) The update prompt
 
@@ -1513,7 +1570,7 @@ Every row this proof run created or changed, so the next person can undo it.
 | --- | --- | --- | --- | --- |
 | `meetings` | `3da06294-e945-4a84-bdef-30cbf73f42e0` | stale live meeting from the Wave-4 proof run, ended by the Wave-4b docs pass (§1.1) | yes | Wave 5 |
 | `meeting_lines` | `fb111b44-3118-4b98-aa48-ffa76320f13a` | its one untriaged line, left pending on purpose | yes | Wave 5, with the meeting |
-| `auth.users` | `zzprobe.pending@opstrack.internal` | claim-lifecycle fixture, and the **only** live carrier of a pre-pepper digest and a legacy metadata counter (§1.2) | yes — **do not delete before §5.4** | Wave 5, via the function's `delete` |
+| `auth.users` | `zzprobe.pending@opstrack.internal` | claim-lifecycle fixture, and the **only** live carrier of a pre-pepper digest and a legacy metadata counter (§1.2) | ~~yes — **do not delete before §5.4**~~ — **DONE: used by §9.4, then deleted 17:11Z, 0 rows in `auth.users` and `profiles`** | ~~Wave 5~~ — discharged |
 | `auth.users` | `zzprobe.claimed@opstrack.internal` | claim-lifecycle fixture (§1.2) | yes | Wave 5, via the function's `delete` |
 | `private.push_config` | the single `id = true` row | inserted 2026-07-30 12:15:45Z; holds `drain_secret`, which must match the `PUSH_DRAIN_SECRET` function secret | yes — **required for push to work at all** | permanent, not cleanup |
 
@@ -1545,6 +1602,14 @@ that and §5.4 explains why `zzprobe.pending` matters more than ever now: it is
 the only account left carrying a pre-pepper digest, and the throwaway that could
 have been compared against it has been deleted.
 
+> **True of the GAP-6 run; no longer true of the project.** The Wave-5 4b-G2 run
+> rewrote `zzprobe.pending`'s digest, redeemed it to exercise the legacy branch,
+> and deleted it — [§9.4](#94-d-verifycodes-pre-pepper-legacy-branch--and-the-tag-that-gates-it)
+> and [§9.8](#98-row-manifest-for-this-run). `zzprobe.claimed` is still
+> untouched. §9.8 also records the three accounts and two rows that run created
+> and removed, and the other Wave-5 workers' `w5sec.*` and `w5x.*` fixtures,
+> which are **not** this ledger's to clean up.
+
 ---
 
 ## 8. What this run could NOT prove
@@ -1560,7 +1625,7 @@ gap in the *record*, not a known defect:
 | The SLA override branch has never run live | `track_slas` is empty on this project; `resolveSlaDays()` has only ever taken the priority-default path against real data | §4 |
 | `claim_counters` has never been written to | migration `0010` is applied but the atomic bump — the whole of **S1c** — has not executed live | §5.5 |
 | Web push has never been delivered | `push_subscriptions` is 0, so the queue, the sender and the VAPID keys are plumbing that has been deployed and never exercised | §6.5 |
-| The pre-pepper legacy digest path | only `zzprobe.pending` carries an untagged digest, and it has not been redeemed | §5.4, before §7 cleanup |
+| ~~The pre-pepper legacy digest path~~ **CLOSED** | only `zzprobe.pending` carried an untagged digest, and it had not been redeemed | **§9.4** — branch and gate proven as a discriminating pair; the fixture is now deleted |
 | No history of who was an admin when | `config_audit` covers tracks, vocabulary and SLA overrides; `profiles.role` changes are not audited anywhere | a decision, not a proof — `ADMIN.md` states it plainly |
 | VAPID key generation and rotation | not written down; the private half is a function secret and the public half is compiled into the bundle, so a rotation is secret + rebuild + every device re-subscribing | whoever owns push, into RUNBOOK §4.1 |
 
@@ -1568,16 +1633,16 @@ gap in the *record*, not a known defect:
 
 | # | Gap | Why it is open | Lands on |
 | --- | --- | --- | --- |
-| 1 | **A valid code is still accepted after wrong guesses** — S1b's whole promise | needs a real redemption, which means creating a password. This pass stopped at that boundary on purpose (§5.4). It is the failure mode that locks a real person out of their own account, so it should be closed by hand before release | a human, ~2 min, steps in §5.4 |
-| 2 | The invite/claim happy path: issue → redeem → sign in → replay dies | same reason | same |
-| 3 | `verifyCode()`'s **legacy pre-pepper branch** has never run live | only `zzprobe.pending` carries an untagged digest, and redeeming it needs a password. Every account minted since is `hmac-sha256-v1` (§5.1), so this branch is one deletion away from being untestable forever | same session as #2 — and **do not delete `zzprobe.pending` first** |
+| 1 | ~~**A valid code is still accepted after wrong guesses** — S1b's whole promise~~ **CLOSED** | needs a real redemption, which means creating a password. This pass stopped at that boundary on purpose (§5.4) | **§9.3** — three wrong guesses then `200 {"ok":true}` on a throwaway that was afterwards deleted |
+| 2 | ~~The invite/claim happy path: issue → redeem → sign in → replay dies~~ **CLOSED** | same reason | **§9.2.4** through the app's `#/claim`, `amr: password`; replay returns the shared `c00beebc…` body |
+| 3 | ~~`verifyCode()`'s **legacy pre-pepper branch** has never run live~~ **CLOSED** | the fixture's own code was never recorded and is unrecoverable, so §9.4 planted a known digest by the same direct write that made the fixture, and proved the branch **and its `invite_alg` gate** as a discriminating pair | **§9.4**. `zzprobe.pending` is now deleted; no live account carries an untagged digest |
 | 4 | Latency indistinguishability is coarse, not statistical | single-sampled wall clock over the public internet; a cold start made probe A 2 s slower than B/C/D, which is a function effect but does muddy the measurement (§5.5) | Wave 5, if a constant-time claim is wanted in writing |
 | 5 | Mid-meeting tab kill with the sequence continuing at `seq 11` | recovery from a cold reload is proven (§3A.2); the kill *during* an open meeting is not. Proving it means reopening the meeting whose minutes §3A.4 hashes, or staging a scratch meeting | Wave 5, on a scratch meeting |
 | 6 | The **installed PWA** offline, from cache, in real airplane mode | §3.1 ran in a browser tab with the transport hard-failed. That is stricter at the network layer but says nothing about the service worker serving the shell with no server at all | Wave 5, on a real device |
 | 7 | The outbox **discard** path | §3.1 queued two and flushed two; nothing was discarded, so "discard leaves no row" is untested live | Wave 5 |
 | 8 | §3.2–3.5 entirely: temp-id rewriting, duplicate suppression across an interrupted drain, two-device last-write-wins, `last_activity_at` under a track move | this pass queued two creates and no updates, never interrupted a drain, and ran as one signed-in user | Wave 5 |
-| 9 | §5.2, §5.3 — the member's `403`, the `42501`, and the second admin | all three need a second signed-in session | Wave 5, after #2 gives it one |
-| 10 | §2 the build gate, §6.1–6.4, §6.6 | not attempted; the pass never left the dev server | Wave 5 |
+| 9 | §5.2 ~~the member's `403` and the `42501`~~ **CLOSED**; **§5.3 the second admin still open** | §5.2 needed a second signed-in session and now has one. §5.3 needs an account promoted to `profiles.role = 'admin'`, which §9 would not do to a throwaway on a live workspace | §5.2 → **§9.6**. §5.3 → Wave 5, with the owner's say-so |
+| 10 | §2 the build gate, §6.1, §6.2, §6.4, §6.6 | not attempted; the pass never left the dev server. §6.3 is half-closed by **§9.5** (both files produced and verified; re-import still not run), and §9 did run against the deployed Pages bundle — see §9.1 | Wave 5 |
 | 11 | Web push (§6.5) | untouched. `push_subscriptions` is still 0 | Wave 5 |
 | 12 | **Screenshots are described but not filed** | the automation pane in use returned unstable region captures, so §3.1/§3A/§4 use verbatim DOM text and SQL instead of PNGs. That is arguably the better artifact — a hash-checkable string beats an image nobody re-reads — but `shots/` has no new files and §0.2's "described screenshot" is only half-satisfied | noted, not scheduled |
 
@@ -1592,9 +1657,850 @@ wrote them up (§3A, §4A) rather than staging duplicates. The lesson for Wave 5
 that ends without its artifacts leaves the next person unable to tell a finished
 feature from an abandoned one.
 
+**§9 took that lesson and hit the next version of the same problem.** It wrote
+its evidence in the sitting — and found that *two other agents were writing to
+the live project at the same time*, one of which revoked its admin session
+twice and ended up holding 22 of the 27 `claim_counters` rows. Nothing in §9
+rests on a number it did not read itself, but its surrounding counts are not
+reproducible, and its timing evidence is weaker than §5.5's for the same reason.
+[§9.9](#99-what-section-9-could-not-prove) carries it as a process finding:
+**live-writing proof agents should be serialised**, or each one should work on
+fixtures whose names it owns and quote no total it did not cause.
+
 ---
 
-## 9. Where the rest of the record lives
+## 9. Authenticated proofs
+
+**Wave 5, task 4b-G2, run 2026-07-30 16:39Z–17:13Z.** The Wave-4b critic's G2 was
+that *every authenticated live surface is unproven*: the GAP-6 pass never signed
+in as anybody but the existing admin, never redeemed an invite, never exported a
+file and never held a member's session, so §5.2, §5.3, §5.4, §6.3 and all four
+S1b/S1e follow-ups were assertions with no artifact under them. This section
+closes that list against the **live GitHub Pages bundle**, not the dev server,
+and it is written in the same sitting as the actions — which is the process
+lesson §8 ended on.
+
+What it settles, in the order the reader probably cares about:
+
+| | Was | Now |
+| --- | --- | --- |
+| **A member holding a real code always gets in, however often they mistyped it** — §8 gap **#1**, "the single most important unproven claim in this ledger" | never run live | **PROVEN** — §9.3 |
+| The invite/claim happy path: issue → redeem → sign in → replay dies — §8 gap **#2** | never run live | **PROVEN** — §9.2, §9.3 |
+| `verifyCode()`'s pre-pepper **legacy branch** — §8 gap **#3** | never executed outside a unit test | **PROVEN, with the gate as its negative control** — §9.4 |
+| Reissue ("New code") — §5.1's `PARTIAL` | not exercised | **PROVEN, and the old code is dead** — §9.2.2/§9.2.3 |
+| §5.2 the member's `403` and `42501` — §8 gap **#9** | needed a second session | **PROVEN** — §9.6 |
+| §6.3 (h) the export | `NOT RUN` | **PARTIAL — both formats produced and verified byte-for-byte; the re-import half is still not run** — §9.5 |
+
+### 9.0 Fingerprint, and three things stated before any claim
+
+```
+Repo HEAD          c1b5138  feat(brand): rename OpsTrack to CoreTrack …
+Working tree       DIRTY — other Wave-5 agents' in-flight edits to .env.example,
+                   ADMIN.md, README.md, RUNBOOK.md, workflows, shots/*.png.
+                   Nothing in this section depends on uncommitted code: every
+                   artifact below came from the deployed bundle or the live API.
+Pages deploy       run 30560463164, success, 2026-07-30T16:13:23Z, main @ c1b5138
+Live entry chunk   https://abosallom.github.io/opstrack/assets/index-D5iltHie.js
+                   (fetched from the live index.html, and the same file the tab
+                   under test actually loaded — see §9.1)
+Live <title>       CoreTrack — Multi-Track Action Tracker
+Edge functions     admin-members v12 · claim-account v12 · send-push v6
+                   all ACTIVE, all verify_jwt: true
+PostgreSQL         17.6
+Auth config        site_url https://abosallom.github.io/opstrack/ ·
+                   disable_signup true · mailer_autoconfirm false · mailer_otp_exp 600
+```
+
+Row counts at the two ends of the run:
+
+```
+open  16:39Z  entries 20 · entry_updates 6 · tracks 6 · vocab_options 17 · track_slas 1
+              meetings 2 · meeting_lines 11 · recurring_templates 1 · notifications 7
+              profiles 3 · claim_counters 5
+close 17:13Z  entries 20 · entry_updates 6 · tracks 6 · vocab_options 17 · track_slas 1
+              meetings 2 · meeting_lines 11 · recurring_templates 1 · notifications 8
+              profiles 8 · claim_counters 27
+
+re-read 17:21Z (this run idle, cleanup already verified):
+              entries 20 · notifications 8 · profiles 14 · claim_counters 28
+```
+
+**Read the two right-hand columns as a demonstration, not as noise.** `entries`
+and `notifications` are identical eight minutes apart because this run put back
+everything it took. `profiles 8 → 14` in the same eight minutes is another
+agent's six new fixtures, and it is the reason every count in this section is
+stamped with the clock time it was read at.
+
+**`entries` opens and closes at 20, which is the point** — everything this run
+created, it removed (§9.8). `profiles 3 → 8` and `claim_counters 5 → 27` are
+**not** this run; they are the first honesty note.
+
+**Honesty note 1 — this project had other agents writing to it the whole time,
+and the record has to say so.** Between 16:43:17Z and 16:43:27Z a concurrent
+Wave-5 worker created **six** `w5sec.*` accounts; by 17:13Z it held 22 of the 27
+`claim_counters` rows and a third agent held 2 more (`zzcritic.*`). A minute
+after this run closed, at 17:14:41–17:14:52Z, a **third** batch of six
+(`w5x.pending`, `w5x.claimed`, `w5x.noinv`, `w5x.expired`, `w5x.mem1`,
+`w5x.mem2`) landed from another worker again.
+
+Something in that traffic also **signed out globally at least twice, revoking
+this run's admin session mid-flight.** The shape it took is worth recording,
+because it is not the shape anybody expects: the same unexpired JWT was still
+*accepted* by PostgREST and *refused* by GoTrue.
+
+```
+GET  /auth/v1/user           -> HTTP 403
+POST /functions/v1/admin-members {"action":"list"}
+                             -> HTTP 401 {"error":"Not signed in","code":"not_signed_in"}
+GET  /rest/v1/profiles?select=id,display_name,role
+                             -> HTTP 200, rows returned normally
+```
+
+PostgREST verifies a signature and an expiry and does not consult a session
+row, so a revoked session keeps reading until its access token ages out —
+the same asymmetry §9.7 hits from the other direction with a **deleted** user.
+
+Three admin sessions were therefore minted over the run. Consequences for what
+follows: **every timing below shares its per-address counter bucket with another
+agent's probes**, so the delays are corroborating rather than calibrating; and
+every count is stated with the clock time it was read at rather than as a
+standing fact.
+
+**Honesty note 2 — how the admin got in, and what was never touched.** The admin
+session is a real magic-link sign-in: `POST /auth/v1/admin/generate_link`
+(`type: magiclink`, `redirect_to` the Pages origin) with the service key, then
+the browser navigated to the returned `action_link`. The resulting token's
+claims, verbatim from the tab:
+
+```json
+{"sub":"397d3122-7e3c-4046-ab4d-b45d154c7ac4","email":"az.alsaloom@gmail.com",
+ "role":"authenticated","aal":"aal1","amr":[{"method":"otp","timestamp":1785429582}]}
+```
+
+`amr: otp` — a one-time-code sign-in, which is what the Members screen calls
+"Signs in by email code". **No real user's password was handled at any point.**
+The only passwords in this run are 24-character random strings generated for
+throwaway fixtures, typed once, and destroyed with the accounts in §9.7; none of
+them, and no invite code, appears in this file.
+
+**Honesty note 3 — one fixture was rewritten before it was used, deliberately.**
+§9.4 explains why `zzprobe.pending`'s stored digest had to be replaced before the
+legacy branch could be exercised, and what that does and does not prove. It is
+called out here so nobody meets it as a surprise.
+
+### 9.1 The surface under test is the live bundle — and it took work to make that true
+
+> **Claim** — the screens below are the ones GitHub Pages serves at `c1b5138`,
+> not a stale cache and not a dev server.
+> **Method** — open the Pages origin, read the loaded module URL and the service
+> worker state, compare against the live `index.html`.
+
+**Artifact — the trap, first.** The first load of the tab served a bundle the
+site no longer ships:
+
+```
+loaded module   https://abosallom.github.io/opstrack/assets/index-Ch73ifKc.js
+service worker  https://abosallom.github.io/opstrack/sw.js  (active)
+caches          ["workbox-precache-v2-https://abosallom.github.io/opstrack/"]
+document.title  "Follow-ups · OpsTrack"
+```
+
+while the live `index.html`, fetched over curl in the same minute, already read:
+
+```html
+<title>CoreTrack — Multi-Track Action Tracker</title>
+<meta name="apple-mobile-web-app-title" content="CoreTrack" />
+<script type="module" crossorigin src="./assets/index-D5iltHie.js"></script>
+```
+
+and the console was carrying the failure that goes with a stale precache —
+chunks the new deploy no longer publishes:
+
+```
+[error] TypeError: Failed to fetch dynamically imported module:
+        https://abosallom.github.io/opstrack/assets/Members-BzenucZz.js   (×2)
+[error] [ErrorBoundary] TypeError: Failed to fetch dynamically imported module: … (×2)
+```
+
+**Artifact — after unregistering 1 service-worker registration, deleting 1 cache
+and reloading:**
+
+```
+loaded module   https://abosallom.github.io/opstrack/assets/index-D5iltHie.js
+service worker  null
+document.title  "Members · CoreTrack"
+```
+
+**Negative control** — the discriminator is the chunk hash, and it moved:
+`index-Ch73ifKc.js` → `index-D5iltHie.js`, the second matching the live
+`index.html` byte-for-byte. A proof that could not tell those apart would have
+reported "OpsTrack" as the live product name and been wrong.
+
+> **Verdict** — `PROVEN`. Everything from §9.2 onward ran on
+> `index-D5iltHie.js`. **Two findings fall out of it and belong to other
+> sections:** the CoreTrack rename (WAVE5-NOTES §1) is confirmed live in the
+> document title, the PWA meta and `t('app.name')`; and an installed client
+> holding the previous precache greets the new deploy with a hard chunk-load
+> failure caught by the ErrorBoundary — which is exactly the case §6.4's update
+> prompt exists for, and it did raise its sticky toast ("A new version is
+> available. / Reload"), still visible over every screenshot in this section.
+
+### 9.2 (a) Members — create, the code shown once, reissue, and the old code dying
+
+#### 9.2.1 Create, through the app's own Members screen
+
+> **Claim** — an admin creates an account from `#/settings/members` and is shown
+> a one-time code the server does not keep.
+> **Method** — **Add member** → username `w5probe`, display name `W5 Probe
+> Claim`, role Member → **Create and issue code**.
+
+**Artifact — the panel, verbatim:**
+
+```
+One-time invite code
+For ⁨w5probe⁩
+<code redacted — §5.4's rule>
+Expires ⁨13/08/2026, 19:42⁩
+This is the only time this code is readable. Read it out or write it down now —
+the server keeps no copy, so there is no way to show it again. If it is lost,
+issue a new one.
+Copy   I've written it down
+```
+
+**Artifact — and Postgres:**
+
+```json
+[{"id":"b55a4dba-9037-4eab-a936-eea62467b961",
+  "email":"w5probe@opstrack.internal","username":"w5probe",
+  "claimed":"false","hash8":"7d7a592d","alg":"hmac-sha256-v1",
+  "issued":"2026-07-30T16:42:33.541Z",
+  "display_name":"W5 Probe Claim","role":"member",
+  "created_at":"2026-07-30 16:42:33.717481+00"}]
+```
+
+#### 9.2.2 Reissue — the action §5.1 recorded as `NOT exercised`
+
+> **Claim** — **New code** rotates the stored digest and says so before it does it.
+> **Method** — **New code** on the `w5probe` row, then confirm.
+
+**Artifact — the confirmation, verbatim:**
+
+```
+Issue a new code?
+W5 Probe Claim's current code stops working immediately and a new one is shown
+once. This is also how a password reset works — a username account has no email
+to send one to.
+Cancel   New code
+```
+
+**Artifact — the digest rotated, and only the digest:**
+
+| | before | after |
+| --- | --- | --- |
+| `invite_hash` (first 8) | `7d7a592d` | **`5d5bf73b`** |
+| `invite_alg` | `hmac-sha256-v1` | `hmac-sha256-v1` |
+| `invite_issued_at` | `2026-07-30T16:42:33.541Z` | **`2026-07-30T16:43:49.987Z`** |
+
+**A cosmetic defect, recorded because it is exactly the kind of thing a proof
+run exists to catch.** The new panel read `Expires ⁨13/08/2026, 19:43⁩` while the
+member row underneath it still read `Expires ⁨13/08/2026, 19:42⁩` — the previous
+code's expiry — until the list was refetched, after which the row agreed. The
+reissue response updates the code panel but not the cached member row. Nothing
+is wrong in the database; an admin reading the row for two minutes after a
+reissue is reading a stale minute. Small, real, and one refresh from fixed.
+
+#### 9.2.3 The old code is dead
+
+> **Claim** — the code the reissue replaced no longer redeems.
+> **Method** — `POST {SUPABASE_URL}/functions/v1/claim-account` with the public
+> anon key, `{username: "w5probe", inviteCode: <code A>, password: <24 chars>}`.
+
+**Artifact:**
+
+```
+old-code-after-reissue  status=403  time=1.286766s
+sha256(body) = c00beebc5e1a4aeb03969b4bd4633708865889410a0ecc0476df91553b748141
+body = {"error":"That invite code is wrong, already used, or expired","code":"invalid_invite"}
+```
+
+The digest is **byte-identical to §5.5's shared failure body**, which is the
+S1a property holding across a new internal state ("superseded invite") that
+§5.5 never produced.
+
+**Negative control** — the same request shape, the same account, the same
+script, differing only in which code string it carried: code **B** was accepted
+(§9.2.4). A probe that answered `403` to both would prove nothing about
+reissue; this one discriminates.
+
+> **Verdict** — `PROVEN`. Create, list, reissue and delete are now all exercised
+> through the app, closing §5.1's `PARTIAL`.
+
+#### 9.2.4 The claim, in a second context, through `#/claim`
+
+> **Claim** — issue → hand over → claim → signed in, in the browser, as somebody
+> other than the admin.
+> **Method** — cleared the admin session from the Pages origin and reloaded into
+> `#/claim` (an unauthenticated context on the same live bundle); typed username
+> `w5probe`, code **B**, and a generated 24-character password twice.
+
+**Artifact — the form's own validation, before submit:**
+
+```
+Password strength: Strong
+Both passwords match.
+```
+
+**Artifact — the session the app ended up holding.** `Claim account` swapped the
+route out for the shell, unprompted, and the token in storage was no longer the
+admin's:
+
+```json
+{"email":"w5probe@opstrack.internal",
+ "sub":"b55a4dba-9037-4eab-a936-eea62467b961",
+ "session_id":"16e7cfa4-14f6-4af5-ae39-83451aa1d23b",
+ "amr":[{"method":"password","timestamp":1785431283}]}
+```
+
+`amr: password` — the claim really did set a password and really did sign in
+with it, which is the half §5.4 stopped short of.
+
+**Artifact — the metadata moved exactly as §5.4 predicted:**
+
+```json
+[{"claimed":"true","claimed_at":"2026-07-30T17:08:02.039Z",
+  "has_hash":false,"alg":null,
+  "last_sign_in_at":"2026-07-30 17:08:03.090165+00","has_pw":true}]
+```
+
+`has_hash: false` is `raw_user_meta_data ? 'invite_hash'` — the key is **deleted,
+not blanked**, so there is no longer a value to compare a replayed code against.
+
+> **Verdict** — `PROVEN`. §8 gap #2 is closed.
+
+### 9.3 (a) Three wrong guesses must not cost a member their account
+
+This is §8's gap **#1** and the reason it was listed first: it is the only
+failure mode in the ledger whose consequence is *a real person locked out of
+their own account by an attacker, or by their own typing.*
+
+> **Claim** — after wrong guesses, the **valid** code is still accepted. The
+> counter buys delay and nothing else; it never invalidates.
+> **Method** — a **fresh** throwaway with an outstanding invite, three wrong
+> codes in a row, then the real one. Each request timed; `claim_counters` read
+> between the phases. Fresh matters: a bucket that already had history could not
+> distinguish "backoff" from "the account was already burned".
+
+**The fixture.** `w5probe2` / `W5 Probe Backoff`, created 16:49:58Z through
+`admin-members` v12 with the admin's live browser JWT:
+
+```json
+{"ok":true,"id":"2c3d636c-80f9-4f54-b531-676e8032350a","username":"w5probe2",
+ "displayName":"W5 Probe Backoff","role":"member",
+ "inviteCode":"<captured, not printed>","expiresAt":"2026-08-13T16:49:59.437Z"}
+```
+
+*(Through the function rather than the screen: the shared browser pane was being
+navigated out from under this run by a concurrent agent. It is the same endpoint
+the Members screen calls, with the same session token; the screen path itself is
+proven in §9.2.1.)*
+
+**Artifact — the four requests. T0 = 16:50:54Z.**
+
+| # | code | status | body | wall clock |
+| --- | --- | --- | --- | --- |
+| 1 | `AAAA-BBB1` | `403` | `{"error":"That invite code is wrong, already used, or expired","code":"invalid_invite"}` | 1.073 s |
+| 2 | `CCCC-DDD2` | `403` | *identical* | 1.055 s |
+| 3 | `EEEE-FFF3` | `403` | *identical* | 1.594 s |
+| 4 | **the issued code** | **`200`** | **`{"ok":true,"username":"w5probe2"}`** | 2.130 s |
+
+**The valid code was accepted on the fourth request, after three failures.**
+
+**Artifact — `claim_counters` between phase 3 and phase 4, so the delay is
+attributable rather than asserted:**
+
+```json
+[{"scope":"username","bucket":"w5probe2","n":3,"window_start":"2026-07-30 16:50:55.946298+00"},
+ {"scope":"ip","bucket":"59baf64ee65135ec1fd41a9d1af26357ca4de07a","n":4,"window_start":"2026-07-30 16:50:55.93628+00"}]
+```
+
+Both dimensions were live and non-zero when the good code arrived. It was not
+accepted because the throttle was asleep.
+
+**Reading the curve against the source.** `delay = backoffMs(max(userCount,
+ipCount))` with the counters read *before* the bump, `FREE_ATTEMPTS = 2`,
+`BACKOFF_BASE_MS = 250`. Attempts 1–2 are free and land at ~1.06 s, which is the
+round trip. Attempt 3 sees `max(2, 3) = 3` → 250 ms; observed +0.54 s. Attempt 4
+sees `max(3, 4) = 4` → 500 ms, plus the password write and the profile read that
+only the success path does; observed +1.07 s. Directionally exact, numerically
+coarse — see the limits below.
+
+**Artifact — the post-conditions:**
+
+```json
+[{"claimed":"true","claimed_at":"2026-07-30T16:51:06.034Z",
+  "has_hash_key":false,"hash":null,"alg":null,"fail":null,
+  "has_pw":true,"email_confirmed_at":"2026-07-30 16:51:06.340743+00"}]
+```
+
+and the username bucket is **gone**, which is `claim_reset()` doing the hygiene
+its comment claims:
+
+```
+select scope,bucket,n,window_start from public.claim_counters
+where bucket='w5probe2' or scope='ip';
+[]
+```
+
+*(The `ip` row is absent from that read too — its 15-minute window had rolled
+between the statements. `claim_reset` is `delete … where scope = $1 and bucket =
+$2`, so it can only ever have removed the username row; the address bucket is
+left alone by design, and it reappears at `n = 4` in §9.8's closing read.)*
+
+**Artifact — and the code is single-use.** Replaying the *valid* code
+immediately after:
+
+```
+replay-valid-code  status=403  time=1.262142s
+sha256(body) = c00beebc5e1a4aeb03969b4bd4633708865889410a0ecc0476df91553b748141
+```
+
+Same digest as every other rejection. "Already claimed" is not distinguishable
+from "wrong code".
+
+**Negative control** — the three wrong guesses *are* the control: the identical
+request shape, against the identical account, inside the same 12 seconds,
+returned `403` three times and then `200` once. The only variable was the code
+string. And the counters prove the throttle had engaged rather than being
+bypassed.
+
+**Honest limits.** Single-sampled wall clock over the public internet to
+`ap-northeast-2`, from one machine, and — worse than §5.5's caveat — the address
+bucket was **shared with a concurrent agent's probes** throughout, so `ipCount`
+was moving for reasons this run did not control. The timings support "delay
+grew, capped, and never refused"; they are not a calibration of the curve and
+must not be quoted as one. §8 gap #4 stands.
+
+> **Verdict** — `PROVEN`, and it is the headline of this section: **a member
+> holding a real code gets in after wrong guesses.** S1b's promise is now
+> observed behaviour on live data. §8 gap #1 is closed.
+
+### 9.4 (d) `verifyCode()`'s pre-pepper legacy branch — and the tag that gates it
+
+> **Claim** — a digest stored **without** an `invite_alg` tag verifies against
+> the bare pre-pepper SHA-256; the same digest **with** the tag does not.
+> **Method** — see below; this one needs its method explained before its result.
+
+**Why the fixture had to be rewritten, and what that costs.** §1.2 kept
+`zzprobe.pending` alive as "the only live carrier of a pre-pepper digest". It
+was found intact:
+
+```json
+[{"hash8":"3e498220","alg":null,"issued":"2026-07-30T06:53:00.940477Z",
+  "legacy_fail":"10","claimed":"false"}]
+```
+
+but **its invite code was never written down anywhere**, and the digest is a
+SHA-256 of an 8-character code drawn from a 32-symbol alphabet — 40 bits, which
+is not recoverable. As found, the fixture could prove that the branch *rejects*,
+never that it *accepts*. So this run replaced the stored digest with one it knew
+the preimage of, **using the same direct-metadata write that created the fixture
+in the first place** (§1.2: "their metadata was written directly"). Planted
+digest prefix: `ace86f78`.
+
+**What that does not prove:** that this specific historical account's original
+code still worked. Nothing can prove that now. **What it does prove**, and what
+the branch is actually about: that the code path keyed on `invite_alg === null`
+executes against live data, accepts a bare SHA-256, and is unreachable for a
+peppered invite. Those are the properties `verifyCode()` claims.
+
+**Artifact — the discriminating pair. Identical account, identical stored
+digest, identical submitted code. The only difference is one metadata key.**
+
+```
+① invite_alg = "hmac-sha256-v1"   (tag present, digest is the bare SHA-256)
+   legacy-code-TAGGED     status=403  time=1.337257s
+   sha256(body) = c00beebc5e1a4aeb03969b4bd4633708865889410a0ecc0476df91553b748141
+   body = {"error":"That invite code is wrong, already used, or expired","code":"invalid_invite"}
+
+② invite_alg key DELETED           (untagged — the true legacy shape)
+   legacy-code-UNTAGGED   status=200  time=1.377084s
+   sha256(body) = 2e9f5003c38028b40bc79574a292c34475514f301f17a4b207473c4c2845552d
+   body = {"ok":true,"username":"zzprobe.pending"}
+```
+
+State between the two, showing the tag was the only thing that moved:
+
+```json
+①  [{"hash8":"ace86f78","alg":"hmac-sha256-v1","legacy_fail":"10"}]
+②  [{"hash8":"ace86f78","has_alg_key":false,"alg":null,"legacy_fail":"10"}]
+```
+
+**Negative control** — ① *is* the negative control, and it is the stronger half
+of this proof. The source says the legacy branch "is gated on the tag rather
+than tried universally so a peppered invite can never be verified by the weaker
+digest." ① is that sentence made falsifiable: had the branch been tried
+universally, ① would have returned `200`.
+
+**Artifact — the bonus §1.2 asked for: a stale metadata counter must not throttle
+anybody.** `zzprobe.pending` carried v2's `claim_fail_count: 10` — the old hard
+ceiling — throughout, and the claim in ② succeeded anyway. The success write
+then **deleted** the key rather than zeroing it, which is S1d landing on live
+data:
+
+```json
+[{"claimed":"true","claimed_at":"2026-07-30T16:53:19.485Z",
+  "has_hash":false,"has_legacy_fail":false,"has_pw":true}]
+```
+
+> **Verdict** — `PROVEN` for the branch's behaviour and its gate;
+> `NOT PROVEN, and now unprovable` for "the original 06:53Z fixture's own code
+> still redeemed", because its preimage was never recorded. §8 gap #3 is closed
+> on the property and closed-as-impossible on the artefact. The fixture is
+> deleted (§9.7); **no live account carries an untagged digest any more**, so a
+> future run wanting this branch must plant one the same way and say so.
+
+### 9.5 (b) The export, as admin, both formats
+
+> **Claim** — the JSON and CSV downloads contain exactly the rows the account may
+> read, and the CSV neutralises a cell a spreadsheet would execute.
+> **Method** — signed in as admin on the live bundle, `#/settings/export`,
+> **Download JSON** then **Download CSV**.
+
+**How the bytes were obtained, stated plainly.** Downloads do not reach disk in
+this automation pane — `~/Downloads` was unchanged before and after, while the
+app's own result line reported success:
+
+```
+Exported 73 rows.
+Saved as ⁨opstrack-export-2026-07-30-1955.json⁩.
+```
+
+So the **Blob handed to the download anchor** was captured by hooking
+`URL.createObjectURL` before the click, and hashed from its raw bytes. That is
+the same object the browser would have written to disk; what is *not* proven
+here is the browser's file-writing step and the filename landing on a real
+filesystem.
+
+**Artifact — the two files.**
+
+```
+application/json;charset=utf-8   46346 bytes   first byte 0x7B  '{'
+  sha256 = f8be5668247a769f18879c1cb866fb6074c14ae775db0f19bc8a63331f0e56e5
+
+text/csv;charset=utf-8            7615 bytes   first bytes EF BB BF  (UTF-8 BOM)
+  sha256 = bf6ce53a72e6b14b3574ef8e9d268ea9434b93f69a8953dbd7dd7bfa42ad6ea1
+```
+
+The CSV's leading `EF BB BF` is `CSV_BOM` surviving to the file — the thing
+without which Excel on Windows renders every Arabic string as mojibake.
+
+**Artifact — the envelope, and the row counts against the database.**
+
+```json
+{"format":"opstrack-export","version":1,
+ "exportedAt":"2026-07-30T16:59:00.615Z","locale":"en","appVersion":"0.1.0",
+ "truncated":[],
+ "counts":{"tracks":6,"vocab_options":17,"track_slas":1,"entries":21,
+           "entry_updates":6,"meetings":2,"meeting_lines":11,
+           "recurring_templates":1,"notifications":8},
+ "total":73}
+```
+
+Live, read about a minute later:
+
+```json
+[{"tracks":6,"vocab_options":17,"track_slas":1,"entries":21,"entry_updates":6,
+  "meetings":2,"meeting_lines":11,"recurring_templates":1,
+  "notif_all":8,"notif_admin":8,"notif_others":0}]
+```
+
+**Every relation matches, and `truncated` is empty**, so no read hit the
+1000-row page cap. `total: 73` matches the UI's "Exported 73 rows".
+
+**A discrimination this artifact does NOT make, said out loud.** The screen
+promises "you get yours, and nobody else's" for notifications, and `notifications
+8` matches the live table exactly — but only because **all 8 live notifications
+belong to the admin** (`notif_others: 0`). This export therefore cannot tell a
+correctly-narrowed read from an unnarrowed one. That claim is proven separately
+and properly in §9.6, where a member asks for another user's notifications and
+gets nothing.
+
+**Artifact — the CSV structure.**
+
+```
+BOM present                     true
+ends with CRLF (last record)    true
+header fields                   23
+records                         1 header + 21 data   ( = counts.entries )
+header  id,title,description,type,status,priority,track,track_id,owner,owner_id,
+        owner_name,requester,due_date,follow_up_date,tags,links,created_at,
+        updated_at,closed_at,last_activity_at,created_by,meeting_id,template_id
+```
+
+**Artifact — the formula guard.** One entry was created for this test,
+`10bf0abe-1070-4d41-b965-2bc14729abb9`, carrying every hazard the writer claims
+to handle. In the database:
+
+```json
+{"title":"=cmd|'/c calc'!A0, \"quoted\" وعربي",
+ "description":"line one\nline two, with a comma",
+ "owner_name":"+15551234567",
+ "tags":["@sum(1,2)","-5","ZZ-CSVGUARD"]}
+```
+
+In the CSV, verbatim, as one record:
+
+```
+10bf0abe-1070-4d41-b965-2bc14729abb9,"'=cmd|'/c calc'!A0, ""quoted"" وعربي","line one
+line two, with a comma",action,new,medium,PMO,a40a9749-c6ea-41d6-a9dc-dd93c8f356bf,'+15551234567,,'+15551234567,,,,"'@sum(1,2); -5; ZZ-CSVGUARD",,2026-07-30T16:54:47.02101+00:00,2026-07-30T16:54:47.02101+00:00,,2026-07-30T16:54:47.02101+00:00,397d3122-7e3c-4046-ab4d-b45d154c7ac4,,
+```
+
+Five separate behaviours, each observable in those bytes:
+
+1. **`=` is neutralised** — `=cmd|…` arrives as `'=cmd|…`. A DDE payload in a
+   title reaches the reader as text.
+2. **`+` is neutralised too** — `+15551234567` arrives as `'+15551234567`, in
+   both the `owner` and `owner_name` columns. A phone number is the realistic
+   way `FORMULA_LEAD` gets hit in this product.
+3. **RFC 4180 quoting is correct** — the comma in the title forces quotes, and
+   the embedded `"` characters are **doubled**.
+4. **The embedded newline survives inside a quoted field** and does not
+   terminate the record — the record above spans two physical lines and is still
+   one CSV row, which is why the file parses to 21 data records and not 22.
+5. **Arabic survives** the BOM + UTF-8 round trip: `وعربي` is intact.
+
+One nuance worth stating so nobody reads it as a miss: the tags cell is
+`"'@sum(1,2); -5; ZZ-CSVGUARD"` — the guard applied **once, to the joined
+cell**, on its leading `@`. The `-5` inside is not separately prefixed, and must
+not be: only a cell's *first* character reaches the spreadsheet's formula
+parser.
+
+> **Verdict** — `PARTIAL — PROVEN` that both formats are produced by the live
+> app, that the JSON row counts equal the live counts relation by relation, that
+> the CSV carries its BOM and CRLF discipline, and that the formula guard and
+> RFC-4180 escaping hold against a hostile title. **NOT PROVEN:** §6.3's
+> *re-import* half — nothing here read a file back in — and the browser's
+> file-write step. §6.3 keeps those two.
+
+### 9.6 (c) The member's ceiling — what a claimed, non-admin session can and cannot do
+
+> **Claim** — a member reads the workspace and edits entries; is refused
+> `vocab_options` writes by the database; sees no notification but their own;
+> and cannot call `admin-members`.
+> **Method** — the `w5probe` session from §9.2.4, used directly against
+> PostgREST and the function gateway. Every call carries the member's own JWT and
+> the public anon key — the same pair the browser sends.
+
+**Artifact — (1) read, and (2) update: allowed.**
+
+```
+GET   /rest/v1/entries?select=id&limit=1000        HTTP 200 — 21 rows
+PATCH /rest/v1/entries?id=eq.10bf0abe-…  {"status":"in_progress"}
+                                                    HTTP 200
+      -> [{"id":"10bf0abe-…","status":"in_progress", …}]
+```
+
+A member is a full participant in the workspace's data, which is the product's
+whole premise.
+
+**Artifact — (3) `vocab_options` write: refused by the server.**
+
+```
+POST  /rest/v1/vocab_options  {"kind":"status","key":"zz_member_probe", …}
+      HTTP 403
+      {"code":"42501","details":null,"hint":null,
+       "message":"new row violates row-level security policy for table \"vocab_options\""}
+```
+
+`42501` from Postgres — an error from the database, not a hidden button, which
+is precisely what §5.2 asked for.
+
+**A second shape of the same refusal, recorded because it is the one that can
+fool a caller.** An `UPDATE` the member is not allowed to make does **not**
+raise `42501`; the policy's `USING` clause simply hides the row, so PostgREST
+answers success with nothing in it:
+
+```
+PATCH /rest/v1/vocab_options?kind=eq.status&key=eq.new  {"sort_order":42}
+      HTTP 200
+      []
+```
+
+and the row is untouched:
+
+```json
+[{"kind":"status","key":"new","sort_order":1,"updated_at":"2026-07-29 15:34:46.213607+00"}]
+```
+
+`200 []` is a **denial**, not an edit that happened. Any caller that reads a
+2xx as "saved" would show a member a success toast for a write the database
+threw away. Worth a line in `ADMIN.md`; the app's admin screens are gated so it
+does not bite today.
+
+**Negative control** — the identical `INSERT`, same body, same endpoint, as the
+**admin**:
+
+```
+POST  /rest/v1/vocab_options   HTTP 201
+      [{"kind":"status","key":"zz_member_probe","label":"ZZ member probe",
+        "label_ar":"مسبار","sort_order":99, …}]
+```
+
+The probe can therefore fail, and the difference is the caller's role and
+nothing else. *(That control row was removed the same minute:
+`DELETE … key=eq.zz_member_probe` → `HTTP 204`, then
+`select count(*) … → [{"still_there":0}]`.)*
+
+**Artifact — (4) another user's notifications: zero rows, twice.**
+
+```
+member, unfiltered:
+  GET /rest/v1/notifications?select=id,recipient_id            HTTP 200  []
+
+member, explicitly asking for the ADMIN's rows:
+  GET /rest/v1/notifications?select=id&recipient_id=eq.397d3122-7e3c-4046-ab4d-b45d154c7ac4
+                                                              HTTP 200  []
+
+admin, same endpoint:
+  GET /rest/v1/notifications?select=id,recipient_id            HTTP 200
+      rows: 8   distinct recipients: {'397d3122-7e3c-4046-ab4d-b45d154c7ac4'}
+```
+
+Naming the other user's id explicitly is the version that matters: RLS does not
+merely default the filter, it refuses to widen it. This is the discrimination
+§9.5's export could not make.
+
+**Artifact — (5) `admin-members` as a member.**
+
+```
+POST /functions/v1/admin-members  {"action":"list"}
+     HTTP 403
+     {"error":"Only an admin can manage members","code":"forbidden"}
+```
+
+> **Verdict** — `PROVEN`. §5.2 is satisfied on both halves — the function's
+> `403` and the database's `42501` — and §8 gap #9 is closed for §5.2. **§5.3,
+> the second admin, is still `NOT PROVEN`**: it needs an account promoted to
+> `profiles.role = 'admin'`, and this run deliberately did not promote a
+> throwaway to admin on a live workspace.
+
+### 9.7 Deletion — and what a deleted member's token can still do
+
+> **Claim** — deleting a member removes them from both tables and ends their
+> access immediately.
+> **Method** — `admin-members` `delete` for all three accounts this run created
+> or rewrote, then re-probe with the deleted member's *still-unexpired* JWT.
+
+**Artifact — the deletes and the count.**
+
+```
+w5probe            {"ok":true}  HTTP 200
+w5probe2           {"ok":true}  HTTP 200
+zzprobe.pending    {"ok":true}  HTTP 200
+
+[{"in_auth_users":0,"in_profiles":0}]
+```
+
+Zero rows in **both** tables for all three ids — no orphaned `profiles` row,
+which is the obvious way for this to be half-done.
+
+*(One usability note from the same call: `delete` requires `userId`; passing
+`username` answers `HTTP 400 {"error":"Missing userId","code":"invalid_body"}`.
+The screen always has the id, so this only bites a human driving the function by
+hand — RUNBOOK material.)*
+
+**Artifact — the leftover token, which is the part worth knowing.** `w5probe`'s
+JWT had roughly 40 minutes of life left at deletion:
+
+```
+GET  /auth/v1/user                     HTTP 403
+     {"code":403,"error_code":"user_not_found","msg":"User from sub claim in JWT does not exist"}
+POST /auth/v1/token?grant_type=password
+                                       HTTP 400
+     {"code":400,"error_code":"invalid_credentials","msg":"Invalid login credentials"}
+GET  /rest/v1/entries?select=id&limit=1               HTTP 200   []
+POST /rest/v1/entries  {…,"created_by":"b55a4dba-…"}  HTTP 403
+     {"code":"42501", … "new row violates row-level security policy for table \"entries\""}
+PATCH /rest/v1/entries?title=eq.ZZ-OFFLINE-1…         HTTP 200   []
+```
+
+and nothing leaked: `select count(*) … where title='ZZ-should-never-exist'` →
+`[{"leaked":0}]`.
+
+Read that table honestly. The confirmation dialog's promise — *"loses access
+immediately"* — **holds at the data layer**: no row is readable, no row is
+writable, no new session can be obtained. But PostgREST **accepts the token**
+(it verifies signature and expiry; it does not consult a session or a user row),
+so revocation shows up as *empty*, not as *401*, for up to the token's remaining
+hour. A reader who assumed a deleted member's requests start failing loudly
+would be wrong, and a client that treats `200 []` as "no data yet" rather than
+"no longer a member" will show a deleted user an empty app instead of a sign-in
+screen.
+
+> **Verdict** — `PROVEN` that deletion removes both rows and ends read, write
+> and re-authentication. `PARTIAL` on "immediately" as a reader would naively
+> interpret it: the JWT stays syntactically valid until expiry and is answered
+> with empty results rather than a refusal.
+
+### 9.8 Row manifest for this run
+
+Everything created, and where it went. **Nothing from this section is left on
+the project.**
+
+| Table | Id | What it was | State |
+| --- | --- | --- | --- |
+| `auth.users` + `profiles` | `b55a4dba-9037-4eab-a936-eea62467b961` (`w5probe`) | §9.2's throwaway: create → reissue → claimed in the UI → member probes | **deleted**, 0 rows in both tables |
+| `auth.users` + `profiles` | `2c3d636c-80f9-4f54-b531-676e8032350a` (`w5probe2`) | §9.3's fresh throwaway for the three-wrong-then-valid test | **deleted**, 0 rows in both tables |
+| `auth.users` + `profiles` | `dbb9ef96-12b1-407e-966e-5778864321d6` (`zzprobe.pending`) | §1.2's legacy fixture; digest rewritten, branch exercised (§9.4), then retired per §7's cleanup owner | **deleted**, 0 rows in both tables |
+| `entries` | `10bf0abe-1070-4d41-b965-2bc14729abb9` | §9.5's formula-guard row (`=cmd|…`, embedded comma/quote/newline, Arabic) | **deleted** — `still_there: 0` |
+| `vocab_options` | `(status, zz_member_probe)` | §9.6's negative control for the member's `42501` | **deleted** — `still_there: 0`, `HTTP 204` |
+| `claim_counters` | `username/w5probe`, `username/w5probe2`, `username/zzprobe.pending`, `ip/59baf64e…` | the throttle rows this run's probes wrote | self-expiring, 15-minute window; the username buckets are already gone (`claim_reset` on success). Safe to `delete from public.claim_counters;` at any time |
+
+Closing read, 17:13Z:
+
+```json
+[{"scope":"ip","bucket":"59baf64ee65135ec1fd41a9d1af26357ca4de07a","n":4,
+  "window_start":"2026-07-30 16:57:23.973609+00"},
+ {"scope":"username","bucket":"zzprobe.claimed","n":1,
+  "window_start":"2026-07-30 16:26:17.101415+00"}]
+```
+
+**Left alone on purpose:** `zzprobe.claimed` (§1.2's other fixture — still the
+"already claimed" target for indistinguishability probes, and not this task's to
+retire) and the six `w5sec.*` accounts belonging to the concurrent Wave-5
+worker. `profiles` therefore closes at **8 at 17:13Z**, of which **six are
+another agent's fixtures and one is `zzprobe.claimed`** — exactly one row in
+that table is a real person. By 17:21Z it read 14, the extra six being a further
+batch (`w5x.*`) created at 17:14:41–17:14:52Z by a worker this run has no
+visibility into. **Whoever writes the release notes must not read `profiles` as
+a headcount, and whoever cleans up must not assume every `w5*` account is
+theirs.** This run's three are verified gone: `mine_left: 0` at 17:21Z.
+
+Two notes for whoever cleans up next. `zzprobe.pending` is **gone**, so §1.2's
+warning is now spent: no live account carries an untagged pre-pepper digest, and
+§9.4 records the only way to get one back. And the `ip` scope bucket changed
+between proof rounds — §5.5 recorded `42753f28…`, this run `59baf64e…` — which
+is expected either way, since it is `HMAC(INVITE_PEPPER, "ip:" + prefix)` and
+therefore moves if the address *or* the pepper moves. It reveals neither.
+
+### 9.9 What section 9 could NOT prove
+
+| # | Gap | Why | Lands on |
+| --- | --- | --- | --- |
+| 1 | **§5.3 the second admin** | needs an account promoted to `profiles.role = 'admin'`; this run would not promote a throwaway to admin on a live workspace, and `admin-members` has no self-service path to it | Wave 5, with the owner's say-so |
+| 2 | §6.3's **re-import** half | both files were produced and verified; nothing read one back in. Round-trip is still an assertion | Wave 5 — and it needs an importer, which the app does not have |
+| 3 | The browser's **file-write** step | the download Blob was captured in-page because this automation pane discards downloads; the bytes are the app's, the filesystem write is not observed | anyone with a hand on a real browser, 30 seconds |
+| 4 | `zzprobe.pending`'s **original** invite code | never recorded, 40 bits, unrecoverable. §9.4 proves the branch, not that historical row's own code | closed as impossible; do not re-open |
+| 5 | Latency indistinguishability, **statistically** | still single-sampled, and now with a shared address bucket (§9.3). §8 gap #4 is unchanged and slightly worse-supported than §5.5 implied | Wave 5, if a constant-time claim is wanted in writing |
+| 6 | The **per-IP volume ceiling** (`429`) | 200 failures in 15 minutes was never approached; the one hard refusal in `claim-account` is still unexercised live | Wave 5, or accept it as tested-by-code-reading |
+| 7 | **Concurrency contaminated the environment** | another agent held 22 of 27 `claim_counters` rows and revoked this run's admin session twice. Nothing above depends on a count this run did not read itself, but a re-run will not reproduce the surrounding numbers | process finding — Wave 5 should serialise live-writing agents |
+| 8 | The **stale-precache chunk failure** (§9.1) | observed and worked around, not investigated. An installed client on the previous deploy meets `Failed to fetch dynamically imported module` before the update prompt saves it | §6.4 / C6, with a real second deploy |
+| 9 | The reissue row showing the **previous expiry** until refetch (§9.2.2) | cosmetic, reproduced once, not filed | FIX-BACKLOG |
+| 10 | A denied `UPDATE` returning **`200 []`** rather than `42501` (§9.6) | correct RLS behaviour, but a client reading 2xx as success would mislead a member | `ADMIN.md` + a note wherever writes are wrapped |
+
+---
+
+## 10. Where the rest of the record lives
 
 - **[`../FIX-BACKLOG.md`](../FIX-BACKLOG.md)** — every audit finding with its
   disposition and, where fixed, the commit that fixed it.

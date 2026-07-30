@@ -50,6 +50,13 @@ jobs:
           # rotating the Supabase project does not need a code change.
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Deliberately NOT in the required-secrets check above: unset is the
+          # normal state, and src/lib/push.ts falls back to the key compiled into
+          # the bundle. It is here so that rotating the VAPID pair is a
+          # `gh secret set` and a re-run rather than a source edit — which is
+          # what the comment on DEFAULT_VAPID_PUBLIC_KEY promises, and could not
+          # deliver while this line was missing. RUNBOOK §4.2.
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
       - uses: actions/configure-pages@v5
         with:
           enablement: true

@@ -19,6 +19,18 @@ export interface ToastOptions {
   /** ms before auto-dismiss. 0 keeps it until dismissed or actioned. */
   duration?: number
   tone?: 'default' | 'success' | 'error'
+  /**
+   * A stable name for the SLOT this toast occupies, not for the event that
+   * raised it. A second `toast()` with the same key REPLACES the one already on
+   * screen instead of stacking a duplicate beside it.
+   *
+   * Give a key to any prompt whose source can fire more than once for the same
+   * standing condition — the service-worker update prompt is the one today.
+   * Leave it off for ordinary notifications: two captures deserve two toasts.
+   *
+   * Unrelated to React's `key`, which <Toaster /> takes from `id`.
+   */
+  key?: string
 }
 
 export interface ToastItem extends ToastOptions {
@@ -104,6 +116,12 @@ function isSticky(it: ToastItem): boolean {
  * code that decided it must be seen, and there is one such call site today —
  * "too many undismissed prompts" is a problem the product does not have, and
  * losing one is the bug this function exists to fix.
+ *
+ * The runaway that WAS observed — the same prompt raised twice, stacking — is
+ * handled where it belongs, at the raise: `ToastOptions.key` replaces the toast
+ * in that slot instead of appending a second one, so the stack never grows on a
+ * repeat. That is the only thing allowed to displace a sticky toast, and it
+ * displaces only its own predecessor. Nothing here evicts a sticky, ever.
  */
 function trimStack(list: ToastItem[]): ToastItem[] {
   const out = [...list]
@@ -119,12 +137,50 @@ function trimStack(list: ToastItem[]): ToastItem[] {
   return out
 }
 
-/** Raise a toast. Returns its id so a caller can dismiss it early. */
+/**
+ * Raise a toast. Returns the id of the toast now on screen, so a caller can
+ * dismiss it early — with `opts.key`, that is the id of the SLOT, which is the
+ * same id a previous keyed raise returned.
+ *
+ * THE KEYED PATH IS THE FIX FOR THE DUPLICATE UPDATE PROMPT. `onNeedRefresh`
+ * fires once per waiting service worker, so a tab left open across two deploys
+ * (or one that re-registers) collected two identical "a new version is
+ * available" toasts stacked on top of each other, each holding its own
+ * `updateSW` closure and neither auto-dismissing — the stack only ever grew.
+ *
+ * A keyed raise updates the existing toast IN PLACE: same id, same position in
+ * the stack. That is deliberate on three counts. It cannot grow the stack, so
+ * the all-sticky escape hatch in trimStack() has nothing to escape from. It
+ * cannot move the prompt out from under a pointer that is already reaching for
+ * its button. And it does not remount the node, so the live region does not
+ * announce the same sentence a second time to a screen reader.
+ *
+ * NOTE WHAT THIS IS NOT: it evicts nothing. Only a NEWER RAISE OF THE SAME KEY
+ * displaces a toast, and it displaces exactly the toast it is replacing. A
+ * distinct sticky toast is still never dropped to make room for anything — that
+ * is the C6 invariant, asserted in toast.test.ts, and keys do not touch it.
+ */
 export function toast(message: string, opts: ToastOptions = {}): number {
+  const ms = opts.duration ?? (opts.action ? ACTION_MS : DEFAULT_MS)
+  const at = opts.key === undefined ? -1 : items.findIndex((it) => it.key === opts.key)
+
+  if (at !== -1) {
+    const { id } = items[at]
+    const next = [...items]
+    next[at] = { ...opts, id, message }
+    items = next
+    emit()
+    // Re-arms from scratch against the NEW options: a keyed raise may hand a
+    // sticky slot a duration, or a timed one `duration: 0`. schedule() clears
+    // the old timer for this id before setting any new one.
+    schedule(id, ms)
+    return id
+  }
+
   const id = nextId++
   items = trimStack([...items, { ...opts, id, message }])
   emit()
-  schedule(id, opts.duration ?? (opts.action ? ACTION_MS : DEFAULT_MS))
+  schedule(id, ms)
   return id
 }
 

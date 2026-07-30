@@ -1,4 +1,4 @@
-# OpsTrack — runbook
+# CoreTrack — runbook
 
 The things you will actually have to do, written for you rather than for a
 developer. Every procedure below was re-verified against the live project on
@@ -7,7 +7,7 @@ query you can run to check it yourself instead of trusting this page.
 
 Nothing here needs the app to be working. Every recovery path ends in the
 Supabase Dashboard or the GitHub Actions tab, both of which stay reachable when
-OpsTrack does not.
+CoreTrack does not.
 
 **Rule of thumb:** if a procedure asks you for a password, an API key or a
 recovery code, type it yourself. Don't paste it into a chat, a note, or a file
@@ -402,7 +402,7 @@ weight and can be deleted.
 ### 4.2 The VAPID keypair — generating and rotating it
 
 This is the debt §9.3 recorded as owed. The keypair is what a push service uses to
-verify that a message claiming to come from OpsTrack really did.
+verify that a message claiming to come from CoreTrack really did.
 
 **It is one P-256 keypair, split across two homes:**
 
@@ -411,10 +411,18 @@ verify that a message claiming to come from OpsTrack really did.
 | private (32-byte scalar, base64url) | `VAPID_PRIVATE_KEY` function secret, and nowhere else | **yes** — it is the whole authority |
 | public (65-byte point, base64url) | `DEFAULT_VAPID_PUBLIC_KEY` in `src/lib/push.ts`, overridable by `VITE_VAPID_PUBLIC_KEY` | no — it ships in the browser bundle by design |
 
-The public half is compiled in rather than left to the environment on purpose: the
-GitHub Pages workflow injects only `VITE_SUPABASE_URL` and
-`VITE_SUPABASE_ANON_KEY`, so a key that lived only in the environment would be
-empty in production and push would be quietly unavailable there.
+The public half is **compiled in with an environment override**, and the order
+matters: a key that lived only in the environment would be empty in any build that
+forgot to pass it, and push would be quietly unavailable rather than loudly broken.
+So `DEFAULT_VAPID_PUBLIC_KEY` always works, and `VITE_VAPID_PUBLIC_KEY` wins when
+it is set.
+
+The override is wired through the deploy workflow, so **rotating does not need a
+source edit** — see "Rotating" below. Measured on this repo: building with
+`VITE_VAPID_PUBLIC_KEY` set puts that key in `dist/assets/*.js` and drops the
+constant from the bundle entirely; building without it puts the constant there and
+nothing else. Vite inlines `import.meta.env.*` as a literal, so the `|| DEFAULT`
+fallback is folded away at build time rather than evaluated at runtime.
 
 **Generate a pair** (node 18+; no dependency, and the private half never reaches
 the terminal):
@@ -444,22 +452,42 @@ rm -P vapid.private        # -P overwrites before unlinking
 not decoration: push services use it to contact the sender before blocking an
 origin that misbehaves.
 
-Then paste the public key into `DEFAULT_VAPID_PUBLIC_KEY` in `src/lib/push.ts`,
-commit, and let the deploy run. `src/lib/push.test.ts` asserts the constant decodes
-to 65 bytes starting `0x04`, so a truncated or mis-encoded paste fails the build
-rather than failing at every user's subscribe call.
+Then get the public key to the client. **The routine way is a GitHub secret, not a
+source edit:**
+
+```bash
+gh secret set VITE_VAPID_PUBLIC_KEY --repo Abosallom/opstrack --body '<the printed public key>'
+gh workflow run deploy.yml --repo Abosallom/opstrack     # or just push
+```
+
+`.github/workflows/deploy.yml` passes it into `npm run build`; Vite inlines it and
+the compiled-in constant disappears from the bundle. It is **not** in the
+workflow's required-secrets check, because unset is the normal state — so removing
+the secret is also how you revert to the compiled-in key.
+
+Editing `DEFAULT_VAPID_PUBLIC_KEY` in `src/lib/push.ts` is the other way, and it is
+the right one when the new key is meant to be the permanent default rather than an
+override. `src/lib/push.test.ts` asserts the constant decodes to 65 bytes starting
+`0x04`, so a truncated or mis-encoded paste fails the build rather than failing at
+every user's subscribe call. That test does **not** see the environment override —
+a mis-pasted secret is caught by the check in §9.3 instead, so run it after a
+rotation.
 
 **Rotating is not free, and there is no overlap window.** A subscription is bound
 to the key it was created with, so the moment the private half changes, every
 existing subscription is undeliverable — the push service answers 403 and the queue
 retries until it abandons. Rotate only for a suspected compromise, and expect:
 
-1. Set both secrets and redeploy `send-push` (§4).
-2. Update the constant and deploy the app.
-3. **Every device must visit Settings → Push notifications and turn it off and on
+1. Set all three secrets and redeploy `send-push` (§4).
+2. `gh secret set VITE_VAPID_PUBLIC_KEY` and re-run the deploy (above). Confirm
+   the new key actually shipped:
+   `curl -s https://abosallom.github.io/opstrack/ | grep -o 'assets/index-[^"]*\.js'`
+   then `curl -s https://abosallom.github.io/opstrack/assets/index-….js | grep -c '<the new public key>'` → `1`.
+3. Confirm the two halves agree, without printing either — §9.3, check 6.
+4. **Every device must visit Settings → Push notifications and turn it off and on
    again.** Nothing can do this for them; the browser will not re-key a
    subscription. Tell people first.
-4. Clear the stale rows so the queue stops retrying them:
+5. Clear the stale rows so the queue stops retrying them:
    `delete from public.push_subscriptions;`
 
 If you only need to change `VAPID_SUBJECT`, that is a secret change and a
@@ -822,14 +850,49 @@ for the origin; on iOS the app must be **installed to the home screen** (Safari 
 a tab cannot receive Web Push at all); and a notification you have already read in
 another tab will not be re-delivered.
 
+**6. Do the two halves of the VAPID key agree?** This is the failure with no
+symptom other than `abandoned` climbing, and nothing at runtime can check it: the
+client's half is in the bundle, the function's half is a secret. The Management API
+answers `GET /v1/projects/<ref>/secrets` with the **SHA-256 hex digest** of every
+secret value rather than the value, which is exactly enough to compare without
+handling either key.
+
+```bash
+cd /Users/aziz/Claude/opstrack
+set -a; . ./.env.supabase-admin; set +a
+CLIENT=$(grep -o "'B[A-Za-z0-9_-]\{80,\}'" src/lib/push.ts | head -1 | tr -d "'")
+curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+     "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/secrets" \
+  | python3 -c 'import json,sys,hashlib
+want = hashlib.sha256(sys.argv[1].encode()).hexdigest()
+got  = {s["name"]: s["value"] for s in json.load(sys.stdin)}
+print("VAPID public halves agree:      ", got.get("VAPID_PUBLIC_KEY") == want)
+print("VAPID_SUBJECT is owner mailbox: ",
+      got.get("VAPID_SUBJECT") == hashlib.sha256(b"mailto:az.alsaloom@gmail.com").hexdigest())' "$CLIENT"
+```
+
+Two `True`s. **If the build is using `VITE_VAPID_PUBLIC_KEY` (§4.2), compare the
+secret's value rather than the constant** — the constant is not in the bundle at
+all in that case. The same trick confirms `PUSH_DRAIN_SECRET`:
+`select encode(digest(drain_secret,'sha256'),'hex') from private.push_config;`
+must equal the `PUSH_DRAIN_SECRET` digest.
+
+This proves the two **public** halves match. It says nothing about the private
+half; only a delivery does, and §9.4 is that delivery.
+
 Generating and rotating the VAPID keypair — the item this section previously
 recorded as owed — is now **§4.2**.
 
-### 9.4 What push has already been proven to do, and the one part it has not
+### 9.4 What push has been proven to do, live
 
-Written by the worker who built it, on **2026-07-30**, against the live project.
-The distinction matters when you are diagnosing: most of this chain has been
-exercised for real, so a failure is probably in the part that has not.
+Written by the worker who built it and extended at the Wave-5 close, on
+**2026-07-30**, against the live project. This matters when you are diagnosing:
+every link in the chain has now been exercised for real, end to end, so a failure
+is a regression rather than an unknown.
+
+**The headline: one real notification was delivered to a real browser and
+displayed.** It is recorded in full under "The delivery" below, and it is the
+proof that supersedes the "not proven" caveat this section used to carry.
 
 **Proven live, headlessly:**
 
@@ -847,12 +910,45 @@ exercised for real, so a failure is probably in the part that has not.
 All probe rows were removed afterwards; `push_subscriptions`, `push_outbox` and
 `notification_prefs` were left at 0.
 
-**NOT proven, and it cannot be from a terminal:** a real browser subscription
-being decrypted and displayed. That needs a device where a human grants the
-notification permission, and the private key of that subscription never leaves
-that device — which is the entire point of RFC 8291. Everything up to the push
-service is verified; the last hop is the browser's own decryption, and it is
-exercised by the manual pass below.
+Note what that table did **not** establish. Every send above went to a *fake*
+subscription, so `sent` counted a POST that a push service then rejected, and the
+one queue row that reached a live drain had **no subscriber at all** — the sender
+recorded it `sent_at` because a recipient with no device is a completed obligation
+(`suppressed`), not a delivery. A `sent_at` is therefore not by itself evidence
+that anything arrived. `suppressed` vs `sent` in the drain's own JSON is the
+discriminator, and it is the number to read.
+
+#### The delivery — 2026-07-30
+
+A real subscription at a real push service, encrypted by the deployed function,
+decrypted and displayed by the browser. Reproduced with headless Chrome, which is
+sufficient because the only thing a human was needed for was the permission grant,
+and CDP `Browser.grantPermissions` grants it for real rather than stubbing it — the
+subscription, the FCM registration, the RFC 8291 decryption and the
+`showNotification` call are all the genuine article.
+
+| Step | Evidence |
+| --- | --- |
+| A browser subscribed **through the product's own button** | Settings → Push notifications → *Turn on for this device*; card flipped to *On for this device*, **Registered devices** listed `Mac · Chrome — This device` |
+| The subscription is a live FCM registration | `push_subscriptions` row `2939daf8…`, endpoint `https://fcm.googleapis.com/fcm/send/dH4klPiPbdQ:APA91bEdWf0u…` |
+| A notification enqueued a delivery in the same transaction | `notifications.id = 50` (`assigned`, actor `Wave 5 proof`) → `push_outbox.id = 8`, `created_at 16:43:49.807Z` |
+| The **trigger's** `pg_net` wake-up drained it | `net._http_response` `200 {"ok":true,"claimed":1,"sent":1,"failed":0,"suppressed":0,"pruned":0}` at `16:43:49.908Z` — **`suppressed:0` with `sent:1` is the subscriber-count proof**; contrast the vacuous 14:03 row, `sent:0, suppressed:1` |
+| FCM accepted the VAPID token and the body | a 2xx is the only way `sent` increments; `push_outbox.id = 8` settled `attempts 1`, `sent_at 16:43:51.399Z`, `last_error null` |
+| **The browser decrypted it and showed it** | `registration.getNotifications()` on the live origin returned exactly one: title `Assigned to you`, body `⁨Wave 5 proof⁩ assigned you “⁨التقرير الأسبوعي لتشغيل الشبكة · Weekly network ops report⁩”`, tag `opstrack-n-50`, data `{"id":"50","path":"#/entry/302d281e-…"}` |
+| The bidi isolates survive to the OS layer | the body above carries U+2068/U+2069 around both interpolations, verbatim, in a mixed Arabic/Latin title |
+| The auth gate, re-run against the deployed function | no `x-push-drain` → `403 {"code":"forbidden"}`; wrong secret → `403 {"code":"forbidden"}`; no project key → `401 UNAUTHORIZED_NO_AUTH_HEADER`; correct → `200` |
+
+**This is also the proof that the VAPID keypair is a pair.** FCM binds a
+subscription to the `applicationServerKey` it was created with and verifies the
+ES256 signature against the `k=` in the `Authorization` header; a private key that
+did not match would have produced a `403`, `sent:0` and an abandoned row. Combined
+with §9.3 check 6 — which shows the function's `VAPID_PUBLIC_KEY` secret is
+byte-identical to the key in the bundle — the private half is proven to pair with
+the public half that ships to browsers. No rotation is owed.
+
+**Not covered by this run, and still owed to the manual pass:** iOS/Safari (the
+installed-PWA path has no headless equivalent), a physically locked screen, and
+`notificationclick` focusing the right entry.
 
 **The manual verification, in full. 5 minutes, one phone, one laptop.**
 
@@ -875,7 +971,7 @@ exercised by the manual pass below.
    ```
 5. **Within about two seconds** an OS notification appears on the laptop, titled
    *Assigned to you* with the same sentence the inbox shows — the actor's name and
-   the entry's title. Click it: the browser focuses (or opens) OpsTrack **on that
+   the entry's title. Click it: the browser focuses (or opens) CoreTrack **on that
    entry**.
 6. Prove which of the two drains delivered it:
    ```sql
@@ -891,25 +987,74 @@ exercised by the manual pass below.
    with no error — suppression is a completed obligation, not a failure. The inbox
    bell still increments, which is the fallback the UI promises. Turn it back on.
 8. **iOS, and do this one separately.** In Safari on the phone, Settings → Push
-   notifications shows *"Add OpsTrack to your Home Screen first"* — Safari in a tab
+   notifications shows *"Add CoreTrack to your Home Screen first"* — Safari in a tab
    cannot receive Web Push at all, and that card is the app telling the truth rather
    than a broken switch. Install it (Share → Add to Home Screen), open it **from the
    Home Screen**, and the same screen now offers the enable button. Then repeat
    steps 3–5 with the phone locked.
-9. **Sign out on the laptop and check the row is gone.** Sign-out unsubscribes the
-   browser and deletes the row, so the next person to use that machine cannot
-   receive the previous user's notifications:
+9. **Sign out on the laptop and check what sign-out actually cleaned up.**
    ```sql
    select count(*) from public.push_subscriptions;
    ```
-   This step depends on `resetPush()` being called from the shell's sign-out
-   teardown in `src/App.tsx`, beside `resetNotifications()`. If the count does not
-   drop, that call is missing — the subscription is still valid and the previous
-   user keeps receiving pushes on a machine somebody else is now using, so treat a
-   failure here as a blocker rather than a cosmetic gap.
+   **Measured 2026-07-30: the browser subscription is dropped but the row is
+   NOT.** `resetPush()` in `src/store/push.ts` clears the store and calls
+   `unsubscribeThisDevice()`, which is browser-side only; nothing deletes the
+   `push_subscriptions` row, so the count stays where it was. Earlier revisions of
+   this page claimed the row disappears. It does not.
+
+   What that costs, precisely. In the ordinary case the browser unsubscribe
+   succeeds first, so the endpoint is already dead at the push service: the next
+   send gets a `410`, the drain prunes the row, and nobody receives anything they
+   should not. The row is stale data — an endpoint and two subscription keys
+   retained for a user who has signed out — rather than a live channel. **The
+   exception is the one that matters:** `unsubscribeThisDevice()` swallows its own
+   failure, so a sign-out with no network leaves the row *and* a still-valid
+   registration, and the previous user keeps receiving notifications on a machine
+   somebody else is now using.
+
+   **Open defect, raised at the Wave-5 push proof and not fixed there** because
+   `src/store/push.ts` belonged to another worker. The fix is a
+   `delete from push_subscriptions where endpoint = …` alongside the unsubscribe,
+   sequenced so the row goes even when the unsubscribe throws. Until it lands, a
+   shared machine should be signed out **online**, and
+   `delete from public.push_subscriptions where user_id = '<uuid>';` is the manual
+   remedy.
 
 If step 5 produces nothing, work §9.3 from the top — the config row is the most
 common cause, and it is silent.
+
+#### Reproducing the headless run
+
+The whole of "The delivery" above was produced from a terminal, and can be again.
+Chrome, a throwaway profile, and CDP for the permission grant:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless=new --remote-debugging-port=9222 \
+  --user-data-dir="$(mktemp -d)" --no-first-run --no-default-browser-check about:blank &
+```
+
+Then, over the browser-level WebSocket from `http://127.0.0.1:9222/json/version`:
+
+1. `Browser.grantPermissions {origin:"https://abosallom.github.io",
+   permissions:["notifications"]}`. **Hold that WebSocket open for the entire
+   run** — Chrome reverts permission overrides the moment the client that set them
+   disconnects, and headless then auto-*denies* the app's
+   `Notification.requestPermission()`, which is sticky and needs a re-grant plus a
+   reload to clear.
+2. Open the app at a magic link minted through the GoTrue admin
+   `generate_link` endpoint (§3), so no credential is ever typed.
+3. `Runtime.evaluate` a click on the *Turn on for this device* button — drive the
+   product's path, not `pushManager.subscribe()` directly, or you prove the
+   browser works and nothing about the app.
+4. Insert a `notifications` row for that user and let the trigger's wake-up drain
+   it; read `net._http_response` for the summary.
+5. `Runtime.evaluate` `registration.getNotifications()` against the `…/push/`
+   scope. What it returns is what the OS was asked to show.
+
+Headless Chrome does register with FCM and does receive pushes; the endpoint is a
+real one and it dies with the profile directory, so delete the profile when you are
+finished and let the next drain prune the row.
 
 ---
 

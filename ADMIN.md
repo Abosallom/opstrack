@@ -1,4 +1,4 @@
-# OpsTrack — administration
+# CoreTrack — administration
 
 What an admin can change from the app, what is deliberately not changeable, what
 it costs to change one of those things anyway, how member accounts are created and
@@ -241,6 +241,16 @@ select t.name, p.key as priority,
 
 ## Member accounts: usernames, invites and claiming
 
+**This screen is the directory.** There is no Microsoft Entra, no Azure AD, no
+Google, no SAML, no LDAP — no external identity provider of any kind, and none is
+planned. An account exists because an admin created it here and the member claimed
+it; that is the only way one comes into existence, and membership of your company's
+tenant grants nothing. The owner chose this deliberately over tenant SSO
+(`docs/WAVE5-NOTES.md` §2), and a Wave-4b Entra button was removed whole rather
+than left switched off, so there is nothing dormant to discover on the sign-in
+screen. If someone asks "can we just use our work logins?", the answer is that
+their work login is not what this product trusts — the row you create below is.
+
 Two kinds of account exist and they authenticate completely differently. Nearly
 every support question is really a question about which kind you are holding.
 
@@ -256,6 +266,11 @@ every support question is really a question about which kind you are holding.
 the point: it makes it structurally impossible for any feature to quietly grow a
 dependency on emailing a member. If a future feature needs to reach them, it has
 to reach them somewhere that exists.
+
+The domain keeps the old slug deliberately. It is the stored auth address of every
+username account, so renaming it is an account migration, not a find-and-replace —
+it happens in the one clean identity cut at launch, with the repo, the URL, the
+storage keys and the bundle id (`docs/WAVE5-NOTES.md` §1). No admin ever types it.
 
 ### The lifecycle
 

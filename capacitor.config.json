@@ -1,6 +1,6 @@
 {
   "appId": "app.opstrack",
-  "appName": "OpsTrack",
+  "appName": "CoreTrack",
   "webDir": "dist",
   "ios": {
     "contentInset": "never",

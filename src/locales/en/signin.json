@@ -1,6 +1,6 @@
 {
   "signin": {
-    "heading": "Sign in to OpsTrack",
+    "heading": "Sign in to CoreTrack",
     "subtitle": "Accounts are created by your admin. Sign in with the username you were given, or with your email address.",
     "identifierLabel": "Username or email",
     "identifierPlaceholder": "ahmed.otaibi",
@@ -57,7 +57,6 @@
     "backToSignIn": "Back to sign in",
     "useEmail": "Sign in with an email code instead",
     "useUsername": "Sign in with a username instead",
-    "microsoft": "Sign in with Microsoft",
     "errUsernameRequired": "Enter your username.",
     "errPasswordRequired": "Enter your password.",
     "errPasswordShort": "Use at least {min} characters.",

@@ -28,6 +28,19 @@
 // them by name and asserts they resolve in NEITHER bundle, so the total is still
 // accounted for and half a namespace cannot creep back.
 //
+// `sso` is the second, and it retires for a different reason: not "the screen
+// arrived" but "the feature was cancelled". WAVE5-NOTES §2 removes the Microsoft
+// Entra path outright — the admin-managed Members directory IS this product's
+// directory — so `sso.json`, `lib/sso.ts`, `components/SsoButtons.tsx` and
+// `docs/AZURE-AD-SETUP.md` all went together, and `signin.microsoft` (the button's
+// label, which had been dormant since Wave 1) went with them. NONE of those keys
+// was in the 213-key baseline: the namespace was born in Wave 4b, and
+// `signin.microsoft` was added BY the splitting commit itself rather than
+// inherited from the monolithic bundle it replaced (`git show 67a2844^:src/
+// locales/en.json | grep microsoft` finds nothing). So RETIRED_KEYS is untouched
+// here and its arithmetic still balances at 213 — a post-baseline namespace really
+// is just the six lines below in reverse, with nothing to park.
+//
 // This module must not import from `src/lib/i18n.ts`. i18n imports *this*, and
 // the reverse edge would be a cycle — which is why `Locale` is not used below
 // and the two bundles are exported separately rather than as a keyed record.
@@ -63,7 +76,6 @@ import enRecurring from './en/recurring.json'
 import enRoute from './en/route.json'
 import enSettings from './en/settings.json'
 import enSignin from './en/signin.json'
-import enSso from './en/sso.json'
 import enStatus from './en/status.json'
 import enTrack from './en/track.json'
 import enTree from './en/tree.json'
@@ -98,7 +110,6 @@ import arRecurring from './ar/recurring.json'
 import arRoute from './ar/route.json'
 import arSettings from './ar/settings.json'
 import arSignin from './ar/signin.json'
-import arSso from './ar/sso.json'
 import arStatus from './ar/status.json'
 import arTrack from './ar/track.json'
 import arTree from './ar/tree.json'
@@ -147,7 +158,6 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   route: enRoute,
   settings: enSettings,
   signin: enSignin,
-  sso: enSso,
   status: enStatus,
   track: enTrack,
   tree: enTree,
@@ -184,7 +194,6 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   route: arRoute,
   settings: arSettings,
   signin: arSignin,
-  sso: arSso,
   status: arStatus,
   track: arTrack,
   tree: arTree,
@@ -230,7 +239,6 @@ export const en: LocaleTree = {
   ...enRoute,
   ...enSettings,
   ...enSignin,
-  ...enSso,
   ...enStatus,
   ...enTrack,
   ...enTree,
@@ -267,7 +275,6 @@ export const ar: LocaleTree = {
   ...arRoute,
   ...arSettings,
   ...arSignin,
-  ...arSso,
   ...arStatus,
   ...arTrack,
   ...arTree,

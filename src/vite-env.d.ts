@@ -2,7 +2,7 @@
 /// <reference types="vite-plugin-pwa/client" />
 
 // Injected by the `define` block in vite.config.ts — the real version string
-// from package.json. Shown in Settings › About ("OpsTrack vX.Y.Z").
+// from package.json. Shown in Settings › About ("CoreTrack vX.Y.Z").
 declare const __APP_VERSION__: string
 
 // vite/client types `import.meta.env` with an index signature, which under

@@ -7,8 +7,6 @@ import App from './App'
 import { applyTheme } from './lib/theme'
 import { applyLocale, t } from './lib/i18n'
 import { initNative } from './lib/native'
-import { installSsoGuard } from './lib/sso'
-import { supabase } from './api/supabase'
 import { initAuth } from './store/auth'
 import { setEntriesSubmit, settleOutboxWrite } from './store/entries'
 import { setMeetingsSubmit } from './store/meetings'
@@ -37,32 +35,23 @@ initNative()
 // Restores the persisted Supabase session and starts listening for auth state
 // changes. Safe to call with no credentials configured: it just settles into a
 // signed-out state instead of throwing.
+//
+// THERE IS NO EXTERNAL-IDP GUARD BESIDE IT ANY MORE, and its absence is a
+// decision rather than an omission. Wave 4b shipped `installSsoGuard(supabase)`
+// on the next line: Microsoft Entra authenticates a whole tenant, so any employee
+// could complete a sign-in, and the guard existed to sign an `azure` session with
+// no `profiles` row straight back out. WAVE5-NOTES §2 cancelled the provider —
+// "I don't want to sign in using the company's active directory; I want my own
+// directory to be set by the admin" — so the Members screen (admin-provisioned
+// usernames + one-time invite codes) IS this product's directory, and the whole
+// SSO path went with it. Every session that can now exist was minted against an
+// account an admin created, so there is no tenant-wide population to filter out
+// and nothing here to install. Membership is enforced where it always was, by
+// RLS. If an external IdP is ever revived, the guard comes back HERE, at the
+// composition root, for the reason its old comment gave: an OAuth redirect adopts
+// its session at module init and renders the signed-in shell, so a guard mounted
+// from the sign-in screen would never run on the one path that needs it.
 initAuth()
-
-// THE ENTRA MEMBERSHIP GUARD, AND IT HAS TO BE HERE RATHER THAN IN A COMPONENT.
-//
-// Entra authenticates the whole tenant: the moment the provider is enabled, every
-// employee can complete a sign-in, and App.tsx renders the full shell for any
-// session whether or not a `profiles` row exists. So a stranger from Finance would
-// land inside OpsTrack, see empty lists (RLS gives them nothing) and reasonably
-// conclude the tool is broken. This signs an `azure` session with no profiles row
-// straight back out and records the reason for SignIn.tsx to explain.
-//
-// The composition root is the only place it works. An SSO redirect carries its
-// tokens in the URL fragment, so supabase-js adopts the session at module init and
-// the very first render is the signed-in SHELL — SsoButtons never mounts, and a
-// guard installed from it would never run on the one path that needs it. That
-// component calls this too, idempotently, so the refusal path still works in a
-// build whose root was not wired; this line is what makes it work at all.
-//
-// Only `azure` sessions are touched, and only a definitive "no row, no error" ends
-// one — a flaky profiles read must never sign a legitimate member out. Both
-// policies are argued in lib/sso.ts. Nothing happens at all while the provider is
-// off, which is its state on this project today.
-//
-// Order matters by one line: installed AFTER initAuth() so store/auth.ts's own
-// listener is registered first and still sees the session it is about to reject.
-installSsoGuard(supabase)
 
 // Point the stores' write seams at the real outbox, and point the outbox's
 // settle back at the entries store.
@@ -115,6 +104,15 @@ setOutboxSettle(settleOutboxWrite)
 // and the returned teardown exists for tests rather than for a caller here.
 startOutboxSync()
 
+/** Background re-check cadence for a tab nobody closes. */
+const SW_CHECK_EVERY_MS = 6 * 60 * 60 * 1000
+/**
+ * Floor between two re-checks. `visibilitychange` fires on every alt-tab, and
+ * without this an app kept beside a mail client would refetch the worker script
+ * dozens of times an hour, on cellular, to learn nothing.
+ */
+const SW_CHECK_MIN_GAP_MS = 5 * 60 * 1000
+
 /**
  * Service worker registration with a "new version available" prompt.
  *
@@ -122,7 +120,9 @@ startOutboxSync()
  *
  * The prompt is a sticky toast rather than an auto-reload: a silent reload
  * mid-capture would discard whatever the user was typing, and capture is the
- * screen this app lives on.
+ * screen this app lives on. It is raised under a KEY so that a tab which sees
+ * several deploys keeps one prompt rather than a growing pile of identical
+ * ones, and it is re-checked for on resume so it appears at all.
  */
 if (import.meta.env.PROD) {
   void import('virtual:pwa-register')
@@ -130,6 +130,15 @@ if (import.meta.env.PROD) {
       const updateSW = registerSW({
         onNeedRefresh() {
           toast(t('pwa.updateReady'), {
+            // The key is load-bearing, not a nicety. onNeedRefresh fires once
+            // per waiting worker, so a tab open across two deploys — exactly
+            // the tab the re-check below creates more of — raised a SECOND
+            // identical sticky prompt that stacked under the first and never
+            // expired. Keyed, the second raise replaces the first in place, so
+            // there is one prompt on screen however many versions ship while
+            // the tab is open. Its button always drives the latest `updateSW`,
+            // which skips whatever is waiting now.
+            key: 'sw-update',
             duration: 0,
             action: {
               label: t('common.reload'),
@@ -142,6 +151,35 @@ if (import.meta.env.PROD) {
         // No onOfflineReady toast: "ready to work offline" fires once on first
         // install, tells the user nothing they asked for, and lands on top of
         // the sign-in form.
+
+        // WITHOUT THIS THE PROMPT ABOVE BARELY EVER APPEARS. The browser checks
+        // for a new worker on navigation, and this app is a HashRouter PWA:
+        // every route change is a hashchange, and an installed app is opened
+        // once and then lives in the app switcher for weeks. So the session
+        // that most needs an update is the one that never asks for one, and a
+        // shipped release reached those users only when they force-quit.
+        //
+        // Two triggers, because each covers what the other cannot: coming back
+        // to the tab (the common case — phone unlocked, app resumed, deploy
+        // happened over lunch) and a long interval for a tab that is simply
+        // left visible on a second monitor all week.
+        onRegisteredSW(_swScriptUrl, registration) {
+          if (!registration) return
+          let last = Date.now()
+          const check = (): void => {
+            last = Date.now()
+            // Rejects when offline, which is the normal state this app is built
+            // for — it is not an error and there is nothing to tell the user.
+            // The next trigger tries again.
+            void registration.update().catch(() => {})
+          }
+          window.setInterval(check, SW_CHECK_EVERY_MS)
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible') return
+            if (Date.now() - last < SW_CHECK_MIN_GAP_MS) return
+            check()
+          })
+        },
       })
     })
     .catch(() => {

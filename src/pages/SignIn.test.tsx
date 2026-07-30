@@ -129,8 +129,8 @@ describe('SignIn — the credentials form', () => {
       expect(html).toContain('id="signin-identifier"')
       expect(html).toContain('id="signin-password"')
     }
-    expect(en).toContain('Sign in to OpsTrack')
-    expect(ar).toContain('تسجيل الدخول إلى OpsTrack')
+    expect(en).toContain('Sign in to CoreTrack')
+    expect(ar).toContain('تسجيل الدخول إلى CoreTrack')
   })
 
   it('keeps the free-tier promise — the front door never offers a code (WAVE2-NOTES §1)', () => {

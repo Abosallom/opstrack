@@ -26,11 +26,24 @@ import { isNativeApp, nativePlatform } from './native'
  * exists only as the function's `VAPID_PRIVATE_KEY` secret — never in this repo,
  * never in `.env`, never in the database.
  *
- * A CONSTANT WITH AN ENV OVERRIDE, in that order of preference. The GitHub Pages
- * build only injects `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, so a key
- * that lived ONLY in the environment would be empty in production and push would
- * be quietly unavailable there. The override exists so a second project (or a
- * rotation) does not need a code change.
+ * A CONSTANT WITH AN ENV OVERRIDE, in that order of preference — and the order
+ * is the whole point. A key that lived ONLY in the environment would be empty in
+ * any build that forgot to pass it, and push would be quietly unavailable rather
+ * than loudly broken. So the working key is compiled in, and the override exists
+ * so that a rotation, or a build aimed at a second Supabase project, is a
+ * `gh secret set` rather than a source edit.
+ *
+ * The override is wired end to end: `.github/workflows/deploy.yml` passes
+ * `secrets.VITE_VAPID_PUBLIC_KEY` into `npm run build`, and Vite inlines it —
+ * measured, the constant below is dropped from the bundle entirely when the
+ * variable is set, and is the only key present when it is not. The secret is
+ * intentionally absent from the workflow's required-secrets check, because unset
+ * is the normal state. Rotation procedure: docs/RUNBOOK.md §4.2.
+ *
+ * Whatever this resolves to must equal the `VAPID_PUBLIC_KEY` secret on the
+ * `send-push` function. Nothing at runtime can check that — the function's half
+ * is a secret — so RUNBOOK §9.3 checks it by comparing SHA-256 digests, which
+ * the Supabase Management API returns in place of secret values.
  */
 const DEFAULT_VAPID_PUBLIC_KEY =
   'BAYwGF6SUVNWwahS1oXHQwCFpCZrqlQ_xQtSG_l474MOAVT5TFquLFPkcYDvR4C6VA8RD-kocQ2HtuGYezwb-xc'

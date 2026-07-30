@@ -1,6 +1,6 @@
 {
   "signin": {
-    "heading": "تسجيل الدخول إلى OpsTrack",
+    "heading": "تسجيل الدخول إلى CoreTrack",
     "subtitle": "يُنشئ المشرف الحسابات. سجّل الدخول باسم المستخدم الذي زوّدك به، أو ببريدك الإلكتروني.",
     "identifierLabel": "اسم المستخدم أو البريد الإلكتروني",
     "identifierPlaceholder": "ahmed.otaibi",
@@ -57,7 +57,6 @@
     "backToSignIn": "العودة إلى تسجيل الدخول",
     "useEmail": "سجّل الدخول برمز يصل إلى بريدك بدلًا من ذلك",
     "useUsername": "سجّل الدخول باسم مستخدم بدلًا من ذلك",
-    "microsoft": "تسجيل الدخول عبر Microsoft",
     "errUsernameRequired": "أدخل اسم المستخدم.",
     "errPasswordRequired": "أدخل كلمة المرور.",
     "errPasswordShort": "استخدم {min} أحرف على الأقل.",
