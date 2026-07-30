@@ -54,6 +54,35 @@ export type PluralCategory = (typeof PLURAL_CATEGORIES)[number]
  */
 export const EXACT_CATEGORIES: readonly PluralCategory[] = ['zero', 'one', 'two']
 
+// ── the `zero` audit (2026-07-30) ───────────────────────────────────────────
+//
+// Arabic selects `zero` for n=0; a node without it falls back to `other`, the
+// 11–99 form. All 37 nodes then missing `zero` were traced to their call
+// sites. Only THREE can actually receive count=0, and only they gained a form:
+//
+//   entry.ageActivity      AgePill renders on health alone; days_since_activity
+//   entry.ageBlocked       is max(0, …) — 0 on any entry touched today.
+//   capture.cadenceCustom  a superseded `every:` chip renders with `?? 0`.
+//
+// The other 34 were left WITHOUT `zero` on purpose — 0 is unreachable at every
+// call site, by one of five mechanisms (checked individually; evidence in the
+// 2026-07-30 analysis tables):
+//   · render guards       (`hidden > 0 &&`, `behind > 1 &&`, `unmeasured > 0`)
+//   · zero routed to a dedicated key first (digest.detailQuietToday /
+//     detailBlockedToday / summaryEmpty, date.today, recurring.deleteBody)
+//   · arithmetic floors   (Math.max(1,…) in overdueDays; the elapsed-time
+//     ladder in formatRelative returns earlier branches below 1 unit)
+//   · frozen literals     (WEEK_OPTIONS, PRESETS, CLOSED_WINDOW_DAYS)
+//   · DB CHECKs           (sla_days >= 1, clamped custom_interval_days)
+//
+// If you unguard one of those call sites, add the `zero` form in the same
+// change. Known watch items: entry.ageStatus (no caller passes reason="status"
+// yet — first one to do so must add `zero` to keep the AgePill family whole),
+// and offline.pending/syncFailed (unwired at audit time; whoever connects
+// usePendingCount()/useOutbox() re-decides). entry.dueIn, entry.overdueBy and
+// entry.slaBreachedBy had ZERO call sites repo-wide — dead-code candidates,
+// not zero-form candidates.
+
 /**
  * A well-formed plural node: any subset of the categories, and always `other`.
  *

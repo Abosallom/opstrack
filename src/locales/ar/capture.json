@@ -55,6 +55,7 @@
     "cadenceMonthly": "شهريًا",
     "cadenceQuarterly": "كل ربع سنة",
     "cadenceCustom": {
+      "zero": "تكرار مخصّص",
       "one": "كل يوم",
       "two": "كل يومين",
       "few": "كل {count} أيام",
