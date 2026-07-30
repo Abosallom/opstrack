@@ -1588,6 +1588,28 @@ Every row this proof run created or changed, so the next person can undo it.
 | `entries` | `cf7d4d12-31e9-4e69-a082-10d99c6214d7`, `1ac8e152-a9db-429d-92a5-ee4db2d03d40` | §3.1's two offline captures (`ZZ-OFFLINE-1/2`). **Kept**, because "the rows reached Postgres" is the claim and deleting them makes §3.1 unre-checkable | yes | Wave 5, once §3.1 is accepted: `delete from public.entries where title like 'ZZ-OFFLINE-%';` |
 | `claim_counters` | 7 rows: `ip/42753f28…` and `username/{az.alsaloom, zzcurve.gap6, zznosuchuser.gap6, zzparallel.gap6, zzprobe.claimed, zzthrowaway.gap6}` | §5.5. The first live rows this table has ever held | yes, but **self-expiring** — the window is 15 min, so they are inert; kept as the artifact | Wave 5: `delete from public.claim_counters;` — safe at any time |
 
+> ### Wave 5 executed the three deferred cleanups above, 2026-07-30
+>
+> Recorded here rather than only in the newer file, because a "Cleanup owner:
+> Wave 5" that is never marked done is how residue becomes permanent.
+>
+> - **`ZZ-OFFLINE-1/2` — deleted.** The condition was "once §3.1 is accepted",
+>   and §3.1 was re-proved end to end during the v1.0.0 release smoke: a fresh
+>   offline capture (`ZZ-OFFLINE-3`) queued to `opstrack_outbox_v1`, drained on
+>   reconnect, and landed as `entries.id 35f58de8-…`. That new row was deleted
+>   with the two old ones.
+> - **`claim_counters` — deleted**, all 7 rows. Table is empty and inert.
+> - **`(Network, high) = 2 days` SLA override — KEPT.** "Wave 5 decides" is now
+>   decided: it stays. It is not residue, it is the only live example of a
+>   per-track SLA in the workspace, it renders correctly (the Wave-5 smoke saw
+>   *"Service deadline: 2 days, from this track's override"* on a follow-ups
+>   card), and the owner can change or remove it from Settings › Tracks without
+>   SQL. The same reasoning keeps the active weekly `recurring_templates` row.
+>
+> Verified after: `entries where title like 'ZZ-%'` → 0, `claim_counters` → 0,
+> `profiles` → 1, `auth.users` → 1. Full ledger:
+> [`wave5-release-smoke.md`](wave5-release-smoke.md) §4.
+
 **Created and already removed by this run** — listed so the ids in the body of
 the ledger resolve to something, and so nobody hunts for rows that are gone:
 

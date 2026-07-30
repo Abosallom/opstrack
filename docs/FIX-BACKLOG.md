@@ -37,7 +37,9 @@ Wave 5:
 | **+** five new suites: `CommandPalette` 42, `Export` 19, `Cheatsheet` 14, `Members` 14, `brand` 10 | +5 | +99 |
 | **+** additions to `toast.test.ts` and `push.test.ts` | — | +16 |
 | **−** `src/lib/sso.test.ts`, deleted whole by the SSO strip | −1 | **−30** |
-| **this commit** | **57** | **1583** |
+| the Wave-5 hardening close | **57** | **1583** |
+| **+** `src/store/settings.test.ts`, the regression gate for **R2** below | +1 | +3 |
+| **`v1.0.0` (`8c888d9`)** | **58** | **1586** |
 
 The subtraction is the row worth pausing on. A test count that only ever rises is
 one nobody is reading; this one fell by 30 on purpose, and §2 of the Wave-5 notes
@@ -438,8 +440,15 @@ Aziz with options 1–3 before v1.0.0 is called done.
 
 ## What is still open, ranked
 
-Nine items, one major (**P2**) and eight minors. None is a blocker; the ranking
-is by what will hurt first, not by severity label.
+Eleven items, one major (**P2**) and ten minors — the two additions are **R3**
+and **R4** from the v1.0.0 release smoke. None is a blocker; the ranking is by
+what will hurt first, not by severity label. **R4 goes in at the top**, above
+even P3: it is the only open item that will bite on the first day of team
+testing, because it silently swallows an assignment and the notification with it.
+
+0. **R4** — `@username` does not assign, and username is the identifier the
+   admin hands out. Free text is a designed state, so nothing looks wrong;
+   the work simply does not reach the person and no notification fires.
 
 **M6 has left this list** — it was item 1, and Wave 5 closed it together with
 **G5**. The update path is now whole in both halves: the prompt cannot be evicted
@@ -461,6 +470,10 @@ is by what will hurt first, not by severity label.
 6. **P7** — drop two unreachable GIN indexes and a standalone `(created_at
    desc)`. Reversible; the write cost is real and the read benefit is zero while
    filtering is client-side by design.
+7. **R3** — a deleted member's entries lose the name the confirm dialog promises
+   to keep. Cosmetic in effect, but it is a written promise the code does not
+   keep, so it is either a behaviour fix or a copy fix and the behaviour is the
+   right one to change.
 7. **`STICKY-OFFSET`** — `.offline-region` sticks at `inset-block-start: 0`, the
    same slot `.app-header` sticks in, and wins on `z-index` (65 vs 60). Now that
    the sticky actually travels (the Wave-4b audit moved it off `.offline-banner`,
@@ -484,6 +497,24 @@ is by what will hurt first, not by severity label.
    var(--app-header-block-size, 0px)`). Do NOT "fix" this by lowering the
    region's `z-index` below 60: that hides the strip behind the header's 88%
    background and blur, which is the bug the z-index was chosen to avoid.
+
+---
+
+## Found by the v1.0.0 release smoke — 2026-07-30
+
+Four findings, from the run recorded in
+[`EVIDENCE/wave5-release-smoke.md`](EVIDENCE/wave5-release-smoke.md). Two were
+fixed and shipped in the release; two are open and are recorded here with the
+reasoning for leaving them, which is the part a backlog usually loses.
+
+| Id | Severity | Disposition |
+| --- | --- | --- |
+| **R1** | major | `fixed-in-b82a15d` — **one dark background declared four ways, three of them wrong.** `--bg` is `#101519`/`#f4f6f8`; `theme.ts` said `#0f1115`/`#f7f8fa`, `index.html` and the PWA manifest both said `#101215`; only `capacitor.config.json` was right, and each wrong one carried a comment claiming it matched. `APP-STORE.md` §5 had reported two of the four at the Wave-4b close and correctly left them as another owner's files. Android paints an installed PWA's splash with `background_color` and iOS Safari tints the status bar with `theme-color`, so this landed above every screen of the first install. Measured with `getComputedStyle` on the deployed origin, not read off the source. |
+| **R2** | **major** | `fixed-in-8c888d9` — **the language choice never reached `profiles.locale`.** `void client.from('profiles').update(…).eq(…)` builds a PostgREST **thenable** and discards it; `PostgrestBuilder.then()` is what calls `fetch`, so no request was ever sent. `applyProfileLocale` then restored the stale column on every load: change the language, reload, back to English. Invisible to `tsc` (well-typed), to `oxlint` (`void` is its approved "not awaited" form — the very token that caused it), and to the session that causes it. `store/settings.test.ts` now asserts **subscription**, which is the only observable that separates sent from built. |
+| **R3** | minor | `open` — **deleting a member drops the credit the confirm dialog promises to keep.** The dialog says entries "stay, credited to their name"; measured after a real delete, the entry stays but `owner_id` **and** `owner_name` are both null, so it reads *Unassigned*. `owner_name` exists exactly to hold a name with no account behind it — nothing writes into it on the way out. **Prescribed fix:** in `admin-members` (or a `before delete` trigger on `profiles`), copy `display_name` into `owner_name` for every entry about to lose its `owner_id`. **Why it is open:** that is a migration or a function redeploy on the account-deletion path, and it would have shipped at the release cut with no reviewer left in the wave. A wrong attribution line is a smaller risk than an unreviewed change to the code that deletes accounts. Fix the behaviour, not the sentence — the sentence describes what it should do. |
+| **R4** | minor | `open` — **`@username` does not assign, and members are provisioned by username.** `matchMemberTiers()` matches an `@handle` against `displayName` and `aliases` only, exact-or-prefix, never subsequence — deliberate, and right: silently assigning work to the wrong person is worse than free text. But the Members screen identifies people as `@zz.smoke.v100`, the invite code is tied to that username, and the capture placeholder is handle-shaped (`@ahmed`). Typing the identifier you were handed produces a free-text owner: no assignment, **and therefore no notification**, with nothing rendering red. The seeded example hides it — `@ahmed` works only because it is a prefix of the display name `Ahmed Al-Otaibi`; `@ahmed.otaibi` would not. **Prescribed fix:** feed the username into `foldedForms(member.displayName, '', member.aliases)` — the empty middle argument is the slot, and `parse.ts`'s own header says the alias path exists so this needs no reopening of the matcher. Wants the username on `ParseMember`, which the members store does not carry today. Likeliest first-run surprise for the team. |
+
+---
 
 And two that are closed but not *finished*, both for the same reason. **S1d** and
 **S1e** are fixed in the repo and reach users only when the edge functions are
