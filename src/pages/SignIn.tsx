@@ -51,6 +51,7 @@ import {
 import { Link } from 'react-router-dom'
 import { isConfigured } from '../api/supabase'
 import { IconArrowStart, IconBolt, IconKey, IconMail, IconUser } from '../components/icons'
+import SsoButtons from '../components/SsoButtons'
 import { toast } from '../components/toast'
 import { t, useLocale } from '../lib/i18n'
 import { sendOtp, signInPassword, verifyOtp } from '../store/auth'
@@ -404,6 +405,15 @@ export default function SignIn(): ReactElement {
                 {t('signin.firstTime')}
               </Link>
             )}
+
+            {/* Microsoft Entra, in the alternatives slot under the one separator
+                this form owns. It renders NOTHING until `/auth/v1/settings`
+                reports `external.azure: true` — false on this project today — so
+                there is no button to fail until the tenant supplies a client id.
+                It draws no separator of its own, by agreement: the `.signin-sep`
+                above is the only one, and a second would double the rule on the
+                one screen that mounts both. */}
+            <SsoButtons />
           </form>
         ) : (
           <div

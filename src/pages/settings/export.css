@@ -1,0 +1,270 @@
+/* The export screen (/settings/export).
+
+   A sheet of its own rather than more rules in admin.css: that file is shared
+   with TracksAdmin.tsx and TrackEditor.tsx, which nobody in this wave owns, and
+   this screen shares none of its furniture — no row list, no swatches, no
+   reorder controls. It claims exactly one prefix, `.exp-*`, and styles nothing
+   else: no `admin-*` rule, no `global.css` primitive. (EXECUTION-PLAN §1.0.7
+   registry addition, recorded in the handoff note.)
+
+   Everything visual that already exists is reused rather than restyled: `.card`
+   for the two format panels, `.btn` / `.btn-primary` for the actions (both
+   already 44px min-block-size, so the touch targets need nothing here), `.chip`
+   for the relation list, `.muted` for the secondary error line.
+
+   LOGICAL PROPERTIES ONLY, so the Arabic mirror comes free — including the
+   progress fill, which grows along `inline-size` and therefore fills from the
+   right under dir="rtl" without a second rule. */
+
+.exp {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* The back link's row. Its own line rather than floated beside the intro, so the
+   44px target never overlaps the lead paragraph on a 320px screen. */
+.exp-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.exp-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exp-lead {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+/* --text-dim, not --text-faint: these two sentences carry the one fact a person
+   needs before tapping (what is in the file, and that it comes from the server),
+   and faint does not clear AA on --bg. "Secondary" here means read second, not
+   read with difficulty. */
+.exp-note {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+/* ── the two format panels ────────────────────────────────────────────────── */
+
+.exp-card {
+  display: flex;
+  flex-direction: column;
+  /* 12px between the head, the detail and the action — one step tighter than
+     the page's 16px, so each card reads as one block rather than three. */
+  gap: 12px;
+  /* The action sits at the reading start, under its own description, rather than
+     stretched across the card: a full-width primary button in a stack of two
+     cards reads as a form's submit and invites the wrong one. */
+  align-items: flex-start;
+}
+
+.exp-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  /* The head owns the card's full measure even though the action beside it does
+     not — align-items: flex-start on the parent would otherwise shrink it to its
+     text. */
+  align-self: stretch;
+}
+
+/* A 32px tile, matching the settings sections' head icon so the two levels of
+   the same screen family look like one. */
+.exp-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+}
+
+.exp-card-text {
+  /* min-inline-size:0 is what lets a long Arabic description wrap instead of
+     forcing the flex row wider than the card. */
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exp-card-title {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.exp-card-desc {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+/* ── what a backup contains ───────────────────────────────────────────────── */
+
+/* An h3, so it is a real heading in the outline; sized down to a label, because
+   at 15px it would compete with the card title two lines above it. */
+.exp-tables-title {
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* Not `.chip-row` — that primitive scrolls horizontally on one line, which is
+   right for a filter rail and wrong for nine labels a person is meant to read.
+   These wrap. */
+.exp-tables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-self: stretch;
+  /* The list markers, removed here rather than in global.css: `.chip` is a
+     styled <li> in exactly this one place. */
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* The CSV's honest small print. A dashed rule rather than a filled panel: it is
+   a caveat on the button below it, not a warning about it. */
+.exp-caveat {
+  align-self: stretch;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+/* ── progress ─────────────────────────────────────────────────────────────── */
+
+.exp-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exp-progress-track {
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  /* Clips the fill's own rounding at 100%, so the bar ends flush. */
+  overflow: hidden;
+}
+
+.exp-progress-fill {
+  block-size: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  /* Grows along the INLINE axis, so it fills leftward under dir="rtl" with no
+     second rule and no JS branch. The width itself is an inline style, because
+     it is data. */
+  transition: inline-size 0.25s ease;
+}
+
+.exp-progress-line {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+/* Tabular figures: the row counter climbs through four and five digits while
+   this line is on screen, and proportional digits make the whole sentence
+   shuffle under the reader's eye on every page. */
+.exp-progress-count {
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+/* ── the outcome ──────────────────────────────────────────────────────────── */
+
+.exp-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exp-result-main {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* The filename. Not `direction: ltr` — the sentence around it is a full
+   translated sentence and forcing LTR would reorder the Arabic; the FSI in the
+   locale string is what keeps the name itself intact. */
+.exp-result-file {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  /* A stamped filename has no spaces to break at, so it must be allowed to
+     break anywhere rather than widen the card past the viewport. */
+  overflow-wrap: anywhere;
+}
+
+/* Truncation. A warn-toned panel INSIDE the success card, because that is the
+   truth of it: the export worked and it is short. A separate red card would
+   read as a failure, and a silent success would be the bug this whole flag
+   exists to prevent. */
+.exp-warn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  /* The tint and the rule are derived from --yellow with color-mix, the same
+     technique `.pill.warn` uses, rather than from two new tokens: global.css is
+     frozen after Wave 1, and a warn panel that hardcoded a hex would be the one
+     element on the page that does not flip with the theme. */
+  border: 1px solid color-mix(in srgb, var(--yellow) 35%, transparent);
+  background: color-mix(in srgb, var(--yellow) 10%, transparent);
+  font-size: 12.5px;
+  line-height: 1.6;
+  /* NOT --yellow for the body text. --yellow is tuned for a pill's 12px badge
+     on --bg-elev; a whole paragraph in it is a legibility regression at 4.71:1
+     on the light theme's elevated surface. The tint carries the tone; the text
+     stays on the reading token. */
+  color: var(--text-dim);
+}
+
+.exp-warn-title {
+  font-weight: 650;
+  color: var(--text);
+}
+
+/* ── failure ──────────────────────────────────────────────────────────────── */
+
+.exp-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.exp-error-main {
+  font-weight: 600;
+}

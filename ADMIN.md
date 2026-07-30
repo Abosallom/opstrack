@@ -1,8 +1,11 @@
 # OpsTrack — administration
 
 What an admin can change from the app, what is deliberately not changeable, what
-it costs to change one of those things anyway, and how to recover when the only
-admin loses the role.
+it costs to change one of those things anyway, how member accounts are created and
+claimed, and how to recover when the last admin loses the role.
+
+This is the *why*. The step-by-step procedures — add a member, rotate a key,
+apply a migration, roll back a deploy — are [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 Everything here assumes the migrations in [`supabase/migrations/`](supabase/migrations)
 have been applied in numeric order.
@@ -11,10 +14,12 @@ have been applied in numeric order.
 
 ## Who is an admin
 
-`profiles.role = 'admin'`. That column is the only admin signal in the entire
-system: `is_admin()` reads it for every RLS policy, and `store/auth.ts` reads the
-same column for the UI. There is no email allow-list gate any more — see the note
-in [`src/lib/admin.ts`](src/lib/admin.ts) for why a second source is worse than
+`profiles.role = 'admin'`. That column decides it, everywhere it matters:
+`is_admin()` reads it for every RLS policy, `store/auth.ts` reads the same column
+to decide which controls render, and the member-provisioning edge function reads
+it with the service role before doing anything privileged. There is no email
+allow-list in the browser — see the note in
+[`src/lib/admin.ts`](src/lib/admin.ts) for why a second source is worse than
 none.
 
 The first admin is promoted by the bootstrap block at the bottom of
@@ -24,9 +29,57 @@ order is: run 0001 → run 0002 → sign in once with the admin address → run 
 again (or just the recovery statement below). 0002 prints a `NOTICE` telling you
 which of those three happened.
 
-The allow-list inside `supabase/functions/admin-members/index.ts` is **not** an
-admin gate. It decides who may call the member-provisioning edge function with
-the service role. Adding an address there does not make anyone an admin.
+**Promoting a second admin is one statement**, and it has to be run somewhere with
+no session — the SQL Editor or the service role — because `guard_profile_role()`
+silently reverts a role change made by anyone holding a JWT who is not already an
+admin:
+
+```sql
+update public.profiles p
+   set role = 'admin'
+  from auth.users u
+ where u.id = p.id
+   and lower(u.email) = 'someone@example.com';
+```
+
+They have to sign out and back in afterwards. The role is read once per sign-in,
+so an open tab keeps the old answer and will render member chrome while the server
+happily accepts admin writes — confusing in exactly the direction that makes
+people think the promotion failed.
+
+---
+
+## Who can provision members
+
+Being an admin and being able to *create accounts* were two different questions
+for three waves. They are now one, with a bootstrap door left open on purpose.
+
+`admin-members` re-verifies the caller for itself, with the service role, so RLS
+is never the thing that answers. Two ways to pass:
+
+1. **`profiles.role = 'admin'`**, looked up by the function against the caller's
+   own id. This is the general path: **a second admin promoted with the statement
+   above can provision members**, immediately, with no redeploy.
+2. **The `ADMIN_EMAILS` array inside the function**, which is a *bootstrap*
+   allow-list and nothing else. It exists because the profile lookup is a
+   database read, and a project whose `profiles` table is unreachable or whose
+   only admin row has been wiped still has to be recoverable by somebody. It is
+   the door you use when the room is on fire.
+
+So: adding an address to `ADMIN_EMAILS` does not make anyone an admin — it grants
+one capability, member provisioning, and nothing else. And promoting someone in
+`profiles` *does* now grant them that capability, which was not true before
+Wave 4. If you are reading an older note that says a second admin "can manage
+tracks but cannot provision members", that was accurate and is no longer.
+
+Changing `ADMIN_EMAILS` means editing the file and **redeploying the function** —
+see [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §4. Changing `profiles.role` takes
+effect on the target's next sign-in and needs no deploy. Prefer the second.
+
+**A member who is not an admin gets `403 Only an admin can manage members` from
+the function and `42501` from any admin-only write.** Both are the server
+refusing, not a hidden button: the browser's role check decides what renders and
+carries no authority at all.
 
 ---
 
@@ -45,8 +98,14 @@ the service role. Adding an address there does not make anyone an admin.
 | Delete | Refused while anything still references the track. The UI then offers to move those rows to another track first, and does both in one transaction. The destination must be an **active** track: an archived one is hidden from every picker and stops its recurring templates, so moving rows there would lose them quietly. There is no "leave them unassigned" option — the database refuses that, since every `track_id` FK is `on delete set null` |
 | SLA overrides | One optional number of days per priority, in the track editor. Empty means the track inherits the workspace default for that priority. See [Service-level agreements](#service-level-agreements-sla) below |
 
-**Members** — provisioned through the `admin-members` edge function (see the
-README). The members *screen* is deferred until after entries CRUD.
+**Members** — `/settings/members`, admin only. Create an account, hand over its
+one-time invite code, reissue a code, see who has not claimed yet, remove someone.
+Every one of those goes through the `admin-members` edge function; the screen never
+touches `auth.users` itself, because it cannot — that needs the service role, and
+the service role never reaches a browser. The same operations by hand, for when the
+app is the thing that is broken, are in
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md) §1. The full lifecycle and its rules are
+[below](#member-accounts-usernames-invites-and-claiming).
 
 **Everything is audited.** Every track insert, update and delete writes a row to
 `config_audit` with the actor and full before/after images, and a
@@ -180,6 +239,122 @@ select t.name, p.key as priority,
 
 ---
 
+## Member accounts: usernames, invites and claiming
+
+Two kinds of account exist and they authenticate completely differently. Nearly
+every support question is really a question about which kind you are holding.
+
+|  | **Your account** | **Everyone else** |
+| --- | --- | --- |
+| Identity | a real email address | a **username** |
+| Auth address | that address | `<username>@opstrack.internal` |
+| Ways in | password, or a magic link mailed to you | password only |
+| Got the password how | you set it in the dashboard | chose it themselves, redeeming a one-time invite code |
+| Password reset | set a new one in the dashboard | **the admin reissues a code** |
+
+`@opstrack.internal` is reserved by RFC 6761 and can never receive mail. That is
+the point: it makes it structurally impossible for any feature to quietly grow a
+dependency on emailing a member. If a future feature needs to reach them, it has
+to reach them somewhere that exists.
+
+### The lifecycle
+
+**1. Issue.** An admin creates the account from **Settings › Team members**. The
+username must be 3–32 characters, lowercase letters and digits, with `.` `-` `_`
+allowed only in the middle — `ahmed.otaibi` and `it-ops` are fine, `-ops`,
+`Ahmed` and `ops.` are not. The reply contains an **invite code, shown exactly
+once**: eight characters from a 32-symbol alphabet with `I`, `O`, `0` and `1`
+removed, because those are the pairs people transcribe wrong off a screen. Forty
+uniform bits.
+
+Only an **HMAC** of `username:CODE` is stored, under a function secret the
+database does not hold. There is no "show it again" — the workspace genuinely
+cannot recover the code, only replace it.
+
+**2. Hand over.** In person or on a call. Not by email, because the account has no
+inbox, and not in a chat log you would not want the code sitting in for a
+fortnight. The member goes to the app, taps **First time here? Claim your
+account**, and enters the username, the code, and a password of at least 8
+characters — length is the only rule, so long beats complicated.
+
+**3. Claim.** One request sets the password *and* burns the code, in a single
+write. Two writes would leave a window where the password is already changed but
+the invite still verifies, and "the request died halfway" is exactly the case a
+single-use credential has to survive. After it, the password is the only
+credential and the code is dead.
+
+**4. Reissue** is both the lost-code path and the forgotten-password path, and
+there is nothing else. It mints a fresh code with a fresh 14 days, clears the
+account's `claimed` flag so the claim screen accepts it again, and resets that
+username's throttle bucket so the member is not made to wait out someone else's
+failed guesses. A **reissued code un-claims the account**: until it is redeemed,
+the old password no longer works. That is deliberate — it is a reset, not a
+second key.
+
+Codes expire after **14 days** and work **once**.
+
+### What a wrong code costs, and what it does not
+
+Getting this wrong in either direction is easy, so it is worth being explicit
+about the shape that shipped.
+
+- **Every failure looks the same.** No such username, not a username account, no
+  outstanding invite, wrong code, expired code, already claimed — one `403` with
+  one body. Usernames here are guessable by construction (they are handed out in
+  person), so the *code* is the secret, and an error that confirmed a username
+  exists would hand an attacker the only half of the pair they could not
+  otherwise test. The lookup is a single indexed read, so the *timing* does not
+  leak either — an earlier version paged through the user list and answered a hit
+  faster than a miss, which was the same oracle wearing a different hat.
+- **A member who forgot they had claimed** therefore gets the same "check both
+  fields, or ask your admin" message as anyone else. Slightly worse for them;
+  the right advice regardless, since the admin's reissue is the reset.
+- **Wrong guesses buy delay, never refusal.** Two free, then 0.25s, 0.5s, 1s,
+  2s, 4s and no further, counted in a rolling 15-minute window against both the
+  submitted username and the caller's address prefix. **Nobody can be locked
+  out**: a member holding a real code always gets in, however many times someone
+  else has guessed at their username. An earlier version refused for fifteen
+  minutes after ten failures, which meant an attacker could deny a member their
+  own account indefinitely, ten requests at a time.
+- **The one hard refusal is per-address, not per-account.** A volume ceiling far
+  above anything a human reaches answers `429`. It can only shut out the machine
+  doing the spraying, and it says nothing about any account.
+- **The counter is a database row**, not a field on the user, so two guesses in
+  parallel count as two. It is readable and writable only by the service role —
+  the anon key ships in every browser bundle, and a counter reachable with it
+  would let anyone inflate a stranger's backoff.
+
+### Operating it
+
+Day-to-day commands — create, hand over, reissue, list who has not claimed,
+remove — are [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §1, including the raw `curl`
+form for when the app itself is the broken thing. Three notes that belong here
+rather than there:
+
+- **`list` reports `claimed`, `invite_expires_at`, `last_sign_in_at` and
+  `has_profile`.** `has_profile: false` means an auth user exists with no
+  `profiles` row — they can authenticate and will see nothing, because every RLS
+  policy keys off that row. Delete and re-create them.
+- **Removing someone keeps their work.** `owner_id` and `created_by` are
+  nullable, so entries, updates and meeting lines survive; the name goes. The
+  function refuses to delete you, and refuses to delete the last remaining admin.
+- **`set-role` promotes and demotes** through the same function, and it is the
+  supported way: it holds the service role, so `guard_profile_role()` lets the
+  write through. Three refusals are wired into it, all of them protecting against
+  an unrecoverable workspace, since this endpoint is the *only* way an account
+  comes into existence: you cannot demote **yourself**, you cannot demote the
+  **last remaining admin**, and you cannot demote the **bootstrap address** —
+  that one is an admin by the allow-list whatever its row says, so writing
+  `member` onto it would only make the screen disagree with the server.
+
+  Role changes are **not** written to `config_audit`. That table covers tracks,
+  vocabulary and SLA overrides; `auth.users` and `profiles.role` are outside it.
+  If you need a history of who was an admin when, that is a gap, not a query you
+  have not found. The SQL statement earlier in this file remains the recovery
+  path for when the app cannot be reached at all.
+
+---
+
 ## What an admin cannot change — and why
 
 **The entry vocabulary is frozen.** These value lists are fixed in the schema and
@@ -213,10 +388,10 @@ two-click merge that rewrites every completed entry in the workspace, with no
 undo and no record of what each entry's status used to be.
 
 **Renaming is not blocked.** What you see in the UI is a label, not the stored
-value. Sitting 2 adds a vocabulary screen for exactly that: relabel in both
-languages, recolour, reorder, hide — without touching the keys underneath. Almost
-every "I need a different status" turns out to be "I need this one to say
-something else", and that is free.
+value. The vocabulary screen at `/settings/vocabulary` exists for exactly that:
+relabel in both languages, recolour, reorder, hide — without touching the keys
+underneath. Almost every "I need a different status" turns out to be "I need this
+one to say something else", and that is free, instant and audited.
 
 ---
 
@@ -242,8 +417,21 @@ rejects is a `23514` at save time.
    ```
 
 2. `src/types.ts` — add `| 'deferred'` to the `EntryStatus` union.
-3. `src/locales/en.json` — `status.deferred`.
-4. `src/locales/ar.json` — `status.deferred`.
+3. `src/locales/en/status.json` — `status.deferred`.
+4. `src/locales/ar/status.json` — `status.deferred`.
+
+   The locale tree is **one JSON file per namespace**, not two big files. It used
+   to be `src/locales/en.json` and `ar.json`; those were split during Wave 1 and
+   creating them again produces two files nothing imports and a screen full of raw
+   dot paths — the exact failure this section warns about, arrived at by following
+   this section. Add the key to the *existing* `status.json` in both trees.
+
+   You do **not** need to touch `src/locales/index.ts` for a new key inside an
+   existing namespace; that file registers namespaces, and `status` is already
+   registered. A brand-new namespace is a different story, and it is the one thing
+   here that no gate catches on its own: an unregistered namespace renders every
+   one of its strings as its own dot path, in both languages, and the parity gate
+   walks the registered list, so it cannot see what is missing.
 
 ### If the new value is a *type* or a *priority*, not a status: +1
 
@@ -267,31 +455,55 @@ In the same migration, add it to all three lists that decide what "closed" means
 - `v_entry_health` — `where e.status not in ('done','cancelled')`, which is what
   keeps closed items out of the staleness maths
 
-### Once sitting 2 lands: +1
+### The vocabulary seed row: +1, always
 
 `vocab_options` needs a seed row for the new key (`kind`, `key`, `label`,
 `label_ar`, colour, sort order), or the value exists but has no presentation and
-sorts last with no colour.
+sorts last with no colour. This is not conditional any more — the table shipped in
+`0003` and the vocabulary screen is live at `/settings/vocabulary`, so a value with
+no row is a value the admin cannot see, order or recolour.
 
-### As later phases land
+### Everything that groups by the value
 
-Anything that groups by the value — the board's column mapping (phase 5), the
-digest's sections (phase 8) — gains a case. Neither exists yet; there is nothing
-to edit today.
+The board's columns and the digest's sections both derive from the vocabulary
+rather than from a hardcoded list, so they pick up a new value with no edit —
+that was the point of building them that way. But **each one has an overflow
+path** for values it did not expect: the board files an unknown or retired option
+into a source-only rail that cannot be dropped onto. Add the seed row and the
+value behaves; skip it and the value technically works while being undraggable,
+which is a worse bug than a missing translation because nothing about it looks
+broken.
 
-**So: 4 edits for a plain status, 5 for a type or priority, 7 for a terminal
-status, plus one more once the vocabulary table exists.** All in one commit, all
-deployed with the migration, in that order — migration first, then the app.
+**So: 5 edits for a plain status, 6 for a type or priority, 8 for a terminal
+status** — the floor of four, plus the vocabulary seed row, plus whichever of the
+two conditions above apply. All in one commit, all deployed with the migration, in
+that order: migration first, then the app.
+
+Also note the number `0003` in the example above is now taken, as are everything
+up to `0009`. "The next free number" means exactly that — look in
+[`supabase/migrations/`](supabase/migrations) first. Supabase keeps no ledger of
+what has been applied, so a duplicated number is not caught by anything.
 
 ---
 
 ## Recovery: the admin role was lost
 
-There is exactly one admin. If that role is cleared or downgraded, **nobody can
-restore it from the browser**, and this is by design, not an oversight:
-`guard_profile_role()` (0001) reverts any role change made by a caller who holds
-a JWT and is not already an admin. It reverts it *silently* — the write reports
-success and the value does not move.
+**First: check whether there is another admin left**, because if there is, this
+whole section is unnecessary — they can promote you back from **Settings › Team
+members** in about ten seconds.
+
+```sql
+select u.email, p.role from public.profiles p
+  join auth.users u on u.id = p.id where p.role = 'admin';
+```
+
+The live workspace has run on a single admin, and `set-role` refuses to demote the
+last one, so reaching zero takes a hand-written SQL statement or a deleted row.
+
+If that query returns nothing, **nobody can restore the role from the browser**,
+and this is by design, not an oversight: `guard_profile_role()` (0001) reverts any
+role change made by a caller who holds a JWT and is not already an admin. It
+reverts it *silently* — the write reports success and the value does not move.
 
 The one path that works is the **Supabase Dashboard → SQL Editor**, which runs
 with `auth.uid()` null. The guard passes JWT-less callers straight through,

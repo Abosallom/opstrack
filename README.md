@@ -13,7 +13,14 @@ Two things it optimises for, and everything else bends around them:
 
 Built with **React 19 + TypeScript + Vite**, `react-router-dom` (HashRouter),
 `zustand`, plain CSS, and **Supabase** for Postgres, Auth, Realtime and
-Row-Level Security. Fully bilingual English/Arabic with RTL layout.
+Row-Level Security. Fully bilingual English/Arabic with RTL layout — Arabic is a
+first-class locale here, not a translation layer, down to the bidi isolates that
+keep a mixed-direction sentence reading in the right order.
+
+It ships as an **installable PWA with an offline write queue**: captures and edits
+made with no network are held locally and flush in dependency order on reconnect.
+There is also a committed **Capacitor iOS shell** for the App Store path; every
+native call sits behind a no-op that a browser tab takes instead.
 
 ---
 
@@ -39,20 +46,41 @@ Leave the **service_role** key where it is. It never goes into the client.
 **Authentication › Sign In / Providers › Email**:
 
 - Turn **Allow new users to sign up** *off*.
-- Leave **Email** enabled, and turn **Confirm email** off (OTP is the
-  confirmation).
+- Leave **Email** enabled. **Confirm email** can stay on or go off — it makes no
+  difference here, because every account is created pre-confirmed by the edge
+  function or by you in the dashboard, and no address ever confirms itself. The
+  live project runs with it on.
 
-This is load-bearing, not a hardening extra. OpsTrack has no public sign-up flow:
-members are provisioned by an admin through the `admin-members` edge function,
-which creates the auth user and its `profiles` row together. Sign-in calls
-`signInWithOtp` with `shouldCreateUser: false`, so an unknown address gets a
-"signups not allowed" error from Supabase — the app translates that into
-*"No account with that email — accounts are created by the admin"*, because that
-error is what an unknown address actually produces.
+Disabling signups is load-bearing, not a hardening extra. OpsTrack has no public
+sign-up flow: members are provisioned by an admin through the `admin-members`
+edge function, which creates the auth user and its `profiles` row together.
+Sign-in calls `signInWithOtp` with `shouldCreateUser: false`, so an unknown
+address gets a "signups not allowed" error from Supabase — the app translates
+that into *"No account with that email — accounts are created by the admin"*,
+because that error is what an unknown address actually produces.
 
-While you are in Auth settings, open **Email Templates › Magic Link** and make
-sure the body contains `{{ .Token }}`. Without it Supabase sends a magic *link*
-and the six-digit code never reaches the user.
+**Do not go looking for the email template.** An earlier version of this file
+told you to put `{{ .Token }}` into **Email Templates › Magic Link** so the mail
+would carry a six-digit code. On the free tier that is impossible: the API
+answers *"Email template modification is not available for free tier projects"* —
+recorded live, with the exact refusal, in
+[`docs/WAVE2-NOTES.md`](docs/WAVE2-NOTES.md). The mail is therefore always the
+stock magic **link**, and the sign-in screen says so.
+
+Two consequences worth knowing before you first sign in:
+
+- **The link signs in whichever device opens it**, and it always lands on the
+  project's Site URL — so a link requested on a laptop and opened on a phone
+  signs the phone in. Set **Authentication › URL Configuration › Site URL** to
+  your deployed origin.
+- **The screen's "enter a code instead" disclosure is wired and works.** It is
+  waiting for the day a custom SMTP provider makes the code visible in the mail;
+  until then it has nothing to receive. Configuring SMTP is the one change that
+  turns it back into the primary path.
+
+Email is only ever *your* problem, incidentally. Every other account is a
+username with a password and no inbox at all — see
+[`ADMIN.md`](ADMIN.md#member-accounts-usernames-invites-and-claiming).
 
 ### 3. Run the migration
 
@@ -69,37 +97,85 @@ Confirm afterwards that **Database › Tables** shows RLS enabled on every table
 An exposed table with RLS off would be readable by anyone holding the anon key,
 which is everyone.
 
-### 4. Deploy the `admin-members` edge function
+### 4. Deploy the two edge functions
 
-This function is the only place the service-role key is ever used. It re-verifies
-the caller's JWT against a hardcoded `ADMIN_EMAILS` list before touching the
-service-role client — the admin checks inside the React app are cosmetic UI
-gating and nothing more.
+There are two, and both are required. Deploying only the first is the mistake
+that costs an afternoon: every account you then create is permanently
+unclaimable, and the failure shows up as a member who cannot sign in rather than
+as an error you can search for.
 
-Edit [`supabase/functions/admin-members/index.ts`](supabase/functions/admin-members/index.ts)
-and put your admin email addresses in its `ADMIN_EMAILS` array. Keep that list
-identical to the one in [`src/lib/admin.ts`](src/lib/admin.ts); they serve
-different purposes (server gate vs. hiding buttons) but a mismatch means an admin
-sees controls that then fail.
+| Function | What it does | Who calls it |
+| --- | --- | --- |
+| [`admin-members`](supabase/functions/admin-members/index.ts) | list · create · delete · reissue-code. The only way an account comes into existence, because signups are off. | an admin, with their own session |
+| [`claim-account`](supabase/functions/claim-account/index.ts) | redeems a one-time invite code and sets the member's chosen password | the member, **with no session at all** |
+
+Both hold the service-role key; nothing else in this project does.
+
+**Set the provisioning allow-list before you deploy.** Open
+[`supabase/functions/admin-members/index.ts`](supabase/functions/admin-members/index.ts)
+and put your own address in its `ADMIN_EMAILS` array.
+
+That list is **not** the app's admin gate, and there is no second copy of it to
+keep in sync. Two different gates exist and they answer different questions:
+
+- **`profiles.role = 'admin'`** decides who is an admin. RLS reads it
+  (`is_admin()`), and the browser reads the same column to decide which controls
+  to render. It is the single source of truth.
+- **`ADMIN_EMAILS` inside `admin-members`** decides only who may call *that
+  function* with the service role. Adding an address there does not make anyone
+  an admin, and promoting someone to admin does not let them provision members.
+
+[`src/lib/admin.ts`](src/lib/admin.ts) is deliberately `export {}` plus a note
+explaining this. A browser copy of the allow-list used to exist; it made the two
+gates disagree, so the admin screens rendered for an address on the list and
+every write it issued came back `42501`. A gate that shows you a form the server
+will always reject is worse than no gate. Do not re-add it —
+[`ADMIN.md`](ADMIN.md#who-can-provision-members) has the rest of the argument and
+what it means for a second admin.
 
 ```bash
-npm i -g supabase                     # or: brew install supabase/tap/supabase
-supabase login
-supabase link --project-ref <your-project-ref>
-supabase functions deploy admin-members
+cd /path/to/opstrack
+export SUPABASE_ACCESS_TOKEN='<a personal access token from supabase.com/dashboard/account/tokens>'
+npx supabase functions deploy admin-members  --project-ref <your-project-ref> --use-api
+npx supabase functions deploy claim-account  --project-ref <your-project-ref> --use-api
+npx supabase functions list --project-ref <your-project-ref>
 ```
 
-`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected into functions
-automatically; you do not need to set any secrets.
+`--use-api` bundles server-side, so **Docker is not required** — that is the only
+reason the flag matters, and it is why this is the one documented deploy path in
+this repo. (`supabase link` is not needed and asks for a database password that
+nothing here uses.)
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected
+into functions automatically; there are no secrets to set.
+
+Leave **Verify JWT ON** for both. `claim-account` is called by people who have no
+session yet and works anyway, because supabase-js sends the project's anon key as
+the bearer token — which satisfies the gateway while keeping the endpoint
+unreachable without an apikey.
+
+**Invoke each one twice after deploying.** The first call fetches
+`npm:@supabase/supabase-js@2` and can take a few seconds or time out once; that
+is a cold start, not a failure. Neither file is covered by `tsc` or `oxlint`
+(`.oxlintrc.json` ignores `supabase/functions`, `tsconfig.app.json` is
+`src`-only), so for these two files a successful invocation **is** the type
+check. Redeploy after every edit — a fix that sits in the repo is not live.
 
 ### 5. Create the first admin account
 
 Chicken-and-egg: only an admin can provision members, and there is no admin yet.
 Bootstrap one by hand.
 
+[`0002_config_foundation.sql`](supabase/migrations/0002_config_foundation.sql)
+ends with a bootstrap block that promotes **one hardcoded address** and prints a
+`NOTICE` saying which of "promoted", "already an admin" or "no profile yet"
+happened. On your own project that address is not yours, so either change it in
+the file before running 0002, or ignore the block and do this:
+
 1. **Authentication › Users › Add user**, enter your email, and tick
-   *Auto Confirm User*. Leave the password blank or random — OpsTrack signs in
-   with OTP and never uses it.
+   *Auto Confirm User*. Set a password while you are there — you will want it:
+   the magic link is the *alternative* sign-in path, not the only one, and a
+   password works when the mail rate limit does not.
 2. Copy the new user's UUID, then in the **SQL Editor**:
 
    ```sql
@@ -118,9 +194,16 @@ Bootstrap one by hand.
    revert when `auth.uid()` is null, which is the case in the SQL Editor and for
    the service role, so this statement and the `admin-members` function are the
    only two ways a role is ever set.
-3. Make sure that same email is in `ADMIN_EMAILS` in both places from step 4.
+3. Make sure that same address is in `ADMIN_EMAILS` in
+   `supabase/functions/admin-members/index.ts` — the one place it lives — or you
+   will be an admin who cannot provision members. Step 4 explains why those are
+   two separate questions.
 
-Every subsequent member is created from **Settings › Team** inside the app.
+Every subsequent member is created from **Settings › Team members**
+(`/#/settings/members`), which calls `admin-members` for you. The same function
+is callable directly with `curl`, and [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §1 has
+the exact requests — that is the path to use when you need to provision or remove
+an account while the app itself is broken.
 
 ### 6. Configure and run locally
 
@@ -130,7 +213,17 @@ npm install
 npm run dev              # http://localhost:5173
 ```
 
-Sign in at `/#/signin`: enter your email, receive a six-digit code, enter it.
+Sign in at `/#/signin`. Your account is an email address, so you get two ways in:
+type your password, or ask for a magic link and open it. Everyone else you
+provision is a **username** with a password and no inbox — a different form on
+the same screen.
+
+Two things about the link that surprise people. It signs in whichever device
+opens it, and it always lands on the project's Site URL — so **it will not sign
+you into `localhost`**; use your password for local development. And the built-in
+mailer is capped at **two emails per hour, project-wide**, so the third request
+in an hour is refused. Both are covered in
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md) §8.
 
 The app also runs with an empty `.env` — the Supabase client is nullable and
 every call site is guarded, so a credential-less build renders the shell and a
@@ -172,7 +265,8 @@ Which is why the rules to keep are:
 - **RLS on every table, always.** The policies *are* the security model. A table
   without RLS is public.
 - **The service_role key never leaves the server.** It bypasses RLS entirely. It
-  lives only in the `admin-members` edge function's environment.
+  lives only in the two edge functions' environments, injected by Supabase — it is
+  never in `.env`, because Vite would inline it into the browser bundle.
 - **Every `security definer` function is revoked from `anon`.** RLS is not the
   boundary for these — a definer function runs as its owner, who is exempt from
   the policies. And `revoke ... from public` is not enough on Supabase: the
@@ -188,23 +282,58 @@ Which is why the rules to keep are:
 
 ```
 src/
-  api/         Supabase client + data access
-  components/  shared UI
-  lib/         theme, i18n, admin helpers
-  locales/     en.json, ar.json
-  pages/       one .tsx + co-located .css per route
-  store/       zustand stores (auth, settings, …)
-  styles/      global.css — the design-token ladder
+  api/         Supabase client + one module per table; every call returns ApiResult<T>
+  components/  shared UI — entry/ sheet/ fields/ pickers/ charts/, each with its own CSS
+  lib/         pure modules: i18n, dates, plural, bidi, the capture parser, digest/
+  locales/     en/ and ar/, one JSON per namespace + index.ts (integrator-owned)
+  pages/       one .tsx + co-located .css per route; settings/ meetings/ tracks/ nest
+  store/       zustand stores — auth, entries, outbox, config, vocab, members, …
+  styles/      global.css — the design-token ladder and the class-name registry
 supabase/
-  migrations/  numbered SQL: schema, RLS, triggers, views, seed
-  functions/   admin-members edge function
+  migrations/  numbered SQL: schema, RLS, triggers, views, seed. Run in order.
+  functions/   admin-members + claim-account (both hold the service-role key)
+ios/           Capacitor Xcode project — generated by `npm run ios:sync`, committed
+assets/        source icon + splash art and the generator that fans them out
+docs/          the build record: execution plan, wave notes, fix backlog, runbook
+docs/parked/   modules written but not wired in, with a note saying what adoption owes
+docs/EVIDENCE/ live-proof ledgers — claims about the running project, with artifacts
 ```
+
+Two conventions that are load-bearing rather than stylistic. **Every string goes
+through `t()`** with an entry in both `en/` and `ar/`; a gate fails the build on a
+missing key, a bad plural node, or a mixed-direction string with no bidi isolate.
+And **each CSS file owns exactly one class prefix** — the registry is at the head
+of `global.css` and in the execution plan; nothing may style another sheet's
+prefix.
 
 ## Scripts
 
-| Command           | What it does                              |
-| ----------------- | ----------------------------------------- |
-| `npm run dev`     | Vite dev server, exposed on the LAN        |
-| `npm run build`   | `tsc -b` then a production build to `dist/` |
-| `npm run lint`    | oxlint                                    |
-| `npm run preview` | Serve the built `dist/` locally           |
+| Command             | What it does                                              |
+| ------------------- | --------------------------------------------------------- |
+| `npm run dev`       | Vite dev server, exposed on the LAN                       |
+| `npm run build`     | `tsc -b` then a production build to `dist/`               |
+| `npm run lint`      | oxlint                                                    |
+| `npm run test`      | vitest, once. 47 files / 1217 tests at the time of writing |
+| `npm run preview`   | serve the built `dist/` locally                           |
+| `npm run seed`      | insert demo tracks and entries into the configured project |
+| `npm run icons`     | regenerate PWA and iOS icons from `assets/icon.png`       |
+| `npm run ios:sync`  | build, then `cap sync ios` — do this before opening Xcode  |
+| `npm run ios:open`  | open the Capacitor project in Xcode                       |
+| `npm run ios:run`   | sync and run on a simulator or device                     |
+
+The deploy workflow runs lint, test and build; a red suite stops the deploy before
+it starts. Neither `supabase/functions/` file is covered by `tsc` or `oxlint` —
+see §4.
+
+## Operating it
+
+Setup is this file. **Everything after setup is [`docs/RUNBOOK.md`](docs/RUNBOOK.md)** —
+adding and removing members, rotating keys, recovering a lost admin role, applying
+a migration, rolling back a bad deploy, reading the audit log, and what to do when
+sign-in mail misbehaves. Every procedure there is written for the operator rather
+than for a developer, and every one was re-verified against the live project.
+
+Why the app is shaped the way it is — what an admin can and cannot change, how SLAs
+resolve, what widening a frozen value list actually costs — is
+[`ADMIN.md`](ADMIN.md). Known defects and their dispositions are
+[`docs/FIX-BACKLOG.md`](docs/FIX-BACKLOG.md).

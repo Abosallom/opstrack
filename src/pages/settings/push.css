@@ -1,0 +1,217 @@
+/* Push notification settings — the `.push-*` prefix, and nothing else.
+   Registered per plan §1.0.7; it styles no `global.css` primitive and no other
+   sheet's class. The one place it touches a primitive is `.switch`, and it does
+   that by SETTING aria-checked in the markup rather than by writing a rule —
+   see the Toggle comment in NotificationPrefs.tsx.
+
+   LOGICAL PROPERTIES ONLY. Every offset here is block/inline, so the whole
+   screen mirrors under dir="rtl" with no `[dir]` rule anywhere in this file. */
+
+.push {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Clears the fixed tab bar on mobile, same allowance the other settings
+     sub-screens make. */
+  padding-block-end: 24px;
+}
+
+.push-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.push-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.push-lead {
+  font-size: 14px;
+  color: var(--text-dim);
+  max-inline-size: 62ch;
+}
+
+.push-note {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-faint);
+  max-inline-size: 62ch;
+}
+
+.push-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* The two states that are asking the user to go and do something elsewhere —
+   install to the Home Screen, or unblock in the browser. A left border rather
+   than a tinted background: the card sits on --bg-elev and a wash at the
+   contrast this theme needs would fight the text on it. */
+.push-card-warn {
+  border-inline-start: 3px solid var(--yellow);
+}
+
+.push-card-title {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.1px;
+}
+
+.push-body {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  max-inline-size: 62ch;
+}
+
+/* The two promises about what will interrupt the user. `inline-start` padding
+   keeps the markers inside the card in both directions. */
+.push-list,
+.push-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-inline-start: 20px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  max-inline-size: 62ch;
+}
+
+.push-list {
+  list-style: disc;
+}
+
+.push-steps {
+  list-style: decimal;
+}
+
+.push-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Full width on a phone, hugging its label on a desktop: the primary action of
+   the whole screen, and a 44px-wide button in the middle of a 900px card reads
+   as an afterthought. */
+.push-action {
+  align-self: stretch;
+  justify-content: center;
+  margin-block-start: 4px;
+}
+
+@media (min-width: 600px) {
+  .push-action {
+    align-self: flex-start;
+  }
+}
+
+.push-error {
+  margin-block-start: -6px;
+}
+
+.push-toggles {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The whole row is the switch. `min-block-size` gives the 44px target the hard
+   rules ask for without the label having to be that tall. */
+.push-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-block-size: 44px;
+  padding-block: 10px;
+  border: 0;
+  border-block-end: 1px solid var(--border);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.push-toggle:last-child {
+  border-block-end: 0;
+}
+
+.push-toggle:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.push-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.push-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.push-toggle-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.push-devices {
+  display: flex;
+  flex-direction: column;
+}
+
+.push-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 10px;
+  border-block-end: 1px solid var(--border);
+}
+
+.push-device:last-child {
+  border-block-end: 0;
+}
+
+.push-device-icon {
+  display: inline-flex;
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+.push-device-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* min-inline-size:0 is what lets a long user-agent label ellipsize instead of
+     pushing the Remove button off the card. */
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+.push-device-name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.push-remove {
+  flex: 0 0 auto;
+}
+
+.push-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

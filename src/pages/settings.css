@@ -146,28 +146,36 @@
   margin-block-start: 14px;
 }
 
-/* ---------- "coming soon" notices ---------- */
+/* ---------- stacked destination rows ---------- */
 
-.settings-soon {
+/* Two or more full-width links in one section — the notifications card holds the
+   inbox history and per-device push. A column with a gap rather than a margin on
+   the children, so a section that ends up with only one row leaves no dangling
+   space; the same reason the tracks card is laid out this way.
+
+   `.notif-settings-row` (components/notifications.css) already sets
+   `inline-size: 100%`, so the rows this container holds are stretched by their
+   own owner and nothing here restates it. */
+.settings-rows {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 13px;
-  /* Dashed rather than solid: it reads as a reserved slot, not a broken card. */
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elev-2);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 
-.settings-soon .pill {
-  flex: 0 0 auto;
+/* Pushes the trailing chevron to the inline end of a full-width row.
+   `.notif-settings-count` does this job on the inbox row via its own pill, so
+   only a row with no pill needs it — and it is a logical property, so the
+   chevron lands on the left in Arabic without a second rule. */
+.settings-row-chevron {
+  margin-inline-start: auto;
 }
 
-.settings-soon-text {
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--text-dim);
-}
+/* The "coming soon" notice (`.settings-soon`, `.settings-soon-text`) was deleted
+   with Wave 4b: the members card was the last one in the app, and it is now a
+   link to the real /settings/members screen. The rules went rather than sitting
+   here unused — a dashed reserved-slot box in a stylesheet invites a new
+   apology. Restore from git if a genuine "not built yet" surface ever returns. */
 
 @media (max-width: 479px) {
   /* Three labelled theme options cannot share one row at 375px without the

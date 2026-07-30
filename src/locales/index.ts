@@ -19,6 +19,15 @@
 // carries that list as a committed fixture. Adding a namespace here is two
 // imports and two spread entries; nothing else in the app changes.
 //
+// RETIRING one is the same four lines in reverse, and `placeholder` is the first
+// namespace to go: every screen it apologised for — capture, follow-ups, the
+// board, the tracks tree, a track's log, the entry surface, meeting mode and the
+// dashboard — now exists, so its ten strings had no call site left once Wave 4b
+// replaced the last `placeholder.comingSoon` on the Settings page. Ten of the 213
+// baseline keys went with it; localeParity.test.ts's RETIRED_KEYS block carries
+// them by name and asserts they resolve in NEITHER bundle, so the total is still
+// accounted for and half a namespace cannot creep back.
+//
 // This module must not import from `src/lib/i18n.ts`. i18n imports *this*, and
 // the reverse edge would be a cycle — which is why `Locale` is not used below
 // and the two bundles are exported separately rather than as a keyed record.
@@ -28,26 +37,33 @@ import enApp from './en/app.json'
 import enBoard from './en/board.json'
 import enCapture from './en/capture.json'
 import enClaim from './en/claim.json'
+import enCmd from './en/cmd.json'
 import enCommon from './en/common.json'
 import enDashboard from './en/dashboard.json'
 import enDate from './en/date.json'
 import enDigest from './en/digest.json'
 import enEntry from './en/entry.json'
+// `export` is a reserved word, so the binding cannot be named after the
+// namespace the way every other one here is. The map keys below are unaffected —
+// an object property may be a reserved word.
+import enExport from './en/export.json'
 import enFilter from './en/filter.json'
 import enFollowups from './en/followups.json'
 import enHealth from './en/health.json'
 import enMeeting from './en/meeting.json'
+import enMembers from './en/members.json'
 import enMinutes from './en/minutes.json'
 import enNav from './en/nav.json'
 import enNotif from './en/notif.json'
 import enOffline from './en/offline.json'
-import enPlaceholder from './en/placeholder.json'
 import enPriority from './en/priority.json'
+import enPush from './en/push.json'
 import enPwa from './en/pwa.json'
 import enRecurring from './en/recurring.json'
 import enRoute from './en/route.json'
 import enSettings from './en/settings.json'
 import enSignin from './en/signin.json'
+import enSso from './en/sso.json'
 import enStatus from './en/status.json'
 import enTrack from './en/track.json'
 import enTree from './en/tree.json'
@@ -59,26 +75,30 @@ import arApp from './ar/app.json'
 import arBoard from './ar/board.json'
 import arCapture from './ar/capture.json'
 import arClaim from './ar/claim.json'
+import arCmd from './ar/cmd.json'
 import arCommon from './ar/common.json'
 import arDashboard from './ar/dashboard.json'
 import arDate from './ar/date.json'
 import arDigest from './ar/digest.json'
 import arEntry from './ar/entry.json'
+import arExport from './ar/export.json'
 import arFilter from './ar/filter.json'
 import arFollowups from './ar/followups.json'
 import arHealth from './ar/health.json'
 import arMeeting from './ar/meeting.json'
+import arMembers from './ar/members.json'
 import arMinutes from './ar/minutes.json'
 import arNav from './ar/nav.json'
 import arNotif from './ar/notif.json'
 import arOffline from './ar/offline.json'
-import arPlaceholder from './ar/placeholder.json'
 import arPriority from './ar/priority.json'
+import arPush from './ar/push.json'
 import arPwa from './ar/pwa.json'
 import arRecurring from './ar/recurring.json'
 import arRoute from './ar/route.json'
 import arSettings from './ar/settings.json'
 import arSignin from './ar/signin.json'
+import arSso from './ar/sso.json'
 import arStatus from './ar/status.json'
 import arTrack from './ar/track.json'
 import arTree from './ar/tree.json'
@@ -104,26 +124,30 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   board: enBoard,
   capture: enCapture,
   claim: enClaim,
+  cmd: enCmd,
   common: enCommon,
   dashboard: enDashboard,
   date: enDate,
   digest: enDigest,
   entry: enEntry,
+  export: enExport,
   filter: enFilter,
   followups: enFollowups,
   health: enHealth,
   meeting: enMeeting,
+  members: enMembers,
   minutes: enMinutes,
   nav: enNav,
   notif: enNotif,
   offline: enOffline,
-  placeholder: enPlaceholder,
   priority: enPriority,
+  push: enPush,
   pwa: enPwa,
   recurring: enRecurring,
   route: enRoute,
   settings: enSettings,
   signin: enSignin,
+  sso: enSso,
   status: enStatus,
   track: enTrack,
   tree: enTree,
@@ -137,26 +161,30 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   board: arBoard,
   capture: arCapture,
   claim: arClaim,
+  cmd: arCmd,
   common: arCommon,
   dashboard: arDashboard,
   date: arDate,
   digest: arDigest,
   entry: arEntry,
+  export: arExport,
   filter: arFilter,
   followups: arFollowups,
   health: arHealth,
   meeting: arMeeting,
+  members: arMembers,
   minutes: arMinutes,
   nav: arNav,
   notif: arNotif,
   offline: arOffline,
-  placeholder: arPlaceholder,
   priority: arPriority,
+  push: arPush,
   pwa: arPwa,
   recurring: arRecurring,
   route: arRoute,
   settings: arSettings,
   signin: arSignin,
+  sso: arSso,
   status: arStatus,
   track: arTrack,
   tree: arTree,
@@ -179,26 +207,30 @@ export const en: LocaleTree = {
   ...enBoard,
   ...enCapture,
   ...enClaim,
+  ...enCmd,
   ...enCommon,
   ...enDashboard,
   ...enDate,
   ...enDigest,
   ...enEntry,
+  ...enExport,
   ...enFilter,
   ...enFollowups,
   ...enHealth,
   ...enMeeting,
+  ...enMembers,
   ...enMinutes,
   ...enNav,
   ...enNotif,
   ...enOffline,
-  ...enPlaceholder,
   ...enPriority,
+  ...enPush,
   ...enPwa,
   ...enRecurring,
   ...enRoute,
   ...enSettings,
   ...enSignin,
+  ...enSso,
   ...enStatus,
   ...enTrack,
   ...enTree,
@@ -212,26 +244,30 @@ export const ar: LocaleTree = {
   ...arBoard,
   ...arCapture,
   ...arClaim,
+  ...arCmd,
   ...arCommon,
   ...arDashboard,
   ...arDate,
   ...arDigest,
   ...arEntry,
+  ...arExport,
   ...arFilter,
   ...arFollowups,
   ...arHealth,
   ...arMeeting,
+  ...arMembers,
   ...arMinutes,
   ...arNav,
   ...arNotif,
   ...arOffline,
-  ...arPlaceholder,
   ...arPriority,
+  ...arPush,
   ...arPwa,
   ...arRecurring,
   ...arRoute,
   ...arSettings,
   ...arSignin,
+  ...arSso,
   ...arStatus,
   ...arTrack,
   ...arTree,

@@ -1,0 +1,344 @@
+/* Command palette and keyboard cheatsheet. Registry prefix: .cmd-* (§1.0.7).
+
+   TWO SURFACES, ONE SHEET. The palette owns its own dialog because it is the
+   one overlay in the app that is neither a bottom sheet nor an inline-end panel:
+   it hangs from the TOP of the viewport, where a search field belongs and where
+   the eye already is when somebody presses ⌘K. The cheatsheet reuses
+   components/sheet/Sheet.tsx and only styles its internals, which is why the
+   `.cmd-help-*` block below declares no positioning at all.
+
+   NOTHING HERE RESTYLES A PRIMITIVE. `.cmd-input` layers on `.input` and
+   `.cmd-dialog` on nothing — toast.css records what happens when two files
+   declare the same selector: the winner depends on CSS import order, which
+   differs between the dev server and a production build.
+
+   LOGICAL PROPERTIES ONLY. No rule in this file reads a physical direction, so
+   the palette needs no mirror rules in Arabic — the group labels, the option
+   hints and the kbd chips all follow `dir` from <html>. */
+
+/* ---------- the palette ---------- */
+
+.cmd-scrim {
+  position: fixed;
+  inset: 0;
+  /* Above .panel/.sheet (90) and their scrim (89), below .confirm-backdrop
+     (110): a confirm raised from a palette action must sit on top of it, and a
+     palette opened over the entry sheet must sit on top of that. */
+  z-index: 100;
+  background: rgba(4, 8, 12, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.cmd-dialog {
+  position: fixed;
+  z-index: 101;
+  /* Centred on the inline axis by two equal insets rather than by a transform:
+     a transform on a fixed ancestor is exactly what breaks a nested fixed
+     child, and this dialog contains one scroller already. */
+  inset-inline: 0;
+  inset-block-start: max(6vh, calc(12px + env(safe-area-inset-top, 0px)));
+  inline-size: min(620px, calc(100vw - 24px));
+  margin-inline: auto;
+  /* The list scrolls; the field and the footer do not. */
+  max-block-size: min(72vh, 620px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: cmd-in 0.16s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.cmd-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-block-end: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+/* Borderless inside the dialog's own frame — a second box around a field that
+   already fills the header reads as a control inside a control.
+
+   WCAG 1.4.11 (non-text contrast) is still satisfied, and not by accident: the
+   requirement is that the control's BOUNDARY be identifiable, and here the
+   boundary is `.cmd-field`'s own border-block-end plus the dialog's 1px frame,
+   both at --border against --bg-elev. The field occupies the whole header, so
+   there is no ambiguity about where it starts. The conforming FOCUS indicator is
+   unaffected: global.css's :focus-visible ring still applies, which is why this
+   block must not declare `outline: none` — the note in global.css records what
+   happened the last time a co-located sheet did. */
+.cmd-input {
+  border-color: transparent;
+  background: transparent;
+  font-size: 16px;
+}
+
+.cmd-input:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.cmd-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block: 6px;
+}
+
+.cmd-section + .cmd-section {
+  border-block-start: 1px solid var(--border);
+  margin-block-start: 6px;
+  padding-block-start: 6px;
+}
+
+.cmd-section-label {
+  padding-block: 4px;
+  padding-inline: 14px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cmd-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 44px, the touch-target floor, even though this is a keyboard surface: the
+     palette is reachable on a phone through the Actions row of the cheatsheet
+     and a row is a tap target wherever it is rendered. */
+  min-block-size: 44px;
+  padding-block: 6px;
+  padding-inline: 14px;
+  cursor: pointer;
+  /* The rows are not focusable — this is a combobox, focus stays in the input
+     and aria-activedescendant carries the selection — so the highlight below is
+     the ONLY indicator of where Enter will land. It has to be unmissable. */
+  border-inline-start: 3px solid transparent;
+}
+
+.cmd-option[aria-selected='true'] {
+  background: var(--accent-soft);
+  border-inline-start-color: var(--accent);
+}
+
+.cmd-option-label {
+  flex: 1 1 auto;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  /* One line, ellipsised: an entry title can be 200 characters and a result
+     list that reflows to three lines per row stops being scannable. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* The label is user data — an entry title, a track name — so its direction is
+     its own. `isolate` is the CSS form of lib/bidi's FSI and the right tool when
+     the value has an element of its own rather than sitting inside a sentence. */
+  unicode-bidi: isolate;
+}
+
+.cmd-option-hint {
+  flex: 0 0 auto;
+  max-inline-size: 45%;
+  color: var(--text-dim);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Also user data: a track label and a vocabulary label, both admin-editable. */
+  unicode-bidi: isolate;
+}
+
+.cmd-empty {
+  padding-block: 22px 26px;
+  padding-inline: 18px;
+  text-align: center;
+}
+
+.cmd-empty-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  /* The query is interpolated into this sentence and cmd.json fences the token
+     with FSI, so no bidi rule is needed here — only the wrap, because a long
+     paste must not stretch the dialog. */
+  overflow-wrap: anywhere;
+}
+
+.cmd-empty-hint {
+  margin-block-start: 4px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.cmd-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-block: 8px;
+  padding-inline: 14px;
+  border-block-start: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.cmd-foot-hint {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+/* On a phone the palette fills the width and drops the top gap: 6vh of scrim
+   above a search field is wasted glass when the field is the only thing the
+   thumb can reach. */
+@media (max-width: 767px) {
+  .cmd-dialog {
+    inset-block-start: calc(8px + env(safe-area-inset-top, 0px));
+    inline-size: calc(100vw - 16px);
+    max-block-size: min(80vh, 620px);
+  }
+}
+
+@keyframes cmd-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* global.css shortens every animation under prefers-reduced-motion, but a
+   0.01ms slide still moves the dialog 8px in one frame. Remove it outright,
+   exactly as confirm.css does for its own. */
+@media (prefers-reduced-motion: reduce) {
+  .cmd-dialog {
+    animation: none;
+  }
+}
+
+/* ---------- keyboard chips ---------- */
+
+/* Shared by the cheatsheet and available to the palette's footer. A <kbd> in
+   the UA stylesheet is a monospace inline with no box, which is unreadable
+   beside 14px Inter. */
+.cmd-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 24px;
+  padding-block: 2px;
+  padding-inline: 6px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  /* Key names are Latin literals — ⌘, K, Esc, 1 — and stay left-to-right
+     inside an Arabic sheet. A chip is a literal, so this is LTR rather than
+     `isolate`: lib/bidi's LRI/FSI distinction, in CSS. */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.cmd-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+/* ---------- the cheatsheet body ---------- */
+
+/* No positioning: Sheet.tsx owns the surface, the scrim, the header and the
+   close button. This is only what goes inside. */
+.cmd-help {
+  padding-block-end: 8px;
+}
+
+.cmd-help-hint {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-block-end: 14px;
+}
+
+.cmd-help-group {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-block: 16px 6px;
+}
+
+.cmd-help-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-block-size: 36px;
+  padding-block: 4px;
+}
+
+.cmd-help-row + .cmd-help-row {
+  border-block-start: 1px solid var(--border);
+}
+
+/* The chips column is fixed so every description starts on the same line,
+   which is what makes the sheet readable as a table rather than a list. Four
+   digit chips at 24px plus three 4px gaps is 108px; the extra is breathing
+   room for ⌘ + K in a wider face. */
+.cmd-help-row .cmd-keys {
+  min-inline-size: 116px;
+}
+
+.cmd-help-label {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.cmd-help-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  /* Aligned under the descriptions, not under the chips: this is a footnote to
+     the row above it, not a row of its own. */
+  margin-block: 6px 14px;
+  margin-inline-start: 116px;
+}
+
+.cmd-help-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cmd-help-status-label {
+  color: var(--text-dim);
+  font-size: 13px;
+  /* An admin-renamed vocabulary label, so its direction is the value's own. */
+  unicode-bidi: isolate;
+}
+
+/* The chips column collapses on a narrow sheet — 116px of fixed gutter on a
+   375px screen leaves a description no room, and the digit footnote indented to
+   match would start past the middle of the sheet. */
+@media (max-width: 480px) {
+  .cmd-help-row .cmd-keys {
+    min-inline-size: 92px;
+  }
+
+  .cmd-help-statuses {
+    margin-inline-start: 0;
+  }
+}

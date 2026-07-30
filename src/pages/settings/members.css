@@ -1,0 +1,295 @@
+/* Members admin (/settings/members). Owns the `.mem-*` prefix and nothing else,
+   per the CSS prefix registry in docs/EXECUTION-PLAN.md §1.0.7.
+
+   It deliberately does NOT import or restyle admin.css's `.admin-*` — that
+   sheet is the track screens' and there is already a `.admin-row` collision
+   between it and global.css to prove what borrowing a neighbour's prefix costs.
+   Cards, buttons, pills, fields and skeletons all come from global.css; this
+   file owns the three layouts that have no primitive: the roster row, the
+   one-time-code panel and the create form.
+
+   Layout is logical-properties-only, like the rest of the repo — inline/block
+   axes, never a physical edge — so the Arabic mirror comes free. */
+
+.mem-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-inline-size: 720px;
+}
+
+.mem-bar {
+  display: flex;
+  align-items: center;
+}
+
+/* The route's h1 lives in the app header, so this page opens on its standfirst
+   rather than repeating the title. */
+.mem-intro {
+  font-size: 13px;
+  line-height: 1.55;
+  /* --text-dim, not --text-faint: this sits directly on --bg and dim is the
+     token that clears AA at every elevation. */
+  color: var(--text-dim);
+}
+
+.mem-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- the one-time code ---------- */
+
+/* The loudest thing on the page, and it earns it: this is the only string in
+   the app that cannot be recovered once it leaves the screen. --yellow rather
+   than --red because nothing has gone wrong — it is a hand-over, not a
+   failure. */
+.mem-invite {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-color: var(--yellow);
+  /* color-mix off the token, so the tint follows the light/dark swap without a
+     second hardcoded hex. */
+  background: color-mix(in srgb, var(--yellow) 8%, var(--bg-elev));
+}
+
+/* The panel takes focus when it mounts (see Members.tsx) and a tabIndex={-1}
+   container shows no focus ring by default in any browser. */
+.mem-invite:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
+}
+
+/* The focus() that announces this panel also scrolls it into view, and
+   `.app-header` is `position: sticky` — measured at 65px, and it was covering
+   27px of the panel's own heading on a 375px viewport, so the loudest element on
+   the page opened with its title behind the chrome. scroll-margin is honoured by
+   focus-driven scrolling as well as scrollIntoView, so one property fixes both
+   and needs no JS. 80px = the header plus a breath. */
+.mem-invite {
+  scroll-margin-block-start: 80px;
+}
+
+.mem-invite-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.mem-invite-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 30px;
+  block-size: 30px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--yellow) 18%, transparent);
+  color: var(--yellow);
+}
+
+.mem-invite-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.mem-invite-for {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* Read off a screen and typed by hand, so: monospace, wide tracking, and big.
+   `user-select: all` makes one tap select the whole code on a phone, where the
+   clipboard button is the thing most likely to be unavailable (an insecure
+   origin, or an untrusted gesture). */
+.mem-code {
+  padding-block: 12px;
+  padding-inline: 14px;
+  border: 1px dashed var(--yellow);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', monospace;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1.25;
+  text-align: center;
+  /* The code is Latin + digits in both languages; centring means the RTL mirror
+     needs nothing, and the bdi in the markup keeps the hyphen from moving. */
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.mem-invite-expiry {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.mem-invite-warn {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.mem-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------- create form ---------- */
+
+.mem-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mem-form-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.mem-form-hint,
+.mem-field-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+.mem-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  /* End rather than right: the primary action sits where the reading finishes,
+     which is the left in Arabic. */
+  justify-content: flex-end;
+}
+
+/* ---------- roster ---------- */
+
+.mem-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mem-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.mem-main {
+  display: flex;
+  /* 220px basis so a phone gives the name its own line above the actions and a
+     tablet puts them side by side, with no media query either way. */
+  flex: 1 1 220px;
+  min-inline-size: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.mem-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+}
+
+/* Decorative only: the role pill beside it carries the meaning, so the tint is
+   never the only thing distinguishing an admin from a member. */
+.mem-icon.is-admin {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mem-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-inline-size: 0;
+}
+
+.mem-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.mem-you {
+  /* Quieter than the role pill next to it: "You" is orientation, not status. */
+  color: var(--text-faint);
+}
+
+.mem-handle {
+  font-size: 13px;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.mem-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 2px;
+}
+
+.mem-tags:empty {
+  display: none;
+}
+
+.mem-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ROW-GAP 14, COLUMN-GAP 6, and the asymmetry is the whole point. `.btn-sm` is a
+   32px control that buys its 44px touch target from a `::after` overlay with
+   `inset-block: -6px` (global.css) — so two wrapped rows of them 6px apart have
+   overlays that overlap by 6px, and the row above silently steals taps aimed at
+   the row below. 14px clears both overlays with 2px to spare. This row DOES wrap
+   at 375px on a member with three actions, which is where it would have bitten. */
+.mem-actions {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 14px 6px;
+}
+
+/* The reason a control is disabled, printed rather than hidden in a tooltip:
+   every one of the three refusals (yourself, the owner, the last admin) is
+   surprising the first time, and a tooltip is unreachable on a touch device. */
+.mem-block {
+  flex: 1 1 100%;
+  padding-block-start: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+.mem-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border-color: color-mix(in srgb, var(--red) 45%, var(--border));
+}

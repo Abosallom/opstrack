@@ -1,0 +1,68 @@
+/* Microsoft SSO — the `.sso-*` prefix, and nothing else. Registered per plan
+   §1.0.7. It styles no `global.css` primitive and nothing in `signin.css`: the
+   button is a plain `.btn .btn-block`, so it inherits the sign-in card's own
+   button metrics and stays in step with them if those change.
+
+   LOGICAL PROPERTIES ONLY — this block mirrors under dir="rtl" with no [dir]
+   rule, which matters here because the brand mark sits at the reading start and
+   has to move to the right in Arabic. */
+
+.sso-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* The sign-in card is a column with its own gap; this only needs to fill the
+     inline axis so `.btn-block` inside it can. */
+  inline-size: 100%;
+}
+
+.sso-button {
+  gap: 10px;
+}
+
+/* The four-square mark keeps its own colours, so it must not be scaled by the
+   button's font size or tinted by its color. */
+.sso-mark {
+  flex: 0 0 auto;
+}
+
+.sso-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.sso-error {
+  text-align: center;
+}
+
+/* The refusal notice. Bordered on the inline-start edge rather than tinted: it
+   lands on the sign-in card's own --bg-elev, where a wash at readable contrast
+   would fight the text. */
+.sso-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--yellow);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  text-align: start;
+}
+
+.sso-notice-title {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.sso-notice-body {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.sso-dismiss {
+  align-self: flex-start;
+}

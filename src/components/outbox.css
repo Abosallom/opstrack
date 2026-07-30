@@ -1,0 +1,103 @@
+/* The outbox sheet — the `.obx-*` prefix, a REGISTRY ADDITION for Wave 4
+   (EXECUTION-PLAN §1.0.7 lists no sheet for it; the handoff note asks the
+   integrator to register it at the wave close, the way `.notif-*` was registered
+   at the Wave-3 close and `.epg-*` / `.tsla-*` at the Wave-2 one).
+
+   NOTHING HERE RESTYLES A PRIMITIVE OR ANOTHER SHEET'S PREFIX. The rows sit
+   inside components/sheet/sheet.css's `.sheetx-body` and take its padding as
+   given — no negative-margin bleed, because these rows are cards of text rather
+   than full-width tap targets and an inset divider is the correct reading here.
+   The two buttons are `.btn` variants from global.css and add only layout under
+   an owned class.
+
+   LOGICAL PROPERTIES ONLY, and no direction-specific rule anywhere: the discard
+   button sits at the row's inline-end, so it is on the right in English and on
+   the left in Arabic with nothing to flip.
+
+   SPACING is on the 4px grid — 2 / 4 / 8 / 10 / 12 only. TOUCH TARGETS are 44px:
+   the row is 56px tall and the discard control is a `.btn-sm`, whose global rule
+   carries a 44px hit area through an invisible ::after overlay. */
+
+.obx-hint {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-block-end: 12px;
+}
+
+.obx-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.obx-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-block-size: 56px;
+  padding-block: 10px;
+  border-block-end: 1px solid var(--border);
+}
+
+/* The last divider would draw a line above the footer's own border. */
+.obx-item:last-child {
+  border-block-end: 0;
+}
+
+/* min-inline-size: 0 is what lets the detail line below actually ellipsise —
+   a flex item's default min-size is its content, so without this a long entry
+   title stretches the row and pushes the discard button off the sheet. */
+.obx-item-body {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.obx-item-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* One line, ellipsised. The full text is the write itself, and the row is an
+   identifier for it, not a preview of it. */
+.obx-item-detail {
+  color: var(--text-dim);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.obx-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.obx-item-time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Colour is the only thing that separates a waiting row from a failed one, so
+   it is carried on the STATUS TEXT and not on the row's background: the
+   sentence beside it already says which state this is, and a red row would read
+   as an error the app produced rather than as a write that has not landed yet.
+   `data-failed` is set by the component from `item.error !== null`. */
+.obx-item[data-failed] .obx-item-status {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.obx-item-attempts {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.obx-item-discard {
+  flex: 0 0 auto;
+}

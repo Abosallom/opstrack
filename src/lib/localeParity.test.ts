@@ -7,10 +7,12 @@
 //
 //  1. The split losing a key. `src/locales/{en,ar}.json` were one file each
 //     until the namespace tree replaced them; BASELINE_KEYS is the committed
-//     list of all 213 keys that existed at that moment, and asserting it still
+//     list of the keys that existed at that moment, and asserting it still
 //     resolves is the only proof the refactor was lossless. Never delete an
 //     entry from that list to make a test pass — a missing key means a call
-//     site somewhere is rendering its own dot path at a user.
+//     site somewhere is rendering its own dot path at a user. A key that is
+//     genuinely, deliberately RETIRED moves to RETIRED_KEYS below instead of
+//     vanishing, so the 213 stays arithmetic rather than folklore.
 //  2. An Arabic translation silently dropping an interpolation token. `"{count}
 //     items"` translated as `"عناصر"` renders a sentence with the number gone
 //     and nothing anywhere reports it. Checked per key, both directions.
@@ -40,10 +42,10 @@ import {
 import type { Locale } from './i18n'
 
 /**
- * Every key that existed in the two monolithic bundles, verbatim.
+ * Every key that existed in the two monolithic bundles and still ships, verbatim.
  *
  * Stored as one whitespace-delimited string rather than an array literal so it
- * stays greppable and reviewable at a glance; 213 quoted array entries is a
+ * stays greppable and reviewable at a glance; 203 quoted array entries is a
  * diff nobody reads.
  */
 const BASELINE_KEYS: readonly string[] = `
@@ -88,9 +90,7 @@ const BASELINE_KEYS: readonly string[] = `
   admin.tracks.errNameLong admin.tracks.errColor admin.tracks.errNameTaken
   admin.tracks.errNameArTaken admin.tracks.errInUse admin.tracks.errLastTrack
   admin.tracks.errReassignArchived admin.tracks.errReassignSelf admin.tracks.errNotFound
-  placeholder.comingSoon placeholder.phase1 placeholder.capture placeholder.followups
-  placeholder.board placeholder.tracks placeholder.trackDetail placeholder.entry
-  placeholder.meetings placeholder.dashboard offline.banner offline.backOnline
+  offline.banner offline.backOnline
   offline.pending pwa.updateReady common.loading common.empty common.emptyHint common.error
   common.errorHint common.retry common.reload common.cancel common.save common.saved
   common.close common.back common.search common.dismiss common.none common.notConfigured
@@ -98,6 +98,37 @@ const BASELINE_KEYS: readonly string[] = `
   status.blocked status.waiting_on status.done status.cancelled priority.low priority.medium
   priority.high priority.critical type.action type.decision type.issue type.request
   type.change type.escalation type.note health.ok health.stale health.overdue health.critical
+`
+  .trim()
+  .split(/\s+/)
+
+/**
+ * Baseline keys that have been DELETED on purpose, and must stay deleted.
+ *
+ * This list is not an escape hatch, and it is deliberately harder to satisfy
+ * than BASELINE_KEYS: an entry here is asserted to resolve in NEITHER bundle.
+ * A key cannot be parked in it to silence a failure — parking a key that is
+ * still shipped fails immediately, and so does half-removing one (present in
+ * `en`, gone from `ar`).
+ *
+ * WHY THE `placeholder` NAMESPACE IS HERE. It was one component apologising for
+ * screens that did not exist yet. Every one of them now does — capture,
+ * follow-ups, the board, the tracks tree, a track's log, the entry surface,
+ * meeting mode, the dashboard — and Wave 4b replaced the last live
+ * `placeholder.comingSoon` (the "member management arrives later" pill on the
+ * Settings page) with a link to the real /settings/members screen. `pages/
+ * Placeholder.tsx`, `pages/placeholder.css` and both `placeholder.json` files
+ * went with it. Keeping ten unreachable apologies in the tree so that a count
+ * would still read 213 would be the fixture wagging the app.
+ *
+ * BASELINE_KEYS.length + RETIRED_KEYS.length is still 213, and the assertion
+ * below checks that sum — which is what keeps this from being a way to quietly
+ * shrink the guarantee one key at a time.
+ */
+const RETIRED_KEYS: readonly string[] = `
+  placeholder.comingSoon placeholder.phase1 placeholder.capture placeholder.followups
+  placeholder.board placeholder.tracks placeholder.trackDetail placeholder.entry
+  placeholder.meetings placeholder.dashboard
 `
   .trim()
   .split(/\s+/)
@@ -199,10 +230,22 @@ describe('merged bundles', () => {
     for (const k of FLAT_AR.keys()) expect(enRoots.has(k)).toBe(true)
   })
 
-  it('preserve all 213 keys that predate the namespace split', () => {
-    expect(BASELINE_KEYS.length).toBe(213)
+  it('preserve every key that predates the namespace split and was not retired', () => {
+    // The sum, not either half: shortening BASELINE_KEYS without lengthening
+    // RETIRED_KEYS fails here, which is the whole point of the split.
+    expect(BASELINE_KEYS.length + RETIRED_KEYS.length).toBe(213)
     expect(BASELINE_KEYS.filter((k) => !FLAT_EN.has(k))).toEqual([])
     expect(BASELINE_KEYS.filter((k) => !FLAT_AR.has(k))).toEqual([])
+  })
+
+  it('keep every deliberately retired key retired, in both languages', () => {
+    // Asserted in the negative, and in BOTH bundles, so a half-revert — the
+    // namespace re-added to `en` and forgotten in `ar` — fails here rather than
+    // showing an Arabic reader an English apology for a screen that exists.
+    expect(RETIRED_KEYS.filter((k) => FLAT_EN.has(k))).toEqual([])
+    expect(RETIRED_KEYS.filter((k) => FLAT_AR.has(k))).toEqual([])
+    // …and no path may be BOTH promised and retired.
+    expect(RETIRED_KEYS.filter((k) => BASELINE_KEYS.includes(k))).toEqual([])
   })
 
   it('have no empty values in either language', () => {

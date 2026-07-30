@@ -84,12 +84,16 @@ describe('titleKeyFor', () => {
       ['/settings/tracks/abc-123', 'admin.tracks.edit'],
       ['/settings/vocabulary', 'vocabadmin.title'],
       ['/settings/recurring', 'recurring.title'],
+      // Wave 4b. Three more screens under the same prefix, none of them in a nav.
+      ['/settings/members', 'route.members'],
+      ['/settings/export', 'export.title'],
+      ['/settings/notifications', 'push.title'],
     ])('%s → %s', (pathname, expected) => {
       expect(title(pathname)).toBe(expected)
     })
 
     it('never falls through to the plain settings title', () => {
-      // The regression stated as an invariant rather than as five examples: if
+      // The regression stated as an invariant rather than as eight examples: if
       // someone reorders the tests, at least one of these stops being specific.
       const admin = [
         '/settings/tracks',
@@ -97,10 +101,24 @@ describe('titleKeyFor', () => {
         '/settings/tracks/abc-123',
         '/settings/vocabulary',
         '/settings/recurring',
+        '/settings/members',
+        '/settings/export',
+        '/settings/notifications',
       ]
       for (const p of admin) expect(title(p), p).not.toBe('route.settings')
       // …and they must not all collapse onto one another either.
-      expect(new Set(admin.map(title)).size).toBe(5)
+      expect(new Set(admin.map(title)).size).toBe(8)
+    })
+
+    it('does not confuse /settings/notifications with the /notifications page', () => {
+      // Two different screens whose paths are a suffix of one another: the inbox
+      // HISTORY at the top level, and push preferences under settings. The
+      // top-level test is `startsWith('/notifications')`, which cannot see the
+      // settings path, and the settings test is below it — but only because
+      // neither string is a prefix of the other. Worth pinning: they were one
+      // sloppy `includes()` away from sharing a title.
+      expect(title('/notifications')).toBe('notif.title')
+      expect(title('/settings/notifications')).toBe('push.title')
     })
 
     it('creating a track is not mistaken for editing one called "new"', () => {

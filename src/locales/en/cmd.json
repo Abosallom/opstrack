@@ -1,0 +1,38 @@
+{
+  "cmd": {
+    "title": "Command palette",
+    "inputLabel": "Search commands",
+    "placeholder": "Entries, tracks, screens, actions…",
+    "hint": "Enter opens · Esc closes",
+    "empty": "Nothing matches “⁨{value}⁩”",
+    "emptyHint": "Try fewer letters, or a track name.",
+    "results": {
+      "one": "{count} result",
+      "other": "{count} results"
+    },
+    "groupEntries": "Entries",
+    "groupTracks": "Tracks",
+    "groupScreens": "Screens",
+    "groupActions": "Actions",
+    "actionTheme": "Switch theme",
+    "actionLanguage": "Switch language",
+    "actionKeys": "Keyboard shortcuts",
+    "actionRefresh": "Refresh data",
+    "refreshed": "Refreshing…",
+    "keysTitle": "Keyboard shortcuts",
+    "keysHint": "Shortcuts stand down while you are typing in a field.",
+    "keysGlobal": "Anywhere",
+    "keysEntry": "On an entry",
+    "keysEntryHint": "J and K walk the rows on screen. E and U act on the highlighted one; the digits need it open.",
+    "keyCapture": "New capture",
+    "keySearch": "Search this screen",
+    "keyPalette": "Command palette",
+    "keyHelp": "This list",
+    "keyEscape": "Close or cancel",
+    "keyNext": "Next entry",
+    "keyPrev": "Previous entry",
+    "keyEdit": "Open it, then edit the title",
+    "keyUpdate": "Add an update",
+    "keyStatus": "Set status"
+  }
+}

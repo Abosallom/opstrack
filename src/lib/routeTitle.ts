@@ -64,6 +64,19 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   // in both languages, which is a better header than route.recurring's bare
   // "Recurring" and costs no new key.
   if (pathname.startsWith('/settings/recurring')) return 'recurring.title'
+  // Wave 4b's three screens, all under the same prefix and all absent from both
+  // navs — so the header is again the only chrome that names them, and all three
+  // sit above the '/settings' test for the reason the whole file exists.
+  //
+  // Members is the one that names itself through route.*: `route.members` was
+  // added in Wave 3 for the palette and the roster list's aria-label, so a
+  // members.title would be a second string holding the same word. Export and
+  // push follow the vocabulary/recurring precedent and name themselves out of
+  // their own namespaces — 'export.title' and 'push.title' already ship in both
+  // languages, and a route.* twin would only ever restate them.
+  if (pathname.startsWith('/settings/members')) return 'route.members'
+  if (pathname.startsWith('/settings/export')) return 'export.title'
+  if (pathname.startsWith('/settings/notifications')) return 'push.title'
   if (pathname.startsWith('/settings')) return 'route.settings'
   return 'route.followups'
 }

@@ -6,6 +6,12 @@ import { Toaster } from './components/toast'
 import { ConfirmHost } from './components/Confirm'
 import OfflineBanner from './components/OfflineBanner'
 import NotificationBell from './components/NotificationBell'
+// EAGER, unlike every page below, and for the same reason NotificationBell is:
+// it is chrome. Its whole job is a document keydown listener, and a lazy chunk
+// would mean the first Cmd-K of a session opens nothing while a request goes out
+// — a shortcut that works on the second press is worse than none. It renders
+// null until something opens it, so the mount itself costs one listener.
+import CommandPalette from './components/CommandPalette'
 import {
   IconBolt,
   IconChart,
@@ -30,6 +36,7 @@ import { loadTrackSlas, resetEntries, startEntriesRealtime } from './store/entri
 import { loadMembers, resetMembers } from './store/members'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
 import { resetOutbox } from './store/outbox'
+import { resetPush } from './store/push'
 import { setLocaleSetting, setTheme, useSettings } from './store/settings'
 import { loadVocab } from './store/vocab'
 import type { ThemePref } from './lib/theme'
@@ -82,6 +89,11 @@ const VocabularyAdmin = lazy(() => import('./pages/settings/VocabularyAdmin'))
 // schedule read-only for a member and hides its own edit affordances, because
 // "what is going to be raised for me next Sunday" is everybody's question.
 const RecurringAdmin = lazy(() => import('./pages/settings/RecurringAdmin'))
+// Wave 4b's three. Members IS admin-gated (it mints credentials); the other two
+// deliberately are not — see the route block below.
+const Members = lazy(() => import('./pages/settings/Members'))
+const Export = lazy(() => import('./pages/settings/Export'))
+const NotificationPrefs = lazy(() => import('./pages/settings/NotificationPrefs'))
 
 /* ---------- navigation model ---------- */
 
@@ -405,6 +417,16 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // call above, the store only filled when a sheet was opened, so the leak
       // needed a coincidence; now it is guaranteed without this line.
       resetMembers()
+      // Push is the fifth, and the only one whose reset reaches OUTSIDE the tab.
+      // The browser's push subscription is per-BROWSER, not per-session, so a
+      // subscription left registered on sign-out keeps delivering the previous
+      // user's assignments to a device the next person is holding — a
+      // notification is the one thing in this app that can arrive with the app
+      // closed. resetPush() clears the store and unsubscribes this device
+      // best-effort; 0011's `upsert_push_subscription()` can still move an
+      // endpoint between accounts, which is what makes this a cleanup rather
+      // than a correctness requirement.
+      resetPush()
     }
   }, [])
 
@@ -558,6 +580,27 @@ export default function App(): ReactElement {
               {/* No isAdmin ternary — see the lazy import. A member reads the
                   schedule; the page itself withholds the editing. */}
               <Route path="/settings/recurring" element={<RecurringAdmin />} />
+              {/* Members mints credentials — a one-time invite code that is
+                  shown once — so it is route-gated like the tracks and
+                  vocabulary editors. The screen re-checks and the
+                  `admin-members` function is the real authority; this only
+                  avoids rendering an editable roster for someone every write
+                  will refuse. */}
+              <Route
+                path="/settings/members"
+                element={isAdmin ? <Members /> : <Navigate to="/settings" replace />}
+              />
+              {/* Export is deliberately NOT gated, and that is the one exception
+                  under /settings. What it hands over is exactly what RLS lets
+                  the caller SELECT — their own notifications, nobody else's —
+                  so gating it would withhold from a member a copy of data five
+                  other screens already show them. See the page's header. */}
+              <Route path="/settings/export" element={<Export />} />
+              {/* Per-device push preferences: everybody's own settings, so not
+                  gated either. `/settings/notifications` is push; the top-level
+                  `/notifications` is the inbox history. Two screens, two
+                  routes, and lib/routeTitle.ts titles them apart. */}
+              <Route path="/settings/notifications" element={<NotificationPrefs />} />
               <Route path="*" element={<Navigate to="/followups" replace />} />
             </Routes>
           </Suspense>
@@ -577,6 +620,20 @@ export default function App(): ReactElement {
           <EntryOverlay />
         </Suspense>
       </ErrorBoundary>
+      {/* The desktop keyboard layer: the palette, the `?` cheatsheet, and the
+          one document listener that feeds both.
+          MOUNT ORDER IS LOAD-BEARING and it is why this sits AFTER the overlay
+          host rather than before it. An entry row's Enter closes the palette and
+          calls openEntry() in one commit, so the entry sheet mounts in the same
+          flush and claims focus to announce itself; effects run in tree order,
+          so the sheet's must run first for the palette's focus-restore to see
+          that somebody else took the keyboard and stand down. Mounted here it
+          does. Moved above <EntryOverlay /> it would drag focus back to `#main`
+          and a keyboard user would have to Tab in from the top of the page.
+          Inside the signed-in branch, and inside the router: it needs
+          useNavigate(), it reads entries and tracks that RLS only hands a
+          session, and every one of its shortcuts is meaningless on sign-in. */}
+      <CommandPalette />
       {/* Mounted once, at the root, beside the toaster: confirm() is called
           from anywhere and resolves a promise, so its dialog cannot live
           inside the component that asked — that component is often the one

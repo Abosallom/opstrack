@@ -1,0 +1,41 @@
+{
+  "cmd": {
+    "title": "لوحة الأوامر",
+    "inputLabel": "بحث في لوحة الأوامر",
+    "placeholder": "بنود، مسارات، شاشات، إجراءات…",
+    "hint": "⁦Enter⁩ للفتح · ⁦Esc⁩ للإغلاق",
+    "empty": "لا يوجد ما يطابق «⁨{value}⁩»",
+    "emptyHint": "جرّب حروفًا أقل، أو اسم مسار.",
+    "results": {
+      "one": "نتيجة واحدة",
+      "two": "نتيجتان",
+      "few": "{count} نتائج",
+      "many": "{count} نتيجة",
+      "other": "{count} نتيجة"
+    },
+    "groupEntries": "البنود",
+    "groupTracks": "المسارات",
+    "groupScreens": "الشاشات",
+    "groupActions": "الإجراءات",
+    "actionTheme": "تبديل السمة",
+    "actionLanguage": "تبديل اللغة",
+    "actionKeys": "اختصارات لوحة المفاتيح",
+    "actionRefresh": "تحديث البيانات",
+    "refreshed": "جارٍ التحديث…",
+    "keysTitle": "اختصارات لوحة المفاتيح",
+    "keysHint": "تتوقّف الاختصارات أثناء الكتابة داخل أي حقل.",
+    "keysGlobal": "في أي مكان",
+    "keysEntry": "على بند",
+    "keysEntryHint": "تتنقّل ⁦J⁩ و⁦K⁩ بين الصفوف المعروضة. وتعمل ⁦E⁩ و⁦U⁩ على الصف المحدَّد؛ أما الأرقام فتتطلّب فتح البند.",
+    "keyCapture": "تسجيل جديد",
+    "keySearch": "البحث في هذه الشاشة",
+    "keyPalette": "لوحة الأوامر",
+    "keyHelp": "هذه القائمة",
+    "keyEscape": "إغلاق أو إلغاء",
+    "keyNext": "البند التالي",
+    "keyPrev": "البند السابق",
+    "keyEdit": "فتحه ثم تحرير العنوان",
+    "keyUpdate": "إضافة تحديث",
+    "keyStatus": "تعيين الحالة"
+  }
+}

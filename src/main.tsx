@@ -7,6 +7,8 @@ import App from './App'
 import { applyTheme } from './lib/theme'
 import { applyLocale, t } from './lib/i18n'
 import { initNative } from './lib/native'
+import { installSsoGuard } from './lib/sso'
+import { supabase } from './api/supabase'
 import { initAuth } from './store/auth'
 import { setEntriesSubmit, settleOutboxWrite } from './store/entries'
 import { setMeetingsSubmit } from './store/meetings'
@@ -36,6 +38,31 @@ initNative()
 // changes. Safe to call with no credentials configured: it just settles into a
 // signed-out state instead of throwing.
 initAuth()
+
+// THE ENTRA MEMBERSHIP GUARD, AND IT HAS TO BE HERE RATHER THAN IN A COMPONENT.
+//
+// Entra authenticates the whole tenant: the moment the provider is enabled, every
+// employee can complete a sign-in, and App.tsx renders the full shell for any
+// session whether or not a `profiles` row exists. So a stranger from Finance would
+// land inside OpsTrack, see empty lists (RLS gives them nothing) and reasonably
+// conclude the tool is broken. This signs an `azure` session with no profiles row
+// straight back out and records the reason for SignIn.tsx to explain.
+//
+// The composition root is the only place it works. An SSO redirect carries its
+// tokens in the URL fragment, so supabase-js adopts the session at module init and
+// the very first render is the signed-in SHELL — SsoButtons never mounts, and a
+// guard installed from it would never run on the one path that needs it. That
+// component calls this too, idempotently, so the refusal path still works in a
+// build whose root was not wired; this line is what makes it work at all.
+//
+// Only `azure` sessions are touched, and only a definitive "no row, no error" ends
+// one — a flaky profiles read must never sign a legitimate member out. Both
+// policies are argued in lib/sso.ts. Nothing happens at all while the provider is
+// off, which is its state on this project today.
+//
+// Order matters by one line: installed AFTER initAuth() so store/auth.ts's own
+// listener is registered first and still sees the session it is about to reject.
+installSsoGuard(supabase)
 
 // Point the stores' write seams at the real outbox, and point the outbox's
 // settle back at the entries store.

@@ -1,10 +1,139 @@
-/* Wrapper for the always-mounted offline live region. The banner inside it is
-   styled by app-shell.css — this file must not restate .offline-banner, or the
-   winner would depend on CSS import order.
+/* The offline strip's own sheet.
 
-   :empty collapses the region so a connected app has no phantom row between the
-   header and the content. */
+   OWNERSHIP. `.offline-banner`, `.offline-banner-dot` and `.offline-banner-count`
+   live in src/app-shell.css and are NOT restated here — the winner would
+   otherwise depend on CSS import order, and app-shell.css is integrator-owned.
+   This file owns the rest of the `.offline-*` space: the region wrapper, the
+   button that fills the bar, the spinner, and `.offline-note`, which is the
+   separate transient surface the "back online" / "all synced" flashes use
+   BECAUSE the yellow bar cannot be re-toned from here (see OfflineBanner.tsx's
+   header — a `data-tone` on `.offline-banner` is the follow-up the handoff note
+   asks the integrator for).
+
+   :empty collapses the region so a connected, empty-queue app has no phantom row
+   between the header and the content. The region is always mounted; that is what
+   makes it announce (see the component).
+
+   LOGICAL PROPERTIES ONLY. TOUCH TARGET: the bar itself is the target when there
+   is something to open — 44px in the block axis, bled out over the banner's own
+   padding in both axes so a tap anywhere on the strip lands. */
 
 .offline-region:empty {
   display: none;
+}
+
+/* The whole bar, as one control.
+
+   The negative margins cancel `.offline-banner`'s padding (8px block, 16px
+   inline) and are paid straight back as this element's own padding, so the
+   button covers the strip edge to edge WITHOUT changing its height: an outer
+   size of 44px − 16px of negative block margin leaves the parent the same 28px
+   of content the plain banner had, and the border box grows back over the
+   padding it cancelled. It GROWS to the line (`flex: 1 1 auto`) rather than
+   declaring `inline-size: 100%` — a percentage resolves against the parent's
+   content box, which is precisely the 32px narrower box this is trying to
+   escape. Global `box-sizing: border-box` is what makes the block arithmetic
+   hold. */
+.offline-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  min-block-size: 44px;
+  margin-block: -8px;
+  margin-inline: -16px;
+  padding-block: 8px;
+  padding-inline: 16px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.offline-open:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* The shared 2px outline OFFSET would draw the ring past the viewport on a
+   control bled to both edges. Same ring, pulled inside. */
+.offline-open:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Takes the leftover room and WRAPS rather than ellipsising: the sentence is a
+   warning, and "You're offline — showing th…" is the half that carries no
+   information. Two lines on a 375px phone is the correct trade; min-inline-size:
+   0 is what lets it shrink at all inside the flex row. */
+.offline-msg {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.offline-chevron {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+/* A ring where the dot is, on the same 8px footprint: 12px of ring pulled back
+   2px on each side, so the message does not jump sideways the moment a flush
+   starts. global.css's prefers-reduced-motion block already clamps this
+   animation to a single 0.01ms iteration — it must not be re-declared here. */
+.offline-spin {
+  flex: 0 0 auto;
+  inline-size: 12px;
+  block-size: 12px;
+  margin-inline: -2px;
+  border: 2px solid color-mix(in srgb, var(--yellow) 30%, transparent);
+  border-block-start-color: var(--yellow);
+  border-radius: 50%;
+  animation: offline-spin 800ms linear infinite;
+}
+
+@keyframes offline-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* ---------- the transient "all clear" ----------
+   A DIFFERENT element from the banner, not a variant of it: it is green, it is
+   not a warning, and the banner's selector is not this file's to change. Same
+   sticky slot and z-index so it occupies the space the banner just left rather
+   than shifting the page under the user's finger. */
+
+.offline-note {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 36px;
+  padding-block: 8px;
+  padding-inline: 16px;
+  background: color-mix(in srgb, var(--green) 14%, var(--bg-elev));
+  border-block-end: 1px solid color-mix(in srgb, var(--green) 34%, transparent);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: start;
+  animation: offline-note-in 160ms ease-out;
+}
+
+.offline-note-dot {
+  flex: 0 0 auto;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+@keyframes offline-note-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
 }

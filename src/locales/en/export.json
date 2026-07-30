@@ -1,0 +1,42 @@
+{
+  "export": {
+    "title": "Export",
+    "subtitle": "Take a copy of this workspace with you.",
+    "scope": "An export contains exactly the rows your account is allowed to read — the database decides that, not this screen. Notifications are the clearest case: you get yours, and nobody else's.",
+    "fresh": "Both formats read everything fresh from the server, so an export needs a connection and never comes out of the offline cache.",
+    "jsonTitle": "Full backup",
+    "jsonHint": "Every table and every column, nothing flattened and nothing dropped. Arabic text, commas and line breaks come back out exactly as they went in. If you keep one file, keep this one.",
+    "jsonAction": "Download JSON",
+    "csvTitle": "Entries for a spreadsheet",
+    "csvHint": "The entries only, one row each, ready to open in Excel with the track and owner names filled in beside their ids.",
+    "csvCaveats": "Tags and links are joined into single cells, and a value that starts with =, + or @ gets an apostrophe in front of it so the spreadsheet shows it instead of running it. Use the full backup when you need the text back exactly as it was typed.",
+    "csvAction": "Download CSV",
+    "includes": "What a full backup contains",
+    "preparing": "Preparing your export…",
+    "reading": "Reading ⁨{label}⁩…",
+    "rowsSoFar": {
+      "one": "{count} row so far",
+      "other": "{count} rows so far"
+    },
+    "done": {
+      "one": "Exported {count} row.",
+      "other": "Exported {count} rows."
+    },
+    "downloaded": "Saved as ⁨{name}⁩.",
+    "failed": "The export stopped before it finished, so nothing was saved. Try again.",
+    "truncatedTitle": "Some tables were cut short",
+    "truncatedBody": "These reached the export's row ceiling, so the file is missing their oldest rows: ⁨{list}⁩. Everything else in it is complete.",
+    "noEntries": "There are no entries to put in a spreadsheet yet.",
+    "table": {
+      "entries": "Entries",
+      "entry_updates": "Update threads",
+      "tracks": "Tracks",
+      "vocab_options": "Vocabulary",
+      "meetings": "Meetings",
+      "meeting_lines": "Meeting lines",
+      "recurring_templates": "Recurring templates",
+      "notifications": "Your notifications",
+      "track_slas": "Track SLA overrides"
+    }
+  }
+}

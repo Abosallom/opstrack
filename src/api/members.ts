@@ -14,11 +14,18 @@
 // hiding the buttons is tidiness, never the security boundary.
 //
 // ERRORS ARE i18n KEYS, the api/tracks.ts convention. The edge function answers
-// in English sentences (it has no locale), so `edgeErrorKey()` maps its STATUS
-// to a key rather than passing its prose through — an untranslated sentence in
-// an RTL layout is the exact failure the key convention exists to prevent. The
-// English text is logged, not shown; Wave 4's Members page adds the specific
-// `members.*` keys once it has screens to hang them on.
+// in English sentences (it has no locale), so nothing maps its prose through —
+// an untranslated sentence in an RTL layout is the exact failure the key
+// convention exists to prevent. The English text is logged, not shown.
+//
+// WHAT WAVE 4 ADDED. v2 of the function answered with prose and a status and
+// nothing else, so `edgeErrorKey()` could only distinguish 401 from 403 and
+// every real failure — a username already taken, the last admin, a self-demote
+// — collapsed into "Something went wrong". v3 emits a machine `code` beside the
+// sentence and ADMIN_ERROR_KEYS below turns it into a `members.err*` key, which
+// is what lets the Members page say the one thing the admin needs to hear. The
+// status mapping stays underneath it: a gateway error page, or a token this
+// build has never heard of, still resolves to something readable.
 
 import { supabase } from './supabase'
 import { fail, notConfigured, type ApiResult } from './result'
@@ -50,11 +57,85 @@ export interface Member {
   claimed?: boolean
 }
 
+/**
+ * One account as the MEMBERS ADMIN PAGE needs it, which is strictly more than
+ * `Member`.
+ *
+ * A second interface rather than widening `Member` with eight optional fields:
+ * `Member` is what fifteen call sites across the app consume to render an owner,
+ * and every one of them would have had to start reasoning about whether
+ * `lastSignInAt` happened to be loaded. This shape comes from exactly one
+ * caller — `listMemberAccounts()` — and is complete by construction.
+ *
+ * The two flags at the bottom are HINTS FOR THE UI, never the boundary. The
+ * function re-derives both server-side before it refuses anything; they exist so
+ * a control that is going to be refused can be disabled with an explanation
+ * instead of offered and then rejected.
+ */
+export interface MemberAccount {
+  id: string
+  displayName: string
+  role: UserRole
+  /** The real address, or the synthetic `<username>@opstrack.internal`. */
+  email: string
+  /** null for an account that signs in with a real address (the owner's). */
+  username: string | null
+  /** An email account is claimed by definition — it has no invite to redeem. */
+  claimed: boolean
+  createdAt: string
+  lastSignInAt: string | null
+  /** False when the profiles row is missing — a provisioning half-failure. */
+  hasProfile: boolean
+  /** When the outstanding invite dies. null once claimed, or if none is out. */
+  inviteExpiresAt: string | null
+  /** On the function's bootstrap allow-list: always an admin, never removable. */
+  isBootstrapAdmin: boolean
+  /** The signed-in admin's own row. */
+  isSelf: boolean
+}
+
 /** The `profiles` columns this module reads. Narrow on purpose. */
 interface ProfileRow {
   id: string
   display_name: string | null
   role: string
+}
+
+/**
+ * A minted invite, as it comes back from `create` or `reissue-code`.
+ *
+ * `code` IS A CREDENTIAL WITH A FOURTEEN-DAY LIFE. It is readable exactly once,
+ * on the response that mints it, because the server keeps only an HMAC — there is
+ * no "show it again" path anywhere, by design. Do not log it, do not persist it,
+ * do not put it in a URL. The whole scheme rests on it existing in two places:
+ * the admin's screen and the member's hand.
+ *
+ * `username` comes back from the server rather than being echoed from the
+ * request so a reissue triggered by id (which is how the Members page does it)
+ * still knows which username the code belongs to — the admin has to read both
+ * halves aloud and the pair is useless split up.
+ */
+export interface Invite {
+  username: string
+  code: string
+  /** ISO instant. The admin needs to say "use it before…" out loud. */
+  expiresAt: string
+}
+
+/** The `list` action's row, snake_case as the function emits it. */
+export interface AdminMemberRow {
+  id: string
+  email: string
+  display_name: string | null
+  role: string
+  created_at: string
+  last_sign_in_at: string | null
+  has_profile: boolean
+  username: string | null
+  claimed: boolean
+  invite_expires_at: string | null
+  is_bootstrap_admin: boolean
+  is_self: boolean
 }
 
 function toMember(row: ProfileRow): Member {
@@ -87,25 +168,68 @@ export async function listMembers(): Promise<ApiResult<Member[]>> {
 }
 
 /**
- * The edge function's HTTP status, mapped to a key.
+ * `admin-members`' machine codes, mapped to keys.
+ *
+ * Every token the function's `AdminCode` union can emit has an entry, and the
+ * lookup falls back to `common.error` for one it does not — a client that has
+ * been open in a tab since before a function deploy degrades to a generic
+ * sentence rather than rendering a raw dot path.
+ *
+ * `forbidden` deliberately reuses `admin.errForbidden` rather than minting a
+ * `members.*` twin: it is the same sentence the track and vocabulary admin
+ * screens already show for the same reason.
+ */
+export const ADMIN_ERROR_KEYS: Record<string, string> = {
+  not_signed_in: 'common.notSignedIn',
+  forbidden: 'admin.errForbidden',
+  invalid_body: 'common.error',
+  invalid_username: 'members.errUsernameInvalid',
+  username_taken: 'members.errUsernameTaken',
+  invalid_email: 'members.errEmailInvalid',
+  email_taken: 'members.errEmailTaken',
+  display_name_required: 'members.errNameRequired',
+  not_found: 'members.errNotFound',
+  email_account: 'members.errEmailAccount',
+  self_delete: 'members.errSelfDelete',
+  self_demote: 'members.errSelfDemote',
+  last_admin: 'members.errLastAdmin',
+  bootstrap_admin: 'members.errBootstrapAdmin',
+  no_pepper: 'members.errNoPepper',
+  server_error: 'common.error',
+  unknown_action: 'common.error',
+}
+
+/**
+ * The edge function's failure, mapped to a key.
  *
  * supabase-js collapses every non-2xx into a FunctionsHttpError whose message is
  * the constant "Edge Function returned a non-2xx status code"; the status and
- * the JSON body are reachable only through `.context`, the raw Response. This is
- * the same dig store/auth.ts does for the claim flow — kept separate rather than
- * shared because that one reads a machine `code` field this endpoint does not
- * emit, and a shared helper would have to serve both shapes badly.
+ * the JSON body are reachable only through `.context`, the raw Response. THE
+ * `.clone()` IS LOAD-BEARING and is the showtrackr unwrap: a Response body is a
+ * one-shot stream, so reading `ctx.json()` directly would consume the body that
+ * supabase-js may still hold a reference to, and a second reader — here, or in a
+ * caller that wants to log the raw text — gets a TypeError instead of the
+ * payload. Cloning first costs one buffer and makes the read repeatable.
+ *
+ * Kept separate from store/auth.ts's version of the same dig, which serves the
+ * claim flow and returns a translated sentence rather than a key; a shared
+ * helper would have to serve both shapes badly.
  */
 async function edgeErrorKey(error: unknown): Promise<string> {
   const err = error as { name?: string; context?: unknown }
-  if (err.name === 'FunctionsFetchError') return 'common.error'
+  // No response at all: DNS, TLS, an offline device. Nothing was refused, so
+  // saying "forbidden" would send an admin looking for a permission problem.
+  if (err.name === 'FunctionsFetchError') return 'members.errNetwork'
   const ctx = err.context
   if (ctx instanceof Response) {
-    // Logged, never rendered: the function answers in English and this app has
-    // an Arabic half. A bug report needs the sentence; the user does not.
     try {
-      const body = (await ctx.clone().json()) as { error?: unknown }
+      const body = (await ctx.clone().json()) as { error?: unknown; code?: unknown }
+      // Logged, never rendered: the function answers in English and this app has
+      // an Arabic half. A bug report needs the sentence; the user does not.
       if (typeof body.error === 'string') console.warn('[members] edge function:', body.error)
+      if (typeof body.code === 'string' && body.code in ADMIN_ERROR_KEYS) {
+        return ADMIN_ERROR_KEYS[body.code]
+      }
     } catch {
       // A gateway HTML error page tells us nothing worth logging.
     }
@@ -121,6 +245,84 @@ async function invokeAdmin<T>(body: Record<string, unknown>): Promise<ApiResult<
   const { data, error } = await supabase.functions.invoke('admin-members', { body })
   if (error) return fail(await edgeErrorKey(error))
   return { ok: true, data: data as T }
+}
+
+/**
+ * Every ACCOUNT, with the admin-only facts `profiles` cannot answer.
+ *
+ * A different endpoint from `listMembers()` and deliberately so. `username`,
+ * `claimed` and `last_sign_in_at` live in `auth.users`, which PostgREST cannot
+ * reach at all — no view, no policy, no join. The service role is the only
+ * principal that can read them, so the only way to a Members page is through
+ * the function. `listMembers()` stays the app-wide read: every owner picker in
+ * the app wants a name and a role, not a sign-in history.
+ *
+ * Sorted here rather than in the function because the order is a UI decision.
+ * PENDING INVITES FIRST: they are the only rows on this screen that are waiting
+ * on the admin, and burying one alphabetically between two claimed accounts is
+ * how a member ends up unable to sign in for a week. Everything else is by
+ * display name, with `localeCompare` so Arabic names sort as Arabic rather than
+ * by code point.
+ */
+export async function listMemberAccounts(): Promise<ApiResult<MemberAccount[]>> {
+  const result = await invokeAdmin<{ members: AdminMemberRow[] }>({ action: 'list' })
+  if (!result.ok) return result
+  return { ok: true, data: sortMemberAccounts((result.data.members ?? []).map(toMemberAccount)) }
+}
+
+/**
+ * The snake_case → camelCase boundary for one account row.
+ *
+ * Exported for its test, the api/notifications.ts convention: this is the only
+ * place the line gets drawn for this shape, and `displayName`'s fallback chain
+ * is the part worth pinning — an account whose profiles row is missing has a
+ * null display name, and rendering an empty string in a roster is how a member
+ * becomes invisible to the admin who has to fix them.
+ */
+export function toMemberAccount(row: AdminMemberRow): MemberAccount {
+  return {
+    id: row.id,
+    // Name, then handle, then address. Never a raw uuid and never blank: the
+    // one row that most needs to be clickable is the half-provisioned one.
+    displayName: row.display_name?.trim() || row.username || row.email,
+    role: row.role === 'admin' ? 'admin' : 'member',
+    email: row.email,
+    username: row.username,
+    claimed: row.claimed,
+    createdAt: row.created_at,
+    lastSignInAt: row.last_sign_in_at,
+    hasProfile: row.has_profile,
+    inviteExpiresAt: row.invite_expires_at,
+    isBootstrapAdmin: row.is_bootstrap_admin,
+    isSelf: row.is_self,
+  }
+}
+
+/**
+ * Pending invites first, then by display name. Sorts IN PLACE and returns the
+ * same array — the caller always owns a freshly mapped one.
+ */
+export function sortMemberAccounts(rows: MemberAccount[]): MemberAccount[] {
+  const pending = (row: MemberAccount): number => (row.username && !row.claimed ? 0 : 1)
+  return rows.sort(
+    (a, b) =>
+      pending(a) - pending(b) ||
+      a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' }),
+  )
+}
+
+/**
+ * Promote or demote.
+ *
+ * Both refusals the caller has to expect — no self-demotion, no removing the
+ * last admin — are the FUNCTION's, re-derived there from the live profiles
+ * table. The Members page disables the same two controls so nobody clicks into a
+ * dead end, and this call is what makes that decoration rather than security.
+ */
+export async function setMemberRole(id: string, role: UserRole): Promise<ApiResult<null>> {
+  const result = await invokeAdmin<{ ok: boolean }>({ action: 'set-role', userId: id, role })
+  if (!result.ok) return result
+  return { ok: true, data: null }
 }
 
 /**
@@ -173,9 +375,14 @@ export async function createUsernameMember(
   username: string,
   displayName: string,
   role: UserRole,
-): Promise<ApiResult<{ member: Member; inviteCode: string }>> {
+): Promise<ApiResult<{ member: Member; invite: Invite }>> {
   const name = username.trim().toLowerCase()
-  const result = await invokeAdmin<{ id: string; username: string; inviteCode: string }>({
+  const result = await invokeAdmin<{
+    id: string
+    username: string
+    inviteCode: string
+    expiresAt: string
+  }>({
     action: 'create',
     username: name,
     displayName: displayName.trim(),
@@ -195,7 +402,11 @@ export async function createUsernameMember(
         username: result.data.username,
         claimed: false,
       },
-      inviteCode: result.data.inviteCode,
+      invite: {
+        username: result.data.username,
+        code: result.data.inviteCode,
+        expiresAt: result.data.expiresAt,
+      },
     },
   }
 }
@@ -209,13 +420,20 @@ export async function createUsernameMember(
  * flow with a new password. Reissuing also clears the account's failure
  * counter, so a member locked out by someone else's guessing is not stuck.
  */
-export async function reissueInvite(id: string): Promise<ApiResult<{ inviteCode: string }>> {
-  const result = await invokeAdmin<{ inviteCode: string }>({
+export async function reissueInvite(id: string): Promise<ApiResult<Invite>> {
+  const result = await invokeAdmin<{ username: string; inviteCode: string; expiresAt: string }>({
     action: 'reissue-code',
     userId: id,
   })
   if (!result.ok) return result
-  return { ok: true, data: { inviteCode: result.data.inviteCode } }
+  return {
+    ok: true,
+    data: {
+      username: result.data.username,
+      code: result.data.inviteCode,
+      expiresAt: result.data.expiresAt,
+    },
+  }
 }
 
 export async function deleteMember(id: string): Promise<ApiResult<null>> {

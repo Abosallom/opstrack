@@ -16,8 +16,31 @@
     "retry": "Retry now",
     "outbox": "Pending changes",
     "outboxHint": "These are saved on this device and will be sent when you're back online.",
+    "openOutbox": "Show pending changes",
+    "emptyHint": "Anything you save while offline waits here until it reaches the server.",
+    "discard": "Discard",
     "discardTitle": "Discard this change?",
     "discardBody": "It hasn't reached the server yet, and discarding it can't be undone.",
-    "discarded": "Change discarded."
+    "discardDependents": {
+      "one": "One other queued change depends on this one and could no longer be sent.",
+      "other": "{count} other queued changes depend on this one and could no longer be sent."
+    },
+    "discarded": "Change discarded.",
+    "itemWaiting": "Waiting to send",
+    "itemFailed": "Couldn't send — it will be retried.",
+    "itemStuck": "Can't be sent: the change it depends on is gone. Discard it.",
+    "attempts": {
+      "one": "Tried once",
+      "other": "Tried {count} times"
+    },
+    "opEntryCreate": "New entry",
+    "opEntryEdit": "Entry edit",
+    "opNote": "Thread note",
+    "opMeetingCreate": "New meeting",
+    "opMeetingEdit": "Meeting edit",
+    "opMeetingLine": "Meeting line",
+    "opMeetingLineEdit": "Meeting line edit",
+    "opNotification": "Notification marked read",
+    "opOther": "Pending change"
   }
 }

@@ -1,13 +1,26 @@
 // Settings. Appearance, language and account are live; the tracks section is a
-// summary that hands off to the admin screens under /settings/tracks. Members
-// management is still a later sitting, and says so rather than rendering a
-// control that looks editable and does nothing.
+// summary that hands off to the admin screens under /settings/tracks.
 //
 // IT IS ALSO THE APP'S "MORE" SURFACE. NAV in App.tsx is capped at five tab-bar
 // slots, so every screen that is not one of the five is reached from a row on
-// this page: the vocabulary and tracks admin, the recurring schedule, and the
-// notification history. A screen with no row here and no tab is a screen only a
-// typed URL can reach.
+// this page: the vocabulary and tracks admin, the recurring schedule, the
+// notification history, and — since Wave 4b — the member roster, the workspace
+// export and per-device push. A screen with no row here and no tab is a screen
+// only a typed URL can reach.
+//
+// WAVE 4b RETIRED THE LAST "COMING SOON" IN THE APP. The members section used to
+// render a `placeholder.comingSoon` pill because member management needed the
+// admin-members function and was sequenced after entries CRUD. Both exist now,
+// so the pill is a link to /settings/members — and with that the whole
+// `placeholder` namespace and pages/Placeholder.tsx had no call site left and
+// were deleted. See localeParity.test.ts's RETIRED_KEYS block.
+//
+// WHICH OF THE THREE NEW ROWS IS ADMIN-ONLY, and why it is only one. Members is,
+// because it mints credentials. Export is not: it hands over exactly the rows RLS
+// already lets the reader SELECT, so gating it would withhold a copy of data the
+// app shows them elsewhere. Push is not: they are that person's own per-device
+// preferences. App.tsx's route table makes the same three choices, and the two
+// have to agree — a row that leads to a redirect is worse than no row.
 
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
@@ -15,6 +28,7 @@ import {
   IconChevronEnd,
   IconClipboardList,
   IconClock,
+  IconDatabase,
   IconGlobe,
   IconLayers,
   IconLogOut,
@@ -259,14 +273,30 @@ export default function Settings(): ReactElement {
         </button>
       </Section>
 
-      {/* Two rows every member gets, admin or not, and Settings is where they
+      {/* Three rows every member gets, admin or not, and Settings is where they
           live for the same reason the vocabulary row does: the tab bar is
-          capped at five and neither destination is in it. On a phone this page
-          IS the More menu — the header bell opens a dismissible sheet, so
+          capped at five and none of these destinations is in it. On a phone this
+          page IS the More menu — the header bell opens a dismissible sheet, so
           without the first row there is no durable way to the inbox history at
-          all, and the second is the only entrance to /settings/recurring. */}
+          all, and the others are the only entrances to /settings/recurring and
+          /settings/export.
+
+          BOTH NOTIFICATION ROWS SHARE ONE CARD rather than taking a second one
+          with a second bell on it. They are the two halves of the same subject:
+          what has already arrived (the inbox) and what should reach this device
+          when the app is closed (push). Two sections would have meant two
+          identical icons and a reader having to work out the difference from the
+          headings alone. */}
       <Section icon={IconBell} title={t('notif.title')} description={t('notif.subtitle')}>
-        <NotificationsSettingsRow />
+        <div className="settings-rows">
+          <NotificationsSettingsRow />
+          <NavLink to="/settings/notifications" className="btn btn-ghost notif-settings-row">
+            <span>{t('push.title')}</span>
+            {/* Forward through the hierarchy — forward is leftward in Arabic,
+                hence icon-directional. */}
+            <IconChevronEnd className="icon-directional settings-row-chevron" size={16} />
+          </NavLink>
+        </div>
       </Section>
 
       {/* NOT inside the isAdmin block below. RecurringAdmin renders the
@@ -283,6 +313,22 @@ export default function Settings(): ReactElement {
           {t('settings.recurringManage')}
           {/* Forward through the hierarchy — forward is leftward in Arabic,
               hence icon-directional. */}
+          <IconChevronEnd className="icon-directional" size={16} />
+        </NavLink>
+      </Section>
+
+      {/* Also outside the admin block, and deliberately. An export contains
+          exactly the rows the reader's own account is allowed to SELECT — the
+          database decides that, not this row — so withholding it from a member
+          would withhold a copy of data five other screens already show them.
+          App.tsx leaves the route ungated to match. */}
+      <Section
+        icon={IconDatabase}
+        title={t('export.title')}
+        description={t('export.subtitle')}
+      >
+        <NavLink to="/settings/export" className="btn btn-ghost">
+          {t('settings.exportManage')}
           <IconChevronEnd className="icon-directional" size={16} />
         </NavLink>
       </Section>
@@ -361,18 +407,27 @@ export default function Settings(): ReactElement {
               <IconChevronEnd className="icon-directional" size={16} />
             </NavLink>
           </Section>
+          {/* THE LAST "COMING SOON" IN THE APP, RETIRED. This card carried a
+              `placeholder.comingSoon` pill and a line explaining that member
+              management was sequenced after entries CRUD. Both the screen and the
+              `admin-members` function it needs now exist, so it is a link — and
+              deleting the pill left the whole `placeholder` namespace without a
+              call site, which is why that namespace and pages/Placeholder.tsx are
+              gone. See the file header and localeParity.test.ts's RETIRED_KEYS.
+
+              Inside the admin block, unlike the export and push rows above:
+              creating a member mints a one-time invite code, and App.tsx
+              route-gates /settings/members to match. The non-admin branch below
+              still says who can. */}
           <Section
             icon={IconUsers}
             title={t('settings.members')}
             description={t('settings.membersHint')}
           >
-            {/* Deliberately not a disabled form: member management needs the
-                admin-members edge function and is sequenced after entries
-                CRUD, so a greyed-out control would only invite clicking. */}
-            <div className="settings-soon">
-              <span className="pill info">{t('placeholder.comingSoon')}</span>
-              <p className="settings-soon-text">{t('settings.membersSoon')}</p>
-            </div>
+            <NavLink to="/settings/members" className="btn btn-ghost">
+              {t('settings.membersManage')}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
           </Section>
         </>
       ) : (
