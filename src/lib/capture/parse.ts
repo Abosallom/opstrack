@@ -60,9 +60,18 @@ export interface ParseTrack {
   aliases?: string[]
 }
 
+/**
+ * `username` IS THE IDENTIFIER PEOPLE ARE ACTUALLY GIVEN. The Members screen
+ * prints `@zz.smoke.v100`, the invite code is minted against it, and it is what
+ * gets typed at sign-in — so it is what gets typed after `@`, and matching it is
+ * not a nicety. Optional and nullable because an account that signs in with a
+ * real address has none (see api/members.Member): both spellings mean "this
+ * person has no handle", and the matcher treats them identically.
+ */
 export interface ParseMember {
   id: string
   displayName: string
+  username?: string | null
   aliases?: string[]
 }
 
@@ -693,36 +702,53 @@ function matchTrackTiers(
 }
 
 /**
- * Members match on tiers 1 and 2 ONLY — never subsequence.
+ * Members match on three tiers — handle, name, prefix — and never subsequence.
  *
- * Silently assigning work to the wrong person is worse than leaving free text,
- * and `@as` should not become "Ahmed Al-Otaibi" because the letters happen to
- * appear in order. An unmatched handle becomes `ownerName`, which the DB models
- * as a first-class case: an owner is either a provisioned teammate or a name.
+ * TIER 0 IS AN EXACT USERNAME, AND IT SITS ABOVE EVERYTHING. A username is not
+ * one more nickname to fuzz against: it is unique by construction, issued by an
+ * admin, printed on the Members screen and typed at sign-in. When someone types
+ * the identifier they were handed, the answer is that person — it must not be
+ * outvoted by a display name that merely starts with the same letters, and it
+ * must not go free-text because two OTHER people's names are close to it. That
+ * is exactly what shipped in v1.0.0: `@zz.smoke.v100` produced a free-text
+ * owner, so no assignment and no notification, with nothing rendering red.
+ *
+ * Tier 1 is fold-equality against the display name, the username and the
+ * aliases; tier 2 is prefix-or-Arabic-stem across the same forms. Subsequence is
+ * deliberately NOT a tier: silently assigning work to the wrong person is worse
+ * than leaving free text, and `@as` must not become "Ahmed Al-Otaibi" because
+ * the letters happen to appear in order. An unmatched handle becomes
+ * `ownerName`, which the DB models as a first-class case — an owner is either a
+ * provisioned teammate or a name.
  *
  * `profiles` has no `display_name_ar`, so `@أحمد` will NOT match
- * `Ahmed Al-Otaibi` and becomes free text. ParseMember.aliases exists so a
- * one-column migration or an admin-typed alias list fixes that without
- * reopening this file.
+ * `Ahmed Al-Otaibi` on its name — but it will on the username or an alias, and
+ * an Arabic display name with a Latin handle now resolves from either side.
  */
 function matchMemberTiers(q: string, members: readonly ParseMember[]): Match {
   const needle = foldKey(clean(q))
   if (!needle) return { id: null, candidates: [] }
   const stem = stemArabic(needle)
 
+  const handle: string[] = []
   const exact: string[] = []
   const near: string[] = []
 
   for (const member of members) {
-    const forms = foldedForms(member.displayName, '', member.aliases)
-    if (forms.includes(needle)) {
+    // Folded like every other form, so case and the separators people type
+    // inconsistently (`@zz-smoke`, `@zz_smoke`) reach the same account.
+    const username = foldKey(member.username ?? '')
+    const forms = foldedForms(member.displayName, member.username ?? '', member.aliases)
+    if (username && username === needle) {
+      handle.push(member.id)
+    } else if (forms.includes(needle)) {
       exact.push(member.id)
     } else if (forms.some((f) => f.startsWith(needle) || stemArabic(f) === stem)) {
       near.push(member.id)
     }
   }
 
-  const hits = exact.length > 0 ? exact : near
+  const hits = handle.length > 0 ? handle : exact.length > 0 ? exact : near
   return hits.length === 1 ? { id: hits[0], candidates: [] } : { id: null, candidates: hits }
 }
 
@@ -898,12 +924,20 @@ export function parse(input: string, ctx: ParseContext): ParsedEntry {
       case 'owner': {
         const hit = matchMemberTiers(raw.value, ctx.members)
         const member = hit.id ? ctx.members.find((m) => m.id === hit.id) : undefined
+        // Name, then handle, then what was typed — the same fallback chain the
+        // Members screen uses, and for the same reason: a matched member must
+        // never render as an empty chip. `profiles.display_name` is '' while
+        // provisioning is half-done, and that account is now reachable by
+        // handle, so a blank label is suddenly a case that HAPPENS.
+        const label = member
+          ? member.displayName.trim() || member.username?.trim() || raw.value
+          : raw.value
         token.refId = hit.id
-        token.value = member ? member.displayName : raw.value
+        token.value = label
         noteDuplicate(token)
         if (member) {
           ownerId = member.id
-          ownerName = member.displayName
+          ownerName = label
         } else {
           ownerId = null
           ownerName = raw.value

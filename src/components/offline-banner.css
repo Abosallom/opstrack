@@ -33,15 +33,21 @@
    it. `display: none` on :empty wins over the sticky, so a connected app with an
    empty queue still occupies no row and creates no stacking context.
 
-   STICKY-OFFSET (open, see docs/FIX-BACKLOG.md "What is still open"). Now that
-   the sticky travels, `inset-block-start: 0` pins this 45px strip in the SAME
-   slot the 56px .app-header pins in, and 65 > 60 means it covers all but an
-   11px sliver of it. The offset this wants is the header's height — which is
-   app-shell.css's, is 50px/56px across the 768px breakpoint, and grows again by
-   env(safe-area-inset-top) in the installed PWA. Hardcoding a number here would
-   copy integrator-owned geometry into this file and still be wrong on a notch,
-   so the region stays at 0 and app-shell.css owes a custom property. Lowering
-   this z-index instead is NOT the fix: the header is 88% opaque with a 12px
+   STICKY-OFFSET — fixed in v1.0.1, and the half of it that lives here is the
+   `0` below, which STAYS. Once the sticky started travelling, this 45px strip
+   pinned in the SAME slot the 56px .app-header pins in, and 65 > 60 meant it
+   covered all but an 11px sliver of it. The offset it wants is the header's
+   height, which is app-shell.css's number and not a constant: 50px/56px across
+   the 768px breakpoint, grown again by env(safe-area-inset-top) in the installed
+   PWA. Hardcoding it here would copy integrator-owned geometry into a component
+   file and still be wrong on a notch — so this file asked for a custom property
+   and app-shell.css now publishes one. It applies the offset with
+   `.app-main > .offline-region`, which outranks this rule on specificity rather
+   than on load order, so THIS declaration is still the correct answer wherever
+   there is no header to clear (routes that render `.main-content` straight under
+   `.app-layout`). Do not delete it, and do not chase the offset into this file.
+
+   Lowering this z-index was never the fix: the header is 88% opaque with a 12px
    backdrop blur, so the strip would be hidden rather than stacked. */
 .offline-region {
   position: sticky;

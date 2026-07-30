@@ -39,7 +39,26 @@ Wave 5:
 | **−** `src/lib/sso.test.ts`, deleted whole by the SSO strip | −1 | **−30** |
 | the Wave-5 hardening close | **57** | **1583** |
 | **+** `src/store/settings.test.ts`, the regression gate for **R2** below | +1 | +3 |
-| **`v1.0.0` (`8c888d9`)** | **58** | **1586** |
+| **`v1.0.0` (tag → `79391d1`)** | **58** | **1586** |
+| **+** `src/store/departedOwner.test.ts`, the browser half of **R3** | +1 | +10 |
+| **+** `parse.test.ts` — the username tier and what must not outrank it (**R4**) | — | +9 |
+| **+** `brand.test.ts` — generated filenames, and the envelope tag pinned as the *old* slug | — | +6 |
+| **+** `members.test.ts` `toMember`, `Capture.test.tsx` wiring (**R4**) | — | +4 |
+| **`v1.0.1` (tag)** | **59** | **1615** |
+
+**Do not read a count here without re-running it.** `npm run test` prints its own
+totals as its last two lines, so the check is
+`npm run test 2>&1 | grep -E '^ *(Test Files|Tests) '` — one command, and it is
+the authority. Both totals above were measured, not derived: `58/1586` at
+`79391d1` in a detached worktree on **2026-07-31**, and `59/1615` on the v1.0.1
+tree the same day, with the five deltas taken per file by diffing the two runs'
+JSON reporters rather than by counting `it(` in a diff.
+
+The sha in the `v1.0.0` row is the commit the **annotated** tag resolves to
+(`git rev-parse 'v1.0.0^{}'`); `git rev-parse v1.0.0` answers `67d7229`, which is
+the tag *object*, not a commit — that difference has confused two passes already.
+`79391d1` is docs-only on top of `8c888d9`, so the release tree and the tested
+tree are the same code. `v1.0.1` is annotated too; resolve it the same way.
 
 The subtraction is the row worth pausing on. A test count that only ever rises is
 one nobody is reading; this one fell by 30 on purpose, and §2 of the Wave-5 notes
@@ -65,8 +84,10 @@ guessing.
 | --- | --- |
 | `fixed-in-<sha>` | The defect is gone at that commit, verified by reading the code (or the live database) again — not by trusting the commit message. |
 | `fixed-in-<wave4b>` | Fixed in the Wave-4b pass, in the commit that carries this file. **The integrator replaces `<wave4b>` with the sha** — only the integrator commits, so nobody writing these rows could know it. |
+| `fixed-in-v1.0.1` | Fixed in a **tagged** release, named by the tag rather than by a sha. Same meaning as `fixed-in-<sha>`, and preferred when the fix lands in a release the Gate agent tags in the same operation: a placeholder would need a second pass to resolve, and the tag never needs one. Resolve with `git rev-parse 'v1.0.1^{}'`. |
 | `open` | Still true at the Wave-4b close. Nobody has decided against it; it has not been done. |
 | `rejected-with-reason` | The finding is accurate and the fix was **declined** on purpose, with the argument recorded in the code next to the thing that was not changed. **No item is in this state today** — **S1c** was, and Wave 4b reversed it. |
+| `accepted` | The finding is accurate, **the owner has read it and decided to live with the thing it describes**, and the decision is a judgement about what the property is worth rather than about the code. Two things separate it from `rejected-with-reason`: the decision is the owner's, not an engineer's; and there is usually no code to record the argument next to, because the thing not being changed is not in this repo. **S5-1** is the one item in this state. An `accepted` row is closed for planning and still true in the world — what it obliges is that no other document in the repo claims the opposite. |
 | `superseded` | A later decision made the finding moot. No item is in this state today. |
 
 Three things a disposition deliberately does **not** say.
@@ -125,7 +146,7 @@ these, not `M1`:
 | **S3b** | `DERIVE-HEALTH` | `src/store/entries.test.ts:495` |
 | **S3c** | `BATCH-SETSTATE` | `src/store/entries.ts:1270`, `src/store/entries.test.ts:683` |
 | **S4** | `OUTBOX-DRAIN` | `src/store/outbox.test.ts:432` |
-| *(new, Wave 4b)* | `STICKY-OFFSET` | `src/components/offline-banner.css:31` |
+| *(new, Wave 4b)* | `STICKY-OFFSET` | `src/app-shell.css` (the fix, both halves), `src/components/offline-banner.css` (why the `0` there stays) |
 
 Slugs are the better scheme and new findings should use them. The `S`/`C`/`M`/`P`/`D`
 labels are kept here because eight audits, four commit messages and the execution
@@ -150,7 +171,7 @@ blocker, and every major except **P2** is closed.
 
 | Item | Sev | Disposition | Note |
 | --- | --- | --- | --- |
-| **S1a** | major | `fixed-in-<wave4b>` | Fixed twice over, and the second half is the one the auditor did not see. **Responses:** every outcome that depends on the target account now takes one `reject()` — same `403`, same body, same counter bump. The `already_claimed` `409` carve-out that `8a0b2f2` had defended in-source as "a product decision" is **overruled and gone**; the member who forgot is told by `claim.errInviteInvalid` to check both fields or ask their admin, which is the correct advice anyway since reissue *is* the reset. **Latency:** v2 found the account by paging `listUsers({perPage: 200})` up to five times, so a hit on page 1 answered after one round trip and a miss after five — the response was constant and the *timing* was the oracle. `0010`'s `claim_lookup()` is one indexed read, constant either way, and it lifts a silent 1000-account cap nobody had noticed. |
+| **S1a** | major | `fixed-in-<wave4b>` | Fixed twice over, and the second half is the one the auditor did not see. **Responses:** every outcome that depends on the target account now takes one `reject()` — same `403`, same body, same counter bump. The `already_claimed` `409` carve-out that `8a0b2f2` had defended in-source as "a product decision" is **overruled and gone**; the member who forgot is told by `claim.errInviteInvalid` to check both fields or ask their admin, which is the correct advice anyway since reissue *is* the reset. **Latency:** v2 found the account by paging `listUsers({perPage: 200})` up to five times, so a hit on page 1 answered after one round trip and a miss after five — the response was constant and the *timing* was the oracle. `0010`'s `claim_lookup()` is one indexed read, constant either way, and it lifts a silent 1000-account cap nobody had noticed. **Read the scope of this fix precisely:** what it bought is that *the claim flow* does not confirm a username, which is what it was asked to buy. It is not a project-wide property and never was — a sibling GoTrue endpoint answers the same question from the same public key (**S5-1**, `accepted`). |
 | **S1b** | major | `fixed-in-<wave4b>` | Resolved by **deleting the refusal**, which is better than the prescribed exponential-delay-plus-limit because it removes the DoS rather than pricing it. The counter now buys backoff and nothing else: capped, applied before the work, then the request is processed — a member holding a real code always gets in. Two dimensions, and the second is new: the submitted username *string* and the caller's address prefix (/24 or /48, so rotating inside a subnet is not free); the larger decides the delay. One hard refusal remains and it is deliberately not account-shaped — a per-IP volume ceiling far above human reach, answering `429`, which can only shut out the machine spraying. |
 | **S1c** | major | `fixed-in-<wave4b>` | **Previously `rejected-with-reason`; that decision was reversed.** Migration `0010` moves the counter into `public.claim_counters` and `claim_bump()` is `insert … on conflict do update set n = c.n + 1 … returning c.n` — one statement, one row lock, re-evaluated against the committed row, so two parallel guesses return 1 and 2 rather than 1 and 1. The table is RLS-on with **no policies**, revoked from `anon`/`authenticated`, and all three functions are `EXECUTE`-granted only to `service_role`; without that, the anon key in the shipped bundle would let anyone inflate a stranger's backoff. Applied live and verified: `to_regclass('public.claim_counters')` is non-null. |
 | **S1d** | minor | `fixed-in-8a0b2f2`, then **eliminated** in `<wave4b>` | `8a0b2f2` stopped both writes from spreading a stale snapshot and named only the keys they meant to change. The Wave-4b rewrite removes the class of bug instead of the instance: no path in `claim-account` writes `user_metadata` any anymore except the single success write, so there is no snapshot left to restore a revoked `invite_hash` from. ⚠️ **In the repo, not necessarily in production** — both functions were at `version: 3` at fingerprint time. Wave-4 gate (f) is the check, and for these two files a successful invocation is the only type check there is. |
@@ -399,19 +420,34 @@ nothing there.
 
 | Ref | Severity | Disposition | Note |
 | --- | --- | --- | --- |
-| **S5-1** | **high** | `open` — **owner decision, escalated** | The whole member directory is enumerable, unauthenticated, from the public anon key: `POST /auth/v1/recover` on the same host answers "does this username exist?" using only the anon key that ships in `dist/assets/index-*.js` **by design**. `claim-account` was rewritten in Wave 4b so that no caller could learn that (**S1a**); a sibling GoTrue endpoint on the same project answers it anyway. The bypass is at the **platform** level — there is no repo change that closes it, which is exactly why it is not fixed in this commit. |
+| **S5-1** | **high** | **`accepted`** — owner decision **2026-07-31** | The whole member directory is enumerable, unauthenticated, from the public anon key: `POST /auth/v1/recover` on the same host answers "does this username exist?" using only the anon key that ships in `dist/assets/index-*.js` **by design**. `claim-account` was rewritten in Wave 4b so that no caller could learn that (**S1a**); a sibling GoTrue endpoint on the same project answers it anyway. The bypass is at the **platform** level — there is no repo change that closes it. **Accepted, not fixed** — the reasoning, and the two options turned down, are in [the decision record below](#the-decision-2026-07-31). |
 | **S5-2** | unknown | `open` — **not received** | The lens's config finding. Content did not reach integration. |
 | **S5-3** | unknown | `open` — **not received** | The lens's correctness finding. Content did not reach integration. |
 | **S5-R** | — | `open` — **not received** | "Residuals". |
+
+**What a future wave owes S5-2, S5-3 and S5-R.** Those three rows are a hole, not
+a clean bill, and the difference has to survive being read quickly. Nobody knows
+what the config finding or the correctness finding said; "unknown" is the severity
+because no one has seen the text, not because someone judged it low. The work is
+specific and it is not "run another audit": **re-run the security lens's config
+and correctness passes against HEAD** — the config pass over the live project's
+auth settings, function secrets, `verify_jwt` flags, RLS grants and CI secrets,
+and the correctness pass over the same surface it was pointed at in Wave 5
+(`c1b5138`) — and record what they find here under these three ids so the
+numbering stays continuous. Until that happens, no document in this repo may
+describe the Wave-5 security review as complete. It reported four things and
+three of them never arrived.
 
 Everything the lens was told to attack and could not break is worth recording too,
 because a clean surface that nobody writes down gets re-audited every wave: the
 **claim/invite** flow, **push RLS**, **key hygiene**, **export**, the **bundle**,
 the **admin guard** and **notification forgery** all held under live probing.
+That list is what *one* pass could not break, and it is not a substitute for the
+two passes above that never reported.
 
-### Why S5-1 is not fixed here, and what fixing it would cost
+### Why S5-1 was escalated rather than fixed, and what fixing it would have cost
 
-Three responses exist and the choice is the owner's, not the integrator's,
+Three responses existed and the choice was the owner's, not the integrator's,
 because each spends something the owner picked on purpose:
 
 1. **Accept it.** A username is not a secret in the way a password is — it is
@@ -419,7 +455,7 @@ because each spends something the owner picked on purpose:
    sign-in. What **S1a** actually bought was that a stranger cannot walk the
    directory *through the claim flow*, and the claim flow still holds. The cost of
    accepting is that the "no username oracle" property is a local one, not a
-   project-wide one, and this file should stop implying otherwise.
+   project-wide one, and this file should stop implying otherwise. **← chosen.**
 2. **Turn the recover path off in Supabase auth config.** Closes the oracle, and
    costs the owner the emailed sign-in link — which `README.md` documents as one
    of exactly two ways the owner's own account gets in, and `ADMIN.md` documents
@@ -433,24 +469,98 @@ because each spends something the owner picked on purpose:
 **No live auth setting was changed by this pass.** The lens probed read-only, and
 the integrator's remit is to land the wave's code, not to reconfigure the owner's
 project — a config change here would alter how a human being signs in, which is
-the owner's call to make with the tradeoff in front of him. Put S5-1 in front of
-Aziz with options 1–3 before v1.0.0 is called done.
+the owner's call to make with the tradeoff in front of him.
+
+### The decision, 2026-07-31
+
+**Option 1. The owner read the finding and accepted it.** A username is not a
+secret in this product and was never treated as one: it is printed next to every
+person on the Members screen, it is what the admin reads out loud when he hands
+over an invite code, and it is what its owner types into the sign-in box every
+morning. An endpoint that will confirm one exists is telling a stranger something
+the product already prints. What **S1a** bought is untouched by this and is worth
+exactly what it was worth before — nobody can walk the directory *through the
+claim flow*, and nobody can brute-force a code, because the code is the secret,
+it is 40 uniform bits, every failure looks identical and every wrong guess buys
+delay. Trading the owner's emailed sign-in link (option 2) or standing up a proxy
+in front of GoTrue in an architecture built to need no server (option 3) to hide
+a name that is on screen anyway is paying real money for a property this product
+does not need. So it is accepted, and what acceptance obliges is honesty in the
+documents rather than silence.
+
+**What acceptance changed in the repo** — the property is now stated as local
+everywhere it appears, because a doc that implies a project-wide "no username
+oracle" is the actual defect from here on:
+
+| File | What was corrected |
+| --- | --- |
+| `ADMIN.md` §*What a wrong code costs* | the "every failure looks the same" bullet said, in effect, that a username cannot be confirmed; it now says the **claim flow** does not confirm one and names the platform endpoint that does |
+| `README.md` §*Is it safe to ship the anon key?* | "grants exactly what the RLS policies grant … which here is nothing" was a project-wide claim about the anon key; the anon key also reaches GoTrue's own endpoints, which are not governed by RLS, and the section now says so |
+| `docs/RUNBOOK.md` §1.2 | a note where the admin *chooses* a username: they are semi-public, so nothing sensitive goes in one |
+| `docs/RUNBOOK.md` §2 | the anon-key row of the leaked-key table said "grants … nothing" flatly, and added that rotating it does not change the auth-endpoint behaviour, because the replacement is just as public |
+| `docs/RUNBOOK.md` §8.5 | "No account with that email" is the same property on the email side; now says so rather than leaving it to be discovered as a surprise |
+| `docs/EVIDENCE/wave5-release-smoke.md` §6 | the smoke is not a security pass and does not close S5-1 |
+
+**One correction is still owed and it is outside the pass that made the others.**
+`docs/WAVE1-ADDENDUM.md:172` ends the sign-in-error argument with *"usernames are
+handed out in person precisely so they are not public"*. The rule it states is
+still right — the wrong-credentials branch must not distinguish "no such
+username" from "wrong password" — but the **reason** is now wrong, and it is the
+strongest project-wide phrasing left in the repo. It should read that usernames
+are handed out in person because that is how provisioning works, that they are
+**semi-public** rather than secret, and that the sign-in branch stays silent so
+this product is not the one publishing the directory. That file belongs to
+another owner; the wording above is the whole of the change.
+
+**What it does not mean.** It does not mean the finding was wrong, it does not
+license a new feature that treats a username as a secret, and it does not extend
+to the invite code, the password or anything else in `user_metadata`. If the
+product ever grows a reason for the directory to be private — an external tenant,
+a customer-visible deployment, usernames derived from something personal — this
+row is reopened, and option 2 becomes cheap the moment the owner has a password
+manager entry instead of a magic link.
+
+**Not re-probed by this pass, deliberately.** The proof of an oracle is a pair of
+requests, and the half that matters is the one aimed at an account that exists —
+which makes GoTrue send a password-recovery mail. The integrator does not send
+mail from the owner's project on its own authority, and the built-in mailer is
+capped at two per hour project-wide (RUNBOOK §8.2), so a probe run for tidiness
+could cost the owner his own sign-in link. The finding was accepted on the lens's
+report plus the structural fact that needs no probe: the Members screen prints
+every username, so the directory is readable by anyone who can see that screen,
+and semi-public is what a username has been all along.
 
 ---
 
 ## What is still open, ranked
 
-Eleven items, one major (**P2**) and ten minors — the two additions are **R3**
-and **R4** from the v1.0.0 release smoke. None is a blocker; the ranking is by
-what will hurt first, not by severity label. **R4 goes in at the top**, above
-even P3: it is the only open item that will bite on the first day of team
-testing, because it silently swallows an assignment and the notification with it.
+**Eight items** as of **v1.0.1**, one major (**P2**) and seven minors. None is a
+blocker; the ranking is by what will hurt first, not by severity label.
 
-0. **R4** — `@username` does not assign, and username is the identifier the
-   admin hands out. Free text is a designed state, so nothing looks wrong;
-   the work simply does not reach the person and no notification fires.
+**Three items left this list in v1.0.1** and are recorded as fixed rather than
+silently dropped, because a list that only ever grows is a list nobody trusts to
+shrink:
 
-**M6 has left this list** — it was item 1, and Wave 5 closed it together with
+- **R4** was item 0, above even P3 — the only open item that would have bitten on
+  the first day of team testing, because it swallowed an assignment and the
+  notification with it and rendered nothing red. `fixed-in-v1.0.1`, and it took a
+  migration as well as the parser change: the prescribed one-line fix could not
+  work, because the client was never told the handle in the first place.
+- **R3** was item 7. `fixed-in-v1.0.1`, as a trigger rather than in
+  `admin-members` — see its row for why the door count decided that.
+- **`STICKY-OFFSET`** was the second item 7 (the duplicate number is how it read;
+  it is gone with the item). `fixed-in-v1.0.1` in `src/app-shell.css`, which now
+  publishes the header's height as `--app-header-block-size` for the offline
+  strip to pin below. The fix is the one this list prescribed, including the part
+  it warned against: the z-index was **not** lowered.
+
+Four rows are deliberately **not** on this list and each is a different kind of
+absence. **S5-1** is `accepted` — decided, not pending, and there is nothing to
+schedule. **S5-2**, **S5-3** and **S5-R** are `open` but unrankable: nobody knows
+what they say, so a rank would be a guess dressed as a plan. They are work for a
+future wave and the work is named above, not here.
+
+**M6 has left this list** too — it was item 1, and Wave 5 closed it together with
 **G5**. The update path is now whole in both halves: the prompt cannot be evicted
 (**C6**), it cannot stack (**G5**), and something makes it appear (**M6**).
 
@@ -470,33 +580,9 @@ testing, because it silently swallows an assignment and the notification with it
 6. **P7** — drop two unreachable GIN indexes and a standalone `(created_at
    desc)`. Reversible; the write cost is real and the read benefit is zero while
    filtering is client-side by design.
-7. **R3** — a deleted member's entries lose the name the confirm dialog promises
-   to keep. Cosmetic in effect, but it is a written promise the code does not
-   keep, so it is either a behaviour fix or a copy fix and the behaviour is the
-   right one to change.
-7. **`STICKY-OFFSET`** — `.offline-region` sticks at `inset-block-start: 0`, the
-   same slot `.app-header` sticks in, and wins on `z-index` (65 vs 60). Now that
-   the sticky actually travels (the Wave-4b audit moved it off `.offline-banner`,
-   whose containing block was its own height — see the header of
-   `src/components/offline-banner.css`), a scrolled page pins the 45px strip over
-   a 56px header and leaves an 11px orphaned sliver of header chrome under it.
-   Measured in Chrome at 1280×800 against the built CSS: `elementFromPoint(640,
-   y)` returns `.offline-open` at y=2..44, `.app-header` at y=46..55, content at
-   y≥58. Cosmetic, plus one real cost — the account/theme/language cluster is
-   unreachable while the banner is up without scrolling to the top.
-   **This is an integrator fix, not a `.offline-*` one.** The offset the region
-   needs is the header's height, and that height is `app-shell.css`'s and varies:
-   `min-block-size` 50px under 768px, 56px at or above it, plus
-   `padding-block-start: max(10px, env(safe-area-inset-top))`, which the
-   `display-mode: standalone` block floors again at 12px — so on a notched phone
-   in the installed PWA it is neither number. Hardcoding 56px in
-   `offline-banner.css` would duplicate integrator-owned geometry in a second
-   file and still be wrong under a notch. The fix is for `app-shell.css` to
-   publish the height as a custom property on `.app-main` and for
-   `.offline-region` to consume it (`inset-block-start:
-   var(--app-header-block-size, 0px)`). Do NOT "fix" this by lowering the
-   region's `z-index` below 60: that hides the strip behind the header's 88%
-   background and blur, which is the bug the z-index was chosen to avoid.
+
+Six ranks, eight items — **M5**/**M7** and **P4**/**P5** each share one, because
+each pair is one sitting's work in one file.
 
 ---
 
@@ -504,15 +590,20 @@ testing, because it silently swallows an assignment and the notification with it
 
 Four findings, from the run recorded in
 [`EVIDENCE/wave5-release-smoke.md`](EVIDENCE/wave5-release-smoke.md). Two were
-fixed and shipped in the release; two are open and are recorded here with the
-reasoning for leaving them, which is the part a backlog usually loses.
+fixed and shipped in the release itself; the other two were deliberately left
+open at the cut, with the reasoning recorded — which is the part a backlog
+usually loses — and both were then fixed in **v1.0.1**, on the owner's
+instruction, before the team started testing. All four rows below now read
+`fixed-in-…`. The reasoning for the pause is kept in each row rather than
+deleted: "we chose not to ship this at the cut, and here is why" is the sentence
+a backlog exists to preserve, and it stays true after the fix lands.
 
 | Id | Severity | Disposition |
 | --- | --- | --- |
 | **R1** | major | `fixed-in-b82a15d` — **one dark background declared four ways, three of them wrong.** `--bg` is `#101519`/`#f4f6f8`; `theme.ts` said `#0f1115`/`#f7f8fa`, `index.html` and the PWA manifest both said `#101215`; only `capacitor.config.json` was right, and each wrong one carried a comment claiming it matched. `APP-STORE.md` §5 had reported two of the four at the Wave-4b close and correctly left them as another owner's files. Android paints an installed PWA's splash with `background_color` and iOS Safari tints the status bar with `theme-color`, so this landed above every screen of the first install. Measured with `getComputedStyle` on the deployed origin, not read off the source. |
 | **R2** | **major** | `fixed-in-8c888d9` — **the language choice never reached `profiles.locale`.** `void client.from('profiles').update(…).eq(…)` builds a PostgREST **thenable** and discards it; `PostgrestBuilder.then()` is what calls `fetch`, so no request was ever sent. `applyProfileLocale` then restored the stale column on every load: change the language, reload, back to English. Invisible to `tsc` (well-typed), to `oxlint` (`void` is its approved "not awaited" form — the very token that caused it), and to the session that causes it. `store/settings.test.ts` now asserts **subscription**, which is the only observable that separates sent from built. |
-| **R3** | minor | `open` — **deleting a member drops the credit the confirm dialog promises to keep.** The dialog says entries "stay, credited to their name"; measured after a real delete, the entry stays but `owner_id` **and** `owner_name` are both null, so it reads *Unassigned*. `owner_name` exists exactly to hold a name with no account behind it — nothing writes into it on the way out. **Prescribed fix:** in `admin-members` (or a `before delete` trigger on `profiles`), copy `display_name` into `owner_name` for every entry about to lose its `owner_id`. **Why it is open:** that is a migration or a function redeploy on the account-deletion path, and it would have shipped at the release cut with no reviewer left in the wave. A wrong attribution line is a smaller risk than an unreviewed change to the code that deletes accounts. Fix the behaviour, not the sentence — the sentence describes what it should do. |
-| **R4** | minor | `open` — **`@username` does not assign, and members are provisioned by username.** `matchMemberTiers()` matches an `@handle` against `displayName` and `aliases` only, exact-or-prefix, never subsequence — deliberate, and right: silently assigning work to the wrong person is worse than free text. But the Members screen identifies people as `@zz.smoke.v100`, the invite code is tied to that username, and the capture placeholder is handle-shaped (`@ahmed`). Typing the identifier you were handed produces a free-text owner: no assignment, **and therefore no notification**, with nothing rendering red. The seeded example hides it — `@ahmed` works only because it is a prefix of the display name `Ahmed Al-Otaibi`; `@ahmed.otaibi` would not. **Prescribed fix:** feed the username into `foldedForms(member.displayName, '', member.aliases)` — the empty middle argument is the slot, and `parse.ts`'s own header says the alias path exists so this needs no reopening of the matcher. Wants the username on `ParseMember`, which the members store does not carry today. Likeliest first-run surprise for the team. |
+| **R3** | minor | `fixed-in-v1.0.1` — **deleting a member dropped the credit the confirm dialog promises to keep.** The dialog said entries "stay, credited to their name"; measured after a real delete, the entry stayed but `owner_id` **and** `owner_name` were both null, so it read *Unassigned*. **Fixed as a `before delete` trigger on `public.profiles`** (`0012_preserve_owner_name.sql`), not in `admin-members`, and that is the half worth reading: the promise has to survive four live doors — the edge function, the dashboard's Authentication → Delete user, a SQL-Editor `delete from auth.users`, and `delete from profiles` straight over PostgREST, which 0001's `profiles_delete` policy already lets any admin do. Only a trigger sits on all four, runs inside the deleting transaction, and runs in the one instant the database still knows whose the work was. `owner_id` and `owner_name` move in **one** statement (`entries_single_owner` forbids both at once), the two activity clocks are read before and written back after so a departure does not make stale work look attended to, and a blank `display_name` writes nothing. `recurring_templates` gets the same handover. Nothing is backfilled — a member deleted before this took their name out of the database with them. **Also a copy fix, and both were needed:** `entry_updates.author_id` and `meetings.created_by` have no name column beside them, so the dialog no longer claims those keep a name. Live: applied twice, three self-verifying probes (GoTrue delete, blank name, the PostgREST door). Pinned in the browser by `src/store/departedOwner.test.ts`. |
+| **R4** | minor | `fixed-in-v1.0.1` — **`@username` did not assign, and members are provisioned by username.** Typing the identifier you were handed produced a free-text owner: no assignment, **and therefore no notification**, with nothing rendering red. The prescribed fix — feed the username into `foldedForms()` — was **half of it, and the inert half**: `listMembers()` read `profiles`, a username lives in `auth.users`, and PostgREST cannot reach that schema at all, so the client had no handle to fold. So the fix has a data half and a matcher half. **Data:** `0013_member_usernames.sql` adds `member_directory()`, SECURITY DEFINER over `profiles ⟕ auth.users`, gated on the same `is_member()` predicate as `profiles_select`, execute revoked from `anon`; the handle is derived from the sign-in address and **never** from `raw_user_meta_data`, which is client-writable and would let a member spoof the lead's handle and collect their assignments. `listMembers()` is now that RPC. **Matcher:** an exact folded username is **tier 0**, above display-name exact and above prefix/stem — a handle is unique by construction, so it must not be outvoted by a name that merely starts the same way. Subsequence is still not a tier. Live: applied twice; anon calling the RPC over real PostgREST gets `401 / 42501`, a member gets the roster with handles. |
 
 ---
 

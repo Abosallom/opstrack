@@ -7,11 +7,20 @@
 // project today.
 //
 // THE READ AND THE WRITES GO TO DIFFERENT PLACES, on purpose. `listMembers()`
-// is a plain PostgREST select on `profiles`. Everything else goes through the
-// `admin-members` EDGE FUNCTION, because creating a member means creating an
-// auth user, which needs the service role, which must never reach the browser.
-// A member calling any of the writes gets a 403 from the function's own gate —
-// hiding the buttons is tidiness, never the security boundary.
+// is one PostgREST call to `member_directory()`, a SECURITY DEFINER read gated
+// on the same `is_member()` predicate as `profiles_select` (migration 0013 — it
+// exists because a username lives in `auth.users`, which PostgREST cannot reach
+// with a select). Everything else goes through the `admin-members` EDGE
+// FUNCTION, because creating a member means creating an auth user, which needs
+// the service role, which must never reach the browser. A member calling any of
+// the writes gets a 403 from the function's own gate — hiding the buttons is
+// tidiness, never the security boundary.
+//
+// WHAT v1.0.1 ADDED. `listMembers()` answered three columns, so the client had
+// no idea what anyone's username was, and quick capture's `@handle` could only
+// match display names — typing the identifier the Members screen prints filed a
+// free-text owner and assigned nobody (release smoke R4). The read now carries
+// `username`, and lib/capture/parse.ts matches it above every fuzzy tier.
 //
 // ERRORS ARE i18n KEYS, the api/tracks.ts convention. The edge function answers
 // in English sentences (it has no locale), so nothing maps its prose through —
@@ -41,11 +50,13 @@ import type { ClaimInput, UserRole } from '../types'
  * own), and set for accounts an admin predefined — those authenticate against a
  * synthetic `<username>@opstrack.internal` address that can receive no mail.
  *
- * `username` and `claimed` are OPTIONAL rather than nullable because
- * `listMembers()` genuinely cannot know them: they live in `auth.users`'
- * metadata, which PostgREST cannot reach. Absent means "not asked", null means
- * "asked, and this is an email account" — a distinction the Members page needs
- * and a distinction `undefined` would lose if these were declared `| null`.
+ * `username` and `claimed` are OPTIONAL rather than nullable because a `Member`
+ * can be assembled by a caller that did not ask. Absent means "not asked", null
+ * means "asked, and this is an email account" — a distinction `| null` alone
+ * would lose. `listMembers()` ALWAYS ANSWERS `username` (migration 0013), which
+ * is what makes `@handle` capture resolve to the identifier people are actually
+ * given; `claimed` stays admin-only, because it lives in `auth.users`' metadata
+ * and only the service role can read it.
  */
 export interface Member {
   id: string
@@ -94,11 +105,16 @@ export interface MemberAccount {
   isSelf: boolean
 }
 
-/** The `profiles` columns this module reads. Narrow on purpose. */
-interface ProfileRow {
+/**
+ * One roster row as `member_directory()` returns it. Narrow on purpose: four
+ * columns, snake_case, exactly what the function declares.
+ */
+interface DirectoryRow {
   id: string
   display_name: string | null
   role: string
+  /** Derived from the sign-in address; null for a real-email account. */
+  username: string | null
 }
 
 /**
@@ -138,7 +154,12 @@ export interface AdminMemberRow {
   is_self: boolean
 }
 
-function toMember(row: ProfileRow): Member {
+/**
+ * The roster row → view-model boundary. Exported for its test, the
+ * `toMemberAccount` convention: this is the only place the line gets drawn for
+ * this shape.
+ */
+export function toMember(row: DirectoryRow): Member {
   return {
     id: row.id,
     // Never render a raw uuid at a user: an account whose profile row was
@@ -146,11 +167,22 @@ function toMember(row: ProfileRow): Member {
     // owner picker as *something* selectable.
     displayName: row.display_name?.trim() || '',
     role: row.role === 'admin' ? 'admin' : 'member',
+    // Kept even when blank-ish: '' would match nothing anyway, and null is what
+    // every consumer already reads as "this account has no handle".
+    username: row.username?.trim() || null,
   }
 }
 
 /**
- * Every provisioned member, ordered by display name.
+ * Every provisioned member, ordered by display name, WITH their username.
+ *
+ * AN RPC RATHER THAN A SELECT ON `profiles`, and that is the whole point of
+ * migration 0013. A username lives in `auth.users` — the account signs in as
+ * `<username>@opstrack.internal` — and PostgREST cannot reach that schema at
+ * all, so this read used to answer three columns and quick capture had no way
+ * to resolve the `@handle` the Members screen prints (release smoke R4).
+ * `member_directory()` is SECURITY DEFINER over that join, gated on the same
+ * `is_member()` predicate as `profiles_select`, with execute revoked from anon.
  *
  * Ordered in SQL rather than in the store so the owner picker, the filter bar
  * and the digest all see the same order without three sorts. Empty names sort
@@ -159,12 +191,9 @@ function toMember(row: ProfileRow): Member {
  */
 export async function listMembers(): Promise<ApiResult<Member[]>> {
   if (!supabase) return notConfigured()
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, display_name, role')
-    .order('display_name', { ascending: true })
+  const { data, error } = await supabase.rpc('member_directory')
   if (error) return fail(pgErrorKey(error))
-  return { ok: true, data: ((data ?? []) as ProfileRow[]).map(toMember) }
+  return { ok: true, data: ((data ?? []) as DirectoryRow[]).map(toMember) }
 }
 
 /**

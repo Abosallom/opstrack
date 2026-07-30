@@ -637,13 +637,13 @@ describe('exportFilename', () => {
   it('stamps local date and time, sortable-first', () => {
     // Constructed from LOCAL components, so the assertion holds in any TZ.
     expect(exportFilename('json', new Date(2026, 6, 30, 14, 32))).toBe(
-      'opstrack-export-2026-07-30-1432.json',
+      'coretrack-export-2026-07-30-1432.json',
     )
   })
 
   it('pads every field, so the folder sorts by name', () => {
     expect(exportFilename('csv', new Date(2026, 0, 5, 9, 7))).toBe(
-      'opstrack-export-2026-01-05-0907.csv',
+      'coretrack-export-2026-01-05-0907.csv',
     )
   })
 

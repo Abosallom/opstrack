@@ -70,14 +70,22 @@ export function digestMimeType(f: DigestFormat): string {
 }
 
 /**
- * `opstrack-2026-07-22_2026-07-29.md`.
+ * `coretrack-2026-07-22_2026-07-29.md`.
  *
  * ISO dates and nothing else: the filename sorts correctly in a folder listing,
  * and it carries no localised text, because a filename travels to people who do
  * not read the language the report was written in — and because an Arabic
  * filename with an RTL run in the middle is mangled by half the tools that will
  * touch it.
+ *
+ * THE PREFIX IS THE BRAND, not an identifier. It is the one part of this module
+ * a person actually reads — it lands in their Downloads folder and travels
+ * onward in an email attachment — so it moved with the CoreTrack rename. The
+ * reserved-identifier list in WAVE5-NOTES §1 covers storage keys, channels and
+ * envelope tags, none of which anyone reads; a filename is not one of those, and
+ * nothing keys off it. brand.test.ts pins this, so the launch cut cannot strand
+ * it the way the first rename stranded the sign-in heading.
  */
 export function digestFilename(m: DigestModel, f: DigestFormat): string {
-  return `opstrack-${m.from}_${m.to}.${EXTENSIONS[f]}`
+  return `coretrack-${m.from}_${m.to}.${EXTENSIONS[f]}`
 }

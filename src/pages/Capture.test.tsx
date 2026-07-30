@@ -108,11 +108,15 @@ vi.mock('../store/config', () => ({
   useTrackMap: () => new Map(fx.tracks.map((tr) => [tr.id, tr])),
 }))
 
+// The roster carries USERNAMES, because the live one does: `listMembers()` reads
+// `member_directory()` and every provisioned account has a handle. A fixture
+// without them cannot see the wiring failure this file exists to catch — see the
+// `@handle` case in "a line that parses".
 vi.mock('../store/members', () => ({
   loadMembers: () => Promise.resolve(),
   useMembers: () => [
-    { id: 'm-ahmed', displayName: 'Ahmed Al-Otaibi', role: 'member' },
-    { id: 'm-sara', displayName: 'Sara Nasser', role: 'member' },
+    { id: 'm-ahmed', displayName: 'Ahmed Al-Otaibi', role: 'member', username: 'ahmed.otaibi' },
+    { id: 'm-sara', displayName: 'Sara Nasser', role: 'member', username: 'sara.nasser' },
   ],
   useMemberLabel: () => () => 'Ahmed Al-Otaibi',
 }))
@@ -239,6 +243,20 @@ describe('Capture — a line that parses', () => {
     // Nothing went wrong, so nothing is reported.
     expect(html).not.toContain('cap-problems')
     expect(html).not.toContain('data-ok="false"')
+  })
+
+  it('resolves the USERNAME people are handed, not just the display name', () => {
+    // The wiring, pinned where no parser test can reach it: this screen builds
+    // the parser's member list by hand, and v1.0.0 built it out of `id` and
+    // `displayName` alone. The parser could match handles all day; the field
+    // never arrived. `@ahmed.otaibi` is not a prefix of any display name here,
+    // so it resolves ONLY if Capture.tsx passes `username` through.
+    const html = render('Firewall rule DC2 #network @ahmed.otaibi !high')
+    expect(html).toContain('data-kind="owner" data-ok="true"')
+    // The chip shows the person, not the handle that was typed.
+    expect(html).toContain('Ahmed Al-Otaibi')
+    // No "new owner" line: this is an assignment, not a free-text vendor.
+    expect(html).not.toContain('cap-problems')
   })
 
   it('paints the track chip in the track’s own colour', () => {

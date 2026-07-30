@@ -243,11 +243,11 @@ describe('the barrel', () => {
   })
 
   it('names a file by its ISO range, never by a localised string', () => {
-    expect(digestFilename(MODEL, 'markdown')).toBe('opstrack-2026-07-22_2026-07-29.md')
-    expect(digestFilename(MODEL, 'plain')).toBe('opstrack-2026-07-22_2026-07-29.txt')
-    expect(digestFilename(MODEL, 'html')).toBe('opstrack-2026-07-22_2026-07-29.html')
+    expect(digestFilename(MODEL, 'markdown')).toBe('coretrack-2026-07-22_2026-07-29.md')
+    expect(digestFilename(MODEL, 'plain')).toBe('coretrack-2026-07-22_2026-07-29.txt')
+    expect(digestFilename(MODEL, 'html')).toBe('coretrack-2026-07-22_2026-07-29.html')
     expect(digestFilename({ ...MODEL, locale: 'ar', dir: 'rtl' }, 'plain')).toBe(
-      'opstrack-2026-07-22_2026-07-29.txt',
+      'coretrack-2026-07-22_2026-07-29.txt',
     )
   })
 

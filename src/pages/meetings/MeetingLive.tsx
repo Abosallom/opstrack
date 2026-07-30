@@ -113,8 +113,10 @@ function useParseContext(): () => ParseContext {
     () => tracks.map((tr) => ({ id: tr.id, name: tr.name, nameAr: tr.name_ar })),
     [tracks],
   )
+  // Same list Capture.tsx builds, and `username` matters here for the same
+  // reason: a line typed in a meeting as `@zz.smoke.v100` has to assign.
   const parseMembers = useMemo<ParseMember[]>(
-    () => members.map((m) => ({ id: m.id, displayName: m.displayName })),
+    () => members.map((m) => ({ id: m.id, displayName: m.displayName, username: m.username })),
     [members],
   )
   const vocabAliases = useMemo(() => {

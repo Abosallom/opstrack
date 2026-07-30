@@ -11,10 +11,25 @@ Session: an admin magic link minted through the GoTrue admin `generate_link`
 endpoint for `az.alsaloom@gmail.com`, opened against the deployed origin — the
 established pattern in this repo. No real credential was handled.
 
-**The headline: the smoke found three defects that every prior gate had passed.
-Two are fixed and shipped in this release; one is recorded below with its
-disposition and deliberately not fixed at the cut.** A smoke that finds nothing
+**The headline: the smoke found four defects that every prior gate had passed.
+Two are fixed and shipped in this release; two are recorded below with their
+dispositions and deliberately not fixed at the cut.** A smoke that finds nothing
 has usually only proved that it looked where the tests already look.
+
+*(Corrected 2026-07-31: this sentence said "three … one", counting §5.4 as a
+design note rather than a defect. `FIX-BACKLOG.md` recorded four from the start —
+**R1**–**R4** — and ranks **R4** as the first thing team testing will hit. Four
+is the number.)*
+
+> **All four are now fixed.** **R3** and **R4** were fixed in **`v1.0.1`** on
+> 2026-07-31, on the owner's instruction, before the team started testing —
+> §5.3 and §5.4 carry the details and the live evidence. **This document is not
+> rewritten to match.** It is the record of what was measured against the
+> deployed site on 30 July, and a record that quietly updates itself is worth
+> nothing; the original findings stand in their original words, each with a
+> dated note underneath. Read the headings for the current state and the bodies
+> for what the run actually saw. **This is a v1.0.0 document. The v1.0.1 gate
+> evidence is §7.**
 
 ---
 
@@ -22,11 +37,12 @@ has usually only proved that it looked where the tests already look.
 
 | | |
 | --- | --- |
-| Tag | `v1.0.0`, annotated, pushed |
-| Release commit | `8c888d9` |
+| Tag | `v1.0.0`, annotated, pushed. `git rev-parse 'v1.0.0^{}'` → **`79391d1`** (`git rev-parse v1.0.0` answers `67d7229`, the tag *object* — not a commit) |
+| Last code commit | `8c888d9`. `79391d1` sits on top of it and is docs-only (`git diff --stat 8c888d9 79391d1` touches three files under `docs/`), so the tagged tree and the tested tree are the same code |
 | Live bundle | `assets/index-CCANcPK0.js` |
-| `live == HEAD` | asset-name set diffed against a local `npm run build` of the same tree: identical. Byte-verified on the previous cut (`7dc0f81`): `sha256 5e766842…` for both the downloaded and the locally built `index-C2ex0rGZ.js` |
-| Gates at the tag | `tsc -b` clean · `oxlint` 0 errors · **58 files / 1586 tests** green · `vite build` clean |
+| `live == HEAD` | **byte-verified 2026-07-31**: the chunk downloaded from the deployed origin and the local `dist/assets/index-CCANcPK0.js` are both `sha256 c4770fe4a58c0b8c400043a8d1b1f9af9e44abe8032ecb4629e8596237da086f`. The original run had only diffed the asset-name set for this cut; that gap is now closed. (The previous cut `7dc0f81` was byte-verified at the time: `sha256 5e766842…` for `index-C2ex0rGZ.js`.) |
+| Edge functions live | re-queried **2026-07-31**: `admin-members` **v12**, `claim-account` **v12**, `send-push` **v6**, all `ACTIVE`, all `verify_jwt=true` — unchanged since the Wave-5 lens compared the deployed eszips against HEAD |
+| Gates at the tag | `tsc -b` clean · `oxlint` 0 errors · **58 files / 1586 tests** green · `vite build` clean. The suite was **re-run at `79391d1` on 2026-07-31** in a detached worktree, so the count is measured at the tag rather than at a working tree that had drifted past it: `58 passed (58)` / `1586 passed (1586)`, identical |
 | Version reachable in the product | Settings › About → `Version 1.0.0`; every export stamped `"appVersion": "1.0.0"` |
 
 Three deploys were made during this run, each green, each verified live:
@@ -40,8 +56,17 @@ Three deploys were made during this run, each green, each verified live:
 The `v1.0.0` tag was created at `7dc0f81` and, after the two fixes, **deleted and
 re-created at `8c888d9`**. Stated plainly rather than quietly: a release tag
 whose tree is not the tree that is live is worse than a tag that moved once,
-minutes after it was cut, before anybody had consumed it. It will not move
-again.
+minutes after it was cut, before anybody had consumed it.
+
+**Corrected 2026-07-31 — it moved once more, and this file could not have known.**
+The tag as it stands resolves to `79391d1`, the commit that *added this file*:
+writing the smoke evidence into the release was the last act of the cut, and a
+tag that excluded it would have pointed at a tree with no record of the run that
+qualified it. So the sequence was `7dc0f81` → `8c888d9` → `79391d1`, three
+placements in forty-six minutes, all before anyone consumed it, and the last one
+is docs-only on top of the second. **Now it will not move again** — v1.0.1 gets
+its own tag, and the standing rule is that a tag whose sha is quoted anywhere in
+`docs/` is quoted as `git rev-parse 'v<version>^{}'` output, never from memory.
 
 ---
 
@@ -347,7 +372,7 @@ then `localStorage.removeItem('opstrack_locale')` and reloaded, so that only the
 profile could supply the language → the app came back **Arabic**, nav reading
 `تسجيل · المتابعات · اللوحة · المسارات`, About card `عن التطبيق / الإصدار ⁨1.0.0⁩`.
 
-### 5.3 Deleting a member drops the credit it promises to keep — NOT FIXED
+### 5.3 Deleting a member drops the credit it promises to keep — FIXED in `v1.0.1`
 
 The confirm dialog says:
 
@@ -369,7 +394,35 @@ wrong attribution line is a smaller risk than an unreviewed change to the code
 that deletes accounts. Filed in `FIX-BACKLOG.md`. Either the behaviour changes or
 the sentence does; the sentence should not change first.
 
-### 5.4 `@username` does not assign — by design, and it is going to surprise people
+> **v1.0.1, 2026-07-31 — fixed, and live.** Everything above stands as the record
+> of what was measured on 30 July. What changed: `0012_preserve_owner_name.sql`
+> adds a `before delete` trigger on `public.profiles` that copies `display_name`
+> into `entries.owner_name` and `recurring_templates.owner_name` while nulling
+> `owner_id` in the same statement, and puts `updated_at`/`last_activity_at` back
+> afterwards so a departure does not reset the staleness clock on everything the
+> person owned.
+>
+> **A trigger and not `admin-members`, which is the part this note got wrong.**
+> The section above says the fix "belongs in the `admin-members` edge function or
+> a trigger" as if the two were interchangeable. They are not: an account can die
+> through four live doors — the function, the dashboard's Authentication → Delete
+> user, a SQL-Editor `delete from auth.users`, and `delete from profiles` over
+> PostgREST, which 0001's `profiles_delete` policy already permits any admin. A
+> TypeScript fix covers one of the four and the confirm dialog would then be
+> telling the truth only when the delete came through the app.
+>
+> **"Not live until redeployed" — resolved the other way.** No function was
+> redeployed, because no function changed; the migration is the deliverable, and
+> it was applied to `lrysgpbkmuqgzsjesfkr` twice, its three probes passing both
+> times (a GoTrue delete, a blank display name, and the PostgREST door). The
+> comment added to `admin-members` is a comment only.
+>
+> **The dialog copy changed too**, in both languages, and had to: entries keep the
+> name, but `entry_updates.author_id` and `meetings.created_by` have no name
+> column beside them, so the old sentence was two-thirds true. It now says the
+> updates and meeting notes stay *without* the name.
+
+### 5.4 `@username` does not assign — FIXED in `v1.0.1`
 
 `matchMemberTiers()` in `src/lib/capture/parse.ts` matches an `@handle` against
 `displayName` and `aliases` **only**, on exact or prefix match, never on
@@ -394,6 +447,35 @@ already threaded through, and `foldedForms(member.displayName, '', …)` has an
 empty slot where a handle would go. Filed in `FIX-BACKLOG.md` as the most likely
 first-run surprise for the team.
 
+> **v1.0.1, 2026-07-31 — fixed, and live.** The wording above is kept as the
+> record of what was measured on 30 July. "Not a defect against the spec" was the
+> right call at the cut and the wrong thing to leave standing into the first week:
+> the identifier the admin hands out has to be the identifier that assigns.
+>
+> **The prescribed fix was half of it, and the inert half.** This section says the
+> parser's own comment "names the fix" — feed the handle into
+> `foldedForms(member.displayName, '', …)`. That change alone would have done
+> nothing, because the client is never told anyone's username: `listMembers()`
+> read `profiles`, and a username lives in `auth.users`, which PostgREST cannot
+> reach with a select at all. There was no handle in memory to fold.
+>
+> So the fix has two halves. **Data:** `0013_member_usernames.sql` adds
+> `member_directory()` — SECURITY DEFINER over `profiles ⟕ auth.users`, gated on
+> the same `is_member()` predicate as `profiles_select`, execute revoked from
+> `anon` — and `listMembers()` is now that RPC. The handle is derived from the
+> sign-in address and deliberately **not** from `raw_user_meta_data`, which any
+> signed-in member can write; reading it there would have let someone spoof the
+> lead's handle and quietly collect their assignments. **Matcher:** an exact
+> username is now **tier 0**, above an exact display name, because a handle is
+> unique by construction and must not be outvoted by a name that merely starts
+> with the same letters. Subsequence is still not a tier — the reasoning quoted
+> above is untouched.
+>
+> Live, on `lrysgpbkmuqgzsjesfkr`: migration applied twice; `anon` calling the RPC
+> over real PostgREST is refused `401 / 42501`; a signed-in member gets the roster
+> with handles; a `zz.gate.v101` fixture round-tripped `@handle → assignment →
+> deletion → credit` in a transaction that was rolled back.
+
 ---
 
 ## 6. What this run did not cover
@@ -417,3 +499,91 @@ Stated so nobody reads a green smoke as more than it is.
   values — computed colours, overflow in pixels, node counts, row ids — are
   better evidence than an image anyway. Where a screenshot would have been the
   only proof, the claim is marked unverified above instead.
+- **Security. This was a functional smoke and nothing in it is a security
+  result.** Added 2026-07-31, because a green release-smoke sitting next to a
+  security section in the backlog invites exactly the wrong inference. The
+  Wave-5 security lens reported four items and **one arrived**: `S5-1` (a
+  Supabase platform endpoint confirms whether a username exists) is recorded,
+  was escalated, and is now `accepted` by the owner — a username is not a secret
+  in this product. Its **config finding, its correctness finding and its
+  residuals never reached integration at all** and stand as `S5-2`, `S5-3`,
+  `S5-R`, disposition *not received*. Nothing in this run substitutes for them;
+  re-running those two passes is named work in
+  [`../FIX-BACKLOG.md`](../FIX-BACKLOG.md).
+
+---
+
+## 7. v1.0.1 — the gate that closed R3 and R4
+
+Run 2026-07-31 by the Gate agent, against the same live project
+`lrysgpbkmuqgzsjesfkr`. **This is a gate, not a second smoke.** Nothing here
+re-walks the eight screen passes of §1 or the round trip of §2; it records what
+was verified about the four changes v1.0.1 carries, and it is deliberately
+shorter than §§1–5 because the release is deliberately smaller.
+
+### 7.1 What v1.0.1 contains
+
+| | |
+| --- | --- |
+| **R4** | `@username` now assigns. Migration `0013` + `listMembers()` on an RPC + username as parser tier 0. §5.4 |
+| **R3** | A deleted member's work keeps their name. Migration `0012`, a `before delete` trigger on `profiles`. §5.3 |
+| `STICKY-OFFSET` | The offline strip pins below the header instead of over it; `app-shell.css` publishes `--app-header-block-size`. |
+| Brand residuals | Generated **filenames** carry `coretrack-`; the icon comment lost the retired product name. The export envelope's `format: 'opstrack-export'` is **unchanged and pinned** — it is a magic value readers match on, not a brand. |
+| **S5-1** | `accepted` by the owner. No code change; the docs that implied a project-wide "no username oracle" now scope that property to the claim flow. |
+
+### 7.2 Gates
+
+| Gate | Result |
+| --- | --- |
+| `tsc -b` | clean, exit 0 |
+| `oxlint` | exit 0 — 25 warnings, all `react(only-export-components)`, the standing v1.0.0 baseline; **0 errors** |
+| `vitest run` | **59 files / 1615 tests** passed. v1.0.0 was 58/1586, re-measured at `79391d1` in a detached worktree the same day; the +1/+29 is itemised per file in `FIX-BACKLOG.md` |
+| `vite build` | clean; PWA precache 83 entries |
+| Standing grep — logical CSS | clean. The naive `\b(width|height|left|right|…)\s*:` form returns ~150 lines, **every one a false positive**: 116 `line-height`, 20 `max-width`, 8 `min-width`, 5 `stroke-width`, 3 `scrollbar-width`, and 4 occurrences of the words *width*/*height*/*right* in comment prose. Anchored so the property must start a declaration — `(^|[;{]|\*/)\s*(width|height|left|right|margin-left|margin-right|padding-left|padding-right)\s*:` — the count is **0** |
+| Standing grep — layering | clean **after a fix**; see §7.3 |
+| Standing grep — hardcoded JSX strings | clean. Hits are all `<button>`/`<details>` inside comment prose and `=> Promise<boolean>` in type positions |
+| Standing grep — `any` / `@ts-expect-error` | clean. `@ts-expect-error`, `@ts-ignore`, `@ts-nocheck`: **0**. The `any` hits are the English words *any*/*anything* in prose; excluding comment lines, **0** |
+| Locale parity / reach / plural / bidi | 7 suites, 182 tests, green — includes the brand gate and its new generated-filename coverage |
+
+### 7.3 The layering grep caught a real regression, and it was fixed rather than silenced
+
+`src/lib/departedOwner.test.ts` — the browser-side pin for R3 — was written into
+`src/lib/`, and `grep -rn "from '\.\./store\|from '\.\./api" src/lib/` returned
+one line. HEAD was clean, so this was new.
+
+The one line the grep sees was not the whole problem. The file also reached
+across the layer three more times, in forms the grep's `from '` pattern cannot
+match — `vi.mock('../store/auth')`, `vi.mock('../api/members')` and
+`await import('../store/members')`. Deleting the static type import would have
+made the gate green and changed nothing real.
+
+**Fixed by moving the file to `src/store/departedOwner.test.ts`.** Its subject,
+`memberLabel`, is a store export; the `lib/` functions it also calls are what it
+is checked *against*. `src/store/` already imports both `../api/` and `../lib/`
+by design, so the file is correctly placed there and misplaced where it was. All
+four cross-layer references are now legal, `grep -rnE "(import|vi\.mock)\(\s*'\.\./(store|api)" src/lib/`
+is empty as well, the ten tests pass unchanged, and `0012`'s header — which cites
+the file by path — was updated with it.
+
+### 7.4 Live
+
+Both migrations were **applied twice** through the Management API, all probes
+passing on both runs. That the probes are load-bearing was itself checked: a
+deliberate `raise exception` through the same endpoint answers `HTTP 400` with
+the message, so the four `HTTP 201`s mean the probe blocks ran and did not raise.
+
+| Check | Result |
+| --- | --- |
+| `0012` re-applied ×2 | `201`, `201`. Probes: GoTrue delete keeps the name and both clocks; a blank `display_name` leaves the row honestly unassigned; the PostgREST door gives the same answer |
+| `0013` re-applied ×2 | `201`, `201`. Probes: the synthetic-domain fold, a real address yielding `NULL`, `anon` denied, `authenticated` granted, the helper revoked from both, `0` rows with no session, the full roster to a member |
+| `member_directory()` live signature | `TABLE(id uuid, display_name text, role text, username text)`, `prosecdef = true`, `stable` |
+| `anon` over **real PostgREST** | `POST /rest/v1/rpc/member_directory` → **`401`**, `{"code":"42501","message":"permission denied for function member_directory"}` |
+| PostgREST schema cache | carries the new function: an unknown name answers `404 / PGRST202`, and its hint reads *"Perhaps you meant to call the function public.member_directory"*. The 42501 above is therefore a grant refusal, not a missing route |
+| R4 + R3 end to end | a `zz.gate.v101@opstrack.internal` fixture: `member_directory()` answered `zz.gate.v101` to a signed-in member (R4); deleting the account left `owner_id NULL`, `owner_name 'V101 Gate Smoke'`, both clocks unmoved (R3) |
+| Fixtures | **none leaked.** The whole probe ran in a subtransaction discarded by a sentinel exception; re-queried after: 0 leftover users, 0 profiles, 0 entries, 0 templates, roster still 1 |
+
+**What §7 does not cover.** No browser pass was run for v1.0.1 — the `@handle`
+round trip is proven at the database and in 1615 unit tests, not on the deployed
+page, and `STICKY-OFFSET` is verified by reading the computed formula (65px at
+both widths) rather than by re-measuring `elementFromPoint` on the deployed CSS.
+Both are named here so nobody reads §7 as a repeat of §1.

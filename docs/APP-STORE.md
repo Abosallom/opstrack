@@ -325,20 +325,31 @@ advertised English only.
 - ⬜ Provisioning profile (automatic signing needs the team first).
 
 ### Versioning
-- ✅ **The drift is closed for v1.0.0.** `package.json` is `1.0.0` and
-  `MARKETING_VERSION` is `1.0` — the same release, spelled the two ways each
-  platform spells it (Apple's field is a 1-to-3-component string, so `1.0` and
-  `1.0.0` are the same version to App Store Connect). `CURRENT_PROJECT_VERSION`
-  stays `1`: it is the build number, it is not the marketing version, and it
-  increments per upload rather than per release.
-- ⬜ **They are still two hand-maintained numbers, and they will drift again on
-  the next bump.** `package.json` is the source of truth — Vite already inlines
-  it as `__APP_VERSION__` (Settings › About renders it; every export is stamped
-  with it). Nothing propagates it into `project.pbxproj`. The fix is a
-  `cap sync` companion script that writes `MARKETING_VERSION` from `pkg.version`
-  before an archive, and it is worth writing the first time an archive is
-  actually cut — not before, because until then there is nothing to disagree
-  with in the wild.
+- ✅ **Closed again at v1.0.1**, and the bullet below is why this line now has a
+  history. `package.json` is `1.0.1` and `MARKETING_VERSION` is `1.0.1`, set by
+  hand in both build configurations of `project.pbxproj` by the v1.0.1 Gate
+  agent. `CURRENT_PROJECT_VERSION` stays `1`: it is the build number, it is not
+  the marketing version, and it increments per upload rather than per release —
+  and no upload has happened.
+  - At **v1.0.0** these read `1.0.0` and `1.0`, which was also correct: Apple's
+    field is a 1-to-3-component string and `1.0` and `1.0.0` are the same version
+    to App Store Connect. `1.0.1` and `1.0` are **not**, which is why the bump
+    could not be skipped this time. The prediction in the next bullet came true
+    on the very next release, exactly as written.
+- ⬜ **They are still two hand-maintained numbers, and they drifted on the very
+  next bump** — v1.0.1 moved `package.json` and left `project.pbxproj` behind
+  until someone noticed, which is the failure mode, not a hypothetical.
+  `package.json` is the source of truth — Vite already inlines it as
+  `__APP_VERSION__` (Settings › About renders it; every export is stamped with
+  it). Nothing propagates it into `project.pbxproj`. The fix is a `cap sync`
+  companion script that writes `MARKETING_VERSION` from `pkg.version` before an
+  archive. The original judgement was to write it "the first time an archive is
+  actually cut — not before, because until then there is nothing to disagree with
+  in the wild", and that still holds on the risk argument: nothing shipped, so
+  nothing was wrong anywhere a user could see. But it cost a manual edit and a
+  paragraph of prose on a release that touched no native code at all, so the
+  balance has moved. **Write the script at the next bump whether or not an
+  archive is cut.**
 
 ### Privacy — likely the biggest remaining item
 - ⬜ **No `PrivacyInfo.xcprivacy` in the app target.** Capacitor's own frameworks

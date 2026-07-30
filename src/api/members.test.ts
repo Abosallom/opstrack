@@ -11,8 +11,10 @@ import { describe, expect, it } from 'vitest'
 import {
   ADMIN_ERROR_KEYS,
   sortMemberAccounts,
+  toMember,
   toMemberAccount,
   type AdminMemberRow,
+  type Member,
   type MemberAccount,
 } from './members'
 import { AR_NAMESPACES, EN_NAMESPACES, ar, en, type LocaleTree } from '../locales'
@@ -34,6 +36,52 @@ function row(overrides: Partial<AdminMemberRow> = {}): AdminMemberRow {
     ...overrides,
   }
 }
+
+describe('toMember', () => {
+  // The roster boundary. It carries ONE field the pre-1.0.1 read did not have,
+  // and that field is what makes `@zz.smoke.v100` in quick capture resolve to a
+  // person instead of filing a free-text owner (release smoke R4). A refactor
+  // that quietly drops it puts the bug straight back, invisibly.
+  it('carries the username through to the view model', () => {
+    expect(
+      toMember({
+        id: 'u1',
+        display_name: 'Ahmed Al-Otaibi',
+        role: 'member',
+        username: 'ahmed.otaibi',
+      }),
+    ).toEqual({
+      id: 'u1',
+      displayName: 'Ahmed Al-Otaibi',
+      role: 'member',
+      username: 'ahmed.otaibi',
+    } satisfies Member)
+  })
+
+  it('normalises a handle-less or blank-handle account to null', () => {
+    // `member_directory()` returns NULL for an account that signs in with a real
+    // address. Null is what every consumer already reads as "no handle"; '' is a
+    // value the matcher would have to special-case.
+    const owner = { id: 'u2', display_name: 'Aziz', role: 'admin' }
+    expect(toMember({ ...owner, username: null }).username).toBe(null)
+    expect(toMember({ ...owner, username: '  ' }).username).toBe(null)
+  })
+
+  it('keeps a blank display name blank, and narrows an unknown role', () => {
+    // Both are the pre-existing contract, pinned here because this function is
+    // new to the test file and the behaviour must not drift with it: an unnamed
+    // account is a provisioning bug the owner picker should show, and widening
+    // an unrecognised role to admin is the one failure direction that matters.
+    expect(toMember({ id: 'u4', display_name: null, role: 'member', username: 'zz.new' })).toEqual({
+      id: 'u4',
+      displayName: '',
+      role: 'member',
+      username: 'zz.new',
+    } satisfies Member)
+    const odd = { id: 'u5', display_name: 'X', role: 'superuser', username: null }
+    expect(toMember(odd).role).toBe('member')
+  })
+})
 
 describe('toMemberAccount', () => {
   it('maps every column to its view-model name', () => {

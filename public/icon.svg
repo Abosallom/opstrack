@@ -1,7 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- OpsTrack mark: three timeline nodes with progress bars of different
-       lengths — several tracks, each at a different point. Geometry is kept in
-       sync with scripts that emit the PNG variants in this folder. -->
+  <!-- The mark: three timeline nodes with progress bars of different lengths —
+       several tracks, each at a different point. Geometry is kept in sync with
+       assets/generate-icons.mjs, which emits the PNG variants. No product name
+       here on purpose: this file ships as bytes to every install, and a retired
+       brand baked into a shipped asset outlives the release that retired it. -->
   <rect width="1024" height="1024" rx="225" fill="#101215"/>
   <g transform="translate(512 512) scale(0.94) translate(-512 -512)">
     <rect x="237" y="300" width="22" height="424" rx="11" fill="#2e3747"/>

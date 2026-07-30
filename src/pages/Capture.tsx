@@ -303,8 +303,11 @@ export default function Capture(): ReactElement {
     [tracks],
   )
 
+  // `username` is not optional decoration: it is the identifier the Members
+  // screen hands people and the one they type after `@`. Dropping it here is
+  // what made `@zz.smoke.v100` file a free-text owner and assign nobody.
   const parseMembers = useMemo<ParseMember[]>(
-    () => members.map((m) => ({ id: m.id, displayName: m.displayName })),
+    () => members.map((m) => ({ id: m.id, displayName: m.displayName, username: m.username })),
     [members],
   )
 

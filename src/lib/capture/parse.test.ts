@@ -33,9 +33,13 @@ const TRACKS: readonly ParseTrack[] = [
   { id: 't-onb', name: 'Onboarding', nameAr: 'التهيئة والربط' },
 ]
 
+// USERNAMES ARE PART OF THE FIXTURE because they are part of production: every
+// account an admin provisions signs in as `<username>@opstrack.internal`, the
+// Members screen prints the handle, and `@handle` is what gets typed. A member
+// list without them is the shape that shipped in v1.0.0 and hid R4.
 const MEMBERS: readonly ParseMember[] = [
-  { id: 'm-ahmed', displayName: 'Ahmed Al-Otaibi' },
-  { id: 'm-sara', displayName: 'Sara Nasser' },
+  { id: 'm-ahmed', displayName: 'Ahmed Al-Otaibi', username: 'ahmed.otaibi' },
+  { id: 'm-sara', displayName: 'Sara Nasser', username: 'sara.nasser' },
 ]
 
 const NOW = new Date(2026, 6, 29, 12, 0, 0)
@@ -637,6 +641,127 @@ describe('matchMember', () => {
     ]
     expect(matchMember('sara', twins)).toBeNull()
     expect(matchMember('', MEMBERS)).toBeNull()
+  })
+})
+
+// ── the handle people are actually given (release smoke R4) ────────────────
+//
+// v1.0.0 matched `@handle` against display names and aliases only, while the
+// Members screen identifies everyone by USERNAME. Typing the identifier you were
+// handed produced a free-text owner: no assignment, no notification, and nothing
+// rendering red. Everything in this block is that bug, from both sides.
+
+describe('@handle matches the username', () => {
+  it('resolves a username that the display name does not contain', () => {
+    // THE REGRESSION, exactly. `zz.smoke.v100` is the shape the release-smoke
+    // fixture used; the display name shares not one letter with it.
+    const roster: readonly ParseMember[] = [
+      { id: 'm-bushra', displayName: 'Bushra Al-Qahtani', username: 'zz.smoke.v100' },
+    ]
+    const p = run('Rotate the DC2 keys @zz.smoke.v100', { members: roster })
+    expect(p.ownerId).toBe('m-bushra')
+    expect(p.ownerName).toBe('Bushra Al-Qahtani')
+    expect(p.title).toBe('Rotate the DC2 keys')
+    // Not a problem of any kind: this is a clean assignment, and a chip that
+    // renders amber for it is how a user learns to ignore chips.
+    expect(problemKeys(p)).toEqual([])
+  })
+
+  it('an exact username outranks a display name that merely starts the same way', () => {
+    // The tier that matters. `Bushra` owns the handle; the shared inbox merely
+    // begins with the same text, which is a TIER-2 hit. Without a dedicated
+    // username tier these two collide and BOTH lose — free text, no assignment.
+    const roster: readonly ParseMember[] = [
+      { id: 'm-handle', displayName: 'Bushra Al-Qahtani', username: 'zz.smoke.v100' },
+      { id: 'm-fuzz', displayName: 'zz.smoke.v100 shared inbox' },
+    ]
+    expect(matchMember('zz.smoke.v100', roster)).toBe('m-handle')
+  })
+
+  it('an exact username outranks an exact display name', () => {
+    // Deliberate, and the reason tier 0 exists rather than the username simply
+    // joining the exact tier: a handle is unique BY CONSTRUCTION and issued by
+    // an admin, a display name is free text anyone can be given twice. Someone
+    // typing `@sara` after being handed `sara` as their teammate's handle must
+    // not be told the workspace is ambiguous.
+    const roster: readonly ParseMember[] = [
+      { id: 'm-handle', displayName: 'Bushra Al-Qahtani', username: 'sara' },
+      { id: 'm-name', displayName: 'Sara' },
+    ]
+    expect(matchMember('sara', roster)).toBe('m-handle')
+  })
+
+  it('folds case and the separators usernames are allowed to contain', () => {
+    // `USERNAME_RE` in admin-members permits dots, dashes and underscores, and
+    // foldKey() erases the last two — so `@it-ops`, `@it_ops` and `@itops` are
+    // one intent, and a phone that capitalised the first letter still lands.
+    const roster: readonly ParseMember[] = [
+      { id: 'm-ops', displayName: 'Operations Desk', username: 'it-ops' },
+    ]
+    expect(matchMember('IT-OPS', roster)).toBe('m-ops')
+    expect(matchMember('it_ops', roster)).toBe('m-ops')
+    expect(matchMember('itops', roster)).toBe('m-ops')
+  })
+
+  it('refuses to choose between two handles that fold together', () => {
+    // The cost of folding separators, paid the safe way. Nobody is assigned and
+    // the capture screen offers the choice.
+    const roster: readonly ParseMember[] = [
+      { id: 'm-1', displayName: 'Desk One', username: 'it-ops' },
+      { id: 'm-2', displayName: 'Desk Two', username: 'it_ops' },
+    ]
+    expect(matchMember('itops', roster)).toBeNull()
+    const p = run('a @itops', { members: roster })
+    expect(p.ownerId).toBeNull()
+    expect(p.ownerName).toBe('itops')
+    expect(problemKeys(p)).toEqual([PROBLEM_KEYS.ownerAmbiguous])
+  })
+
+  it('resolves an Arabic display name from either its name or its Latin handle', () => {
+    // The bilingual case the workspace actually has: names in Arabic, handles in
+    // Latin because they are typed at a sign-in form. Both must work, and the
+    // handle must work with an Arabic keyboard still attached.
+    const roster: readonly ParseMember[] = [
+      { id: 'm-ar', displayName: 'أحمد العتيبي', username: 'ahmed.otaibi' },
+    ]
+    expect(run('متابعة @ahmed.otaibi', { members: roster }).ownerId).toBe('m-ar')
+    expect(run('متابعة @"أحمد العتيبي"', { members: roster }).ownerId).toBe('m-ar')
+    // The alef in `أحمد` is written with hamza in the roster and without it
+    // here: the fold is what makes those the same person.
+    expect(matchMember('احمد', roster)).toBe('m-ar')
+  })
+
+  it('still leaves an unknown handle as a free-text owner', () => {
+    // NOT a regression to fix. Vendors and people outside the workspace are
+    // owners the schema models on purpose, and `newOwner` is informational so
+    // the capture screen can offer "invite" without marking the chip red.
+    const p = run('Chase the invoice @vendor.ali')
+    expect(p.ownerId).toBeNull()
+    expect(p.ownerName).toBe('vendor.ali')
+    expect(problemKeys(p)).toEqual([PROBLEM_KEYS.newOwner])
+  })
+
+  it('never renders a matched member as an empty chip', () => {
+    // `profiles.display_name` is '' while provisioning is half-done, and that
+    // account is now reachable BY HANDLE — so "matched, and labelled nothing"
+    // went from impossible to routine. Name, then handle, then what was typed.
+    const roster: readonly ParseMember[] = [{ id: 'm-new', displayName: '  ', username: 'zz.new' }]
+    const p = run('a @zz.new', { members: roster })
+    expect(p.ownerId).toBe('m-new')
+    expect(p.ownerName).toBe('zz.new')
+    expect(p.tokens[0].value).toBe('zz.new')
+  })
+
+  it('treats a missing and a null username identically', () => {
+    // An email account (the owner's own) has no handle. Both spellings mean the
+    // same thing and neither may match the empty string.
+    const roster: readonly ParseMember[] = [
+      { id: 'm-none', displayName: 'Aziz' },
+      { id: 'm-null', displayName: 'Owner Two', username: null },
+    ]
+    expect(matchMember('aziz', roster)).toBe('m-none')
+    expect(matchMember('', roster)).toBeNull()
+    expect(run('a @"  "', { members: roster }).ownerId).toBeNull()
   })
 })
 

@@ -316,11 +316,12 @@ about the shape that shipped.
 - **Every failure looks the same.** No such username, not a username account, no
   outstanding invite, wrong code, expired code, already claimed — one `403` with
   one body. Usernames here are guessable by construction (they are handed out in
-  person), so the *code* is the secret, and an error that confirmed a username
-  exists would hand an attacker the only half of the pair they could not
-  otherwise test. The lookup is a single indexed read, so the *timing* does not
-  leak either — an earlier version paged through the user list and answered a hit
-  faster than a miss, which was the same oracle wearing a different hat.
+  person), so the *code* is the secret, and a claim screen that confirmed a
+  username exists would be handing out the free half of the pair while the
+  attacker works on the other one. The lookup is a single indexed read, so the
+  *timing* does not leak either — an earlier version paged through the user list
+  and answered a hit faster than a miss, which was the same oracle wearing a
+  different hat.
 - **A member who forgot they had claimed** therefore gets the same "check both
   fields, or ask your admin" message as anyone else. Slightly worse for them;
   the right advice regardless, since the admin's reissue is the reset.
@@ -338,6 +339,22 @@ about the shape that shipped.
   parallel count as two. It is readable and writable only by the service role —
   the anon key ships in every browser bundle, and a counter reachable with it
   would let anyone inflate a stranger's backoff.
+
+**And one thing this shape does *not* buy, stated plainly because an earlier
+version of this page implied it did.** The silence above is a property of *the
+claim flow*, not of the project. The claim endpoint will not tell you whether a
+username exists — and **something else on the same host will**: Supabase's own
+password-recovery endpoint answers that question to anyone holding the anon key,
+which ships in the browser bundle by design and cannot be taken back. It is a
+platform endpoint rather than ours, and switching it off would cost the owner his
+emailed sign-in link. **The owner read this and accepted it** (`S5-1` in
+[`docs/FIX-BACKLOG.md`](docs/FIX-BACKLOG.md), 31 July 2026), for the reason that
+governs the whole design here: a username is not a secret. It is printed beside
+every person on the screen you provision from, and its owner types it at every
+sign-in. So treat the member list as semi-public, keep the **code** secret — that
+part is untouched by any of this — and follow the one operational rule that
+comes out of it, in [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §1.2: do not encode
+anything sensitive in a username.
 
 ### Operating it
 
@@ -494,8 +511,8 @@ status** — the floor of four, plus the vocabulary seed row, plus whichever of 
 two conditions above apply. All in one commit, all deployed with the migration, in
 that order: migration first, then the app.
 
-Also note the number `0003` in the example above is now taken, as are everything
-up to `0009`. "The next free number" means exactly that — look in
+Also note the number `0003` in the example above is now taken, as is everything
+up to `0013`. "The next free number" means exactly that — look in
 [`supabase/migrations/`](supabase/migrations) first. Supabase keeps no ledger of
 what has been applied, so a duplicated number is not caught by anything.
 

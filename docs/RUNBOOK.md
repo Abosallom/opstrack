@@ -83,6 +83,20 @@ Rules the function enforces, so you don't have to guess:
 - **Username**: 3–32 characters, lowercase letters, digits, and `.` `-` `_` in
   the middle only. Must start and end with a letter or a digit. `ahmed.otaibi`
   and `it-ops` are fine; `-ops`, `Ahmed` and `ops.` are not.
+- **Treat a username as semi-public. Do not encode anything sensitive in one.**
+  Not a national ID, not an employee number you would not print, not a phone
+  number, not a contractor's client name, not "ceo.pa" if who assists whom is
+  something you would rather not publish. Three reasons, and only the third is
+  subtle: the username is printed beside the person on **Settings › Team
+  members**, its owner types it in front of whoever is standing there at every
+  sign-in, and — the one that surprises people — an outsider holding nothing but
+  the public anon key from the app bundle can ask Supabase's own password-recovery
+  endpoint whether a given username exists, and get an answer. That last one is a
+  platform behaviour we cannot switch off without giving up your emailed sign-in
+  link; it was found, escalated and **accepted** on 31 July 2026 (`S5-1` in
+  [`FIX-BACKLOG.md`](FIX-BACKLOG.md)) precisely because a username was never
+  meant to be a secret here. The invite **code** is the secret. Names of the
+  `ahmed.otaibi` / `it-ops` shape are exactly right; keep it to that.
 - **`displayName` is optional.** Leave it out and the username is used.
 - **`role`** is `member` or `admin`. An `admin` can edit tracks and vocabulary
   **and** provision members — the function looks the caller's `profiles.role` up
@@ -99,8 +113,11 @@ The reply looks like this, and the `inviteCode` is shown **exactly once**:
  "role":"member","inviteCode":"K7QM-3XPT","expiresAt":"2026-08-13T…Z"}
 ```
 
-Only a SHA-256 of `username:CODE` is stored. There is no "show it again" — if
-you lose it, you reissue (§1.4).
+Only an **HMAC-SHA-256** of `username:CODE` is stored, keyed by the
+`INVITE_PEPPER` function secret that the database never holds (§4.1) — so a dump
+of `user_metadata` is worth nothing on its own. There is no "show it again": the
+workspace genuinely cannot recover the code, only replace it. If you lose it, you
+reissue (§1.4).
 
 ### 1.3 Hand it over
 
@@ -232,8 +249,8 @@ migration/automation tooling, never the live site.
 
 | Key | Where it lives | If it leaks |
 | --- | --- | --- |
-| **anon key** | The JS bundle, `.env`, and the `VITE_SUPABASE_ANON_KEY` GitHub secret | Nothing happens. It is public by design and grants exactly what RLS grants a signed-out visitor, which is nothing. See the README. |
-| **service_role key** | Only in the edge functions' environment, injected by Supabase | Total compromise — it bypasses RLS entirely. Rotate it immediately from **Project Settings › API**, then redeploy both functions. Never put it in `.env`; Vite would inline it into the browser bundle. |
+| **anon key** | The JS bundle, `.env`, and the `VITE_SUPABASE_ANON_KEY` GitHub secret | Against the **database**, nothing happens: it is public by design and grants exactly what RLS grants a signed-out visitor, which is nothing. It does reach Supabase's own auth endpoints, which no policy of ours governs — one of them will confirm whether a username exists (`S5-1`, accepted; §1.2). Rotating it does not change that, because the new key is just as public. See the README. |
+| **service_role key** | Only in the edge functions' environment, injected by Supabase | Total compromise — it bypasses RLS entirely. Rotate it immediately from **Project Settings › API**, then redeploy **all three** functions (§4). Never put it in `.env`; Vite would inline it into the browser bundle. |
 | **management PAT** | `.env.supabase-admin` only | Rotate as above. |
 
 Rotating the **anon** key (only if you have to) is three steps: rotate in
@@ -515,10 +532,14 @@ union all select '0008 run-now',     case when exists (select 1 from pg_trigger 
 union all select '0009 RLS/index',   case when to_regclass('public.entries_closed_idx') is not null then 'yes' else 'NO' end
 union all select '0010 claim ctrs',  case when to_regclass('public.claim_counters')     is not null then 'yes' else 'NO' end
 union all select '0011 web push',    case when to_regclass('public.push_outbox')        is not null then 'yes' else 'NO' end
+union all select '0012 owner name',  case when exists (select 1 from pg_trigger where tgname = 'profiles_preserve_owner_name') then 'yes' else 'NO' end
+union all select '0013 usernames',   case when to_regprocedure('public.member_directory()') is not null then 'yes' else 'NO' end
 order by file;
 ```
 
-Verified against the live project on 30 July 2026: all ten rows returned `yes`.
+Verified against the live project on 30 July 2026: the first ten rows returned
+`yes`. **Re-verified 31 July 2026 with `0012` and `0013` added: all twelve `yes`.**
+Both new files were applied twice that day, probes passing on both runs.
 
 `0005` has no fingerprint on purpose: it is a one-time correction that clears the
 SLA numbers 0003 used to seed, and it refuses to act if you have since chosen
@@ -538,8 +559,16 @@ file**, not a hand-repair of the half that landed.
 Several files end in a **self-verifying probe** that raises an exception on
 purpose if the migration did not achieve what it claims — `0006` checks that its
 new join did not change the row count of `v_entry_health`, `0008` runs a fake
-template through "Run now" twice, `0009` re-reads every policy. A probe failure
-means the migration did **not** take. Re-read the error, fix, re-run.
+template through "Run now" twice, `0009` re-reads every policy, `0012` deletes a
+throwaway account three different ways and checks the credit and the clocks
+afterwards, `0013` proves its function is unreadable by `anon` and complete for a
+member. A probe failure means the migration did **not** take. Re-read the error,
+fix, re-run.
+
+The probes in `0012` and `0013` create their own fixtures and discard them by
+raising a sentinel exception inside a subtransaction, so they touch no real row
+and leave nothing behind — that is why they are safe to re-run on a live
+workspace, and why "run it twice" is the standing check rather than a risk.
 
 One hazard that is real on a populated database: a file that drops a named
 constraint and re-adds it leaves the table **without** that constraint if the
@@ -721,6 +750,11 @@ does this). Request a fresh one, or use your password.
 The address has no account. Signups are disabled project-wide, so Supabase
 answers an unknown address with "signups not allowed" and the app translates that
 into the honest sentence. Check the spelling first; then check the list (§1.5).
+
+Yes, this message tells a stranger whether an address has an account — the same
+property `S5-1` records for usernames, and accepted for the same reason (§1.2).
+The alternative is a sign-in screen that lies to the one person who typed their
+own address correctly, and the address was never the secret.
 
 ### 8.6 A member says their password stopped working
 

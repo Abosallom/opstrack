@@ -10,7 +10,9 @@
 // Deploy:
 //   npx supabase@latest functions deploy admin-members --project-ref <ref> --use-api
 //
-// REQUIRES the INVITE_PEPPER function secret (see below) and migration 0010.
+// REQUIRES the INVITE_PEPPER function secret (see below), migration 0010 and
+// migration 0012 — the delete path's promise about credited work is 0012's
+// trigger, not this file's code. See `case 'delete'`.
 // SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are injected
 // automatically.
 //
@@ -748,9 +750,25 @@ Deno.serve(async (req) => {
         }
       }
 
-      // The profiles row cascades away with the user
-      // (profiles.id references auth.users on delete cascade), and entries keep
-      // their history because owner_id/created_by are nullable references.
+      // The profiles row cascades away with the user (profiles.id references
+      // auth.users on delete cascade), and every row that pointed at them keeps
+      // its history because owner_id/created_by/author_id are all nullable
+      // references rather than cascades. Nothing here is destroyed.
+      //
+      // THE NAME ON THAT HISTORY IS MIGRATION 0012's JOB, NOT THIS FUNCTION'S,
+      // and deliberately so. `profiles_preserve_owner_name` is a BEFORE DELETE
+      // trigger on public.profiles that copies display_name into
+      // entries.owner_name and recurring_templates.owner_name — in the same
+      // transaction as the delete below, and in the last instant in which the
+      // database still knows whose work it was. Doing it here instead would
+      // cover this endpoint and silently skip the dashboard's own "Delete user"
+      // (RUNBOOK 4.4) and any SQL-Editor delete, so the confirm dialog's promise
+      // would hold only when the delete came through this door.
+      //
+      // What that means for THIS file: nothing to do on the way out, and an
+      // ordering that must not be "improved". Copying the name here before the
+      // call would beat the trigger to the rows, and this side has no way to put
+      // back the activity clocks the trigger preserves. R3 / FIX-BACKLOG.
       const { error } = await admin.auth.admin.deleteUser(body.userId)
       if (error) return failure('server_error', error.message, 400)
 

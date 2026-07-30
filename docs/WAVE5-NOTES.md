@@ -11,11 +11,28 @@ Scope of the rename NOW (user-visible branding only):
 - `app.name` in both locale bundles, `index.html` title/meta, the PWA manifest name/short_name,
   README/ADMIN titles, the iOS app display name (`capacitor.config.json` appName + Xcode display
   name — W4B-IOS coordinate), email-visible strings if any.
+- **Also user-visible, added v1.0.1**: the names of files the app downloads —
+  `exportFilename()` in `src/lib/export.ts` and `digestFilename()` in `src/lib/digest/index.ts`,
+  now `coretrack-export-<stamp>.json|csv` and `coretrack-<from>_<to>.md|txt|html`. These were
+  missed by the first sweep because it read locale bundles and a template literal in a `.ts` file
+  does not look like a string a user reads — but the name lands in someone's Downloads folder, is
+  echoed back in the "Saved as …" toast, and travels onward as an email attachment. They were
+  never on the list below and were never meant to be. `src/lib/brand.test.ts` now builds both
+  through their real call paths and gates them, so the launch cut cannot strand them again.
 - **Deliberately NOT renamed** (stable identity until the NphiesCore launch cut, to avoid breaking
   the installed PWA, bookmarks, and stored state mid-testing): the repo `Abosallom/opstrack`, the
   Pages URL, `package.json` name, `localStorage` keys (`opstrack_*`), CSS prefixes, the Supabase
   project name, and the iOS bundle id. The launch cut does the full identity swap once, cleanly:
   repo+URL+bundle id+storage migration under the NphiesCore name.
+  Also on this list, and easy to mistake for the filename above: the export envelope's
+  `format: 'opstrack-export'` tag. It is a magic value a reader matches on to identify the file,
+  so renaming it makes every export taken before that build unrecognisable to every build after —
+  it moves only with a format migration, not with a brand. brand.test.ts asserts the OLD slug for
+  it on purpose. The test for the two is four lines apart for exactly this reason.
+
+**The rule the misses share**: "user-visible" is not "in a locale bundle". If a person can read it
+— on screen, in a filename, in a toast, in a notification title, in a shipped SVG comment they may
+open — it is in scope. If only code reads it, it is not.
 
 ## 2. Azure AD is OUT — the admin-managed directory IS the directory
 

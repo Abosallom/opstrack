@@ -43,6 +43,14 @@ function derive(members: Member[]): Omit<MembersState, 'loading' | 'loadedAt'> {
  * Last known members, for first paint. Without it every entry row renders an
  * initial-less owner disc on cold load and then pops into a name — on a list of
  * sixty rows that reads as the page breaking and repairing itself.
+ *
+ * THE KEY IS NOT BUMPED FOR A NEW FIELD, deliberately. A cache written by
+ * v1.0.0 has no `username`, so for the second before the network read lands an
+ * `@handle` in quick capture can only match a display name — the pre-1.0.1
+ * behaviour, and the one the parser already degrades to safely (free text, never
+ * a wrong assignment). Bumping the key would trade that second for an empty
+ * roster on every device's first load after the deploy, which is the exact flash
+ * this cache exists to prevent. Offline for a whole session is the same trade.
  */
 function readCache(): Member[] {
   try {

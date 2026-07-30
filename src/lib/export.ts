@@ -676,7 +676,7 @@ function pad(n: number): string {
 }
 
 /**
- * `opstrack-export-2026-07-30-1432.json`.
+ * `coretrack-export-2026-07-30-1432.json`.
  *
  * LOCAL time, not UTC. The stamp exists so a person can tell two exports apart
  * in a Downloads folder, and "when did I take this" is a question they answer
@@ -685,12 +685,19 @@ function pad(n: number): string {
  *
  * No colons and no spaces: both are legal in a filename on macOS and neither
  * survives the trip to a Windows share.
+ *
+ * THE PREFIX IS THE BRAND — and note it is NOT the same string as the envelope's
+ * `format: 'opstrack-export'` a few hundred lines up, which stays. That one is a
+ * magic value a reader matches on to identify the file; renaming it would make
+ * every export taken before this build unrecognisable to every export taken
+ * after. This one is a word in someone's Downloads folder. The two happened to
+ * share a spelling; they never shared a reason. brand.test.ts pins the filename.
  */
 export function exportFilename(kind: 'json' | 'csv', at: Date): string {
   const stamp = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}-${pad(
     at.getHours(),
   )}${pad(at.getMinutes())}`
-  return `opstrack-export-${stamp}.${kind}`
+  return `coretrack-export-${stamp}.${kind}`
 }
 
 /**

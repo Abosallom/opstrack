@@ -32,15 +32,27 @@ native call sits behind a no-op that a browser tab takes instead.
 
 ---
 
-## Status at v1.0.0
+## Status at v1.0.1
 
-Released 30 July 2026. Live at <https://abosallom.github.io/opstrack/>, built from
-`main` by GitHub Actions, backed by a real Supabase project. The v1.0.0 release
-smoke — every screen in both languages, both themes, at 1280 and 375, against the
-deployed origin rather than a dev server — is
-[`docs/EVIDENCE/wave5-release-smoke.md`](docs/EVIDENCE/wave5-release-smoke.md).
+Released 30 July 2026 as v1.0.0; **v1.0.1 on 31 July 2026**. Live at
+<https://abosallom.github.io/opstrack/>, built from `main` by GitHub Actions,
+backed by a real Supabase project. The v1.0.0 release smoke — every screen in
+both languages, both themes, at 1280 and 375, against the deployed origin rather
+than a dev server — is
+[`docs/EVIDENCE/wave5-release-smoke.md`](docs/EVIDENCE/wave5-release-smoke.md);
+its §7 is the v1.0.1 gate.
 
-Three things are commonly assumed about a release like this one, and the honest
+**v1.0.1 is four fixes and no new features**, cut before the team started
+testing. Two came out of that smoke: `@username` now assigns (it is the
+identifier an admin hands out, and typing it used to file a free-text owner —
+no assignment, no notification, nothing red), and deleting a member now leaves
+their name on their entries, which is what the confirm dialog had been promising.
+The other two are cosmetic: the offline strip no longer covers the header, and
+downloaded files are named `coretrack-…`. It also carries migrations `0012` and
+`0013` — **apply both before or with the deploy**; `RUNBOOK.md` §5 is the
+procedure and both files re-run cleanly.
+
+Four things are commonly assumed about a release like this one, and the honest
 answer differs for each.
 
 **How you install it: as a PWA.** Add to Home Screen from Safari on iOS or Chrome
@@ -66,6 +78,20 @@ Release-configuration build, no archive, no TestFlight build and no store listin
 §4 of that file is the full outstanding list, and the largest items on it are
 Apple's paperwork rather than code. The Apple Developer account exists, so this is
 work that can start — it just has not.
+
+**Security: audited hard, with one hole in the audit itself.** Eight deep audits
+ran across the waves and every finding is dispositioned one by one in
+[`docs/FIX-BACKLOG.md`](docs/FIX-BACKLOG.md); the claim/invite flow was rewritten
+under a lens told to break it, then re-probed against the live project. Two
+things not to assume from that. **The last security pass is incomplete** — it
+reported four items and one arrived before the pass died: `S5-1`, now `accepted`
+by the owner (a username is confirmable through a Supabase platform endpoint —
+§*Is it safe to ship the anon key?* has it). Its config finding, its correctness
+finding and its residuals are recorded as **not received**, which is a gap in the
+review and not a clean bill; re-running those two passes is named work for a
+future wave, in that file. **And no human has ever pen-tested this.** Every audit
+here was run by an agent against code and a live project, which finds a different
+set of things than a person with a week and an intent does.
 
 **Known defects and their dispositions** are
 [`docs/FIX-BACKLOG.md`](docs/FIX-BACKLOG.md). Nothing there is a release blocker;
@@ -146,19 +172,31 @@ Confirm afterwards that **Database › Tables** shows RLS enabled on every table
 An exposed table with RLS off would be readable by anyone holding the anon key,
 which is everyone.
 
-### 4. Deploy the two edge functions
+### 4. Deploy the three edge functions
 
-There are two, and both are required. Deploying only the first is the mistake
-that costs an afternoon: every account you then create is permanently
-unclaimable, and the failure shows up as a member who cannot sign in rather than
-as an error you can search for.
+Two are required to have accounts at all, and the third is what makes a
+notification leave the building. Deploying `admin-members` without
+`claim-account` is the mistake that costs an afternoon: every account you then
+create is permanently unclaimable, and the failure shows up as a member who
+cannot sign in rather than as an error you can search for.
 
 | Function | What it does | Who calls it |
 | --- | --- | --- |
-| [`admin-members`](supabase/functions/admin-members/index.ts) | list · create · delete · reissue-code. The only way an account comes into existence, because signups are off. | an admin, with their own session |
+| [`admin-members`](supabase/functions/admin-members/index.ts) | list · create · delete · reissue-code · set-role. The only way an account comes into existence, because signups are off. | an admin, with their own session |
 | [`claim-account`](supabase/functions/claim-account/index.ts) | redeems a one-time invite code and sets the member's chosen password | the member, **with no session at all** |
+| [`send-push`](supabase/functions/send-push/index.ts) | drains `push_outbox` and sends Web Push | the **database** — a trigger for latency, a `cron` tick for truth |
 
-Both hold the service-role key; nothing else in this project does.
+All three hold the service-role key; nothing else in this project does.
+
+Two of them also need **function secrets**, which are not optional and are not in
+this file because they are operational rather than setup:
+`admin-members` and `claim-account` share `INVITE_PEPPER` — without it
+`admin-members` **refuses to mint an invite** rather than silently downgrading
+the digest — and `send-push` needs a VAPID keypair plus `PUSH_DRAIN_SECRET`.
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md) §4.1 lists every one with its failure mode,
+and §4.2 generates the VAPID pair. Skip `send-push` and its secrets and the app
+works in every respect except that no notification is ever delivered; the
+in-product bell still fills.
 
 **Set the provisioning allow-list before you deploy.** Open
 [`supabase/functions/admin-members/index.ts`](supabase/functions/admin-members/index.ts)
@@ -187,6 +225,7 @@ cd /path/to/opstrack
 export SUPABASE_ACCESS_TOKEN='<a personal access token from supabase.com/dashboard/account/tokens>'
 npx supabase functions deploy admin-members  --project-ref <your-project-ref> --use-api
 npx supabase functions deploy claim-account  --project-ref <your-project-ref> --use-api
+npx supabase functions deploy send-push      --project-ref <your-project-ref> --use-api
 npx supabase functions list --project-ref <your-project-ref>
 ```
 
@@ -196,18 +235,20 @@ this repo. (`supabase link` is not needed and asks for a database password that
 nothing here uses.)
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected
-into functions automatically; there are no secrets to set.
+into functions automatically. The secrets named above are not — set them, or the
+function that needs one refuses to work.
 
-Leave **Verify JWT ON** for both. `claim-account` is called by people who have no
-session yet and works anyway, because supabase-js sends the project's anon key as
-the bearer token — which satisfies the gateway while keeping the endpoint
-unreachable without an apikey.
+Leave **Verify JWT ON** for all three. `claim-account` is called by people who
+have no session yet and works anyway, because supabase-js sends the project's
+anon key as the bearer token — which satisfies the gateway while keeping the
+endpoint unreachable without an apikey. `send-push` is called by the database
+with that same anon key and gates on its own `x-push-drain` header instead.
 
 **Invoke each one twice after deploying.** The first call fetches
 `npm:@supabase/supabase-js@2` and can take a few seconds or time out once; that
-is a cold start, not a failure. Neither file is covered by `tsc` or `oxlint`
-(`.oxlintrc.json` ignores `supabase/functions`, `tsconfig.app.json` is
-`src`-only), so for these two files a successful invocation **is** the type
+is a cold start, not a failure. None of the three files is covered by `tsc` or
+`oxlint` (`.oxlintrc.json` ignores `supabase/functions`, `tsconfig.app.json` is
+`src`-only), so for these files a successful invocation **is** the type
 check. Redeploy after every edit — a fix that sits in the repo is not live.
 
 ### 5. Create the first admin account
@@ -306,18 +347,34 @@ re-running the workflow, not just redeploying.
 Yes, and there is no way to avoid it — any browser client must hold a public key
 to reach the API, and anything in the bundle is readable.
 
-The anon key identifies the *project*, not a *user*. On its own it grants exactly
-what the RLS policies grant to an unauthenticated role, which here is nothing.
-Real access begins after sign-in, when Supabase issues a JWT for a specific user,
-and every policy is written against `auth.uid()` and that user's `profiles` row.
+The anon key identifies the *project*, not a *user*. Against **the database** it
+grants exactly what the RLS policies grant to an unauthenticated role, which here
+is nothing. Real access begins after sign-in, when Supabase issues a JWT for a
+specific user, and every policy is written against `auth.uid()` and that user's
+`profiles` row.
+
+**One honest qualification, because "nothing" is about the database only.** The
+same key also reaches Supabase's own auth endpoints on the same host, and those
+are GoTrue's, not PostgREST's — no policy of ours governs them. One of them,
+`POST /auth/v1/recover`, will tell an unauthenticated caller whether a given
+username exists, which makes the member directory enumerable by anyone holding a
+key that ships in the bundle by design. **This is known, it was escalated, and
+the owner accepted it** — a username in this product is not a secret: it is
+printed beside every person on the Members screen and typed by its owner at every
+sign-in. What *is* secret is the invite code and the password, and neither is
+reachable this way. The reasoning, and the two fixes that were turned down and
+why, are **S5-1** in [`docs/FIX-BACKLOG.md`](docs/FIX-BACKLOG.md). The practical
+consequence for an admin is one line, and it lives in
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md) §1.2: do not put anything sensitive in a
+username.
 
 Which is why the rules to keep are:
 
 - **RLS on every table, always.** The policies *are* the security model. A table
   without RLS is public.
 - **The service_role key never leaves the server.** It bypasses RLS entirely. It
-  lives only in the two edge functions' environments, injected by Supabase — it is
-  never in `.env`, because Vite would inline it into the browser bundle.
+  lives only in the three edge functions' environments, injected by Supabase — it
+  is never in `.env`, because Vite would inline it into the browser bundle.
 - **Every `security definer` function is revoked from `anon`.** RLS is not the
   boundary for these — a definer function runs as its owner, who is exempt from
   the policies. And `revoke ... from public` is not enough on Supabase: the
@@ -342,7 +399,7 @@ src/
   styles/      global.css — the design-token ladder and the class-name registry
 supabase/
   migrations/  numbered SQL: schema, RLS, triggers, views, seed. Run in order.
-  functions/   admin-members + claim-account (both hold the service-role key)
+  functions/   admin-members + claim-account + send-push (all hold the service-role key)
 ios/           Capacitor Xcode project — generated by `npm run ios:sync`, committed
 assets/        source icon + splash art and the generator that fans them out
 docs/          the build record: execution plan, wave notes, fix backlog, runbook
@@ -364,7 +421,7 @@ prefix.
 | `npm run dev`       | Vite dev server, exposed on the LAN                       |
 | `npm run build`     | `tsc -b` then a production build to `dist/`               |
 | `npm run lint`      | oxlint                                                    |
-| `npm run test`      | vitest, once. 57 files / 1583 tests at v1.0.0              |
+| `npm run test`      | vitest, once. It prints its own totals — see below        |
 | `npm run preview`   | serve the built `dist/` locally                           |
 | `npm run seed`      | insert demo tracks and entries into the configured project |
 | `npm run icons`     | regenerate PWA and iOS icons from `assets/icon.png`       |
@@ -372,9 +429,22 @@ prefix.
 | `npm run ios:open`  | open the Capacitor project in Xcode                       |
 | `npm run ios:run`   | sync and run on a simulator or device                     |
 
+The suite is large enough that its size is worth knowing, and hardcoding the
+number here is how this line went stale twice. Ask it instead:
+
+```bash
+npm run test 2>&1 | grep -E '^ *(Test Files|Tests) '
+#  Test Files  59 passed (59)
+#       Tests  1615 passed (1615)
+```
+
+That is the output at the `v1.0.1` tag (`git rev-parse 'v1.0.1^{}'`), measured
+31 July 2026; `v1.0.0` was `58 / 1586` at `79391d1` the same day. If your run
+disagrees, your run is right and this comment is old.
+
 The deploy workflow runs lint, test and build; a red suite stops the deploy before
-it starts. Neither `supabase/functions/` file is covered by `tsc` or `oxlint` —
-see §4.
+it starts. **None of the three `supabase/functions/` files is covered by `tsc` or
+`oxlint`** — see §4.
 
 ## Operating it
 

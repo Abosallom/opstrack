@@ -192,14 +192,66 @@
   gap: 6px;
 }
 
-/* ---------- header row ---------- */
+/* ---------- header row ----------
+
+   STICKY-OFFSET. `.app-header` and `.offline-region` are siblings inside
+   `.app-main`, and both are `position: sticky`. Until v1.0.1 both also pinned at
+   `inset-block-start: 0`, which is the same slot — and the region wins on
+   z-index (65 vs 60, deliberately, see the offline-banner section below). The
+   result: with the offline strip up, the 45px banner covered the header, and
+   `document.elementFromPoint()` at the centre of EVERY control in
+   `.app-header-actions` — notifications, theme, language, account — returned
+   `.offline-msg`. Four unreachable controls, in the one mode the banner exists
+   to announce, and unreachable without scrolling back to the top, which is
+   exactly what a sticky header is there to make unnecessary.
+
+   The fix is an offset, not a restack: lowering the banner's z-index would put
+   it BEHIND a surface that is 88% opaque with a 12px backdrop blur, which hides
+   it rather than ordering it. So the region pins below the header instead, and
+   both stay on screen and usable at once.
+
+   THE HEADER PUBLISHES ITS OWN HEIGHT, because the offset is the header's
+   height and that number is not a constant: it is 50px/56px across the 768px
+   breakpoint, it grows by `env(safe-area-inset-top)` on a notch, and it grows
+   again under `display-mode: standalone`. offline-banner.css is a component
+   file and correctly refused to hardcode integrator-owned geometry (its own
+   note asked for exactly this custom property). So the three inputs are
+   declared here as tokens, `.app-header` is rendered FROM them rather than
+   alongside them, and `--app-header-block-size` is what the sibling reads.
+   Declared on `.app-main` and not on `.app-header` because custom properties
+   inherit downwards, and the region is a sibling — it can only see a token that
+   was set on the shared ancestor.
+
+   WHY THE FORMULA IS EXACT rather than approximately right. `box-sizing:
+   border-box` is global, so `min-block-size` is a border-box floor and the
+   header's rendered height is `max(floor, row + padding + border)`. `--header-
+   row` is 44px because the tallest thing in the row is an icon button at the
+   44px touch-target floor this app holds everywhere (W5 hardening). Measured
+   against the live shell at 375px and at 1280px: formula 65px, rendered 65px,
+   both. If a future child ever exceeds 44px the header grows past the token and
+   the banner overlaps its bottom border by the difference — visible, cosmetic,
+   and still strictly better than the total occlusion this replaces. */
+
+.app-main {
+  --header-row: 44px;
+  --header-pad-block-end: 10px;
+  /* Landscape notch handling lives on the inline axis in `.app-header`; this
+     is the block-start inset only, and it is a token because the offset below
+     has to move with it. */
+  --header-pad-block-start: max(10px, env(safe-area-inset-top, 0px));
+  --header-row-min: 56px;
+  --app-header-block-size: max(
+    var(--header-row-min),
+    calc(var(--header-row) + var(--header-pad-block-start) + var(--header-pad-block-end) + 1px)
+  );
+}
 
 .app-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-block-size: 56px;
-  padding-block: 10px;
+  min-block-size: var(--header-row-min);
+  padding-block-end: var(--header-pad-block-end);
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -210,7 +262,7 @@
   /* Landscape notch: symmetric because a hardware cutout does not follow the
      writing direction. */
   padding-inline: max(18px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
-  padding-block-start: max(10px, env(safe-area-inset-top, 0px));
+  padding-block-start: var(--header-pad-block-start);
 }
 
 .app-header-title {
@@ -387,8 +439,29 @@
    this element the containing block is the wrapper's content box, which is
    exactly this element's own height, so it had zero travel and scrolled away.
    z-index 65 moved with it and still means what it meant: deliberately ABOVE
-   .app-header (60), because letting the header win put the banner behind it. The
-   strip is full-bleed, so overlaying the header reads as it replacing it. */
+   .app-header (60), because letting the header win put the banner behind it. */
+
+/* STICKY-OFFSET, the half offline-banner.css could not write. That file pins the
+   region at `inset-block-start: 0` and its note says why it stopped there: the
+   offset it wants is the header's height, the header is this file's, and copying
+   a number across the boundary would be wrong on a notch. This is the rule it
+   asked for, written on the side that owns the geometry, reading the token
+   published on `.app-main` at the top of this file.
+
+   THE SELECTOR IS A CHILD COMBINATOR ON PURPOSE. It restates a property that
+   offline-banner.css declares, and the one thing that file's ownership note
+   refuses to depend on is CSS import order. `.app-main > .offline-region` is
+   (0,2,0) against that file's (0,1,0), so specificity settles it and the load
+   order of the two stylesheets stops mattering — which also means this keeps
+   working if the banner chunk is ever code-split differently.
+
+   It is scoped to `.app-main` rather than global for a second reason: some
+   routes render `.main-content` straight under `.app-layout` with no `.app-main`
+   and therefore no header. There the region has nothing to clear, this rule does
+   not match, and offline-banner.css's 0 is already the right answer. */
+.app-main > .offline-region {
+  inset-block-start: var(--app-header-block-size);
+}
 
 .offline-banner {
   display: flex;
@@ -509,8 +582,10 @@
     padding-inline: max(14px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   }
 
-  .app-header {
-    min-block-size: 50px;
+  /* Retunes the header AND the offline strip's sticky offset in one move —
+     that is the point of routing the height through a token. */
+  .app-main {
+    --header-row-min: 50px;
   }
 }
 
@@ -545,10 +620,15 @@
 
 /* Installed PWA: some devices report env(safe-area-inset-top) as 0 while still
    drawing the status bar over the page, which buried the header title. Floor
-   the inset so the first row always clears it. */
+   the inset so the first row always clears it.
+
+   Raised on the token, not on `.app-header`'s padding: this is the case where a
+   hardcoded offline-strip offset would have been most wrong — the installed PWA
+   is where the header is tallest AND where the strip matters most, because it is
+   the build people actually take offline. */
 @media (display-mode: standalone) {
-  .app-header {
-    padding-block-start: max(10px, env(safe-area-inset-top, 0px), 12px);
+  .app-main {
+    --header-pad-block-start: max(10px, env(safe-area-inset-top, 0px), 12px);
   }
 }
 
