@@ -127,9 +127,17 @@ const EMPTY_SNAPSHOT: VocabSnapshot = { rows: [], loadedAt: null }
  * 0.20. Each hex below was solved for that optimum within its own hue and
  * measures 3.51–3.56:1 on each theme's worst surface — past the 3:1 WCAG 1.4.11
  * asks of a meaningful non-text graphic, short of the 4.5:1 small text wants.
- * Which is exactly why "Default colour" is the first option and the seeded
- * state: it leaves the pill on --text-dim, which is AA at every elevation.
- * Raised for the W5 audit in the handoff note rather than papered over here.
+ *
+ * RESOLVED IN W5, AND NOT BY MOVING THESE HEXES — the ceiling above is real and
+ * no single hex clears it. The pill stopped asking one hex to be both the mark
+ * and the ink: the hue still fills and outlines the badge at full strength (a
+ * graphic, 3:1, which these clear), and the INK is now `--vocab-ink` in
+ * global.css — this hex mixed 35% into the theme's own --text, so the theme
+ * dictates luminance and the admin dictates hue. Measured in Chrome on all
+ * three elevations in both themes: 9.56–11.25:1 for the eight presets, worst
+ * case 4.70:1 for ANY hex the free field accepts. Read that block before
+ * touching either half. "Default colour" stays the first option and the seeded
+ * state; it now means --text-dim rather than "the only safe choice".
  *
  * `labelKey` is not decoration. These are icon-only controls, so the accessible
  * name is the ONLY name, and a screen reader spells a hex out one character at a
@@ -1141,7 +1149,7 @@ export default function VocabularyAdmin(): ReactElement {
                               the built-in Arabic and never to the English one. */}
                           <div className="vocab-resolve">
                             <p className="field-label">{t('vocabadmin.preview')}</p>
-                            <div className="vocab-resolve-line">
+                            <div className="row-actions vocab-resolve-line">
                               <span className="vocab-resolve-lang">{t('settings.languageEn')}</span>
                               <span
                                 className="pill vocab-pill"
@@ -1155,7 +1163,7 @@ export default function VocabularyAdmin(): ReactElement {
                                 <span className="vocab-note">{t('vocabadmin.usingDefault')}</span>
                               )}
                             </div>
-                            <div className="vocab-resolve-line">
+                            <div className="row-actions vocab-resolve-line">
                               <span className="vocab-resolve-lang">{t('settings.languageAr')}</span>
                               <span
                                 className="pill vocab-pill"
@@ -1301,7 +1309,7 @@ export default function VocabularyAdmin(): ReactElement {
                             </p>
                           )}
 
-                          <div className="vocab-editor-actions">
+                          <div className="row-actions vocab-editor-actions">
                             {dirty && <span className="pill warn">{t('vocabadmin.unsaved')}</span>}
                             <button
                               type="submit"

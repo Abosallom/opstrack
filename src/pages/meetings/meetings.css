@@ -157,12 +157,8 @@
   margin-block-start: 8px;
 }
 
-.mt-start-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+/* Layout comes from global.css's .row-actions, which this element also carries;
+   the rule is gone rather than repeated an eighth time. */
 
 /* ---------- the meeting list ---------- */
 
@@ -365,12 +361,8 @@
   font-size: 16px;
 }
 
-.mt-live-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+/* Layout comes from global.css's .row-actions, which this element also carries;
+   the rule is gone rather than repeated an eighth time. */
 
 .mt-ended-bar {
   display: flex;
@@ -564,12 +556,8 @@
 /* The column-wide quick-fill toolbar. Always visible: it is the control that
    turns twenty decisions into one, and burying it behind a hover would hide the
    feature from every phone. */
-.mt-fill-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+/* Layout comes from global.css's .row-actions, which this element also carries;
+   the rule is gone rather than repeated an eighth time. */
 
 .mt-fill-label {
   color: var(--text-dim);

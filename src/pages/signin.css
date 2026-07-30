@@ -198,14 +198,9 @@
   transform: translateY(1px);
 }
 
-/* The visible box stays small; the hit area is a full 44px in the block axis,
-   the same trick .btn-sm uses. Inline growth would reach under the input text. */
-.signin-reveal::after {
-  content: '';
-  position: absolute;
-  inset-block: -6px;
-  inset-inline: 0;
-}
+/* The 44px block-axis hit area comes from global.css's .tap-44, which the
+   button also carries. This file used to hand-copy the overlay — and the -6px
+   inset that made it 42, not 44. One copy now, in one place, correct. */
 
 .signin-caps {
   display: flex;

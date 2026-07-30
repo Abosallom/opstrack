@@ -381,7 +381,7 @@ function visible(el: HTMLElement): boolean {
 }
 
 /** The entry anchor the keyboard is inside, or null. */
-export function focusedEntryAnchor(): HTMLElement | null {
+function focusedEntryAnchor(): HTMLElement | null {
   return activeElement()?.closest<HTMLElement>(ENTRY_ANCHOR) ?? null
 }
 

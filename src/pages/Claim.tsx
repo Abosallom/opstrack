@@ -342,7 +342,7 @@ export default function Claim(): ReactElement {
                       defeat the point of the second field. */}
                   <button
                     type="button"
-                    className="claim-reveal"
+                    className="claim-reveal tap-44"
                     aria-pressed={revealed}
                     onClick={() => setRevealed((v) => !v)}
                   >

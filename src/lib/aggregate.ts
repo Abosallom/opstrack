@@ -64,7 +64,7 @@ export const HEALTH_ORDER: readonly HealthLevel[] = ['ok', 'stale', 'overdue', '
  * and the two are allowed to differ: this array decides row order in one table,
  * the vocabulary decides it in every input.
  */
-export const PRIORITY_SEVERITY: readonly EntryPriority[] = ['critical', 'high', 'medium', 'low']
+const PRIORITY_SEVERITY: readonly EntryPriority[] = ['critical', 'high', 'medium', 'low']
 
 /** All-zero health split. A fresh object per call — these are accumulated into. */
 function emptyHealthSplit(): Record<HealthLevel, number> {

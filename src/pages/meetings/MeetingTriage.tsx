@@ -366,7 +366,7 @@ export default function MeetingTriage(): ReactElement {
               works identically at every width, which is also where a reader
               looks for "do this to the whole column". */}
           {open.length > 1 && (
-            <div className="mt-fill-bar" role="group" aria-label={t('meeting.fillDown')}>
+            <div className="row-actions mt-fill-bar" role="group" aria-label={t('meeting.fillDown')}>
               <span className="mt-fill-label">{t('meeting.fillDown')}</span>
               {FILL_COLUMNS.map((column) => (
                 <button

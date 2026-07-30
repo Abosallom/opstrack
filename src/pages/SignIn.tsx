@@ -366,7 +366,7 @@ export default function SignIn(): ReactElement {
                       without needing a label a screen reader has to be told. */}
                   <button
                     type="button"
-                    className="signin-reveal"
+                    className="signin-reveal tap-44"
                     aria-pressed={revealed}
                     onClick={() => setRevealed((v) => !v)}
                   >

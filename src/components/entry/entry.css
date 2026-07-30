@@ -42,7 +42,7 @@
    run, which is a supported state (store/vocab.ts: "MISSING TABLE IS FINE"). */
 
 .status-pill {
-  color: var(--vocab-c, var(--text-dim));
+  color: var(--vocab-ink, var(--text-dim));
 }
 
 .status-pill[data-size='md'] {
@@ -59,14 +59,17 @@
    at 12px a chevron beside six characters of text is noise. The affordance is
    the hover state and the cursor.
 
-   32px is the floor .chip already sets, and it is the smallest target this app
-   ships. It cannot borrow .chip's ::after hit-area trick — a <select> is a
-   replaced element and its pseudo-elements are not rendered — so the row's own
-   spacing has to carry the rest of the reach. Flagged for the W5 audit. */
+   IT IS 44px TALL, NOT 32, AND IT IS THE ONE PILL THAT IS. It cannot borrow
+   .chip's ::after hit-area trick — a <select> is a replaced element and its
+   pseudo-elements are not rendered — so the box IS the target and the only way
+   to reach 44 is to be 44. Measured at 32×87 on every board card before this
+   (Chrome, elementFromPoint, EN and AR); "the row's own spacing carries the
+   rest" was the W4 hope and it is not how hit-testing works. A status change is
+   the most-used action on a card, so it earns the height. */
 .status-pill[data-editable='true'] {
   appearance: none;
   -webkit-appearance: none;
-  min-block-size: 32px;
+  min-block-size: 44px;
   padding-block: 4px;
   padding-inline: 10px;
   font-family: inherit;
@@ -774,8 +777,16 @@ span.tag-chip::after {
 }
 
 /* The whole heading is the disclosure target, so it is a full-width button with
-   the heading's own typography — not a chevron the user has to hit. */
+   the heading's own typography — not a chevron the user has to hit.
+
+   It measured 24px tall: the heading's line box, and nothing more. The overlay
+   is global.css's .tap-44 trick with the inset re-solved for THIS box — the
+   button has `border: 0`, so its padding box is the full 24px and the inset is
+   -10px, not the -7px a 1px-bordered .btn-sm needs. Block axis only, and the
+   section heading has 26px of margin above it, so it cannot reach the row
+   above. 24 + 20 = 44. */
 .entry-section-toggle {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -786,6 +797,13 @@ span.tag-chip::after {
   color: inherit;
   font: inherit;
   cursor: pointer;
+}
+
+.entry-section-toggle::after {
+  content: '';
+  position: absolute;
+  inset-block: -10px;
+  inset-inline: 0;
 }
 
 .entry-section-toggle:hover .entry-section-name {

@@ -139,6 +139,10 @@
   color: var(--text);
 }
 
+/* Measured 144×14 in the W5 target sweep and deliberately left there: this is a
+   link inside a sentence, which WCAG 2.5.5/2.5.8 exempt by name — its size is
+   set by the line-height of the prose around it, and padding it to 44px would
+   push the words apart. The same destination is a 44px row on /settings. */
 .vocab-link {
   color: var(--accent);
   font-weight: 600;
@@ -183,11 +187,15 @@
   background: var(--bg-elev);
 }
 
+/* 16px row gap: below 480px the action buttons drop onto a second line under
+   the reorder pair, and at 8px the two lines' .tap-44 overlays overlapped —
+   every .vocab-move measured 40px tall instead of 44. */
 .vocab-row-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 16px;
 }
 
 /* Reorder is up/down buttons, not drag: a drag handle is unreachable by
@@ -198,8 +206,12 @@
   gap: 4px;
 }
 
+/* 44, not 36. This narrowed .btn-icon's own 44px floor and measured 36px wide;
+   the ::after overlay only grows the block axis, so the inline axis had nothing
+   to fall back on. Reordering a vocabulary list on a phone is the one task on
+   this screen that is all thumb. */
 .vocab-move {
-  min-inline-size: 36px;
+  min-inline-size: 44px;
   padding-inline: 6px;
 }
 
@@ -244,7 +256,7 @@
    what renders when the option has no colour — which is the seeded state, and
    the only one that clears AA for small text. */
 .vocab-pill {
-  color: var(--vocab-c, var(--text-dim));
+  color: var(--vocab-ink, var(--text-dim));
   max-inline-size: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -270,11 +282,15 @@
   display: none;
 }
 
+/* 16px row gap for the same reason admin.css's .admin-row-actions carries one:
+   these .btn-sm wrap at narrow widths, and two wrapped lines 4px apart have
+   their ±7px .tap-44 overlays on top of each other. */
 .vocab-row-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  column-gap: 4px;
+  row-gap: 16px;
   margin-inline-start: auto;
 }
 
@@ -322,12 +338,8 @@
   background: var(--bg-elev-2);
 }
 
-.vocab-resolve-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
+/* Layout comes from global.css's .row-actions, which this element also carries;
+   the rule is gone rather than repeated an eighth time. */
 
 /* Fixed inline size so the two language rows line up their pills, which is the
    whole point of showing them together. */
@@ -436,12 +448,8 @@
   color: var(--text);
 }
 
-.vocab-editor-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
+/* Layout comes from global.css's .row-actions, which this element also carries;
+   the rule is gone rather than repeated an eighth time. */
 
 /* ---------- narrow screens ---------- */
 

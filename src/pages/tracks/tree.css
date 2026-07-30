@@ -370,10 +370,14 @@
    the fastest assignment is the one that needs no discovery, and a native select
    is also the only version of this that is keyboard- and screen-reader-complete
    on day one. */
+/* 44px, not the 36px this shipped with: a <select> is a replaced element, its
+   pseudo-elements are not rendered, and so the box is the entire tap target —
+   the .tap-44 overlay in global.css cannot help it. Measured at 132×36 on every
+   tree row before this. */
 .tree-owner {
   min-inline-size: 132px;
   max-inline-size: 176px;
-  min-block-size: 36px;
+  min-block-size: 44px;
   padding-block: 4px;
   font-size: 12.5px;
 }

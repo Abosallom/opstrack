@@ -92,17 +92,28 @@
   --text-dim: #4e5a67; /*  6.50 /  7.04 /  5.98 */
   --text-faint: #5d6a77; /*  5.11 /  5.54 /  4.71  — worst case 4.71:1, AA */
 
-  --accent: #1560c9; /*  5.46 /  5.92 /  5.03 */
+  --accent: #145cc0; /*  5.84 /  6.32 /  5.37 */
   --accent-hover: #0f4fa8;
-  --accent-soft: rgba(21, 96, 201, 0.12);
-  --accent-ink: #ffffff; /* 5.92:1 on --accent */
+  --accent-soft: rgba(20, 92, 192, 0.12);
+  --accent-ink: #ffffff; /* 6.32:1 on --accent */
 
   /* Against --bg-elev-2 (#e9edf1), the darkest light surface. The dark-theme
-     values are 1.4–1.9:1 here, which is why none of them are inherited. */
-  --green: #0d7a55; /* 4.54:1 */
-  --yellow: #8a6100; /* 4.71:1 */
-  --red: #c02b2b; /* 4.93:1 */
-  --blue: #1560c9; /* 5.03:1 */
+     values are 1.4–1.9:1 here, which is why none of them are inherited.
+
+     THE NUMBER THAT MATTERS IS NOT THE ONE AGAINST THE SURFACE. Each of these
+     is also used as .pill ink, and .pill fills itself with a 12% tint of its own
+     `currentColor` — so the text sits on a background that has been pulled 12%
+     TOWARD the text. On the light theme that darkens the fill and eats contrast:
+     the previous values measured 4.54–5.03 against --bg-elev-2 and passed, then
+     landed at 3.88–4.26 on their own pill and failed AA at 12px/600. That is the
+     same "passes on the page, fails where it is actually used" failure this
+     file's header describes, one layer deeper. Each value below was re-solved
+     for `ratio(c, 12% c over --bg-elev-2) >= 4.5`; the quoted pairs are
+     surface / own-pill, both against the worst (darkest) light surface. */
+  --green: #0c6d4c; /* 5.40 surface / 4.56 own pill */
+  --yellow: #7f5900; /* 5.36 / 4.55 */
+  --red: #b32828; /* 5.49 / 4.56 */
+  --blue: #145cc0; /* 5.37 / 4.55 */
 
   /* Same five hues, pushed dark enough to hold 3:1 against white. Ratios below
      are against --bg-elev-2 / --bg-elev(white). */
@@ -445,10 +456,66 @@ pre,
   inline-size: 100%;
 }
 
-/* Compact button for dense rows. Keeps the small visual box but carries a
-   44px hit area through an invisible overlay. The overlay grows in the block
-   axis only — inline growth would overlap the neighbouring control in a row
-   of quick actions and steal its taps. */
+/* ---------- 44px hit-area overlay ----------
+   THE ONE COPY. A 32px control keeps its small visual box and carries a 44px
+   tap target through an invisible absolutely-positioned overlay. The overlay
+   grows in the block axis only — inline growth would overlap the neighbouring
+   control in a row of quick actions and steal its taps.
+
+   THE INSET IS 7px, NOT 6px, AND THAT IS THE WHOLE POINT OF THIS BLOCK.
+   An absolutely positioned child is laid out against its containing block's
+   PADDING box, not its border box. These controls carry a 1px border, so a
+   32px-tall button has a 30px padding box and `inset-block: -6px` produced
+   30 + 12 = 42px, not 44. Measured in Chrome with elementFromPoint across every
+   screen: every .btn-sm and .chip in the app was a 42px target, two short,
+   silently, for four waves. 30 + 14 = 44 exactly.
+
+   Four call sites had hand-copied the -6px version (.btn-sm, .chip and the two
+   password-reveal buttons in signin.css / claim.css); they all shared the bug.
+   They share this rule now instead.
+
+   ANY FLEX CONTAINER THAT WRAPS THESE CONTROLS NEEDS `row-gap: 16px`. The
+   overlay reaches 7px past the box on each side, so two wrapped lines closer
+   than 14px have overlapping overlays and the later line silently eats the
+   earlier line's target. That is not hypothetical — it cost four separate
+   clusters their 44px at 375px (`.dg-chips` 8px, `.admin-row-actions` 6px,
+   `.vocab-row-actions` 4px, `.vocab-row-head` 8px), and it is invisible at
+   1280px because nothing wraps there. Same reason `.chip-row` pads 7px in the
+   block axis: `overflow-x: auto` makes it a scroll container that CLIPS its
+   children's overlays at its padding edge. */
+.tap-44 {
+  position: relative;
+}
+
+.tap-44::after {
+  content: '';
+  position: absolute;
+  inset-block: -7px;
+  inset-inline: 0;
+}
+
+/* ---------- action row ----------
+   A wrapping horizontal cluster of controls. Seven co-located sheets had
+   hand-written this identical four-declaration block (`.mt-start-actions`,
+   `.mt-live-actions`, `.mt-fill-bar`, `.mdoc-tools`, `.vocab-editor-actions`,
+   `.vocab-resolve-line`, `.rec-section`) plus three more that had drifted to
+   different gaps.
+
+   It is here rather than copied an eighth time because of the row-gap: this is
+   the shape that wraps, so this is the shape that has to know 14px is the floor
+   for two lines of .tap-44 controls. Every cluster the W5 sweep could reach was
+   under it (4–8px) and measured 38–40px targets; the meeting and minutes
+   screens need a live meeting to render and could not be swept at all, which is
+   exactly why they get the rule by inheritance instead of by inspection. */
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 16px;
+}
+
+/* Compact button for dense rows. */
 .btn-sm {
   min-block-size: 32px;
   padding-block: 6px;
@@ -460,7 +527,7 @@ pre,
 .btn-sm::after {
   content: '';
   position: absolute;
-  inset-block: -6px;
+  inset-block: -7px;
   inset-inline: 0;
 }
 
@@ -626,6 +693,53 @@ textarea.input {
   -webkit-backdrop-filter: blur(2px);
 }
 
+/* ---------- admin-chosen colour as INK ----------
+   `--vocab-ink` is the AA-safe reading of a vocabulary option's or a track's
+   admin-chosen hex when that hex has to be TEXT. Consumers write
+
+     color: var(--vocab-ink, var(--text-dim));
+
+   and get the admin's hue when one is set, and --text-dim when it is not.
+
+   WHY IT EXISTS. `vocab_options.color` is ONE hex serving both themes — see
+   lib/vocabStyle.ts. VocabularyAdmin.tsx's preset table proves the ceiling that
+   forces: a colour readable on the dark theme's worst surface has to be light,
+   one readable on the light theme's worst surface has to be dark, and the best
+   any single hex manages against BOTH is ~3.5:1. The eight presets sit exactly
+   on that ceiling — measured live in Chrome on this build, 3.51–3.57:1 against
+   --bg-elev-2 and 3.81–3.88 against --bg, at 12px/600. That clears the 3:1 WCAG
+   1.4.11 asks of a non-text graphic and misses the 4.5:1 small text needs. The
+   file that shipped them said so and raised it for this audit.
+
+   THE FIX IS TO STOP ASKING ONE HEX TO DO BOTH JOBS. The hue still fills and
+   outlines the pill at full strength (a graphic, 3:1, already satisfied); the
+   INK is that hue mixed 35% into the theme's own --text, so its luminance is
+   dictated by the theme and its hue by the admin. Measured in Chrome across the
+   eight presets plus #000/#fff/both surface hexes, on all three elevations in
+   both themes: worst case 4.70:1 (light, #ffffff on --bg-elev-2), presets
+   9.56–11.25. 35% is the ceiling — 40% drops the worst case to 3.97 — so this
+   is a GUARANTEE for any hex an admin can type into the free field, not just
+   for the curated eight.
+
+   THE var() FALLBACK IS LOAD-BEARING. With --vocab-c unset, `var(--vocab-c)`
+   with no fallback makes the whole color-mix invalid at computed-value time,
+   --vocab-ink becomes guaranteed-invalid, and `var(--vocab-ink, var(--text-dim))`
+   takes the fallback. That is what keeps the seeded, uncoloured pill on
+   --text-dim instead of washing it 35% toward --text. Verified in the browser:
+   an uncoloured .status-pill computes rgb(78,90,103) === --text-dim exactly.
+
+   The five consumers are listed rather than reached with a wildcard: --vocab-c
+   inherits, so `* { --vocab-ink: … }` would recompute a mix on every element in
+   the tree to serve five of them. */
+
+.status-pill,
+.vocab-pill,
+.bd-col-title,
+.bd-rail,
+.bd-overflow-label {
+  --vocab-ink: color-mix(in srgb, var(--vocab-c) 35%, var(--text));
+}
+
 /* ---------- pills & chips ----------
    .pill is a non-interactive status/age badge. .chip is a tappable filter. */
 
@@ -663,7 +777,8 @@ textarea.input {
 /* Solid variant for the one badge that must win attention (overdue count).
    Foreground is --bg, never white: --red is a *light* coral on the dark theme,
    where white text on it measures 2.52:1. --bg flips with the theme and gives
-   7.27:1 on dark / 5.35:1 on light. */
+   7.27:1 on dark / 5.96:1 on light (the light figure rose from 5.35 when --red
+   was re-solved for its own pill tint above). */
 .pill.filled {
   background: var(--red);
   border-color: var(--red);
@@ -673,8 +788,14 @@ textarea.input {
 .chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   min-block-size: 32px;
+  /* The overlay below only grows the BLOCK axis, so the inline axis has to
+     carry its own 44 — a two-letter chip ("All", "PMO", "SRE") measured 43px
+     wide and was the last sub-44 target left on the digest and notifications
+     screens after the block axis was fixed. */
+  min-inline-size: 44px;
   padding-block: 5px;
   padding-inline: 12px;
   border-radius: 999px;
@@ -690,11 +811,11 @@ textarea.input {
 
 /* Filter chips sit in horizontally scrolling rows on mobile where they are
    tapped with a thumb; the overlay restores a 44px block hit area without
-   making the row visually chunky. */
+   making the row visually chunky. -7px, not -6px — see .tap-44 above. */
 .chip::after {
   content: '';
   position: absolute;
-  inset-block: -6px;
+  inset-block: -7px;
   inset-inline: 0;
 }
 
@@ -711,12 +832,29 @@ textarea.input {
 }
 
 /* Horizontal chip rail. Scrollbar hidden on touch — the overflow itself is the
-   affordance, and a visible bar eats 8px of a 375px viewport. */
+   affordance, and a visible bar eats 8px of a 375px viewport.
+
+   `padding-block: 7px` IS THE CHIPS' HIT AREA, NOT WHITESPACE. `overflow-x:
+   auto` computes `overflow-y` to `auto` as well (a used value of `visible` is
+   impossible next to a non-visible one), which makes this element a scroll
+   container that CLIPS at its padding edge — including its children's
+   ::after overlays. With the old 0/4px padding the rail was 36px tall and every
+   chip inside it measured a 36px target instead of 44, on the board and the
+   digest, in both locales. 32 + 7 + 7 = 46 of padding box, and the chip's
+   ±7px overlay now fits inside it with room to spare. */
 .chip-row {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-block-end: 4px;
+  /* The rail scrolls INSIDE itself; the page never scrolls sideways. Both are
+     needed and neither is theoretical: as a flex ITEM whose parent does not
+     stretch it, the rail sized to its content and pushed the document to 507px
+     at a 375px viewport on /settings — the whole app scrolled horizontally
+     because six track chips did not fit. `overflow-x: auto` alone does not
+     prevent that; it only says what happens once the box IS constrained. */
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  padding-block: 7px;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -898,13 +1036,13 @@ textarea.input {
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-/* 44px hit area without a 44px-tall control, same trick as .btn-sm. It grows
-   in the block axis only, so it cannot steal taps from a neighbouring control
-   in the same row. */
+/* 44px hit area without a 44px-tall control, same trick as .tap-44 — and the
+   same padding-box correction: the switch is 26px with a 1px border, so its
+   padding box is 24px and the inset has to be 10px, not 9px, to reach 44. */
 .switch::after {
   content: '';
   position: absolute;
-  inset-block: -9px;
+  inset-block: -10px;
   inset-inline: 0;
 }
 

@@ -288,7 +288,7 @@ export default function MeetingMinutes({
           {t('common.back')}
         </button>
 
-        <div className="mdoc-tools">
+        <div className="row-actions mdoc-tools">
           <div className="chip-row mdoc-seg" role="group" aria-label={t('minutes.docLanguage')}>
             <button
               type="button"

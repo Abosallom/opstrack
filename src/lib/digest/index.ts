@@ -8,6 +8,15 @@
 //
 // Types are re-exported with `export type { … }` because verbatimModuleSyntax is
 // on and a value re-export of a type is a build error.
+//
+// THE BARREL RE-EXPORTS ONLY WHAT A CONSUMER USES. The W5 audit found it also
+// forwarded `isolate/needsIsolate/stripIsolates/FSI/PDI` (bidi.ts), `ds`
+// (strings.ts), `CLASSIFY_ORDER` and seven model types that nothing outside
+// this folder imports. Those are the renderers' own internals: forwarding them
+// widened the public surface to include the exact modules the barrel exists to
+// hide, and made "reorganise the renderers without touching a screen" a promise
+// the file was quietly undermining. They are still exported from their own
+// modules — the three renderers and the tests import them directly.
 
 import { renderHtml } from './html'
 import { renderMarkdown } from './markdown'
@@ -18,23 +27,13 @@ export { buildDigestModel } from './build'
 export { renderHtml } from './html'
 export { renderMarkdown } from './markdown'
 export { renderPlain } from './plain'
-export { isolate, needsIsolate, stripIsolates, FSI, PDI } from './bidi'
-export { ds } from './strings'
-export { CLASSIFY_ORDER, SECTION_ORDER, DIGEST_FORMATS } from './types'
+export { SECTION_ORDER, DIGEST_FORMATS } from './types'
 export type {
   DigestFormat,
-  DigestItem,
-  DigestMember,
   DigestModel,
-  DigestOptions,
   DigestQuery,
   DigestRows,
-  DigestSection,
   DigestSectionKind,
-  DigestStrings,
-  DigestTagRow,
-  DigestTotals,
-  DigestTrack,
 } from './types'
 
 const RENDERERS: Readonly<Record<DigestFormat, (m: DigestModel) => string>> = {

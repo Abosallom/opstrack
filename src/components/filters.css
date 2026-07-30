@@ -38,10 +38,12 @@
 /* Search takes the slack and stops shrinking at a width that still fits a word.
    flex-basis rather than a fixed size so the rail collapses gracefully between
    375px and a desktop sidebar. */
+/* 44px: an <input> cannot carry the .tap-44 overlay (its pseudo-elements are
+   not rendered either), so the box is the target. It measured 40 before. */
 .flt-search {
   flex: 1 1 180px;
   min-inline-size: 140px;
-  min-block-size: 40px;
+  min-block-size: 44px;
   padding-block: 8px;
 }
 

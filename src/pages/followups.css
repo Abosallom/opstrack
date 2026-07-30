@@ -335,7 +335,12 @@
     border: 0;
   }
 
+  /* Once the words are gone the button is a 14px glyph in 9px of padding, and
+     it measured 35px wide across 23 buttons at 375px — the ::after overlay only
+     grows the block axis, so the inline axis has to be told. This is the one
+     screen where the label→glyph swap makes .btn-sm narrower than 44. */
   .fu-act {
+    min-inline-size: 44px;
     padding-inline: 9px;
   }
 }

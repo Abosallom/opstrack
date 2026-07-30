@@ -406,7 +406,7 @@ export default function MeetingLive(): ReactElement {
               {t(error)}
             </p>
           )}
-          <div className="mt-live-actions">
+          <div className="row-actions mt-live-actions">
             {/* Hidden, not disabled: a disabled End on somebody else's meeting
                 is a control that reads as broken, and there is nothing the
                 attendee can do to enable it. The line below says who can. */}
@@ -433,7 +433,7 @@ export default function MeetingLive(): ReactElement {
         // are the two things on screen.
         <div className="mt-ended-bar" role="status">
           <p className="mt-ended-text">{t('meeting.ended')}</p>
-          <div className="mt-live-actions">
+          <div className="row-actions mt-live-actions">
             <button
               type="button"
               className="btn btn-primary btn-sm"

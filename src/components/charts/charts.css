@@ -205,7 +205,15 @@
 
 /* One tab stop per category. `outline` does paint on an SVG <g> in Chromium but
    not everywhere, so the stroke is the guarantee and the outline is the bonus —
-   a focus indicator is not somewhere to rely on one implementation. */
+   a focus indicator is not somewhere to rely on one implementation.
+
+   THE 44px RULE DOES NOT APPLY HERE, AND THE W5 SWEEP MEASURED IT AT 3px TO SAY
+   SO. A bar's thickness IS the datum — a track with one open item draws a
+   one-item band, and padding it to 44 would draw a lie. That is WCAG 2.5.5's
+   "essential" exception, and the escape hatch is real rather than theoretical:
+   every chart ships `.cht-fallback-toggle` ("Show the numbers"), a 44px control
+   opening the same data as a table with 44px rows. Pointer users get the bar,
+   thumb and keyboard users get the table, and neither is the second-class one. */
 .cht-mark {
   outline-offset: 2px;
 }
@@ -392,7 +400,7 @@
 .cht-fallback-toggle {
   display: inline-flex;
   align-items: center;
-  min-block-size: 32px;
+  min-block-size: 44px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-dim);

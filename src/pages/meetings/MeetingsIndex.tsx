@@ -269,7 +269,7 @@ export default function MeetingsIndex(): ReactElement {
               </p>
             )}
 
-            <div className="mt-start-actions">
+            <div className="row-actions mt-start-actions">
               <button type="submit" className="btn btn-primary" disabled={busy}>
                 {busy ? t('meeting.starting') : t('meeting.startNow')}
               </button>

@@ -120,18 +120,27 @@
   display: none;
 }
 
+/* THE ROW GAP IS 16px BECAUSE THE BUTTONS WRAP. Every .btn-sm in here carries a
+   ±7px ::after to reach 44 (global.css .tap-44); at the old 6px row gap the
+   second wrapped line's overlay covered the first line's, and "Edit track" /
+   "Archive" / "Delete" measured 38px tall at 375px. 7 + 7 = 14, so 16 is the
+   floor for any wrapping cluster of .btn-sm — the same correction digest.css's
+   .dg-chips needed for wrapped .chip rows. The inline gap stays tight. */
 .admin-row-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  column-gap: 6px;
+  row-gap: 16px;
   margin-inline-start: auto;
 }
 
 /* Reorder is up/down buttons, not drag: a drag handle is unreachable by
    keyboard and unusable one-handed, which is this app's primary posture. */
+/* 44, not 40 — same reason as vocab.css's .vocab-move: this narrowed
+   .btn-icon's 44px floor and the block-axis overlay cannot cover for it. */
 .admin-move {
-  min-inline-size: 40px;
+  min-inline-size: 44px;
   padding-inline: 8px;
 }
 

@@ -77,13 +77,13 @@ export const HOLD_MS = 420
 export const HOLD_SLOP_PX = 10
 
 /** How close to a scroller's inline edge auto-scroll starts, in px. */
-export const EDGE_SCROLL_ZONE_PX = 64
+const EDGE_SCROLL_ZONE_PX = 64
 
 /** Fastest auto-scroll step, in px per animation frame. */
-export const EDGE_SCROLL_MAX_PX = 22
+const EDGE_SCROLL_MAX_PX = 22
 
 /** Digit shortcuts are 1–9: past that a keyboard "move to column N" is fiction. */
-export const MAX_DIGIT_COLUMNS = 9
+const MAX_DIGIT_COLUMNS = 9
 
 /** A measured rectangle in viewport pixels. Structurally a DOMRect subset. */
 export interface DndBox {

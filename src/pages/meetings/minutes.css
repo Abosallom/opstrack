@@ -50,12 +50,8 @@
   flex: 0 0 auto;
 }
 
-.mdoc-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
+/* Layout comes from global.css's .row-actions, which this element also carries;
+   the rule is gone rather than repeated an eighth time. */
 
 /* 4px inside the switch against 8px between tool groups: two chips at the same
    gap as their neighbours would read as four unrelated buttons. */

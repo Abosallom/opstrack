@@ -237,7 +237,7 @@ export function describeDevice(userAgent: string): string {
  * keeps this registration from colliding with workbox's at `…/`. See the header
  * of public/push/sw.js.
  */
-export async function registerPushWorker(): Promise<ServiceWorkerRegistration | null> {
+async function registerPushWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) return null
   const url = new URL(WORKER_PATH, document.baseURI).href
   try {
@@ -249,7 +249,7 @@ export async function registerPushWorker(): Promise<ServiceWorkerRegistration | 
 }
 
 /** The registration if it already exists, without creating one. */
-export async function existingPushWorker(): Promise<ServiceWorkerRegistration | undefined> {
+async function existingPushWorker(): Promise<ServiceWorkerRegistration | undefined> {
   if (!('serviceWorker' in navigator)) return undefined
   const scope = new URL('push/', document.baseURI).href
   const all = await navigator.serviceWorker.getRegistrations()

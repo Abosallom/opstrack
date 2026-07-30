@@ -189,7 +189,7 @@
   font-weight: 700;
   letter-spacing: 0.2px;
   text-transform: uppercase;
-  color: var(--vocab-c, var(--text-dim));
+  color: var(--vocab-ink, var(--text-dim));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -214,14 +214,18 @@
 /* The two header controls. 32px is the visible target on a pointer device,
    where a 44px pair would eat a quarter of a 300px column; coarse pointers get
    the full 44px below. */
+/* 44 square. These are the column's two controls on a board that is dragged
+   with a thumb, and they sit 4px apart — too close for the .tap-44 overlay,
+   which would have each of them stealing the other's taps. The only honest 44
+   here is a real 44. They measured 32×32 before. */
 .bd-col-fold,
 .bd-col-add {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  inline-size: 32px;
-  block-size: 32px;
+  inline-size: 44px;
+  block-size: 44px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -297,7 +301,7 @@
   border: none;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--vocab-c, var(--text-dim));
+  color: var(--vocab-ink, var(--text-dim));
   cursor: pointer;
   transition: background-color 0.16s ease;
 }
@@ -638,7 +642,7 @@
 
 .bd-overflow-label {
   flex: 1 1 auto;
-  color: var(--vocab-c, var(--text-dim));
+  color: var(--vocab-ink, var(--text-dim));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

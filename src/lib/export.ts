@@ -350,7 +350,7 @@ export async function collectExport(
  * field. Adding a relation to `data` is not a bump: a reader that keys off
  * `data.entries` is unaffected by `data.meetings` appearing beside it.
  */
-export const EXPORT_FORMAT_VERSION = 1
+const EXPORT_FORMAT_VERSION = 1
 
 /** Fields the caller knows and this module cannot. */
 export interface ExportMeta {

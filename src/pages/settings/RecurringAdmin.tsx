@@ -1233,7 +1233,7 @@ export default function RecurringAdmin(): ReactElement {
 
       {running.length > 0 && (
         <section className="rec-group" aria-labelledby="rec-running-h">
-          <div className="rec-section">
+          <div className="row-actions rec-section">
             <h2 className="rec-section-title" id="rec-running-h">
               {t('recurring.sectionActive')}
             </h2>
@@ -1250,7 +1250,7 @@ export default function RecurringAdmin(): ReactElement {
           the only screen that can resume it is, in practice, deleted. */}
       {paused.length > 0 && (
         <section className="rec-group" aria-labelledby="rec-paused-h">
-          <div className="rec-section">
+          <div className="row-actions rec-section">
             <h2 className="rec-section-title" id="rec-paused-h">
               {t('recurring.sectionPaused')}
             </h2>

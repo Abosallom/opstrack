@@ -182,12 +182,9 @@
   transform: translateY(1px);
 }
 
-.claim-reveal::after {
-  content: '';
-  position: absolute;
-  inset-block: -6px;
-  inset-inline: 0;
-}
+/* 44px block-axis hit area: global.css's .tap-44, which the button carries as a
+   second class. The hand-copied overlay that used to live here shipped the same
+   -6px padding-box error as .btn-sm and measured 42. */
 
 .claim-caps {
   display: flex;
