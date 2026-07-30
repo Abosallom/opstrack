@@ -33,10 +33,17 @@ export default defineConfig({
         // GitHub Pages (both are resolved against the deployed manifest URL).
         start_url: './',
         scope: './',
-        // Matches the dark theme's --bg so the standalone status bar and the
-        // splash screen do not flash a different colour before React mounts.
-        background_color: '#101215',
-        theme_color: '#101215',
+        // The dark theme's --bg from global.css, so the standalone status bar
+        // and the generated splash screen do not flash a different colour
+        // before React mounts. It claimed to match from Wave 4 and did not —
+        // #101215 against a real --bg of #101519 — which the v1.0.0 release
+        // smoke measured on the deployed manifest. `background_color` is the
+        // one Android actually paints the splash with, so the drift was most
+        // visible on exactly the install this release is being handed to.
+        // capacitor.config.json already carried the correct value; these two
+        // and src/lib/theme.ts were the three that did not.
+        background_color: '#101519',
+        theme_color: '#101519',
         icons: [
           { src: 'pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

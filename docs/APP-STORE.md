@@ -388,12 +388,17 @@ advertised English only.
 
 Reported, not fixed, because these files belong to other Wave-4b builders:
 
-- **`vite.config.ts` + `index.html` disagree with the dark theme.** The manifest
-  sets `background_color`/`theme_color` to `#101215` and `index.html` sets
-  `<meta name="theme-color" content="#101215">`, but the dark theme's `--bg` in
-  `src/styles/global.css` is `#101519`. The comment in `vite.config.ts` claims it
-  "Matches the dark theme's --bg" — it does not. `capacitor.config.json` has the
-  correct value. Three characters, but it is a visible seam on the PWA splash.
+- ~~**`vite.config.ts` + `index.html` disagree with the dark theme.**~~ **Fixed
+  at the v1.0.0 release cut.** The report was right and understated the spread:
+  the manifest and `index.html` said `#101215`, `src/lib/theme.ts` said `#0f1115`
+  dark and `#f7f8fa` light, and the real `--bg` in `src/styles/global.css` is
+  `#101519` dark and `#f4f6f8` light — four declarations of one colour, three of
+  them wrong, each with a comment claiming it matched. `capacitor.config.json`
+  was the only correct one. All four now agree, measured against
+  `getComputedStyle` on the deployed origin rather than read off the source.
+  It mattered here more than the "three characters" framing suggests: Android
+  paints the PWA splash with `background_color`, so the drift was most visible
+  on precisely the install this release ships for.
 
 ---
 

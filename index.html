@@ -7,8 +7,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="CoreTrack — capture actions, assign owners, and see what has gone stale across every track." />
     <!-- Kept in sync with the active theme at runtime by src/lib/theme.ts so the
-         installed PWA's status bar matches the app instead of always being dark. -->
-    <meta name="theme-color" content="#101215" />
+         installed PWA's status bar matches the app instead of always being dark.
+         This static value is only what the bar shows for the few frames before
+         that runs, so it is the DARK --bg from global.css — dark is also the
+         pre-hydration default of the `dir`/`lang` pair above. #101215 until the
+         v1.0.0 smoke measured it: three channels off, and visible as a seam. -->
+    <meta name="theme-color" content="#101519" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

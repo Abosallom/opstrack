@@ -25,14 +25,27 @@ export function applyTheme(): void {
 
   // Keep the browser/status-bar chrome in sync with the app theme so the
   // installed PWA reads as native instead of showing a stale-coloured bar.
-  // These values must match --bg in src/styles/global.css.
+  //
+  // THESE TWO LITERALS MUST EQUAL --bg IN src/styles/global.css, and until the
+  // v1.0.0 release smoke neither of them did: dark was #0f1115 against a real
+  // --bg of #101519, light was #f7f8fa against #f4f6f8. The comment asserting
+  // the invariant has been here since Wave 1; nothing checked it, and nothing
+  // can — a CSS custom property is not readable from module scope, and reading
+  // it from the live document would make this function depend on the very
+  // stylesheet load it runs before. So the check is the release smoke, and the
+  // measurement is `getComputedStyle(document.documentElement)
+  // .getPropertyValue('--bg')` in each theme against these strings.
+  //
+  // The cost of the drift was small and permanent: a status bar three shades
+  // off the app's own background at the top of every installed PWA, which is
+  // precisely the seam that makes a web app read as a web app.
   let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
   if (!meta) {
     meta = document.createElement('meta')
     meta.name = 'theme-color'
     document.head.appendChild(meta)
   }
-  meta.content = light ? '#f7f8fa' : '#0f1115'
+  meta.content = light ? '#f4f6f8' : '#101519'
 
   // The meta tag above does nothing inside a WKWebView, and capacitor.config.json
   // sets `overlaysWebView: true` — so on iOS the system status bar sits ON TOP of
