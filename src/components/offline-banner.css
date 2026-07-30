@@ -14,9 +14,40 @@
    between the header and the content. The region is always mounted; that is what
    makes it announce (see the component).
 
+   THE STICKY LIVES ON THE REGION, NOT ON WHAT IT CONTAINS. A sticky box travels
+   inside its CONTAINING BLOCK — its parent's content box — and `.offline-region`
+   wraps exactly one child that is exactly its own height, so a sticky
+   `.offline-banner` or `.offline-note` has ZERO travel and scrolls away with the
+   page. Measured: with the sticky on the child, `getBoundingClientRect().top` is
+   −544 after `scrollTo(0, 600)`; moved to the wrapper, it is 0. `.app-header`
+   only sticks because it is a direct flex item of `.app-main`, whose content box
+   is the whole page. This matters because the bar is the ONLY entrance to the
+   outbox sheet — losing it strands every queued write behind a scroll to the top.
+
    LOGICAL PROPERTIES ONLY. TOUCH TARGET: the bar itself is the target when there
    is something to open — 44px in the block axis, bled out over the banner's own
    padding in both axes so a tap anywhere on the strip lands. */
+
+/* z-index 65 is app-shell.css's number, kept: it is deliberately ABOVE
+   .app-header (60) so the strip overlays the header rather than sliding behind
+   it. `display: none` on :empty wins over the sticky, so a connected app with an
+   empty queue still occupies no row and creates no stacking context.
+
+   STICKY-OFFSET (open, see docs/FIX-BACKLOG.md "What is still open"). Now that
+   the sticky travels, `inset-block-start: 0` pins this 45px strip in the SAME
+   slot the 56px .app-header pins in, and 65 > 60 means it covers all but an
+   11px sliver of it. The offset this wants is the header's height — which is
+   app-shell.css's, is 50px/56px across the 768px breakpoint, and grows again by
+   env(safe-area-inset-top) in the installed PWA. Hardcoding a number here would
+   copy integrator-owned geometry into this file and still be wrong on a notch,
+   so the region stays at 0 and app-shell.css owes a custom property. Lowering
+   this z-index instead is NOT the fix: the header is 88% opaque with a 12px
+   backdrop blur, so the strip would be hidden rather than stacked. */
+.offline-region {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 65;
+}
 
 .offline-region:empty {
   display: none;
@@ -100,14 +131,13 @@
 
 /* ---------- the transient "all clear" ----------
    A DIFFERENT element from the banner, not a variant of it: it is green, it is
-   not a warning, and the banner's selector is not this file's to change. Same
-   sticky slot and z-index so it occupies the space the banner just left rather
-   than shifting the page under the user's finger. */
+   not a warning, and the banner's selector is not this file's to change. It
+   occupies the space the banner just left rather than shifting the page under
+   the user's finger — and it needs no sticky of its own to do it, because
+   `.offline-region` above is the sticky one and this is what the region is
+   holding at that moment. */
 
 .offline-note {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: 65;
   display: flex;
   align-items: center;
   gap: 8px;

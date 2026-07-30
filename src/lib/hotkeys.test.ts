@@ -37,10 +37,18 @@ import {
 } from './hotkeys'
 import { AR_NAMESPACES, EN_NAMESPACES, ar, en, type LocaleTree } from '../locales'
 
-/** A keystroke with nothing going on: no modifiers, no overlay, no entry. */
+/**
+ * A keystroke with nothing going on: no modifiers, no overlay, no entry.
+ *
+ * `code: ''` by default ON PURPOSE. Every case below that does not name a code
+ * is asserting the Latin-layout path, where `event.key` alone decides and the
+ * physical-key fallback must never be reached — the default therefore stands in
+ * for "a browser that reports no code at all", which is the same path.
+ */
 function press(over: Partial<KeyProbe> = {}): KeyProbe {
   return {
     key: '',
+    code: '',
     ctrlKey: false,
     metaKey: false,
     altKey: false,
@@ -159,6 +167,79 @@ describe('deferring to the surface underneath', () => {
   it('accepts an upper-case letter, so Caps Lock does not disable the layer', () => {
     expect(resolveHotkey(press({ key: 'C' }))?.id).toBe('capture')
     expect(resolveHotkey(press({ key: 'E', openEntryId: 'e1' }))?.id).toBe('edit')
+  })
+})
+
+/* ─────────────────────── the layout the app half ships ─────────────────── */
+
+describe('a non-Latin keyboard layout', () => {
+  // `event.key` is what the LAYOUT printed. On the Arabic layout every key the
+  // spec binds prints an Arabic letter, so a layer that reads only `key` is
+  // dead for exactly the audience this app has an `ar` locale for — including
+  // `?`, which is the only key that tells anyone the others exist.
+  const AR = [
+    { key: 'ؤ', code: 'KeyC', id: 'capture', over: {} },
+    { key: 'ت', code: 'KeyJ', id: 'next', over: { openEntryId: 'e1' } },
+    { key: 'ن', code: 'KeyK', id: 'prev', over: { openEntryId: 'e1' } },
+    { key: 'ث', code: 'KeyE', id: 'edit', over: { openEntryId: 'e1' } },
+    { key: 'ع', code: 'KeyU', id: 'addUpdate', over: { openEntryId: 'e1' } },
+  ] as const
+
+  it.each(AR)('$key on $code still resolves to $id', ({ key, code, id, over }) => {
+    expect(resolveHotkey(press({ key, code, ...over }))?.id).toBe(id)
+  })
+
+  it('resolves ؟ (Shift+Slash) to the cheatsheet, and ظ to search', () => {
+    expect(resolveHotkey(press({ key: '؟', code: 'Slash', shiftKey: true }))?.id).toBe('help')
+    expect(resolveHotkey(press({ key: 'ظ', code: 'Slash' }))?.id).toBe('search')
+  })
+
+  it('reads the macOS Arabic digit row, which prints Arabic-Indic numerals', () => {
+    for (const [i, status] of STATUS_DIGITS.entries()) {
+      const key = String.fromCodePoint(0x0661 + i) // ١٢٣٤
+      const hit = resolveHotkey(press({ key, code: `Digit${i + 1}`, openEntryId: 'e1' }))
+      expect(hit?.id).toBe('status')
+      expect(hit?.status).toBe(status)
+    }
+  })
+
+  it('resolves the one chord too — Cmd+K prints ن there', () => {
+    expect(resolveHotkey(press({ key: 'ن', code: 'KeyK', metaKey: true }))?.id).toBe('palette')
+  })
+
+  it('still suppresses every one of them inside a text field', () => {
+    // The physical-key fallback must not become a way around rule 2: typing
+    // Arabic into the capture box presses these same keys constantly.
+    for (const { key, code } of AR) {
+      expect(resolveHotkey(press({ key, code, typing: true, openEntryId: 'e1' }))).toBeNull()
+    }
+  })
+
+  it('never overrules a Latin layout that has already answered', () => {
+    // THE REGRESSION GUARD. French AZERTY prints `&` on the physical Digit1 and
+    // `é` on Digit2; a code-first layer would set a status from both. The test
+    // is the SCRIPT, so `é` is as authoritative as `e` and neither fires.
+    expect(resolveHotkey(press({ key: '&', code: 'Digit1', openEntryId: 'e1' }))).toBeNull()
+    expect(resolveHotkey(press({ key: 'é', code: 'Digit2', openEntryId: 'e1' }))).toBeNull()
+    expect(resolveHotkey(press({ key: 'ç', code: 'Digit9', openEntryId: 'e1' }))).toBeNull()
+    // Shift+Digit1 on that layout prints a real '1', and that is the binding.
+    expect(
+      resolveHotkey(press({ key: '1', code: 'Digit1', shiftKey: true, openEntryId: 'e1' }))?.status,
+    ).toBe(STATUS_DIGITS[0])
+    // Turkish Q prints ç on the physical KeyPeriod and a plain c on KeyC.
+    expect(resolveHotkey(press({ key: 'c', code: 'KeyC' }))?.id).toBe('capture')
+  })
+
+  it('leaves a named key alone whatever the code says', () => {
+    // 'Escape' and IME composition's 'Process' are longer than one character and
+    // must never be routed through the physical-key table.
+    expect(resolveHotkey(press({ key: 'Escape', code: 'Escape' }))).toBeNull()
+    expect(resolveHotkey(press({ key: 'Process', code: 'KeyC' }))).toBeNull()
+  })
+
+  it('falls back to the key when the browser reports no code', () => {
+    expect(resolveHotkey(press({ key: 'ت', code: '', openEntryId: 'e1' }))).toBeNull()
+    expect(resolveHotkey(press({ key: 'j', code: '', openEntryId: 'e1' }))?.id).toBe('next')
   })
 })
 
@@ -358,30 +439,87 @@ describe('searchNeedles', () => {
 })
 
 describe('Arabic', () => {
+  /** The two live seeded names this whole block is measured against (0001). */
+  const NETWORK_AR = 'الشبكات'
+  const ITOPS_AR = 'عمليات تقنية المعلومات'
+
   it('finds a track seeded under its plural when the singular is typed', () => {
     // The verified bug EXECUTION-PLAN §680 records: 0001 seeds Network as
     // الشبكات and people type الشبكة. Under the ة→ه fold those share NO match
     // tier — the singular's final haa is absent from the plural, so even
-    // subsequence fails. The per-word stem is what closes it.
-    const field = foldField('الشبكات')
-    const score = matchScore(searchNeedles('الشبكة'), [field])
-    expect(score).toBe(TIER_EXACT)
+    // subsequence fails. The per-word stem on the QUERY is what closes it, and
+    // PREFIX rather than EXACT is the right answer: the row whose name IS the
+    // query should outrank the one that merely stems to it.
+    const field = foldField(NETWORK_AR)
+    expect(matchScore(searchNeedles('الشبكة'), [field])).toBe(TIER_PREFIX * 1000)
+    expect(matchScore(searchNeedles(NETWORK_AR), [field])).toBe(TIER_EXACT)
   })
 
   it('matches in the other direction too', () => {
-    expect(matchScore(searchNeedles('الشبكات'), [foldField('الشبكة')])).toBe(TIER_EXACT)
+    expect(matchScore(searchNeedles(NETWORK_AR), [foldField('الشبكة')])).toBe(TIER_PREFIX * 1000)
+  })
+
+  it('never blinks out mid-word as the query grows', () => {
+    // THE PROPERTY THE TWO POINT-CHECKS ABOVE MISS, and the one the shipped fold
+    // broke: with the stem on the HAYSTACK, `الشبكات` folded to `الشبك`, so the
+    // letters ا and ت existed nowhere in the index and the row vanished on the
+    // second-to-last keystroke of its own name — `الشبكا` scored null between two
+    // exact hits. A search box that blinks out reads as "not there".
+    for (const name of [NETWORK_AR, ITOPS_AR, 'Network', 'IT Operations']) {
+      const field = foldField(name)
+      let matched = false
+      const chars = [...name]
+      for (let n = 1; n <= chars.length; n++) {
+        const score = matchScore(searchNeedles(chars.slice(0, n).join('')), [field])
+        if (score !== null) matched = true
+        else expect(matched, `${name}: lost the match at "${chars.slice(0, n).join('')}"`).toBe(false)
+      }
+      expect(matched).toBe(true)
+    }
+  })
+
+  it('keeps a mid-name Arabic word on a real tier, not the subsequence floor', () => {
+    // `المعلومات` is the third word of the live IT Operations name. Stemming the
+    // haystack dropped its final ات, which put a full-word query on tier 2 only
+    // when it was complete and nowhere at all one letter short.
+    const field = foldField(ITOPS_AR)
+    expect(matchScore(searchNeedles('المعلومات'), [field])).toBe(TIER_WORD * 1000 + 13)
+    expect(matchScore(searchNeedles('المعلوما'), [field])).toBe(TIER_WORD * 1000 + 13)
+    // And the first word stays a PREFIX all the way through rather than falling
+    // three tiers to SUBSEQUENCE on `عمليا`.
+    expect(matchScore(searchNeedles('عمليا'), [field])).toBe(TIER_PREFIX * 1000)
+  })
+
+  it('leaves Latin scores byte-identical — every stem suffix is Arabic', () => {
+    // The unstemmed field fold may not move an English score by one point.
+    for (const [q, name, want] of [
+      ['network', 'Network', TIER_EXACT],
+      ['net', 'Network ops', TIER_PREFIX * 1000],
+      ['ops', 'Network ops', TIER_WORD * 1000 + 8],
+      ['itops', 'IT Operations', TIER_SUBSEQUENCE * 1000],
+      ['it-ops', 'IT Operations', TIER_SUBSEQUENCE * 1000],
+    ] as const) {
+      expect(matchScore(searchNeedles(q), [foldField(name)]), `${q} → ${name}`).toBe(want)
+    }
   })
 
   it('ignores harakat, which are optional in ordinary writing', () => {
     expect(matchScore(searchNeedles('تجديد'), [foldField('تَجْديد الشهادة')])).toBe(TIER_PREFIX * 1000)
   })
 
-  it('leaves Latin text untouched by the stem', () => {
-    // Every suffix stemArabic strips is Arabic, so this fold must be byte-identical
-    // to normalizeSearch for an English title — the reason foldField can stem
-    // unconditionally instead of sniffing at a script.
+  it('leaves the haystack whole, Latin or Arabic', () => {
+    // foldField normalises and nothing else. The stem lives on the query, so no
+    // letter a user can type is ever missing from the thing being searched.
     expect(foldField('Certificate Renewals')).toBe('certificate renewals')
     expect(foldField('IT  Operations')).toBe('it operations')
+    expect(foldField(NETWORK_AR)).toBe(NETWORK_AR)
+  })
+
+  it('carries the stem on the query instead, and only where it changes anything', () => {
+    expect(searchNeedles('الشبكة')).toEqual(['الشبكه', 'الشبك'])
+    // A Latin query stems to itself, so the dedupe leaves exactly one needle —
+    // the palette does not pay for a second pass over every row in English.
+    expect(searchNeedles('network')).toEqual(['network'])
   })
 })
 

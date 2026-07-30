@@ -378,17 +378,19 @@
 }
 
 /* ---------- offline banner ----------
-   Sticks to the top of the scroller so it stays on screen while the user keeps
-   working — captures queue in the outbox and this is the only signal that they
-   have not synced yet. z-index is deliberately ABOVE .app-header (60): both are
-   sticky at inset-block-start: 0, and letting the header win meant the banner
-   scrolled out of sight behind it, which is the one thing it must not do. It is
-   full-bleed, so overlaying the header reads as the banner replacing it. */
+   The strip stays on screen while the user keeps working — captures queue in the
+   outbox and this is the only signal that they have not synced yet, as well as
+   the only way into the outbox sheet.
+
+   THE STICKY IS NOT HERE. It is on `.offline-region`, the wrapper this element
+   sits inside, in components/offline-banner.css — with `position: sticky` on
+   this element the containing block is the wrapper's content box, which is
+   exactly this element's own height, so it had zero travel and scrolled away.
+   z-index 65 moved with it and still means what it meant: deliberately ABOVE
+   .app-header (60), because letting the header win put the banner behind it. The
+   strip is full-bleed, so overlaying the header reads as it replacing it. */
 
 .offline-banner {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: 65;
   display: flex;
   align-items: center;
   gap: 8px;

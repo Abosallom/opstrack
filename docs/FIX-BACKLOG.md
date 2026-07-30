@@ -94,6 +94,7 @@ these, not `M1`:
 | **S3b** | `DERIVE-HEALTH` | `src/store/entries.test.ts:495` |
 | **S3c** | `BATCH-SETSTATE` | `src/store/entries.ts:1270`, `src/store/entries.test.ts:683` |
 | **S4** | `OUTBOX-DRAIN` | `src/store/outbox.test.ts:432` |
+| *(new, Wave 4b)* | `STICKY-OFFSET` | `src/components/offline-banner.css:31` |
 
 Slugs are the better scheme and new findings should use them. The `S`/`C`/`M`/`P`/`D`
 labels are kept here because eight audits, four commit messages and the execution
@@ -330,7 +331,7 @@ reading directly even if RLS let you.
 
 ## What is still open, ranked
 
-Nine items, one major (**P2**) and eight minors. None is a blocker; the ranking
+Ten items, one major (**P2**) and nine minors. None is a blocker; the ranking
 is by what will hurt first, not by severity label.
 
 1. **M6** — nothing re-checks for a new version, so **C6**'s unloseable update
@@ -353,6 +354,29 @@ is by what will hurt first, not by severity label.
 7. **P7** — drop two unreachable GIN indexes and a standalone `(created_at
    desc)`. Reversible; the write cost is real and the read benefit is zero while
    filtering is client-side by design.
+8. **`STICKY-OFFSET`** — `.offline-region` sticks at `inset-block-start: 0`, the
+   same slot `.app-header` sticks in, and wins on `z-index` (65 vs 60). Now that
+   the sticky actually travels (the Wave-4b audit moved it off `.offline-banner`,
+   whose containing block was its own height — see the header of
+   `src/components/offline-banner.css`), a scrolled page pins the 45px strip over
+   a 56px header and leaves an 11px orphaned sliver of header chrome under it.
+   Measured in Chrome at 1280×800 against the built CSS: `elementFromPoint(640,
+   y)` returns `.offline-open` at y=2..44, `.app-header` at y=46..55, content at
+   y≥58. Cosmetic, plus one real cost — the account/theme/language cluster is
+   unreachable while the banner is up without scrolling to the top.
+   **This is an integrator fix, not a `.offline-*` one.** The offset the region
+   needs is the header's height, and that height is `app-shell.css`'s and varies:
+   `min-block-size` 50px under 768px, 56px at or above it, plus
+   `padding-block-start: max(10px, env(safe-area-inset-top))`, which the
+   `display-mode: standalone` block floors again at 12px — so on a notched phone
+   in the installed PWA it is neither number. Hardcoding 56px in
+   `offline-banner.css` would duplicate integrator-owned geometry in a second
+   file and still be wrong under a notch. The fix is for `app-shell.css` to
+   publish the height as a custom property on `.app-main` and for
+   `.offline-region` to consume it (`inset-block-start:
+   var(--app-header-block-size, 0px)`). Do NOT "fix" this by lowering the
+   region's `z-index` below 60: that hides the strip behind the header's 88%
+   background and blur, which is the bug the z-index was chosen to avoid.
 
 And two that are closed but not *finished*, both for the same reason. **S1d** and
 **S1e** are fixed in the repo and reach users only when the edge functions are

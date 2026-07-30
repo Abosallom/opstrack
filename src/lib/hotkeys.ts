@@ -102,7 +102,13 @@ export interface HotkeyHit {
  */
 export const STATUS_DIGITS: readonly EntryStatus[] = ['new', 'in_progress', 'blocked', 'done']
 
-/** '1'–'4' → the status it names, or null. Mirrors lib/dnd.ts's indexFromDigit. */
+/**
+ * '1'–'4' → the status it names, or null. Mirrors lib/dnd.ts's indexFromDigit.
+ *
+ * Takes the TOKEN, not `event.key`: on the macOS Arabic layout the digit row
+ * emits Arabic-Indic `١٢٣٤`, which fails this ASCII range check outright.
+ * token() has already resolved those back to Latin digits via `event.code`.
+ */
 function statusForDigit(key: string): EntryStatus | null {
   if (key.length !== 1 || key < '1' || key > '9') return null
   return STATUS_DIGITS[key.charCodeAt(0) - '1'.charCodeAt(0)] ?? null
@@ -116,6 +122,14 @@ function statusForDigit(key: string): EntryStatus | null {
  */
 export interface KeyProbe {
   key: string
+  /**
+   * `KeyboardEvent.code` — the PHYSICAL key, independent of the layout.
+   *
+   * The layer's fallback for a non-Latin layout, and only for that. See token().
+   * '' is a legal value: synthetic events and a few input paths report no code,
+   * and the fallback is skipped rather than guessed at.
+   */
+  code: string
   ctrlKey: boolean
   metaKey: boolean
   altKey: boolean
@@ -159,15 +173,65 @@ export interface KeyProbe {
 const MODAL_SAFE: ReadonlySet<HotkeyId> = new Set<HotkeyId>(['palette', 'help'])
 
 /**
+ * The physical keys the layer binds → the token each one stands for.
+ *
+ * `Slash` is absent because it is the one entry that depends on Shift: the same
+ * physical key is `/` and `?`, and which one was meant is `shiftKey`, not the
+ * character the layout printed. token() handles it directly.
+ */
+const CODE_TOKENS: Readonly<Record<string, string>> = {
+  KeyC: 'c',
+  KeyJ: 'j',
+  KeyK: 'k',
+  KeyE: 'e',
+  KeyU: 'u',
+  Digit1: '1',
+  Digit2: '2',
+  Digit3: '3',
+  Digit4: '4',
+}
+
+/**
  * The key, as a comparable token.
  *
  * Single characters are lowercased so Caps Lock does not silently disable the
  * whole layer; the cost is that Shift+C is Capture too, which is the trade every
- * app with letter shortcuts makes. `?` is already `?` — it needs Shift on most
- * layouts and none on others, and `event.key` has resolved that for us.
+ * app with letter shortcuts makes.
+ *
+ * ── WHY `event.code` IS CONSULTED, AND WHY ONLY SOMETIMES ───────────────────
+ *
+ * `event.key` is the character the LAYOUT produced. On the Arabic layout this
+ * app half exists for, the seven keys the spec binds emit ؤ ظ ؟ ت ن ث ع, the
+ * digit row emits ١٢٣٤ on macOS, and every case below misses. The whole desktop
+ * keyboard layer was therefore dead for an Arabic-layout user — including `?`,
+ * the one key that would have told them the others existed. `event.code` names
+ * the PHYSICAL key and is immune to all of it.
+ *
+ * The fallback is deliberately NOT unconditional, because `code` is the wrong
+ * answer on plenty of Latin layouts: French AZERTY puts `&` on the physical
+ * `Digit1` and `é` on `Digit2`, so a code-first layer would set a status from a
+ * key that prints an ampersand. THE TEST IS THE SCRIPT, not ASCII — `é` is as
+ * Latin as `e` is, and a layout printing it is a layout whose own answer stands.
+ * Only a key that prints a character outside the Latin script at all — Arabic,
+ * Cyrillic, Greek, Arabic-Indic digits — is a layout that cannot possibly have
+ * meant a binding literally, and only there does `code` decide.
+ *
+ * On every Latin layout this function is therefore byte-identical to the
+ * `key.toLowerCase()` it replaced.
+ *
+ * Multi-character keys ('Escape', 'ArrowDown', 'Process' during IME
+ * composition) pass through untouched and match nothing, which is what they did
+ * before.
  */
-function token(key: string): string {
-  return key.length === 1 ? key.toLowerCase() : key
+const LATIN_KEY = /[\p{ASCII}\p{Script=Latin}]/u
+
+function token(key: string, code: string, shiftKey: boolean): string {
+  if (key.length !== 1) return key
+  const lower = key.toLowerCase()
+  // A Latin layout has already given the right answer. Do not second-guess it.
+  if (LATIN_KEY.test(key)) return lower
+  if (code === 'Slash') return shiftKey ? '?' : '/'
+  return CODE_TOKENS[code] ?? lower
 }
 
 /**
@@ -185,7 +249,7 @@ export function resolveHotkey(p: KeyProbe): HotkeyHit | null {
   // Alt is the OS's and the IME's. Never ours.
   if (p.altKey) return null
 
-  const k = token(p.key)
+  const k = token(p.key, p.code, p.shiftKey)
 
   // Rule 2's exception, and the only chord in the layer. Shift+Cmd+K is a
   // different chord and belongs to whoever wants it later.
@@ -495,6 +559,7 @@ function probe(event: KeyboardEvent, openEntryId: string | null): KeyProbe {
   const skipDom = typing || event.metaKey || event.ctrlKey || event.altKey
   return {
     key: event.key,
+    code: event.code,
     ctrlKey: event.ctrlKey,
     metaKey: event.metaKey,
     altKey: event.altKey,
@@ -604,8 +669,9 @@ export function modLabel(): string {
 // actions — and the ONLY reason it can rank them against each other is that
 // every candidate is reduced to the same thing first: a list of folded strings.
 // lib/text.ts does the folding, so `الشبكات` matches `#الشبكة` here for the same
-// reason it does in the capture parser, and nothing about Arabic is special-
-// cased below.
+// reason it does in the capture parser: THE QUERY carries both its surface fold
+// and its stem, and the haystack keeps its surface form. See searchNeedles() and
+// foldField() for why the stem may never move to the haystack side.
 
 /** Exact hit. `network` → `network`. */
 export const TIER_EXACT = 0
@@ -700,8 +766,9 @@ export function matchScore(
  *
  * IT IS A NO-OP ON LATIN TEXT, and that is load-bearing rather than incidental:
  * every suffix in STEM_SUFFIXES is Arabic (`ات ين ون ه`), so folding an English
- * title through this changes nothing at all. Which is why the canonical field
- * fold below can stem unconditionally instead of guessing at a script.
+ * query through this changes nothing at all. Which is why searchNeedles() can
+ * stem unconditionally instead of guessing at a script — the extra needle it
+ * produces for `network` is `network`, and the dedupe drops it.
  */
 function stemFolded(folded: string): string {
   return folded.split(' ').map(stemArabic).join(' ')
@@ -710,19 +777,32 @@ function stemFolded(folded: string): string {
 /**
  * The foldings of one query, best first.
  *
- * TWO, because `#it-ops` and `#itops` are one intent and the two folds disagree
- * about it: normalizeSearch keeps the hyphen (so word boundaries survive for
- * prose) and foldKey drops it (so identifiers match). Trying both is cheaper
- * than a third fold that tries to be both, and it is the same pair lib/text.ts
- * already ships for the capture parser.
+ * UP TO FOUR, from two independent doublings.
+ *
+ * The first is the pair lib/text.ts already ships for the capture parser:
+ * `#it-ops` and `#itops` are one intent and the two folds disagree about it —
+ * normalizeSearch keeps the hyphen (so word boundaries survive for prose) and
+ * foldKey drops it (so identifiers match).
+ *
+ * The second is the STEM, and it lives HERE — on the query — rather than on the
+ * haystack, which is the whole of what makes prefix-as-you-type survive an
+ * Arabic plural. stemArabic is destructive: it truncates, it never expands. So a
+ * needle derived from a stem is always a prefix/substring/subsequence of the
+ * unstemmed surface form it came from, and adding it can only ever ADD matches.
+ * Stemming the haystack instead deletes those final letters from the only copy
+ * there is, and a query that has typed them has nowhere left to match — see
+ * foldField().
  *
  * Empty for a blank query — rankQuery() reads that as "no filter".
  */
 export function searchNeedles(query: string): string[] {
   const out: string[] = []
+  const push = (needle: string): void => {
+    if (needle !== '' && !out.includes(needle)) out.push(needle)
+  }
   for (const folded of [normalizeSearch(query), foldKey(query)]) {
-    const stemmed = stemFolded(folded)
-    if (stemmed !== '' && !out.includes(stemmed)) out.push(stemmed)
+    push(folded)
+    push(stemFolded(folded))
   }
   return out
 }
@@ -730,19 +810,41 @@ export function searchNeedles(query: string): string[] {
 /**
  * The fold every haystack goes through. Named so no call site has to choose.
  *
- * STEMMED, for the reason EXECUTION-PLAN §680 gives for the capture parser's
- * second tier: migration 0001 seeds the Network track under its Arabic PLURAL
- * (`الشبكات`) and people type the singular (`الشبكة`). Under the `ة→ه` fold
- * those two share no match tier at all — not exact, not prefix in either
- * direction, and not even subsequence, because the singular's final haa does not
- * appear in the plural. Both stem to `الشبك`, and the palette finds the track.
+ * NOT STEMMED, and that is the correction Wave 4b's audit made to this file.
  *
- * The cost is the same one the parser accepts: two Arabic names that differ only
- * by a plural suffix collide. For a search box that ranks rather than resolves,
- * a collision shows both rows.
+ * The problem EXECUTION-PLAN §680 records is real: migration 0001 seeds the
+ * Network track under its Arabic PLURAL (`الشبكات`) and people type the singular
+ * (`الشبكة`). Under the `ة→ه` fold those two share no match tier at all — not
+ * exact, not prefix in either direction, and not even subsequence, because the
+ * singular's final haa does not appear in the plural. A stem is what closes it.
+ *
+ * But the parser puts that stem on ONE SIDE ONLY (parse.ts's matchTrackTiers
+ * keeps the raw `forms` and asks `f.startsWith(needle) || stemArabic(f) === stem`
+ * — the surface form is still there to be prefix-matched), and this file used to
+ * put it on BOTH. With `الشبكات` folded down to `الشبك` on the haystack side, the
+ * letters `ا` and `ت` existed nowhere in the index, so the palette dropped the
+ * row on the second-to-last keystroke of the track's own name and brought it
+ * back on the last:
+ *
+ *     الشبك   → exact        الشبكا  → NO MATCH        الشبكات → exact
+ *
+ * A search box that blinks out mid-word is worse than one that never matched,
+ * because the user reads it as "not there" and stops typing. So the haystack
+ * keeps every letter it has and searchNeedles() carries the stem instead.
+ *
+ * The cost the parser accepts is still accepted here: two Arabic names differing
+ * only by a plural suffix collide, via the stemmed needle. For a search box that
+ * ranks rather than resolves, a collision shows both rows. What changes is that
+ * the plural now ranks one tier lower than exact for a singular query (PREFIX,
+ * not EXACT) — the correct ordering, since a row whose name IS the query should
+ * outrank one that merely stems to it.
+ *
+ * IT IS BYTE-IDENTICAL TO THE OLD FOLD FOR LATIN TEXT: every suffix in
+ * STEM_SUFFIXES is Arabic, so stemFolded() was a no-op on an English title and
+ * removing it changes no English score anywhere.
  */
 export function foldField(value: string): string {
-  return stemFolded(normalizeSearch(value))
+  return normalizeSearch(value)
 }
 
 export interface RankRow<T> {
