@@ -121,6 +121,16 @@ export interface EntriesCoverage {
   closedSince: IsoDate | null
   trackHistory: Record<string, { from: IsoDate; to: IsoDate }>
   loadedAt: number | null
+  /**
+   * The open-entries read came back at PostgREST's ceiling, so the working set
+   * is a WINDOW rather than everything.
+   *
+   * Surfaced as state because it silently changes what the rest of the app
+   * means. Counts undercount, "unassigned" misses rows past the cut, and the
+   * digest reports on a subset — none of which looks like a failure. A screen
+   * showing totals should say so; see useEntriesTruncated().
+   */
+  truncated: boolean
 }
 
 export interface EntryCounts {
@@ -434,7 +444,13 @@ function scheduleCacheWrite(): void {
 // ── the store ──────────────────────────────────────────────────────────────
 
 function emptyCoverage(): EntriesCoverage {
-  return { openLoaded: false, closedSince: null, trackHistory: {}, loadedAt: null }
+  return {
+    openLoaded: false,
+    closedSince: null,
+    trackHistory: {},
+    loadedAt: null,
+    truncated: false,
+  }
 }
 
 function initialState(): EntriesState {
@@ -531,6 +547,18 @@ export function useEntriesError(): string | null {
 
 export function useEntriesCoverage(): EntriesCoverage {
   return useEntriesStore((s) => s.coverage)
+}
+
+/**
+ * True while the loaded working set is a WINDOW, not the whole table.
+ *
+ * Narrow on purpose: a screen that only wants to caveat its totals subscribes
+ * to one boolean instead of re-rendering on every coverage change. Any list
+ * showing a count off `useEntryCounts()` is showing a count of what LOADED —
+ * this is how it knows to say so.
+ */
+export function useEntriesTruncated(): boolean {
+  return useEntriesStore((s) => s.coverage.truncated)
 }
 
 export function useHealthMap(): ReadonlyMap<string, EntryHealth> {
@@ -687,7 +715,7 @@ let inFlight: Promise<void> | null = null
  * they were loaded deliberately by loadClosedSince() or a track window and the
  * open fetch says nothing about them.
  */
-function mergeOpenFetch(rows: Entry[], health: EntryHealth[] | null): void {
+function mergeOpenFetch(rows: Entry[], health: EntryHealth[] | null, truncated = false): void {
   const st = useEntriesStore.getState()
   const fetched = new Set(rows.map((r) => r.id))
   const byId = new Map<string, Entry>()
@@ -708,7 +736,7 @@ function mergeOpenFetch(rows: Entry[], health: EntryHealth[] | null): void {
   commit(byId, serverHealth, {
     loading: false,
     error: null,
-    coverage: { ...st.coverage, openLoaded: true, loadedAt: Date.now() },
+    coverage: { ...st.coverage, openLoaded: true, loadedAt: Date.now(), truncated },
   })
 }
 
@@ -740,7 +768,16 @@ export function loadEntries(force = false): Promise<void> {
       // age pills are simply absent until the next pass. Blanking the list over
       // a missing view would be a much larger outage than the one that happened.
       if (!health.ok) console.warn('[entries] health load failed:', health.error)
-      mergeOpenFetch(entries.data, health.ok ? health.data : null)
+      // Either read hitting the ceiling means the working set is a window.
+      // Health is included because the two are clipped independently, and a
+      // clipped health read is the one that quietly turns on the client mirror.
+      const truncated = entries.data.truncated || (health.ok && health.data.truncated)
+      if (truncated) {
+        console.warn(
+          `[entries] read clipped at PostgREST's ceiling (${entries.data.rows.length} rows) — the working set is partial.`,
+        )
+      }
+      mergeOpenFetch(entries.data.rows, health.ok ? health.data.rows : null, truncated)
     })
     .finally(() => {
       inFlight = null

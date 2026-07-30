@@ -19,12 +19,25 @@
 //     The merge cannot catch this; only this test can.
 //  4. An empty value, which renders as blank space rather than as an obviously
 //     missing string.
+//  5. A malformed or unreachable PLURAL NODE. See the plural block at the
+//     bottom of this file for what is checked and why each check earns its
+//     keep — a plural node is the one place in the tree where a typo produces
+//     a silently WRONG sentence rather than a visibly missing one.
 //
 // Vitest imports are explicit on purpose: no globals config, and nothing is
 // added to tsconfig.app.json's `types` array.
 
 import { describe, expect, it } from 'vitest'
 import { AR_NAMESPACES, EN_NAMESPACES, ar, en, type LocaleTree } from '../locales'
+import {
+  EXACT_CATEGORIES,
+  PLURAL_CATEGORIES,
+  isPluralNode,
+  pluralCategory,
+  type PluralCategory,
+  type PluralNode,
+} from './plural'
+import type { Locale } from './i18n'
 
 /**
  * Every key that existed in the two monolithic bundles, verbatim.
@@ -89,13 +102,34 @@ const BASELINE_KEYS: readonly string[] = `
   .trim()
   .split(/\s+/)
 
-/** dot path → string, for every leaf. Nested objects recurse; nothing else exists. */
-function flatten(tree: LocaleTree, prefix = ''): Map<string, string> {
-  const out = new Map<string, string>()
+/**
+ * One translatable value: a plain string, or the set of plural forms.
+ *
+ * A PLURAL NODE IS A LEAF, not a sub-namespace, and that is the whole reason
+ * this type exists. `admin.tracks.usageEntries` is one key that a call site asks
+ * for by that exact path; the fact that English answers with two forms and
+ * Arabic with six is an implementation detail of each language, not a shape the
+ * two bundles have to agree on (lib/plural.ts's header spells out why). Flatten
+ * to `.one`/`.few` instead and every parity assertion below turns into a demand
+ * that Arabic have English grammar.
+ *
+ * `forms.other` always exists — isPluralNode() requires it, and a plain string
+ * is stored as its own `other`, which makes the two cases comparable without a
+ * discriminant at every use site.
+ */
+interface Leaf {
+  plural: boolean
+  forms: PluralNode
+}
+
+/** dot path → leaf. Nested objects recurse UNLESS they are plural nodes. */
+function flatten(tree: LocaleTree, prefix = ''): Map<string, Leaf> {
+  const out = new Map<string, Leaf>()
   for (const [k, v] of Object.entries(tree)) {
     const path = prefix ? `${prefix}.${k}` : k
-    if (typeof v === 'string') out.set(path, v)
-    else for (const [nested, value] of flatten(v, path)) out.set(nested, value)
+    if (typeof v === 'string') out.set(path, { plural: false, forms: { other: v } })
+    else if (isPluralNode(v)) out.set(path, { plural: true, forms: v })
+    else for (const [nested, leaf] of flatten(v, path)) out.set(nested, leaf)
   }
   return out
 }
@@ -103,6 +137,14 @@ function flatten(tree: LocaleTree, prefix = ''): Map<string, string> {
 /** The `{token}` set in a value. Order-independent — only membership matters. */
 function tokensOf(value: string): string[] {
   return [...value.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort()
+}
+
+/** Every form of a leaf, as `[category, value]`, in canonical category order. */
+function formsOf(leaf: Leaf): [PluralCategory, string][] {
+  return PLURAL_CATEGORIES.filter((c) => leaf.forms[c] !== undefined).map((c) => [
+    c,
+    leaf.forms[c] as string,
+  ])
 }
 
 const NAMESPACES = Object.keys(EN_NAMESPACES).sort()
@@ -148,9 +190,11 @@ describe('merged bundles', () => {
     expect(arKeys.filter((k) => !enKeys.includes(k))).toEqual([])
   })
 
-  it('agree on which paths are objects and which are strings', () => {
-    // A key that is a string in en and an object in ar (or the reverse) passes
-    // a naive leaf-set comparison in one direction and breaks lookup().
+  it('agree on which paths are leaves and which are namespaces', () => {
+    // A key that is a leaf in en and a sub-namespace in ar (or the reverse)
+    // passes a naive leaf-set comparison in one direction and breaks lookup().
+    // Plural node vs plain string is NOT that bug — both are leaves, both
+    // resolve at the same path, and flatten() above treats them alike.
     const enRoots = new Set([...FLAT_EN.keys()])
     for (const k of FLAT_AR.keys()) expect(enRoots.has(k)).toBe(true)
   })
@@ -162,19 +206,147 @@ describe('merged bundles', () => {
   })
 
   it('have no empty values in either language', () => {
-    expect([...FLAT_EN].filter(([, v]) => v.trim() === '').map(([k]) => k)).toEqual([])
-    expect([...FLAT_AR].filter(([, v]) => v.trim() === '').map(([k]) => k)).toEqual([])
+    const empties = (flat: Map<string, Leaf>): string[] =>
+      [...flat].flatMap(([key, leaf]) =>
+        formsOf(leaf)
+          .filter(([, v]) => v.trim() === '')
+          .map(([c]) => (leaf.plural ? `${key}.${c}` : key)),
+      )
+    expect(empties(FLAT_EN)).toEqual([])
+    expect(empties(FLAT_AR)).toEqual([])
   })
 
   it('use the same interpolation tokens in both languages', () => {
+    // Compared on the `other` form, which is the one form both languages always
+    // have and the one a lookup with no count falls back to. The forms WITHIN a
+    // node are checked against their own `other` further down, so a dropped
+    // token cannot hide in a category the other language does not use.
     const mismatched: string[] = []
-    for (const [key, enValue] of FLAT_EN) {
-      const arValue = FLAT_AR.get(key)
-      if (arValue === undefined) continue
-      const a = tokensOf(enValue)
-      const b = tokensOf(arValue)
+    for (const [key, enLeaf] of FLAT_EN) {
+      const arLeaf = FLAT_AR.get(key)
+      if (arLeaf === undefined) continue
+      const a = tokensOf(enLeaf.forms.other)
+      const b = tokensOf(arLeaf.forms.other)
       if (a.join(',') !== b.join(',')) mismatched.push(`${key}: en{${a}} ar{${b}}`)
     }
     expect(mismatched).toEqual([])
+  })
+})
+
+/* ─────────────────────────────── plural nodes ─────────────────────────────── */
+//
+// Four failure modes, none of which any assertion above can see, because a
+// malformed plural node is not a MISSING string — it is a present, readable,
+// grammatically wrong one:
+//
+//  1. A typo'd or invented category (`"othr"`, `"plural"`). isPluralNode() then
+//     declines the node, lookup() recurses into it as a namespace and resolves
+//     nothing, and t() renders the dot path. Caught by asserting that any object
+//     holding a category-shaped key is a WELL-FORMED plural node.
+//  2. A form in a category the language can never select. English has no `few`;
+//     writing one is a translation nobody will ever read, and — worse — reads in
+//     review as though the case is handled. The selectable set is derived by
+//     running the real pluralCategory() over a wide range of n, so this test
+//     cannot drift from the implementation it is checking.
+//  3. `{count}` dropped from a RANGE form: `"many": "منذ أيام"` loses the number
+//     for 11–99 and nothing anywhere reports it. Exact categories (zero/one/two)
+//     are exempt because they pin the value — "Every day" and `بند واحد` are the
+//     correct renderings, and demanding `{count}` there would forbid them.
+//  4. A form inventing a token its `other` does not have, which interpolate()
+//     leaves as literal braces in the UI.
+
+const LOCALES: readonly [Locale, LocaleTree][] = [
+  ['en', en],
+  ['ar', ar],
+]
+
+/** The categories `pluralCategory` can actually return for a locale. */
+function selectableCategories(locale: Locale): Set<PluralCategory> {
+  const seen = new Set<PluralCategory>()
+  for (let n = 0; n <= 200; n++) seen.add(pluralCategory(locale, n))
+  return seen
+}
+
+/** Every object in the tree that is trying to be a plural node, well-formed or not. */
+function categoryShapedNodes(tree: LocaleTree, prefix = ''): [string, LocaleTree][] {
+  const out: [string, LocaleTree][] = []
+  for (const [k, v] of Object.entries(tree)) {
+    if (typeof v === 'string') continue
+    const path = prefix ? `${prefix}.${k}` : k
+    const looksPlural = Object.keys(v).some((c) =>
+      (PLURAL_CATEGORIES as readonly string[]).includes(c),
+    )
+    if (looksPlural) out.push([path, v])
+    else out.push(...categoryShapedNodes(v, path))
+  }
+  return out
+}
+
+describe.each(LOCALES)('%s plural nodes', (locale, tree) => {
+  const nodes = categoryShapedNodes(tree)
+  const selectable = selectableCategories(locale)
+
+  it('are well formed: only legal categories, all strings, `other` present', () => {
+    const malformed = nodes
+      .filter(([, node]) => !isPluralNode(node))
+      .map(([path, node]) => `${path}: {${Object.keys(node).join(',')}}`)
+    expect(malformed).toEqual([])
+  })
+
+  it('ship no form this language can never select', () => {
+    const unreachable: string[] = []
+    for (const [path, node] of nodes) {
+      for (const c of Object.keys(node)) {
+        if ((PLURAL_CATEGORIES as readonly string[]).includes(c)) {
+          if (!selectable.has(c as PluralCategory)) unreachable.push(`${path}.${c}`)
+        }
+      }
+    }
+    expect(unreachable).toEqual([])
+  })
+
+  it('carry {count} in every form that covers more than one number', () => {
+    const missing: string[] = []
+    for (const [path, node] of nodes) {
+      for (const [c, value] of Object.entries(node)) {
+        if (typeof value !== 'string') continue
+        if ((EXACT_CATEGORIES as readonly string[]).includes(c)) continue
+        if (!value.includes('{count}')) missing.push(`${path}.${c}`)
+      }
+    }
+    expect(missing).toEqual([])
+  })
+
+  it('never invent a token their `other` form lacks', () => {
+    const stray: string[] = []
+    for (const [path, node] of nodes) {
+      if (!isPluralNode(node)) continue
+      const allowed = new Set(tokensOf(node.other))
+      for (const [c, value] of Object.entries(node)) {
+        if (c === 'other' || typeof value !== 'string') continue
+        for (const tok of tokensOf(value)) {
+          if (!allowed.has(tok)) stray.push(`${path}.${c}: {${tok}}`)
+        }
+      }
+    }
+    expect(stray).toEqual([])
+  })
+
+  it('keep every non-count token of `other` in every form', () => {
+    // A `{column}` that survives in `other` and vanishes from `one` renames the
+    // control for exactly one card count. Only `{count}` may be dropped, and
+    // only where the category pins its value.
+    const dropped: string[] = []
+    for (const [path, node] of nodes) {
+      if (!isPluralNode(node)) continue
+      const required = tokensOf(node.other).filter((tok) => tok !== 'count')
+      for (const [c, value] of Object.entries(node)) {
+        if (c === 'other' || typeof value !== 'string') continue
+        for (const tok of required) {
+          if (!value.includes(`{${tok}}`)) dropped.push(`${path}.${c}: missing {${tok}}`)
+        }
+      }
+    }
+    expect(dropped).toEqual([])
   })
 })

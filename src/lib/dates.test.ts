@@ -357,6 +357,29 @@ describe('formatting', () => {
     expect(formatDue('2026-07-29', AR, NOW)).toBe('اليوم')
   })
 
+  it('inflects the Arabic day count instead of pinning one form', () => {
+    // The failure lib/plural.ts exists to stop, end to end through s(): the
+    // singular `يوم` is ungrammatical for 2 and for 3–10, and this module's
+    // strings are the ones a user reads most. English is invariant here on
+    // purpose — its `date.*` counts are abbreviated ("2 d overdue"), so they
+    // stay plain strings and are asserted above.
+    expect(formatDue('2026-07-28', AR, NOW)).toBe('متأخّر يومًا واحدًا')
+    expect(formatDue('2026-07-27', AR, NOW)).toBe('متأخّر يومين')
+    expect(formatDue('2026-07-24', AR, NOW)).toBe('متأخّر 5 أيام')
+    expect(formatDue('2026-07-31', AR, NOW)).toBe('يستحق خلال يومين')
+    expect(formatDue('2026-08-03', AR, NOW)).toBe('يستحق خلال 5 أيام')
+  })
+
+  it('inflects the Arabic relative time the same way', () => {
+    const ago = (ms: number): string =>
+      formatRelativeTime(new Date(NOW.getTime() - ms).toISOString(), AR, NOW)
+    expect(ago(2 * 60_000)).toBe('قبل دقيقتين')
+    expect(ago(5 * 60_000)).toBe('قبل 5 دقائق')
+    expect(ago(30 * 60_000)).toBe('قبل 30 دقيقة')
+    expect(ago(2 * 3_600_000)).toBe('قبل ساعتين')
+    expect(ago(5 * 3_600_000)).toBe('قبل 5 ساعات')
+  })
+
   it('renders weekday names', () => {
     expect(formatWeekday('2026-07-29', EN)).toBe('Wed')
     expect(formatWeekday('2026-07-29', EN, 'long')).toBe('Wednesday')

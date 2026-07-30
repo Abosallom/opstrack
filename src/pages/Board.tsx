@@ -1424,7 +1424,7 @@ export default function Board(): ReactElement {
         tags={tagOptions}
         count={entries.length}
         resultLabel={(n) => t('board.total', { count: n })}
-        tagHint={t('board.closedWindow', { days: CLOSED_WINDOW_DAYS })}
+        tagHint={t('board.closedWindow', { count: CLOSED_WINDOW_DAYS })}
       />
 
       <div className="bd-bar">

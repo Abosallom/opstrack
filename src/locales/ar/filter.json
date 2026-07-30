@@ -6,7 +6,13 @@
     "clear": "مسح",
     "clearAll": "مسح الكل",
     "active": "عوامل التصفية المفعّلة",
-    "activeCount": "عوامل التصفية: {count}",
+    "activeCount": {
+      "one": "عامل تصفية واحد",
+      "two": "عاملا تصفية",
+      "few": "{count} عوامل تصفية",
+      "many": "{count} عامل تصفية",
+      "other": "عوامل التصفية: {count}"
+    },
     "track": "المسار",
     "owner": "المسؤول",
     "priority": "الأولوية",

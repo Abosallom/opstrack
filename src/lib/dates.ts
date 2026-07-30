@@ -36,6 +36,14 @@
 // store, no api, no cycle: locales/index.ts imports nothing but its own files.
 
 import { ar, en } from '../locales'
+// lib/plural.ts is a LEAF: it imports nothing at runtime, so this stays a JSON-
+// only import graph. The plural rules are shared rather than reimplemented
+// because t() and s() must agree on which form a count selects, and two copies
+// of a CLDR table is two tables to drift. Importing them from lib/i18n.ts —
+// where they briefly lived — is what this arrangement exists to avoid: that
+// module reads localStorage at module scope, which is a DOM dependency in the
+// import graph of every pure test that touches a date.
+import { isPluralNode, selectPlural } from './plural'
 import { normalizeSearch } from './text'
 import type { LocaleTree } from '../locales'
 import type { Locale } from './i18n'
@@ -78,22 +86,38 @@ const BUNDLES: Record<Locale, LocaleTree> = { en, ar }
  * Mirrors lib/i18n.ts's resolution rules exactly — Arabic falls back to the
  * English string, an unknown key falls back to the key itself — so a missing
  * translation reads the same way here as it does everywhere else in the app.
+ *
+ * INCLUDING PLURALS, which is why lib/plural.ts is shared rather than
+ * reimplemented: nearly every string this module reads is a day or minute
+ * count, and `متأخّر 2 يوم` — `date.overdueByDays` before it was pluralized —
+ * is exactly the failure the plural node exists to stop. The English fallback is
+ * selected with English rules for the reason t() states: the form being read is
+ * an English sentence, so asking for its `few` asks a bundle a question it was
+ * never written to answer.
  */
 function s(locale: Locale, key: string, vars?: Record<string, string | number>): string {
-  const raw = lookup(BUNDLES[locale], key) ?? lookup(BUNDLES.en, key) ?? key
+  const raw =
+    lookup(BUNDLES[locale], key, locale, vars) ?? lookup(BUNDLES.en, key, 'en', vars) ?? key
   if (!vars) return raw
   return raw.replace(/\{(\w+)\}/g, (match, name: string) =>
     name in vars ? String(vars[name]) : match,
   )
 }
 
-function lookup(tree: LocaleTree, key: string): string | undefined {
+function lookup(
+  tree: LocaleTree,
+  key: string,
+  locale: Locale,
+  vars?: Record<string, string | number>,
+): string | undefined {
   let node: string | LocaleTree | undefined = tree
   for (const part of key.split('.')) {
     if (typeof node !== 'object') return undefined
     node = node[part]
   }
-  return typeof node === 'string' ? node : undefined
+  if (typeof node === 'string') return node
+  if (!isPluralNode(node)) return undefined
+  return selectPlural(node, locale, vars?.count)
 }
 
 // ── the Intl monopoly ──────────────────────────────────────────────────────

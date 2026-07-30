@@ -287,7 +287,12 @@ async function measureHealth(): Promise<HealthCounts | null> {
   if (!result.ok) return null
   let quiet = 0
   let breached = 0
-  for (const row of result.data) {
+  // `.rows`, because the read is clipped at PostgREST's ceiling and says so.
+  // The counts are a "here is what arming this will do" preview, so a window of
+  // the open rows is an acceptable answer where a wrong total would not be —
+  // and the truncation is reported by the entries store on the screens that
+  // show these numbers as facts.
+  for (const row of result.data.rows) {
     if (row.health === 'stale') quiet += 1
     if (row.sla_breached) breached += 1
   }

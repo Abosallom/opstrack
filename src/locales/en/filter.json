@@ -6,7 +6,7 @@
     "clear": "Clear",
     "clearAll": "Clear all",
     "active": "Active filters",
-    "activeCount": "{count} filters",
+    "activeCount": { "one": "{count} filter", "other": "{count} filters" },
     "track": "Track",
     "owner": "Owner",
     "priority": "Priority",

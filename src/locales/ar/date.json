@@ -8,14 +8,50 @@
     "overdue": "متأخّر",
     "never": "أبدًا",
     "justNow": "الآن",
-    "minutesAgo": "قبل {count} دقيقة",
-    "hoursAgo": "قبل {count} ساعة",
-    "daysAgo": "قبل {count} يوم",
-    "inDays": "خلال {count} يوم",
+    "minutesAgo": {
+      "one": "قبل دقيقة",
+      "two": "قبل دقيقتين",
+      "few": "قبل {count} دقائق",
+      "many": "قبل {count} دقيقة",
+      "other": "قبل {count} دقيقة"
+    },
+    "hoursAgo": {
+      "one": "قبل ساعة",
+      "two": "قبل ساعتين",
+      "few": "قبل {count} ساعات",
+      "many": "قبل {count} ساعة",
+      "other": "قبل {count} ساعة"
+    },
+    "daysAgo": {
+      "one": "قبل يوم",
+      "two": "قبل يومين",
+      "few": "قبل {count} أيام",
+      "many": "قبل {count} يومًا",
+      "other": "قبل {count} يوم"
+    },
+    "inDays": {
+      "one": "خلال يوم",
+      "two": "خلال يومين",
+      "few": "خلال {count} أيام",
+      "many": "خلال {count} يومًا",
+      "other": "خلال {count} يوم"
+    },
     "daysShort": "{count}ي",
     "hoursShort": "{count}س",
-    "overdueByDays": "متأخّر {count} يوم",
-    "dueInDays": "يستحق خلال {count} يوم",
+    "overdueByDays": {
+      "one": "متأخّر يومًا واحدًا",
+      "two": "متأخّر يومين",
+      "few": "متأخّر {count} أيام",
+      "many": "متأخّر {count} يومًا",
+      "other": "متأخّر {count} يوم"
+    },
+    "dueInDays": {
+      "one": "يستحق خلال يوم",
+      "two": "يستحق خلال يومين",
+      "few": "يستحق خلال {count} أيام",
+      "many": "يستحق خلال {count} يومًا",
+      "other": "يستحق خلال {count} يوم"
+    },
     "weekStart": "أسبوع {from}",
     "rangeSep": "–"
   }

@@ -790,7 +790,9 @@ export default function TrackEditor(): ReactElement {
                               overridden
                                 ? 'admin.tracks.slaEffectiveOwn'
                                 : 'admin.tracks.slaEffectiveInherited',
-                              { days: effective },
+                              // `count`: both keys are plural nodes ("1 day",
+                              // not "1 days"), and the selector reads `count`.
+                              { count: effective },
                             )}
                       </p>
                       {invalid && (

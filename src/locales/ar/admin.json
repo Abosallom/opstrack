@@ -65,9 +65,30 @@
       "reassignTo": "نقل البنود إلى",
       "reassignNoTargets": "لا يوجد مسار نشط آخر لنقلها إليه. أضف مسارًا أو استعِد مسارًا مؤرشفًا، ثم احذف هذا المسار.",
       "usage": "قيد الاستخدام",
-      "usageEntries": "{count} بند",
-      "usageMeetings": "{count} اجتماع",
-      "usageTemplates": "{count} قالب",
+      "usageEntries": {
+        "zero": "لا بنود",
+        "one": "بند واحد",
+        "two": "بندان",
+        "few": "{count} بنود",
+        "many": "{count} بندًا",
+        "other": "{count} بند"
+      },
+      "usageMeetings": {
+        "zero": "لا اجتماعات",
+        "one": "اجتماع واحد",
+        "two": "اجتماعان",
+        "few": "{count} اجتماعات",
+        "many": "{count} اجتماعًا",
+        "other": "{count} اجتماع"
+      },
+      "usageTemplates": {
+        "zero": "لا قوالب",
+        "one": "قالب واحد",
+        "two": "قالبان",
+        "few": "{count} قوالب",
+        "many": "{count} قالبًا",
+        "other": "{count} قالب"
+      },
       "usageNone": "غير مستخدم بعد",
       "empty": "لا توجد مسارات بعد",
       "emptyHint": "أضف أول مسار لتبدأ بتصنيف العمل تحته.",
@@ -92,8 +113,20 @@
       "slaAfterSave": "احفظ المسار أولًا. المهل تُعلَّق على مسار، فلا بد أن تكون له هوية قبل أن يحمل أيًّا منها.",
       "slaInherit": "موروثة",
       "slaEffectiveNone": "بلا مهلة",
-      "slaEffectiveOwn": "هذا المسار: {days} يوم",
-      "slaEffectiveInherited": "موروثة: {days} يوم",
+      "slaEffectiveOwn": {
+        "one": "هذا المسار: يوم واحد",
+        "two": "هذا المسار: يومان",
+        "few": "هذا المسار: {count} أيام",
+        "many": "هذا المسار: {count} يومًا",
+        "other": "هذا المسار: {count} يوم"
+      },
+      "slaEffectiveInherited": {
+        "one": "موروثة: يوم واحد",
+        "two": "موروثة: يومان",
+        "few": "موروثة: {count} أيام",
+        "many": "موروثة: {count} يومًا",
+        "other": "موروثة: {count} يوم"
+      },
       "errSlaRange": "أدخل رقمًا بين {min} و{max}، أو اترك الحقل فارغًا ليُورَث الافتراضي.",
       "errNotFound": "لم يعد هذا المسار موجودًا. أعد تحميل القائمة."
     }

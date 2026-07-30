@@ -14,7 +14,7 @@
 // with zero mocking, which is the whole reason the layering rule exists.
 
 import type { Entry, EntryHealth, EntryPriority, EntryStatus, EntryType, HealthLevel } from '../types'
-import { instantToIsoDate, type IsoDate } from './dates'
+import { instantToIsoDate, parseIsoDate, type IsoDate } from './dates'
 import { isOpen } from './health'
 import { normalizeSearch } from './text'
 
@@ -142,9 +142,6 @@ const PRIORITY_RANK: Readonly<Record<EntryPriority, number>> = {
   medium: 1,
   low: 0,
 }
-
-/** `YYYY-MM-DD` and nothing else, so a junk `from=` cannot silently shrink a list. */
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 // ── matching ───────────────────────────────────────────────────────────────
 
@@ -505,8 +502,28 @@ function parseSort(raw: string | null): EntrySort {
   return raw !== null && Object.hasOwn(SORT_KEYS, raw) ? (raw as EntrySort) : EMPTY_FILTER.sort
 }
 
+/**
+ * A calendar-real `YYYY-MM-DD`, or null.
+ *
+ * THE SHAPE IS NOT THE CHECK. This used to test `/^\d{4}-\d{2}-\d{2}$/` and
+ * hand the string straight back, so `from=2026-13-99` — month 13, day 99 —
+ * was accepted as a filter bound. Nothing downstream re-validates it:
+ * matchesFilter() compares `day < f.from` as STRINGS, every real date sorts
+ * below "2026-13-99", and the list silently emptied with the filter bar showing
+ * an active range the user could not tell was nonsense. `2026-02-30` did the
+ * same thing more quietly.
+ *
+ * lib/dates.parseIsoDate is the strict parser — it range-checks and then
+ * round-trips through a Date to reject the days that do not exist in that
+ * month. Using it here is also what keeps ONE definition of a valid date in the
+ * app rather than a shape test that drifts from it.
+ */
 function parseIso(raw: string | null): IsoDate | null {
-  return raw !== null && ISO_DATE_RE.test(raw) ? raw : null
+  if (raw === null) return null
+  // The trimmed form, because parseIsoDate accepts surrounding whitespace and
+  // the value is about to be compared with `<` against an exact ISO string.
+  const trimmed = raw.trim()
+  return parseIsoDate(trimmed) === null ? null : trimmed
 }
 
 function parseOwner(raw: string | null): OwnerFilter {

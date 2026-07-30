@@ -362,3 +362,12 @@ bumps `updated_at` on a track change but leaves `last_activity_at` alone, so a
 delete-with-reassign cannot launder a hundred stale items into fresh ones. This
 is the difference between the bookkeeping clock and the staleness clock, and the
 follow-ups screen and the digest both read the second one.
+
+> This became true again only with migration **0007**. Between `0004` and `0007`
+> it was false: `0004` added `entries.updated_by` and stamps it from a trigger
+> that runs just before `entries_touch()`, and `entries_touch()` did not exclude
+> that column from its diff — so it saw its own bookkeeping as a change and
+> moved the staleness clock on every track move. If your project has not applied
+> `0007`, apply it: `last_activity_at` on any entry moved between tracks since
+> `0004` reads later than the work on it actually stopped, and nothing repairs
+> the history — only the behaviour from here on.

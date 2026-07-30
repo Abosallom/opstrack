@@ -73,6 +73,15 @@ alter table public.profiles add constraint profiles_role_chk
 -- The trigger from 0001 (entries_touch_trg) already points at this function by
 -- name, so replacing the body is the whole change; re-creating the trigger
 -- would rebind it to exactly the same thing.
+--
+-- ▲ SUPERSEDED BY 0007 — the body below did NOT deliver what this comment
+-- promises, from the moment 0004 landed. 0004 added `entries.updated_by` and
+-- stamps it in entries_guard_update(), which is a BEFORE trigger that sorts
+-- ahead of entries_touch_trg by name; the diffs below never subtract that
+-- column, so a pure track move reached the second diff carrying a changed
+-- `updated_by` and reset last_activity_at anyway. 0007 subtracts it from both
+-- diffs and proves the fix against live data. Read this block as the intent and
+-- 0007 as the implementation.
 create or replace function public.entries_touch()
 returns trigger
 language plpgsql
@@ -524,9 +533,13 @@ begin
         using errcode = 'P0002';
     end if;
 
-    -- entries_touch() above is what makes this safe: repointing track_id moves
+    -- entries_touch() is what makes this safe: repointing track_id moves
     -- updated_at but leaves last_activity_at alone, so a stale item stays
-    -- stale through the move.
+    -- stale through the move. NOTE: true of the function AS AMENDED BY 0007,
+    -- not of the body defined above — see the superseded note on it. Between
+    -- 0004 and 0007 this bulk reassignment refreshed the staleness clock on
+    -- every row it touched, which is the exact failure the split diff exists to
+    -- prevent.
     update public.entries set track_id = p_reassign_to where track_id = p_id;
     get diagnostics v_entries = row_count;
 

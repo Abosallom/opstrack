@@ -79,7 +79,7 @@
     "collapseSection": "Collapse {section}",
     "expandSection": "Expand {section}",
     "updates": "Updates",
-    "updateCount": "{count} updates",
+    "updateCount": { "one": "{count} update", "other": "{count} updates" },
     "noUpdates": "No updates yet",
     "noUpdatesHint": "Write down what happened — the thread is the audit trail.",
     "addUpdate": "Add an update",
@@ -87,7 +87,10 @@
     "post": "Post update",
     "posting": "Posting…",
     "posted": "Update added.",
-    "showEarlier": "Show {count} earlier updates",
+    "showEarlier": {
+      "one": "Show {count} earlier update",
+      "other": "Show {count} earlier updates"
+    },
     "showFewer": "Show fewer",
     "immutableHint": "Updates can't be edited or deleted. To correct one, add another.",
     "statusChanged": "{from} → {to}",

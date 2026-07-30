@@ -54,7 +54,7 @@
     "cadenceBiweekly": "Every two weeks",
     "cadenceMonthly": "Monthly",
     "cadenceQuarterly": "Quarterly",
-    "cadenceCustom": "Every {days} days",
+    "cadenceCustom": { "one": "Every day", "other": "Every {count} days" },
     "preview": "Preview",
     "previewEmpty": "Start typing to see what gets created.",
     "willCreate": "Creates one item in {track}.",
@@ -73,7 +73,7 @@
     "problemCount": "{count} to check",
     "pickTrack": "Which track?",
     "pickTrackHint": "Pick one, or keep typing to narrow it down.",
-    "parsedAnnounce": "{count} tokens read",
+    "parsedAnnounce": { "one": "{count} token read", "other": "{count} tokens read" },
     "errEmpty": "Type something first.",
     "errTrackUnknown": "No track matches “{value}”.",
     "errTrackAmbiguous": "“{value}” matches more than one track.",
@@ -87,6 +87,7 @@
     "warnDuplicate": "{kind} was set twice — the last one wins.",
     "warnLongTitle": "Long titles are hard to scan in lists.",
     "warnOwnerAmbiguous": "“{name}” matches more than one person — keeping it as free text.",
+    "warnUnterminatedQuote": "Missing a closing quote, so “{value}” ran to the end of the line.",
     "newOwner": "“{name}” isn't a teammate — keeping it as free text."
   }
 }

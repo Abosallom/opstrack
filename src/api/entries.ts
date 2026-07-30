@@ -66,11 +66,49 @@ export type { EntryPatch, NewEntry, NewEntryUpdate }
  *
  * The working-set decision assumes low thousands of rows; this is the guard
  * against the day that assumption stops holding, so a runaway table degrades
- * into "the newest 2000 items" instead of a multi-megabyte response on a phone.
+ * into "the newest 1000 items" instead of a multi-megabyte response on a phone.
  * If a screen ever legitimately needs more, it needs a windowed loader, not a
  * bigger number here.
+ *
+ * 1000 IS NOT A PREFERENCE — IT IS POSTGREST'S. The live project reports
+ * `max_rows: 1000`, and PostgREST applies it AFTER any `.limit()`, silently:
+ * the response is a 200 with fewer rows and a `Content-Range` nobody was
+ * reading. The old 2000 was therefore unreachable, and worse than unreachable —
+ * it made every consumer believe a full read had happened. Raising this number
+ * changes nothing until the server's `db-max-rows` is raised too.
  */
-const MAX_ROWS = 2000
+const MAX_ROWS = 1000
+
+/**
+ * A read that could have been clipped, and whether it was.
+ *
+ * WHY THE LOADERS DO NOT JUST RETURN ARRAYS ANY MORE. Truncation here is not an
+ * error and not an empty result — it is a correct-looking answer that is
+ * missing rows, which is the only failure mode in this file that can corrupt
+ * the app's behaviour rather than interrupt it. Past the ceiling, entries and
+ * health stop describing the same set of rows, every uncovered row counts as
+ * stale, and the store falls back to the client health mirror on every commit,
+ * permanently and with no symptom. Making the flag part of the return type is
+ * what stops the next loader from forgetting to ask.
+ */
+export interface Loaded<T> {
+  rows: T[]
+  /** The response came back at the ceiling, so there are probably more. */
+  truncated: boolean
+}
+
+/**
+ * Wrap rows with the truncation verdict.
+ *
+ * `length >= limit` rather than a `count: 'exact'` round trip: the count would
+ * add a full scan to the app's hottest read to answer a question that only
+ * matters at the boundary, and at the boundary this is exactly right. A table
+ * holding precisely `limit` rows reports truncated — a false positive that
+ * costs one banner and resolves itself on the next write.
+ */
+function loaded<T>(rows: T[], limit: number = MAX_ROWS): Loaded<T> {
+  return { rows, truncated: rows.length >= limit }
+}
 
 /**
  * How many entry ids fit in one `.in()` filter.
@@ -148,18 +186,22 @@ export interface EntryFilter {
 export async function listEntries(opts?: {
   openOnly?: boolean
   limit?: number
-}): Promise<ApiResult<Entry[]>> {
+}): Promise<ApiResult<Loaded<Entry>>> {
   if (!supabase) return notConfigured()
+  const limit = Math.min(opts?.limit ?? MAX_ROWS, MAX_ROWS)
   let query = supabase
     .from('entries')
     .select('*')
+    // THIS ORDER IS PART OF THE CONTRACT WITH listHealth(). Both reads are
+    // clipped at the same ceiling, so they only describe the same rows if they
+    // agree on which rows come first — see that function.
     .order('last_activity_at', { ascending: false })
     .order('id', { ascending: true })
-    .limit(Math.min(opts?.limit ?? MAX_ROWS, MAX_ROWS))
+    .limit(limit)
   if (opts?.openOnly !== false) query = query.not('status', 'in', CLOSED_LIST)
   const { data, error } = await query
   if (error) return fail(pgErrorKey(error))
-  return { ok: true, data: (data ?? []) as Entry[] }
+  return { ok: true, data: loaded((data ?? []) as Entry[], limit) }
 }
 
 /**
@@ -191,19 +233,36 @@ export async function listClosedSince(since: IsoDate): Promise<ApiResult<Entry[]
  * would otherwise hand every consumer `undefined` where EntryHealth promises
  * `null | boolean`. `sla_breached === true` rather than truthiness, so a missing
  * column reads as "no SLA", never as a breach nobody agreed to.
+ *
+ * THE LIMIT AND THE ORDER ARE BOTH LOAD-BEARING, and this function had neither.
+ * PostgREST clips at 1000 whether or not you ask, so an unordered read returned
+ * an ARBITRARY thousand of the open rows — a different thousand from the one
+ * listEntries() fetched. Every entry whose health row fell outside that
+ * intersection looked uncovered, landed in derive()'s stale set, and drove the
+ * client-side computeHealth mirror on every single commit for the rest of the
+ * session, with no error and no way to notice. Ordering identically to
+ * listEntries() makes the two windows the SAME window, so past the ceiling the
+ * app is missing the same tail from both instead of disagreeing about the middle.
  */
-export async function listHealth(): Promise<ApiResult<EntryHealth[]>> {
+export async function listHealth(): Promise<ApiResult<Loaded<EntryHealth>>> {
   if (!supabase) return notConfigured()
-  const { data, error } = await supabase.from('v_entry_health').select('*')
+  const { data, error } = await supabase
+    .from('v_entry_health')
+    .select('*')
+    .order('last_activity_at', { ascending: false })
+    .order('id', { ascending: true })
+    .limit(MAX_ROWS)
   if (error) return fail(pgErrorKey(error))
   const rows = (data ?? []) as Partial<EntryHealth>[]
   return {
     ok: true,
-    data: rows.map((row) => ({
-      ...(row as EntryHealth),
-      sla_due_at: row.sla_due_at ?? null,
-      sla_breached: row.sla_breached === true,
-    })),
+    data: loaded(
+      rows.map((row) => ({
+        ...(row as EntryHealth),
+        sla_due_at: row.sla_due_at ?? null,
+        sla_breached: row.sla_breached === true,
+      })),
+    ),
   }
 }
 

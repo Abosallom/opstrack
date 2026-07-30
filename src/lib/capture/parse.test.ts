@@ -785,3 +785,111 @@ describe('totality', () => {
     expect(p.title).toBe('Fix')
   })
 })
+
+// ── never delete what the user typed ───────────────────────────────────────
+//
+// The module's central invariant: every character of the input either ends up
+// in the title or is accounted for by a token the user can see. Three ways it
+// was being violated, all three shipped, all three silent.
+
+describe('typed text survives the parse', () => {
+  it('keeps Windows paths out of the date parser', () => {
+    // THE bug. `d:` and `f:` are drive letters before they are date keys, and
+    // failed date tokens are consumed — so this line was stored as
+    // "Restore to", losing both paths, in an IT-operations tracker.
+    const p = run(String.raw`Restore D:\backup to F:\data`)
+    expect(p.title).toBe(String.raw`Restore D:\backup to F:\data`)
+    expect(p.dueDate).toBeNull()
+    expect(p.followUpDate).toBeNull()
+    expect(p.tokens).toHaveLength(0)
+    expect(problemKeys(p)).toEqual([])
+  })
+
+  it('leaves every other short-key collision alone too', () => {
+    // Same root, three more shapes the audit found: a forward-slash path, a
+    // flag with a numeric argument, and a ratio.
+    for (const input of ['Mount d:/mnt/share', 'Set F:1 flag', 'check ev:1 ratio']) {
+      const p = run(input)
+      expect(p.title, input).toBe(input)
+      expect(p.tokens, input).toHaveLength(0)
+      expect(problemKeys(p), input).toEqual([])
+    }
+  })
+
+  it('still honours the short keys when they resolve', () => {
+    // The fix must not cost the abbreviations. An abbreviation is a keyword
+    // only when it works — when it works, it works exactly as before.
+    expect(run('a d:tomorrow').dueDate).toBe('2026-07-30')
+    expect(run('a d:tomorrow').title).toBe('a')
+    expect(run('a f:thu').followUpDate).toBe('2026-07-30')
+    expect(run('a ev:daily').recurrence?.cadence).toBe('daily')
+    expect(run('a ev:10d').recurrence?.customIntervalDays).toBe(10)
+  })
+
+  it('still marks a spelled-out key red when its value is nonsense', () => {
+    // `due:` and `every:` are unambiguous, so a miss is a real mistake and
+    // keeps the old behaviour: consumed, and reported.
+    const due = run('a due:someday')
+    expect(due.title).toBe('a')
+    expect(problemKeys(due)).toEqual([PROBLEM_KEYS.date])
+
+    const every = run('a every:sometimes')
+    expect(every.title).toBe('a')
+    expect(problemKeys(every)).toEqual([PROBLEM_KEYS.recurrence])
+  })
+
+  it('warns when an open quote swallows the rest of the line', () => {
+    // `@` treats free text as a success and `+` accepts anything, so these two
+    // absorbed a date, a priority and a track with problems: [].
+    const owner = run('Call @"Ahmed due:thu !high #network')
+    expect(owner.ownerName).toBe('Ahmed due:thu !high #network')
+    expect(problemKeys(owner)).toContain(PROBLEM_KEYS.unterminatedQuote)
+
+    const tag = run('Escalate +"outage @sara due:fri')
+    expect(tag.tags).toEqual(['outage @sara due:fri'])
+    expect(problemKeys(tag)).toEqual([PROBLEM_KEYS.unterminatedQuote])
+  })
+
+  it('says nothing about a quote that is closed', () => {
+    const p = run('Escalate +"core switch" @sara')
+    expect(p.tags).toEqual(['core switch'])
+    expect(p.ownerId).toBe('m-sara')
+    expect(problemKeys(p)).not.toContain(PROBLEM_KEYS.unterminatedQuote)
+  })
+
+  it('takes the whole track name when it is unquoted and multi-word', () => {
+    // Resolved off `IT` alone and consumed only `#IT`, so the tail of the track
+    // name was stored as part of the title — with problems: [], because as far
+    // as the parser was concerned everything had worked. Live row b87acd3a was
+    // written this way.
+    const p = run('Renew cert #IT Operations')
+    expect(p.trackId).toBe('t-ito')
+    expect(p.title).toBe('Renew cert')
+    expect(problemKeys(p)).toEqual([])
+  })
+
+  it('stops the track lookahead at the end of the name', () => {
+    expect(run('Renew cert #IT Operations tomorrow').title).toBe('Renew cert tomorrow')
+    expect(run('Renew cert #IT Operations tomorrow').trackId).toBe('t-ito')
+    // Arabic names run to three words and must extend the same way.
+    const ar = run('تجديد الشهادة #عمليات تقنية المعلومات غدًا')
+    expect(ar.trackId).toBe('t-ito')
+    expect(ar.title).toBe('تجديد الشهادة غدًا')
+  })
+
+  it('never extends a track token on a fuzzy match', () => {
+    // The lookahead accepts EXACT names only. A prefix or subsequence hit on
+    // the wider string would eat title words to feed a guess.
+    expect(run('Deploy #Network now').title).toBe('Deploy now')
+    expect(run('Deploy #Network now').trackId).toBe('t-net')
+    expect(run('Check #Net work order').title).toBe('Check work order')
+    expect(run('Check #Net work order').trackId).toBe('t-net')
+  })
+
+  it('never lets the lookahead swallow another token', () => {
+    const p = run('Renew cert #IT due:thu')
+    expect(p.trackId).toBe('t-ito')
+    expect(p.dueDate).toBe('2026-07-30')
+    expect(p.title).toBe('Renew cert')
+  })
+})

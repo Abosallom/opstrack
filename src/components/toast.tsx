@@ -55,6 +55,17 @@ function snapshot(): ToastItem[] {
   return items
 }
 
+/**
+ * The live stack, oldest first — the same reference <Toaster /> subscribes to.
+ *
+ * Exported for toast.test.ts, which asserts the eviction policy. Read-only by
+ * type: the array is the store's own, and mutating it would desynchronise every
+ * subscriber from the value they were last notified about.
+ */
+export function getToasts(): readonly ToastItem[] {
+  return items
+}
+
 function schedule(id: number, ms: number): void {
   window.clearTimeout(timers.get(id))
   if (ms <= 0) return
@@ -66,10 +77,52 @@ function schedule(id: number, ms: number): void {
   )
 }
 
+/**
+ * `duration: 0` — stays until the user dismisses or actions it.
+ *
+ * A sticky toast is not a louder notification, it is a toast whose ACTION is
+ * the only way to do the thing. main.tsx raises exactly one: "a new version is
+ * available", whose button is the sole caller of `updateSW` — it is closed over
+ * there and exposed nowhere else in the app.
+ */
+function isSticky(it: ToastItem): boolean {
+  return (it.duration ?? -1) === 0
+}
+
+/**
+ * Enforce MAX_STACK by dropping the OLDEST AUTO-DISMISSING toast.
+ *
+ * This used to be `.slice(-MAX_STACK)`, which evicts the oldest full stop — so
+ * three ordinary toasts (a capture, an undo, a save) silently pushed the update
+ * prompt off the stack and the shipped update could never be applied for the
+ * rest of the session. Evicting a toast that was going to disappear on its own
+ * in three seconds costs nothing; evicting one that is somebody's only button
+ * costs them the release.
+ *
+ * If the stack is ALL sticky, it is allowed to grow past MAX_STACK rather than
+ * drop one. Every sticky toast is a deliberate, user-actionable prompt raised by
+ * code that decided it must be seen, and there is one such call site today —
+ * "too many undismissed prompts" is a problem the product does not have, and
+ * losing one is the bug this function exists to fix.
+ */
+function trimStack(list: ToastItem[]): ToastItem[] {
+  const out = [...list]
+  while (out.length > MAX_STACK) {
+    const oldestTransient = out.findIndex((it) => !isSticky(it))
+    if (oldestTransient === -1) break
+    const [dropped] = out.splice(oldestTransient, 1)
+    // Its countdown outlives the array otherwise, and fires dismissToast() on
+    // an id that is already gone.
+    window.clearTimeout(timers.get(dropped.id))
+    timers.delete(dropped.id)
+  }
+  return out
+}
+
 /** Raise a toast. Returns its id so a caller can dismiss it early. */
 export function toast(message: string, opts: ToastOptions = {}): number {
   const id = nextId++
-  items = [...items, { ...opts, id, message }].slice(-MAX_STACK)
+  items = trimStack([...items, { ...opts, id, message }])
   emit()
   schedule(id, opts.duration ?? (opts.action ? ACTION_MS : DEFAULT_MS))
   return id
@@ -78,6 +131,10 @@ export function toast(message: string, opts: ToastOptions = {}): number {
 export function dismissToast(id: number): void {
   window.clearTimeout(timers.get(id))
   timers.delete(id)
+  // Bail before rebuilding the array: a late timer for an already-evicted toast
+  // would otherwise mint a new `items` identity and re-render every toast for
+  // nothing. useSyncExternalStore compares by reference.
+  if (!items.some((it) => it.id === id)) return
   items = items.filter((it) => it.id !== id)
   emit()
 }
@@ -89,7 +146,7 @@ function hold(id: number): void {
 
 /** Pointer left — restart a shortened grace countdown. */
 function release(it: ToastItem): void {
-  if ((it.duration ?? 1) === 0) return
+  if (isSticky(it)) return
   schedule(it.id, it.action ? 3000 : 1500)
 }
 

@@ -180,6 +180,11 @@ export const PROBLEM_KEYS = {
   // three names already voted for "recurrence" and only one for "cadence".
   recurrence: 'capture.errRecurrence',
   duplicate: 'capture.warnDuplicate',
+  // An opening `"` with no closing one. Only raised where the absorbed text
+  // would otherwise leave NO signal at all — see the `unterminated` handling in
+  // parse(). Non-blocking: the value still parses, because a live capture box
+  // has to say something useful while the quote is still open.
+  unterminatedQuote: 'capture.warnUnterminatedQuote',
 } as const
 
 // ── grammar tables ─────────────────────────────────────────────────────────
@@ -255,6 +260,30 @@ const KEYED_KIND: Readonly<Record<string, TokenKind>> = {
   ev: 'recurring',
 }
 
+/**
+ * The SHORT keys, which are only keys when they work.
+ *
+ * `d:` and `f:` are also Windows drive letters, and this is an IT-operations
+ * tracker: `Restore D:\backup to F:\data` was parsed as two failed date tokens
+ * and STORED AS "Restore to", because a failed keyed date token is consumed
+ * anyway (that rule is right for `due:someday` — see the case below). The same
+ * shape hit `Set F:1 flag` → "Set flag" and `check ev:1 ratio` → "check ratio".
+ * Deleting typed text is the worst thing this module can do, and it was doing
+ * it silently, in the one product where drive letters are everywhere.
+ *
+ * So the abbreviations carry a burden of proof that the spelled-out keys do
+ * not: `d:`, `f:`, `fu:` and `ev:` are a token only if their value RESOLVES. If
+ * it does not, the whole thing was never a token — the text stays in the title
+ * and no problem is reported, because there is no failed intent to report.
+ * `due:` and `every:` are unambiguous, so they keep the old behaviour: consumed
+ * and marked red, since a user who typed six letters of `due:` meant a date.
+ *
+ * The rule a reader needs is one sentence: an abbreviation is a keyword only
+ * when it works. Dropping `d`/`f` from KEYED_RE was the other candidate fix; it
+ * loses two documented shorthands and still leaves `ev:1` eating text.
+ */
+const SHORT_KEYS: ReadonlySet<string> = new Set(['d', 'f', 'fu', 'ev'])
+
 const SIGIL_KIND: Readonly<Record<string, TokenKind>> = {
   '#': 'track',
   '@': 'owner',
@@ -310,6 +339,10 @@ interface RawToken {
   /** Bidi-stripped and trimmed; quotes removed when the value was quoted. */
   value: string
   quoted: boolean
+  /** Opened with `"` and never closed — the value ran to end of input. */
+  unterminated: boolean
+  /** Written with a SHORT_KEYS abbreviation, which must resolve to survive. */
+  shortKey: boolean
 }
 
 function isSpace(ch: string): boolean {
@@ -334,9 +367,10 @@ function isInvisible(ch: string): boolean {
  * is what the user actually typed, and leaving the mark behind when the token
  * is consumed would strand an invisible character in the middle of the title.
  */
-function scan(input: string): RawToken[] {
+function scan(input: string, tracks: readonly ParseTrack[]): RawToken[] {
   const out: RawToken[] = []
   const n = input.length
+  const trackWords = maxTrackWords(tracks)
   let i = 0
 
   while (i < n) {
@@ -351,6 +385,24 @@ function scan(input: string): RawToken[] {
 
     const found = tokenAt(input, p)
     if (found) {
+      // MULTI-WORD TRACK NAMES, UNQUOTED. `#IT Operations` used to resolve the
+      // track off `IT` alone (tier 2, prefix) and consume only `#IT`, stranding
+      // `Operations` in the stored title — "Renew cert Operations", with no
+      // problem reported and a corrupted row in the database. Quoting is the
+      // documented workaround and stays the recommendation; it cannot be the
+      // requirement, because the failure is silent and looks like success.
+      //
+      // Done HERE rather than in parse() so the extension moves the token's
+      // `end` before the scan continues. Consumed spans must not overlap —
+      // buildTitle walks them in one pass — and the only way to guarantee that
+      // is for the scanner to own the boundary.
+      if (found.kind === 'track' && !found.quoted) {
+        const wider = extendTrack(input, found.end, found.value, tracks, trackWords)
+        if (wider) {
+          found.end = wider.end
+          found.value = wider.value
+        }
+      }
       out.push({
         kind: found.kind,
         start: wordStart,
@@ -358,6 +410,8 @@ function scan(input: string): RawToken[] {
         raw: input.slice(wordStart, found.end),
         value: found.value,
         quoted: found.quoted,
+        unterminated: found.unterminated,
+        shortKey: found.shortKey,
       })
       i = found.end
       continue
@@ -371,20 +425,29 @@ function scan(input: string): RawToken[] {
   return out
 }
 
-function tokenAt(
-  input: string,
-  p: number,
-): { kind: TokenKind; end: number; value: string; quoted: boolean } | null {
+interface FoundToken {
+  kind: TokenKind
+  end: number
+  value: string
+  quoted: boolean
+  unterminated: boolean
+  shortKey: boolean
+}
+
+function tokenAt(input: string, p: number): FoundToken | null {
   if (p >= input.length) return null
 
   const ch = input[p]
   let kind = SIGIL_KIND[ch]
   let valueStart = p + 1
+  let shortKey = false
 
   if (!kind) {
     const keyed = KEYED_RE.exec(input.slice(p))
     if (!keyed) return null
-    kind = KEYED_KIND[keyed[1].toLowerCase()]
+    const key = keyed[1].toLowerCase()
+    kind = KEYED_KIND[key]
+    shortKey = SHORT_KEYS.has(key)
     valueStart = p + keyed[0].length
   }
 
@@ -396,10 +459,77 @@ function tokenAt(
   // marks are unambiguous intent, so it is consumed and classified 'unknown'.
   if (!HAS_WORD_CHAR.test(read.value)) {
     if (!read.quoted) return null
-    return { kind: 'unknown', end: read.end, value: read.value, quoted: true }
+    return {
+      kind: 'unknown',
+      end: read.end,
+      value: read.value,
+      quoted: true,
+      unterminated: read.unterminated,
+      shortKey: false,
+    }
   }
 
-  return { kind, end: read.end, value: read.value, quoted: read.quoted }
+  return {
+    kind,
+    end: read.end,
+    value: read.value,
+    quoted: read.quoted,
+    unterminated: read.unterminated,
+    shortKey,
+  }
+}
+
+/** The most words any configured track name spends on itself. */
+function maxTrackWords(tracks: readonly ParseTrack[]): number {
+  let max = 1
+  for (const track of tracks) {
+    for (const form of [track.name, track.nameAr, ...(track.aliases ?? [])]) {
+      const words = (form ?? '').trim().split(/\s+/).filter(Boolean).length
+      if (words > max) max = words
+    }
+  }
+  return max
+}
+
+/**
+ * Grow an unquoted `#track` token rightwards while that makes it an EXACT name.
+ *
+ * Greedy: the longest extension that lands on a tier-1 match wins, so a
+ * workspace holding both `IT` and `IT Operations` reads `#IT Operations` as the
+ * longer one. Only exact matches extend — a prefix or subsequence hit on the
+ * wider string would let `#Net work order` swallow two words of title on the
+ * strength of a fuzzy match, which is the opposite of the bug being fixed.
+ *
+ * Lookahead stops at the first word that starts a token of its own, so
+ * `#IT due:fri` can never absorb the date even if some track were named for it.
+ */
+function extendTrack(
+  input: string,
+  from: number,
+  base: string,
+  tracks: readonly ParseTrack[],
+  maxWords: number,
+): { value: string; end: number } | null {
+  if (maxWords < 2) return null
+
+  const words: Array<{ text: string; end: number }> = []
+  let i = from
+  while (words.length < maxWords - 1) {
+    let p = i
+    while (p < input.length && (isSpace(input[p]) || isInvisible(input[p]))) p += 1
+    if (p >= input.length) break
+    if (tokenAt(input, p)) break
+    let e = p
+    while (e < input.length && !isSpace(input[e])) e += 1
+    words.push({ text: input.slice(p, e), end: e })
+    i = e
+  }
+
+  for (let k = words.length; k >= 1; k -= 1) {
+    const value = clean([base, ...words.slice(0, k).map((w) => w.text)].join(' '))
+    if (matchTrackTiers(value, tracks).exact) return { value, end: words[k - 1].end }
+  }
+  return null
 }
 
 /**
@@ -411,16 +541,28 @@ function tokenAt(
  * turns the same keystrokes into an unknown-track error that resolves itself
  * one character later, which reads as the parser flickering.
  */
-function readValue(input: string, start: number): { value: string; end: number; quoted: boolean } {
+function readValue(
+  input: string,
+  start: number,
+): { value: string; end: number; quoted: boolean; unterminated: boolean } {
   const n = input.length
   if (input[start] === '"') {
     const close = input.indexOf('"', start + 1)
     const inner = close === -1 ? input.slice(start + 1) : input.slice(start + 1, close)
-    return { value: clean(inner), end: close === -1 ? n : close + 1, quoted: true }
+    return {
+      value: clean(inner),
+      end: close === -1 ? n : close + 1,
+      quoted: true,
+      // Reported, not corrected. The run-to-end behaviour above is deliberate;
+      // what was missing is that the caller had no way to KNOW it happened, so
+      // `@"Ahmed due:thu !high #network` swallowed a date, a priority and a
+      // track into an owner name and reported nothing red.
+      unterminated: close === -1,
+    }
   }
   let e = start
   while (e < n && !isSpace(input[e])) e += 1
-  return { value: clean(input.slice(start, e)), end: e, quoted: false }
+  return { value: clean(input.slice(start, e)), end: e, quoted: false, unterminated: false }
 }
 
 function clean(s: string): string {
@@ -464,8 +606,23 @@ export function matchTrack(
   q: string,
   tracks: readonly ParseTrack[],
 ): { id: string | null; candidates: string[] } {
+  const { id, candidates } = matchTrackTiers(q, tracks)
+  return { id, candidates }
+}
+
+/**
+ * matchTrack, plus WHICH tier answered.
+ *
+ * `exact` means a single tier-1 hit — the needle IS one of the track's names.
+ * extendTrack() needs that distinction and matchTrack()'s two-field result
+ * cannot carry it: growing a token on a fuzzy match would eat title words.
+ */
+function matchTrackTiers(
+  q: string,
+  tracks: readonly ParseTrack[],
+): { id: string | null; candidates: string[]; exact: boolean } {
   const needle = foldKey(clean(q))
-  if (!needle) return { id: null, candidates: [] }
+  if (!needle) return { id: null, candidates: [], exact: false }
   const stem = stemArabic(needle)
 
   const exact: string[] = []
@@ -484,7 +641,12 @@ export function matchTrack(
   }
 
   const hits = exact.length > 0 ? exact : near.length > 0 ? near : loose
-  return hits.length === 1 ? { id: hits[0], candidates: [] } : { id: null, candidates: hits }
+  const resolved = hits.length === 1
+  return {
+    id: resolved ? hits[0] : null,
+    candidates: resolved ? [] : hits,
+    exact: resolved && exact.length === 1,
+  }
 }
 
 /**
@@ -585,6 +747,24 @@ function normalizeTag(value: string): string {
  * click rather than a modal that blocks the capture. The one thing that never
  * happens is losing text the user typed.
  */
+/**
+ * Would this short-key token's value actually resolve?
+ *
+ * Asked BEFORE the token is admitted, and it must ask the same question the
+ * dispatch below asks — same resolver, same arguments — or `d:tomorrow` would
+ * be rejected here and accepted there, or worse the reverse.
+ */
+function shortKeyResolves(raw: RawToken, ctx: ParseContext): boolean {
+  if (raw.kind === 'recurring') return resolveCadence(raw.value) !== null
+  return (
+    parseRelativeDate(raw.value, {
+      now: ctx.now,
+      locale: ctx.locale,
+      weekStartsOn: ctx.weekStartsOn,
+    }) !== null
+  )
+}
+
 export function parse(input: string, ctx: ParseContext): ParsedEntry {
   const isEmpty = clean(input) === ''
 
@@ -620,7 +800,13 @@ export function parse(input: string, ctx: ParseContext): ParsedEntry {
     problems.push(vars ? { key, token, vars } : { key, token })
   }
 
-  for (const raw of scan(input)) {
+  for (const raw of scan(input, ctx.tracks)) {
+    // A SHORT KEY THAT DID NOT RESOLVE WAS NEVER A TOKEN. Checked before the
+    // token object exists, so `D:\backup` leaves no chip, no problem and — the
+    // point — no consumed span: the text stays in the title exactly as typed.
+    // See SHORT_KEYS. The spelled-out `due:`/`every:` never take this path.
+    if (raw.shortKey && !shortKeyResolves(raw, ctx)) continue
+
     const token: ParsedToken = {
       kind: raw.kind,
       raw: raw.raw,
@@ -629,6 +815,22 @@ export function parse(input: string, ctx: ParseContext): ParsedEntry {
       ok: true,
     }
     tokens.push(token)
+
+    // AN OPEN QUOTE SWALLOWED THE REST OF THE LINE. Raised only for owner and
+    // tag, which is where it costs the user something: every other kind runs
+    // its value through a resolver that already reports a miss, but `@` treats
+    // free text as a success and `+` accepts anything, so
+    // `Call @"Ahmed due:thu !high #network` filed an owner literally named
+    // "Ahmed due:thu !high #network" and reported nothing. The value is still
+    // used — `#"IT Oper` mid-keystroke has to keep resolving — this only adds
+    // the signal that was missing.
+    if (raw.unterminated && (raw.kind === 'owner' || raw.kind === 'tag')) {
+      problems.push({
+        key: PROBLEM_KEYS.unterminatedQuote,
+        token,
+        vars: { value: raw.value },
+      })
+    }
 
     switch (raw.kind) {
       case 'track': {

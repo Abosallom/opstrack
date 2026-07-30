@@ -39,14 +39,24 @@
 
 import { describe, expect, it } from 'vitest'
 import { ar, en, type LocaleTree } from '../locales'
+import { isPluralNode } from './plural'
 import { TRACK_ICON_NAMES } from './trackIcons'
 
 /* ─────────────────────────── the two key sets ─────────────────────────── */
 
+/**
+ * Every path a caller may ask t() for.
+ *
+ * A PLURAL NODE TERMINATES THE WALK. `t('offline.pending', { count })` asks for
+ * that path, never for `offline.pending.one` — the form is chosen at runtime by
+ * lib/plural.ts. Recursing into the node instead would record six keys nobody
+ * asks for and, fatally, would NOT record the one key everybody does, so every
+ * pluralized string in the app would report as missing.
+ */
 function flatten(tree: LocaleTree, prefix = '', out: Set<string> = new Set()): Set<string> {
   for (const [k, v] of Object.entries(tree)) {
     const key = prefix ? `${prefix}.${k}` : k
-    if (typeof v === 'string') out.add(key)
+    if (typeof v === 'string' || isPluralNode(v)) out.add(key)
     else flatten(v, key, out)
   }
   return out

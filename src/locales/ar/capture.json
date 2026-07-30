@@ -54,7 +54,13 @@
     "cadenceBiweekly": "كل أسبوعين",
     "cadenceMonthly": "شهريًا",
     "cadenceQuarterly": "كل ربع سنة",
-    "cadenceCustom": "كل {days} يوم",
+    "cadenceCustom": {
+      "one": "كل يوم",
+      "two": "كل يومين",
+      "few": "كل {count} أيام",
+      "many": "كل {count} يومًا",
+      "other": "كل {count} يوم"
+    },
     "preview": "معاينة",
     "previewEmpty": "ابدأ الكتابة لترى ما سيُنشأ.",
     "willCreate": "سيُنشئ بندًا واحدًا في {track}.",
@@ -73,7 +79,14 @@
     "problemCount": "للمراجعة: {count}",
     "pickTrack": "أي مسار؟",
     "pickTrackHint": "اختر واحدًا، أو أكمل الكتابة لتضييق الاحتمالات.",
-    "parsedAnnounce": "الرموز المقروءة: {count}",
+    "parsedAnnounce": {
+      "zero": "لم يُقرأ أي رمز",
+      "one": "رمز واحد مقروء",
+      "two": "رمزان مقروءان",
+      "few": "{count} رموز مقروءة",
+      "many": "{count} رمزًا مقروءًا",
+      "other": "الرموز المقروءة: {count}"
+    },
     "errEmpty": "اكتب شيئًا أولًا.",
     "errTrackUnknown": "لا يوجد مسار يطابق «{value}».",
     "errTrackAmbiguous": "«{value}» يطابق أكثر من مسار.",
@@ -87,6 +100,7 @@
     "warnDuplicate": "حُدِّد {kind} مرّتين — تُعتمد الأخيرة.",
     "warnLongTitle": "العناوين الطويلة يصعب تصفّحها في القوائم.",
     "warnOwnerAmbiguous": "«{name}» يطابق أكثر من شخص — سيُحفظ كنصّ حر.",
+    "warnUnterminatedQuote": "علامة اقتباس غير مغلقة، فامتدّت «{value}» حتى نهاية السطر.",
     "newOwner": "«{name}» ليس من الفريق — سيُحفظ كنصّ حر."
   }
 }

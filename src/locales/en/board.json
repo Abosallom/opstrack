@@ -2,8 +2,11 @@
   "board": {
     "title": "Board",
     "subtitle": "Everything in flight, in a column per whatever you're grouping by.",
-    "total": "{count} items",
-    "closedWindow": "Done and Cancelled show the last {days} days.",
+    "total": { "one": "{count} item", "other": "{count} items" },
+    "closedWindow": {
+      "one": "Done and Cancelled show the last day.",
+      "other": "Done and Cancelled show the last {count} days."
+    },
 
     "groupBy": "Group by",
     "groupStatus": "Status",
@@ -17,18 +20,27 @@
 
     "column": "Column: {column}",
     "columnCount": "{count}",
-    "columnCountLabel": "{count} items",
+    "columnCountLabel": { "one": "{count} item", "other": "{count} items" },
     "columnEmptyStatus": "Nothing in {column}",
     "columnEmptyTrack": "Nothing on {column}",
     "columnEmptyOwner": "Nothing assigned here",
     "columnEmptyPriority": "Nothing at {column}",
     "columnEmptyHint": "Drag a card here, or add one with the + button.",
-    "collapseColumn": "Collapse {column} — {count} items",
-    "expandColumn": "Expand {column} — {count} items",
+    "collapseColumn": {
+      "one": "Collapse {column} — {count} item",
+      "other": "Collapse {column} — {count} items"
+    },
+    "expandColumn": {
+      "one": "Expand {column} — {count} item",
+      "other": "Expand {column} — {count} items"
+    },
     "unknownColumn": "Unknown",
 
     "slaBadge": "{count} past SLA",
-    "slaBadgeLabel": "{count} items past their SLA in this column",
+    "slaBadgeLabel": {
+      "one": "{count} item past its SLA in this column",
+      "other": "{count} items past their SLA in this column"
+    },
 
     "quickAdd": "Add to {column}",
     "quickAddPlaceholder": "New item…",

@@ -52,6 +52,29 @@ export function useAuth(): AuthState {
   return useAuthStore()
 }
 
+/**
+ * Is there a session RIGHT NOW? Non-reactive, for load guards.
+ *
+ * WHAT IT IS FOR, AND WHY EVERY CACHED STORE NEEDS IT. Under RLS, a read made
+ * with only the anon key is not an error — `is_member()` is false, every row is
+ * filtered out, and PostgREST returns **200 with `[]`**. A loader cannot tell
+ * that apart from "this workspace has no tracks", so it caches the empty answer,
+ * stamps `loadedAt`, and every later load short-circuits on the stamp. The whole
+ * session then renders "No track", "Unassigned" and unlabelled status pills,
+ * with nothing logged and nothing to retry.
+ *
+ * It is not a narrow race either: config, vocab and members each register a
+ * `focus` listener at module scope, so alt-tabbing while the SIGN-IN screen is
+ * open is enough to poison all three before the user has typed a password.
+ *
+ * So: an empty list is only believed when this returns true. Non-reactive on
+ * purpose — a guard that re-rendered its caller would be a subscription, and
+ * these are called from inside promise callbacks.
+ */
+export function hasSession(): boolean {
+  return useAuthStore.getState().session !== null
+}
+
 function notConfigured(): string {
   return t('common.notConfigured')
 }

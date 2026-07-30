@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, type ReactElement, type ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingSpinner } from './components/shared'
 import { Toaster } from './components/toast'
 import { ConfirmHost } from './components/Confirm'
@@ -25,6 +26,7 @@ import { startRealtime, stopRealtime } from './api/realtime'
 import { useAuth } from './store/auth'
 import { loadConfig } from './store/config'
 import { resetEntries, startEntriesRealtime } from './store/entries'
+import { loadMembers, resetMembers } from './store/members'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
 import { resetOutbox } from './store/outbox'
 import { setLocaleSetting, setTheme, useSettings } from './store/settings'
@@ -279,11 +281,18 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
   }, [pathname])
 
   // Warm the workspace-wide stores once per session, and open the one realtime
-  // channel. Tracks and vocabulary are needed by pickers, colour bars, pills and
-  // the admin lists alike, so fetching them per screen would mean the same two
-  // queries on nearly every navigation. Deliberately unawaited: both loaders
-  // de-duplicate, neither throws, and every consumer already renders its own
-  // loading state — the shell must not wait on either to paint.
+  // channel. Tracks, vocabulary and members are needed by pickers, colour bars,
+  // pills, owner badges and the admin lists alike, so fetching them per screen
+  // would mean the same three queries on nearly every navigation. Deliberately
+  // unawaited: every loader de-duplicates, none throws, and every consumer
+  // renders its own loading state — the shell must not wait to paint.
+  //
+  // MEMBERS BELONGS HERE and was missing. Nothing on a LIST screen loaded it —
+  // only EntrySheet and Capture did — so every owned entry on follow-ups, the
+  // board and the tracks tree rendered "Unassigned" until the user happened to
+  // open a sheet, at which point the whole list silently re-labelled itself.
+  // memberLabel() falls through to that string when the roster is empty, which
+  // is indistinguishable from the row genuinely having no owner.
   //
   // Placed in Shell rather than App because Shell mounts only once a session
   // exists, and every one of these is RLS-gated on being signed in. That is also
@@ -293,10 +302,11 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
   // Entries are NOT loaded here. They are a screen's working set, they are the
   // one dataset large enough for the fetch to be worth deferring, and the
   // screens that need them are Wave 2's — each self-loads through
-  // store/entries.loadEntries(), which dedupes exactly like these two.
+  // store/entries.loadEntries(), which dedupes exactly like these three.
   useEffect(() => {
     void loadConfig()
     void loadVocab()
+    void loadMembers()
     // The notification stream rides the shared channel, so the channel has to be
     // open first; both calls are idempotent, and subscribing before SUBSCRIBED
     // lands is fine — api/realtime.ts registers handlers, not sockets.
@@ -325,6 +335,13 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       resetNotifications()
       resetEntries()
       resetOutbox()
+      // Members joins them now that Shell warms it on every session. Its own
+      // doc comment asks for this: the roster is cached to localStorage for
+      // first paint, and the next person to sign in on a shared device must not
+      // see the previous one's teammates in an owner picker. Before the warm
+      // call above, the store only filled when a sheet was opened, so the leak
+      // needed a coincidence; now it is guaranteed without this line.
+      resetMembers()
     }
   }, [])
 
@@ -383,26 +400,34 @@ export default function App(): ReactElement {
   // every t() call picks up the new bundle. t() is a plain function; without a
   // subscription React has no way to know its output went stale.
   useLocale()
+  // Feeds ErrorBoundary's resetKey: navigating away from a crashed screen
+  // clears the boundary, so one bad route cannot wedge the whole session.
+  const { pathname } = useLocation()
 
   if (loading) return <BootSplash />
 
   if (!session) {
     return (
       <>
-        <Suspense fallback={<BootSplash />}>
-          <Routes>
-            <Route path="/signin" element={<SignIn />} />
-            {/* Reachable only from sign-in, and only while signed out — which
-                is the whole of its life: claimAccount() ends by publishing a
-                session, so a successful claim re-renders App down the branch
-                below and this route ceases to exist mid-submit. That is why
-                the screen has no success panel. */}
-            <Route path="/claim" element={<Claim />} />
-            {/* Anything else while signed out lands on sign-in. `replace` so
-                the back button does not bounce between the two. */}
-            <Route path="*" element={<Navigate to="/signin" replace />} />
-          </Routes>
-        </Suspense>
+        {/* Outside Suspense, not inside: the thing most likely to fail here is
+            the lazy chunk itself, and a boundary nested under the Suspense that
+            requested it never sees that rejection. */}
+        <ErrorBoundary resetKey={pathname}>
+          <Suspense fallback={<BootSplash />}>
+            <Routes>
+              <Route path="/signin" element={<SignIn />} />
+              {/* Reachable only from sign-in, and only while signed out — which
+                  is the whole of its life: claimAccount() ends by publishing a
+                  session, so a successful claim re-renders App down the branch
+                  below and this route ceases to exist mid-submit. That is why
+                  the screen has no success panel. */}
+              <Route path="/claim" element={<Claim />} />
+              {/* Anything else while signed out lands on sign-in. `replace` so
+                  the back button does not bounce between the two. */}
+              <Route path="*" element={<Navigate to="/signin" replace />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
         <Toaster />
       </>
     )
@@ -411,48 +436,55 @@ export default function App(): ReactElement {
   return (
     <>
       <Shell>
-        <Suspense fallback={<LoadingSpinner />}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/followups" replace />} />
-            {/* Signed in, so the sign-in route is dead — send it home rather
-                than showing a form that cannot do anything. */}
-            <Route path="/signin" element={<Navigate to="/followups" replace />} />
-            <Route path="/capture" element={<Capture />} />
-            <Route path="/followups" element={<FollowUps />} />
-            <Route path="/board" element={<Board />} />
-            <Route path="/tracks" element={<Tracks />} />
-            <Route path="/tracks/:id" element={<Tracks />} />
-            {/* The entry as a PAGE — a URL somebody was sent. Every in-app
-                tap opens the same detail surface as an overlay instead, via
-                openEntry() and the host mounted at the root below. */}
-            <Route path="/entry/:id" element={<Entry />} />
-            <Route path="/meetings" element={<Meetings />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/settings" element={<Settings />} />
-            {/* Admin config hangs off /settings rather than taking a top-level
-                route: NAV is capped at five tab-bar slots, and these screens
-                are reached from the Settings page. React Router ranks the
-                static '/new' above the dynamic ':id' regardless of order, so
-                creating cannot be mistaken for editing a track called "new". */}
-            <Route
-              path="/settings/tracks"
-              element={isAdmin ? <TracksAdmin /> : <Navigate to="/settings" replace />}
-            />
-            <Route
-              path="/settings/tracks/new"
-              element={isAdmin ? <TrackEditor /> : <Navigate to="/settings" replace />}
-            />
-            <Route
-              path="/settings/tracks/:id"
-              element={isAdmin ? <TrackEditor /> : <Navigate to="/settings" replace />}
-            />
-            <Route
-              path="/settings/vocabulary"
-              element={isAdmin ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
-            />
-            <Route path="*" element={<Navigate to="/followups" replace />} />
-          </Routes>
-        </Suspense>
+        {/* One boundary for all fourteen lazy routes, INSIDE Shell so the tab
+            bar, header and sign-out survive a screen that crashes — the user
+            can navigate out of the failure instead of being left on a page
+            whose only control is Reload. `resetKey` is what makes that work:
+            leaving the route clears the error. */}
+        <ErrorBoundary resetKey={pathname}>
+          <Suspense fallback={<LoadingSpinner />}>
+            <Routes>
+              <Route path="/" element={<Navigate to="/followups" replace />} />
+              {/* Signed in, so the sign-in route is dead — send it home rather
+                  than showing a form that cannot do anything. */}
+              <Route path="/signin" element={<Navigate to="/followups" replace />} />
+              <Route path="/capture" element={<Capture />} />
+              <Route path="/followups" element={<FollowUps />} />
+              <Route path="/board" element={<Board />} />
+              <Route path="/tracks" element={<Tracks />} />
+              <Route path="/tracks/:id" element={<Tracks />} />
+              {/* The entry as a PAGE — a URL somebody was sent. Every in-app
+                  tap opens the same detail surface as an overlay instead, via
+                  openEntry() and the host mounted at the root below. */}
+              <Route path="/entry/:id" element={<Entry />} />
+              <Route path="/meetings" element={<Meetings />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/settings" element={<Settings />} />
+              {/* Admin config hangs off /settings rather than taking a top-level
+                  route: NAV is capped at five tab-bar slots, and these screens
+                  are reached from the Settings page. React Router ranks the
+                  static '/new' above the dynamic ':id' regardless of order, so
+                  creating cannot be mistaken for editing a track called "new". */}
+              <Route
+                path="/settings/tracks"
+                element={isAdmin ? <TracksAdmin /> : <Navigate to="/settings" replace />}
+              />
+              <Route
+                path="/settings/tracks/new"
+                element={isAdmin ? <TrackEditor /> : <Navigate to="/settings" replace />}
+              />
+              <Route
+                path="/settings/tracks/:id"
+                element={isAdmin ? <TrackEditor /> : <Navigate to="/settings" replace />}
+              />
+              <Route
+                path="/settings/vocabulary"
+                element={isAdmin ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
+              />
+              <Route path="*" element={<Navigate to="/followups" replace />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </Shell>
       <Toaster />
       {/* Every openEntry() in the app lands here. Follow-ups, the board and
@@ -460,9 +492,14 @@ export default function App(): ReactElement {
           that decoupling is what let Wave 2 run five workers wide, and this
           single mount is the other half of it. Renders null until something is
           open, and stands down while the /entry/:id route is showing. */}
-      <Suspense fallback={null}>
-        <EntryOverlay />
-      </Suspense>
+      {/* Wrapped for the same reason as the routes: the overlay is lazy too,
+          and an unguarded chunk failure here would unmount the whole app from
+          a tap on a card. */}
+      <ErrorBoundary resetKey={pathname}>
+        <Suspense fallback={null}>
+          <EntryOverlay />
+        </Suspense>
+      </ErrorBoundary>
       {/* Mounted once, at the root, beside the toaster: confirm() is called
           from anywhere and resolves a promise, so its dialog cannot live
           inside the component that asked — that component is often the one

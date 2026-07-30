@@ -400,9 +400,30 @@ describe('URL round-trip', () => {
   })
 
   it('rejects a malformed date rather than silently shrinking the list', () => {
-    const f = filterFromParams(new URLSearchParams('from=yesterday&to=2026-13-99x'))
+    // The `to=` value used to carry a trailing `x`, which the old shape test
+    // rejected for the wrong reason — drop the `x` and `2026-13-99` sailed
+    // through. These are the inputs that matter: right shape, impossible date.
+    const f = filterFromParams(new URLSearchParams('from=yesterday&to=2026-13-99'))
     expect(f.from).toBeNull()
     expect(f.to).toBeNull()
+  })
+
+  it('rejects a date that has the right shape but does not exist', () => {
+    // A bound nothing can equal empties every list, because matchesFilter
+    // compares ISO strings and every real date sorts below "2026-13-99".
+    for (const bad of ['2026-13-99', '2026-02-30', '2026-00-10', '2026-01-32', '0000-01-01x']) {
+      const f = filterFromParams(new URLSearchParams(`from=${bad}`))
+      expect(f.from, bad).toBeNull()
+    }
+  })
+
+  it('still accepts a real date, whitespace and all', () => {
+    // 2028 is a leap year and 2026 is not, which is exactly the distinction a
+    // shape test cannot make and parseIsoDate's round-trip can.
+    expect(filterFromParams(new URLSearchParams('from=2028-02-29')).from).toBe('2028-02-29')
+    expect(filterFromParams(new URLSearchParams('from=2026-02-29')).from).toBeNull()
+    expect(filterFromParams(new URLSearchParams('from=2026-07-29')).from).toBe('2026-07-29')
+    expect(filterFromParams(new URLSearchParams('from= 2026-07-29 ')).from).toBe('2026-07-29')
   })
 
   it('keeps a comma inside a tag intact by repeating the param', () => {

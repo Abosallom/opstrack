@@ -1,6 +1,7 @@
 // Hand-rolled i18n. Two languages and a flat dot-path key space do not justify
 // pulling in i18next and its React bindings, so this module is the whole thing:
-// lookup, {var} interpolation, persistence, and a subscribable locale.
+// lookup, {var} interpolation, CLDR plural selection, persistence, and a
+// subscribable locale.
 //
 // Missing-key behaviour is deliberate: Arabic falls back to the English string
 // (a readable sentence in the wrong language beats an empty label), and an
@@ -12,6 +13,7 @@ import { useSyncExternalStore } from 'react'
 // monolithic bundles this used to import were the build's worst contention
 // point; the key space and everything below is unchanged by the split.
 import { ar, en } from '../locales'
+import { isPluralNode, selectPlural } from './plural'
 
 export type Locale = 'en' | 'ar'
 
@@ -60,13 +62,41 @@ export function applyLocale(): void {
   el.dir = RTL_LOCALES.includes(current) ? 'rtl' : 'ltr'
 }
 
-function lookup(tree: Tree, key: string): string | undefined {
+// ── plurals ────────────────────────────────────────────────────────────────
+//
+// The CLDR table itself lives in lib/plural.ts, because lib/dates.ts needs the
+// same one and cannot import this module — see that file's header. Everything
+// below is the lookup half: finding the node, then asking plural.ts which of
+// its forms `{count}` selects.
+
+/** Walk the dot path. Returns the node, whatever it is — string, tree or absent. */
+function lookupNode(tree: Tree, key: string): string | Tree | undefined {
   let node: string | Tree | undefined = tree
   for (const part of key.split('.')) {
     if (typeof node !== 'object') return undefined
     node = node[part]
   }
-  return typeof node === 'string' ? node : undefined
+  return node
+}
+
+/**
+ * One bundle's answer for a key: the string, or the plural form `count` selects.
+ *
+ * A plural node with NO count still resolves — to `other` — rather than falling
+ * through to the key. A caller that forgot the variable gets a readable
+ * sentence with a literal `{count}` in it, which is the same failure interpolate()
+ * already chose for a missing variable, instead of a dot path.
+ */
+function resolve(
+  tree: Tree,
+  key: string,
+  locale: Locale,
+  vars: Record<string, string | number> | undefined,
+): string | undefined {
+  const node = lookupNode(tree, key)
+  if (typeof node === 'string') return node
+  if (!isPluralNode(node)) return undefined
+  return selectPlural(node, locale, vars?.count)
 }
 
 function interpolate(template: string, vars: Record<string, string | number>): string {
@@ -78,7 +108,12 @@ function interpolate(template: string, vars: Record<string, string | number>): s
 }
 
 export function t(key: string, vars?: Record<string, string | number>): string {
-  const raw = lookup(BUNDLES[current], key) ?? lookup(BUNDLES.en, key) ?? key
+  // The English fallback resolves against the ENGLISH plural rules, not the
+  // current locale's: the form being read is an English sentence, so asking for
+  // its `few` would be asking a bundle a question it was never written to
+  // answer.
+  const raw =
+    resolve(BUNDLES[current], key, current, vars) ?? resolve(BUNDLES.en, key, 'en', vars) ?? key
   return vars ? interpolate(raw, vars) : raw
 }
 

@@ -37,6 +37,7 @@ import { useCallback, useMemo } from 'react'
 import { create } from 'zustand'
 import { listVocab } from '../api/config'
 import { useLocale, type Locale } from '../lib/i18n'
+import { hasSession } from './auth'
 import { ar as arBundle, en as enBundle, type LocaleTree } from '../locales'
 import type { EntryPriority, VocabKind, VocabRow } from '../types'
 
@@ -365,12 +366,19 @@ export function loadVocab(force = false): Promise<void> {
 
   inFlight = listVocab()
     .then((result) => {
-      if (result.ok) {
-        useVocabStore.setState(derive(result.data, Date.now()))
-        writeCache(result.data)
-      } else {
+      if (!result.ok) {
         console.warn('[vocab] load failed:', result.error)
+        return
       }
+      // An empty list from an UNAUTHENTICATED read is not an answer — see
+      // hasSession(). Believing it stamps `loadedAt` and short-circuits every
+      // load for the rest of the session.
+      if (result.data.length === 0 && !hasSession()) {
+        console.warn('[vocab] ignoring an empty read made without a session')
+        return
+      }
+      useVocabStore.setState(derive(result.data, Date.now()))
+      writeCache(result.data)
     })
     .finally(() => {
       inFlight = null
@@ -399,6 +407,10 @@ export function invalidateVocab(): void {
 // window to listen on.
 if (typeof window !== 'undefined') {
   window.addEventListener('focus', () => {
+    // Signed out, the read can only come back empty (RLS), and believing that
+    // empty answer is exactly the bug hasSession() documents. Alt-tabbing on
+    // the sign-in screen must not poison the cache.
+    if (!hasSession()) return
     const { loadedAt } = useVocabStore.getState()
     if (loadedAt === null || Date.now() - loadedAt > STALE_AFTER_MS) void loadVocab(true)
   })

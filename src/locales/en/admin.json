@@ -65,9 +65,9 @@
       "reassignTo": "Move items to",
       "reassignNoTargets": "There is no other active track to move them to. Add one, or restore an archived track, then delete this one.",
       "usage": "In use",
-      "usageEntries": "{count} entries",
-      "usageMeetings": "{count} meetings",
-      "usageTemplates": "{count} templates",
+      "usageEntries": { "one": "{count} entry", "other": "{count} entries" },
+      "usageMeetings": { "one": "{count} meeting", "other": "{count} meetings" },
+      "usageTemplates": { "one": "{count} template", "other": "{count} templates" },
       "usageNone": "Not used yet",
       "empty": "No tracks yet",
       "emptyHint": "Add your first track to start filing work under it.",
@@ -92,8 +92,8 @@
       "slaAfterSave": "Save the track first. Deadlines hang off a track, so this one needs an identity before it can carry any.",
       "slaInherit": "Inherit",
       "slaEffectiveNone": "No deadline",
-      "slaEffectiveOwn": "This track: {days} days",
-      "slaEffectiveInherited": "Inherited: {days} days",
+      "slaEffectiveOwn": { "one": "This track: {count} day", "other": "This track: {count} days" },
+      "slaEffectiveInherited": { "one": "Inherited: {count} day", "other": "Inherited: {count} days" },
       "errSlaRange": "Enter a number between {min} and {max}, or leave it empty to inherit.",
       "errNotFound": "That track no longer exists. Reload the list."
     }

@@ -503,7 +503,9 @@ export default function Capture(): ReactElement {
           return formatDate(raw, locale)
         case 'recurring': {
           const key = CADENCE_LABEL[raw as Cadence] ?? 'capture.chipRecurring'
-          return t(key, { days: parsed.recurrence?.customIntervalDays ?? 0 })
+          // `count`, not `days`: capture.cadenceCustom is a plural node, and the
+          // selector reads `count`. The five fixed cadences ignore the variable.
+          return t(key, { count: parsed.recurrence?.customIntervalDays ?? 0 })
         }
         default:
           return raw
