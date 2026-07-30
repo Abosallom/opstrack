@@ -24,8 +24,8 @@ export default defineConfig({
       // manifest, so workbox would leave them out of the precache.
       includeAssets: ['icon.svg', 'apple-touch-icon.png', 'favicon-32.png'],
       manifest: {
-        name: 'OpsTrack',
-        short_name: 'OpsTrack',
+        name: 'CoreTrack',
+        short_name: 'CoreTrack',
         description: 'Multi-track action and decision tracker for operations leads.',
         display: 'standalone',
         orientation: 'portrait',
