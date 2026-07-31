@@ -1,0 +1,377 @@
+/* Terminology admin (/settings/terminology).
+
+   CLASS REGISTRY (XP §1.0.7): this sheet owns `.term-*` and nothing else.
+   Everything structural comes from global.css primitives — .card, .btn, .pill,
+   .field, .input, .field-label, .field-error, .switch, .row-actions, .tabular,
+   .sr-only — and every variant here rides on a data-* attribute or on an ARIA
+   state rather than on a modifier class, so an unregistered `.is-open` can never
+   appear by habit. That is the same constraint vocab.css and entry.css state,
+   and it is what makes the registry checkable by grep instead of by trust.
+
+   LOGICAL PROPERTIES ONLY — inline/block axes, never a physical edge — so the
+   Arabic mirror costs nothing. The ONE exception is marked: `.term-caret`'s
+   rotation, which turns a forward chevron into a downward one and must NOT
+   mirror, because down is axis-neutral.
+
+   SPACING is the 4px grid: 4 / 8 / 12 / 16. MOTION is 150ms ease and is switched
+   off under prefers-reduced-motion, which global.css also enforces globally —
+   restated here so this file is honest on its own.
+
+   THE TYPOGRAPHIC JOB OF THIS SCREEN is telling four kinds of text apart at a
+   glance, down a list of 1,665 of them: the KEY (a machine identifier, mono and
+   faint), the DEFAULT (what the app says today, muted), the INPUT (what the
+   owner is writing, full contrast) and the NOTE (guidance, small). Every size
+   and colour below is in service of that and nothing else. */
+
+.term {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Wider than vocab's 760px: a row carries an English and an Arabic column
+     side by side, and at 760 the two inputs are too narrow to read a sentence
+     in. Below `--term-split` they stack — see the media query at the foot. */
+  max-inline-size: 940px;
+}
+
+.term-bar {
+  display: flex;
+  align-items: center;
+}
+
+/* The route's h1 lives in the app header, so the page opens on its standfirst.
+   The three lines are one thought — what this screen does, what an empty box
+   means, what happens to Arabic on save — so they sit 4px apart rather than
+   taking the page's 16px rhythm and reading as three announcements. */
+.term-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.term-lead {
+  font-size: 13px;
+  line-height: 1.55;
+  /* --text-dim, not --text-faint: this sits directly on --bg and dim is the
+     token that clears AA at every elevation. */
+  color: var(--text-dim);
+}
+
+.term-note {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+/* ---------- the header: the tally and the escape hatch ----------
+   One card, and the two are together on purpose: "Reset every change" is
+   legible only next to the number it would reset. */
+
+/* ROW-GAP 16, NOT 8, ON EVERY WRAPPING CLUSTER THAT HOLDS A `.btn-sm` — here,
+   `.term-toggle-row` and `.term-actions` below. global.css gives those controls
+   their 44px target through a ::after overlay that reaches 7px past the box on
+   each side, so two wrapped lines closer than 14px have OVERLAPPING overlays and
+   the lower line silently eats the upper line's taps. That is not hypothetical:
+   the same 8px cost four other clusters their target at 375px, invisibly,
+   because nothing wraps at 1280px. The value is inert until something wraps,
+   which under Arabic — where every label here is longer — it does. */
+.term-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 16px;
+}
+
+.term-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+/* ---------- search and the changed-only switch ---------- */
+
+.term-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.term-search {
+  gap: 4px;
+}
+
+/* Clears the type-to-search magnifier and the WebKit cancel button, both of
+   which sit on a physical edge and so land on the wrong side under RTL. */
+.term-search input[type='search']::-webkit-search-decoration,
+.term-search input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.term-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 16px;
+}
+
+.term-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- a section ---------- */
+
+.term-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The heading exists for the outline; the button inside it is the control. A
+   button wrapped in an h2 keeps both — a screen reader lists the section in the
+   heading map AND announces the expand state. */
+.term-section-h {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.term-section-btn {
+  inline-size: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* 44px floor: this is the primary control of the screen on a phone, and it is
+     the whole width of the card. */
+  min-block-size: 44px;
+  padding: 4px 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+  font: inherit;
+}
+
+/* No :focus-visible rule here on purpose: global.css's single ring already
+   covers every focusable element, and a second copy is a second thing to drift
+   from the audited contrast. */
+
+.term-section-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.term-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.term-section-tally {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* PHYSICAL ROTATION, DELIBERATELY. The chevron points forward when closed and
+   down when open. Forward mirrors (global.css's .icon-directional does that);
+   DOWN DOES NOT — an axis-neutral direction rotated by a mirrored transform
+   points sideways in Arabic. So the closed state carries .icon-directional's job
+   via the logical `end` chevron glyph, and the open state is a fixed 90deg. */
+.term-caret {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--text-faint);
+  transition: transform 150ms ease;
+}
+
+[dir='rtl'] .term-caret:not([data-open]) {
+  transform: scaleX(-1);
+}
+
+.term-caret[data-open] {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term-caret {
+    transition: none;
+  }
+}
+
+/* ---------- the list ---------- */
+
+.term-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.term-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  /* The card is --bg-elev; a row inside it steps up one elevation. Every text
+     token above was chosen to clear AA on --bg-elev-2, the worst dark surface. */
+  background: var(--bg-elev-2);
+}
+
+/* A changed row is marked twice — a coloured rail AND the "Changed" pill in the
+   head — because hue is never the only thing carrying a state. The rail is on
+   the INLINE START edge, so it mirrors with the text. */
+.term-row[data-changed] {
+  border-inline-start: 3px solid var(--accent);
+}
+
+.term-row-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The machine identifier. Mono, faint and small: it is the thing you search by
+   and the thing a developer needs, never the thing you read the row for. */
+.term-key {
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-faint);
+  word-break: break-all;
+}
+
+.term-dot {
+  flex: 0 0 auto;
+}
+
+.term-where {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.term-where-label {
+  color: var(--text-faint);
+}
+
+/* ---------- the plural apparatus ---------- */
+
+.term-plural-note,
+.term-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.term-plural-title,
+.term-form-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+/* ---------- one override row ---------- */
+
+.term-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block-start: 8px;
+}
+
+/* Separators BETWEEN slots only: a plain key has one slot and must not grow a
+   stray rule above it. */
+.term-slot + .term-slot {
+  border-block-start: 1px dashed var(--border);
+}
+
+/* Two columns where there is room for two readable sentences side by side, one
+   below. `--term-split` is the same 720px the intro's max-inline-size is
+   reasoned from. */
+.term-cells {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .term-cells {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.term-cell {
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+/* WHAT THE APP SAYS TODAY. Muted and italic so it never reads as an input's
+   value, but selectable — the likeliest first move in a rename is to copy the
+   original and edit it. */
+.term-default {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  font-style: italic;
+  margin: 0;
+  /* A long sentence must not stretch the grid column it sits in. */
+  overflow-wrap: anywhere;
+}
+
+.term-input {
+  /* The one place on this screen where text is at full contrast: what the owner
+     is writing outranks everything around it. */
+  color: var(--text);
+}
+
+.term-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 16px;
+}
+
+/* ---------- pagination and empty states ---------- */
+
+.term-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+}
+
+.term-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.term-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  /* An owner searching for a phrase can paste one that runs the other way; the
+     value is echoed inside an isolate by the locale string, and this stops a
+     long one from widening the card. */
+  overflow-wrap: anywhere;
+}

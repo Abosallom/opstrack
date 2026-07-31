@@ -47,6 +47,7 @@ import { AR_NAMESPACES, EN_NAMESPACES, type LocaleTree } from '../locales'
 import { buildDigestModel, digestFilename, DIGEST_FORMATS, type DigestFormat } from './digest'
 import { options, rows } from './digest/fixtures'
 import { buildEnvelope, exportFilename } from './export'
+import { labelFileName } from './labelIO'
 import { isPluralNode } from './plural'
 
 /** The name the product ships under today. */
@@ -147,7 +148,12 @@ function generatedFilenames(): string[] {
     const model = buildDigestModel(rows(), options({ locale }))
     return DIGEST_FORMATS.map((f: DigestFormat) => digestFilename(model, f))
   })
-  return [exportFilename('json', at), exportFilename('csv', at), ...digests]
+  // The terminology export is the third kind of file that leaves the app, and it
+  // is the one most likely to travel: a wording pass is drafted offline and
+  // carried to another workspace. lib/labelIO.ts's own suite pins its shape; it
+  // is here so the NEXT rename sweep cannot strand it the way the export and the
+  // digest were stranded by the last one.
+  return [exportFilename('json', at), exportFilename('csv', at), labelFileName(at), ...digests]
 }
 
 describe('generated filenames', () => {
@@ -155,7 +161,7 @@ describe('generated filenames', () => {
     // Same guard as the string-count check above, for the same reason: an empty
     // list would make every assertion below vacuously true, and this list is
     // built by a helper rather than written down.
-    expect(generatedFilenames()).toHaveLength(2 + 2 * DIGEST_FORMATS.length)
+    expect(generatedFilenames()).toHaveLength(3 + 2 * DIGEST_FORMATS.length)
   })
 
   it.each(FORBIDDEN)('never says %s', (name) => {

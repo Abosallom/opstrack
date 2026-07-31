@@ -408,6 +408,24 @@ export default function Settings(): ReactElement {
               <IconChevronEnd className="icon-directional" size={16} />
             </NavLink>
           </Section>
+          {/* The third admin config card, and the widest in reach: Tracks and
+              Vocabulary rename the workspace's own VALUES, this renames the
+              app's own WORDS. Absent from both navs like its two neighbours, so
+              without this row it is a typed URL away — which for the one feature
+              built to remove a round-trip through a developer would be its own
+              kind of joke. */}
+          <Section
+            icon={IconGlobe}
+            title={t('terminology.settingsTitle')}
+            description={t('terminology.settingsHint')}
+          >
+            <NavLink to="/settings/terminology" className="btn btn-ghost">
+              {t('terminology.settingsManage')}
+              {/* Forward through the hierarchy — forward is leftward in
+                  Arabic, hence icon-directional. */}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
+          </Section>
           {/* THE LAST "COMING SOON" IN THE APP, RETIRED. This card carried a
               `placeholder.comingSoon` pill and a line explaining that member
               management was sequenced after entries CRUD. Both the screen and the

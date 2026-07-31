@@ -70,6 +70,16 @@ export function pgErrorKey(error: unknown): string {
       // whole statement, so a batch that hides several at once is rolled back
       // entirely; the message says what must remain, not which row lost.
       if (text.includes('last_visible_option')) return 'vocabadmin.errLastVisible'
+      // label_overrides_text_len / _key_shape / _key_len — 0016. The migration
+      // splits these three constraints APART specifically so this file can tell
+      // them from each other; "that wording is too long" and "that is not a
+      // label key" want different sentences, and both used to arrive as the
+      // generic key, which the terminology screen then annotated with "the
+      // table is not installed" — a confident, wrong diagnosis.
+      if (text.includes('label_overrides_text_len')) return 'terminology.errTooLong'
+      if (text.includes('label_overrides_key_shape') || text.includes('label_overrides_key_len')) {
+        return 'terminology.errBadKey'
+      }
       break
     case '23502':
       // NOT NULL violated. This should now be UNREACHABLE: the one column that
@@ -114,6 +124,15 @@ export function pgErrorKey(error: unknown): string {
       // land and re-reading the screen is the next step. A message that hedged
       // over which it was would help nobody.
       return 'entry.errNotYours'
+    case 'PGRST205':
+      // Not a SQLSTATE either — PostgREST's "could not find the table in the
+      // schema cache", i.e. a migration that has not been applied to this
+      // project. It is a SUPPORTED state rather than a fault for a feature
+      // whose table is optional (label_overrides today, vocab_options once),
+      // and it is the one failure a screen can explain precisely: naming it
+      // here is what lets a screen offer the runbook line instead of guessing
+      // that every generic failure means the same thing.
+      return 'common.errMissingTable'
     default:
       break
   }

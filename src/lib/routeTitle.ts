@@ -74,6 +74,11 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   // push follow the vocabulary/recurring precedent and name themselves out of
   // their own namespaces — 'export.title' and 'push.title' already ship in both
   // languages, and a route.* twin would only ever restate them.
+  // Same precedent again, and the same reason it must sit above '/settings':
+  // the terminology screen is absent from both navs, so this header is the only
+  // chrome that names it. 'terminology.title' ships in both languages — and,
+  // like every other string, is itself renameable from the screen it names.
+  if (pathname.startsWith('/settings/terminology')) return 'terminology.title'
   if (pathname.startsWith('/settings/members')) return 'route.members'
   if (pathname.startsWith('/settings/export')) return 'export.title'
   if (pathname.startsWith('/settings/notifications')) return 'push.title'

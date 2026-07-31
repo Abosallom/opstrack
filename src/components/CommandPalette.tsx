@@ -196,6 +196,7 @@ export const SCREENS: readonly PaletteScreen[] = [
 export const ADMIN_SCREENS: readonly PaletteScreen[] = [
   { to: '/settings/tracks', labelKey: 'admin.tracks.title' },
   { to: '/settings/vocabulary', labelKey: 'vocabadmin.title' },
+  { to: '/settings/terminology', labelKey: 'terminology.title' },
   { to: '/settings/members', labelKey: 'route.members' },
 ]
 
