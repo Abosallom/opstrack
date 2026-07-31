@@ -126,7 +126,14 @@ export function memberLabel(
   ownerId?: string | null,
   ownerName?: string | null,
 ): string {
-  const named = ownerId ? byId.get(ownerId)?.displayName.trim() : ''
+  // `?.displayName?.trim()`, both optional. The first `?.` covers a missing
+  // member; the second covers a member whose displayName is absent — which is
+  // reachable, because this map is rehydrated from an unvalidated localStorage
+  // cache, so a row written by an older build (or a hand-edited entry) can carry
+  // undefined where the type promises a string. It threw for real during the
+  // Mindtree build and took the whole app down: memberLabel runs on every owner
+  // badge, so one bad cached row white-screens every list at once.
+  const named = ownerId ? byId.get(ownerId)?.displayName?.trim() : ''
   if (named) return named
   const free = ownerName?.trim()
   if (free) return free

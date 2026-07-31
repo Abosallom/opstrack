@@ -226,3 +226,34 @@ describe('the delete confirmation says what the code now does', () => {
     setLocale('en')
   })
 })
+
+describe('memberLabel survives a malformed cached member', () => {
+  // REGRESSION. The members map is rehydrated from an unvalidated localStorage
+  // cache, so a row written by an older build can carry undefined where the
+  // Member type promises a string. `?.displayName.trim()` — optional on the
+  // lookup but NOT on the field — threw for real during the Mindtree build and
+  // white-screened every list at once, because memberLabel runs on every owner
+  // badge on every screen. The cast is the point of the test: it reproduces
+  // data the type system says cannot exist but the cache can produce.
+  const broken = new Map<string, Member>([
+    ['m1', { id: 'm1', displayName: undefined, role: 'member' } as unknown as Member],
+    ['m2', { id: 'm2', displayName: '   ', role: 'member' } as unknown as Member],
+  ])
+
+  it('falls through to the free-text name instead of throwing', () => {
+    expect(() => memberLabel(broken, 'm1', 'Bandar')).not.toThrow()
+    expect(memberLabel(broken, 'm1', 'Bandar')).toBe('Bandar')
+  })
+
+  it('falls through to Unassigned when there is nothing else', () => {
+    expect(memberLabel(broken, 'm1', null)).toBe(t('entry.unassigned'))
+    expect(memberLabel(broken, 'm2', null)).toBe(t('entry.unassigned'))
+  })
+
+  it('still prefers a well-formed member over the free text', () => {
+    const ok = new Map<string, Member>([
+      ['m3', { id: 'm3', displayName: 'Layla', role: 'member' } as unknown as Member],
+    ])
+    expect(memberLabel(ok, 'm3', 'stale free text')).toBe('Layla')
+  })
+})
