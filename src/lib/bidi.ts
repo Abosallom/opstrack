@@ -158,6 +158,31 @@ export function stripIsolates(value: string): string {
 }
 
 /**
+ * Remove every INVISIBLE FORMAT CHARACTER — the four isolates above and the rest
+ * of Unicode's `Cf` category with them.
+ *
+ * WHY THIS IS WIDER THAN stripIsolates(), and why the width is the whole point.
+ * `String.trim()` removes whitespace, and none of these are whitespace: the
+ * zero-width space U+200B, the bidi marks LRM/RLM U+200E–U+200F and the Arabic
+ * letter mark U+061C, the word joiner U+2060, the soft hyphen U+00AD. They are
+ * exactly what a paste out of Word, Outlook or a web page carries, they render
+ * as nothing at all, and `'‎'.trim()` is `'‎'` — non-empty to every
+ * `=== ''` test in the codebase and empty to every human looking at it.
+ *
+ * So this is the function an EMPTINESS test uses (lib/labelOverrides.ts's
+ * isBlankLabel(), and through it every layer of the override feature), while
+ * stripIsolates() stays what it was: the narrow one, for a value on its way to
+ * the database or the clipboard, which must not lose a soft hyphen somebody
+ * meant to type.
+ */
+export function stripInvisible(value: string): string {
+  // \p{Cf} is the Unicode FORMAT category — it covers U+00AD, U+061C,
+  // U+200B–U+200F, U+2060–U+2064, U+FEFF and the four isolates themselves, so
+  // this is a strict superset of ISOLATES above and cannot drift from it.
+  return value.replace(/\p{Cf}/gu, '')
+}
+
+/**
  * Does every isolate in the string get closed, and does no PDI close an isolate
  * that was never opened?
  *

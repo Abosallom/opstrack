@@ -40,6 +40,7 @@ import { resetOutbox } from './store/outbox'
 import { resetPush } from './store/push'
 import { setLocaleSetting, setTheme, useSettings } from './store/settings'
 import { loadVocab } from './store/vocab'
+import { loadLabels } from './store/labels'
 import type { ThemePref } from './lib/theme'
 import './app-shell.css'
 
@@ -91,6 +92,7 @@ const Settings = lazy(() => import('./pages/Settings'))
 const TracksAdmin = lazy(() => import('./pages/settings/TracksAdmin'))
 const TrackEditor = lazy(() => import('./pages/settings/TrackEditor'))
 const VocabularyAdmin = lazy(() => import('./pages/settings/VocabularyAdmin'))
+const Terminology = lazy(() => import('./pages/settings/Terminology'))
 // NOT route-gated on admin, unlike the three above: the screen renders the
 // schedule read-only for a member and hides its own edit affordances, because
 // "what is going to be raised for me next Sunday" is everybody's question.
@@ -383,6 +385,14 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
     void loadConfig()
     void loadVocab()
     void loadMembers()
+    // The workspace's own wording, layered over the shipped bundles by
+    // store/labels.ts. Warmed HERE, beside config and vocab, because it is the
+    // same kind of data — small, workspace-wide, RLS-gated, read by every screen
+    // — and because the alternative is a rename that only takes effect once
+    // somebody opens Settings › Terminology. store/labels.ts has already pushed
+    // its localStorage cache into i18n at module load, so this corrects the
+    // first paint rather than producing it.
+    void loadLabels()
     // The `track_slas` matrix joins them: store/entries.derive() resolves every
     // fallback health row against it, so a screen that renders before it lands
     // shows the workspace default and corrects itself one fetch later. Tiny
@@ -601,6 +611,14 @@ export default function App(): ReactElement {
               <Route
                 path="/settings/vocabulary"
                 element={isAdmin ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
+              />
+              {/* Terminology rewrites what every screen SAYS, for everyone, so
+                  it is gated exactly like the vocabulary editor above. 0016's
+                  RLS is the real authority; this only avoids offering an
+                  editable list of 1,665 labels to someone every write refuses. */}
+              <Route
+                path="/settings/terminology"
+                element={isAdmin ? <Terminology /> : <Navigate to="/settings" replace />}
               />
               {/* No isAdmin ternary — see the lazy import. A member reads the
                   schedule; the page itself withholds the editing. */}

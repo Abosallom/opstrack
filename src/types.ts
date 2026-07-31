@@ -539,3 +539,62 @@ export interface ClaimInput {
   inviteCode: string
   password: string
 }
+
+// ── label overrides (Settings › Terminology) ────────────────────────────────
+
+/**
+ * One row of `label_overrides` (migration 0016): an admin-authored replacement
+ * for a shipped i18n string, in either or both languages.
+ *
+ * NAMED `…Row` LIKE `VocabRow`, AND NOT `LabelOverride`, because lib/i18n.ts
+ * already exports that name for a different thing — the `{en, ar}` pair it holds
+ * in memory, with no key and no audit columns. This is the DATABASE row; that is
+ * the resolved value. Collapsing the two names would make every import site a
+ * guess about which layer it is in.
+ *
+ * `en` and `ar` are BOTH NULLABLE and that is a real case, not a defect:
+ * rewording only the Arabic of `entry.owner` must leave the English alone. Null
+ * and blank mean the same thing — no override for this language — and 0016's
+ * `label_overrides_touch()` collapses blank to null on the way in, so a row read
+ * back from the table carries null and never `''`.
+ *
+ * `key` is a dot path into the locale bundles (`nav.board`). For a CLDR plural
+ * node it carries the category too (`board.total.one`), because a plural key has
+ * no single string to override — lib/labelOverrides.ts's `overrideKey()` is the
+ * one place that format is written.
+ */
+export interface LabelOverrideRow {
+  key: string
+  en: string | null
+  ar: string | null
+  updated_by: string | null
+  updated_at: string
+}
+
+/**
+ * The override layer as lib/i18n.ts resolves against it: one flat `key → string`
+ * record PER LANGUAGE, consulted before the shipped bundle.
+ *
+ * IT LIVES HERE, NOT IN lib/i18n.ts, BECAUSE THREE LAYERS TOUCH IT AND ONLY THIS
+ * FILE SITS BELOW ALL THREE — api/labels.ts reads the rows, store/labels.ts
+ * builds the map, i18n consumes it, and `src/lib/**` may not import from
+ * `src/store/**`. Declaring it in i18n and importing it into the store would
+ * work, but then the api layer would be reaching into lib/ to name the shape of
+ * data it produced. This file is already the shared vocabulary; lib/labels.ts
+ * imports `Track` from it for the same reason.
+ *
+ * SPLIT BY LANGUAGE RATHER THAN `key → {en, ar}` so a lookup is one record index
+ * in the locale being rendered — a path t() takes for every string on every
+ * screen. It is also the exact shape of the resolution order the feature is
+ * specified in: `override[locale][key]`. Rows are the other way round because a
+ * row IS the pair, and that is what one editor row saves.
+ *
+ * EVERY VALUE IS A NON-EMPTY STRING. store/labels.ts's buildMap() drops null and
+ * blank on the way in, so a hit can be returned as-is and no override can render
+ * a label as empty space (spec §5). A key present in `ar` and absent from `en`
+ * is the ordinary case of rewording one language.
+ */
+export interface LabelOverrideMap {
+  readonly en: Readonly<Record<string, string>>
+  readonly ar: Readonly<Record<string, string>>
+}

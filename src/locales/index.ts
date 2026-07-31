@@ -78,6 +78,7 @@ import enRoute from './en/route.json'
 import enSettings from './en/settings.json'
 import enSignin from './en/signin.json'
 import enStatus from './en/status.json'
+import enTerminology from './en/terminology.json'
 import enTrack from './en/track.json'
 import enTree from './en/tree.json'
 import enType from './en/type.json'
@@ -113,6 +114,7 @@ import arRoute from './ar/route.json'
 import arSettings from './ar/settings.json'
 import arSignin from './ar/signin.json'
 import arStatus from './ar/status.json'
+import arTerminology from './ar/terminology.json'
 import arTrack from './ar/track.json'
 import arTree from './ar/tree.json'
 import arType from './ar/type.json'
@@ -162,6 +164,7 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   settings: enSettings,
   signin: enSignin,
   status: enStatus,
+  terminology: enTerminology,
   track: enTrack,
   tree: enTree,
   type: enType,
@@ -199,6 +202,7 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   settings: arSettings,
   signin: arSignin,
   status: arStatus,
+  terminology: arTerminology,
   track: arTrack,
   tree: arTree,
   type: arType,
@@ -245,6 +249,7 @@ export const en: LocaleTree = {
   ...enSettings,
   ...enSignin,
   ...enStatus,
+  ...enTerminology,
   ...enTrack,
   ...enTree,
   ...enType,
@@ -282,6 +287,7 @@ export const ar: LocaleTree = {
   ...arSettings,
   ...arSignin,
   ...arStatus,
+  ...arTerminology,
   ...arTrack,
   ...arTree,
   ...arType,

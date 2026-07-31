@@ -1,0 +1,234 @@
+/* The wording pass as a file — components/settings/LabelIO.tsx.
+
+   CLASS REGISTRY (XP §1.0.7): this sheet owns `.lio-*` and nothing else. It sits
+   inside /settings/terminology, whose sheet owns `.term-*`, and the two do not
+   overlap by a single rule — the section is a component that could be dropped on
+   another screen tomorrow, and a `.term-` rule reaching into it would make that
+   a lie. Everything structural comes from global.css primitives: .card, .btn,
+   .btn-primary, .muted, .sr-only.
+
+   LOGICAL PROPERTIES ONLY — inline/block axes, never a physical edge — so the
+   Arabic mirror costs nothing. The rejection list's accent bar is
+   `border-inline-start`, which is what puts it on the right in Arabic without a
+   second rule; a `border-left` would leave it stranded on the wrong side of the
+   text it belongs to.
+
+   SPACING is the 4px grid: 4 / 8 / 12 / 16. There is no motion in this sheet, so
+   there is nothing for prefers-reduced-motion to switch off.
+
+   THE ONE TYPOGRAPHIC JOB: a report about a file has four kinds of line in it —
+   the file's NAME, the COUNT of what it holds, a NOTE about what will be skipped
+   or left alone, and a REJECTION that names a key and a reason. They are told
+   apart by size and colour alone, because a person scanning this is answering
+   one question: can I press the button. */
+
+.lio {
+  display: flex;
+  flex-direction: column;
+  /* 12px, one step tighter than the page's 16: the head, the two controls and
+     the report are one block, not three sections. */
+  gap: 12px;
+  /* Matches `.term`'s measure, so the section lines up with the list above it
+     rather than running wider than the screen it belongs to. */
+  max-inline-size: 940px;
+}
+
+.lio-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lio-title {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--text);
+  margin: 0;
+}
+
+/* --text-dim, not --text-faint: this sentence carries the one fact somebody
+   needs before tapping — that only the keys IN the file change — and faint does
+   not clear AA on --bg-elev. */
+.lio-hint {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.lio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The file picker is a real <label> around a real <input type="file">, so the
+   label IS the input's accessible name and the keyboard reaches the input
+   itself. Three consequences live here:
+
+   · the input is .sr-only (clipped, still focusable) rather than display:none,
+     which would take it out of the tab order altogether;
+   · the ring therefore has to be painted on the LABEL — :focus-visible on a
+     clipped 1px input is invisible — and it repeats global.css's ring exactly,
+     token for token, so the two cannot drift apart visually;
+   · `position: relative` keeps the clipped input's absolute box inside the
+     label rather than at the page origin. */
+.lio-pick {
+  position: relative;
+  cursor: pointer;
+}
+
+.lio-pick:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.lio-pick[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.lio-report {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Collapses when there is nothing to report, so the card does not carry an 8px
+   gap under the buttons for a region that is rendering nothing. Higher
+   specificity than the rule above, so the order of the two does not matter. */
+.lio-report:empty {
+  display: none;
+}
+
+/* A filename is a foreign string in both languages — it stays ASCII in the
+   Arabic UI — so it is ISOLATED: the dots and hyphens in
+   `coretrack-terminology-2026-07-31-2045.json` are neutrals, and without a fence
+   the ones at the edges resolve to the paragraph and detach from the name.
+
+   `unicode-bidi: isolate` ALONE, deliberately: adding `direction: ltr` would fix
+   the same thing and also flip the block's own alignment to the left, leaving
+   this line sitting on the opposite side of the card from every other line in
+   Arabic. Isolation is about the RUN; alignment belongs to the paragraph.
+
+   `anywhere` rather than break-all so a long name wraps at its separators. */
+.lio-file {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  unicode-bidi: isolate;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.lio-count {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  margin: 0;
+}
+
+.lio-note {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* ---------- the rejection report ---------- */
+
+/* The bar carries the alarm, not the text: a block of 12.5px red is harder to
+   read than the sentences it is made of, and every line in here is meant to be
+   read and acted on. --bg-elev-2 lifts the block off the card without a second
+   border. */
+.lio-rejects {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  border-inline-start: 3px solid var(--red);
+}
+
+.lio-rejects-lead {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0;
+}
+
+/* Scrollable rather than unbounded: a file that is not a wording pass at all
+   produces a rejection per line, and this section must stay a report rather
+   than becoming the page. `tabIndex={0}` in the component is what lets it be
+   scrolled without a pointer. */
+.lio-reject-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-block-size: 240px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lio-reject {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lio-reject-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+
+/* The machine identifier, in the same voice `.term-key` gives it on the list
+   above: mono, faint, small. The isolation is not decoration — a dot path is a
+   Latin token whose dots are neutrals, and beside Arabic an un-isolated
+   `entry.createdBy` hands them to the paragraph. */
+.lio-key {
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-faint);
+  unicode-bidi: isolate;
+  overflow-wrap: anywhere;
+}
+
+.lio-lang {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.lio-why {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* ---------- a write that failed ---------- */
+
+.lio-failed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  border-inline-start: 3px solid var(--red);
+}
+
+.lio-failed-main {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0;
+}
