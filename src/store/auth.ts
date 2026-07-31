@@ -15,6 +15,7 @@ import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
 import { materializeRecurring } from '../api/entries'
 import { supabase } from '../api/supabase'
+import { baseUrlFrom } from '../lib/appBase'
 import { setLocale, t } from '../lib/i18n'
 import type { ClaimInput, UserRole } from '../types'
 // The one store-to-store import in this app, and it earns the exception: giving
@@ -141,17 +142,17 @@ function toFormError(error: { message: string } | null, step: AuthStep): string 
 /**
  * Where an emailed sign-in link must land: this deployment's own base URL.
  *
- * The app is served from a SUBPATH (`/opstrack/` on GitHub Pages), and the
- * account's Pages ROOT is a 404 — there is no user site there. Omitting
- * `emailRedirectTo` makes Supabase fall back to the project's dashboard Site
- * URL, and every link that fallback produced dropped the subpath and dumped
- * the user on that 404 with their tokens in the hash. Deriving it here from
- * `BASE_URL` keeps the redirect correct in dev (`/opstrack/` on :5197), in
- * production, and in any future rename — and, more importantly, makes it a
- * property of the build rather than of a dashboard field nobody can see.
+ * The app is served from a SUBPATH (`/opstrack/` on GitHub Pages) and the
+ * account's Pages ROOT is a 404. Omitting `emailRedirectTo` makes Supabase fall
+ * back to the project's dashboard Site URL, and that fallback dropped the
+ * subpath and dumped the user on that 404 with their tokens in the hash.
+ * Passing it explicitly makes the redirect a property of THIS BUILD rather than
+ * of a dashboard field nobody can see — see lib/appBase.ts for why the obvious
+ * way to compute it (BASE_URL against the origin) reproduces the same bug.
  */
 function appBaseUrl(): string {
-  return new URL(import.meta.env.BASE_URL, window.location.origin).href
+  // The reasoning — and the trap that BASE_URL is — lives in lib/appBase.ts.
+  return baseUrlFrom(window.location.href)
 }
 
 /** Email a 6-digit one-time code to an EXISTING account. */
