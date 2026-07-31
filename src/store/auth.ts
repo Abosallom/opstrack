@@ -17,6 +17,11 @@ import { materializeRecurring } from '../api/entries'
 import { supabase } from '../api/supabase'
 import { setLocale, t } from '../lib/i18n'
 import type { ClaimInput, UserRole } from '../types'
+// The one store-to-store import in this app, and it earns the exception: giving
+// the push registration back is the last thing that needs a live session, so it
+// has to happen inside signOut() rather than beside it. store/push.ts imports
+// nothing from here, so there is no cycle.
+import { releasePushForSignOut } from './push'
 
 /** View-model of the profiles row — camelCase, unlike the DB row in types.ts. */
 export interface Profile {
@@ -331,6 +336,17 @@ export async function claimAccount(input: ClaimInput): Promise<string | null> {
 
 export async function signOut(): Promise<void> {
   if (!supabase) return
+  // FIRST, AND THAT IS THE POINT. Handing the push registration back is an
+  // authenticated delete under 0011's owner-only RLS, so it has to be issued
+  // while this session's token is still the one on the request — after the
+  // sign-out below it matches no rows and reports no error, which is
+  // indistinguishable from having worked. App.tsx's teardown is later still:
+  // the shell only unmounts once `session` has already gone null.
+  //
+  // Bounded inside store/push.ts, so a dead network delays sign-out by seconds
+  // rather than by the socket timeout. See releasePushForSignOut()'s comment
+  // for what is given up when the budget runs out.
+  await releasePushForSignOut()
   await supabase.auth.signOut()
   // onAuthStateChange also clears this, but doing it here means the UI flips
   // to signed-out immediately instead of waiting on the network round-trip.

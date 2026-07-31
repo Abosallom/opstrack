@@ -422,10 +422,16 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // subscription left registered on sign-out keeps delivering the previous
       // user's assignments to a device the next person is holding — a
       // notification is the one thing in this app that can arrive with the app
-      // closed. resetPush() clears the store and unsubscribes this device
-      // best-effort; 0011's `upsert_push_subscription()` can still move an
-      // endpoint between accounts, which is what makes this a cleanup rather
-      // than a correctness requirement.
+      // closed.
+      //
+      // THE ROW IS NOT DELETED HERE, AND CANNOT BE. By the time this cleanup
+      // runs the session is already gone — that is what unmounted the shell —
+      // and `push_subscriptions` is owner-only RLS, so a delete issued now
+      // matches nothing and reports success. store/auth.signOut() therefore
+      // awaits releasePushForSignOut() before it signs out, and this call is
+      // the backstop for the sign-outs that never go through it: an expired
+      // session, a revoked token, a sign-out in another tab. It clears the
+      // store and re-attempts the unsubscribe; both are idempotent.
       resetPush()
     }
   }, [])
