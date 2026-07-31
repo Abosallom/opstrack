@@ -133,6 +133,22 @@ function toFormError(error: { message: string } | null, step: AuthStep): string 
   return authErrorMessage(error.message, step)
 }
 
+/**
+ * Where an emailed sign-in link must land: this deployment's own base URL.
+ *
+ * The app is served from a SUBPATH (`/opstrack/` on GitHub Pages), and the
+ * account's Pages ROOT is a 404 — there is no user site there. Omitting
+ * `emailRedirectTo` makes Supabase fall back to the project's dashboard Site
+ * URL, and every link that fallback produced dropped the subpath and dumped
+ * the user on that 404 with their tokens in the hash. Deriving it here from
+ * `BASE_URL` keeps the redirect correct in dev (`/opstrack/` on :5197), in
+ * production, and in any future rename — and, more importantly, makes it a
+ * property of the build rather than of a dashboard field nobody can see.
+ */
+function appBaseUrl(): string {
+  return new URL(import.meta.env.BASE_URL, window.location.origin).href
+}
+
 /** Email a 6-digit one-time code to an EXISTING account. */
 export async function sendOtp(email: string): Promise<string | null> {
   if (!supabase) return notConfigured()
@@ -143,7 +159,7 @@ export async function sendOtp(email: string): Promise<string | null> {
     // when signups are off — even for EXISTING accounts. Leaving it at the
     // default broke every OTP sign-in with "Signups not allowed for this
     // instance", which reads like an account problem but is a flag problem.
-    options: { shouldCreateUser: false },
+    options: { shouldCreateUser: false, emailRedirectTo: appBaseUrl() },
   })
   return toFormError(error, 'request')
 }
