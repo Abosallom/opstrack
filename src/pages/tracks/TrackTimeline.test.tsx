@@ -220,6 +220,32 @@ const TrackTimeline = (await import('./TrackTimeline')).default
 const { setLocale, t } = await import('../../lib/i18n')
 const { lastNDays, todayIso } = await import('../../lib/dates')
 
+// The screen's own source, for the R3-PERF-1 block at the bottom. Read through
+// import.meta.glob('?raw') rather than node:fs, for the reason
+// lib/localeReach.test.ts gives: tsconfig.app.json pins `types: ["vite/client"]`
+// and widening it to "node" would leak node globals into every app file's type
+// space.
+const SOURCES: Record<string, string> = import.meta.glob('./TrackTimeline.tsx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+const SOURCE = SOURCES['./TrackTimeline.tsx'] ?? ''
+
+/**
+ * The same source with its prose removed.
+ *
+ * A "must not contain" assertion over a file this heavily commented reads its
+ * own explanation of the defect and fails: `show={{ track: false }}` is written
+ * out in the comment above the constant that replaced it. Only the negative
+ * assertions use this; the positive ones read SOURCE, where a match in a comment
+ * is impossible to arrive at by accident.
+ */
+const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '')
+  .split('\n')
+  .filter((line) => !line.trimStart().startsWith('//'))
+  .join('\n')
+
 /** The screen at a URL — the range, the search and the kind all live there. */
 function render(url = '/tracks/t-onb'): string {
   const tree: ReactElement = (
@@ -413,6 +439,117 @@ describe('the feed, from the live overlay', () => {
     expect(html).toContain(t('common.loading'))
     expect(html).not.toContain(t('track.empty'))
     expect(html).not.toContain(t('track.emptyTrack'))
+  })
+})
+
+/* ═══════════ R3-PERF-1 · the feed is bounded and it is memoised ═══════════ */
+//
+// WHAT BROKE. This was the only list screen in the app with no fold, no cap and
+// no memo boundary. `days.map(day => day.items.map(…))` mounted everything the
+// window held, over an upstream read that takes up to 1000 entries plus every
+// thread row for them — and `EntryRow` was rendered raw, through a plain
+// `renderItem` function, with a `show={{ track: false }}` object literal and an
+// `onOpen` built by `useCallback(…, [orderedIds])`. Both of those churn on every
+// entries-store commit, so even a memo added later would have bailed out never.
+// FollowUps.tsx, Board.tsx and TracksIndex.tsx each bound their mount and each
+// record why; this screen was the fourth and had neither half.
+//
+// The bound is asserted here by counting rows in real markup. The memo boundary
+// cannot be: a bail-out is observable only across two renders of a live
+// component and vitest.config.ts is `environment: 'node'` with no jsdom, so its
+// PRECONDITIONS — stable `onOpen`, hoisted `show`, hoisted author resolver — are
+// asserted against the source, in the idiom FollowUps.test.tsx uses for the same
+// fix. That is a weaker instrument and it is named as one: it can prove the
+// props hold still and cannot prove React skipped the subtree.
+
+describe('the feed mounts a bounded number of items', () => {
+  /** `count` entries in the window, one per day going back from 2026-07-20. */
+  const manyEntries = (count: number): void => {
+    fx.state.entries = Array.from({ length: count }, (_, i) => {
+      const day = String(20 - (i % 20)).padStart(2, '0')
+      return fx.entry({
+        id: `m${i}`,
+        title: `Event ${i}`,
+        created_at: `2026-07-${day}T09:00:00.000Z`,
+      })
+    })
+    fx.state.health = new Map()
+  }
+
+  it('folds past the budget instead of mounting the whole window', () => {
+    manyEntries(140)
+    const html = render('/tracks/t-onb?from=2026-07-01&to=2026-07-25')
+    // MAX_ITEMS = 60. Days are taken whole until the budget runs out, so the
+    // count lands at or just past it rather than exactly on it — what matters is
+    // that it is bounded and nowhere near 140.
+    const mounted = html.split('class="tl-item"').length - 1
+    expect(mounted).toBeGreaterThan(0)
+    expect(mounted).toBeLessThan(80)
+    expect(html).toContain(t('track.showAll'))
+  })
+
+  it('says how many events are behind the fold', () => {
+    manyEntries(140)
+    const html = render('/tracks/t-onb?from=2026-07-01&to=2026-07-25')
+    const mounted = html.split('class="tl-item"').length - 1
+    expect(html).toContain(t('track.eventsHidden', { count: 140 - mounted }))
+    // The feed's own total keeps counting the whole window — the fold hides
+    // items, never facts.
+    expect(html).toContain(t('track.total', { count: 140 }))
+  })
+
+  it('draws no fold at all for a window that fits', () => {
+    const html = render('/tracks/t-onb?from=2026-07-01&to=2026-07-25')
+    expect(html).not.toContain('tl-fold')
+    expect(html).not.toContain(t('track.showAll'))
+  })
+
+  it('keeps each day heading counting that day, not the slice of it shown', () => {
+    // 100 events all on ONE day: the budget cuts the single day mid-way, which
+    // is the case a naive `day.items.length` heading gets wrong.
+    fx.state.entries = Array.from({ length: 100 }, (_, i) =>
+      fx.entry({ id: `s${i}`, title: `Same day ${i}`, created_at: '2026-07-18T09:00:00.000Z' }),
+    )
+    fx.state.health = new Map()
+    const html = render('/tracks/t-onb?from=2026-07-01&to=2026-07-25')
+    const mounted = html.split('class="tl-item"').length - 1
+    expect(mounted).toBeLessThan(100)
+    // The day heading and the feed heading both say 100; only the mount is cut.
+    expect(html.split(t('track.total', { count: 100 })).length - 1).toBe(2)
+  })
+})
+
+describe('the feed holds its row props still', () => {
+  it('found the source at all', () => {
+    // Guards every assertion below against being vacuously true after a rename.
+    expect(SOURCE).toContain('const TimelineItemRow = memo(')
+  })
+
+  it('opens through a ref, so onOpen is built once', () => {
+    const at = SOURCE.indexOf('const handleOpen = useCallback(')
+    expect(at).toBeGreaterThan(-1)
+    const block = SOURCE.slice(at, SOURCE.indexOf('\n\n', at))
+    expect(block).toContain('orderedRef.current')
+    // The whole defect in one token: naming `orderedIds` inside this callback
+    // puts it back in the dependency array and `onOpen` churns again.
+    expect(block).not.toContain('orderedIds')
+    expect(block).toMatch(/\}, \[\]\)/)
+    // Without this line the ref would freeze at the first render and the sheet's
+    // prev/next would walk a list from before the first write.
+    expect(SOURCE).toContain('orderedRef.current = orderedIds')
+  })
+
+  it('passes a hoisted `show`, never an object literal', () => {
+    expect(SOURCE).toContain('const SHOW_NO_TRACK: EntryRowShow = { track: false }')
+    expect(SOURCE).toContain('show={SHOW_NO_TRACK}')
+    // `show={{ track: false }}` is a fresh object per render — the exact prop
+    // hazard R2-PERF-1 fixed one prop over on follow-ups.
+    expect(CODE).not.toContain('show={{')
+  })
+
+  it('resolves an author name through a memoised callback, not an inline arrow', () => {
+    expect(SOURCE).toContain('const memberName = useCallback(')
+    expect(SOURCE).toContain('authorName={')
   })
 })
 

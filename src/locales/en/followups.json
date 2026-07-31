@@ -2,7 +2,7 @@
   "followups": {
     "title": "Follow-ups",
     "subtitle": "What needs you today, in one list.",
-    "total": "{count} items need attention",
+    "total": { "one": "{count} item needs attention", "other": "{count} items need attention" },
     "whose": "Whose items",
     "whoseAll": "Everyone",
     "whoseMine": "Mine",
@@ -60,6 +60,9 @@
     "posted": "Update added to “⁨{title}⁩”.",
     "takeIt": "Take it",
     "taken": "“⁨{title}⁩” is yours now.",
+    "assign": "Assign to…",
+    "assignFor": "Assign “⁨{title}⁩” to someone",
+    "assigned": "“⁨{title}⁩” assigned to ⁨{name}⁩.",
     "open": "Open",
     "refresh": "Refresh",
     "refreshed": "Up to date.",

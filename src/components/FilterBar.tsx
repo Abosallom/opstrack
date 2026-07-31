@@ -222,8 +222,10 @@ export default function FilterBar({
 
         {/* polite, not assertive: the count changes on every keystroke of a
             search and an assertive region would interrupt the user typing it.
-            One phrasing for both languages — there is no plural machinery in
-            this app and Arabic's six forms are not worth a runtime. */}
+            The phrasing is the caller's: `resultLabel` is handed the count and
+            returns a rendered string, so a screen that has a plural node for it
+            (followups.total, board.total) inflects, and one whose Arabic is
+            written as an invariant still reads correctly. */}
         {count !== undefined && resultLabel !== undefined && (
           <span className="flt-result tabular" aria-live="polite">
             {resultLabel(count)}

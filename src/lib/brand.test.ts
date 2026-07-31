@@ -47,6 +47,7 @@ import { AR_NAMESPACES, EN_NAMESPACES, type LocaleTree } from '../locales'
 import { buildDigestModel, digestFilename, DIGEST_FORMATS, type DigestFormat } from './digest'
 import { options, rows } from './digest/fixtures'
 import { buildEnvelope, exportFilename } from './export'
+import { mindtreeFilename } from './mindtree/export'
 import { isPluralNode } from './plural'
 
 /** The name the product ships under today. */
@@ -147,7 +148,15 @@ function generatedFilenames(): string[] {
     const model = buildDigestModel(rows(), options({ locale }))
     return DIGEST_FORMATS.map((f: DigestFormat) => digestFilename(model, f))
   })
-  return [exportFilename('json', at), exportFilename('csv', at), ...digests]
+  return [
+    exportFilename('json', at),
+    exportFilename('csv', at),
+    // The Mindtree puts two more names in someone's Downloads folder, and the
+    // whole argument of this file is that a filename is a user-visible string.
+    mindtreeFilename('svg', at),
+    mindtreeFilename('png', at),
+    ...digests,
+  ]
 }
 
 describe('generated filenames', () => {
@@ -155,7 +164,8 @@ describe('generated filenames', () => {
     // Same guard as the string-count check above, for the same reason: an empty
     // list would make every assertion below vacuously true, and this list is
     // built by a helper rather than written down.
-    expect(generatedFilenames()).toHaveLength(2 + 2 * DIGEST_FORMATS.length)
+    // Two data exports, two map exports, and one per digest format per locale.
+    expect(generatedFilenames()).toHaveLength(4 + 2 * DIGEST_FORMATS.length)
   })
 
   it.each(FORBIDDEN)('never says %s', (name) => {

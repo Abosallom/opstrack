@@ -310,3 +310,126 @@ describe('R2-SEC-2: a meeting line cannot be erased, and names its last editor',
     expect(touch).toContain("- 'updated_by'")
   })
 })
+
+/**
+ * FIX-BACKLOG R3-SEC-1 — a member could permanently rename themselves to a
+ * colleague. `profiles_update` lets them write their own row, and
+ * `guard_profile_role()` was the only column-level control on the table and
+ * pinned `role` alone. Attribution resolves the LIVE profile everywhere
+ * (0011:309 for push, store/members.ts:136, NotificationBell.tsx:145) — the
+ * mitigation 0004:196-207 built against a TRANSIENT rename — so a permanent one
+ * renders the impersonated name on every surface, including lock screens.
+ */
+describe('R3-SEC-1: a display name is not a self-service field', () => {
+  const guard = (): string => latestFunctionBody('guard_profile_role')?.body ?? ''
+
+  it('pins display_name and created_at against any writer holding a JWT', () => {
+    expect(guard()).not.toBe('')
+    expect(guard()).toMatch(/new\.display_name\s*:=\s*old\.display_name\s*;/)
+    expect(guard()).toMatch(/new\.created_at\s*:=\s*old\.created_at\s*;/)
+  })
+
+  it('keeps both pins inside the auth.uid() test, or nobody can be provisioned', () => {
+    // The JWT-less paths — admin-members on the service role, the SQL Editor —
+    // are the two writers that are SUPPOSED to set a name. 0001's header
+    // records what happens without this test: the write is silently reverted,
+    // the statement still reports success, and no admin can ever be created.
+    const body = guard()
+    const at = body.indexOf('if auth.uid() is not null')
+    expect(at).toBeGreaterThan(-1)
+    expect(body.indexOf('new.display_name := old.display_name;')).toBeGreaterThan(at)
+    expect(body.indexOf('new.created_at := old.created_at;')).toBeGreaterThan(at)
+  })
+
+  it('leaves locale alone, which is the only column the app writes', () => {
+    // src/store/settings.ts:66-69 is `update({ locale })`. A pin here would
+    // make the language toggle stop persisting with no error anywhere.
+    expect(guard()).not.toContain('new.locale')
+  })
+
+  it('still pins role for a non-admin, which this file rewrote around', () => {
+    expect(guard()).toMatch(
+      /new\.role is distinct from old\.role[\s\S]{0,120}?not public\.is_admin\(\)[\s\S]{0,120}?new\.role := old\.role;/,
+    )
+  })
+})
+
+/**
+ * FIX-BACKLOG R3-DB-2 — `entries_guard_update()` pinned created_at, created_by,
+ * template_id and updated_by but not `closed_at`, and `entries_touch()` writes
+ * that column only on a status change. So a one-column PATCH re-dated a closed
+ * entry — moving it into or out of throughput (aggregate.ts:264), SLA
+ * compliance (:444) and the digest's Closed section (digest/build.ts:202) with
+ * no status change, no thread row, and nothing on any screen naming who did it.
+ */
+describe('R3-DB-2: a close date cannot be chosen by a client', () => {
+  const guard = (): string => latestFunctionBody('entries_guard_update')?.body ?? ''
+  const touch = (): string => latestFunctionBody('entries_touch')?.body ?? ''
+
+  it('pins closed_at outright — no FK writes it, so no `case` exception', () => {
+    expect(guard()).not.toBe('')
+    expect(guard()).toMatch(/new\.closed_at\s*:=\s*old\.closed_at\s*;/)
+  })
+
+  it('leaves the transition itself to entries_touch, which runs after the guard', () => {
+    // The pin is only safe because `entries_guard_update` sorts before
+    // `entries_touch_trg`. If this block ever leaves entries_touch(), closing an
+    // item stops recording when it closed and the closed list empties out.
+    expect(touch()).toMatch(/if new\.status is distinct from old\.status then/)
+    expect(touch()).toContain('new.closed_at := coalesce(new.closed_at, now());')
+    expect(touch()).toContain('new.closed_at := null;')
+  })
+})
+
+/**
+ * FIX-BACKLOG R3-LEAD-1 — measured live: an entry reading `New · 33d · Stale ·
+ * Unassigned` left Follow-ups the moment an owner was picked, because
+ * `entries_touch()`'s activity diff subtracted `track_id` and not the owner
+ * pair. 0007:84-86 states the principle ("a stale item stays stale through a
+ * move") and applied it to the track move only; 0012:191-208 calls an owner
+ * change "the 0007 failure class exactly" and defends only the member-deletion
+ * path. Delegating a neglected item erased the evidence it was neglected.
+ */
+describe('R3-LEAD-1: a handover is bookkeeping, not activity', () => {
+  const body = (): string => latestFunctionBody('entries_touch')?.body ?? ''
+
+  /** The two diffs, split on the statement that ends the first one. */
+  function diffs(): { bookkeeping: string; activity: string } {
+    const src = body()
+    const firstEnd = src.indexOf('new.updated_at := now();')
+    const secondEnd = src.indexOf('new.last_activity_at := now();')
+    expect(firstEnd).toBeGreaterThan(-1)
+    expect(secondEnd).toBeGreaterThan(firstEnd)
+    return {
+      bookkeeping: src.slice(0, firstEnd),
+      activity: src.slice(firstEnd, secondEnd),
+    }
+  }
+
+  it('subtracts BOTH owner columns from the activity diff', () => {
+    // owner_name as well as owner_id, because entries_single_owner forbids
+    // holding both: assigning a teammate clears the free-text name in the same
+    // statement (api/entries.ts:445-454), so subtracting one leaves every real
+    // assignment still bumping the clock through the other.
+    expect(diffs().activity).toContain("- 'owner_id'")
+    expect(diffs().activity).toContain("- 'owner_name'")
+    // …and 0002's original, which this sits beside rather than replaces.
+    expect(diffs().activity).toContain("- 'track_id'")
+  })
+
+  it('does NOT subtract them from the bookkeeping diff, so updated_at still moves', () => {
+    // The handover must remain visible: updated_at ticks, entries_notify()
+    // still tells the new owner. Only the staleness clock holds.
+    expect(diffs().bookkeeping).not.toContain("- 'owner_id'")
+    expect(diffs().bookkeeping).not.toContain("- 'owner_name'")
+    expect(diffs().bookkeeping).not.toContain("- 'track_id'")
+  })
+
+  it('keeps the three server-bookkeeping columns out of both diffs', () => {
+    // 0007's fix, which a rewrite of this function is the obvious way to lose.
+    for (const col of ['updated_at', 'last_activity_at', 'updated_by']) {
+      expect(diffs().bookkeeping).toContain(`- '${col}'`)
+      expect(diffs().activity).toContain(`- '${col}'`)
+    }
+  })
+})

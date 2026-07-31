@@ -365,6 +365,24 @@ function markCommitting(meetingId: string, busy: boolean): void {
 let meetingsInFlight: Promise<void> | null = null
 
 /**
+ * Which session's reads are still allowed to write into this store.
+ *
+ * Bumped by resetMeetings(). Every loader captures `const mine = epoch` BEFORE
+ * it awaits and writes nothing when `mine !== epoch` on the way back, exactly as
+ * store/entries.ts does — clearing the state without it is a race the store
+ * loses whenever someone signs out with a list or a line read on the wire: the
+ * answer lands a moment later, re-fills `meetings` with the account that has
+ * LEFT, and re-stamps `loadedAt`, which then short-circuits every load the next
+ * account makes in this tab.
+ *
+ * The `.finally` blocks are gated for the same reason and it is not belt and
+ * braces: `meetingsInFlight` and `linesInFlight` are re-populated by the next
+ * account's loads, and a stale finally that cleared them would retire a live
+ * request's dedupe entry.
+ */
+let epoch = 0
+
+/**
  * Fetch the meeting list unless a good copy is already in hand.
  *
  * Never rejects and never throws: safe to call unawaited, safe to call from
@@ -380,8 +398,12 @@ export function loadMeetings(force = false): Promise<void> {
     useMeetingsStore.setState({ loading: true })
   }
 
+  const mine = epoch
   meetingsInFlight = apiListMeetings()
     .then((result) => {
+      // Signed out while this was in flight — see `epoch`. The meetings in hand
+      // belong to the account that has left.
+      if (mine !== epoch) return
       if (!result.ok) {
         useMeetingsStore.setState({ error: result.error })
         return
@@ -400,6 +422,9 @@ export function loadMeetings(force = false): Promise<void> {
       void loadLineCounts(result.data.map((m) => m.id))
     })
     .finally(() => {
+      // Not ours any more: `meetingsInFlight` now holds the NEXT account's read
+      // and clearing it here would un-dedupe a live request.
+      if (mine !== epoch) return
       meetingsInFlight = null
       useMeetingsStore.setState({ loading: false })
     })
@@ -417,7 +442,11 @@ export function loadMeetings(force = false): Promise<void> {
  */
 export async function loadLineCounts(meetingIds: string[]): Promise<void> {
   if (meetingIds.length === 0) return
+  const mine = epoch
   const result = await apiListLineCounts(meetingIds)
+  // Signed out while this was in flight — see `epoch`. Badges for meetings the
+  // next account may not even be able to read.
+  if (mine !== epoch) return
   if (!result.ok) {
     console.warn('[meetings] line counts failed:', result.error)
     return
@@ -462,11 +491,16 @@ const linesForceQueued = new Set<string>()
  * re-read starts after the in-flight one has cleared itself out of the map.
  */
 export function loadLines(meetingId: string, force = false): Promise<void> {
+  const mine = epoch
   const existing = linesInFlight.get(meetingId)
   if (existing) {
     if (!force || linesForceQueued.has(meetingId)) return existing
     linesForceQueued.add(meetingId)
     return existing.then(() => {
+      // A queued re-read belongs to the session that queued it. After a sign-out
+      // the chain would otherwise fire a fresh read for a meeting the next
+      // account never asked to open.
+      if (mine !== epoch) return
       linesForceQueued.delete(meetingId)
       return loadLines(meetingId, true)
     })
@@ -484,6 +518,9 @@ export function loadLines(meetingId: string, force = false): Promise<void> {
     apiListLines(meetingId),
   ])
     .then(([header, result]) => {
+      // Signed out while this was in flight — see `epoch`. These lines are the
+      // previous account's, and `plans` below is its unsaved triage drafts.
+      if (mine !== epoch) return
       if (header && header.ok && header.data) putMeeting(header.data)
 
       const s = useMeetingsStore.getState()
@@ -512,6 +549,9 @@ export function loadLines(meetingId: string, force = false): Promise<void> {
       })
     })
     .finally(() => {
+      // Not ours any more — see loadMeetings' finally. `linesInFlight` may
+      // already hold the NEXT account's read for this same meeting id.
+      if (mine !== epoch) return
       linesInFlight.delete(meetingId)
       const s = useMeetingsStore.getState()
       const linesLoading = new Set(s.linesLoading)
@@ -531,8 +571,21 @@ export function invalidateMeetings(): void {
 /**
  * Sign-out. Another account's meetings and, worse, another account's unsaved
  * triage drafts must not survive into the next session in this tab.
+ *
+ * CALLED FROM Shell's cleanup in src/App.tsx, beside resetEntries() and the
+ * other four. It shipped with no caller at all for two rounds, and the two
+ * things that made that expensive are both latches: `loadedAt` and
+ * `linesLoadedAt` are consulted WITHOUT a clock and WITHOUT a session check, so
+ * the next account's first loadMeetings()/loadLines() returned early and painted
+ * the previous account's list, lines and half-made triage decisions with no
+ * spinner and no network call. src/store/signOutReset.test.ts now asserts that
+ * every reset* in this directory is wired, so the omission cannot recur.
  */
 export function resetMeetings(): void {
+  // FIRST, before anything else is cleared: every read already on the wire is
+  // now the previous account's, and this is what stops its answer from being
+  // written back into the store this function is about to empty. See `epoch`.
+  epoch += 1
   for (const timer of planTimers.values()) window.clearTimeout(timer)
   planTimers.clear()
   unsaved.clear()

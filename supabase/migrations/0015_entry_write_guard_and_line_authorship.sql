@@ -103,11 +103,20 @@
 --     advances `next_run_on` regardless. The occurrence is skipped for good.
 --     Give the squatter `status = 'cancelled'` and it is excluded from
 --     `v_entry_health` and from the open set, so nothing on any screen shows it.
---   * `closed_at` and `updated_by`. Neither has a live consequence today —
---     `listClosedSince()` filters on status AND closed_at together
---     (src/api/entries.ts:224-232), so a forged close date on an open row
---     surfaces nowhere — and they are pinned here as belt-and-braces, not
---     because a reproduction exists.
+--   * `closed_at` and `updated_by`, pinned here on the INSERT path with no
+--     reproduction to hand: `listClosedSince()` filters on status AND closed_at
+--     together (src/api/entries.ts:224-232), so a forged close date on an OPEN
+--     row surfaces nowhere.
+--
+--     CORRECTED BY 0016, and the correction is the reason this note is left
+--     standing rather than deleted. The sentence above is true of the case this
+--     file's INSERT guard covers and of nothing else: on an already-CLOSED row
+--     that same filter is exactly what reads the column, and PART 1 below did
+--     not pin `closed_at` on UPDATE. So a one-column PATCH re-dated a closed
+--     entry into or out of last week's throughput, lead time and
+--     SLA-compliance numbers, with no status change and no thread row. Read as
+--     written, this paragraph cleared the UPDATE path it never examined.
+--     0016 adds `new.closed_at := old.closed_at;` to entries_guard_update().
 --
 -- The app itself is clean: `toEntryRow()` (src/api/entries.ts:401-421) sends
 -- none of these five. This was purely a schema gap, reachable only by a crafted

@@ -44,7 +44,7 @@
     "goFollowups": "يفتح قائمة المتابعات.",
     "trackTitle": "العمل المفتوح لكل مسار",
     "trackDesc": "كل مسار نشط، موزّعًا حسب الحالة الصحية. الآن، لا خلال المدة.",
-    "trackSummary": "عدد المسارات: {tracks}. أكثرها عملًا مفتوحًا ⁨{top}⁩ بعدد {count}.",
+    "trackSummary": "عدد المسارات: {count}. أكثرها عملًا مفتوحًا ⁨{top}⁩ بعدد {topCount}.",
     "trackEmpty": "لا عمل مفتوح في أي مسار.",
     "trackMark": "⁨{track}⁩: {count} مفتوحة — {detail}",
     "healthPart": "{health}: {count}",

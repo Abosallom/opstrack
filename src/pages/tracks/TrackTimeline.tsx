@@ -39,8 +39,18 @@
 // items are this screen's own small row, and they resolve their status labels
 // through the vocabulary store like everything else, so renaming a status
 // re-labels the history with zero writes.
+//
+// THE FEED IS BOUNDED AND IT IS MEMOISED, and it needs both. See `MAX_ITEMS`
+// for the bound and `TimelineItemRow` for the boundary. Neither alone is
+// enough: without the bound this screen mounted the entire window — up to the
+// upstream 1000-entry ceiling plus every thread row for it, ~39 000 DOM
+// elements in one commit — and without the boundary everything still mounted
+// re-renders on every entries-store commit, which is every optimistic write,
+// every settle and every realtime echo anyone on the team produces while the
+// page is open. This was the last of the four list screens to get either.
 
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -50,7 +60,7 @@ import {
   type ReactElement,
 } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { EntryRow, StatusPill } from '../../components/entry'
+import { EntryRow, StatusPill, type EntryRowShow } from '../../components/entry'
 import { IconArrowStart, IconLayers } from '../../components/icons'
 import { EmptyState, Skeleton } from '../../components/shared'
 import { toast } from '../../components/toast'
@@ -79,6 +89,7 @@ import {
   tagBreakdown,
   timelineKey,
   windowTags,
+  type TimelineDay,
   type TimelineItem,
   type TimelineKind,
 } from '../../lib/timeline'
@@ -97,7 +108,7 @@ import {
 import { openEntry } from '../../store/entrySheet'
 import { useMemberMap } from '../../store/members'
 import { useVocabLabel } from '../../store/vocab'
-import type { Entry, EntryHealth, EntryUpdate, Track, UserRole } from '../../types'
+import type { Entry, EntryHealth, EntryUpdate, Track } from '../../types'
 import './timeline.css'
 
 /** The range the page opens on. A month is what "recently" means for ops work. */
@@ -108,6 +119,50 @@ const PRESETS: readonly number[] = [7, 30, 90, 365]
 
 /** What `?kind=` may say. Anything else falls back to showing both. */
 const KINDS: readonly TimelineKind[] = ['entry', 'update']
+
+/**
+ * Items mounted before the fold.
+ *
+ * THIS SCREEN WAS THE ONLY LIST WITH NO BOUND. FollowUps.tsx caps at 25/40 rows
+ * per section, Board.tsx at MAX_CARDS per column and TracksIndex.tsx at 25 per
+ * node, each with the same rationale written next to it; the timeline mounted
+ * `days.map(day => day.items.map(…))` with no slice anywhere on the path, over a
+ * window whose upstream read takes up to 1000 entries plus every thread row for
+ * them. Measured through renderToStaticMarkup: ~15.5 elements per item on a
+ * reduced fixture with an empty vocabulary, ~39 with the real row (34 for an
+ * EntryRow, 5 for the wrapper below) — so the 1000-entry ceiling is ~39 000 DOM
+ * elements in one commit, before a single update is counted. The default range
+ * is 30 days but 90 and 365 are one tap away, and the empty state hands out a
+ * 365-day button.
+ *
+ * A BUDGET OVER THE WHOLE WINDOW, NOT A CAP PER DAY, and the difference is the
+ * whole point: a year of five-items-a-day never trips a per-day cap of any size
+ * and is exactly the shape that hurts. Days are taken whole until the budget
+ * runs out and the last one is cut mid-day, which is why `ShownDay` carries the
+ * TRUE total separately — the fold hides items, never facts, the same contract
+ * EntrySection's `count` prop enforces on follow-ups.
+ *
+ * 60 rather than 25: this is one stream and the feed IS the page, where a
+ * follow-up section is one of six bands. At the real row size that is ~2 400
+ * elements, in the same order as a folded follow-ups section.
+ */
+const MAX_ITEMS = 60
+
+/**
+ * The track bar, off — hoisted rather than written inline at the call site.
+ *
+ * `show={{ track: false }}` in JSX is a fresh object on every render, and it was:
+ * that literal sat inside `renderItem` and would have defeated `memo()` on the
+ * row below the moment it was added. Every row on this page is in the same
+ * track, so a column of identical colour bars carries no information and costs
+ * 10px of the title.
+ */
+const SHOW_NO_TRACK: EntryRowShow = { track: false }
+
+/** A day as it MOUNTS: `items` may be a slice, `total` is always the day's own. */
+interface ShownDay extends TimelineDay {
+  total: number
+}
 
 /* ══════════════════════════ URL state ══════════════════════════ */
 
@@ -485,12 +540,84 @@ export default function TrackTimeline(): ReactElement {
     return seen
   }, [shown])
 
-  const handleOpen = useCallback(
-    (entryId: string) => {
-      openEntry(entryId, { list: orderedIds })
-    },
-    [orderedIds],
+  /**
+   * The sibling list, mirrored into a ref so `handleOpen` can be built ONCE.
+   *
+   * `orderedIds` is a new array on every commit — `derive()` rebuilds the store's
+   * `list` unconditionally, which re-runs `liveTrackEntries`, `windowEntries`,
+   * `windowed`, `shown` and this memo in turn — so `useCallback(…, [orderedIds])`
+   * was a new function on every optimistic write, settle and realtime echo. That
+   * function is the `onOpen` prop of every mounted item, and one changed prop
+   * defeats `memo()`'s shallow compare for ALL of them. FollowUps.tsx (grep
+   * `orderedRef`), Board.tsx and TracksIndex.tsx already open this way; this
+   * screen was the fourth list and the only one left out.
+   *
+   * Assigning during render rather than in an effect is deliberate and safe:
+   * `openEntry` reads the list at CALL time (store/entrySheet), which is a tap,
+   * long after render has committed.
+   */
+  const orderedRef = useRef(orderedIds)
+  orderedRef.current = orderedIds
+
+  const handleOpen = useCallback((entryId: string) => {
+    openEntry(entryId, { list: orderedRef.current })
+  }, [])
+
+  /**
+   * An update author's display name, resolved once per member-store change.
+   *
+   * Was an arrow function written inline in the JSX, which is a new identity on
+   * every render and would have defeated the memo below on every update row.
+   */
+  const memberName = useCallback(
+    (authorId: string | null): string =>
+      (authorId !== null ? memberMap.get(authorId)?.displayName : undefined) ??
+      t('entry.authorUnknown'),
+    [memberMap],
   )
+
+  /* ---------- the fold ---------- */
+
+  /**
+   * Which window the reader has asked to see in full, as the window's own key.
+   *
+   * Stored as a key rather than a boolean so that changing the range, the search
+   * or the kind puts the fold back by construction: expanding a 30-day window
+   * and then tapping "Last 365 days" must not mount a year at once. Comparing a
+   * key during render is the same trick without an effect that resets state one
+   * commit late.
+   */
+  const [expandedFor, setExpandedFor] = useState<string | null>(null)
+  const windowKey = `${from}|${to}|${search}|${kind}`
+  const expanded = expandedFor === windowKey
+  /** Whether there is anything to fold at all — a window that fits gets no button. */
+  const foldable = shown.length > MAX_ITEMS
+
+  /**
+   * The days as they MOUNT: whole days until the item budget runs out.
+   *
+   * `total` is carried beside `items` because the last day can be cut mid-day
+   * and its heading count must stay the day's real total — the fold hides items,
+   * never facts.
+   */
+  const visible = useMemo<{ days: ShownDay[]; hidden: number }>(() => {
+    if (expanded) {
+      return { days: days.map((d) => ({ ...d, total: d.items.length })), hidden: 0 }
+    }
+    let budget = MAX_ITEMS
+    const out: ShownDay[] = []
+    for (const day of days) {
+      if (budget <= 0) break
+      out.push({
+        day: day.day,
+        items: day.items.length <= budget ? day.items : day.items.slice(0, budget),
+        total: day.items.length,
+      })
+      budget -= day.items.length
+    }
+    const mounted = out.reduce((n, d) => n + d.items.length, 0)
+    return { days: out, hidden: shown.length - mounted }
+  }, [days, shown.length, expanded])
 
   /**
    * The breakdown counts ITEMS RAISED in the window, so it follows the range and
@@ -767,86 +894,152 @@ export default function TrackTimeline(): ReactElement {
             />
           )
         ) : (
-          <ol className="tl-days">
-            {days.map((day) => (
-              <li key={day.day} className="tl-day">
-                <div className="tl-day-head">
-                  <span className="tl-day-weekday">{formatWeekday(day.day, locale, 'long')}</span>
-                  <span className="tl-day-date tabular">{formatDateLong(day.day, locale)}</span>
-                  <span className="tl-day-count tabular">
-                    {t('track.total', { count: day.items.length })}
-                  </span>
-                </div>
+          <>
+            <ol className="tl-days">
+              {visible.days.map((day) => (
+                <li key={day.day} className="tl-day">
+                  <div className="tl-day-head">
+                    <span className="tl-day-weekday">{formatWeekday(day.day, locale, 'long')}</span>
+                    <span className="tl-day-date tabular">{formatDateLong(day.day, locale)}</span>
+                    {/* The day's OWN total, never the sliced length: the last
+                        day before the fold can be cut mid-day. */}
+                    <span className="tl-day-count tabular">
+                      {t('track.total', { count: day.total })}
+                    </span>
+                  </div>
 
-                <ol className="tl-items">
-                  {day.items.map((item) => (
-                    <li key={timelineKey(item)} className="tl-item" data-kind={item.kind}>
-                      <span className="tl-rail" aria-hidden="true">
-                        <span className="tl-dot" />
-                      </span>
-                      <div className="tl-body">
-                        <p className="tl-kind">{t(itemKindKey(item))}</p>
-                        {renderItem(item, {
-                          health,
-                          meId,
-                          role,
-                          memberName: (authorId) =>
-                            (authorId !== null ? memberMap.get(authorId)?.displayName : undefined) ??
-                            t('entry.authorUnknown'),
-                          onOpen: handleOpen,
-                        })}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </li>
-            ))}
-          </ol>
+                  <ol className="tl-items">
+                    {day.items.map((item) => (
+                      // Each branch is handed ONLY the props its own body reads:
+                      // an update row has no EntryRow to give health or a
+                      // permission answer to, and passing them anyway would put
+                      // two more values through the shallow compare for nothing.
+                      <TimelineItemRow
+                        key={timelineKey(item)}
+                        kind={item.kind}
+                        kindKey={itemKindKey(item)}
+                        entry={item.entry}
+                        update={item.kind === 'update' ? item.update : undefined}
+                        health={item.kind === 'entry' ? health.get(item.entry.id) : undefined}
+                        canEdit={item.kind === 'entry' && canEditEntry(item.entry, meId, role)}
+                        meId={meId}
+                        authorName={
+                          item.kind === 'update' ? memberName(item.update.author_id) : ''
+                        }
+                        onOpen={handleOpen}
+                      />
+                    ))}
+                  </ol>
+                </li>
+              ))}
+            </ol>
+
+            {foldable ? (
+              // One fold for the whole feed rather than one per day: this is a
+              // single stream, and a button under every date heading would read
+              // as part of the timeline rather than as its end.
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost tl-fold"
+                onClick={() => setExpandedFor(expanded ? null : windowKey)}
+              >
+                {expanded ? t('track.showLess') : t('track.showAll')}
+                {visible.hidden > 0 ? (
+                  <span className="pill tabular">
+                    {t('track.eventsHidden', { count: visible.hidden })}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
+          </>
         )}
       </section>
     </div>
   )
 }
 
-/* ══════════════════════════ item dispatch ══════════════════════════ */
+/* ══════════════════════════ one item ══════════════════════════ */
 
-interface RenderContext {
-  health: ReadonlyMap<string, EntryHealth>
+interface TimelineItemRowProps {
+  /** The `<li>`'s data-kind, and which branch below draws the body. */
+  kind: TimelineKind
+  /** The one-word rail label's i18n key — `itemKindKey`, resolved by the caller. */
+  kindKey: string
+  /** An entry item's row, or an update item's PARENT (undefined when orphaned). */
+  entry: Entry | undefined
+  /** Set on an update item only. */
+  update: EntryUpdate | undefined
+  health: EntryHealth | undefined
+  canEdit: boolean
   meId: string | null
-  role: UserRole
-  memberName: (authorId: string | null) => string
+  /** Already resolved through the member map, so this prop is a plain string. */
+  authorName: string
   onOpen: (id: string) => void
 }
 
 /**
- * One item, as the kit renders it.
+ * One item, as the kit renders it — INCLUDING the `<li>` shell.
  *
- * A function rather than a component so the two branches share the enclosing
- * `<li>`'s rail and kind label instead of each drawing their own — the vertical
- * line down the page is the thing that makes a timeline read as one stream, and
- * it only works if every item hangs off the same geometry.
+ * The shell is inside the memo boundary rather than around it because the
+ * boundary only pays if the whole subtree can bail out; an `<li>` re-created by
+ * the parent on every commit would re-render the rail, the kind label and then
+ * hand the memoised child a re-render anyway. The two branches still share one
+ * `<li>`, which is the property the previous `renderItem` function existed to
+ * hold: the vertical line down the page only reads as one stream if every item
+ * hangs off the same geometry.
+ *
+ * WHY THE PROPS ARE FLATTENED RATHER THAN A `TimelineItem`. Every commit of the
+ * entries store rebuilds this page's whole derivation — `derive()` mints a new
+ * `list`, so `liveTrackEntries` → `windowEntries` → `windowed` → `shown` are all
+ * new arrays and `buildTimeline` mints a brand-new `{kind, at, entry}` wrapper
+ * per item. Memoising on the wrapper would therefore bail out never. The Entry
+ * and EntryUpdate objects INSIDE it are identity-stable (the store's `byId`
+ * keeps the object when the row has not changed, and `mergeEntriesById` passes
+ * it through), so the props below are exactly the stable core of the wrapper —
+ * plus `authorName` and `canEdit`, resolved to a string and a boolean so they
+ * compare by value.
+ *
+ * SUBSCRIBED TO THE LOCALE for TreeRow's reason: `t(kindKey)` is called here and
+ * every prop above is locale-independent, so without `useLocale()` a language
+ * switch would leave the rail labels in the previous language.
  */
-function renderItem(item: TimelineItem, ctx: RenderContext): ReactElement {
-  if (item.kind === 'entry') {
-    return (
-      <EntryRow
-        entry={item.entry}
-        health={ctx.health.get(item.entry.id)}
-        // Every row here is in the same track: a column of identical colour
-        // bars carries no information and costs 10px of the title.
-        show={{ track: false }}
-        canEdit={canEditEntry(item.entry, ctx.meId, ctx.role)}
-        onOpen={ctx.onOpen}
-      />
-    )
-  }
+const TimelineItemRow = memo(function TimelineItemRow({
+  kind,
+  kindKey,
+  entry,
+  update,
+  health,
+  canEdit,
+  meId,
+  authorName,
+  onOpen,
+}: TimelineItemRowProps): ReactElement {
+  useLocale()
   return (
-    <UpdateItem
-      update={item.update}
-      entry={item.entry}
-      meId={ctx.meId}
-      authorName={ctx.memberName(item.update.author_id)}
-      onOpen={ctx.onOpen}
-    />
+    <li className="tl-item" data-kind={kind}>
+      <span className="tl-rail" aria-hidden="true">
+        <span className="tl-dot" />
+      </span>
+      <div className="tl-body">
+        <p className="tl-kind">{t(kindKey)}</p>
+        {kind === 'entry' && entry !== undefined ? (
+          <EntryRow
+            entry={entry}
+            health={health}
+            show={SHOW_NO_TRACK}
+            canEdit={canEdit}
+            onOpen={onOpen}
+          />
+        ) : update !== undefined ? (
+          <UpdateItem
+            update={update}
+            entry={entry}
+            meId={meId}
+            authorName={authorName}
+            onOpen={onOpen}
+          />
+        ) : null}
+      </div>
+    </li>
   )
-}
+})

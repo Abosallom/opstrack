@@ -363,7 +363,14 @@ describe('Dashboard — chart accessibility', () => {
     // listening to, unlike a restatement of "Open work per track".
     // Network holds four OPEN items (a, b, e, f); the fifth on that track is
     // done and correctly absent.
-    expect(html).toContain(esc(t('dashboard.trackSummary', { tracks: 3, top: 'Network', count: 4 })))
+    //
+    // `count` is the TRACK count and `topCount` the busiest track's, not the
+    // other way round: the string is a plural node and selectPlural inflects on
+    // `count` alone, so the number that picks "1 track" vs "3 tracks" has to
+    // carry that name (R3-I18N-1).
+    expect(html).toContain(
+      esc(t('dashboard.trackSummary', { count: 3, top: 'Network', topCount: 4 })),
+    )
   })
 
   it('ships a table fallback per chart, with the numbers in it', () => {

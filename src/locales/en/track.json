@@ -45,6 +45,9 @@
     "statusChange": "Status change",
     "openItem": "Open ⁨{title}⁩",
     "orphan": "An item outside this window",
+    "showAll": "Show the whole window",
+    "showLess": "Show fewer",
+    "eventsHidden": { "one": "{count} more", "other": "{count} more" },
 
     "empty": "Nothing happened in this window",
     "emptyHint": "Widen the dates, or clear the search.",

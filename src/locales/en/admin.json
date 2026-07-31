@@ -56,7 +56,7 @@
       "delete": "Delete",
       "deleteTitle": "Delete this track?",
       "deleteBody": "“⁨{name}⁩” will be removed permanently. This can't be undone.",
-      "deleteBodyInUse": "“⁨{name}⁩” still holds {entries} entries, {meetings} meetings and {templates} templates. Choose where to move them first.",
+      "deleteBodyInUse": "“⁨{name}⁩” still holds {entries}, {meetings} and {templates}. Choose where to move them first.",
       "archiveTitle": "Archive this track?",
       "archiveBody": "“⁨{name}⁩” disappears from the pickers. Existing items keep it and nothing is deleted.",
       "discardTitle": "Discard changes?",

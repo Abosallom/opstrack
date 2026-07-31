@@ -53,6 +53,10 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   // route.* twin would only ever hold the same two strings.
   if (pathname.startsWith('/digest')) return 'digest.title'
   if (pathname.startsWith('/notifications')) return 'notif.title'
+  // Same rule as digest/notifications: `mindtree.title` already ships in both
+  // languages and a route.mindtree twin would only ever hold the same word.
+  // Above the '/settings' test for the reason the whole file exists.
+  if (pathname.startsWith('/mindtree')) return 'mindtree.title'
   if (pathname === '/settings/tracks/new') return 'admin.tracks.add'
   if (pathname.startsWith('/settings/tracks/')) return 'admin.tracks.edit'
   if (pathname.startsWith('/settings/tracks')) return 'admin.tracks.title'

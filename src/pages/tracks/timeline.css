@@ -366,6 +366,15 @@
   list-style: none;
 }
 
+/* The window fold. Full width UNDER the last day rather than inside it, so it
+   reads as the end of the feed rather than as one more event on the rail —
+   `.fu-fold` on follow-ups makes the same distinction for the same reason. */
+.tl-fold {
+  inline-size: 100%;
+  margin-block-start: 16px;
+  gap: 4px;
+}
+
 .tl-day {
   display: flex;
   flex-direction: column;

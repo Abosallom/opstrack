@@ -394,7 +394,7 @@ describe.each(LOCALES)('%s plural nodes', (locale, tree) => {
   })
 })
 
-/* ────────────────────── ar: numbers and the nouns they count ────────────────────── */
+/* ──────────────────── numbers and the nouns they count ──────────────────── */
 //
 // THE HOLE THE PLURAL NODES LEFT OPEN, and the one no assertion above can see.
 //
@@ -415,25 +415,61 @@ describe.each(LOCALES)('%s plural nodes', (locale, tree) => {
 // nodes that are already plural nodes; localeReach compares keys to call sites;
 // bidi compares direction. The variable's NAME is nobody else's job.
 //
-// So this is the check: in the `ar` tree, a counted noun may not follow an
-// interpolation unless that interpolation is `{count}` inside a plural node —
-// the one arrangement that can actually inflect. It is deliberately a NOUN list
-// rather than a variable-name list, because renaming `{days}` to `{n}` would
-// slip past a name-based gate while leaving the sentence just as wrong.
-const COUNTED_NOUNS: readonly string[] = [
-  // time
-  'يوم', 'يومًا', 'يوما', 'أيام', 'يومان', 'يومين',
-  'أسبوع', 'أسبوعًا', 'أسبوعا', 'أسابيع', 'أسبوعان', 'أسبوعين',
-  'شهر', 'شهرًا', 'شهرا', 'أشهر', 'شهور', 'شهران', 'شهرين',
-  'ساعة', 'ساعات', 'دقيقة', 'دقائق', 'ثانية', 'ثوانٍ', 'ثوان', 'ثواني',
-  // the things this app counts
-  'بند', 'بندًا', 'بندا', 'بنود', 'بندان', 'بندين',
-  'اجتماع', 'اجتماعًا', 'اجتماعا', 'اجتماعات',
-  'قالب', 'قالبًا', 'قالبا', 'قوالب',
-  'مسار', 'مسارًا', 'مسارا', 'مسارات',
-  'حرف', 'حرفًا', 'حرفا', 'أحرف', 'حروف',
-  'رمز', 'رمزًا', 'رمزا', 'رموز',
-]
+// So this is the check: a counted noun may not follow an interpolation unless
+// that interpolation is `{count}` inside a plural node — the one arrangement
+// that can actually inflect. It is deliberately a NOUN list rather than a
+// variable-name list, because renaming `{days}` to `{n}` would slip past a
+// name-based gate while leaving the sentence just as wrong.
+//
+// IT SHIPPED SCOPED TO `ar`, WHICH WAS THE SHAPE OF THE BUG REPORT AND NOT THE
+// SHAPE OF THE RULE — the same mistake bidi.test.ts records making, two files
+// over, and the reason its gate now runs over both trees. English costs an `s`
+// rather than a case ending, so the damage is smaller and the blindness is
+// total: R3-I18N-1 found FOUR live English strings with a hardcoded plural noun
+// after a non-`count` token, and the flagship was `followups.total`, rendering
+// "1 items need attention" on the screen this app opens on, inside an
+// aria-live="polite" region that re-announces it on every filter keystroke.
+//
+// Every one of the four passed the token-set comparison above for the same
+// reason: the Arabic twin had been written as an INVARIANT (`بنود تحتاج
+// انتباهك: {count}`, noun before the number, no inflection needed), which is
+// correct Arabic AND a perfect token match for a broken English string. The
+// half of the tree that was checked is the half that was already right.
+//
+// One list per language, same rule, same regex, same exemption map.
+const COUNTED_NOUNS: Readonly<Record<Locale, readonly string[]>> = {
+  ar: [
+    // time
+    'يوم', 'يومًا', 'يوما', 'أيام', 'يومان', 'يومين',
+    'أسبوع', 'أسبوعًا', 'أسبوعا', 'أسابيع', 'أسبوعان', 'أسبوعين',
+    'شهر', 'شهرًا', 'شهرا', 'أشهر', 'شهور', 'شهران', 'شهرين',
+    'ساعة', 'ساعات', 'دقيقة', 'دقائق', 'ثانية', 'ثوانٍ', 'ثوان', 'ثواني',
+    // the things this app counts
+    'بند', 'بندًا', 'بندا', 'بنود', 'بندان', 'بندين',
+    'اجتماع', 'اجتماعًا', 'اجتماعا', 'اجتماعات',
+    'قالب', 'قالبًا', 'قالبا', 'قوالب',
+    'مسار', 'مسارًا', 'مسارا', 'مسارات',
+    'حرف', 'حرفًا', 'حرفا', 'أحرف', 'حروف',
+    'رمز', 'رمزًا', 'رمزا', 'رموز',
+  ],
+  // Both numbers of each noun. The SINGULAR earns its place as much as the
+  // plural: `"{n} entry"` is wrong for every value but one in exactly the way
+  // `"{n} entries"` is wrong for exactly one, and a gate that only knew the
+  // plural would wave the first through. The trailing-boundary lookahead below
+  // is what stops `day` matching inside `daily` and `item` inside `items`
+  // (which backtracks to the longer alternative instead).
+  en: [
+    // time
+    'day', 'days', 'week', 'weeks', 'month', 'months', 'year', 'years',
+    'hour', 'hours', 'minute', 'minutes', 'second', 'seconds',
+    // the things this app counts
+    'item', 'items', 'entry', 'entries', 'meeting', 'meetings',
+    'template', 'templates', 'track', 'tracks', 'update', 'updates',
+    'member', 'members', 'tag', 'tags', 'change', 'changes',
+    'row', 'rows', 'result', 'results', 'character', 'characters',
+    'letter', 'letters',
+  ],
+}
 
 /**
  * `namespace.key` allowed to put a counted noun after a non-`count` token,
@@ -443,6 +479,11 @@ const COUNTED_NOUNS: readonly string[] = [
  * Every entry names its constant and its category. This is not a snooze button:
  * change the constant and the exemption is a lie, which is why the value is
  * written down beside it rather than left to a reader to go and look up.
+ *
+ * ONE MAP FOR BOTH TREES, and it needs no English annotations because every
+ * pinned value here is 8 or larger, which is English `other` — the plural form
+ * these strings are already written in ("8 characters", "365 days"). The
+ * Arabic category is the one that varies, so it is the one recorded.
  */
 const FROZEN_COUNT_KEYS: ReadonlyMap<string, string> = new Map([
   // NAME_MAX = 40 (pages/settings/TrackEditor.tsx) → ar `many` → `40 حرفًا`. ✓
@@ -467,18 +508,26 @@ const FROZEN_COUNT_KEYS: ReadonlyMap<string, string> = new Map([
   ['entry.errTitleLong', 'unreferenced — no caller to pin a value'],
 ])
 
-describe('ar locale tree — counted nouns', () => {
-  const NOUN_ALT = COUNTED_NOUNS.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
-  // Whitespace and the invisible marks an RTL string carries between the token
-  // and its noun. `\p{L}` after the noun stops `يوم` matching inside `يومية`.
+const FLAT: Readonly<Record<Locale, Map<string, Leaf>>> = { en: FLAT_EN, ar: FLAT_AR }
+
+describe.each(LOCALES.map(([l]) => l))('%s locale tree — counted nouns', (locale) => {
+  const NOUN_ALT = COUNTED_NOUNS[locale]
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|')
+  // Whitespace, and the invisible marks a bidirectional string carries between
+  // the token and its noun — English strings fence their interpolations too
+  // (bidi.test.ts), so `⁨{track}⁩ items` has a PDI sitting in that gap.
+  // `\p{L}` after the noun stops `يوم` matching inside `يومية` and `day` inside
+  // `daily`; on `days` the engine backtracks from `day` to the longer form
+  // rather than giving up, so both numbers can be listed in either order.
   const COUNTED = new RegExp(
     `\\{(\\w+)\\}[\\s\\u200B-\\u200F\\u061C\\u2066-\\u2069]*(?:${NOUN_ALT})(?!\\p{L})`,
-    'gu',
+    'giu',
   )
 
   it('inflect: a counted noun follows only `{count}` in a plural node', () => {
     const wrong: string[] = []
-    for (const [key, leaf] of FLAT_AR) {
+    for (const [key, leaf] of FLAT[locale]) {
       const ns = key.split('.').slice(0, 2).join('.')
       if (FROZEN_COUNT_KEYS.has(ns) || FROZEN_COUNT_KEYS.has(key)) continue
       for (const [category, value] of formsOf(leaf)) {
@@ -492,11 +541,29 @@ describe('ar locale tree — counted nouns', () => {
     expect(wrong.sort()).toEqual([])
   })
 
+  it('finds the nouns at all, so a broken regex cannot pass by matching nothing', () => {
+    // Every assertion above is a `toEqual([])`, which an alternation that
+    // compiled to nothing would satisfy forever. These two keys are the ones the
+    // gate is FOR — a plural node, correctly inflecting — so they must MATCH the
+    // pattern and then be excused by the `{count}`-in-a-node rule, not slip past
+    // it unseen.
+    const proof = locale === 'ar' ? 'admin.tracks.usageEntries' : 'board.total'
+    const leaf = FLAT[locale].get(proof) as Leaf
+    expect(leaf.plural).toBe(true)
+    // matchAll rather than test(): the pattern is /g/ and test() would leave
+    // lastIndex behind on a regex the block above shares.
+    expect([...leaf.forms.other.matchAll(COUNTED)]).not.toEqual([])
+  })
+})
+
+describe('counted nouns — the exemption map', () => {
   it('exempts only keys that still exist, so a rename cannot park a live string', () => {
     // An exemption for a key that has been deleted or renamed is dead weight
-    // that will silently cover the NEXT key to take that name.
-    const stale = [...FROZEN_COUNT_KEYS.keys()].filter((k) => !FLAT_AR.has(k))
-    expect(stale).toEqual([])
+    // that will silently cover the NEXT key to take that name. Checked against
+    // both trees: the key sets are asserted identical above, so a stale entry
+    // shows up in either, and asking both makes that dependency explicit.
+    expect([...FROZEN_COUNT_KEYS.keys()].filter((k) => !FLAT_AR.has(k))).toEqual([])
+    expect([...FROZEN_COUNT_KEYS.keys()].filter((k) => !FLAT_EN.has(k))).toEqual([])
   })
 })
 
@@ -623,5 +690,73 @@ describe('ar locale tree — تجاوز is "breached", never "override"', () => 
     // today across entry/board/followups/digest/track/tree/mindtree/vocabadmin.
     expect(breaches.length).toBeGreaterThan(12)
     expect(AR_BREACH_ROOT.test(FLAT_AR.get('dashboard.slaOf')?.forms.other ?? '')).toBe(true)
+  })
+})
+
+/* ─────────── ar: المسؤول is the entry's owner, never the admin ─────────── */
+//
+// R3-I18N-4, and the same shape as the rule above: a word that is right almost
+// everywhere, standing in for the OTHER English word it happens to translate.
+//
+// مسؤول is this app's word for the person an item belongs to. It labels the
+// Owner field, the owner filter, the owner column, the "unassigned" copy and the
+// grouping control across fourteen namespaces. مشرف is the word for the ADMIN
+// role, in ten more — `settings.roleAdmin` is مشرف, `members.promote` is «منح
+// صلاحية مشرف», `admin.errForbidden` is «المشرف وحده يستطيع ذلك».
+//
+// One string crossed them. `recurring.deleteAdminOnly` — the note shown to
+// NON-ADMINS on the recurring-items screen, explaining why Delete is missing —
+// said «الحذف للمسؤول وحده»: *deletion is for the owner alone*. The template
+// editor renders inline on that same page and its Owner field is labelled
+// المسؤول a few rows up, so one word named two different roles inside one
+// viewport, and the sentence a reader assembles from it — "ask the assignee" —
+// is both wrong and actionable. Of the thirty English strings in the tree that
+// say "admin", it was the only one not built on ش-ر-ف.
+//
+// Driven off the ENGLISH source, like the override rule above and for the same
+// reason: a new string that says "admin" is covered the day it is written, and
+// there is no key list to rot. One-directional — it does not say which word an
+// admin MUST use, only that it may not borrow the one already spoken for.
+const AR_OWNER_WORD = /مسؤول/
+const EN_ADMIN_ROLE = /\badmin(s|'s)?\b/i
+
+describe('ar locale tree — المسؤول is the owner, never the admin', () => {
+  it('renders no English "admin" with the owner word', () => {
+    const hits: string[] = []
+    for (const [key, enLeaf] of FLAT_EN) {
+      const arLeaf = FLAT_AR.get(key)
+      if (arLeaf === undefined) continue
+      if (!formsOf(enLeaf).some(([, v]) => EN_ADMIN_ROLE.test(v))) continue
+      for (const [category, value] of formsOf(arLeaf)) {
+        if (AR_OWNER_WORD.test(value)) {
+          hits.push(`${arLeaf.plural ? `${key}.${category}` : key} :: ${value}`)
+        }
+      }
+    }
+    expect(
+      hits.sort(),
+      'مسؤول is the entry OWNER everywhere else in the tree, including on the same screen. An admin is مشرف.',
+    ).toEqual([])
+  })
+
+  it('still uses المسؤول for the owner itself', () => {
+    // Same guard the override rule carries: a sweep that replaced every مسؤول
+    // with مشرف would pass the rule above and leave the app calling the owner
+    // an admin, which is the identical bug pointing the other way.
+    const owners = [...FLAT_AR].filter(([, leaf]) =>
+      formsOf(leaf).some(([, v]) => AR_OWNER_WORD.test(v)),
+    )
+    expect(owners.length).toBeGreaterThan(30)
+    expect(AR_OWNER_WORD.test(FLAT_AR.get('recurring.fieldOwner')?.forms.other ?? '')).toBe(true)
+    expect(AR_OWNER_WORD.test(FLAT_AR.get('entry.owner')?.forms.other ?? '')).toBe(true)
+  })
+
+  it('finds "admin" in the English tree at all', () => {
+    // The rule is a filter over English strings; if EN_ADMIN_ROLE matched
+    // nothing the check above would be vacuous. 30 leaves today.
+    const said = [...FLAT_EN].filter(([, leaf]) =>
+      formsOf(leaf).some(([, v]) => EN_ADMIN_ROLE.test(v)),
+    )
+    expect(said.length).toBeGreaterThan(20)
   })
 })

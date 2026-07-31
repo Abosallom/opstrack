@@ -62,11 +62,13 @@ describe('titleKeyFor', () => {
     })
   })
 
-  it('titles the two screens that are in no nav at all', () => {
-    // Reached from the bell and from the dashboard respectively, never from a
-    // tab — so the header is the only place either one is named.
+  it('titles the three screens that are in no nav at all', () => {
+    // Reached from the bell, from the dashboard, and from the List | Map
+    // switcher on /tracks respectively — never from a tab, so the header is the
+    // only place any of the three is named.
     expect(title('/notifications')).toBe('notif.title')
     expect(title('/digest')).toBe('digest.title')
+    expect(title('/mindtree')).toBe('mindtree.title')
   })
 
   it('titles the entry route for any id', () => {

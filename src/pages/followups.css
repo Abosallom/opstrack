@@ -224,21 +224,46 @@
    The buttons are always in the DOM and always reachable; they are simply quiet
    until the row is the one being looked at. On a touch device there is no hover
    to reveal them and the swipe is only an accelerator, so they stay at full
-   strength — the gesture must never be the only way to reach an action. */
+   strength — the gesture must never be the only way to reach an action.
 
-.fu-act {
-  opacity: 0.62;
-  transition: opacity 0.15s ease;
+   QUIET IS A TOKEN, NOT AN OPACITY, and that is a correctness rule rather than a
+   preference. This used to be `opacity: 0.62`, which is invisible to the
+   per-token contrast matrix in global.css: those ratios are measured at full
+   alpha, and a page stylesheet multiplying one downstream produces a pair the
+   matrix never sees. Composited onto the row (`.entry-row` is --bg-elev), the
+   0.62 versions measured
+
+     --text-dim  @.62   2.89:1 light / 3.94:1 dark
+     --green     @.62   2.88:1 light / 4.45:1 dark
+
+   against the 4.5:1 WCAG 1.4.3 requires of 13px text (.btn-sm) — and these are
+   ACTIVE controls, so the inactive-component exemption does not apply. On a
+   pointer device the dimmed state is the RESTING state of every row on screen
+   at once, because only `.fu-swipe:hover` on that one row lifts it, so the
+   whole of the screen this app opens on failed AA until the mouse arrived.
+
+   --text-faint is the same design intent expressed in a value that was measured:
+   5.54:1 light / 5.92:1 dark on --bg-elev, 4.71 / 5.13 on --bg-elev-2. Hover
+   still promotes to --text (17.81 / 14.56), so the three-step quiet → looked-at
+   → hovered reading survives intact. Anything reintroducing an opacity here has
+   to re-derive both themes against BOTH surfaces first — and cannot, quietly:
+   src/styles/contrast.test.ts parses this file and fails the build on it. */
+
+.fu-act:not(:disabled) {
+  color: var(--text-faint);
+  transition: color 0.15s ease;
 }
 
-.fu-swipe:hover .fu-act,
-.fu-swipe:focus-within .fu-act {
-  opacity: 1;
+.fu-swipe:hover .fu-act:not(:disabled),
+.fu-swipe:focus-within .fu-act:not(:disabled) {
+  color: var(--text);
 }
 
 @media (hover: none) {
-  .fu-act {
-    opacity: 1;
+  /* No hover to reveal them, so the resting state IS the looked-at one — the
+     same --text-dim .btn-ghost inks with, at full alpha. */
+  .fu-act:not(:disabled) {
+    color: var(--text-dim);
   }
 }
 
@@ -251,11 +276,44 @@
 /* The one outcome the pass is aiming at, tinted so the eye finds it among three
    identical ghost buttons. Colour only — no fill and no border change, because
    a button that looks primary in a row of ghosts reads as the DEFAULT action
-   and this one closes an item. It obeys .fu-act's dim-until-hover like its
-   siblings; :disabled hands the colour back so a reader who may not edit is not
-   invited by a green control. */
-.fu-act-done:not(:disabled) {
+   and this one closes an item. `:disabled` hands the colour back so a reader who
+   may not edit is not invited by a green control.
+
+   THE HOVER PAIR IS LOAD-BEARING, not repetition: `.fu-swipe:hover .fu-act` is
+   (0,4,0) and would otherwise repaint this button --text on row hover, losing
+   the one distinction the tint exists to draw. Matching that specificity here
+   and sitting later in the file keeps the green through every state. --green is
+   6.35:1 light / 9.61:1 dark on --bg-elev at full alpha; it is quoted here
+   because it used to ride on .fu-act's opacity and 2.88:1 is what that made of
+   it. */
+.fu-act-done:not(:disabled),
+.fu-swipe:hover .fu-act-done:not(:disabled),
+.fu-swipe:focus-within .fu-act-done:not(:disabled) {
   color: var(--green);
+}
+
+/* The delegation control, on the unassigned bucket only.
+
+   It sits where the owner badge would have been — EntryRow's `show.owner` is
+   off on those rows — so the row trades an inert "Unassigned" label for a live
+   hand-off and does not grow. Sized like `.tree-owner`, which is the same
+   control on the tracks screen: a name has to be legible before it is chosen,
+   and 44px in the block axis because on a phone this is a primary target.
+
+   NOT dimmed with `.fu-act`. A <select> is a control whose boundary carries the
+   affordance (--field-border is the token global.css measured for exactly that),
+   and quieting a form control until hover is how it stops being found at all. */
+.fu-owner {
+  flex: 0 0 auto;
+  min-inline-size: 128px;
+  max-inline-size: 168px;
+  min-block-size: 44px;
+  padding-block: 4px;
+  font-size: 12.5px;
+}
+
+.fu-owner:disabled {
+  cursor: not-allowed;
 }
 
 /* The section fold. Full width under the rows so it reads as the end of the
@@ -361,5 +419,13 @@
   .fu-act {
     min-inline-size: 44px;
     padding-inline: 9px;
+  }
+
+  /* The select cannot become a glyph — its VALUE is the label — so it shrinks
+     instead. `.entry-row-actions` wraps, so the worst case is the select on its
+     own line under three 44px glyphs rather than a squeezed title. */
+  .fu-owner {
+    min-inline-size: 104px;
+    max-inline-size: 132px;
   }
 }

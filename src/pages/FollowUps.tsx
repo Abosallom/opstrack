@@ -31,9 +31,11 @@
 // three days. `useSwipeActions` resolves the direction logically at gesture
 // start, so the Arabic user's thumb does the same thing the English user's does
 // with no mirror rules here. A gesture is never the ONLY path to an action: both
-// live as real <button>s in the row's action slot, dimmed to 62% until the row
-// is hovered or holds focus, and always at full strength on a touch device where
-// there is no hover to reveal them.
+// live as real <button>s in the row's action slot, inked --text-faint until the
+// row is hovered or holds focus, and --text-dim on a touch device where there is
+// no hover to reveal them. That quiet state was an `opacity: 0.62` for three
+// waves and it was a WCAG 1.4.3 failure at 2.89:1 — see followups.css and the
+// gate in src/styles/contrast.test.ts.
 //
 // TRIAGE CAN FINISH AN ITEM, NOT ONLY DEFER ONE. For a long time this row could
 // take, comment on and snooze an item but not complete it: the only route to
@@ -89,9 +91,9 @@ import {
   type CSSProperties,
   type ReactElement,
 } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import FilterBar, { type FilterFacet } from '../components/FilterBar'
-import { EntryRow, EntrySection, useSwipeActions } from '../components/entry'
+import { EntryRow, EntrySection, useSwipeActions, type EntryRowShow } from '../components/entry'
 import { IconChecklist, IconClock, IconUser } from '../components/icons'
 import { IconCheck, IconPlus } from '../components/fields/glyphs'
 import { EmptyState, Skeleton } from '../components/shared'
@@ -99,6 +101,8 @@ import { toast } from '../components/toast'
 import { formatDate, formatRelativeTime } from '../lib/dates'
 import {
   EMPTY_FILTER,
+  filterFromParams,
+  filterToParams,
   isFilterEmpty,
   sortEntries,
   type EntrySort,
@@ -123,7 +127,9 @@ import {
   useFilteredEntries,
   useHealthMap,
 } from '../store/entries'
+import { useMembers } from '../store/members'
 import { useSlaDays, useStaleDays } from '../store/vocab'
+import type { Member } from '../api/members'
 import type { ApiResult } from '../api/result'
 import type { Entry, EntryHealth, EntryUpdate, NewEntryUpdate } from '../types'
 import './followups.css'
@@ -264,6 +270,30 @@ let densityPref: Density = 'comfortable'
  */
 const MAX_ROWS: Readonly<Record<Density, number>> = { comfortable: 25, compact: 40 }
 
+/**
+ * The select value meaning "nobody yet" — TracksIndex.tsx's `OWNER_NONE`, the
+ * same empty string for the same reason: it is the one value a <select> can
+ * carry that is never a member id.
+ *
+ * The tree's control also needs an `OWNER_NAME` sentinel for a free-text vendor
+ * and an orphan branch for an owner_id whose profile is gone. This one needs
+ * neither, and that is a property of WHERE it renders rather than a shortcut:
+ * `bucketFollowUps` puts an entry in this bucket only when
+ * `owner_id === null && (owner_name ?? '').trim() === ''`, so every row carrying
+ * this control is unowned by both measures.
+ */
+const OWNER_NONE = ''
+
+/**
+ * The owner mark, off — hoisted to module scope rather than written inline.
+ *
+ * `show={{ owner: false }}` at a call site is a fresh object per render, which
+ * is the exact prop hazard R2-PERF-1 fixed one prop over: it defeats memo()'s
+ * shallow compare for every row that receives it. A module constant is the same
+ * object forever.
+ */
+const SHOW_NO_OWNER: EntryRowShow = { owner: false }
+
 interface SlaFacts {
   /** The RESOLVED window in days, whichever level supplied it. */
   days: number
@@ -345,15 +375,21 @@ interface FollowUpRowProps {
   sla: SlaFacts | null
   canEdit: boolean
   density: Density
-  /** Only the unassigned bucket offers "take it" — everywhere else the owner
-   *  question is already answered and the button would be a way to steal work. */
-  offerTake: boolean
+  /** Only the unassigned bucket offers the two OWNER controls — everywhere else
+   *  the owner question is already answered and they would be a way to steal or
+   *  reroute someone's work from a list they were only scanning. */
+  offerOwner: boolean
+  /** The people work can be handed to. Only read when `offerOwner`. */
+  members: readonly Member[]
   quickOpen: boolean
   onOpen: (id: string) => void
   onQuick: (id: string) => void
   onCloseQuick: () => void
   onSnooze: (entry: Entry) => void
   onTake: (entry: Entry) => void
+  /** The MEMBER, not their id: the row picked them out of the list it rendered
+   *  the options from, so the name can never fail to resolve at the screen. */
+  onAssign: (entry: Entry, member: Member) => void
   onDone: (entry: Entry) => void
   onPost: (entry: Entry, body: string) => Promise<boolean>
 }
@@ -364,13 +400,15 @@ const FollowUpRow = memo(function FollowUpRow({
   sla,
   canEdit,
   density,
-  offerTake,
+  offerOwner,
+  members,
   quickOpen,
   onOpen,
   onQuick,
   onCloseQuick,
   onSnooze,
   onTake,
+  onAssign,
   onDone,
   onPost,
 }: FollowUpRowProps): ReactElement {
@@ -468,6 +506,12 @@ const FollowUpRow = memo(function FollowUpRow({
           entry={entry}
           health={health}
           density={density}
+          // On an unassigned row the owner badge says "Unassigned" under a
+          // heading that already says Unassigned, so the select below REPLACES
+          // it rather than joining it: the row gains a control and loses a
+          // repetition instead of gaining a fifth thing to read. TracksIndex
+          // makes the same swap for the same reason.
+          show={offerOwner ? SHOW_NO_OWNER : undefined}
           canEdit={canEdit}
           onOpen={onOpen}
           actions={
@@ -491,17 +535,66 @@ const FollowUpRow = memo(function FollowUpRow({
                   accessible name. Three text buttons plus a pill measured wider
                   than the title on a 375px row, which pushed the meta line into
                   a five-line stack and overlapped the health pill. */}
-              {offerTake ? (
-                <button
-                  type="button"
-                  className="btn btn-sm btn-ghost fu-act"
-                  onClick={() => onTake(entry)}
-                  disabled={!canEdit}
-                  title={canEdit ? t('followups.takeIt') : t('followups.snoozeDisabled')}
-                >
-                  <IconUser size={15} className="fu-act-icon" />
-                  <span className="fu-act-label">{t('followups.takeIt')}</span>
-                </button>
+              {/* THE UNASSIGNED BUCKET GETS TWO OWNER CONTROLS, NOT ONE, and
+                  the second is the point of the section.
+
+                  For three waves this row offered "Take it" and nothing else —
+                  so the one bucket that exists BECAUSE nobody owns the work
+                  could only ever be resolved by the reader owning it
+                  themselves. For a department head with six tracks that is the
+                  wrong verb: the morning question at this heading is "who is
+                  picking this up", and the only answer the screen accepted was
+                  "me". The owner badge was inert (atoms.tsx renders a plain
+                  <span>), and nothing on the screen linked anywhere that could
+                  assign, so distributing work meant opening each item and
+                  scrolling to its owner picker.
+
+                  Both stay, because they are different actions rather than one
+                  action twice. "Take it" is the single commonest triage outcome
+                  and has to remain ONE tap; a select would make it three. The
+                  select is the delegation path, and it is deliberately the same
+                  control TracksIndex already ships — same shape, same
+                  `{ ownerId, ownerName: null }` patch, same store — so nothing
+                  new was invented for it. */}
+              {offerOwner ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost fu-act"
+                    onClick={() => onTake(entry)}
+                    disabled={!canEdit}
+                    title={canEdit ? t('followups.takeIt') : t('followups.snoozeDisabled')}
+                  >
+                    <IconUser size={15} className="fu-act-icon" />
+                    <span className="fu-act-label">{t('followups.takeIt')}</span>
+                  </button>
+                  <select
+                    className="select fu-owner"
+                    // The value is ALWAYS OWNER_NONE: this bucket holds only
+                    // unowned rows, and a row that gains an owner leaves it. So
+                    // the control is a one-way hand-off rather than an editor,
+                    // and it needs neither the tree's free-text sentinel nor its
+                    // orphan branch.
+                    value={OWNER_NONE}
+                    disabled={!canEdit || members.length === 0}
+                    aria-label={t('followups.assignFor', { title: entry.title })}
+                    title={canEdit ? t('followups.assign') : t('entry.cannotEdit')}
+                    onChange={(ev) => {
+                      // Resolved HERE, out of the very list these options were
+                      // built from, so the screen's toast can never be handed an
+                      // id it cannot name.
+                      const picked = members.find((m) => m.id === ev.target.value)
+                      if (picked !== undefined) onAssign(entry, picked)
+                    }}
+                  >
+                    <option value={OWNER_NONE}>{t('followups.assign')}</option>
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </>
               ) : null}
               {/* The outcome the whole pass is aiming at, so it sits first
                   among the three and is the only one drawn in the success
@@ -651,10 +744,50 @@ export default function FollowUps(): ReactElement {
   const meId = profile?.id ?? null
   const role = profile?.role ?? 'member'
 
-  // Freshly constructed, never spread from EMPTY_FILTER's own arrays —
-  // Object.freeze is shallow and a push() here would corrupt the shared default
-  // for every other screen in the app.
-  const [filter, setFilter] = useState<FilterState>(() => ({ ...EMPTY_FILTER }))
+  /* ── the filter, in the URL ───────────────────────────────────────────────
+   *
+   * It was `useState({ ...EMPTY_FILTER })` for three waves, and Follow-ups is a
+   * LAZY ROUTE (App.tsx) — so every trip to the board and back unmounted this
+   * screen and reset search, track, tag, health and the Mine/Everyone segment,
+   * while `densityPref`, the purely cosmetic module-level preference above, was
+   * deliberately built to survive exactly that trip and did. The two controls
+   * are adjacent chip-pairs in the same `.fu-tools` row, so the user watched one
+   * persist and its neighbour forget, all day, on a phone where the tab bar
+   * makes the round trip one thumb-tap.
+   *
+   * Board.tsx and TracksIndex.tsx already round-trip through `useSearchParams`
+   * with these same two shared serialisers, and the reason they give is the
+   * second half of the win: a triage view becomes a link somebody can paste into
+   * a chat. `replace` rather than push, for their reason too — search is not
+   * debounced (FilterBar's header says why) and a history entry per keystroke
+   * makes Back unusable.
+   *
+   * SCOPE IS NORMALISED HERE, not only where it is used. This screen offers no
+   * scope control and cannot: `bucketFollowUps` never buckets a closed entry, so
+   * `?scope=closed` from a hand-edited or inherited URL would be a filter the
+   * user can neither see nor switch off — and, left in `filter`, one the facet
+   * pill would count. Board.tsx drops an inherited `status` the same way, for
+   * the same reason, and says so where it does it.
+   *
+   * `filterFromParams` constructs freshly rather than spreading EMPTY_FILTER, so
+   * the old comment's hazard — Object.freeze is shallow, and a push() into a
+   * spread array would corrupt the shared default for every screen — is handled
+   * inside it now, and its header says so.
+   */
+  const [params, setParams] = useSearchParams()
+  const filter = useMemo<FilterState>(() => {
+    const parsed = filterFromParams(params)
+    if (parsed.scope === EMPTY_FILTER.scope) return parsed
+    return { ...parsed, scope: EMPTY_FILTER.scope }
+  }, [params])
+
+  const setFilter = useCallback(
+    (next: FilterState) => {
+      setParams(filterToParams(next), { replace: true })
+    },
+    [setParams],
+  )
+
   const [density, setDensityState] = useState<Density>(densityPref)
   const [quickId, setQuickId] = useState<string | null>(null)
   /**
@@ -676,6 +809,10 @@ export default function FollowUps(): ReactElement {
   const ctx = useFilterContext()
   const staleDaysFor = useStaleDays()
   const slaDaysFor = useSlaDays()
+  // Who work can be handed to. Warmed by Shell (backlog M2), so this is a read
+  // of a store somebody else already filled — the rows below are the only
+  // consumer on this screen and only in the unassigned bucket.
+  const members = useMembers()
 
   useEffect(() => {
     alive.current = true
@@ -786,6 +923,33 @@ export default function FollowUps(): ReactElement {
     },
     [meId],
   )
+
+  /**
+   * Hand one unowned item to someone else.
+   *
+   * Built ONCE — an empty dependency array — because this is a prop of every
+   * mounted row and `useCallback(…, [members])` would hand all of them a new
+   * function the first time the members store settles, defeating `memo()`'s
+   * shallow compare for the whole list. It takes the MEMBER rather than an id
+   * precisely so it needs no list to close over: the row resolved them out of
+   * the options it had just drawn.
+   *
+   * `ownerName: null` alongside `ownerId` is not defensive: types.ts declares
+   * the two columns MUTUALLY EXCLUSIVE, and leaving a stale free-text name on a
+   * row now owned by a teammate makes every reader that falls back to it — the
+   * digest, the CSV export — disagree with this screen. TracksIndex's
+   * `bulkPatch('owner', …)` clears it for the same reason.
+   */
+  const handleAssign = useCallback((entry: Entry, member: Member) => {
+    void patchEntry(entry.id, { ownerId: member.id, ownerName: null }).then((result) => {
+      // A failure has already been toasted by the store, and a QUEUED write is
+      // neither — its optimistic row already shows the new owner.
+      if (!result.ok) return
+      toast(t('followups.assigned', { title: entry.title, name: member.displayName }), {
+        tone: 'success',
+      })
+    })
+  }, [])
 
   /**
    * Finish an item from the list.
@@ -1015,13 +1179,15 @@ export default function FollowUps(): ReactElement {
                         sla={slaFacts.get(entry.id) ?? null}
                         canEdit={canEditEntry(entry, meId, role)}
                         density={density}
-                        offerTake={s.key === 'unassigned'}
+                        offerOwner={s.key === 'unassigned'}
+                        members={members}
                         quickOpen={quickId === entry.id}
                         onOpen={handleOpen}
                         onQuick={handleQuick}
                         onCloseQuick={handleCloseQuick}
                         onSnooze={handleSnooze}
                         onTake={handleTake}
+                        onAssign={handleAssign}
                         onDone={handleDone}
                         onPost={handlePost}
                       />

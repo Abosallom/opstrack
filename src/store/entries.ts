@@ -42,6 +42,7 @@
 import { useEffect, useMemo } from 'react'
 import { create } from 'zustand'
 import {
+  getEntry,
   listClosedSince,
   listEntries,
   listHealth,
@@ -57,6 +58,11 @@ import { fail } from '../api/result'
 import { supabase } from '../api/supabase'
 import { TEMP_PREFIX, discardOpsForTempId, isTempId } from './outbox'
 import { hasSession, useAuth } from './auth'
+// store → store, and the direction is the safe one: store/entrySheet holds five
+// lines of "which entry is open" and imports nothing but zustand, so there is no
+// cycle. mergeOpenFetch needs it to know which row a prune would pull out from
+// under the user; see that function's header.
+import { getOpenEntryId } from './entrySheet'
 import { getVocabSnapshot, slaDays, staleDays } from './vocab'
 import {
   CLOSED_STATUSES,
@@ -863,6 +869,46 @@ let inFlight: Promise<void> | null = null
 let epoch = 0
 
 /**
+ * Ids with a reconcile read in flight. See mergeOpenFetch.
+ *
+ * A dedupe, not a memo: a refetch storm — focus, resync and a manual Retry
+ * inside a second — must not put three reads on the wire for one row. It is
+ * cleared when the read settles, because what ends the condition is the ANSWER
+ * landing in `byId` (the row comes back closed, or it is removed), and a
+ * failed read must be allowed to be re-attempted by the next refetch.
+ */
+const reconciling = new Set<string>()
+
+/**
+ * Ask the server about ONE row that a fresh open fetch did not return while the
+ * user had it open, and settle what actually happened to it.
+ *
+ * Two answers, both of which end the stale state honestly: a row comes back
+ * (a colleague closed it — applyServerRow lands the closed row, the sheet keeps
+ * rendering it and every list drops it, which is the truth) or nothing comes
+ * back (it really was deleted — removeEntryLocal(), the same teardown the
+ * realtime DELETE uses, and EntrySheet's probe then says so honestly). A failed
+ * read changes nothing and leaves the kept row in place, because "the network is
+ * down" is not evidence about an entry.
+ */
+function reconcileOpenRow(id: string): void {
+  if (reconciling.has(id)) return
+  reconciling.add(id)
+  const mine = epoch
+  void getEntry(id)
+    .then((result) => {
+      // Signed out while this was in flight — see `epoch`.
+      if (mine !== epoch) return
+      if (!result.ok) return
+      if (result.data === null) removeEntryLocal(id)
+      else applyServerRow(result.data, 'fetch')
+    })
+    .finally(() => {
+      if (mine === epoch) reconciling.delete(id)
+    })
+}
+
+/**
  * Merge a fetched open working set into the store.
  *
  * Merge, not replace, and the exception list is the whole reason this is a named
@@ -873,15 +919,37 @@ let epoch = 0
  * open working set any more. Rows already closed locally are left alone, because
  * they were loaded deliberately by loadClosedSince() or a track window and the
  * open fetch says nothing about them.
+ *
+ * THE ROW THE USER IS LOOKING AT IS NOT PRUNED OUT FROM UNDER THEM. A prune is
+ * an inference — "absent from the open read" means closed OR deleted, and this
+ * function cannot tell which. That is a fine inference for a row in a list,
+ * where either answer means the same thing (it leaves). It is not fine for the
+ * row on screen: EntrySheet reads this same map, and a row that vanishes from it
+ * renders as `entry.notFound` — "this entry was deleted" — which is a LIE when
+ * all that happened is a colleague marked it done while the tab was hidden. It
+ * is reachable with no realtime at all, through the 45 s focus refetch and the
+ * 60 s hidden-tab resync, and it also catches any open row past PostgREST's
+ * 1000-row ceiling, which `coverage.truncated` records but does not exempt.
+ *
+ * So the open row is KEPT and asked about individually. Keeping alone would only
+ * trade a lie for a stale one — the panel would show `in_progress` forever and
+ * the row would sit in the follow-up lists — so reconcileOpenRow() resolves it
+ * within a request either way.
  */
 function mergeOpenFetch(rows: Entry[], health: EntryHealth[] | null, truncated = false): void {
   const st = useEntriesStore.getState()
   const fetched = new Set(rows.map((r) => r.id))
   const byId = new Map<string, Entry>()
+  const openId = getOpenEntryId()
 
   for (const [id, entry] of st.byId) {
     if (isTempId(id) || st.pending.has(id)) byId.set(id, entry)
-    else if (!fetched.has(id) && isClosed(entry.status)) byId.set(id, entry)
+    else if (fetched.has(id)) continue
+    else if (isClosed(entry.status)) byId.set(id, entry)
+    else if (id === openId) {
+      byId.set(id, entry)
+      reconcileOpenRow(id)
+    }
   }
   for (const row of rows) {
     if (!byId.has(row.id)) byId.set(row.id, row)
@@ -1267,6 +1335,9 @@ export function resetEntries(): void {
   outstanding.clear()
   deferredRealtime.clear()
   localWrites.clear()
+  // Same argument, one line down: an id left in here would make the next
+  // account's first prune of that row skip its reconcile read.
+  reconciling.clear()
   try {
     localStorage.removeItem(CACHE_KEY)
   } catch {

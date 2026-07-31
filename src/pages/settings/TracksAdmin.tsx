@@ -437,11 +437,24 @@ export default function TracksAdmin(): ReactElement {
                   <div className="admin-reassign">
                     <p className="field-label">{t('admin.tracks.usage')}</p>
                     <p className="admin-reassign-usage">
+                      {/* The three counts arrive as already-translated phrases
+                          from the same plural nodes the usage line above uses,
+                          not as bare numbers. A sentence carrying three
+                          different counts cannot inflect from one `{count}` —
+                          selectPlural reads exactly one — so hardcoding the
+                          nouns here is what produced "still holds 1 entries"
+                          while the row two lines up said "1 entry". */}
                       {t('admin.tracks.deleteBodyInUse', {
                         name: label(track),
-                        entries: pendingDelete.usage.entries,
-                        meetings: pendingDelete.usage.meetings,
-                        templates: pendingDelete.usage.templates,
+                        entries: t('admin.tracks.usageEntries', {
+                          count: pendingDelete.usage.entries,
+                        }),
+                        meetings: t('admin.tracks.usageMeetings', {
+                          count: pendingDelete.usage.meetings,
+                        }),
+                        templates: t('admin.tracks.usageTemplates', {
+                          count: pendingDelete.usage.templates,
+                        }),
                       })}
                     </p>
                     {/* Only ACTIVE tracks are offered, and there is deliberately

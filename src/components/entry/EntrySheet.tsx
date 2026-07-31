@@ -111,11 +111,46 @@ export interface EntrySheetProps {
  * cannot be mistaken for an answer about THAT one — the whole surface swaps
  * entry under a request that is still in flight every time J/K is held down.
  */
-interface Probe {
+export interface Probe {
   id: string
   done: boolean
   /** An i18n KEY, per the ApiResult contract. Null on success. */
   error: string | null
+}
+
+/**
+ * Whether a probe's answer has been outlived by the row it answered about.
+ *
+ * A ROW THAT VANISHES IS NOT A ROW THAT NEVER EXISTED, and the probe cannot tell
+ * the difference on its own: once it has answered for an id it refuses to ask
+ * again (that guard is what stops J/K from firing a read per keypress), so a row
+ * that leaves `byId` AFTER a successful probe leaves the surface stuck on
+ * `entry.notFound` — "this entry was deleted" — for an entry that is merely
+ * done. store/entries.mergeOpenFetch no longer prunes the open row, which is the
+ * fix; this is the second line, for the windows that one cannot cover — the beat
+ * on the `/entry/:id` route between mount and the effect that calls openEntry(),
+ * and any future prune written without this rule in mind.
+ *
+ * Exported and pure because vitest.config.ts is `environment: 'node'`: there is
+ * no DOM here and effects do not run under renderToStaticMarkup, so the decision
+ * is asserted directly. See src/pages/Entry.test.tsx.
+ *
+ * @param seenId the last id this surface actually held a row for.
+ */
+export function probeOutlivedItsRow(
+  entryId: string | null,
+  hasEntry: boolean,
+  seenId: string | null,
+  probe: Probe | null,
+): boolean {
+  if (entryId === null || hasEntry) return false
+  // Never held a row for THIS id: whatever the probe said still stands, and the
+  // deep-link case (no row, no probe yet) is the effect below's job, not this.
+  if (seenId !== entryId) return false
+  // A probe that has not answered yet, or answered about another entry, is not
+  // being contradicted — it is simply not the thing on screen.
+  if (probe === null || probe.id !== entryId || !probe.done) return false
+  return true
 }
 
 /**
@@ -188,6 +223,10 @@ export default function EntrySheet({
   // double-invoked effect cannot fire two reads, and so a re-render caused by
   // anything else cannot fire a third.
   const probing = useRef<string | null>(null)
+  // The last id this surface actually held a row for — the input to
+  // probeOutlivedItsRow(). A ref, not state: it is read inside an effect and
+  // must never itself cause a render.
+  const seen = useRef<string | null>(null)
 
   // Self-sufficient on a deep link. Every one of these is deduped and returns
   // immediately when its data is fresh, so the common case — the sheet opened
@@ -216,6 +255,23 @@ export default function EntrySheet({
   //
   // It runs in parallel with the list fetch rather than after it, so a deep link
   // paints as soon as its one row lands instead of waiting for two thousand.
+  //
+  // AND IT IS RE-ARMED WHEN A ROW IT ANSWERED ABOUT DISAPPEARS. See
+  // probeOutlivedItsRow() above for why a stale "yes, it exists" turns into
+  // "this entry was deleted" without this. Clearing `seen` first is what caps it
+  // at one extra read: the second answer is final, because a row that is really
+  // gone never comes back to re-arm it.
+  useEffect(() => {
+    if (entryId === null) return
+    if (entry !== undefined) {
+      seen.current = entryId
+      return
+    }
+    if (!probeOutlivedItsRow(entryId, false, seen.current, probe)) return
+    seen.current = null
+    setProbe(null)
+  }, [entryId, entry, probe])
+
   useEffect(() => {
     if (entryId === null || entry !== undefined) return
     if (probing.current === entryId) return

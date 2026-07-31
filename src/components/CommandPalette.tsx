@@ -160,6 +160,11 @@ export const SCREENS: readonly PaletteScreen[] = [
   { to: '/followups', labelKey: 'route.followups' },
   { to: '/board', labelKey: 'route.board' },
   { to: '/tracks', labelKey: 'route.tracks' },
+  // The map half of the tracks job. It is in no nav — its designed entry is the
+  // List | Map switcher on /tracks — which makes it exactly the kind of screen
+  // this table earns its keep on, and it named itself out of its own namespace
+  // for the reason the two Wave-4b rows below give.
+  { to: '/mindtree', labelKey: 'mindtree.title' },
   { to: '/meetings', labelKey: 'route.meetings' },
   { to: '/dashboard', labelKey: 'route.dashboard' },
   { to: '/digest', labelKey: 'digest.title' },

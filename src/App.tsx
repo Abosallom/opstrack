@@ -34,6 +34,7 @@ import { useAuth } from './store/auth'
 import { loadConfig } from './store/config'
 import { loadTrackSlas, resetEntries, startEntriesRealtime } from './store/entries'
 import { loadMembers, resetMembers } from './store/members'
+import { resetMeetings } from './store/meetings'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
 import { resetOutbox } from './store/outbox'
 import { resetPush } from './store/push'
@@ -58,6 +59,11 @@ const Board = lazy(() => import('./pages/Board'))
 // chronological log. Two files, two prefixes — `.tree-` and `.tl-`.
 const TracksIndex = lazy(() => import('./pages/tracks/TracksIndex'))
 const TrackTimeline = lazy(() => import('./pages/tracks/TrackTimeline'))
+// The map half of the same job: /tracks is what is open, /mindtree is the shape
+// of it. Reached from the List | Map switcher on /tracks, not from a sixth nav
+// destination — the tab bar is capped at five and a second tracks-shaped
+// entry would dilute both.
+const Mindtree = lazy(() => import('./pages/Mindtree'))
 const Entry = lazy(() => import('./pages/Entry'))
 // The overlay half of the same module, mounted once at the root (below). Lazy
 // so the detail surface stays out of the initial bundle; it renders null until
@@ -417,7 +423,19 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // call above, the store only filled when a sheet was opened, so the leak
       // needed a coincidence; now it is guaranteed without this line.
       resetMembers()
-      // Push is the fifth, and the only one whose reset reaches OUTSIDE the tab.
+      // Meetings is the fifth, and the argument for it is STALENESS rather than
+      // confidentiality — `meetings_select` and `meeting_lines_select` are both
+      // `is_member()`, so every teammate may read every meeting anyway. What
+      // makes it belong here is that its two dedupe latches, `loadedAt` and
+      // `linesLoadedAt`, are consulted without a clock: left standing, the next
+      // account's first /meetings visit short-circuits and paints the previous
+      // account's list, their already-opened line sets, and — through `plans` —
+      // their unsaved triage decisions, with no spinner and no network call.
+      // Pressing Commit then files those decisions under the new user's name.
+      // It also cancels the 600 ms triage-save timers, so an edit made in the
+      // last moment before signing out cannot fire after the session is gone.
+      resetMeetings()
+      // Push is the sixth, and the only one whose reset reaches OUTSIDE the tab.
       // The browser's push subscription is per-BROWSER, not per-session, so a
       // subscription left registered on sign-out keeps delivering the previous
       // user's assignments to a device the next person is holding — a
@@ -545,6 +563,7 @@ export default function App(): ReactElement {
               <Route path="/followups" element={<FollowUps />} />
               <Route path="/board" element={<Board />} />
               <Route path="/tracks" element={<TracksIndex />} />
+              <Route path="/mindtree" element={<Mindtree />} />
               <Route path="/tracks/:id" element={<TrackTimeline />} />
               {/* The entry as a PAGE — a URL somebody was sent. Every in-app
                   tap opens the same detail surface as an overlay instead, via

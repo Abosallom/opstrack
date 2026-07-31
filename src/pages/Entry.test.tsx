@@ -208,7 +208,7 @@ vi.mock('../api/entries', () => ({
 
 const Entry = (await import('./Entry')).default
 const { EntryOverlayHost } = await import('./Entry')
-const { flashSentence } = await import('../components/entry/EntrySheet')
+const { flashSentence, probeOutlivedItsRow } = await import('../components/entry/EntrySheet')
 const { closeEntry, openEntry } = await import('../store/entrySheet')
 const { t } = await import('../lib/i18n')
 
@@ -238,6 +238,53 @@ function host(path: string): string {
     </MemoryRouter>,
   )
 }
+
+// ── the probe, after the row it answered about disappears ──────────────────
+//
+// The surface's not-found state has one job it must be right about: telling
+// "gone" apart from "not loaded yet". The probe decides that, and it refuses to
+// re-ask about an id it has already answered for — the guard that stops J/K
+// from firing a read per keypress. So a row that leaves `byId` AFTER a
+// successful probe strands the panel on "this entry was deleted" for an entry
+// that is merely done, which is precisely the lie the probe exists to prevent.
+//
+// Asserted as a pure decision rather than through a render because this file
+// runs under `environment: 'node'` and effects do not run in
+// renderToStaticMarkup — the limitation this file's header already states.
+describe('probeOutlivedItsRow — a row that vanishes is not a row that never was', () => {
+  const answered = { id: 'e1', done: true, error: null }
+
+  it('re-arms the probe when a row this surface HELD disappears', () => {
+    expect(probeOutlivedItsRow('e1', false, 'e1', answered)).toBe(true)
+  })
+
+  it('leaves the deep-link case alone — no row was ever held', () => {
+    // Opened from a chat message: there is no row and there never was one. The
+    // probe's own effect owns this, and re-arming here would loop it.
+    expect(probeOutlivedItsRow('e1', false, null, null)).toBe(false)
+    expect(probeOutlivedItsRow('e1', false, null, answered)).toBe(false)
+  })
+
+  it('says nothing while the row is present', () => {
+    expect(probeOutlivedItsRow('e1', true, 'e1', answered)).toBe(false)
+  })
+
+  it('does not contradict a probe that is still out, or one about another entry', () => {
+    expect(probeOutlivedItsRow('e1', false, 'e1', { id: 'e1', done: false, error: null })).toBe(false)
+    // Stepped to e2 with J while e1's read was in flight.
+    expect(probeOutlivedItsRow('e2', false, 'e2', answered)).toBe(false)
+  })
+
+  it('holds for the error branch too — a failed read is not evidence either', () => {
+    // The retry affordance is the right control for this state, and re-arming
+    // reaches it: the second read decides between error and not-found afresh.
+    expect(probeOutlivedItsRow('e1', false, 'e1', { id: 'e1', done: true, error: 'common.error' })).toBe(true)
+  })
+
+  it('is inert with no entry in the URL at all', () => {
+    expect(probeOutlivedItsRow(null, false, 'e1', answered)).toBe(false)
+  })
+})
 
 describe('flashSentence — the notifications resolution order', () => {
   const members = new Map([

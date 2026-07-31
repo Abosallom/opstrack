@@ -56,7 +56,7 @@ import {
   type CSSProperties,
   type ReactElement,
 } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { NavLink, useSearchParams } from 'react-router-dom'
 import FilterBar, { type FilterFacet } from '../../components/FilterBar'
 import { EmptyState, Skeleton } from '../../components/shared'
 import { EntryRow, TrackDot } from '../../components/entry'
@@ -910,6 +910,17 @@ export default function TracksIndex(): ReactElement {
       />
 
       <div className="tree-bar">
+        {/* One job, two views. `/tracks` is the working list and `/mindtree`
+            is its shape; they are siblings, not a nav destination each. */}
+        <nav className="chip-row tree-views" aria-label={t('mindtree.viewSwitch')}>
+          <NavLink to="/tracks" end className="chip">
+            {t('mindtree.viewList')}
+          </NavLink>
+          <NavLink to="/mindtree" className="chip">
+            {t('mindtree.viewMap')}
+          </NavLink>
+        </nav>
+
         <button
           type="button"
           className="chip tree-unassigned"

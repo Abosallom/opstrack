@@ -64,12 +64,63 @@ export function confirm(opts: ConfirmOptions): Promise<boolean> {
 // and the user's next move is to click harder — right as the window expires.
 const ARM_DELAY_MS = 350
 
+/**
+ * The element focus lands on when the trigger did not survive the action.
+ *
+ * `<main id="main" tabIndex={-1}>` in App.tsx — the same node the skip link
+ * aims at, and the only always-present, always-focusable anchor in the shell.
+ * Confirm.test.tsx asserts App.tsx still renders it, because a rename here is
+ * silent: getElementById returns null, the fallback quietly does nothing, and
+ * focus is back on <body> with no test failing.
+ */
+const FOCUS_FALLBACK_ID = 'main'
+
+/** The subset of an element the restore decision reads. */
+interface FocusCandidate {
+  isConnected: boolean
+  tagName: string
+}
+
+/**
+ * Where focus goes when the dialog closes.
+ *
+ * THE TRIGGER IS USUALLY GONE. On the destructive path — which is the path this
+ * component exists for — the confirmed delete unmounts the row the button was
+ * in, so by the time the restore runs `document.activeElement` is `<body>` and
+ * the stored trigger is detached. `focus()` on a detached node is a no-op, so
+ * an `isConnected` guard alone LEAVES focus on `<body>`: the next Tab restarts
+ * at the top of the document, and a screen reader announces nothing at all.
+ * That is the whole bug — the guard prevented a wrong call without making a
+ * right one.
+ *
+ * `<body>` is treated as no answer for the same reason it is not one: it is
+ * where the browser parks focus when nothing holds it, so restoring "to" it
+ * restores nothing. It is also what a confirm() raised from a hotkey or an API
+ * error path captures as its trigger, and that case wants the fallback too.
+ *
+ * Structural rather than `HTMLElement` so the rule is testable without a DOM —
+ * vitest.config.ts is `environment: 'node'` by design.
+ */
+export function focusRestoreTarget<T extends FocusCandidate>(
+  trigger: T | null,
+  fallback: T | null,
+): T | null {
+  if (trigger !== null && trigger.isConnected && trigger.tagName !== 'BODY') return trigger
+  if (fallback !== null && fallback.isConnected) return fallback
+  return null
+}
+
 export function ConfirmHost(): ReactElement {
   const [pending, setPending] = useState<Pending | null>(null)
   const [armed, setArmed] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
   const confirmBtn = useRef<HTMLButtonElement>(null)
   const restoreFocus = useRef<HTMLElement | null>(null)
+  // Set when a dialog OPENS, cleared once its focus has been put back. The
+  // restore branch of the effect below also runs on mount — `pending` starts
+  // null — and without this flag the fallback would fire there and pull focus
+  // to <main> at app start, before the user has touched anything.
+  const restoreDue = useRef(false)
   // Mirror of `pending` readable synchronously from the listener — state is one
   // render behind and this has to settle the OLD promise the instant a second
   // confirm() replaces it.
@@ -84,6 +135,7 @@ export function ConfirmHost(): ReactElement {
       // button, and storing it would restore focus into an unmounted sheet.
       if (!pendingRef.current) {
         restoreFocus.current = document.activeElement as HTMLElement | null
+        restoreDue.current = true
       }
       // A replaced dialog must still settle or whoever is awaiting it waits
       // forever. False is the safe answer: the user never saw it.
@@ -111,12 +163,17 @@ export function ConfirmHost(): ReactElement {
 
   useEffect(() => {
     if (!pending) {
-      const el = restoreFocus.current
-      // isConnected matters: the trigger is usually a row action button that
-      // the confirmed delete just unmounted. focus() on a detached node is a
-      // no-op that dumps focus on <body>, and a screen-reader user loses their
-      // place in the list entirely.
-      if (el?.isConnected) el.focus()
+      // Only after a dialog that was actually open — see restoreDue.
+      if (!restoreDue.current) return
+      restoreDue.current = false
+      const trigger = restoreFocus.current
+      restoreFocus.current = null
+      // The trigger is usually a row action button that the confirmed delete
+      // just unmounted, so this lands on the fallback far more often than on
+      // the trigger. Whichever it is, focus goes SOMEWHERE: an isConnected
+      // guard with no alternative left it on <body>, one Tab away from the top
+      // of the document and announcing nothing.
+      focusRestoreTarget(trigger, document.getElementById(FOCUS_FALLBACK_ID))?.focus()
       return
     }
     setArmed(false)

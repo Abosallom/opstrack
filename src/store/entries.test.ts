@@ -9,7 +9,11 @@
 // before importing rather than asking the store to pretend it has no cache.
 // A static import would evaluate the module before beforeAll could run.
 
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+// Static, unlike ./entries below: store/entrySheet is five lines of zustand that
+// touch no browser global, and the entries store now reads it to know which row
+// a refetch may not prune. Both files get the same module instance.
+import { closeEntry, openEntry } from './entrySheet'
 import type { ApiResult } from '../api/result'
 import type { RealtimeEvent } from '../api/realtime'
 import type { Entry, EntryHealth, EntryStatus, EntryUpdate } from '../types'
@@ -30,6 +34,16 @@ const net = vi.hoisted(() => ({
   slaOk: true,
   /** The batch handler store/entries registers in startEntriesRealtime(). */
   onBatch: null as ((batch: RealtimeEvent<unknown>[]) => void) | null,
+  /**
+   * The SINGLE-ROW seam, id → the row the server would hand back (absent means
+   * "no such row"). mergeOpenFetch's reconcile read goes through this; `getIds`
+   * records who was asked about, which is half of what the prune tests assert.
+   */
+  single: new Map<string, unknown>(),
+  getIds: [] as string[],
+  /** Set true to hold the single-row read open; `releaseGet()` lands it. */
+  deferGet: false,
+  releaseGet: null as (() => void) | null,
 }))
 
 vi.mock('../api/entries', () => ({
@@ -39,6 +53,14 @@ vi.mock('../api/entries', () => ({
   listClosedSince: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
   listTrackHistory: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
   listUpdates: () => Promise.resolve({ ok: true, data: [] }),
+  getEntry: (id: string) => {
+    net.getIds.push(id)
+    const answer = { ok: true, data: net.single.get(id) ?? null }
+    if (!net.deferGet) return Promise.resolve(answer)
+    return new Promise((resolve) => {
+      net.releaseGet = (): void => resolve(answer)
+    })
+  },
   addUpdate: () => Promise.resolve({ ok: false, error: 'common.error' }),
   createEntry: () => Promise.resolve({ ok: false, error: 'common.error' }),
   updateEntry: () => Promise.resolve({ ok: false, error: 'common.error' }),
@@ -316,6 +338,10 @@ beforeEach(() => {
   net.health = []
   net.slas = []
   net.slaOk = true
+  net.single = new Map()
+  net.getIds = []
+  net.deferGet = false
+  net.releaseGet = null
 })
 
 describe('revertMine — undo my write, and only my write', () => {
@@ -783,5 +809,94 @@ describe('applyRealtimeBatch — one setState per batch', () => {
     } finally {
       off()
     }
+  })
+})
+
+// ── the prune, and the one row it may not take ─────────────────────────────
+//
+// mergeOpenFetch() drops any locally-open row a fresh open read did not return,
+// because the only ways that happens are a close or a delete elsewhere and
+// either way the row has left the open working set. That inference is right for
+// a row in a list and WRONG for the row on screen: EntrySheet reads the same
+// map, and a row that vanishes from it renders `entry.notFound` — "this entry
+// was deleted" — when all that happened is a colleague marked it done while the
+// tab was hidden. No realtime is needed to reach it; the 45 s focus refetch and
+// the 60 s hidden-tab resync both call loadEntries(true).
+
+describe('a refetch and the entry the user has open', () => {
+  afterEach(() => {
+    closeEntry()
+  })
+
+  /** Seed the working set with two open rows, then have the server lose one. */
+  async function loadThenLose(): Promise<void> {
+    net.entries = [entry({ id: 'X', title: 'Legacy DNS cutover' }), entry({ id: 'Y' })]
+    await store.loadEntries(true)
+    expect(store.getEntriesSnapshot().byId.has('X')).toBe(true)
+    // A colleague sets X to done. This client missed the realtime UPDATE — that
+    // is the premise, and it is exactly what the resync exists to repair — so X
+    // is still `in_progress` locally and simply absent from the next open read.
+    net.entries = [entry({ id: 'Y' })]
+  }
+
+  it('prunes a row nobody is looking at', async () => {
+    await loadThenLose()
+    await store.loadEntries(true)
+
+    expect(store.getEntriesSnapshot().byId.has('X')).toBe(false)
+    // …and does not spend a request finding out. The prune is the right answer
+    // for a list row: either way it has left the open set.
+    expect(net.getIds).toEqual([])
+  })
+
+  it('keeps the row the sheet has open, and asks the server what happened to it', async () => {
+    await loadThenLose()
+    openEntry('X')
+    net.deferGet = true
+    net.single.set('X', entry({ id: 'X', title: 'Legacy DNS cutover', status: 'done', closed_at: T2, updated_at: T2 }))
+
+    await store.loadEntries(true)
+    // THE ASSERTION THIS WHOLE FILE IS FOR. The reconcile read is deliberately
+    // still open here, which is the frame the user is looking at: X was pruned
+    // from the read and must still be in the map, or the open panel replaces a
+    // live entry with "this entry was deleted".
+    expect(store.getEntriesSnapshot().byId.get('X')?.title).toBe('Legacy DNS cutover')
+    expect(net.getIds).toEqual(['X'])
+
+    net.releaseGet?.()
+    await tick()
+    // And the stale row does not just sit there: the reconcile lands the truth,
+    // so the sheet shows "done" and every open list drops it.
+    expect(store.getEntriesSnapshot().byId.get('X')?.status).toBe('done')
+  })
+
+  it('removes it once the server confirms it really is gone', async () => {
+    await loadThenLose()
+    openEntry('X')
+    net.deferGet = true
+    // No row in `single` — the entry was deleted, not closed.
+
+    await store.loadEntries(true)
+    expect(store.getEntriesSnapshot().byId.has('X')).toBe(true)
+
+    net.releaseGet?.()
+    await tick()
+    // Now, and only now, is "deleted" an honest thing for the sheet to say —
+    // and the sheet says it, because its probe re-asks once a row it held
+    // disappears (see probeOutlivedItsRow in components/entry/EntrySheet.tsx).
+    expect(store.getEntriesSnapshot().byId.has('X')).toBe(false)
+  })
+
+  it('asks once, not once per refetch in a storm', async () => {
+    await loadThenLose()
+    openEntry('X')
+    net.single.set('X', entry({ id: 'X', status: 'done', updated_at: T2 }))
+
+    // Focus, resync and a manual Retry inside a second.
+    await store.loadEntries(true)
+    await store.loadEntries(true)
+    await store.loadEntries(true)
+
+    expect(net.getIds).toEqual(['X'])
   })
 })

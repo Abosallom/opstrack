@@ -56,7 +56,16 @@ export function TrackLoadChart({
       desc={t('dashboard.trackDesc')}
       summary={
         top
-          ? t('dashboard.trackSummary', { tracks: rows.length, top: top.label, count: top.count })
+          ? // `count` is the TRACK count, not the busiest track's: selectPlural
+            // reads vars.count and nothing else, so the number the sentence
+            // inflects on ("1 track" / "6 tracks") has to be the one carrying
+            // that name. The busiest track's own total rides as {topCount},
+            // where it needs no inflection in either language.
+            t('dashboard.trackSummary', {
+              count: rows.length,
+              top: top.label,
+              topCount: top.count,
+            })
           : t('dashboard.chartEmpty')
       }
       height={HEIGHT}

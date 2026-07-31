@@ -34,7 +34,10 @@
     "goFollowups": "Opens the follow-ups list.",
     "trackTitle": "Open work per track",
     "trackDesc": "Every active track, banded by health. Right now, not over the window.",
-    "trackSummary": "{tracks} tracks. Most open work on ⁨{top}⁩, with {count}.",
+    "trackSummary": {
+      "one": "{count} track. Most open work on ⁨{top}⁩, with {topCount}.",
+      "other": "{count} tracks. Most open work on ⁨{top}⁩, with {topCount}."
+    },
     "trackEmpty": "No open work on any track.",
     "trackMark": "⁨{track}⁩: {count} open — {detail}",
     "healthPart": "{count} {health}",

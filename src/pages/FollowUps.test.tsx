@@ -121,21 +121,29 @@ const fx = vi.hoisted(() => {
   // Mutable so the empty-state case can swap in an empty working set without a
   // second mock factory. Reference-stable per case, which is what the screen's
   // useMemo dependencies require.
+  const team = [
+    { id: 'u1', displayName: 'Me', role: 'member' as const },
+    { id: 'u2', displayName: 'Layla', role: 'member' as const },
+    { id: 'u3', displayName: 'Omar', role: 'admin' as const },
+  ]
+
   const state: {
     entries: Entry[]
     health: Map<string, EntryHealth>
     loading: boolean
     error: string | null
+    members: { id: string; displayName: string; role: 'member' | 'admin' }[]
   } = {
     entries,
     health: healthRows,
     loading: false,
     error: null,
+    members: [],
   }
 
   const empty: Entry[] = []
 
-  return { TODAY, CREATED, state, entry, entries, healthRows, empty }
+  return { TODAY, CREATED, state, entry, entries, healthRows, empty, team }
 })
 
 vi.mock('../store/entries', () => ({
@@ -169,7 +177,11 @@ vi.mock('../store/vocab', () => ({
 }))
 
 vi.mock('../store/members', () => ({
-  useMembers: () => [],
+  // Mutable, and EMPTY by default: the assign control (R3-PRODUCT-5) is the
+  // only reader that cares, and every other case in this file was written
+  // against a workspace with no member list. The two blocks that need people
+  // set `fx.state.members` and put it back.
+  useMembers: () => fx.state.members,
   useMemberLabel:
     () =>
     (ownerId?: string | null, ownerName?: string | null): string =>
@@ -204,6 +216,14 @@ const FOLLOWUPS_SOURCE = SOURCES['./FollowUps.tsx'] ?? ''
 
 const render = (node: ReactElement): string =>
   renderToStaticMarkup(<MemoryRouter>{node}</MemoryRouter>)
+
+/** The screen at a URL — since R3-PRODUCT-2 the filter lives in the query string. */
+const renderAt = (url: string): string =>
+  renderToStaticMarkup(
+    <MemoryRouter initialEntries={[url]}>
+      <FollowUps />
+    </MemoryRouter>,
+  )
 
 /** React's own escaping, so an assertion can be written against a real t(). */
 const esc = (s: string): string =>
@@ -285,6 +305,150 @@ describe('FollowUps — row actions', () => {
       fx.entries.length,
     )
     expect(countOf(html, 'fu-act-done')).toBe(fx.entries.length)
+  })
+})
+
+/* ═════════════ R3-PRODUCT-2 · the filter is the URL, not component state ═════════════ */
+//
+// WHAT BROKE. The filter was `useState({ ...EMPTY_FILTER })` and Follow-ups is a
+// LAZY ROUTE, so every trip to the board and back remounted the screen and reset
+// search, track, tag, health and the Mine/Everyone segment — while `densityPref`,
+// a module-level cosmetic preference twelve lines above it, was deliberately kept
+// across exactly that trip. Two adjacent chip-pairs, one persisting and one
+// forgetting, on a phone where the tab bar makes the round trip one thumb-tap.
+//
+// The remount cannot be reproduced in a static render, so what is asserted here
+// is the property that makes it moot: the URL, and nothing else, decides what the
+// screen is filtered to. A screen that reads its filter out of the query string
+// is a screen that survives a remount, a reload and a pasted link, and those are
+// the same fix.
+
+describe('FollowUps — the filter round-trips through the URL', () => {
+  it('reads the Mine/Everyone segment out of the query string', () => {
+    // aria-pressed on both chips, because "Mine is on" and "Everyone is off" are
+    // two different claims and a segment that got only the first one right would
+    // announce two pressed options.
+    const mine = renderAt('/?mine=1')
+    expect(mine).toContain(`aria-pressed="true">${esc(t('followups.whoseMine'))}<`)
+    expect(mine).toContain(`aria-pressed="false">${esc(t('followups.whoseAll'))}<`)
+
+    const everyone = renderAt('/')
+    expect(everyone).toContain(`aria-pressed="true">${esc(t('followups.whoseAll'))}<`)
+    expect(everyone).toContain(`aria-pressed="false">${esc(t('followups.whoseMine'))}<`)
+  })
+
+  it('puts the search term from the link back in the box', () => {
+    expect(renderAt('/?q=switch')).toContain('value="switch"')
+    expect(renderAt('/')).not.toContain('value="switch"')
+  })
+
+  it('carries a track facet through, so a triage view is a pasteable link', () => {
+    // Counted rather than named: the track facet's OPTIONS come from
+    // useActiveTracks, which is mocked empty here, so the id itself is not drawn.
+    // What is drawn is FilterBar's active-facet pill — and that pill is defined
+    // through countActiveFacets, the same function isFilterEmpty is, so a facet
+    // that reached it reached the filter.
+    expect(renderAt('/?track=t-net')).toContain('class="pill flt-count" aria-hidden="true">1<')
+    expect(renderAt('/')).not.toContain('class="pill flt-count"')
+  })
+
+  it('drops a scope this screen has no control for', () => {
+    // `bucketFollowUps` never buckets a closed entry, so `?scope=closed` from a
+    // hand-edited or inherited URL would be a filter the user can neither see
+    // nor switch off — and, left in `filter`, one the empty state would blame.
+    fx.state.entries = fx.empty
+    try {
+      const html = renderAt('/?scope=closed')
+      expect(html).toContain(esc(t('followups.allClear')))
+      expect(html).not.toContain(esc(t('followups.empty')))
+      // The contrast case: a facet this screen DOES own still reads as filtered.
+      const filtered = renderAt('/?q=nothing-matches-this')
+      expect(filtered).toContain(esc(t('followups.empty')))
+      expect(filtered).toContain(esc(t('followups.clearFilters')))
+    } finally {
+      fx.state.entries = fx.entries
+    }
+  })
+
+  it('holds no filter in component state', () => {
+    // The source claim behind all four above, in the idiom this file already
+    // uses for handleOpen: a `useState` seeded from EMPTY_FILTER is the exact
+    // shape of the defect, and it is what a well-meaning later edit would
+    // reintroduce while leaving the URL reads in place.
+    expect(FOLLOWUPS_SOURCE).not.toMatch(/useState<FilterState>/)
+    expect(FOLLOWUPS_SOURCE).toContain('filterFromParams(params)')
+    expect(FOLLOWUPS_SOURCE).toContain('setParams(filterToParams(next), { replace: true })')
+  })
+})
+
+/* ══════════ R3-PRODUCT-5 · the Unassigned bucket can assign, not only take ══════════ */
+//
+// WHAT BROKE. The one bucket that exists BECAUSE nobody owns the work offered
+// exactly one owner-related control, and it assigned the item to the reader.
+// The owner badge beside it is a plain <span> with no handler (atoms.tsx), and
+// nothing on the screen linked to a surface that could assign — so for a
+// department head with six tracks, distributing the morning's unowned work meant
+// opening each item and scrolling to its owner picker. "Take it" is the right
+// answer for one person and the wrong verb for a lead.
+
+describe('FollowUps — the Unassigned bucket hands work to someone', () => {
+  const withTeam = (run: () => void): void => {
+    fx.state.members = fx.team
+    try {
+      run()
+    } finally {
+      fx.state.members = []
+    }
+  }
+
+  it('offers the assign control on the unassigned rows and nowhere else', () => {
+    withTeam(() => {
+      const html = render(<FollowUps />)
+      // One row is unassigned in the fixture ('g'), and it is the only one that
+      // may hand work on — everywhere else the owner question is answered and
+      // this control would be a way to reroute someone's work from a list.
+      expect(countOf(html, 'class="select fu-owner"')).toBe(1)
+      expect(countOf(html, `class="fu-act-label">${esc(t('followups.takeIt'))}<`)).toBe(1)
+    })
+  })
+
+  it('lists every teammate as a destination, under a labelled control', () => {
+    withTeam(() => {
+      const html = render(<FollowUps />)
+      for (const m of fx.team) expect(html).toContain(`<option value="${m.id}">${m.displayName}</option>`)
+      // Named for the ROW, because six of these can be on screen at once and
+      // "Assign to…" alone says nothing about which item is moving.
+      expect(html).toContain(esc(t('followups.assignFor', { title: 'Nobody owns me' })))
+    })
+  })
+
+  it('replaces the inert owner badge rather than joining it', () => {
+    withTeam(() => {
+      const html = render(<FollowUps />)
+      // Six owned rows keep their badge; the unassigned one trades a label that
+      // repeats its own section heading for a control that changes something.
+      expect(countOf(html, 'class="owner-badge"')).toBe(fx.entries.length - 1)
+      expect(html).not.toContain('data-assigned="false"')
+    })
+  })
+
+  it('is disabled, not absent, when the workspace has no member list yet', () => {
+    // members is [] by default here — the store may not have settled. A control
+    // that vanished and came back would move every other button in the row.
+    const html = render(<FollowUps />)
+    expect(countOf(html, 'class="select fu-owner"')).toBe(1)
+    // Asserted on the element itself, not on a bare `disabled=""` anywhere in
+    // the page: three other controls in this row carry a disabled state of
+    // their own and a loose match would pass on any of them.
+    expect(html).toMatch(/<select class="select fu-owner" disabled=""/)
+  })
+
+  it('clears owner_name in the same patch that sets owner_id', () => {
+    // types.ts declares the two columns mutually exclusive. A stale free-text
+    // name left on a row now owned by a teammate makes the digest and the CSV
+    // export disagree with this screen; the write is not reachable from a static
+    // render, so the patch shape is asserted at the source.
+    expect(FOLLOWUPS_SOURCE).toContain('{ ownerId: member.id, ownerName: null }')
   })
 })
 

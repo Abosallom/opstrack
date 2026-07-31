@@ -1,0 +1,120 @@
+{
+  "mindtree": {
+    "title": "Mindtree",
+    "subtitle": "The shape of the open work — which track is carrying the most, where it is piling up, and what has gone past its deadline.",
+    "summary": {
+      "one": "{count} track, {open} open, {breached} past deadline.",
+      "other": "{count} tracks, {open} open, {breached} past deadline."
+    },
+    "summaryTop": "Most open work on ⁨{track}⁩, with {count}.",
+    "summaryGroup": "Across every track, the biggest group is ⁨{label}⁩ with {count}.",
+    "refresh": "Refresh",
+    "truncated": "Only part of the workspace is loaded, so this map describes what is in view.",
+    "errLoad": "The map could not be loaded.",
+
+    "viewSwitch": "View",
+    "viewList": "List",
+    "viewMap": "Map",
+
+    "groupBy": "Group by",
+    "groupChanged": "Grouped by ⁨{label}⁩.",
+    "dimStatus": "Status",
+    "dimOwner": "Owner",
+    "dimPriority": "Priority",
+    "dimHealth": "Health",
+
+    "archived": "Archived",
+    "unknownOwner": "Unknown owner",
+    "unknownTrack": "Unknown track",
+    "unknownGroup": "Unknown group",
+    "untitled": "Untitled",
+    "more": {
+      "one": "+{count} more item",
+      "other": "+{count} more items"
+    },
+    "showMore": "show the rest of the work under ⁨{label}⁩",
+    "showFewer": "hide the extra work under ⁨{label}⁩",
+    "breachHint": "Something under this branch is past its service deadline.",
+
+    "countOpen": {
+      "one": "{count} open",
+      "other": "{count} open"
+    },
+    "countBreached": {
+      "one": "{count} past deadline",
+      "other": "{count} past deadline"
+    },
+    "countUnassigned": {
+      "one": "{count} unassigned",
+      "other": "{count} unassigned"
+    },
+    "listSep": ", ",
+
+    "treeLabel": "Open work by track, split inside each track by ⁨{label}⁩",
+    "nodeName": "⁨{label}⁩, {detail}",
+    "leafName": "⁨{title}⁩, {detail}",
+    "leafOwner": "owned by ⁨{owner}⁩",
+    "leafBreached": "past deadline",
+    "openEntry": "Open ⁨{title}⁩",
+    "expandNode": "Expand ⁨{label}⁩",
+    "collapseNode": "Collapse ⁨{label}⁩",
+
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fit": "Fit to view",
+    "zoomLevel": "Zoom {pct}%",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "expandedAll": "Every branch is open.",
+    "collapsedAll": "Every branch is closed.",
+    "panHint": "Drag to move the map. Pinch, or use the zoom buttons, to change its size.",
+    "keyboardHint": "With a node focused: the up and down arrows move between neighbours, the right arrow opens a branch and the left arrow closes it, Enter opens an item, and Home and End jump to the first node and the last.",
+
+    "tableToggle": "View as table",
+    "mapToggle": "View as map",
+    "viewChanged": "Showing ⁨{label}⁩.",
+    "tableLabel": "Tracks and their open work",
+    "colTrack": "Track",
+    "colGroup": "Group",
+    "colOpen": "Open",
+    "colBreached": "Past deadline",
+    "colUnassigned": "Unassigned",
+    "rowTotal": "Total",
+    "cellFilter": "Show only ⁨{track}⁩, ⁨{label}⁩",
+    "byGroup": "Totals by ⁨{label}⁩",
+    "byGroupHint": "The same work counted once per group, added up across every track — the answer the map cannot give, because a group is drawn once inside each track.",
+
+    "export": "Copy for a deck",
+    "exportHint": "The file carries the whole map at full size, captioned with the date and with any filters you have set.",
+    "exportSvg": "Download SVG",
+    "exportPng": "Download PNG",
+    "copyImage": "Copy the image",
+    "exporting": "Preparing the image…",
+    "exportCaptionAt": "As of ⁨{at}⁩",
+    "exportCaptionFiltered": "Filtered view — this is not the whole workspace.",
+    "downloadedToast": "Saved as ⁨{name}⁩.",
+    "copiedToast": "Map copied — paste it into your deck.",
+    "errCopy": "Couldn't reach the clipboard. Download the file instead.",
+    "errExport": "The map couldn't be saved.",
+
+    "empty": "Nothing open right now",
+    "emptyHint": "Every track is clear. The moment something is captured, it grows a branch here.",
+    "emptyFiltered": "Nothing matches these filters",
+    "emptyFilteredHint": "Clear a filter and the rest of the map comes back.",
+    "clearFilters": "Clear the filters",
+    "emptyTracks": "No tracks yet",
+    "emptyTracksHint": "An admin creates tracks from Settings, then Tracks.",
+    "branchEmpty": "All clear",
+
+    "mobileHint": "On a small screen the map shows one ring at a time, at full size. Tap a branch to go a ring deeper, and use the trail above to come back.",
+    "focused": "Showing ⁨{label}⁩ on its own.",
+    "breadcrumb": "Where you are in the map",
+    "backToRoot": "All tracks",
+    "backTo": "Back to ⁨{label}⁩",
+    "clearFocus": "Show every track",
+
+    "legend": "How to read this",
+    "legendSize": "A branch grows with the amount of work under it.",
+    "legendBreach": "A marked branch is holding work that has passed its service deadline."
+  }
+}
