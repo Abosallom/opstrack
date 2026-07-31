@@ -43,12 +43,16 @@
   --text-faint: #8d9aa8; /*  6.40 /  5.92 /  5.13  — worst case 5.13:1, AA */
 
   /* ---------- accent ---------- */
-  --accent: #58a6ff; /* 7.27 / 6.72 / 5.82 — readable as link text anywhere */
-  --accent-hover: #79b8ff;
-  --accent-soft: rgba(88, 166, 255, 0.14);
+  /* nphies indigo. The brand navy (#1E2A63) is the anchor, but at 1.37:1 on
+     this background it is invisible — so the DARK theme carries a lightened
+     tint of the same hue and the LIGHT theme carries the navy itself. Same
+     brand, two renderings, because one hex cannot clear 4.5:1 on both. */
+  --accent: #7586d5; /* 4.52 on --bg-elev-2, the worst surface — AA */
+  --accent-hover: #93a1e0;
+  --accent-soft: rgba(117, 134, 213, 0.16);
   /* Foreground for text sitting ON a filled accent surface. 7.51:1 on
      --accent. Never use --bg here: the light theme flips which one is dark. */
-  --accent-ink: #08111c;
+  --accent-ink: #08111c; /* 5.61:1 on the indigo --accent */
 
   /* ---------- semantic status ---------- */
   /* Ratios quoted against --bg-elev-2, the worst (lightest) dark surface —
@@ -65,11 +69,11 @@
      These are re-declared in the light theme rather than reused: cyan and
      amber that read well on near-black are ~2.5:1 on white, which is exactly
      the failure mode that makes track bars vanish in light mode. */
-  --track-pmo: #8b7bf5; /* violet  4.38:1 */
-  --track-itops: #22b8d6; /* cyan    6.23:1 */
-  --track-network: #e0a020; /* amber   6.46:1 */
-  --track-infra: #46c26a; /* green   6.43:1 */
-  --track-sre: #f2678f; /* rose    4.98:1 */
+  --track-pmo: #8a82cb; /* violet  4.5+ — nphies ring */
+  --track-itops: #509cd6; /* sky     4.5+ — nphies ring */
+  --track-network: #47b1d8; /* cyan    4.5+ — nphies ring */
+  --track-infra: #9a7fc6; /* purple  4.5+ — nphies ring */
+  --track-sre: #d46888; /* pink    4.5+ — nphies ring */
 
   /* ---------- geometry ---------- */
   --radius: 12px;
@@ -100,10 +104,10 @@
   --text-dim: #4e5a67; /*  6.50 /  7.04 /  5.98 */
   --text-faint: #5d6a77; /*  5.11 /  5.54 /  4.71  — worst case 4.71:1, AA */
 
-  --accent: #145cc0; /*  5.84 /  6.32 /  5.37 */
+  --accent: #1d2961; /* 11.36 on --bg-elev-2 — the nphies navy, verbatim */
   --accent-hover: #0f4fa8;
   --accent-soft: rgba(20, 92, 192, 0.12);
-  --accent-ink: #ffffff; /* 6.32:1 on --accent */
+  --accent-ink: #ffffff; /* 13.62:1 on the navy --accent */
 
   /* Against --bg-elev-2 (#e9edf1), the darkest light surface. The dark-theme
      values are 1.4–1.9:1 here, which is why none of them are inherited.
@@ -125,11 +129,11 @@
 
   /* Same five hues, pushed dark enough to hold 3:1 against white. Ratios below
      are against --bg-elev-2 / --bg-elev(white). */
-  --track-pmo: #5b4bd6; /* violet  5.22 / 6.14 */
-  --track-itops: #0a7d94; /* cyan    4.08 / 4.80 */
-  --track-network: #9c6600; /* amber   4.14 / 4.87 */
-  --track-infra: #2c7a45; /* green   4.49 / 5.28 */
-  --track-sre: #c2385f; /* rose    4.43 / 5.22 */
+  --track-pmo: #675cbb; /* violet  4.5+ — nphies ring */
+  --track-itops: #266ea5; /* sky     4.5+ — nphies ring */
+  --track-network: #1e7291; /* cyan    4.5+ — nphies ring */
+  --track-infra: #7b56b4; /* purple  4.5+ — nphies ring */
+  --track-sre: #bd355e; /* pink    4.5+ — nphies ring */
 
   --shadow: 0 10px 34px rgba(15, 24, 33, 0.12);
 
@@ -162,14 +166,14 @@
    with no label, so it is the colour or it is nothing. */
 
 :root {
-  --swatch-violet-dark: #8b7bf5; /* 4.38 — same as --track-pmo */
-  --swatch-violet-light: #5b4bd6; /* 5.22 */
-  --swatch-indigo-dark: #7f8ffb; /* 5.06 */
-  --swatch-indigo-light: #4356cc; /* 5.19 */
-  --swatch-blue-dark: #45aef2; /* 6.02 */
-  --swatch-blue-light: #1560c9; /* 5.03 */
-  --swatch-cyan-dark: #22b8d6; /* 6.23 — same as --track-itops */
-  --swatch-cyan-light: #0a7d94; /* 4.08 */
+  --swatch-violet-dark: #8a82cb; /* nphies ring */
+  --swatch-violet-light: #675cbb; /* nphies ring */
+  --swatch-indigo-dark: #7586d5; /* nphies ring */
+  --swatch-indigo-light: #1d2961; /* nphies ring */
+  --swatch-blue-dark: #698acf; /* nphies ring */
+  --swatch-blue-light: #3c66be; /* nphies ring */
+  --swatch-cyan-dark: #47b1d8; /* nphies ring */
+  --swatch-cyan-light: #1e7291; /* nphies ring */
   --swatch-teal-dark: #2fc5ac; /* 6.80 */
   --swatch-teal-light: #0d7a6b; /* 4.45 */
   --swatch-green-dark: #46c26a; /* 6.43 — same as --track-infra */
@@ -180,10 +184,10 @@
   --swatch-amber-light: #9c6600; /* 4.14 */
   --swatch-orange-dark: #f5904e; /* 6.29 */
   --swatch-orange-light: #a55418; /* 4.60 */
-  --swatch-rose-dark: #f2678f; /* 4.98 — same as --track-sre */
-  --swatch-rose-light: #c2385f; /* 4.43 */
-  --swatch-magenta-dark: #cf87e8; /* 5.80 */
-  --swatch-magenta-light: #8a3fb0; /* 5.22 */
+  --swatch-rose-dark: #cd6c96; /* nphies ring */
+  --swatch-rose-light: #b43d71; /* nphies ring */
+  --swatch-magenta-dark: #bb72b0; /* nphies ring */
+  --swatch-magenta-light: #9d4b90; /* nphies ring */
   --swatch-slate-dark: #93a3b5; /* 5.71 */
   --swatch-slate-light: #56646f; /* 5.18 */
 }
