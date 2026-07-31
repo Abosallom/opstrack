@@ -1044,6 +1044,13 @@ installed-PWA path has no headless equivalent), a physically locked screen, and
    it means the previous user's endpoint and both of their subscription keys are
    still in the table, and the failure is silent by construction (see below).
 
+   **Verified live on 2026-07-31 against `c373b5f`: 0 → 1 → 0** — one device
+   subscribed through the product UI, signed out through the Settings button,
+   row gone. Both numbers matter: the `1` is what makes the `0` a deletion
+   rather than an absence, and a run that read 0 → 0 → 0 would satisfy this step
+   while proving nothing. Full record, including what it does **not** establish,
+   in [`EVIDENCE/push-signout-verification.md`](EVIDENCE/push-signout-verification.md).
+
    **This was measured broken on 2026-07-30 and the history is worth keeping.**
    `resetPush()` in `src/store/push.ts` cleared the store and called
    `unsubscribeThisDevice()`, which is browser-side only; nothing deleted the row.
