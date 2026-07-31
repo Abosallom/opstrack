@@ -1,4 +1,9 @@
-/* OpsTrack design system — neutral slate, calm blue accent.
+/* The typeface comes first: @font-face must be registered before any rule that
+   references the family, and importing it here rather than in main.tsx keeps
+   the design system's dependencies inside the design system. */
+@import './fonts.css';
+
+/* CoreTrack design system — neutral slate, calm blue accent.
 
    This is an operations tool that people stare at for an hour at a time while
    triaging, so the base is a desaturated blue-grey rather than a media app's
@@ -70,10 +75,13 @@
   --radius: 12px;
   --radius-sm: 8px;
   --shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
-  /* Noto Sans Arabic / Geeza Pro are in the stack because the Latin faces
-     ahead of them have no Arabic coverage — without them the Arabic UI falls
-     back to whatever the OS picks and line-height jumps between locales. */
-  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue',
+  /* Cairo covers Latin AND Arabic in one variable family (see fonts.css), which
+     is what the old stack could not do: it front-loaded Latin faces with no
+     Arabic coverage and let the OS choose for Arabic, so switching language
+     changed the x-height and the line rhythm as well as the words. The
+     fallbacks after it are the previous stack, kept for the swap window and for
+     the rare client that refuses a woff2. */
+  --font: 'Cairo', system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue',
     'Noto Sans Arabic', 'Geeza Pro', sans-serif;
 }
 

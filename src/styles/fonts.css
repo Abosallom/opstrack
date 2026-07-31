@@ -1,0 +1,58 @@
+/* Cairo — the app's one typeface, self-hosted.
+ *
+ * SELF-HOSTED ON PURPOSE. A <link> to fonts.googleapis.com is a third-party
+ * request on every load: it breaks the installed PWA the moment the device is
+ * offline (the whole point of the outbox), adds a DNS + TLS round trip before
+ * any text can paint, and tells Google who is using an internal ops tool.
+ * Three woff2 files totalling ~79 KB ship with the bundle instead.
+ *
+ * ONE FAMILY FOR BOTH LANGUAGES is why Cairo specifically. The app is EN/AR at
+ * parity, and pairing a Latin face with a separate Arabic fallback made the two
+ * halves look like two products — different weight, different rhythm, visibly
+ * different x-height in a digest that mixes both.
+ *
+ * VARIABLE, 400-700 in one file per script: every weight the design system asks
+ * for, with no extra request and no synthetic bold, which on Arabic letterforms
+ * smears the joins rather than thickening the stroke.
+ *
+ * IMPORTED FROM src/assets/, NOT public/. Vite rewrites and fingerprints these
+ * URLs, so they stay correct under `base: './'`, under the dev server's
+ * subpath, and through the NphiesCore rename — and they land in the precache
+ * manifest automatically, which is what makes the offline install actually
+ * offline. A public/ path would have to be spelled `/opstrack/fonts/...` by
+ * hand and would silently 404 the day the base changes.
+ *
+ * `font-display: swap` — text paints immediately in the fallback and reflows
+ * when Cairo lands. For a tool people open to read a list, never seeing the
+ * words is worse than seeing them shift once.
+ */
+
+/* arabic */
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../assets/fonts/cairo-arabic.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC4, U+10EFC-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1;
+}
+
+/* latin-ext */
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../assets/fonts/cairo-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* latin */
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../assets/fonts/cairo-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
