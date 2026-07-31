@@ -107,19 +107,35 @@ function contrast(fg: Rgb, bg: Rgb): number {
  * would be a missing key here rather than a silently inherited dark value.
  */
 function tokensIn(css: string, selector: string): Map<string, Rgb> {
-  const at = css.indexOf(`\n${selector} {`)
-  if (at < 0) throw new Error(`no such block: ${selector}`)
-  const open = css.indexOf('{', at)
-  const close = css.indexOf('\n}', open)
-  const body = css.slice(open, close)
+  // EVERY block with this selector, not just the first. global.css declares
+  // `:root` more than once — the design tokens near the top, the swatch palette
+  // further down — which is ordinary CSS and exactly how the cascade is meant to
+  // work. Reading only the first block silently returned a partial token map,
+  // and the brand assertions below passed by iterating nothing until a
+  // deliberate `length` guard turned that into a failure.
   const out = new Map<string, Rgb>()
+  let from = 0
+  let found = false
+  for (;;) {
+    const at = css.indexOf(`\n${selector} {`, from)
+    if (at < 0) break
+    found = true
+    const open = css.indexOf('{', at)
+    const close = css.indexOf('\n}', open)
+    from = close + 1
+    collectTokens(css.slice(open, close), out)
+  }
+  if (!found) throw new Error(`no such block: ${selector}`)
+  return out
+}
+
+function collectTokens(body: string, out: Map<string, Rgb>): void {
   for (const m of body.matchAll(/(--[\w-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\s*;/g)) {
     // 8-digit hex carries alpha and none of the tokens read here use one; skip
     // rather than mis-parse it as an opaque colour.
     if (m[2].length === 9) continue
     out.set(m[1], parseHex(m[2]))
   }
-  return out
 }
 
 const THEMES: readonly { name: string; selector: string }[] = [
@@ -212,3 +228,96 @@ describe('the follow-up row actions', () => {
     expect(failures).toEqual([])
   })
 })
+
+// ── the brand palette ───────────────────────────────────────────────────────
+//
+// Added when the nphies identity was adopted. The brand colours CANNOT be used
+// raw and the arithmetic is why: the navy is 1.37:1 on the dark background and
+// the cyan is 2.29:1 on the light one, so every brand token ships as a per-theme
+// PAIR — hue and saturation held, lightness moved until it clears the bar
+// against the worst surface of its own theme.
+//
+// That derivation is exactly the kind of work that rots. Somebody re-picks a
+// hex to match a logo more closely, the app still looks broadly right, and a
+// track bar quietly drops to 3:1. These assertions recompute it from the
+// stylesheet on every run so the palette cannot drift back toward the raw brand
+// values without a red test.
+//
+// --track-* and --swatch-* are checked at 3:1, not 4.5:1, and the distinction is
+// deliberate: they are rendered as BARS, dots and chip fills — WCAG 1.4.11
+// non-text contrast — never as body text. --accent IS used as link and control
+// text, so it carries the full 4.5:1. Where a hue is used as ink the app mixes
+// it into --text first (see --vocab-ink), which is a different token and a
+// different check.
+describe('the nphies brand palette', () => {
+  const SURFACES = ['--bg', '--bg-elev', '--bg-elev-2'] as const
+
+  for (const theme of THEMES) {
+    const tokens = tokensIn(GLOBAL, theme.selector)
+
+    it(`${theme.name}: --accent clears 4.5:1 on every surface it can sit on`, () => {
+      const accent = tokens.get('--accent')
+      expect(accent, `--accent missing from ${theme.selector}`).toBeDefined()
+      for (const surface of SURFACES) {
+        const bg = tokens.get(surface)
+        expect(bg, `${surface} missing`).toBeDefined()
+        expect(
+          contrast(accent!, bg!),
+          `--accent on ${surface} (${theme.name})`,
+        ).toBeGreaterThanOrEqual(4.5)
+      }
+    })
+
+    it(`${theme.name}: --accent-ink is readable ON the filled accent`, () => {
+      const ink = tokens.get('--accent-ink')
+      const accent = tokens.get('--accent')
+      expect(ink).toBeDefined()
+      expect(contrast(ink!, accent!)).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it(`${theme.name}: every --track-* clears 3:1 as a bar on every surface`, () => {
+      const tracks = [...tokens.keys()].filter((k) => k.startsWith('--track-'))
+      // A guard against the failure mode this whole file exists to prevent:
+      // a selector typo would make the loop below iterate nothing and pass.
+      expect(tracks.length, 'no --track-* tokens found — check the selector').toBeGreaterThanOrEqual(5)
+      for (const key of tracks) {
+        for (const surface of SURFACES) {
+          expect(
+            contrast(tokens.get(key)!, tokens.get(surface)!),
+            `${key} on ${surface} (${theme.name})`,
+          ).toBeGreaterThanOrEqual(3)
+        }
+      }
+    })
+
+  }
+})
+
+// The swatch presets are NOT theme-scoped: `--swatch-cyan-dark` and
+// `--swatch-cyan-light` are BOTH declared in `:root`, and a component picks the
+// pair member that matches the active theme. So each suffix has to be measured
+// against the OTHER theme's surfaces — which is why this cannot live inside the
+// per-theme loop above, and why the first version of it found nothing.
+describe('the swatch presets', () => {
+  const ROOT = tokensIn(GLOBAL, ':root')
+  const SURFACES = ['--bg', '--bg-elev', '--bg-elev-2'] as const
+
+  for (const theme of THEMES) {
+    const surfaces = tokensIn(GLOBAL, theme.selector)
+    it(`${theme.name}: every --swatch-*-${theme.name} clears 3:1 as a fill`, () => {
+      const keys = [...ROOT.keys()].filter(
+        (k) => k.startsWith('--swatch-') && k.endsWith(`-${theme.name}`),
+      )
+      expect(keys.length, 'no --swatch-* tokens found — check the selector').toBeGreaterThanOrEqual(8)
+      for (const key of keys) {
+        for (const surface of SURFACES) {
+          expect(
+            contrast(ROOT.get(key)!, surfaces.get(surface)!),
+            `${key} on ${surface} (${theme.name})`,
+          ).toBeGreaterThanOrEqual(3)
+        }
+      }
+    })
+  }
+})
+

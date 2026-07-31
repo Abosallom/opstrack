@@ -47,12 +47,12 @@
      this background it is invisible — so the DARK theme carries a lightened
      tint of the same hue and the LIGHT theme carries the navy itself. Same
      brand, two renderings, because one hex cannot clear 4.5:1 on both. */
-  --accent: #7586d5; /* 4.52 on --bg-elev-2, the worst surface — AA */
-  --accent-hover: #93a1e0;
-  --accent-soft: rgba(117, 134, 213, 0.16);
+  --accent: #7a8ad6; /* 4.51 on --bg-elev-2 (#212932), the worst surface — AA */
+  --accent-hover: #8997db;
+  --accent-soft: rgba(122, 138, 214, 0.16);
   /* Foreground for text sitting ON a filled accent surface. 7.51:1 on
      --accent. Never use --bg here: the light theme flips which one is dark. */
-  --accent-ink: #08111c; /* 5.61:1 on the indigo --accent */
+  --accent-ink: #08111c; /* 5.81:1 on the indigo --accent */
 
   /* ---------- semantic status ---------- */
   /* Ratios quoted against --bg-elev-2, the worst (lightest) dark surface —
