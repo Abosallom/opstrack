@@ -187,7 +187,20 @@ vi.mock('../store/auth', () => ({
 
 const { MemoryRouter } = await import('react-router-dom')
 const FollowUps = (await import('./FollowUps')).default
+const { buildSlaFacts, postQuickUpdate } = await import('./FollowUps')
 const { t } = await import('../lib/i18n')
+
+// The screen's own source, for the row-identity block at the bottom. Read
+// through import.meta.glob('?raw') rather than node:fs, for the reason
+// lib/localeReach.test.ts gives: tsconfig.app.json pins `types:
+// ["vite/client"]`, and widening it to include "node" would leak node globals
+// into the type space of every app file.
+const SOURCES: Record<string, string> = import.meta.glob('./FollowUps.tsx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+const FOLLOWUPS_SOURCE = SOURCES['./FollowUps.tsx'] ?? ''
 
 const render = (node: ReactElement): string =>
   renderToStaticMarkup(<MemoryRouter>{node}</MemoryRouter>)
@@ -428,5 +441,193 @@ describe('FollowUps — Arabic', () => {
     } finally {
       setLocale('en')
     }
+  })
+})
+
+/* ═══════════════════ R2-PERF-1 · the row's props hold still ═══════════════════ */
+//
+// WHAT BROKE. `FollowUpRow` is `memo()`d with React's default shallow compare,
+// so it re-renders when any prop changes identity. Two props changed identity on
+// EVERY store commit — every optimistic write, every settle, every realtime
+// echo — which meant one tap on Snooze redrew every mounted row instead of the
+// one it touched:
+//
+//   · `onOpen`. `derive()` rebuilds `list` unconditionally, so `entries` →
+//     `sections` → `orderedIds` are all new arrays, and `handleOpen` was
+//     `useCallback(…, [orderedIds])`.
+//   · `sla`. `resolveSla()` mints a fresh `{days, source}` per call, so every
+//     breached row got a new object out of a map that was itself rebuilt on
+//     each commit. This one would have OUTLIVED the `onOpen` fix.
+//
+// WHY THE TWO ARE ASSERTED DIFFERENTLY. `buildSlaFacts` was extracted as a pure
+// function precisely so the reuse is a value claim, and value claims need no
+// DOM — the block below calls it twice and compares references. `handleOpen`
+// cannot be reached that way: its stability is a property of a hook's dependency
+// array, observable only across two renders of a live component, and
+// vitest.config.ts is `environment: 'node'` with no jsdom (see this file's
+// header). So it is asserted against the SOURCE, in the idiom
+// components/CommandPalette.test.tsx uses on App.tsx's route table. That is a
+// weaker instrument and it is named as one: it can prove the dependency array is
+// empty and cannot prove React honoured it.
+
+describe('FollowUps — breached rows keep their SLA object', () => {
+  const slaDays = (p: EntryPriority): number | null => (p === 'high' ? 5 : null)
+
+  it('resolves both breaches, and each from the right level', () => {
+    const facts = buildSlaFacts(fx.entries, fx.healthRows, slaDays, new Map())
+    expect([...facts.keys()].sort()).toEqual(['b', 'c'])
+    // 'b' is created_at + 5 days, exactly what the `high` default produces.
+    expect(facts.get('b')).toEqual({ days: 5, source: 'priority' })
+    // 'c' is two days, which only a track override can have made.
+    expect(facts.get('c')).toEqual({ days: 2, source: 'track' })
+  })
+
+  it('hands back the SAME objects when nothing about the breach changed', () => {
+    const first = buildSlaFacts(fx.entries, fx.healthRows, slaDays, new Map())
+    // A fresh `entries` array with the same rows in it — which is exactly what
+    // every commit produces, and what used to invalidate the whole map.
+    const second = buildSlaFacts([...fx.entries], fx.healthRows, slaDays, first)
+    expect(second.get('b')).toBe(first.get('b'))
+    expect(second.get('c')).toBe(first.get('c'))
+    // Not the same MAP — the map is allowed to be new; the props inside it are
+    // what the memo compares.
+    expect(second).not.toBe(first)
+  })
+
+  it('mints a new object for the row whose deadline actually moved, and only it', () => {
+    const first = buildSlaFacts(fx.entries, fx.healthRows, slaDays, new Map())
+    const moved = new Map(fx.healthRows)
+    // 07-03 → 07-04: three days after created_at instead of two, still too far
+    // from the 5-day priority default to read as one.
+    moved.set('c', { ...(fx.healthRows.get('c') as EntryHealth), sla_due_at: '2026-07-04T00:00:00.000Z' })
+    const second = buildSlaFacts(fx.entries, moved, slaDays, first)
+    expect(second.get('c')).not.toBe(first.get('c'))
+    expect(second.get('c')).toEqual({ days: 3, source: 'track' })
+    expect(second.get('b')).toBe(first.get('b'))
+  })
+
+  it('drops a row that is no longer in breach rather than reusing its facts', () => {
+    const first = buildSlaFacts(fx.entries, fx.healthRows, slaDays, new Map())
+    const healed = new Map(fx.healthRows)
+    healed.set('c', { ...(fx.healthRows.get('c') as EntryHealth), sla_breached: false })
+    const second = buildSlaFacts(fx.entries, healed, slaDays, first)
+    expect(second.has('c')).toBe(false)
+    expect(second.get('b')).toBe(first.get('b'))
+  })
+})
+
+describe('FollowUps — handleOpen does not depend on the list', () => {
+  /** The `const handleOpen = useCallback(…)` statement, to its blank line. */
+  const block = ((): string => {
+    const at = FOLLOWUPS_SOURCE.indexOf('const handleOpen = useCallback(')
+    if (at === -1) return ''
+    const end = FOLLOWUPS_SOURCE.indexOf('\n\n', at)
+    return FOLLOWUPS_SOURCE.slice(at, end === -1 ? undefined : end)
+  })()
+
+  it('found the statement at all', () => {
+    // Guards every assertion below against being vacuously true after a rename.
+    expect(block).not.toBe('')
+  })
+
+  it('is built once: an empty dependency array', () => {
+    expect(block).toMatch(/\}, \[\]\)/)
+  })
+
+  it('reads the sibling list from the ref, not from a captured array', () => {
+    expect(block).toContain('orderedRef.current')
+    // The whole defect in one token: naming `orderedIds` inside this callback
+    // puts it back in the dependency array, and `onOpen` churns again.
+    expect(block).not.toContain('orderedIds')
+  })
+
+  it('still mirrors the live list into that ref', () => {
+    // Without this line the ref would be frozen at the first render and the
+    // sheet's prev/next would walk a list from before the first write.
+    expect(FOLLOWUPS_SOURCE).toContain('orderedRef.current = orderedIds')
+  })
+})
+
+/* ─────────── R2-ARCH-3: a queued post is a post, not a failure ─────────── */
+//
+// `store/outbox.ts:488` freezes the contract: `fail('offline.queued')` is a
+// NOTICE, and callers "must not roll their optimistic state back on it".
+// `postUpdate()` honours it — it keeps the optimistic thread row and returns
+// early — but `handlePost` used to answer `if (!result.ok) return false`, which
+// told `QuickUpdate.submit()` (its only caller) to keep the text, leave the
+// composer open and skip the toast, while the update was ALREADY visible in the
+// entry's thread. That contradiction is the bug: the natural response to it is
+// to press Post again, and the second press is not a retry.
+//
+// It is not a retry because `postUpdate()` mints a fresh tempId per call and
+// `dedupeKeyFor()` builds the outbox's collapse key from it, so two presses are
+// two items with two keys and both flush. `entry_updates` has no UPDATE and no
+// DELETE policy (0001:408-416, reaffirmed by 0009:92-97), so the audit trail
+// this product exists to produce then says the same thing twice, for good.
+//
+// The composer lives inside a component and this repo has no DOM, so the
+// decision is asserted where it now lives: `postQuickUpdate()` returns "the
+// composer may close", and that boolean IS the fix.
+describe('FollowUps — a queued quick update closes the composer', () => {
+  const entry = fx.entry({ id: 'q1', title: 'Ring switch replaced' })
+  const queued = (): Promise<{ ok: false; error: string }> =>
+    Promise.resolve({ ok: false as const, error: 'offline.queued' })
+
+  it('closes on a queued write, exactly as on a landed one', async () => {
+    const said: string[] = []
+    const ok = await postQuickUpdate(entry, 'swapped the SFP', queued, (m) => void said.push(m))
+    expect(ok).toBe(true)
+    // And it SAYS so: the row appearing in the thread looks identical to a
+    // landed one, so the notice is the only thing that distinguishes them.
+    expect(said).toEqual([t('offline.queued')])
+  })
+
+  it('keeps the composer open on a real failure, so the text is not lost', async () => {
+    const said: string[] = []
+    const ok = await postQuickUpdate(
+      entry,
+      'swapped the SFP',
+      () => Promise.resolve({ ok: false as const, error: 'entry.errNotYours' }),
+      (m) => void said.push(m),
+    )
+    expect(ok).toBe(false)
+    // The store has already toasted the REASON; a second toast from here would
+    // be the same failure said twice.
+    expect(said).toEqual([])
+  })
+
+  it('names the item on a landed write, and does not on a queued one', async () => {
+    const said: string[] = []
+    const landed = await postQuickUpdate(
+      entry,
+      'swapped the SFP',
+      () =>
+        Promise.resolve({
+          ok: true as const,
+          data: {
+            id: 'u-1',
+            entry_id: entry.id,
+            author_id: 'u1',
+            body: 'swapped the SFP',
+            status_from: null,
+            status_to: null,
+            created_at: '2026-07-29T09:00:00Z',
+          },
+        }),
+      (m) => void said.push(m),
+    )
+    expect(landed).toBe(true)
+    expect(said).toEqual([t('followups.posted', { title: entry.title })])
+  })
+
+  it('posts exactly once per call, with the id and body it was given', async () => {
+    // The duplicate the fix prevents is a SECOND CALL, so the guard against a
+    // regression that fixes the symptom by posting twice belongs here.
+    const calls: { entryId: string; body?: string }[] = []
+    await postQuickUpdate(entry, 'swapped the SFP', (i) => {
+      calls.push(i)
+      return queued()
+    })
+    expect(calls).toEqual([{ entryId: 'q1', body: 'swapped the SFP' }])
   })
 })

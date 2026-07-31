@@ -124,11 +124,61 @@ import {
   useHealthMap,
 } from '../store/entries'
 import { useSlaDays, useStaleDays } from '../store/vocab'
-import type { Entry, EntryHealth } from '../types'
+import type { ApiResult } from '../api/result'
+import type { Entry, EntryHealth, EntryUpdate, NewEntryUpdate } from '../types'
 import './followups.css'
 
 /** How far a snooze pushes the follow-up date. Measured from TODAY by the store. */
 const SNOOZE_DAYS = 3
+
+/**
+ * store/entries.ts's private QUEUED_KEY, duplicated as a literal here for the
+ * reason Board.tsx:193 and Capture.tsx:92 duplicate it: the store does not
+ * export it. It is a NOTICE, not a failure (store/outbox.ts:488) — the write is
+ * in the outbox and its optimistic row is already on screen.
+ *
+ * The three handlers below that only skip a success TOAST on it can treat it as
+ * a failure without harm; `handlePost` cannot, because it also owns the
+ * composer. See the comment there.
+ */
+const QUEUED_KEY = 'offline.queued'
+
+/**
+ * Post one quick update and answer whether the COMPOSER MAY CLOSE.
+ *
+ * Exported, and lifted out of `handlePost`, for CommandPalette.tsx's reason:
+ * vitest runs `environment: 'node'`, so a decision inside an event handler is a
+ * decision no test here can reach. `post` and `notify` default to the real
+ * implementations, so the screen reads as it did.
+ *
+ * A QUEUED write closes the composer and clears the text, exactly as a landed
+ * one does. Treating it as a failure — which is what `if (!result.ok) return
+ * false` did — leaves the box open with the sentence still in it and no toast,
+ * WHILE the update is already visible in the entry's thread. The second Post
+ * that invites is not a retry but a second ROW: `postUpdate()` mints a fresh
+ * tempId per call (entries.ts:1576) and `dedupeKeyFor()` keys off it, so the
+ * two never collapse in the outbox, and `entry_updates` has no UPDATE and no
+ * DELETE policy (0001:408-416) — once they flush, the audit trail says it twice
+ * forever. Board.tsx:761 and Capture.tsx:504 take the same branch.
+ */
+export async function postQuickUpdate(
+  entry: Entry,
+  body: string,
+  post: (i: NewEntryUpdate) => Promise<ApiResult<EntryUpdate>> = postUpdate,
+  notify: (message: string, opts?: { tone?: 'success' }) => void = toast,
+): Promise<boolean> {
+  const result = await post({ entryId: entry.id, body })
+  if (result.ok) {
+    notify(t('followups.posted', { title: entry.title }), { tone: 'success' })
+    return true
+  }
+  if (result.error !== QUEUED_KEY) return false
+  // Not "Update added": the row is on this device and nowhere else yet, and
+  // this screen is used on a phone in corridors where that is the difference
+  // that matters. The offline banner carries the count; this carries the fact.
+  notify(t(QUEUED_KEY))
+  return true
+}
 
 /**
  * How far the row travels under the finger, and how far it must travel to arm.
@@ -247,6 +297,44 @@ function resolveSla(
   if (priorityDays === null) return { days, source: 'track' }
   const asDefault = created + priorityDays * DAY_MS
   return { days, source: Math.abs(due - asDefault) <= SLA_TOLERANCE_MS ? 'priority' : 'track' }
+}
+
+/**
+ * The breached rows' SLA facts, REUSING the previous object wherever the answer
+ * has not changed.
+ *
+ * `resolveSla` mints a fresh `{days, source}` per call, so rebuilding this map
+ * on every commit handed every breached row a new `sla` prop and defeated
+ * `memo()` on it — the same defect as an unstable `onOpen`, one prop over, and
+ * it would have survived that fix. Comparing the two fields is cheaper than the
+ * render it saves, and `days`/`source` are the whole of the value: two facts
+ * that compare equal are interchangeable, so handing back the older object
+ * changes nothing a reader can see except how often React redraws the row.
+ *
+ * Pure, and exported for the test: `prev` is passed in rather than read from a
+ * closure precisely so the reuse can be asserted without a DOM.
+ */
+export function buildSlaFacts(
+  entries: readonly Entry[],
+  health: ReadonlyMap<string, EntryHealth>,
+  slaDaysFor: (priority: Entry['priority']) => number | null,
+  prev: ReadonlyMap<string, SlaFacts>,
+): Map<string, SlaFacts> {
+  const map = new Map<string, SlaFacts>()
+  for (const entry of entries) {
+    const row = health.get(entry.id)
+    if (row?.sla_breached !== true) continue
+    const facts = resolveSla(entry, row, slaDaysFor(entry.priority))
+    if (!facts) continue
+    const before = prev.get(entry.id)
+    map.set(
+      entry.id,
+      before !== undefined && before.days === facts.days && before.source === facts.source
+        ? before
+        : facts,
+    )
+  }
+  return map
 }
 
 /* ══════════════════════════════ the row ══════════════════════════════ */
@@ -627,6 +715,27 @@ export default function FollowUps(): ReactElement {
    */
   const orderedIds = useMemo(() => sections.flatMap((s) => s.rows.map((e) => e.id)), [sections])
 
+  /**
+   * The sibling list, mirrored into a ref so `handleOpen` below can be built
+   * ONCE.
+   *
+   * `orderedIds` is a new array on every commit — `derive()` rebuilds `list`
+   * unconditionally, which re-runs `useFilteredEntries`, `sections` and this
+   * flatMap in turn — so a `useCallback(…, [orderedIds])` would be a new
+   * function on every optimistic write, settle and realtime echo. That
+   * function is the `onOpen` prop of every mounted row, and one changed prop
+   * defeats `memo()`'s shallow compare for ALL of them: a single Snooze re-ran
+   * ~150 rows instead of the one that changed. Board.tsx:1216 and
+   * TracksIndex.tsx:754 already open this way for the same reason.
+   *
+   * Assigning during render rather than in an effect is deliberate and safe:
+   * `openEntry` reads the list at CALL time (store/entrySheet), which is a tap,
+   * long after render has committed — so the ref can never hand out a list from
+   * a render that was thrown away.
+   */
+  const orderedRef = useRef(orderedIds)
+  orderedRef.current = orderedIds
+
   /** The tag vocabulary the filter offers: what the working set actually holds. */
   const tags = useMemo(() => {
     const seen = new Set<string>()
@@ -634,12 +743,9 @@ export default function FollowUps(): ReactElement {
     return [...seen].sort()
   }, [entries])
 
-  const handleOpen = useCallback(
-    (id: string) => {
-      openEntry(id, { list: orderedIds })
-    },
-    [orderedIds],
-  )
+  const handleOpen = useCallback((id: string) => {
+    openEntry(id, { list: orderedRef.current })
+  }, [])
 
   const handleQuick = useCallback((id: string) => {
     // One composer at a time: two open textareas on a triage list is two places
@@ -707,11 +813,12 @@ export default function FollowUps(): ReactElement {
   }, [])
 
   const handlePost = useCallback(async (entry: Entry, body: string): Promise<boolean> => {
-    const result = await postUpdate({ entryId: entry.id, body })
-    if (!result.ok) return false
-    setQuickId(null)
-    toast(t('followups.posted', { title: entry.title }), { tone: 'success' })
-    return true
+    // The decision — including the one a queued write forces — is in
+    // postQuickUpdate() above, where a test can reach it. All that is left here
+    // is the piece of it that belongs to this screen: closing the composer.
+    const close = await postQuickUpdate(entry, body)
+    if (close) setQuickId(null)
+    return close
   }, [])
 
   const setDensity = (next: Density): void => {
@@ -737,15 +844,17 @@ export default function FollowUps(): ReactElement {
    * too, and repeating that on every row turns a real alarm into wallpaper. Held
    * in a Map rather than computed per render so the object identity is stable
    * and the memoised rows below do not all re-render when one of them changes.
+   *
+   * The MAP being stable was never enough: the objects inside it have to be too.
+   * `entries` gets a new identity on every commit, so this memo re-runs on every
+   * commit, and it used to hand each breached row a brand-new `{days, source}` —
+   * a changed prop, and one changed prop re-renders the row. `prevSla` carries
+   * the last answer in so an unchanged row keeps the object it already had.
    */
+  const prevSla = useRef<ReadonlyMap<string, SlaFacts>>(new Map())
   const slaFacts = useMemo(() => {
-    const map = new Map<string, SlaFacts>()
-    for (const entry of entries) {
-      const row = health.get(entry.id)
-      if (row?.sla_breached !== true) continue
-      const facts = resolveSla(entry, row, slaDaysFor(entry.priority))
-      if (facts) map.set(entry.id, facts)
-    }
+    const map = buildSlaFacts(entries, health, slaDaysFor, prevSla.current)
+    prevSla.current = map
     return map
   }, [entries, health, slaDaysFor])
 

@@ -29,7 +29,59 @@ import { useAuth } from '../../store/auth'
 import { loadUpdates, postUpdate, useEntryUpdates } from '../../store/entries'
 import { useMemberMap } from '../../store/members'
 import { useVocabLabel } from '../../store/vocab'
+import { toast } from '../toast'
+import type { ApiResult } from '../../api/result'
+import type { EntryUpdate, NewEntryUpdate } from '../../types'
 import './entry.css'
+
+/**
+ * store/entries.ts's private QUEUED_KEY, duplicated as a literal for the reason
+ * Board.tsx:193 and Capture.tsx:92 duplicate it: the store does not export it.
+ *
+ * It is a NOTICE AND NOT A FAILURE — `store/outbox.ts:488` freezes that
+ * contract, and `postUpdate()` honours it by leaving the optimistic thread row
+ * in place and returning early. Treating it as a failure here would be the
+ * expensive kind of wrong: the update is visibly in the thread, the box still
+ * holds the text, nothing says it was saved, so the user presses Post again —
+ * and `postUpdate()` mints a fresh tempId per call (entries.ts:1576), so the
+ * dedupe key differs and the queue holds TWO inserts of the same sentence.
+ * `entry_updates` has no UPDATE and no DELETE policy, so once they flush,
+ * neither copy can ever be removed.
+ */
+const QUEUED_KEY = 'offline.queued'
+
+/**
+ * Post one composed update and answer whether the COMPOSER MAY CLEAR.
+ *
+ * Lifted out of the event handler for the reason CommandPalette.tsx lifts its
+ * ranker and its focus-restore predicate: vitest runs `environment: 'node'`, so
+ * a decision left inside an onClick is a decision no test in this repo can
+ * reach — and the wrong answer here is not recoverable by the user.
+ *
+ * `post` and `notify` are parameters with the real implementations as defaults,
+ * so the component below reads exactly as it would with them inlined and the
+ * test can drive all three outcomes.
+ *
+ * THE THREE OUTCOMES:
+ *   ok            → true, silently. The row appearing in the thread IS the
+ *                   feedback; a toast on top of it is noise on every post.
+ *   QUEUED_KEY    → true, WITH a notice. The row appears the same way and means
+ *                   something different — it is on this device only.
+ *   anything else → false. The store has already rolled the row back and toasted
+ *                   the reason; the text stays in the box because it is now the
+ *                   only copy of what the user wrote.
+ */
+export async function submitComposerUpdate(
+  input: NewEntryUpdate,
+  post: (i: NewEntryUpdate) => Promise<ApiResult<EntryUpdate>> = postUpdate,
+  notify: (message: string) => void = toast,
+): Promise<boolean> {
+  const result = await post(input)
+  if (result.ok) return true
+  if (result.error !== QUEUED_KEY) return false
+  notify(t(QUEUED_KEY))
+  return true
+}
 
 export interface UpdateThreadProps {
   entryId: string
@@ -62,13 +114,12 @@ export default function UpdateThread({
     const text = body.trim()
     if (text === '' || posting) return
     setPosting(true)
-    // The store applies the row optimistically and toasts on failure, so the
-    // only thing left to decide here is whether to clear the box — and it is
-    // cleared only on success. Clearing eagerly loses what the user wrote the
-    // one time it actually mattered.
-    const result = await postUpdate({ entryId, body: text })
+    // The store applies the row optimistically and toasts on a real failure, so
+    // the only thing left to decide here is whether to clear the box — and the
+    // answer is above, where it can be tested.
+    const clear = await submitComposerUpdate({ entryId, body: text })
     setPosting(false)
-    if (result.ok) setBody('')
+    if (clear) setBody('')
   }
 
   return (

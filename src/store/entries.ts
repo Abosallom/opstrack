@@ -56,7 +56,7 @@ import { listTrackSlas } from '../api/tracks'
 import { fail } from '../api/result'
 import { supabase } from '../api/supabase'
 import { TEMP_PREFIX, discardOpsForTempId, isTempId } from './outbox'
-import { useAuth } from './auth'
+import { hasSession, useAuth } from './auth'
 import { getVocabSnapshot, slaDays, staleDays } from './vocab'
 import {
   CLOSED_STATUSES,
@@ -834,6 +834,35 @@ export function useFilterContext(): FilterContext {
 let inFlight: Promise<void> | null = null
 
 /**
+ * Which ACCOUNT the reads in flight belong to. Bumped by resetEntries().
+ *
+ * WHY A COUNTER AND NOT A FLAG. resetEntries() can empty the store and delete
+ * the cache, but it cannot un-send a request: a read issued a moment before
+ * sign-out still lands a moment after it, and every loader below then wrote the
+ * previous account's rows back into a store that had just been cleared —
+ * re-stamping `coverage.loadedAt` (so nothing refetches for the next account,
+ * because the store believes it is loaded) and re-serialising the rows to
+ * `opstrack_entries_v1` a second later, undoing the removeItem() reset had just
+ * done. On a shared machine that is one person's working set shown to the next.
+ *
+ * So every loader captures `const mine = epoch` BEFORE it awaits and writes
+ * nothing when `mine !== epoch` on the way back. THE STORE WRITE IS WHAT IS
+ * GATED, not the request — cancelling the request is neither possible through
+ * the api seam nor necessary; an answer nobody records is harmless.
+ *
+ * The `.finally` blocks are gated for the same reason and it is not belt and
+ * braces: `inFlight`, `slaInFlight` and `updatesInFlight` are re-populated by
+ * the NEXT account's loads, and a stale finally that cleared them would retire
+ * a live request's dedupe entry — two components would then each fire their own
+ * copy, and `loading: false` would hide a spinner that is still true.
+ *
+ * This is the same hazard EntrySheet's single-row probe carries its `id` for,
+ * and the same one outbox.ts stamps `queueOwner` for. It is generic to every
+ * await that outlives a session.
+ */
+let epoch = 0
+
+/**
  * Merge a fetched open working set into the store.
  *
  * Merge, not replace, and the exception list is the whole reason this is a named
@@ -888,10 +917,30 @@ export function loadEntries(force = false): Promise<void> {
     useEntriesStore.setState({ loading: true })
   }
 
+  const mine = epoch
   inFlight = Promise.all([listEntries(), listHealth()])
     .then(([entries, health]) => {
+      // Signed out while this was in flight — see `epoch`. The rows in hand
+      // belong to the account that has left.
+      if (mine !== epoch) return
       if (!entries.ok) {
         useEntriesStore.setState({ loading: false, error: entries.error })
+        return
+      }
+      // An empty OPEN read made without a session is not an answer — see
+      // hasSession(). Under RLS an unauthenticated read is not an error:
+      // `is_member()` is false, every row is filtered out, and PostgREST
+      // returns 200 with []. Believing it here is worse than in the sibling
+      // stores, because mergeOpenFetch() does not merely cache the emptiness —
+      // it PRUNES the warm working set, stamps `coverage.loadedAt` (so every
+      // screen mounted after sign-in short-circuits and renders "nothing to
+      // follow up" with no spinner and no error), and commit()'s cache write
+      // then overwrites the first-paint cache with `[]` so the next cold start
+      // is blank too. The module-scope focus listener at the bottom of this
+      // file makes it reachable by alt-tabbing on the SIGN-IN screen, which is
+      // exactly what fetching a 6-digit code from a mail app looks like.
+      if (entries.data.rows.length === 0 && !hasSession()) {
+        console.warn('[entries] ignoring an empty read made without a session')
         return
       }
       // A failed health read is not a failed load: every row still renders, the
@@ -910,6 +959,9 @@ export function loadEntries(force = false): Promise<void> {
       mergeOpenFetch(entries.data.rows, health.ok ? health.data.rows : null, truncated)
     })
     .finally(() => {
+      // Not ours any more: `inFlight` now holds the NEXT account's read and
+      // clearing it here would un-dedupe a live request.
+      if (mine !== epoch) return
       inFlight = null
       useEntriesStore.setState({ loading: false })
     })
@@ -951,7 +1003,10 @@ export function loadClosedSince(since: IsoDate): Promise<void> {
     return Promise.resolve()
   }
 
+  const mine = epoch
   return listClosedSince(since).then((result) => {
+    // Signed out while this was in flight — see `epoch`.
+    if (mine !== epoch) return
     if (!result.ok) {
       console.warn('[entries] closed load failed:', result.error)
       const failed = useEntriesStore.getState()
@@ -989,7 +1044,10 @@ export function loadClosedSince(since: IsoDate): Promise<void> {
 
 /** One track's window, for the timeline. Loads entries AND their thread rows. */
 export function loadTrackHistory(trackId: string, from: IsoDate, to: IsoDate): Promise<void> {
+  const mine = epoch
   return listTrackHistory(trackId, from, to).then((result) => {
+    // Signed out while this was in flight — see `epoch`.
+    if (mine !== epoch) return
     if (!result.ok) {
       console.warn('[entries] track history failed:', result.error)
       return
@@ -1039,8 +1097,13 @@ export function loadUpdates(entryId: string, force = false): Promise<void> {
     updatesError: withoutKey(st.updatesError, entryId),
   })
 
+  const mine = epoch
   const promise = listUpdates(entryId)
     .then((result) => {
+      // Signed out while this was in flight — see `epoch`. A thread is the most
+      // private thing in the store: free-text notes, on a row RLS would never
+      // have handed the next account.
+      if (mine !== epoch) return
       const current = useEntriesStore.getState()
       if (!result.ok) {
         useEntriesStore.setState({
@@ -1055,6 +1118,9 @@ export function loadUpdates(entryId: string, force = false): Promise<void> {
       })
     })
     .finally(() => {
+      // resetEntries() already cleared both; the entry under this key now
+      // belongs to the next account's load.
+      if (mine !== epoch) return
       updatesInFlight.delete(entryId)
       const current = useEntriesStore.getState()
       const loading = new Set(current.updatesLoading)
@@ -1120,8 +1186,14 @@ export function loadTrackSlas(force = false): Promise<void> {
   if (slaInFlight) return slaInFlight
   if (!force && slaLoaded) return Promise.resolve()
 
+  const mine = epoch
   slaInFlight = listTrackSlas()
     .then((result) => {
+      // Signed out while this was in flight — see `epoch`. The matrix itself is
+      // workspace-wide and not private, but `slaLoaded` is a dedupe latch that
+      // resetEntries() deliberately clears: setting it from a stale answer is
+      // the same defect the header above describes, one account later.
+      if (mine !== epoch) return
       const st = useEntriesStore.getState()
       if (!result.ok) {
         useEntriesStore.setState({ slaMatrixError: result.error })
@@ -1143,9 +1215,12 @@ export function loadTrackSlas(force = false): Promise<void> {
       // listTrackSlas() returns an ApiResult and does not reject; this is the
       // belt for a transport that throws before the wrapper sees it. No latch
       // here either — a transport that threw is exactly a read worth retrying.
+      if (mine !== epoch) return
       useEntriesStore.setState({ slaMatrixError: 'common.error' })
     })
     .finally(() => {
+      // Not ours any more: `slaInFlight` holds the next account's read.
+      if (mine !== epoch) return
       slaInFlight = null
     })
 
@@ -1165,6 +1240,12 @@ export function invalidateEntries(): void {
 
 /** Sign-out. Leaving a previous user's working set in memory leaks it. */
 export function resetEntries(): void {
+  // FIRST, before anything else is cleared: every read already on the wire is
+  // now the previous account's, and this is what stops its answer from being
+  // written back into the store this function is about to empty. Clearing state
+  // without it is a race the store loses roughly whenever someone signs out
+  // within a request of a focus refetch. See `epoch`.
+  epoch += 1
   if (cacheTimer !== null) {
     clearTimeout(cacheTimer)
     cacheTimer = null
@@ -2198,6 +2279,14 @@ function applyRealtimeBatch(batch: RealtimeEvent<unknown>[]): void {
 // because this module is imported by node-environment tests.
 if (typeof window !== 'undefined') {
   window.addEventListener('focus', () => {
+    // Signed out, the read can only come back empty (RLS), and believing that
+    // empty answer is exactly the bug hasSession() documents — here it also
+    // PRUNES the working set and overwrites the first-paint cache with []. This
+    // listener is registered at module scope, so it is live while the SIGN-IN
+    // screen is on screen: alt-tabbing to a mail app for the 6-digit code and
+    // back is one focus event, and it must not poison the store the user is
+    // about to sign in to. Same guard as config/vocab/members/meetings.
+    if (!hasSession()) return
     const { coverage } = useEntriesStore.getState()
     if (coverage.loadedAt === null || Date.now() - coverage.loadedAt > STALE_AFTER_MS) {
       void loadEntries(true)

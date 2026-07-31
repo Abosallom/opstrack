@@ -23,7 +23,7 @@
     "keysHint": "Shortcuts stand down while you are typing in a field.",
     "keysGlobal": "Anywhere",
     "keysEntry": "On an entry",
-    "keysEntryHint": "J and K walk the rows on screen. E and U act on the highlighted one; the digits need it open.",
+    "keysEntryHint": "J and K walk the rows on screen. E and U act on the highlighted one; the digits need it open. Inside a picker the arrows move between options and Space chooses one.",
     "keyCapture": "New capture",
     "keySearch": "Search this screen",
     "keyPalette": "Command palette",

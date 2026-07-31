@@ -369,11 +369,32 @@ export default function EntrySheet({
 
   return frame(
     <>
-      {flash && (
-        <p className="sheetx-flash" aria-live="polite">
-          {flashSentence(flash, memberMap)}
-        </p>
-      )}
+      {/* R2-A11Y-4. THE REGION IS MOUNTED FOR THE LIFE OF THE SHEET AND ONLY ITS
+          CONTENTS COME AND GO, which is the difference between an announcement
+          and silence: assistive tech announces content inserted into an
+          ALREADY-PRESENT live region, so a `{flash && <p aria-live>…</p>}` —
+          region and sentence arriving in one commit — is the one case screen
+          readers reliably swallow. toast.tsx:210 states the rule for the
+          Toaster and Board.tsx:1655 follows it for the move announcer; this was
+          the surface that did not, so a screen-reader user with an entry open
+          was never told a colleague had changed it under them.
+
+          The sentence sits in a KEYED span for the same reason Board's does: a
+          second edit by the same person resolves to the same string, and
+          re-keying it re-inserts the node so the region fires again instead of
+          treating it as unchanged text. The key also puts the fade back where
+          it belongs — on the sentence arriving, not on the sheet opening.
+
+          Hidden when empty by `.sheetx-flash:empty` collapsing its own box, NOT
+          by `display: none`, which would take the region out of the
+          accessibility tree and rebuild this bug in CSS. */}
+      <p className="sheetx-flash" aria-live="polite">
+        {flash && (
+          <span key={flash.at} className="sheetx-flash-text">
+            {flashSentence(flash, memberMap)}
+          </span>
+        )}
+      </p>
 
       <h2 className="sheetx-heading">
         <InlineText

@@ -55,6 +55,11 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from 'react'
+// The one place in the app that needs a synchronous re-render. See the
+// disclosure toggle below: a software keyboard only rises for a focus() taken
+// inside the tap that asked for it, and the field being focused does not exist
+// until this state change has been applied.
+import { flushSync } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { isConfigured } from '../api/supabase'
 import { IconArrowStart, IconBolt, IconKey, IconMail, IconUser } from '../components/icons'
@@ -141,11 +146,10 @@ export default function SignIn(): ReactElement {
     else identifierRef.current?.focus()
   }, [mode, configured])
 
-  // Opening the disclosure has to put the caret in the field it revealed —
-  // otherwise the OS one-time-code suggestion never appears.
-  useEffect(() => {
-    if (codeOpen) codeRef.current?.focus()
-  }, [codeOpen])
+  // The disclosure's focus move is NOT an effect. It used to be
+  // `useEffect(() => { if (codeOpen) codeRef.current?.focus() }, [codeOpen])`,
+  // annotated "otherwise the OS one-time-code suggestion never appears" — and
+  // that effect is precisely why it never appeared. See toggleCodePanel().
 
   function clearError(): void {
     setError(null)
@@ -155,6 +159,41 @@ export default function SignIn(): ReactElement {
   function fail(message: string, field: ErrorField = null): void {
     setError(message)
     setErrorField(field)
+  }
+
+  /**
+   * Open (or close) the "enter the code instead" panel, PUTTING THE CARET IN THE
+   * FIELD WHILE THE TAP IS STILL THE TAP.
+   *
+   * This is the whole point of the disclosure. `autoComplete="one-time-code"` on
+   * the input below is what makes iOS offer the emailed six digits above the
+   * keypad, and it offers them to a FOCUSED field on a RAISED keyboard. WebKit
+   * raises the software keyboard only for a focus() that runs inside the user
+   * activation call stack — and so does Chromium — so the effect this replaces
+   * could never do it: a passive effect is scheduled after paint, in a later
+   * task than the pointer event, by which time the activation is spent. The
+   * caret appeared, the keyboard did not, and the autofill the whole feature
+   * exists for never fired. On a phone the user had to tap the field a second
+   * time, at which point they may as well have typed the code from memory.
+   *
+   * `flushSync` is the fix and is used for exactly what React documents it for:
+   * the field does not EXIST until `codeOpen` is true (the panel is mounted
+   * conditionally, not hidden with CSS — a hidden input is unfocusable anyway),
+   * so the state change has to be applied synchronously, inside the handler,
+   * before there is anything to focus. Closing needs none of this and does none
+   * of it.
+   */
+  function toggleCodePanel(): void {
+    clearError()
+    const opening = !codeOpen
+    if (!opening) {
+      setCodeOpen(false)
+      return
+    }
+    flushSync(() => {
+      setCodeOpen(true)
+    })
+    codeRef.current?.focus()
   }
 
   /** Caps Lock is the single most common cause of a "wrong password" that isn't. */
@@ -460,10 +499,7 @@ export default function SignIn(): ReactElement {
                 className="signin-disclosure-toggle"
                 aria-expanded={codeOpen}
                 aria-controls="signin-code-panel"
-                onClick={() => {
-                  setCodeOpen((open) => !open)
-                  clearError()
-                }}
+                onClick={toggleCodePanel}
               >
                 <span className="signin-disclosure-marker" aria-hidden="true">
                   {codeOpen ? '−' : '+'}

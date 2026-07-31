@@ -58,9 +58,10 @@ describe('the migration set is readable at all', () => {
     // The precise failure mode this whole file exists to avoid, applied to
     // itself: a glob that resolved to nothing would make every assertion true.
     const names = files().map((f) => f.name)
-    expect(names.length).toBeGreaterThanOrEqual(14)
+    expect(names.length).toBeGreaterThanOrEqual(15)
     expect(names[0]).toBe('0001_opstrack_core.sql')
     expect(names).toContain('0014_recurring_template_authorship.sql')
+    expect(names).toContain('0015_entry_write_guard_and_line_authorship.sql')
   })
 })
 
@@ -160,5 +161,152 @@ describe('R1-DB-2: the schema does not claim an accountability it cannot keep', 
     const triggersOnEntryUpdates = [...all.matchAll(/create trigger (\w+)[\s\S]{0,120}?on public\.entry_updates/g)]
       .map((m) => m[1])
     expect(triggersOnEntryUpdates).toEqual(['entry_updates_touch_trg'])
+  })
+})
+
+/**
+ * FIX-BACKLOG R2-DB-1 — `entries_guard_update()` pinned `template_id` and
+ * `created_by` unconditionally on every UPDATE, which included the UPDATE that
+ * Postgres itself issues to honour `on delete set null`. Retiring a recurring
+ * template therefore left `entries.template_id` pointing at a row that no
+ * longer existed: a dangling foreign key the constraint still reports as
+ * validated, so nothing detects it until a `pg_dump` reload refuses the table.
+ *
+ * 0015 has four probe blocks that prove the behaviour at apply time and they
+ * are the authority. These assertions are the CI-side half: what they defend is
+ * that nobody re-flattens the two `case` expressions back into a pin, which
+ * reads like a simplification and is the whole defect.
+ */
+describe('R2-DB-1: the entries guard pins against clients, not against the FKs', () => {
+  const guard = (): string => latestFunctionBody('entries_guard_update')?.body ?? ''
+
+  it('lets the FK null-out through for template_id and created_by', () => {
+    expect(guard()).not.toBe('')
+    // The flat pin, which is what 0004 shipped and what must not come back.
+    expect(guard()).not.toMatch(/new\.template_id\s*:=\s*old\.template_id\s*;/)
+    expect(guard()).not.toMatch(/new\.created_by\s*:=\s*old\.created_by\s*;/)
+
+    // …replaced by "null is only accepted when the referent is gone", which is
+    // the one state a client cannot manufacture.
+    for (const [col, table] of [
+      ['template_id', 'recurring_templates'],
+      ['created_by', 'profiles'],
+    ]) {
+      expect(guard()).toMatch(
+        new RegExp(
+          `new\\.${col} := case[\\s\\S]{0,240}?not exists \\(select 1 from public\\.${table}`,
+        ),
+      )
+    }
+  })
+
+  it('still pins created_at outright, because no FK ever writes it', () => {
+    expect(guard()).toMatch(/new\.created_at\s*:=\s*old\.created_at\s*;/)
+  })
+
+  it('pins updated_by when nothing else changed, so a bare PATCH cannot erase it', () => {
+    // The diff subtracts updated_by; without the `else` the client's value is
+    // simply stored, and `{"updated_by": null}` blanks the stamp on any row.
+    // 0014:176-179 closed the identical hole on recurring_templates.
+    expect(guard()).toMatch(/else\n[\s\S]{0,400}?new\.updated_by := old\.updated_by;\n  end if;/)
+  })
+})
+
+/**
+ * FIX-BACKLOG R2-DB-2 — the column guard was registered `before update` only.
+ * `entries_insert` is a row-level check, so a raw POST could choose its own
+ * `created_at` (an item that never breaches its SLA), `last_activity_at` (one
+ * that never goes stale), or `template_id` (squatting the recurrence
+ * idempotency index so a scheduled occurrence is skipped for good).
+ */
+describe('R2-DB-2: the same guard exists on INSERT', () => {
+  const all = (): string => files().map((f) => f.sql).join('\n')
+
+  it('registers a BEFORE INSERT trigger on entries', () => {
+    expect(all()).toMatch(
+      /create trigger entries_guard_insert\s+before insert on public\.entries/,
+    )
+  })
+
+  it('overwrites the four clock/provenance columns a client must not choose', () => {
+    const fn = latestFunctionBody('entries_guard_insert')?.body ?? ''
+    expect(fn).not.toBe('')
+    for (const line of [
+      'new.created_at       := now();',
+      'new.last_activity_at := now();',
+      'new.updated_by       := null;',
+      'new.template_id      := null;',
+    ]) {
+      expect(fn).toContain(line)
+    }
+  })
+
+  it('is SECURITY INVOKER and gates on the client roles, or it breaks recurrence', () => {
+    const fn = latestFunctionBody('entries_guard_insert')?.body ?? ''
+    // This is the load-bearing one and it is counter-intuitive, so it gets a
+    // test rather than a comment. Both materialisers write template_id under a
+    // MEMBER's JWT — SECURITY DEFINER changes the role, not the request — so a
+    // guard keyed on `auth.uid() is not null` alone would null the column
+    // inside the scheduler, disarm entries_template_due_uidx, and mint a
+    // duplicate entry for every due template on every sign-in. `current_user`
+    // is what tells the two apart, and it only reports the caller when this
+    // function is INVOKER.
+    expect(fn).not.toMatch(/security definer/)
+    expect(fn).toMatch(/current_user not in \('authenticated', 'anon', 'authenticator'\)/)
+  })
+})
+
+/**
+ * FIX-BACKLOG R2-SEC-2 — `meeting_lines_delete` is scoped to the author
+ * because "deleting someone else's line removes it from the record with no
+ * trace" (0004:112). `raw` stayed writable by any member so triage could stay
+ * collaborative, and writing it EMPTY is a delete: lineItem() returns null for
+ * an empty line, so the sentence leaves the minutes, the clipboard copy and the
+ * export. Nothing recorded who did it, either — meeting_lines had no
+ * updated_by in any of the first fourteen migrations.
+ */
+describe('R2-SEC-2: a meeting line cannot be erased, and names its last editor', () => {
+  const guard = (): string => latestFunctionBody('meeting_lines_guard_update')?.body ?? ''
+  const all = (): string => files().map((f) => f.sql).join('\n')
+
+  it('refuses to let a client blank a non-empty line', () => {
+    expect(guard()).toMatch(/btrim\(new\.raw\) = ''\s+and btrim\(old\.raw\) <> ''/)
+    expect(guard()).toContain('new.raw := old.raw;')
+  })
+
+  it('keeps 0008 four pins, which is what makes the delete policy enforceable', () => {
+    for (const col of ['id', 'meeting_id', 'created_by', 'created_at']) {
+      expect(guard()).toMatch(new RegExp(`new\\.${col}\\s+:= old\\.${col};`))
+    }
+  })
+
+  it('gives the line an updated_by column, stamped from the JWT and unerasable', () => {
+    expect(all()).toMatch(
+      /alter table public\.meeting_lines add column if not exists updated_by uuid/,
+    )
+    expect(guard()).toMatch(/from public\.profiles p where p\.id = auth\.uid\(\)/)
+    expect(guard()).toMatch(/else\n[\s\S]{0,400}?new\.updated_by := old\.updated_by;\n  end if;/)
+  })
+
+  it('appends the previous wording to config_audit when the text changes', () => {
+    // The column alone only ever holds the latest editor, which does not
+    // survive "reword it, then reword it back" — the same threat 0014 answered
+    // for recurring_templates.
+    expect(all()).toMatch(
+      /create trigger meeting_lines_audit_trg\s+after update on public\.meeting_lines/,
+    )
+    const fn = latestFunctionBody('meeting_lines_audit')?.body ?? ''
+    expect(fn).toMatch(/if new\.raw is distinct from old\.raw then/)
+    expect(fn).toMatch(/insert into public\.config_audit[\s\S]{0,300}'meeting_lines'/)
+    // Directly, not through log_config_audit(), whose is_admin() guard would
+    // 42501 every ordinary member's triage edit (0002:345-348, 0014:209-216).
+    expect(fn).not.toContain('log_config_audit')
+  })
+
+  it('subtracts updated_by from meeting_lines_touch, which is 0007 lesson', () => {
+    // The guard sorts first by name and writes updated_by into NEW; a diff that
+    // counted it would treat the stamp about the write as evidence of a write.
+    const touch = latestFunctionBody('meeting_lines_touch')?.body ?? ''
+    expect(touch).toContain("- 'updated_by'")
   })
 })

@@ -538,6 +538,11 @@ const BANNED_AR_WORDS: ReadonlyArray<{ bad: RegExp; use: string; why: string }> 
     use: 'متعثّر',
     why: 'blocked. Spelled with the shadda in entry/followups/status/track; only dashboard.json dropped it.',
   },
+  {
+    bad: /اتفاقية/,
+    use: 'مهلة الخدمة',
+    why: 'SLA. Seven namespaces render "service deadline" as مهلة الخدمة; export.json alone reached for the literal اتفاقية مستوى الخدمة, which named the same thing a different way in the one list — the backup contents — where the reader is matching names against the rest of the app.',
+  },
 ]
 
 describe('ar locale tree — one concept, one word', () => {
@@ -551,5 +556,72 @@ describe('ar locale tree — one concept, one word', () => {
       }
     }
     expect(hits.sort(), `${why} Use ${use}.`).toEqual([])
+  })
+})
+
+/* ──────────── ar: تجاوز is "breached", and never "override" ──────────── */
+//
+// R2-I18N-3. The rule above bans a word outright; this one cannot, because
+// تجاوز is CORRECT roughly thirty-five times over — `entry.slaBreached`,
+// `board.slaCount`, `followups`, `digest`, `track`, `tree`, `mindtree` and
+// `vocabadmin` all use it for a deadline that was blown, and `dashboard.slaOf`
+// counts breaches with متجاوزة. What is wrong is the same root standing in for
+// the OTHER English word it happens to translate: an "override" — a per-track
+// deadline that replaces the workspace default.
+//
+// Two strings had it, and one of them was the expensive one:
+// `dashboard.slaMatrixFailed` sits inside the very `div.db-sla` cell that
+// renders `<SlaChart>` (Dashboard.tsx:445-455), so an Arabic reader saw
+// «تجاوزات المسارات» a few lines under «{breached} متجاوزة» and read the note as
+// "couldn't load the tracks' BREACHES" — i.e. "the breach numbers you are
+// looking at are incomplete", which is a sentence the panel could plausibly
+// mean and does not. `export.json`'s `track_slas` repeated it in the list of
+// what a backup contains.
+//
+// The app already had the right word in three places — `admin.tracks
+// .slaOverrides`, `followups.slaFromTrack` (تخصيص), `vocabadmin.trackOverrides`
+// — so this is an inconsistency inside one locale, not a defensible choice.
+//
+// Driven off the ENGLISH source rather than a hand-listed key set: a new string
+// that says "override" is covered on the day it is written, and no exemption
+// list can rot. The check is deliberately one-directional — it says nothing
+// about which word an override MUST use, only that it may not borrow the one
+// that already means something else on the same screen.
+const AR_BREACH_ROOT = /تجاوز/
+const EN_OVERRIDE = /\boverrid(e|es|den|ing)\b/i
+
+describe('ar locale tree — تجاوز is "breached", never "override"', () => {
+  it('renders no English "override" with the breach root', () => {
+    const hits: string[] = []
+    for (const [key, enLeaf] of FLAT_EN) {
+      const arLeaf = FLAT_AR.get(key)
+      if (arLeaf === undefined) continue
+      // Any form saying "override" puts the whole leaf under the rule: English
+      // writes the word in `other` and drops it from `one` often enough that
+      // matching form-for-form would let the plural halves through.
+      if (!formsOf(enLeaf).some(([, v]) => EN_OVERRIDE.test(v))) continue
+      for (const [category, value] of formsOf(arLeaf)) {
+        if (AR_BREACH_ROOT.test(value)) {
+          hits.push(`${arLeaf.plural ? `${key}.${category}` : key} :: ${value}`)
+        }
+      }
+    }
+    expect(
+      hits.sort(),
+      'تجاوز means "breached" everywhere else in the tree, including on the same dashboard panel. An override is تخصيص.',
+    ).toEqual([])
+  })
+
+  it('still uses تجاوز for the deadline breaches themselves', () => {
+    // The negative rule above is only safe while the positive one holds: a
+    // careless sweep that replaced every تجاوز with تخصيص would pass it and
+    // leave the app with no word for a breach at all.
+    const breaches = [...FLAT_AR].filter(([, leaf]) =>
+      formsOf(leaf).some(([, v]) => AR_BREACH_ROOT.test(v)),
+    )
+    // Leaves, not forms — a plural node with six Arabic forms is one leaf. 17
+    // today across entry/board/followups/digest/track/tree/mindtree/vocabadmin.
+    expect(breaches.length).toBeGreaterThan(12)
+    expect(AR_BREACH_ROOT.test(FLAT_AR.get('dashboard.slaOf')?.forms.other ?? '')).toBe(true)
   })
 })

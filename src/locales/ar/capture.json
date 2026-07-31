@@ -9,6 +9,8 @@
     "submitHint": "اضغط Enter للتسجيل — ويُفرَّغ الصندوق فورًا.",
     "captured": "تم تسجيل «⁨{title}⁩».",
     "capturedQueued": "حُفظ على هذا الجهاز: «⁨{title}⁩» — وسيُرسل عند عودة الاتصال.",
+    "capturedIssues": "تم تسجيل «⁨{title}⁩»، لكن لم يُفهم كل ما كُتب.",
+    "capturedQueuedIssues": "حُفظ على هذا الجهاز: «⁨{title}⁩» — وسيُرسل عند عودة الاتصال، لكن لم يُفهم كل ما كُتب.",
     "capturedTemplate": "تم إنشاء البند المتكرّر «⁨{title}⁩».",
     "openCaptured": "فتحه",
     "undo": "تراجع",

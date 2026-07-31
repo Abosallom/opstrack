@@ -530,6 +530,30 @@
   gap: 8px;
 }
 
+.cap-recent-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The unresolved tokens of a row that was SAVED ANYWAY. Indented under its row
+   and drawn without the panel's border, so it reads as a footnote to that row
+   rather than as a second warning box competing with the live one above. The
+   inline-start inset is logical, so it lands on the correct side in Arabic. */
+.cap-recent-issues {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-inline-start: 12px;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--border);
+}
+
+.cap-recent-fix {
+  align-self: flex-start;
+}
+
 .cap-empty {
   color: var(--text-faint);
   font-size: 13.5px;

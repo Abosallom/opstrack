@@ -149,8 +149,9 @@ vi.mock('../components/entry', () => ({
   EntryRow: (): ReactElement | null => null,
 }))
 
-const { default: Capture } = await import('./Capture')
-const { setLocale } = await import('../lib/i18n')
+const { default: Capture, confirmationFor } = await import('./Capture')
+const { setLocale, t } = await import('../lib/i18n')
+const { parse } = await import('../lib/capture/parse')
 
 /** The screen at `/capture?q=<line>`, as static markup. */
 function render(line: string): string {
@@ -444,5 +445,119 @@ describe('Capture — recurrence', () => {
   it('labels a custom interval with its day count', () => {
     const html = render('Backup check every:10d')
     expect(html).toContain('Every 10 days')
+  })
+})
+
+/* ══════════ R2-PRODUCT-2 · the confirmation carries the parse outcome ══════════ */
+//
+// WHAT BROKE. `canSubmit()` asks for a non-empty title and nothing else
+// (lib/capture/parse), so a line whose owner and date both failed to resolve is
+// written exactly like a line that parsed perfectly — and `raiseCaptured` never
+// read `problems`, so it always raised `tone: 'success'` with an Undo button.
+// Meanwhile `setText('')` runs BEFORE the await, which unmounts the problems
+// panel in the same frame. The user pressed the key `capture.submitHint` tells
+// them to press, watched the warnings vanish, and got a green tick over an item
+// with no owner, no due date and a stray word welded onto its title.
+//
+// WHY THE DECISION IS A FUNCTION. `confirmationFor` was lifted out of
+// `raiseCaptured` for CommandPalette.tsx's reason: vitest is `environment:
+// 'node'`, so nothing inside an event handler is reachable from a test here.
+// The lift is what makes the branch that did not exist assertable at all.
+
+describe('Capture — the confirmation reports what the parser understood', () => {
+  it('is a green tick with an Undo only when the line parsed clean', () => {
+    expect(confirmationFor(false, 0, true)).toEqual({
+      key: 'capture.captured',
+      tone: 'success',
+      offline: false,
+      action: 'undo',
+    })
+  })
+
+  it('drops the success tone the moment anything is unresolved', () => {
+    const say = confirmationFor(false, 2, true)
+    expect(say.tone).toBe('default')
+    expect(say.key).toBe('capture.capturedIssues')
+  })
+
+  it('offers repair, not deletion, for a line that was only partly understood', () => {
+    // The whole point. Undo DELETES the row — the wrong remedy for an item
+    // that is right except for two fields, and the only one this screen used
+    // to offer for a case it never reported.
+    expect(confirmationFor(false, 1, true).action).toBe('open')
+    expect(confirmationFor(true, 1, true).action).toBe('open')
+  })
+
+  it('keeps "where is it" and "did it understand me" independent', () => {
+    // A queued capture can also be a misparsed one, and both facts have to fit
+    // in one sentence. Offline was never a success tone and still is not.
+    expect(confirmationFor(true, 0, true)).toEqual({
+      key: 'capture.capturedQueued',
+      tone: 'default',
+      offline: true,
+      action: 'undo',
+    })
+    expect(confirmationFor(true, 3, true)).toEqual({
+      key: 'capture.capturedQueuedIssues',
+      tone: 'default',
+      offline: true,
+      action: 'open',
+    })
+  })
+
+  it('offers no button at all when there is no id to act on', () => {
+    // The one path that produces this: a queued write whose temp id could not
+    // be recovered from the outbox. A button that cannot find its row is worse
+    // than no button.
+    expect(confirmationFor(true, 0, false).action).toBeNull()
+    expect(confirmationFor(true, 2, false).action).toBeNull()
+  })
+
+  it('names four keys that exist in both languages', () => {
+    const keys = [
+      confirmationFor(false, 0, true).key,
+      confirmationFor(false, 1, true).key,
+      confirmationFor(true, 0, true).key,
+      confirmationFor(true, 1, true).key,
+    ]
+    expect(new Set(keys).size).toBe(4)
+    for (const locale of ['en', 'ar'] as const) {
+      setLocale(locale)
+      for (const key of keys) {
+        const sentence = t(key, { title: 'Renew the DR contract' })
+        // t() echoes its own argument on a miss, which is the only way a
+        // missing string announces itself — see untranslated() above.
+        expect(sentence).not.toBe(key)
+        expect(stripIsolates(sentence)).toContain('Renew the DR contract')
+      }
+    }
+    setLocale('en')
+  })
+
+  it('the reported case: a real line whose owner and date both fail is NOT clean', () => {
+    // The reporter's line, run through the real parser against the real seeded
+    // workspace. `#infrastrcture` DOES resolve — matchTrackTiers has a
+    // subsequence tier — so this is two problems, not three, and the two that
+    // remain are the ones that cost the user something: no owner_id means
+    // nobody was assigned and nobody was notified, and no due date means the
+    // item can never surface in Overdue or Due soon.
+    const parsed = parse('Renew the DR contract #infrastrcture @sarah due:next friday', {
+      tracks: fx.tracks.map((tr) => ({ id: tr.id, name: tr.name, nameAr: tr.name_ar })),
+      members: [
+        { id: 'm-ahmed', displayName: 'Ahmed Al-Otaibi', username: 'ahmed.otaibi' },
+        { id: 'm-sara', displayName: 'Sara Nasser', username: 'sara.nasser' },
+      ],
+      now: new Date('2026-07-29T09:00:00Z'),
+      locale: 'en',
+      vocabAliases: { priority: {}, type: {} },
+    })
+    expect(parsed.trackId).toBe('t-inf')
+    expect(parsed.ownerId).toBeNull()
+    expect(parsed.dueDate).toBeNull()
+    expect(parsed.problems.length).toBe(2)
+    // …and the confirmation must therefore say so.
+    const say = confirmationFor(false, parsed.problems.length, true)
+    expect(say.tone).not.toBe('success')
+    expect(say.action).toBe('open')
   })
 })

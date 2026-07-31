@@ -9,6 +9,8 @@
     "submitHint": "Press Enter to capture — the box clears straight away.",
     "captured": "Captured “⁨{title}⁩”.",
     "capturedQueued": "Saved on this device: “⁨{title}⁩”. It syncs when you're back online.",
+    "capturedIssues": "Captured “⁨{title}⁩”, but not everything was understood.",
+    "capturedQueuedIssues": "Saved on this device: “⁨{title}⁩”. It syncs when you're back online — but not everything was understood.",
     "capturedTemplate": "Recurring item “⁨{title}⁩” created.",
     "openCaptured": "Open it",
     "undo": "Undo",

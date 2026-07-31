@@ -204,7 +204,13 @@
 }
 
 /* The "updated by ⟨name⟩" flash. Fades rather than vanishing, because a mark
-   that disappears between two glances reads as a misread rather than a timeout. */
+   that disappears between two glances reads as a misread rather than a timeout.
+
+   THE ELEMENT IS A LIVE REGION AND IS NEVER UNMOUNTED — R2-A11Y-4. EntrySheet
+   renders it for the life of the sheet with only the sentence inside it coming
+   and going, because assistive tech announces content inserted into an
+   already-present region and swallows a region that arrives with its own text.
+   So the empty state is styled rather than removed. */
 .sheetx-flash {
   display: flex;
   align-items: center;
@@ -216,6 +222,23 @@
   background: var(--accent-soft);
   color: var(--text);
   font-size: 12.5px;
+}
+
+/* No flash right now: collapse the box to nothing so the sheet looks exactly as
+   it did, WITHOUT `display: none` — that would take the region out of the
+   accessibility tree and rebuild the bug this rule exists to fix. An empty flex
+   container with no padding has no height. */
+.sheetx-flash:empty {
+  margin: 0;
+  padding: 0;
+  background: none;
+}
+
+/* The fade belongs to the SENTENCE, not to the box: the box is now always there,
+   so animating it would play the fade when the sheet opens and never again.
+   Keyed by the mark's timestamp in EntrySheet, so a second edit re-mounts this
+   span and fades in again — the same node the live region needs re-inserted. */
+.sheetx-flash-text {
   animation: sheetx-fade 0.2s ease both;
 }
 

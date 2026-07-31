@@ -337,6 +337,38 @@ describe('/entry/:id page', () => {
     fx.state.flash = undefined
   })
 
+  // R2-A11Y-4. The region has to be in the DOM BEFORE the sentence is, because
+  // assistive tech announces content inserted into an already-present live
+  // region and swallows a region that arrives carrying its own text. The old
+  // `{flash && <p aria-live>…</p>}` was exactly that swallowed case: the sheet
+  // had no working announcement of a teammate's remote edit at all, so a screen
+  // reader user read a value, acted on it, and found out it had moved when
+  // their own edit was refused. toast.tsx:210 states the rule; Board.tsx:1655
+  // follows it; this surface did not.
+  it('mounts the flash live region even with nothing to announce', () => {
+    fx.state.entry = fx.entry
+    fx.state.flash = undefined
+    const out = page()
+    expect(out).toContain('class="sheetx-flash" aria-live="polite"')
+    // Present and EMPTY — `.sheetx-flash:empty` collapses the box in CSS rather
+    // than `display: none`, which would take it back out of the a11y tree.
+    expect(out).toContain('<p class="sheetx-flash" aria-live="polite"></p>')
+    expect(out).not.toContain('sheetx-flash-text')
+  })
+
+  it('puts the sentence in a keyed child so a repeat edit re-announces', () => {
+    // Two edits by the same colleague resolve to the SAME string; without a new
+    // node the region has no insertion to announce. The key is the mark's
+    // timestamp, so the span re-mounts per mark.
+    fx.state.entry = fx.entry
+    fx.state.flash = { actorId: 'u2', actorName: null, kind: 'edit', at: 1 }
+    const out = page()
+    expect(out).toContain('<span class="sheetx-flash-text">')
+    // The region itself is the same element in both states — that is the point.
+    expect(out).toContain('class="sheetx-flash" aria-live="polite"')
+    fx.state.flash = undefined
+  })
+
   it('offers no stepper on a cold deep link', () => {
     // Nothing has opened a list, so there are no siblings — and two permanently
     // dead arrows are worse than none, which is the opposite of the overlay's

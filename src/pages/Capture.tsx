@@ -5,7 +5,11 @@
 // decision below is downstream of that:
 //
 //  · the input is focused on mount and REFOCUSED after every action, because a
-//    capture bar you have to tap first is a capture bar you use once;
+//    capture bar you have to tap first is a capture bar you use once. The mount
+//    focus places the CARET only — it cannot raise a phone's keyboard, and the
+//    effect at the bottom of the state block says why and where the fix has to
+//    live. The refocus after an action does raise it, because it runs inside
+//    the tap;
 //  · the line is parsed on EVERY keystroke, so the chips underneath are the
 //    live answer to "did it understand me?" — the user never submits blind;
 //  · Enter submits and the input clears BEFORE the await, not after it. The
@@ -52,7 +56,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { FormEvent, ReactElement } from 'react'
 import { canSubmit, parse, toNewEntry, toRecurringTemplateInput } from '../lib/capture/parse'
-import type { ParseContext, ParseMember, ParseTrack, ParsedEntry, ParsedToken, TokenKind } from '../lib/capture/parse'
+import type {
+  ParseContext,
+  ParseMember,
+  ParseProblem,
+  ParseTrack,
+  ParsedEntry,
+  ParsedToken,
+  TokenKind,
+} from '../lib/capture/parse'
 import {
   createEntryOptimistic,
   loadEntries,
@@ -115,6 +127,23 @@ const KIND_LABEL: Readonly<Record<TokenKind, string>> = {
   followUp: 'capture.chipFollowUp',
   recurring: 'capture.chipRecurring',
   unknown: 'capture.chipUnknown',
+}
+
+/**
+ * One parser problem, as the sentence a person reads.
+ *
+ * `kind` arrives from the parser as a raw TokenKind — a token classification,
+ * not a user-facing word — so it is swapped for the localised chip label before
+ * interpolation. Shared by the live panel under the box and the "Just captured"
+ * card, which must say the SAME sentence: the panel is the warning before the
+ * write and the card is the record of it afterwards, and two wordings for one
+ * fact would read as two different problems.
+ */
+function problemText(problem: ParseProblem): string {
+  return t(problem.key, {
+    ...problem.vars,
+    ...(problem.token ? { kind: t(KIND_LABEL[problem.token.kind]) } : {}),
+  })
 }
 
 const CADENCE_LABEL: Readonly<Record<Cadence, string>> = {
@@ -200,6 +229,82 @@ function aliasesFor(
   return out
 }
 
+/** What the confirmation toast says, and what its one button does. */
+export interface CaptureConfirmation {
+  /** The i18n key for the sentence. */
+  key: string
+  /** `success` paints the green border; anything unresolved must not. */
+  tone: 'default' | 'success'
+  /** Show the offline glyph — a fact about WHERE it is, not about the parse. */
+  offline: boolean
+  /**
+   * `undo` deletes the row; `open` opens the sheet so the fields can be fixed.
+   * `null` when there is no id to act on, which happens only if a queued write
+   * cannot be found in the outbox.
+   */
+  action: 'undo' | 'open' | null
+}
+
+/**
+ * The confirmation decision, LIFTED OUT so it can be tested.
+ *
+ * Same reason CommandPalette.tsx lifts `shouldRestoreFocus()`: vitest runs
+ * `environment: 'node'`, so a decision taken inside an event handler is a
+ * decision no test in this repo can reach. Every branch below used to be a
+ * ternary inside `raiseCaptured` and the most important one did not exist at
+ * all — `problems` was never consulted, so a line whose track, owner and date
+ * all failed to resolve was confirmed with `tone: 'success'` and an Undo
+ * button, indistinguishable from a line that parsed perfectly.
+ *
+ * The rule in one sentence: OFFLINE changes where it is, PROBLEMS change
+ * whether it is right, and the two are independent — a queued capture can also
+ * be a misparsed one, and the sentence has to be able to say both.
+ */
+export function confirmationFor(
+  queued: boolean,
+  problems: number,
+  hasId: boolean,
+): CaptureConfirmation {
+  const clean = problems === 0
+  return {
+    key: clean
+      ? queued
+        ? 'capture.capturedQueued'
+        : 'capture.captured'
+      : queued
+        ? 'capture.capturedQueuedIssues'
+        : 'capture.capturedIssues',
+    // A queued write is not a failure, but it is not a completed one either —
+    // it has always been neutral, and it stays neutral.
+    tone: clean && !queued ? 'success' : 'default',
+    offline: queued,
+    // Undo is the right button for a line that was a mistake in whole. It is
+    // the WRONG button for a line that is correct except for two fields, and
+    // "delete it and type it again" was the only remedy this screen offered
+    // for the case it never reported.
+    action: !hasId ? null : clean ? 'undo' : 'open',
+  }
+}
+
+/**
+ * One row in the "Just captured" list.
+ *
+ * It carries the PROBLEMS as well as the id, because the toast that reported
+ * them is gone within seconds and the panel that listed them unmounted the
+ * moment the box cleared. Without this, a capture whose owner and date failed
+ * left no trace on screen at all: the saved row shows an empty owner and no
+ * due date, and `DueLabel` renders nothing for a null date, so there is not
+ * even a gap where the answer should be.
+ *
+ * The parser's own `ParseProblem` objects, not localised sentences: they are
+ * plain data, and holding them unresolved means the list re-renders correctly
+ * when the language is switched under it.
+ */
+interface RecentCapture {
+  id: string
+  problems: readonly ParseProblem[]
+}
+
 /**
  * The temp id of the create we just queued.
  *
@@ -241,7 +346,7 @@ export default function Capture(): ReactElement {
   const [error, setError] = useState<string | null>(null)
   /** The title of a failed capture that could not be put back in the box. */
   const [heldTitle, setHeldTitle] = useState('')
-  const [recent, setRecent] = useState<string[]>([])
+  const [recent, setRecent] = useState<RecentCapture[]>([])
   const [showHints, setShowHints] = useState(false)
   const [announce, setAnnounce] = useState('')
 
@@ -286,10 +391,33 @@ export default function Capture(): ReactElement {
     void loadEntries()
   }, [])
 
-  // Focus on mount, once. The FAB and the `C` hotkey both land here meaning "I
-  // want to type", so the keyboard should already be up. A ref rather than
-  // autoFocus, matching SignIn.tsx: autoFocus fires only on the first mount of
-  // the element and silently does nothing when the route is re-entered.
+  // Focus on mount, once. A ref rather than autoFocus, matching SignIn.tsx:
+  // autoFocus fires only on the first mount of the element and silently does
+  // nothing when the route is re-entered.
+  //
+  // THIS PLACES THE CARET. IT DOES NOT RAISE THE SOFTWARE KEYBOARD, and the
+  // comment that used to sit here claimed otherwise — "the FAB and the `C`
+  // hotkey both land here meaning 'I want to type', so the keyboard should
+  // already be up". It never is on the FAB path, which is the only mobile path:
+  // NAV[0] sets `inTabBar: false` for /capture and app-shell.css hides `.fab`
+  // at ≥768px, so a phone reaches this screen through the FAB or not at all.
+  // WebKit raises the keyboard only for a focus() taken inside the user
+  // activation call stack — Chromium gates it the same way — and three separate
+  // barriers put this call outside it: the route is `lazy()`, so on a first
+  // visit the chunk resolves in a later task; react-router v7 wraps the
+  // navigation in startTransition; and a passive effect is scheduled after
+  // paint even with the chunk warm. So the caret blinks and the keyboard stays
+  // down, and the user taps the box a second time.
+  //
+  // WHY IT STAYS. On desktop — the `C` hotkey and the command palette, where a
+  // hardware keyboard is already present — placing the caret IS the whole win,
+  // and it costs nothing on a phone. The fix for the phone cannot live in this
+  // file: the gesture belongs to the FAB, which is App.tsx's, so the focus has
+  // to be taken there (focus a pre-mounted field in the FAB's own click
+  // handler, or drop /capture out of `lazy()` and `flushSync` the navigation)
+  // — see the handoff. The click handlers in this file are the pattern that
+  // works: focusInput() from an example chip or a post-submit reset DOES raise
+  // the keyboard, because it runs inside the tap.
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
@@ -354,8 +482,10 @@ export default function Capture(): ReactElement {
     }
   }, [okTokens, locale])
 
-  const remember = useCallback((id: string): void => {
-    setRecent((prev) => [id, ...prev.filter((x) => x !== id)].slice(0, RECENT_LIMIT))
+  const remember = useCallback((id: string, problems: readonly ParseProblem[]): void => {
+    setRecent((prev) =>
+      [{ id, problems }, ...prev.filter((x) => x.id !== id)].slice(0, RECENT_LIMIT),
+    )
   }, [])
 
   const handleUndo = useCallback(async (id: string): Promise<void> => {
@@ -364,20 +494,61 @@ export default function Capture(): ReactElement {
     // cancelled locally — telling the user it failed would be a lie they would
     // act on by cancelling it twice.
     if (result.ok || result.error === QUEUED_KEY) {
-      setRecent((prev) => prev.filter((x) => x !== id))
+      setRecent((prev) => prev.filter((x) => x.id !== id))
       toast(t('capture.undone'))
       return
     }
     toast(t('capture.errUndo'), { tone: 'error' })
   }, [])
 
+  /**
+   * The confirmation, CARRYING THE PARSE OUTCOME.
+   *
+   * It used to raise `tone: 'success'` unconditionally, and that was the one
+   * dishonest sentence on the screen. `canSubmit()` asks only for a non-empty
+   * title (lib/capture/parse), so a line whose owner and date both failed is
+   * saved exactly like a line that parsed perfectly — and `setText('')` fires
+   * before the await, which unmounts the problems panel in the same frame. So
+   * the user pressed the key the hint told them to press, watched three
+   * warnings disappear, and got a green tick: an unassigned, undated item that
+   * will never surface in Overdue and that nobody was notified about, reported
+   * as done.
+   *
+   * Three things change when `problems` is non-empty, and each is doing a job:
+   *   · the TONE drops to neutral, so the green border that reads as "all good"
+   *     is not drawn (app-shell.css tones the border and nothing else);
+   *   · the SENTENCE says so, rather than leaving the fact on a panel that has
+   *     already gone;
+   *   · the ACTION becomes "Open it" instead of "Undo". Undo DELETES the row,
+   *     which is the wrong remedy for a row that is right except for two
+   *     fields; the sheet is where those fields get fixed. Undo is still the
+   *     action for a clean capture, where the only reason to reach for it is
+   *     that the whole line was a mistake.
+   *
+   * The DETAIL does not live here — a toast is gone in seconds. It is rendered
+   * on the "Just captured" card below, which stays for the session.
+   */
   const raiseCaptured = useCallback(
-    (id: string | null, title: string, queued: boolean): void => {
-      const shown = truncate(title, 48)
-      toast(queued ? t('capture.capturedQueued', { title: shown }) : t('capture.captured', { title: shown }), {
-        tone: queued ? 'default' : 'success',
-        icon: queued ? <IconWifiOff size={16} /> : <IconBolt size={16} />,
-        action: id ? { label: t('capture.undo'), onClick: () => void handleUndo(id) } : undefined,
+    (id: string | null, title: string, queued: boolean, problems: readonly ParseProblem[]): void => {
+      const say = confirmationFor(queued, problems.length, id !== null)
+      toast(t(say.key, { title: truncate(title, 48) }), {
+        tone: say.tone,
+        // No glyph for the unresolved case: the bolt is this screen's success
+        // mark and icons.tsx has no warning counterpart to swap in, so the
+        // absence of a mark is the mark. Offline keeps its own icon — "where is
+        // it" and "did it understand me" are different questions and both can
+        // be true at once.
+        icon: say.offline ? (
+          <IconWifiOff size={16} />
+        ) : say.tone === 'success' ? (
+          <IconBolt size={16} />
+        ) : undefined,
+        action:
+          say.action === null || id === null
+            ? undefined
+            : say.action === 'undo'
+              ? { label: t('capture.undo'), onClick: () => void handleUndo(id) }
+              : { label: t('capture.openCaptured'), onClick: () => openEntry(id) },
       })
     },
     [handleUndo],
@@ -496,15 +667,15 @@ export default function Capture(): ReactElement {
       setBusy(false)
 
       if (result.ok) {
-        remember(result.data.id)
-        raiseCaptured(result.data.id, title, false)
+        remember(result.data.id, fresh.problems)
+        raiseCaptured(result.data.id, title, false, fresh.problems)
         return
       }
 
       if (result.error === QUEUED_KEY) {
         const tempId = lastQueuedEntryTempId()
-        if (tempId) remember(tempId)
-        raiseCaptured(tempId, title, true)
+        if (tempId) remember(tempId, fresh.problems)
+        raiseCaptured(tempId, title, true, fresh.problems)
         return
       }
 
@@ -591,6 +762,9 @@ export default function Capture(): ReactElement {
     },
     [locale, parsed.recurrence, trackLabel, trackMap, vocabLabel],
   )
+
+  /** The sibling list for the detail sheet's prev/next — ids only. */
+  const recentIds = useMemo(() => recent.map((r) => r.id), [recent])
 
   const parsedTrack = parsed.trackId ? trackMap.get(parsed.trackId) : undefined
   // Suggested tags are compared folded to lower case because the parser stores
@@ -777,15 +951,7 @@ export default function Capture(): ReactElement {
                 className="cap-problem"
                 data-tone={problem.key.startsWith('capture.err') ? 'danger' : 'muted'}
               >
-                <span className="cap-problem-text">
-                  {/* `kind` arrives from the parser as a raw TokenKind — it is a
-                      token classification, not a user-facing word, so it is
-                      swapped for the localised chip label before interpolation. */}
-                  {t(problem.key, {
-                    ...problem.vars,
-                    ...(problem.token ? { kind: t(KIND_LABEL[problem.token.kind]) } : {}),
-                  })}
-                </span>
+                <span className="cap-problem-text">{problemText(problem)}</span>
                 {problem.token ? (
                   <button
                     type="button"
@@ -866,8 +1032,8 @@ export default function Capture(): ReactElement {
           <p className="cap-empty">{t('capture.recentEmpty')}</p>
         ) : (
           <div className="cap-recent-list">
-            {recent.map((id) => (
-              <RecentRow key={id} id={id} list={recent} />
+            {recent.map((item) => (
+              <RecentRow key={item.id} item={item} list={recentIds} />
             ))}
           </div>
         )}
@@ -937,7 +1103,7 @@ function TokenChip({ token, label, track, onRemove }: TokenChipProps): ReactElem
 // ── the session list ───────────────────────────────────────────────────────
 
 interface RecentRowProps {
-  id: string
+  item: RecentCapture
   list: string[]
 }
 
@@ -955,18 +1121,65 @@ interface RecentRowProps {
  * the server's — in both cases the id this row holds is simply no longer an
  * entry, and a "deleted" tombstone would be a worse answer than silence.
  */
-function RecentRow({ id, list }: RecentRowProps): ReactElement | null {
+function RecentRow({ item, list }: RecentRowProps): ReactElement | null {
+  const { id, problems } = item
+  // A fourth subscription, and it is not one of the three the note above is
+  // about: the problem sentences are translated HERE, so this row has to
+  // re-render on a language switch. The parent does subscribe, but only the
+  // parent's own strings would follow it.
+  useLocale()
   const entry = useEntry(id)
   const health = useEntryHealth(id)
   const pending = usePendingOp(id)
   if (!entry) return null
   return (
-    <EntryRow
-      entry={entry}
-      health={health}
-      pending={pending}
-      density="compact"
-      onOpen={(entryId) => openEntry(entryId, { list })}
-    />
+    <div className="cap-recent-item">
+      <EntryRow
+        entry={entry}
+        health={health}
+        pending={pending}
+        density="compact"
+        onOpen={(entryId) => openEntry(entryId, { list })}
+      />
+      {/* THE RECORD THE TOAST CANNOT BE. A toast is gone in seconds and the
+          live problems panel unmounted the instant the box cleared, so without
+          this the row's unresolved tokens leave no mark anywhere: an owner that
+          stayed free text looks like any other owner, and a due date that
+          failed to parse renders as nothing at all rather than as a gap.
+          Same sentences as the panel above, by construction — see
+          problemText(). */}
+      {problems.length > 0 ? (
+        <div className="cap-recent-issues">
+          <p className="cap-problems-title">
+            {t('capture.problems')}
+            <span className="cap-problems-count">
+              {t('capture.problemCount', { count: problems.length })}
+            </span>
+          </p>
+          <ul>
+            {problems.map((problem, i) => (
+              <li
+                key={`${problem.key}-${problem.token?.start ?? i}`}
+                className="cap-problem"
+                data-tone={problem.key.startsWith('capture.err') ? 'danger' : 'muted'}
+              >
+                <span className="cap-problem-text">{problemText(problem)}</span>
+              </li>
+            ))}
+          </ul>
+          {/* The row itself opens too, but the affordance is not obvious on a
+              compact row and this is the one row on the screen that a person
+              has a REASON to open. It repairs rather than deletes, which is why
+              the toast now offers the same thing instead of Undo. */}
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost cap-recent-fix"
+            onClick={() => openEntry(id, { list })}
+          >
+            {t('capture.openCaptured')}
+          </button>
+        </div>
+      ) : null}
+    </div>
   )
 }

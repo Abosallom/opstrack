@@ -259,3 +259,80 @@ describe('SignIn — a build with no backend', () => {
     }
   })
 })
+
+/* ════════ R2-MOBILE-6 · the code field is focused inside the tap ════════ */
+//
+// WHAT BROKE. The "enter the code instead" disclosure focused its field from
+// `useEffect(() => { if (codeOpen) codeRef.current?.focus() }, [codeOpen])`,
+// annotated "otherwise the OS one-time-code suggestion never appears". The
+// effect is why it never appeared: the panel is opened by a TAP, WebKit raises
+// the software keyboard only for a focus() taken inside the user activation
+// call stack (Chromium gates it the same way), and a passive effect is
+// scheduled after paint, in a later task than the pointer event. So the caret
+// landed in the field, the keypad stayed down, and `autoComplete="one-time-code"`
+// — the entire reason the disclosure exists — had no raised keyboard to offer
+// the emailed digits above.
+//
+// WHY THIS IS A SOURCE ASSERTION and not a behavioural one. The claim is about
+// ORDER inside an event handler, and this file's own header says server
+// rendering "runs no effects and dispatches no events"; there is no jsdom in
+// the dependency budget. So the guard is the same instrument
+// components/CommandPalette.test.tsx uses on App.tsx's route table: read the
+// source and pin the shape. It can prove the focus is taken synchronously in
+// the handler after a flushSync; it cannot prove WebKit then raised the
+// keyboard. Named as a weaker instrument rather than dressed up as a strong
+// one — but the failure it guards is a silent reversion to an effect, which is
+// exactly what source can see.
+
+const SIGNIN_SOURCES: Record<string, string> = import.meta.glob('./SignIn.tsx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+const SIGNIN_SOURCE = SIGNIN_SOURCES['./SignIn.tsx'] ?? ''
+
+/**
+ * The source with comment-only lines removed.
+ *
+ * Necessary, not fastidious: the fix's own comment QUOTES the effect it
+ * replaced, verbatim, so that the next reader knows what not to put back. A
+ * negative assertion against the raw text would match that quotation and fail
+ * on the very code that fixes the bug.
+ */
+const SIGNIN_CODE = SIGNIN_SOURCE.split('\n')
+  .filter((line) => !line.trim().startsWith('//') && !line.trim().startsWith('*'))
+  .join('\n')
+
+describe('SignIn — the one-time-code field is focused inside the gesture', () => {
+  it('read its own source', () => {
+    // Guards every assertion below from passing vacuously.
+    expect(SIGNIN_CODE).toContain('export default function SignIn')
+  })
+
+  it('has no effect that focuses on codeOpen', () => {
+    // The exact regression: any effect whose dependency array is [codeOpen].
+    expect(SIGNIN_CODE).not.toMatch(/useEffect\([\s\S]*?\}, \[codeOpen\]\)/)
+  })
+
+  it('takes the focus in the toggle handler, after a synchronous state flush', () => {
+    const at = SIGNIN_CODE.indexOf('function toggleCodePanel()')
+    expect(at).toBeGreaterThan(-1)
+    const body = SIGNIN_CODE.slice(at, SIGNIN_CODE.indexOf('\n  }', at))
+    // The field does not exist until `codeOpen` is true — the panel is mounted
+    // conditionally — so the state change has to be applied before there is
+    // anything to focus, and applied WITHOUT yielding the activation.
+    expect(body).toContain('flushSync(')
+    expect(body.indexOf('flushSync(')).toBeLessThan(body.indexOf('codeRef.current?.focus()'))
+  })
+
+  it('wires that handler to the disclosure button, not an inline setState', () => {
+    expect(SIGNIN_CODE).toContain('onClick={toggleCodePanel}')
+    expect(SIGNIN_CODE).not.toContain('setCodeOpen((open) => !open)')
+  })
+
+  it('keeps the panel conditional, which is what makes the flush necessary', () => {
+    // If this ever becomes a CSS-hidden panel, the flushSync can go — but a
+    // hidden input is unfocusable, so the focus move would have to change too.
+    expect(SIGNIN_CODE).toContain('{codeOpen ? (')
+  })
+})
