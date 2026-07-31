@@ -14,6 +14,7 @@
     "goDigest": "Build a digest",
     "footnote": "The windowed panels cover ⁨{range}⁩. The rest describe open work as it stands right now.",
     "truncated": "The working set hit the server's row ceiling, so these totals describe the most recent items rather than every one.",
+    "closedFailed": "Couldn't load the completed items for this window, so the Closed tile, the throughput chart and the compliance figures are all reading low.",
     "blank": "Nothing to chart yet",
     "blankHint": "Capture the first item and this page starts answering questions about it.",
     "blankCta": "Capture something",
@@ -27,7 +28,7 @@
       "one": "In the last week",
       "other": "In the last {count} weeks"
     },
-    "blockedOldest": "Longest: “⁨{title}⁩”, {days} d",
+    "blockedOldest": "Longest: “⁨{title}⁩”, {count} d",
     "blockedNone": "Nothing is stuck.",
     "goBoard": "Opens the board.",
     "goFollowups": "Opens the follow-ups list.",
@@ -54,8 +55,14 @@
     "age15": "15+ d",
     "ageMark": "{bucket}: {count}",
     "flowTitle": "Created vs closed",
-    "flowDesc": "One pair of columns per week, over the last {weeks} weeks.",
-    "flowSummary": "{created} raised and {closed} closed across {weeks} weeks.",
+    "flowDesc": {
+      "one": "One pair of columns, for the last week.",
+      "other": "One pair of columns per week, over the last {count} weeks."
+    },
+    "flowSummary": {
+      "one": "{created} raised and {closed} closed in the last week.",
+      "other": "{created} raised and {closed} closed across {count} weeks."
+    },
     "flowEmpty": "Nothing was raised or closed in this window.",
     "flowMark": "⁨{week}⁩: {created} raised, {closed} closed",
     "created": "Raised",

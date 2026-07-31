@@ -56,7 +56,7 @@
       "delete": "حذف",
       "deleteTitle": "حذف هذا المسار؟",
       "deleteBody": "سيُحذف «⁨{name}⁩» نهائيًا، ولا يمكن التراجع عن ذلك.",
-      "deleteBodyInUse": "لا يزال «⁨{name}⁩» يضم {entries} بندًا و{meetings} اجتماعًا و{templates} قالبًا. اختر أولًا إلى أين تُنقل.",
+      "deleteBodyInUse": "ما زال «⁨{name}⁩» مستخدَمًا — البنود: {entries}، الاجتماعات: {meetings}، القوالب: {templates}. اختر أولًا إلى أين تُنقل.",
       "archiveTitle": "أرشفة هذا المسار؟",
       "archiveBody": "سيختفي «⁨{name}⁩» من قوائم الاختيار. تحتفظ البنود الحالية به ولا يُحذف شيء.",
       "discardTitle": "تجاهل التغييرات؟",

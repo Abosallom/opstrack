@@ -147,6 +147,9 @@ const fx = vi.hoisted(() => {
      *  Dashboard header and FIX-BACKLOG SLA-MATRIX. */
     slaMatrix: ReadonlyMap<string, number> | null
     slaMatrixError: string | null
+    /** The CLOSED window's own read failing. Separate from `error`, which is
+     *  the open fetch — three panels here are computed from closed rows alone. */
+    closedError: string | null
   } = {
     entries,
     health: new Map([
@@ -162,6 +165,7 @@ const fx = vi.hoisted(() => {
     truncated: false,
     slaMatrix: null,
     slaMatrixError: null,
+    closedError: null,
   }
 
   return { at, entry, health, entries, net, inf, members, counts, state, mem }
@@ -185,6 +189,7 @@ vi.mock('../store/entries', () => ({
   refreshEntries: () => Promise.resolve(),
   useTrackSlaMatrix: () => fx.state.slaMatrix,
   useTrackSlaError: () => fx.state.slaMatrixError,
+  useClosedEntriesError: () => fx.state.closedError,
 }))
 
 vi.mock('../store/vocab', () => {
@@ -300,7 +305,7 @@ describe('Dashboard — the panels are there and they are wired', () => {
     // 8 weeks is the default and the brief's number. It is derived from
     // weekBounds, so this also proves the window arithmetic produces eight
     // buckets and not seven or nine.
-    expect(render()).toContain(esc(t('dashboard.flowDesc', { weeks: 8 })))
+    expect(render()).toContain(esc(t('dashboard.flowDesc', { count: 8 })))
   })
 
   it('shows every stat tile, with the blocked one naming its oldest blocker', () => {
@@ -469,5 +474,19 @@ describe('Dashboard — states', () => {
     expect(render()).not.toContain(esc(t('dashboard.slaMatrixFailed')))
     fx.state.slaMatrixError = 'common.error'
     expect(render()).toContain(esc(t('dashboard.slaMatrixFailed')))
+  })
+
+  // The Closed tile, the throughput chart and SLA compliance are computed
+  // ENTIRELY from the closed window, which is a separate read with its own
+  // failure mode. It used to be swallowed — a dropped request rendered as a
+  // quiet month, which is the one shape of wrong a report cannot recover from
+  // because nothing about it looks wrong. Retry is offered because
+  // refreshEntries() re-attempts this read specifically.
+  it('says so when the closed window could not be read, and offers a retry', () => {
+    expect(render()).not.toContain(esc(t('dashboard.closedFailed')))
+    fx.state.closedError = 'common.offline'
+    const html = render()
+    expect(html).toContain(esc(t('dashboard.closedFailed')))
+    expect(html).toContain(esc(t('common.retry')))
   })
 })

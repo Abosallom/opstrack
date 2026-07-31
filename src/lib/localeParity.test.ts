@@ -375,7 +375,7 @@ describe.each(LOCALES)('%s plural nodes', (locale, tree) => {
     expect(stray).toEqual([])
   })
 
-  it('keep every non-count token of `other` in every form', () => {
+  it('keep every non-`count` token of `other` in every form', () => {
     // A `{column}` that survives in `other` and vanishes from `one` renames the
     // control for exactly one card count. Only `{count}` may be dropped, and
     // only where the category pins its value.
@@ -391,5 +391,165 @@ describe.each(LOCALES)('%s plural nodes', (locale, tree) => {
       }
     }
     expect(dropped).toEqual([])
+  })
+})
+
+/* ────────────────────── ar: numbers and the nouns they count ────────────────────── */
+//
+// THE HOLE THE PLURAL NODES LEFT OPEN, and the one no assertion above can see.
+//
+// selectPlural() reads `vars.count` and nothing else (lib/plural.ts:150-159, via
+// resolve() at lib/i18n.ts:99). A counted string whose number happens to be
+// called `{days}` or `{weeks}` or `{seconds}` is therefore STRUCTURALLY unable
+// to inflect — it is a plain string, interpolate() drops the number in, and one
+// frozen grammatical form ships for every value the caller can pass. In English
+// that costs an `s` ("Service deadline: 1 days"). In Arabic, where the noun
+// after a numeral changes shape four times between 1 and 100, it produced
+// `مهلة 2 يوم` on the follow-ups screen and `على مدى 12 أسابيع` under the
+// dashboard's chart — while `dashboard.weeksOption` two dozen lines above it
+// rendered the SAME NUMBER correctly, because that one happened to be called
+// `{count}`.
+//
+// Every check above is blind to it by construction: parity compares token SETS,
+// so `{days}` in en and `{days}` in ar agree; the plural block only looks at
+// nodes that are already plural nodes; localeReach compares keys to call sites;
+// bidi compares direction. The variable's NAME is nobody else's job.
+//
+// So this is the check: in the `ar` tree, a counted noun may not follow an
+// interpolation unless that interpolation is `{count}` inside a plural node —
+// the one arrangement that can actually inflect. It is deliberately a NOUN list
+// rather than a variable-name list, because renaming `{days}` to `{n}` would
+// slip past a name-based gate while leaving the sentence just as wrong.
+const COUNTED_NOUNS: readonly string[] = [
+  // time
+  'يوم', 'يومًا', 'يوما', 'أيام', 'يومان', 'يومين',
+  'أسبوع', 'أسبوعًا', 'أسبوعا', 'أسابيع', 'أسبوعان', 'أسبوعين',
+  'شهر', 'شهرًا', 'شهرا', 'أشهر', 'شهور', 'شهران', 'شهرين',
+  'ساعة', 'ساعات', 'دقيقة', 'دقائق', 'ثانية', 'ثوانٍ', 'ثوان', 'ثواني',
+  // the things this app counts
+  'بند', 'بندًا', 'بندا', 'بنود', 'بندان', 'بندين',
+  'اجتماع', 'اجتماعًا', 'اجتماعا', 'اجتماعات',
+  'قالب', 'قالبًا', 'قالبا', 'قوالب',
+  'مسار', 'مسارًا', 'مسارا', 'مسارات',
+  'حرف', 'حرفًا', 'حرفا', 'أحرف', 'حروف',
+  'رمز', 'رمزًا', 'رمزا', 'رموز',
+]
+
+/**
+ * `namespace.key` allowed to put a counted noun after a non-`count` token,
+ * because the number is a FROZEN CONSTANT whose value is pinned in source and
+ * lands in a CLDR category the written form is already correct for.
+ *
+ * Every entry names its constant and its category. This is not a snooze button:
+ * change the constant and the exemption is a lie, which is why the value is
+ * written down beside it rather than left to a reader to go and look up.
+ */
+const FROZEN_COUNT_KEYS: ReadonlyMap<string, string> = new Map([
+  // NAME_MAX = 40 (pages/settings/TrackEditor.tsx) → ar `many` → `40 حرفًا`. ✓
+  ['admin.tracks.errNameLong', 'NAME_MAX = 40 → many'],
+  // LABEL_MAX = 40 (pages/settings/VocabularyAdmin.tsx) → ar `many`. ✓
+  ['vocabadmin.errLabelLong', 'LABEL_MAX = 40 → many'],
+  // MIN_PASSWORD_LENGTH = 8 (store/auth.ts) → ar `few` → `8 أحرف`. ✓
+  ['claim.passwordHint', 'MIN_PASSWORD_LENGTH = 8 → few'],
+  ['claim.errPasswordShort', 'MIN_PASSWORD_LENGTH = 8 → few'],
+  ['signin.errPasswordShort', 'MIN_PASSWORD_LENGTH = 8 → few'],
+  // LINK_EXPIRY_MIN = 10 (pages/SignIn.tsx) → ar `few` → `10 دقائق`. ✓
+  ['signin.linkHint', 'LINK_EXPIRY_MIN = 10 → few'],
+  // CATCHUP_CAP = 60 (lib/recurrence.ts) → ar `many` → `60 بندًا`. ✓
+  ['recurring.behindCapped', 'CATCHUP_CAP = 60 → many'],
+  // The noun trails {max}: MAX_INTERVAL_DAYS = MAX_LEAD_DAYS = 365
+  // (lib/recurrence.ts) → 365 % 100 = 65 → ar `many` → `365 يومًا`. ✓
+  ['recurring.errInterval', 'MAX_INTERVAL_DAYS = 365 → many'],
+  ['recurring.errLead', 'MAX_LEAD_DAYS = 365 → many'],
+  // No call site anywhere in src (grep: the key appears only in the two locale
+  // files). Whoever wires it owes this list an entry with a real constant, or a
+  // plural node — it cannot stay exempt on the strength of being dead.
+  ['entry.errTitleLong', 'unreferenced — no caller to pin a value'],
+])
+
+describe('ar locale tree — counted nouns', () => {
+  const NOUN_ALT = COUNTED_NOUNS.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  // Whitespace and the invisible marks an RTL string carries between the token
+  // and its noun. `\p{L}` after the noun stops `يوم` matching inside `يومية`.
+  const COUNTED = new RegExp(
+    `\\{(\\w+)\\}[\\s\\u200B-\\u200F\\u061C\\u2066-\\u2069]*(?:${NOUN_ALT})(?!\\p{L})`,
+    'gu',
+  )
+
+  it('inflect: a counted noun follows only `{count}` in a plural node', () => {
+    const wrong: string[] = []
+    for (const [key, leaf] of FLAT_AR) {
+      const ns = key.split('.').slice(0, 2).join('.')
+      if (FROZEN_COUNT_KEYS.has(ns) || FROZEN_COUNT_KEYS.has(key)) continue
+      for (const [category, value] of formsOf(leaf)) {
+        for (const m of value.matchAll(COUNTED)) {
+          if (m[1] === 'count' && leaf.plural) continue
+          const at = leaf.plural ? `${key}.${category}` : key
+          wrong.push(`${at}: {${m[1]}} counts a noun :: ${value}`)
+        }
+      }
+    }
+    expect(wrong.sort()).toEqual([])
+  })
+
+  it('exempts only keys that still exist, so a rename cannot park a live string', () => {
+    // An exemption for a key that has been deleted or renamed is dead weight
+    // that will silently cover the NEXT key to take that name.
+    const stale = [...FROZEN_COUNT_KEYS.keys()].filter((k) => !FLAT_AR.has(k))
+    expect(stale).toEqual([])
+  })
+})
+
+/* ────────────────────── ar: one concept, one word ────────────────────── */
+//
+// Nothing else in this repo can see a WORD CHOICE. Parity compares key sets and
+// interpolation tokens, localeReach compares keys to call sites, bidi compares
+// direction — a string that is present, well formed, correctly fenced and simply
+// calls a thing by a different name than the screen beside it passes all four.
+//
+// `dashboard.json` was written by a different hand, and it showed. The Arabic
+// dashboard rendered `0 خامدة` on a KPI tile whose own link goes to the
+// follow-ups screen, where the matching filter chip is labelled `راكدة` — one
+// word clicked, another word landed on — while the chart legend directly below
+// the tiles said `راكد` from `health.stale`. Overdue was spelled `متأخّر` in the
+// legend and `متأخرة` in the tile four inches away. English does not have this
+// divergence to inherit: `followups.stale` and `dashboard.statQuiet` are the
+// SAME STRING there, "Going quiet".
+//
+// So: one concept, one Arabic root, across all 23 namespaces. A banned form is
+// banned everywhere; there is no per-key exemption, because the whole value of
+// the rule is that it has no exceptions.
+const BANNED_AR_WORDS: ReadonlyArray<{ bad: RegExp; use: string; why: string }> = [
+  {
+    bad: /خامد/,
+    use: 'راكد',
+    why: 'stale/quiet. `health.stale`, `followups.stale`, `track.statStale` and `vocabadmin.effectStale` all say راكد; خامدة existed only in dashboard.json.',
+  },
+  {
+    // The shadda is a letter here, not decoration: متأخر and متأخّر are two
+    // spellings of one word, and the app showed both on one screen. dashboard.json
+    // is not diacritic-free by policy — it writes ملخّص, يتولّاها, تُحدَّد.
+    bad: /متأخر/,
+    use: 'متأخّر',
+    why: 'overdue. Spelled with the shadda in date/entry/digest/health/followups/track/recurring; only dashboard.json dropped it.',
+  },
+  {
+    bad: /متعثر/,
+    use: 'متعثّر',
+    why: 'blocked. Spelled with the shadda in entry/followups/status/track; only dashboard.json dropped it.',
+  },
+]
+
+describe('ar locale tree — one concept, one word', () => {
+  it.each(BANNED_AR_WORDS)('never says $bad where it means $use', ({ bad, use, why }) => {
+    const hits: string[] = []
+    for (const [key, leaf] of FLAT_AR) {
+      for (const [category, value] of formsOf(leaf)) {
+        if (bad.test(value)) {
+          hits.push(`${leaf.plural ? `${key}.${category}` : key} :: ${value}`)
+        }
+      }
+    }
+    expect(hits.sort(), `${why} Use ${use}.`).toEqual([])
   })
 })

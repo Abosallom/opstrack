@@ -55,7 +55,7 @@ import { onRealtimeBatch, onRealtimeResync } from '../api/realtime'
 import { listTrackSlas } from '../api/tracks'
 import { fail } from '../api/result'
 import { supabase } from '../api/supabase'
-import { TEMP_PREFIX, isTempId } from './outbox'
+import { TEMP_PREFIX, discardOpsForTempId, isTempId } from './outbox'
 import { useAuth } from './auth'
 import { getVocabSnapshot, slaDays, staleDays } from './vocab'
 import {
@@ -148,6 +148,22 @@ export interface EntriesCoverage {
    * back to false. `useEntriesTruncated()` is where the two are combined.
    */
   closedTruncated: boolean
+  /**
+   * The i18n key from a FAILED closed read, or null.
+   *
+   * The closed window was the one read in this store with neither an error
+   * channel nor a caveat channel: `loadClosedSince()` console.warn'd and
+   * returned `void`, so a failure was byte-identical to a quiet week for every
+   * consumer. The dashboard's throughput chart, its "Closed" tile and its SLA
+   * compliance panel are computed ENTIRELY from closed rows, and the digest's
+   * whole Closed section is — so one dropped request produced a report saying
+   * nothing was finished, with no indication that anything had gone wrong.
+   *
+   * Separate from `error`, which describes the OPEN read and is what the
+   * dashboard's top-level retry is bound to. Same shape and the same rule as
+   * `slaMatrixError`: an i18n KEY, never a sentence.
+   */
+  closedError: string | null
 }
 
 export interface EntryCounts {
@@ -501,6 +517,7 @@ function emptyCoverage(): EntriesCoverage {
     loadedAt: null,
     truncated: false,
     closedTruncated: false,
+    closedError: null,
   }
 }
 
@@ -628,6 +645,18 @@ export function useTrackSlaMatrix(): TrackSlaMap | null {
 /** An i18n KEY, or null. */
 export function useTrackSlaError(): string | null {
   return useEntriesStore((s) => s.slaMatrixError)
+}
+
+/**
+ * The closed window's read failed. An i18n KEY, or null.
+ *
+ * Narrow, for the same reason useTrackSlaError() is narrow: the dashboard is the
+ * one screen that renders it, and it must not re-render on every other coverage
+ * change to learn about it. See EntriesCoverage.closedError for what the absence
+ * of this cost — a "quiet week" that was a dropped request.
+ */
+export function useClosedEntriesError(): string | null {
+  return useEntriesStore((s) => s.coverage.closedError)
 }
 
 /**
@@ -888,16 +917,47 @@ export function loadEntries(force = false): Promise<void> {
   return inFlight
 }
 
-/** Closed entries, on demand. Additive: it never prunes the open working set. */
+/**
+ * The last window anything asked for, so refreshEntries() can re-attempt it.
+ *
+ * The Retry button on the dashboard is bound to refreshEntries(), which was
+ * `loadEntries(true)` and nothing else — so a failed closed read had NO
+ * user-reachable recovery at all: retrying re-fetched the open set, and the only
+ * thing that re-fired the closed read was changing the weeks selector.
+ */
+let lastClosedRequest: IsoDate | null = null
+
+/**
+ * Closed entries, on demand. Additive: it never prunes the open working set.
+ *
+ * A FAILURE IS RECORDED, not warned about and dropped. See
+ * EntriesCoverage.closedError — everything the dashboard and the digest say
+ * about finished work is computed from these rows, and "the request failed" and
+ * "nothing was finished" used to be the same observable state.
+ */
 export function loadClosedSince(since: IsoDate): Promise<void> {
+  lastClosedRequest = since
   const st = useEntriesStore.getState()
   // Already covered by a wider window — asking again would re-download a month
   // of done items to learn nothing.
-  if (st.coverage.closedSince !== null && st.coverage.closedSince <= since) return Promise.resolve()
+  if (st.coverage.closedSince !== null && st.coverage.closedSince <= since) {
+    // A caveat from a WIDER window that failed does not describe this one, which
+    // is loaded. Clearing it here is what stops a stale error outliving the read
+    // it was about: 30 days fails, the user drops back to 7, and the 7-day view
+    // is complete.
+    if (st.coverage.closedError !== null) {
+      useEntriesStore.setState({ coverage: { ...st.coverage, closedError: null } })
+    }
+    return Promise.resolve()
+  }
 
   return listClosedSince(since).then((result) => {
     if (!result.ok) {
       console.warn('[entries] closed load failed:', result.error)
+      const failed = useEntriesStore.getState()
+      useEntriesStore.setState({
+        coverage: { ...failed.coverage, closedError: result.error },
+      })
       return
     }
     if (result.data.truncated) {
@@ -918,6 +978,10 @@ export function loadClosedSince(since: IsoDate): Promise<void> {
         ...current.coverage,
         closedSince: since,
         closedTruncated: current.coverage.closedTruncated || result.data.truncated,
+        // Cleared, unlike `closedTruncated`: a clip is a property of the DATA
+        // and survives a later narrower read, while a failure is a property of
+        // one REQUEST and this one succeeded.
+        closedError: null,
       },
     })
   })
@@ -1002,8 +1066,21 @@ export function loadUpdates(entryId: string, force = false): Promise<void> {
   return promise
 }
 
+/**
+ * The visible Retry, on the dashboard and the follow-ups list.
+ *
+ * IT RE-ATTEMPTS THE CLOSED WINDOW TOO. This was `loadEntries(true)`, which
+ * refetches only the OPEN set — so the one failure with no other recovery path
+ * (the closed read; nothing re-fires it but a change to the weeks selector) was
+ * the one failure Retry could not fix. `loadClosedSince()` is a no-op when the
+ * window it is asked for is already loaded, so a retry after a SUCCESSFUL closed
+ * read still costs exactly one request.
+ */
 export function refreshEntries(): Promise<void> {
-  return loadEntries(true)
+  const open = loadEntries(true)
+  const since = lastClosedRequest
+  if (since === null) return open
+  return Promise.all([open, loadClosedSince(since)]).then(() => undefined)
 }
 
 // ── the SLA matrix ─────────────────────────────────────────────────────────
@@ -1095,6 +1172,9 @@ export function resetEntries(): void {
   stopFlashSweep()
   updatesInFlight.clear()
   inFlight = null
+  // The next account in this tab must not have its Retry re-fire the previous
+  // one's window before any screen has asked for anything.
+  lastClosedRequest = null
   // The matrix is workspace-wide, not per-user, but `slaLoaded` is a dedupe
   // latch and leaving it set would mean the next account in this tab never
   // fetches — the empty matrix it inherits would then read as "no overrides".
@@ -1591,9 +1671,19 @@ export async function postUpdate(input: NewEntryUpdate): Promise<ApiResult<Entry
  * own comment says why — closing an item is status='cancelled' so the audit
  * thread never vanishes with the row. An undo that 42501s for every member is
  * not an undo.
+ *
+ * THE QUEUE IS CANCELLED FIRST, and that ordering is the fix rather than a
+ * detail. Removing the local row is invisible to store/outbox.ts, so an offline
+ * capture undone one second after it was queued still went out on the next
+ * flush: the server created the row, `settleCreate()` early-returned because the
+ * temp row was gone, and the realtime echo of our own insert then re-rendered
+ * the entry the user had been told was undone. `discardOpsForTempId()` takes the
+ * insert and anything queued behind it out of the queue, which is what makes
+ * "Undone" true for a capture that never reached the network.
  */
 export async function undoCapture(id: string): Promise<ApiResult<null>> {
   if (isTempId(id)) {
+    discardOpsForTempId(id)
     removeEntryLocal(id)
     return { ok: true, data: null }
   }
@@ -1823,8 +1913,109 @@ export function settleOutboxWrite(op: MutOp, data: unknown): void {
   }
 }
 
+/**
+ * One queued op thrown away, unwound from the store. The mirror of
+ * settleOutboxWrite(), installed by main.tsx on the same line.
+ *
+ * WHY A DISCARD NEEDS A HANDLER AT ALL. patchEntry() and postUpdate() do not
+ * retire a QUEUED write — `beginWrite()` has run, `pending` holds the row, and
+ * the comment at each QUEUED_KEY branch says settleOutboxWrite() ends it when
+ * the queue drains. For a discarded op that drain never happens, so without this
+ * the row keeps its "Queued" pill for ever, keeps displaying the value the user
+ * just discarded (mergeOpenFetch preserves pending rows through every refetch),
+ * and refuses every teammate's realtime edit (acceptsServerRow returns false
+ * while `pending` holds the id). Only closing the tab cleared it.
+ *
+ * It has to call endWrite(), not just setPending(id, null): `outstanding` is a
+ * COUNT, and a beginWrite with no matching endWrite leaves it at 1 for ever —
+ * two later, entirely successful patches on the same row then both see
+ * `last === false` and neither clears `pending`. Retiring the count is what
+ * makes the row usable again.
+ */
+export function discardOutboxWrite(op: MutOp): void {
+  const route = `${op.table}:${op.op}`
+
+  if (route === 'entries:insert') {
+    // A create that was never sent: the optimistic row describes a row that
+    // exists nowhere, so it goes. Leaving it behind is worse than the patch
+    // case — it is a phantom entry that survives a forced refetch (it is a temp
+    // id, which mergeOpenFetch preserves unconditionally) for the session.
+    if (op.tempId) removeEntryLocal(op.tempId)
+    return
+  }
+
+  if (route === 'entries:update') {
+    if (op.id) retireDiscardedWrite(op.id)
+    return
+  }
+
+  if (route === 'entry_updates:insert') {
+    const entryId = updateOpEntryId(op)
+    const tempId = op.tempId
+    if (entryId === null || tempId === null) return
+
+    // THE OWNERSHIP TEST, and it is load-bearing rather than defensive. Not
+    // every `entry_updates:insert` in the queue was put there by postUpdate():
+    // `queueOrphanedTransition()` files one on api/entries' behalf when a status
+    // change's transition row loses its own request, with no optimistic row and
+    // no beginWrite(). The optimistic thread row IS this store's record that it
+    // queued the op — without this test, discarding somebody else's op would
+    // retire a DIFFERENT, genuinely in-flight edit on the same entry and reopen
+    // the monotonic guard under the user's cursor.
+    const st = readState()
+    const thread = st.updates.get(entryId)
+    if (!thread?.some((u) => u.id === tempId)) return
+
+    // Drop the optimistic thread row this post added. The parent's activity bump
+    // is deliberately left alone: unlike postUpdate's failure path there is no
+    // before/after snapshot to diff here, and the next fetch corrects it now
+    // that the row is no longer pinned by `pending`.
+    useEntriesStore.setState({
+      updates: new Map(st.updates).set(
+        entryId,
+        thread.filter((u) => u.id !== tempId),
+      ),
+    })
+    retireDiscardedWrite(entryId)
+  }
+}
+
+/** `entry_updates:insert` carries its parent in the payload, not in `op.id`. */
+function updateOpEntryId(op: MutOp): string | null {
+  const payload = op.payload as NewEntryUpdate | null | undefined
+  const entryId = payload?.entryId
+  return typeof entryId === 'string' ? entryId : null
+}
+
+/**
+ * Retire a write that will never settle, and reopen the row.
+ *
+ * Same retire-then-reopen order as settlePatch(), minus the server row there is
+ * none of: end the write, and only if it was the LAST one out clear `pending`
+ * and hand back whatever realtime rows the monotonic guard deferred while it was
+ * held. A sibling edit still genuinely in flight keeps the badge, which is the
+ * behaviour every other path here has.
+ */
+function retireDiscardedWrite(id: string): void {
+  // Nothing to retire is not an error: a queue restored from localStorage after
+  // a reload outlives `outstanding` and `pending`, which are in-memory and empty
+  // by then. Decrementing from nothing would only manufacture a counter.
+  if (!outstanding.has(id)) return
+  const last = endWrite(id)
+  if (!last) return
+  setPending(id, null)
+  flushDeferred(id)
+}
+
 export function removeEntryLocal(id: string): void {
   const st = readState()
+  // Cleared BEFORE the membership check, and unconditionally: these two are
+  // module-level bookkeeping, not store state, so a row that has already left
+  // `byId` can still be holding an outstanding-write count that would make the
+  // NEXT row to take that id look permanently busy. `outstanding` is exactly
+  // what leaked when a queued write was discarded rather than settled.
+  outstanding.delete(id)
+  deferredRealtime.delete(id)
   if (!st.byId.has(id)) return
   const byId = new Map(st.byId)
   byId.delete(id)

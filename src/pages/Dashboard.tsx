@@ -72,6 +72,7 @@ import {
   loadEntries,
   loadTrackSlas,
   refreshEntries,
+  useClosedEntriesError,
   useEntriesError,
   useEntriesLoading,
   useEntriesTruncated,
@@ -128,6 +129,11 @@ export default function Dashboard(): ReactElement {
   const loading = useEntriesLoading()
   const errorKey = useEntriesError()
   const truncated = useEntriesTruncated()
+  // The closed window is a SEPARATE read, and three of the panels on this page
+  // are computed entirely from its rows — the Closed tile, the throughput chart
+  // and SLA compliance. Its failure used to be indistinguishable from a quiet
+  // month; see EntriesCoverage.closedError.
+  const closedErrorKey = useClosedEntriesError()
   const tracks = useActiveTracks()
   const trackById = useTrackMap()
   const trackLabel = useTrackLabel()
@@ -340,6 +346,21 @@ export default function Dashboard(): ReactElement {
         </p>
       )}
 
+      {/* Page-level, exactly like the truncation notice and for the same
+          reason: the reader cannot tell which of the numbers in front of them
+          came from the closed window, so the caveat belongs above all of them
+          rather than tucked under one chart. Retry is offered here because
+          refreshEntries() re-attempts this read specifically — nothing else on
+          the screen does short of changing the window. */}
+      {closedErrorKey !== null && (
+        <p className="db-error" role="status">
+          {t('dashboard.closedFailed')}{' '}
+          <button type="button" className="btn btn-sm" onClick={() => void refreshEntries()}>
+            {t('common.retry')}
+          </button>
+        </p>
+      )}
+
       {blank ? (
         <EmptyState
           icon={<IconChart size={30} />}
@@ -384,7 +405,7 @@ export default function Dashboard(): ReactElement {
                 blocked.named.length > 0
                   ? t('dashboard.blockedOldest', {
                       title: blocked.named[0].entry.title,
-                      days: blocked.named[0].days,
+                      count: blocked.named[0].days,
                     })
                   : t('dashboard.blockedNone')
               }

@@ -11,11 +11,26 @@
 //
 // select/insert/update are `is_member()`; DELETE alone is `is_admin()`. That is
 // deliberate and the screen mirrors it rather than gating the whole page on
-// admin: templates carry no `created_by`, so there is no author to scope writes
-// to, and the table's own comment says "any member may author and tune one,
+// admin: the table's own comment says "any member may author and tune one,
 // admins alone may destroy one". A member who is shown a Delete button that
 // always 42501s has been lied to; a member who cannot find the screen at all
 // cannot do the thing they are allowed to do.
+//
+// WRITES ARE NOT SCOPED TO AN AUTHOR, BUT THEY ARE ATTRIBUTED. Until 0014 this
+// paragraph read "templates carry no created_by, so there is no author to scope
+// writes to" — true of the policy and, as FIX-BACKLOG R1-SEC-2 found, true of
+// the whole table: no author column, no audit trigger, nothing anywhere naming
+// who aimed a recipe at whom. A member could point a template at a colleague,
+// press "Run now", and the entry — plus the lock-screen push built from it —
+// landed with `created_by` NULL, which `entries_notify()` reads as "the schedule
+// did it".
+//
+// 0014 leaves the policies exactly as they are and closes the hole underneath
+// them: `created_by`/`updated_by` are stamped from the JWT by a BEFORE trigger
+// (so nothing here has to send them, and a raw POST cannot forge them), every
+// write lands in `config_audit` with whole row images, and
+// `materialize_template()` records the member who pressed the button. Nothing in
+// this module changed; the columns simply arrive on the rows it reads.
 //
 // ── THE C2 CLAMP LIVES HERE, NOT IN THE PARSER ─────────────────────────────
 //
@@ -59,7 +74,7 @@ export type { NewTemplate }
 /**
  * `select('*')` rather than a column list, matching api/tracks.ts.
  *
- * The table is fourteen columns wide and `RecurringTemplate` in types.ts names
+ * The table is sixteen columns wide and `RecurringTemplate` in types.ts names
  * every one of them, so a list would be a second copy of that type maintained
  * by hand — and supabase-js only narrows a column list when it is a literal,
  * which a shared constant is not.

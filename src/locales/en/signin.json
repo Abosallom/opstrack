@@ -23,7 +23,7 @@
     "verify": "Sign in",
     "verifying": "Verifying…",
     "resend": "Send it again",
-    "resendIn": "Resend in {seconds}s",
+    "resendIn": "Resend in {count}s",
     "codeResent": "A new code is on its way.",
     "changeEmail": "Use a different email",
     "errEmailRequired": "Enter your email address.",

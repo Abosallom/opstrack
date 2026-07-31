@@ -21,9 +21,15 @@
     "unassignedHint": "Nobody owns these yet.",
     "slaBreach": "Past service deadline",
     "slaBreachHint": "Open longer than the service window set for their priority.",
-    "slaDays": "SLA {days}d",
-    "slaFromTrack": "Service deadline: {days} days, from this track's override.",
-    "slaFromPriority": "Service deadline: {days} days, from the priority default.",
+    "slaDays": "SLA {count}d",
+    "slaFromTrack": {
+      "one": "Service deadline: 1 day, from this track's override.",
+      "other": "Service deadline: {count} days, from this track's override."
+    },
+    "slaFromPriority": {
+      "one": "Service deadline: 1 day, from the priority default.",
+      "other": "Service deadline: {count} days, from the priority default."
+    },
     "sectionCount": "{count}",
     "sectionEmpty": "Nothing here — good.",
     "collapseSection": "Collapse ⁨{section}⁩",
@@ -41,6 +47,12 @@
     "snoozed": "“⁨{title}⁩” moved to ⁨{date}⁩.",
     "snoozeDisabled": "You can't snooze this one",
     "markDone": "Mark done",
+    "doneToast": "“⁨{title}⁩” is done.",
+    "showAll": "Show all",
+    "showLess": "Show fewer",
+    "showAllIn": "Show all items in ⁨{section}⁩",
+    "showLessIn": "Show fewer items in ⁨{section}⁩",
+    "rowsHidden": "{count} more",
     "addUpdate": "Add update",
     "quickLabel": "Update on “⁨{title}⁩”",
     "quickPlaceholder": "What happened?",

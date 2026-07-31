@@ -1097,3 +1097,138 @@ describe('typed text survives the parse', () => {
     expect(p.title).toBe('Renew cert')
   })
 })
+
+// ── multi-word keyed values, unquoted ──────────────────────────────────────
+//
+// The mirror of the `#track` block above, on the other half of the grammar.
+//
+// Both alias tables ship multi-word ARABIC phrases — `نهاية الأسبوع` and its
+// three siblings in lib/dates.ts, six cadence phrases in parse.ts — and the
+// tokenizer splits on whitespace, so every one of them was unreachable. Worse
+// than unreachable: the orphaned second word was left in place and the title
+// collapse glued it onto the user's own text.
+//
+//   `مراجعة العقد due:نهاية الأسبوع` → "مراجعة العقد الأسبوع", dueDate null
+//   `مراجعة السعة every:كل أسبوعين`  → "مراجعة السعة أسبوعين", cadence null
+//   `مراجعة العقد fu:نهاية الأسبوع`  → untouched, and problems: [] — `fu:` is a
+//                                       SHORT_KEY, so a failed value is not even
+//                                       reported
+//
+// English never saw it: its tables contain no multi-word alias. The Arabic user
+// following `capture.hintDates`, which teaches this exact phrase inline and
+// unquoted, saw all of it.
+//
+// ONE CASE PER ALIAS, deliberately exhaustive. The tables and the tokenizer
+// drifting apart is the defect; a spot check of one phrase would not have caught
+// the other nine, and would not catch the eleventh.
+
+/** Every multi-word phrase the two grammar tables declare. Add here when adding there. */
+const MULTI_WORD_DATES: ReadonlyArray<readonly [string, string]> = [
+  // lib/dates.ts EOW_WORDS / EOM_WORDS. NOW is Wed 2026-07-29; the week starts
+  // Sunday (the Saudi work week), so end-of-week is Sat 2026-08-01.
+  ['نهاية الأسبوع', '2026-08-01'],
+  ['اخر الأسبوع', '2026-08-01'],
+  ['نهاية الشهر', '2026-07-31'],
+  ['اخر الشهر', '2026-07-31'],
+]
+
+/** CADENCE_ALIASES, every entry that spends more than one word on itself. */
+const MULTI_WORD_CADENCES: ReadonlyArray<readonly [string, string]> = [
+  ['كل يوم', 'daily'],
+  ['كل أسبوع', 'weekly'],
+  ['كل أسبوعين', 'biweekly'],
+  ['نصف شهري', 'biweekly'],
+  ['ربع سنوي', 'quarterly'],
+  ['كل ربع', 'quarterly'],
+]
+
+describe('multi-word keyed values', () => {
+  it.each(MULTI_WORD_DATES)('due:%s resolves unquoted', (phrase, iso) => {
+    const input = `مراجعة العقد due:${phrase}`
+    const p = run(input, { locale: 'ar' })
+    expect(p.dueDate).toBe(iso)
+    expect(p.title).toBe('مراجعة العقد')
+    expect(problemKeys(p)).toEqual([])
+    expect(spansAreExact(input, p)).toBe(true)
+  })
+
+  it.each(MULTI_WORD_DATES)('fu:%s resolves unquoted, short key and all', (phrase, iso) => {
+    // The short-key rule says `fu:` is a token only if its value resolves. Before
+    // the lookahead the value could never resolve, so the token silently was not
+    // one and the raw text stayed in the title with NOTHING reported.
+    const input = `مراجعة العقد fu:${phrase}`
+    const p = run(input, { locale: 'ar' })
+    expect(p.followUpDate).toBe(iso)
+    expect(p.title).toBe('مراجعة العقد')
+    expect(problemKeys(p)).toEqual([])
+  })
+
+  it.each(MULTI_WORD_CADENCES)('every:%s resolves unquoted', (phrase, cadence) => {
+    const input = `مراجعة السعة every:${phrase}`
+    const p = run(input, { locale: 'ar' })
+    expect(p.recurrence?.cadence).toBe(cadence)
+    expect(p.title).toBe('مراجعة السعة')
+    expect(problemKeys(p)).toEqual([])
+    expect(spansAreExact(input, p)).toBe(true)
+  })
+
+  it.each(MULTI_WORD_CADENCES)('ev:%s resolves unquoted', (phrase, cadence) => {
+    const p = run(`مراجعة السعة ev:${phrase}`, { locale: 'ar' })
+    expect(p.recurrence?.cadence).toBe(cadence)
+    expect(p.title).toBe('مراجعة السعة')
+  })
+
+  it('agrees with the quoted form, which was the only one that ever worked', () => {
+    const bare = run('مراجعة العقد due:نهاية الأسبوع', { locale: 'ar' })
+    const quoted = run('مراجعة العقد due:"نهاية الأسبوع"', { locale: 'ar' })
+    expect(bare.dueDate).toBe(quoted.dueDate)
+    expect(bare.title).toBe(quoted.title)
+  })
+
+  it('reads the cadence the recurring screens print as that cadence\'s name', () => {
+    // `capture.cadenceBiweekly` and `recurring.cadenceBiweekly` both DISPLAY
+    // `كل أسبوعين`. Typing back what the app shows has to work.
+    expect(run('مراجعة السعة every:كل أسبوعين', { locale: 'ar' }).recurrence?.cadence).toBe(
+      'biweekly',
+    )
+  })
+
+  it('never reaches when the value already resolves', () => {
+    // `due:غدًا` is complete. Growing it would eat a word of the title to feed a
+    // guess — the failure extendTrack() is written to avoid, on this path.
+    const p = run('مراجعة العقد due:غدًا الأسبوع القادم', { locale: 'ar' })
+    expect(p.dueDate).toBe('2026-07-30')
+    expect(p.title).toBe('مراجعة العقد الأسبوع القادم')
+  })
+
+  it('never reaches when neither the value nor the phrase resolves', () => {
+    // `due:someday` still fails exactly as it did, red chip and all, and the
+    // following word stays in the title where the user typed it.
+    const p = run('Renew cert due:someday soon')
+    expect(p.dueDate).toBeNull()
+    expect(p.title).toBe('Renew cert soon')
+    expect(problemKeys(p)).toEqual([PROBLEM_KEYS.date])
+  })
+
+  it('stops the lookahead at the next token', () => {
+    const p = run('مراجعة السعة every:كل !عالية', { locale: 'ar' })
+    expect(p.priority).toBe('high')
+    expect(p.recurrence).toBeNull()
+    expect(problemKeys(p)).toEqual([PROBLEM_KEYS.recurrence])
+  })
+
+  it('leaves the Windows-path rule alone', () => {
+    // C3. `d:`/`f:` are tokens only when they resolve, and a two-word lookahead
+    // must not give a drive letter a second chance to become one.
+    const p = run('Restore D:\\backup to F:\\data')
+    expect(p.title).toBe('Restore D:\\backup to F:\\data')
+    expect(p.tokens).toEqual([])
+    expect(problemKeys(p)).toEqual([])
+  })
+
+  it('leaves English alone, which never had a multi-word alias', () => {
+    expect(run('Review contract due:eow').dueDate).toBe('2026-08-01')
+    expect(run('Review contract due:eow').title).toBe('Review contract')
+    expect(run('Capacity review every:biweekly').recurrence?.cadence).toBe('biweekly')
+  })
+})

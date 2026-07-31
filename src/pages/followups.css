@@ -248,6 +248,24 @@
   display: none;
 }
 
+/* The one outcome the pass is aiming at, tinted so the eye finds it among three
+   identical ghost buttons. Colour only — no fill and no border change, because
+   a button that looks primary in a row of ghosts reads as the DEFAULT action
+   and this one closes an item. It obeys .fu-act's dim-until-hover like its
+   siblings; :disabled hands the colour back so a reader who may not edit is not
+   invited by a green control. */
+.fu-act-done:not(:disabled) {
+  color: var(--green);
+}
+
+/* The section fold. Full width under the rows so it reads as the end of the
+   list rather than as a fourth row action. */
+.fu-fold {
+  inline-size: 100%;
+  margin-block-start: 8px;
+  gap: 4px;
+}
+
 /* The resolved service window, on rows the view says are in breach. Dashed at
    full currentColor, matching the HealthPill's SLA treatment — the same cue for
    the same fact, and a dash pattern drawn in .pill's 35% mix is a line nobody
@@ -312,9 +330,10 @@
   }
 
   /* The row's action cluster is `flex: 0 0 auto` in entry.css and cannot
-     shrink, so three text buttons simply push the title out of the row. Below
-     640px they become their glyphs and the words move into the accessible name
-     — the same button, the same label, a third of the width.
+     shrink, so three text buttons simply push the title out of the row (four on
+     an unassigned row, since "Mark done" joined them). Below 640px they become
+     their glyphs and the words move into the accessible name — the same button,
+     the same label, a third of the width.
 
      The hiding technique is global.css's `.sr-only`, applied to a class this
      sheet owns rather than by toggling a class name from JavaScript: a control

@@ -469,6 +469,74 @@ async function adopt(session: Session | null) {
   if (profile) materializeOnce(session)
 }
 
+/**
+ * The session supabase-js still has on disk after it failed to refresh it.
+ *
+ * WHY THIS EXISTS. `getSession()` treats a session inside EXPIRY_MARGIN_MS of
+ * expiry as expired and refreshes it; offline, that refresh fails and — once the
+ * access token has actually passed its expiry, which at Supabase's default 3600s
+ * TTL means any cold start more than an hour after last use — it answers
+ * `{ session: null, error }`. That null used to flow straight into `adopt(null)`
+ * and put App.tsx on the signed-out branch, so opening the installed app on a
+ * plane showed a sign-in form the user could not submit, with the entry cache
+ * (`opstrack_entries_v1`) and every unsent offline capture (`opstrack_outbox_v1`)
+ * sitting behind it. That is precisely the moment the offline story is supposed
+ * to pay off.
+ *
+ * THE CREDENTIAL IS STILL THERE, and that is what makes this safe rather than a
+ * fabrication. auth-js only removes the stored session when the refresh fails
+ * NON-retryably with an already-expired access token (`_callRefreshToken`); a
+ * network failure is retryable and it deliberately leaves the session in
+ * storage for the auto-refresh ticker to retry. So "supabase-js reported null
+ * with an error AND the credential is still on disk" means exactly one thing:
+ * the credential is alive and unreachable. We hand back the REAL session object
+ * — real user id, real tokens — never one we invented. A genuine sign-out, a
+ * revoked refresh token or a corrupt entry all clear storage, and this returns
+ * null for every one of them, so no properly-ended session can be resurrected.
+ *
+ * It grants nothing: `session` in this store is a UI gate, and every server call
+ * carries auth-js's own token under RLS. An expired token still 401s; the
+ * difference is that the user can read their cached list and queue captures
+ * while it does, and the auto-refresh ticker promotes the session for real
+ * through onAuthStateChange the moment the network returns.
+ *
+ * `storageKey` is read off the client rather than rebuilt from the URL, because
+ * the client is the thing that owns the name (`sb-<ref>-auth-token` by default,
+ * overridable). It is `protected` in the typings and a plain property at
+ * runtime, hence the cast — and every step below is guarded, so a future
+ * version that stores something else simply falls through to the sign-in
+ * screen, which is today's behaviour.
+ */
+function storedSessionAfterFailedRefresh(): Session | null {
+  if (!supabase) return null
+  try {
+    const key = (supabase as unknown as { storageKey?: unknown }).storageKey
+    if (typeof key !== 'string' || key === '') return null
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return null
+    const candidate = parsed as Partial<Session>
+    // The same three fields auth-js's own _isValidSession() checks, plus a user
+    // id, because meIdCache and the outbox's owner check both read it and a
+    // session without one would be worse than none.
+    if (
+      typeof candidate.access_token !== 'string' ||
+      typeof candidate.refresh_token !== 'string' ||
+      typeof candidate.user !== 'object' ||
+      candidate.user === null ||
+      typeof candidate.user.id !== 'string'
+    ) {
+      return null
+    }
+    return candidate as Session
+  } catch {
+    // Private mode, a disabled store, a hand-edited value. Nothing here is worth
+    // failing a boot over; falling through means the sign-in screen, as before.
+    return null
+  }
+}
+
 let wired = false
 
 /** Called once from main.tsx. Restores the stored session and tracks changes. */
@@ -483,8 +551,16 @@ export function initAuth(): void {
     return
   }
 
-  void supabase.auth.getSession().then(({ data }) => {
-    void adopt(data.session)
+  void supabase.auth.getSession().then(({ data, error }) => {
+    // `error` is non-null only when a stored session was found and its refresh
+    // failed — an empty or invalid store answers `{ session: null, error: null }`
+    // and must still land on the sign-in screen. See
+    // storedSessionAfterFailedRefresh() for why the disk read is the safe test.
+    const restored = data.session ?? (error ? storedSessionAfterFailedRefresh() : null)
+    if (restored !== null && data.session === null) {
+      console.warn('[auth] could not reach the auth server; running on the stored session:', error)
+    }
+    void adopt(restored)
   })
 
   supabase.auth.onAuthStateChange((_event, session) => {

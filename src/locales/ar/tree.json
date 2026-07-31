@@ -46,6 +46,11 @@
       "many": "{count} بندًا تجاوز مدة الخدمة",
       "other": "{count} بند تجاوز مدة الخدمة"
     },
+    "showAll": "عرض الكل",
+    "showLess": "عرض أقل",
+    "showAllIn": "عرض الكل ضمن ⁨{track}⁩",
+    "showLessIn": "عرض أقل ضمن ⁨{track}⁩",
+    "rowsHidden": "{count} إضافية",
     "allClear": "لا شيء معلّق",
     "allClearHint": "لا يوجد عمل مفتوح على هذا المسار.",
     "noMatch": "لا شيء هنا يطابق المرشِّحات.",

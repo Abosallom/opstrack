@@ -329,6 +329,21 @@ export interface RecurringTemplate {
   /** Create the entry this many days before it is due. */
   lead_days: number
   active: boolean
+  /**
+   * Who wrote this recipe. Server-stamped and pinned by
+   * `recurring_templates_guard_write()` (0014); NULL for the SQL editor and the
+   * service role. FIX-BACKLOG R1-SEC-2: the table carried no author at all, so a
+   * member could aim a template at a colleague, have it delivered as a push, and
+   * leave no trace of who did it.
+   */
+  created_by: string | null
+  /**
+   * Who last edited the CONTENT. Deliberately NOT moved by a `next_run_on`-only
+   * write — both materialisers advance that column under whichever member's
+   * browser happened to call, and crediting a bystander is worse than crediting
+   * nobody.
+   */
+  updated_by: string | null
 }
 
 /**

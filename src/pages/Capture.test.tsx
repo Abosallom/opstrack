@@ -312,6 +312,31 @@ describe('Capture — Arabic', () => {
     expect(html).not.toContain('data-kind="track"')
     expect(html).toContain('data-kind="due" data-ok="true"')
   })
+
+  it('parses the two-word date its OWN hint teaches, unquoted', () => {
+    // `capture.hintDates` (ar) lists `نهاية الأسبوع` inline and unquoted, where
+    // the English twin lists the single token `eow`. Typing what the screen
+    // teaches used to strip the date, report `capture.errDate` and glue the
+    // orphaned `الأسبوع` onto the title — "مراجعة العقد الأسبوع". The hint and
+    // the grammar are two files that had no way to notice they disagreed; this
+    // is the assertion that notices.
+    setLocale('ar')
+    const html = render('مراجعة العقد due:نهاية الأسبوع')
+    setLocale('en')
+    expect(html).toContain('data-kind="due" data-ok="true"')
+    expect(html).not.toContain('data-ok="false"')
+    expect(plainOf(words(html))).toBe('مراجعة العقد')
+  })
+
+  it('parses the cadence its OWN chip prints as that cadence\'s name', () => {
+    // `capture.cadenceBiweekly` DISPLAYS `كل أسبوعين`. Typing back what the app
+    // shows has to work, and did not.
+    setLocale('ar')
+    const html = render('مراجعة السعة every:كل أسبوعين')
+    setLocale('en')
+    expect(html).toContain('data-kind="recurring" data-ok="true"')
+    expect(plainOf(words(html))).toBe('مراجعة السعة')
+  })
 })
 
 describe('Capture — problems', () => {

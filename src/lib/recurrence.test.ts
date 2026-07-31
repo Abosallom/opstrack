@@ -123,6 +123,8 @@ function template(patch: Partial<RecurringTemplate>): RecurringTemplate {
     next_run_on: '2026-07-29',
     lead_days: 0,
     active: true,
+    created_by: null,
+    updated_by: null,
     ...patch,
   }
 }

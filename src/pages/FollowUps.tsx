@@ -35,6 +35,22 @@
 // is hovered or holds focus, and always at full strength on a touch device where
 // there is no hover to reveal them.
 //
+// TRIAGE CAN FINISH AN ITEM, NOT ONLY DEFER ONE. For a long time this row could
+// take, comment on and snooze an item but not complete it: the only route to
+// Done was tap the row, wait for the sheet, scroll past the title and the whole
+// Description block, tap the status chip, dismiss the sheet — and there was no
+// keyboard route at all, because the 1-4 status hotkeys act on whatever the
+// DETAIL surface is showing (lib/hotkeys.ts) and answer nothing on a focused
+// list row. So the most common and most satisfying outcome of a morning pass was
+// the slowest thing on the screen, while pushing an item three days out was one
+// tap. "Mark done" is now a button in the row's action slot beside the other
+// two, and it carries an UNDO in its toast rather than a confirm dialog in front
+// of it — a confirm taxes the ninety-nine correct taps to protect the hundredth,
+// and undo taxes only the mistake. It writes through `store/entries.setStatus`,
+// so optimism, rollback and the outbox are the store's exactly as before.
+//
+// THE SECTIONS FOLD PAST MAX_ROWS. See that constant.
+//
 // THE SLA SOURCE IS INFERRED FROM THE VIEW'S OWN ANSWER, and that is a
 // considered choice rather than a missing dependency.
 //
@@ -77,7 +93,7 @@ import { Link } from 'react-router-dom'
 import FilterBar, { type FilterFacet } from '../components/FilterBar'
 import { EntryRow, EntrySection, useSwipeActions } from '../components/entry'
 import { IconChecklist, IconClock, IconUser } from '../components/icons'
-import { IconPlus } from '../components/fields/glyphs'
+import { IconCheck, IconPlus } from '../components/fields/glyphs'
 import { EmptyState, Skeleton } from '../components/shared'
 import { toast } from '../components/toast'
 import { formatDate, formatRelativeTime } from '../lib/dates'
@@ -98,6 +114,7 @@ import {
   patchEntry,
   postUpdate,
   refreshEntries,
+  setStatus,
   snoozeFollowUp,
   useEntriesCoverage,
   useEntriesError,
@@ -181,6 +198,22 @@ const SECTIONS: readonly SectionSpec[] = [
  */
 let densityPref: Density = 'comfortable'
 
+/**
+ * Rows mounted per section before the fold.
+ *
+ * Measured, not guessed: one comfortable EntryRow is 34 DOM elements, and a
+ * FollowUpRow wraps it in a swipe container, two hint strips, an SLA pill and up
+ * to four action buttons that each carry a glyph AND a label — 56 elements a
+ * row. Five hundred rows is 28 000 elements on the screen this product exists to
+ * open first thing in the morning, on a phone. The board already folds at 25/40
+ * per column for exactly this reason and says so in `MAX_CARDS`.
+ *
+ * The heading count stays the bucket's TRUE total — EntrySection takes it as a
+ * prop precisely so a sliced body cannot make the number lie — and the fold
+ * button says how many are behind it.
+ */
+const MAX_ROWS: Readonly<Record<Density, number>> = { comfortable: 25, compact: 40 }
+
 interface SlaFacts {
   /** The RESOLVED window in days, whichever level supplied it. */
   days: number
@@ -233,6 +266,7 @@ interface FollowUpRowProps {
   onCloseQuick: () => void
   onSnooze: (entry: Entry) => void
   onTake: (entry: Entry) => void
+  onDone: (entry: Entry) => void
   onPost: (entry: Entry, body: string) => Promise<boolean>
 }
 
@@ -249,6 +283,7 @@ const FollowUpRow = memo(function FollowUpRow({
   onCloseQuick,
   onSnooze,
   onTake,
+  onDone,
   onPost,
 }: FollowUpRowProps): ReactElement {
   useLocale()
@@ -312,7 +347,7 @@ const FollowUpRow = memo(function FollowUpRow({
     sla === null
       ? null
       : t(sla.source === 'track' ? 'followups.slaFromTrack' : 'followups.slaFromPriority', {
-          days: sla.days,
+          count: sla.days,
         })
 
   return (
@@ -359,7 +394,7 @@ const FollowUpRow = memo(function FollowUpRow({
                   aria-label={slaLabel}
                   title={slaLabel}
                 >
-                  {t('followups.slaDays', { days: sla.days })}
+                  {t('followups.slaDays', { count: sla.days })}
                 </span>
               ) : null}
               {/* Each action carries BOTH a glyph and its words, and the
@@ -380,6 +415,25 @@ const FollowUpRow = memo(function FollowUpRow({
                   <span className="fu-act-label">{t('followups.takeIt')}</span>
                 </button>
               ) : null}
+              {/* The outcome the whole pass is aiming at, so it sits first
+                  among the three and is the only one drawn in the success
+                  colour. No confirm in front of it — the toast carries an
+                  undo, which charges the mistake instead of every correct
+                  tap. */}
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost fu-act fu-act-done"
+                onClick={() => onDone(entry)}
+                disabled={!canEdit}
+                // `entry.cannotEdit`, not `followups.snoozeDisabled`: the two
+                // buttons beside this one explain a refusal with the wrong verb
+                // because they predate any other action on the row, and
+                // inheriting that is how a wart becomes a convention.
+                title={canEdit ? t('followups.markDone') : t('entry.cannotEdit')}
+              >
+                <IconCheck size={15} className="fu-act-icon" />
+                <span className="fu-act-label">{t('followups.markDone')}</span>
+              </button>
               <button
                 type="button"
                 className="btn btn-sm btn-ghost fu-act"
@@ -515,6 +569,14 @@ export default function FollowUps(): ReactElement {
   const [filter, setFilter] = useState<FilterState>(() => ({ ...EMPTY_FILTER }))
   const [density, setDensityState] = useState<Density>(densityPref)
   const [quickId, setQuickId] = useState<string | null>(null)
+  /**
+   * Sections showing every row rather than the first MAX_ROWS.
+   *
+   * Session state and not a preference: the fold answers "let me see the rest of
+   * this bucket", and restoring it on the next cold open would put back the very
+   * mount it exists to avoid.
+   */
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set())
   const [refreshing, setRefreshing] = useState(false)
   const alive = useRef(true)
 
@@ -553,7 +615,16 @@ export default function FollowUps(): ReactElement {
 
   const total = useMemo(() => sections.reduce((n, s) => n + s.rows.length, 0), [sections])
 
-  /** The sibling list for the detail sheet's prev/next, IN THE ORDER SHOWN. */
+  /**
+   * The sibling list for the detail sheet's prev/next, IN THE ORDER SHOWN.
+   *
+   * Every row of every section, including the ones behind a fold. The fold is a
+   * MOUNT bound, not a scope: someone stepping through a bucket with the sheet's
+   * next button wants the next item in it, and stopping dead at row 25 with no
+   * explanation would be a worse surprise than walking past the fold. The tree's
+   * `flatIds` slices for the opposite reason — it drives a bulk selection, and
+   * acting on rows you cannot see is exactly what that screen refuses.
+   */
   const orderedIds = useMemo(() => sections.flatMap((s) => s.rows.map((e) => e.id)), [sections])
 
   /** The tag vocabulary the filter offers: what the working set actually holds. */
@@ -609,6 +680,31 @@ export default function FollowUps(): ReactElement {
     },
     [meId],
   )
+
+  /**
+   * Finish an item from the list.
+   *
+   * The row leaves the screen on success — bucketFollowUps never buckets a
+   * closed entry — which is the feedback, and which is also why the toast
+   * carries the undo: once the row is gone there is nothing left to tap, and
+   * "open the item, find the status, put it back" is the same four-step trip
+   * this button exists to remove. `was` is read before the call because
+   * setStatus applies optimistically, so afterwards `entry.status` is already
+   * 'done'; restoring the ACTUAL previous status matters — an item that was
+   * blocked must not come back as new.
+   */
+  const handleDone = useCallback((entry: Entry) => {
+    const was = entry.status
+    void setStatus(entry.id, 'done').then((result) => {
+      // A failure has already been toasted by the store, and a QUEUED write is
+      // neither — its optimistic row has already gone and the outbox will send.
+      if (!result.ok) return
+      toast(t('followups.doneToast', { title: entry.title }), {
+        tone: 'success',
+        action: { label: t('common.undo'), onClick: () => void setStatus(entry.id, was) },
+      })
+    })
+  }, [])
 
   const handlePost = useCallback(async (entry: Entry, body: string): Promise<boolean> => {
     const result = await postUpdate({ entryId: entry.id, body })
@@ -787,38 +883,72 @@ export default function FollowUps(): ReactElement {
         <div className="fu-sections">
           {sections
             .filter((s) => s.rows.length > 0)
-            .map((s) => (
-              <EntrySection
-                key={s.key}
-                id={s.key}
-                title={t(`followups.${s.key}`)}
-                count={s.rows.length}
-                tone={s.tone}
-                collapsible
-              >
-                <p className="fu-hint">{t(`followups.${s.key}Hint`)}</p>
-                <div className="fu-list">
-                  {s.rows.map((entry) => (
-                    <FollowUpRow
-                      key={entry.id}
-                      entry={entry}
-                      health={health.get(entry.id)}
-                      sla={slaFacts.get(entry.id) ?? null}
-                      canEdit={canEditEntry(entry, meId, role)}
-                      density={density}
-                      offerTake={s.key === 'unassigned'}
-                      quickOpen={quickId === entry.id}
-                      onOpen={handleOpen}
-                      onQuick={handleQuick}
-                      onCloseQuick={handleCloseQuick}
-                      onSnooze={handleSnooze}
-                      onTake={handleTake}
-                      onPost={handlePost}
-                    />
-                  ))}
-                </div>
-              </EntrySection>
-            ))}
+            .map((s) => {
+              const open = unfolded.has(s.key)
+              const shown = open ? s.rows : s.rows.slice(0, MAX_ROWS[density])
+              const hidden = s.rows.length - shown.length
+              return (
+                <EntrySection
+                  key={s.key}
+                  id={s.key}
+                  title={t(`followups.${s.key}`)}
+                  count={s.rows.length}
+                  tone={s.tone}
+                  collapsible
+                >
+                  <p className="fu-hint">{t(`followups.${s.key}Hint`)}</p>
+                  <div className="fu-list">
+                    {shown.map((entry) => (
+                      <FollowUpRow
+                        key={entry.id}
+                        entry={entry}
+                        health={health.get(entry.id)}
+                        sla={slaFacts.get(entry.id) ?? null}
+                        canEdit={canEditEntry(entry, meId, role)}
+                        density={density}
+                        offerTake={s.key === 'unassigned'}
+                        quickOpen={quickId === entry.id}
+                        onOpen={handleOpen}
+                        onQuick={handleQuick}
+                        onCloseQuick={handleCloseQuick}
+                        onSnooze={handleSnooze}
+                        onTake={handleTake}
+                        onDone={handleDone}
+                        onPost={handlePost}
+                      />
+                    ))}
+                  </div>
+                  {s.rows.length > MAX_ROWS[density] ? (
+                    // Named after its section: six of these can be on screen at
+                    // once, and "Show all" alone says nothing about which list
+                    // is about to grow.
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost fu-fold"
+                      onClick={() =>
+                        setUnfolded((prev) => {
+                          const next = new Set(prev)
+                          if (!next.delete(s.key)) next.add(s.key)
+                          return next
+                        })
+                      }
+                      aria-label={
+                        hidden > 0
+                          ? t('followups.showAllIn', { section: t(`followups.${s.key}`) })
+                          : t('followups.showLessIn', { section: t(`followups.${s.key}`) })
+                      }
+                    >
+                      {hidden > 0 ? t('followups.showAll') : t('followups.showLess')}
+                      {hidden > 0 ? (
+                        <span className="pill tabular">
+                          {t('followups.rowsHidden', { count: hidden })}
+                        </span>
+                      ) : null}
+                    </button>
+                  ) : null}
+                </EntrySection>
+              )
+            })}
 
           {/* The counts add up only because an entry lands in exactly one
               bucket, and the first thing anyone does with this screen is add

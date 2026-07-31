@@ -54,8 +54,8 @@ export function ThroughputChart({
   return (
     <ChartFrame
       title={t('dashboard.flowTitle')}
-      desc={t('dashboard.flowDesc', { weeks: points.length })}
-      summary={t('dashboard.flowSummary', { created, closed, weeks: points.length })}
+      desc={t('dashboard.flowDesc', { count: points.length })}
+      summary={t('dashboard.flowSummary', { created, closed, count: points.length })}
       height={HEIGHT}
       loading={loading}
       empty={created === 0 && closed === 0}

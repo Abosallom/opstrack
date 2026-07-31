@@ -450,7 +450,7 @@ export default function SignIn(): ReactElement {
                 disabled={busy || cooldown > 0}
                 onClick={() => void requestLink(true)}
               >
-                {cooldown > 0 ? t('signin.resendIn', { seconds: cooldown }) : t('signin.resend')}
+                {cooldown > 0 ? t('signin.resendIn', { count: cooldown }) : t('signin.resend')}
               </button>
             </div>
 

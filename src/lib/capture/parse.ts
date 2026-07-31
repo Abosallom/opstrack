@@ -249,6 +249,23 @@ const PRIORITY_MAP = aliasMap(PRIORITY_ALIASES)
 const TYPE_MAP = aliasMap(TYPE_ALIASES)
 const CADENCE_MAP = aliasMap(CADENCE_ALIASES)
 
+/**
+ * How far a keyed value may reach for the rest of its own phrase — see
+ * extendKeyed().
+ *
+ * Derived from CADENCE_ALIASES so the cadence table cannot outgrow it in
+ * silence. The floor of 2 is the DATE side: lib/dates.ts's EOW_WORDS and
+ * EOM_WORDS hold `نهاية الأسبوع`, `اخر الأسبوع`, `نهاية الشهر` and `اخر الشهر`,
+ * all two words, and those tables are private to that module. IF A DATE PHRASE
+ * LONGER THAN TWO WORDS IS EVER ADDED THERE, raise this floor and add the phrase
+ * to parse.test.ts's multi-word alias list in the same change — that test walks
+ * every multi-word alias in both tables precisely so the two cannot drift.
+ */
+const MAX_KEYED_PHRASE_WORDS = Math.max(
+  2,
+  ...CADENCE_ALIASES.flatMap(([, words]) => words.map((w) => w.trim().split(/\s+/).length)),
+)
+
 /** `Nd` → a custom cadence of N days. Checked AFTER the alias table, so bare
  *  `d` still means daily and only a number in front makes it an interval. */
 const CUSTOM_CADENCE_RE = /^(\d{1,4})d$/
@@ -410,9 +427,10 @@ function isInvisible(ch: string): boolean {
  * is what the user actually typed, and leaving the mark behind when the token
  * is consumed would strand an invisible character in the middle of the title.
  */
-function scan(input: string, tracks: readonly ParseTrack[]): RawToken[] {
+function scan(input: string, ctx: ParseContext): RawToken[] {
   const out: RawToken[] = []
   const n = input.length
+  const tracks = ctx.tracks
   const trackWords = maxTrackWords(tracks)
   let i = 0
 
@@ -441,6 +459,14 @@ function scan(input: string, tracks: readonly ParseTrack[]): RawToken[] {
       // is for the scanner to own the boundary.
       if (found.kind === 'track' && !found.quoted) {
         const wider = extendTrack(input, found.end, found.value, tracks, trackWords)
+        if (wider) {
+          found.end = wider.end
+          found.value = wider.value
+        }
+      } else if (!found.quoted && KEYED_VALUE_KINDS.has(found.kind)) {
+        // MULTI-WORD KEYED VALUES, UNQUOTED — the same defect as the track case
+        // above, on the other half of the grammar. See extendKeyed().
+        const wider = extendKeyed(input, found.end, found.value, found.kind, ctx)
         if (wider) {
           found.end = wider.end
           found.value = wider.value
@@ -564,9 +590,31 @@ function extendTrack(
 ): { value: string; end: number } | null {
   if (maxWords < 2) return null
 
+  const words = lookaheadWords(input, from, maxWords - 1)
+
+  for (let k = words.length; k >= 1; k -= 1) {
+    const value = clean([base, ...words.slice(0, k).map((w) => w.text)].join(' '))
+    if (matchTrackTiers(value, tracks).exact) return { value, end: words[k - 1].end }
+  }
+  return null
+}
+
+/**
+ * The whitespace-separated words a token may reach for, and where each ends.
+ *
+ * Shared by extendTrack() and extendKeyed() because the boundary rule is one
+ * rule: skip the whitespace and the invisible marks, stop dead at the first word
+ * that starts a token of its own — so `#IT due:fri` can never absorb the date,
+ * and neither can `due:نهاية !عالية`.
+ */
+function lookaheadWords(
+  input: string,
+  from: number,
+  max: number,
+): Array<{ text: string; end: number }> {
   const words: Array<{ text: string; end: number }> = []
   let i = from
-  while (words.length < maxWords - 1) {
+  while (words.length < max) {
     let p = i
     while (p < input.length && (isSpace(input[p]) || isInvisible(input[p]))) p += 1
     if (p >= input.length) break
@@ -576,12 +624,84 @@ function extendTrack(
     words.push({ text: input.slice(p, e), end: e })
     i = e
   }
+  return words
+}
+
+/** The keyed kinds whose value is looked up in a phrase table. */
+const KEYED_VALUE_KINDS: ReadonlySet<TokenKind> = new Set<TokenKind>([
+  'due',
+  'followUp',
+  'recurring',
+])
+
+/**
+ * Grow an unquoted `due:` / `fu:` / `every:` token rightwards while that makes
+ * its value a phrase the resolver actually knows.
+ *
+ * WHY THIS EXISTS. Both grammar tables ship multi-word ARABIC aliases, and the
+ * tokenizer splits on whitespace, so until this landed every one of them was
+ * unreachable — and worse than unreachable, because the orphaned second word was
+ * left behind and the title collapse glued it onto the user's own text:
+ *
+ *   `مراجعة العقد due:نهاية الأسبوع` → title "مراجعة العقد الأسبوع", no date
+ *   `مراجعة السعة every:كل أسبوعين`  → title "مراجعة السعة أسبوعين", no cadence
+ *   `مراجعة العقد fu:نهاية الأسبوع`  → title unchanged, and NO problem reported,
+ *                                       because `fu:` is a SHORT_KEY
+ *
+ * Ten aliases in all — `نهاية الأسبوع`, `اخر الأسبوع`, `نهاية الشهر`,
+ * `اخر الشهر` (lib/dates.ts) and `كل يوم`, `كل أسبوع`, `كل أسبوعين`,
+ * `نصف شهري`, `ربع سنوي`, `كل ربع` (CADENCE_ALIASES above) — every one of them
+ * named in the frozen grammar (plan §2.13), every one dead, and one of them the
+ * very string `capture.hintDates` teaches on the Arabic capture screen. English
+ * was never affected: its tables contain no multi-word alias at all.
+ *
+ * ONLY ON FAILURE, AND ONLY ON AN EXACT HIT. If the base value already resolves
+ * the token is left exactly as it was — `due:tomorrow morning` must not reach
+ * for "morning" — and an extension is accepted only when the WIDER string
+ * resolves, which is the same discipline extendTrack() applies for the same
+ * reason: growing on anything looser would eat title words. A value that
+ * resolves neither way is untouched, so `due:someday` still fails the way it did
+ * before, red chip and all.
+ *
+ * Longest first, so a three-word phrase would win over its two-word prefix if
+ * one is ever added.
+ */
+function extendKeyed(
+  input: string,
+  from: number,
+  base: string,
+  kind: TokenKind,
+  ctx: ParseContext,
+): { value: string; end: number } | null {
+  if (keyedValueResolves(base, kind, ctx)) return null
+
+  const words = lookaheadWords(input, from, MAX_KEYED_PHRASE_WORDS - 1)
 
   for (let k = words.length; k >= 1; k -= 1) {
     const value = clean([base, ...words.slice(0, k).map((w) => w.text)].join(' '))
-    if (matchTrackTiers(value, tracks).exact) return { value, end: words[k - 1].end }
+    if (keyedValueResolves(value, kind, ctx)) return { value, end: words[k - 1].end }
   }
   return null
+}
+
+/**
+ * Would this keyed value resolve? ONE definition, asked by three callers.
+ *
+ * extendKeyed() asks it to decide whether to grow, shortKeyResolves() asks it to
+ * decide whether a `d:`/`f:`/`fu:`/`ev:` token exists at all, and parse()'s
+ * dispatch asks the same resolvers again to produce the value. All three must
+ * agree — same resolver, same arguments — or a token gets admitted in one place
+ * and rejected in the next.
+ */
+function keyedValueResolves(value: string, kind: TokenKind, ctx: ParseContext): boolean {
+  if (kind === 'recurring') return resolveCadence(value) !== null
+  return (
+    parseRelativeDate(value, {
+      now: ctx.now,
+      locale: ctx.locale,
+      weekStartsOn: ctx.weekStartsOn,
+    }) !== null
+  )
 }
 
 /**
@@ -824,14 +944,7 @@ function normalizeTag(value: string): string {
  * be rejected here and accepted there, or worse the reverse.
  */
 function shortKeyResolves(raw: RawToken, ctx: ParseContext): boolean {
-  if (raw.kind === 'recurring') return resolveCadence(raw.value) !== null
-  return (
-    parseRelativeDate(raw.value, {
-      now: ctx.now,
-      locale: ctx.locale,
-      weekStartsOn: ctx.weekStartsOn,
-    }) !== null
-  )
+  return keyedValueResolves(raw.value, raw.kind, ctx)
 }
 
 export function parse(input: string, ctx: ParseContext): ParsedEntry {
@@ -869,7 +982,7 @@ export function parse(input: string, ctx: ParseContext): ParsedEntry {
     problems.push(vars ? { key, token, vars } : { key, token })
   }
 
-  for (const raw of scan(input, ctx.tracks)) {
+  for (const raw of scan(input, ctx)) {
     // A SHORT KEY THAT DID NOT RESOLVE WAS NEVER A TOKEN. Checked before the
     // token object exists, so `D:\backup` leaves no chip, no problem and — the
     // point — no consumed span: the text stays in the title exactly as typed.

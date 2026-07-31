@@ -498,6 +498,13 @@ create trigger entry_updates_touch_trg
 -- Note: the status-transition row (status_from/status_to) is written by the
 -- app alongside its own UPDATE, not by a trigger here. A trigger would race
 -- with the client's own insert and produce two rows for one transition.
+--
+-- Which makes it a best-effort write, and 0004's entries_update block used to
+-- describe it as a guarantee. See the corrected paragraph there (FIX-BACKLOG
+-- R1-DB-2): the client's second request can fail on its own, so a failed
+-- transition insert is handed to the offline queue rather than dropped with a
+-- console warning. Nothing about this table changes; the retry lives in
+-- src/store/outbox.ts because it has to.
 
 -- ── v_entry_health ──────────────────────────────────────────────────────────
 -- Open entries only, with age and overdue math resolved server-side so every

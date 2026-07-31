@@ -28,11 +28,18 @@
 // and this file holds no shadow copy of anything. What it adds is the SUMMARY:
 // one toast for the run, rather than the user counting toasts.
 //
-// SELECTION IS PRUNED TO WHAT IS VISIBLE. Collapsing a node or tightening a
-// filter drops its rows from the selection, because a bulk bar reading "18
-// selected" while six of them are behind a collapsed node is an action nobody
-// can review before taking it. The rule is: you can only act on rows you can
-// see.
+// SELECTION IS PRUNED TO WHAT IS VISIBLE. Collapsing a node, folding its long
+// tail or tightening a filter drops those rows from the selection, because a
+// bulk bar reading "18 selected" while six of them are behind a fold is an
+// action nobody can review before taking it. The rule is: you can only act on
+// rows you can see. The corollary is that both folds OPEN when a whole track is
+// ticked, or the control would be dead.
+//
+// A NODE MOUNTS AT MOST MAX_ROWS ROWS. See that constant for the measurement.
+// The counts on the heading stay the true totals either way — the fold hides
+// rows, never facts.
+//
+// A BULK RUN SENDS SIX AT A TIME. See runBulk().
 //
 // SCOPE IS FORCED TO 'open' AND THE OWNER FACET IS NOT OFFERED. The tree is
 // about work that still needs doing, and the unassigned toggle owns the owner
@@ -67,6 +74,7 @@ import {
 import { t, useLocale } from '../../lib/i18n'
 import { useTrackLabel } from '../../lib/labels'
 import { canEditEntry } from '../../lib/permissions'
+import { pooled } from '../../lib/pooled'
 import { trackVars } from '../../lib/trackStyle'
 import { useAuth } from '../../store/auth'
 import { useActiveTracks, useTrackMap } from '../../store/config'
@@ -86,6 +94,7 @@ import { openEntry } from '../../store/entrySheet'
 import { useMemberMap, useMembers } from '../../store/members'
 import { useVocab } from '../../store/vocab'
 import type { Member } from '../../api/members'
+import type { ApiResult } from '../../api/result'
 import type {
   Entry,
   EntryHealth,
@@ -145,6 +154,30 @@ const QUEUED_ERROR_KEY = 'offline.queued'
  * threshold the cockpit stays a two-click loop, which is the whole point of it.
  */
 const BULK_CONFIRM_AT = 10
+
+/**
+ * Rows mounted per node before the fold.
+ *
+ * A track holding three hundred open items is not read, it is scrolled past —
+ * and this screen's rows are the most expensive in the app: a checkbox, a
+ * compact EntryRow and a `<select>` carrying one `<option>` per member, measured
+ * at 38 DOM elements with an eight-person roster and 50 with twenty. Six nodes
+ * unfolded at five hundred rows each is ~19 000 elements on one mount, on the
+ * screen whose own header assumes two hundred rows, on a phone. Board.tsx made
+ * the same call first (`MAX_CARDS`, 25/40 per column) and for the same reason.
+ *
+ * Lower than the board's compact figure because a tree row costs more than a
+ * card and because six nodes are on screen at once rather than one column. The
+ * fold hides ROWS, never facts: the node heading keeps counting the true total,
+ * and the button says how many are behind it.
+ *
+ * This is the interim measure. `docs/parked/virtual.ts` is the real windowing,
+ * deferred by its own README for reasons — roving focus, shift-range selection,
+ * scroll restoration — that a fold does not have: a row behind the fold is
+ * absent exactly as a collapsed node's rows are, which is a state the selection
+ * machinery below already handles.
+ */
+const MAX_ROWS = 25
 
 /**
  * The facets this screen offers.
@@ -231,6 +264,67 @@ function bulkPatch(kind: BulkKind, value: string): EntryPatch | null {
     case 'track':
       return { trackId: value === NO_TRACK ? null : value }
   }
+}
+
+/** What one bulk run did. `done` counts `queued` — an outbox write is not a loss. */
+export interface BulkOutcome {
+  done: number
+  queued: number
+  failedIds: string[]
+}
+
+/**
+ * Apply one patch to many rows and count what happened.
+ *
+ * SIX WRITES IN FLIGHT, NOT ONE. This used to be `for (const id of ids) await
+ * patchEntry(...)`, justified on the grounds that twenty simultaneous requests
+ * is twenty sessions' worth of load from one click. The load half of that
+ * argument is sound and is preserved — `pooled()` never has more than
+ * WRITE_CONCURRENCY in flight — but the other half ("nothing here is faster for
+ * it") was simply wrong: a non-status patch is exactly ONE PostgREST request
+ * (api/entries.ts short-circuits its pre-read when `patch.status === undefined`,
+ * and none of the three bulk kinds sets status), so a sequential run pays the
+ * full round trip per row. At the 253 ms measured against the live project,
+ * ticking a track heading and assigning its thirty open rows froze this screen
+ * for seven and a half seconds; a hundred rows took twenty-five. Pools of six
+ * measured 4.4× faster on the same connection.
+ *
+ * IT IS SAFE TO OVERLAP THESE. `patchEntry`'s whole optimistic prefix — read the
+ * store, apply locally, commit, mark the write pending — is synchronous before
+ * its first await, so two concurrent calls cannot interleave two reads of the
+ * same `byId`. The ids are distinct, so the per-id pending guards never collide,
+ * and each row's rollback is its own.
+ *
+ * `apply` is a parameter rather than a direct call so the pooling can be tested:
+ * the bulk bar only exists behind a live selection, which the node-environment
+ * render tests cannot make.
+ */
+export async function runBulk(
+  ids: readonly string[],
+  patch: EntryPatch,
+  apply: (id: string, patch: EntryPatch) => Promise<ApiResult<Entry>>,
+): Promise<BulkOutcome> {
+  const results = await pooled(ids, (id) => apply(id, patch))
+
+  let done = 0
+  let queued = 0
+  const failedIds: string[] = []
+  // Counted from the results array rather than inside the loop, and indexed
+  // back into `ids` — pooled() answers in INPUT order, which is what makes
+  // "these are the rows that failed" true.
+  results.forEach((result, i) => {
+    if (result.ok) {
+      done += 1
+    } else if (result.error === QUEUED_ERROR_KEY) {
+      // Outstanding, not failed: the outbox replays it on reconnect.
+      queued += 1
+      done += 1
+    } else {
+      failedIds.push(ids[i])
+    }
+  })
+
+  return { done, queued, failedIds }
 }
 
 export default function TracksIndex(): ReactElement {
@@ -392,15 +486,46 @@ export default function TracksIndex(): ReactElement {
   const collapseAll = useCallback(() => setPrefs({ collapsed: [...nodeKeys] }), [nodeKeys])
   const allCollapsed = nodeKeys.length > 0 && nodeKeys.every((k) => collapsed.has(k))
 
+  /**
+   * Nodes showing every row rather than the first MAX_ROWS.
+   *
+   * Session state, deliberately not in `prefs`: the fold is a "let me see the
+   * rest of this one" answer to a long list, not a preference worth restoring
+   * on a phone next Monday morning — restoring it would put the mount cost the
+   * fold exists to avoid back on the first paint. "Expand all" is left alone
+   * for the same reason: it opens NODES, and unfolding every row of every node
+   * from one button is precisely the mount this bounds.
+   */
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set())
+
+  const toggleFold = useCallback((key: string) => {
+    setUnfolded((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(key)) next.add(key)
+      return next
+    })
+  }, [])
+
+  /** The rows of a node that are actually mounted, in order. */
+  const shownEntries = useCallback(
+    (node: TreeNode): Entry[] =>
+      unfolded.has(node.key) ? node.entries : node.entries.slice(0, MAX_ROWS),
+    [unfolded],
+  )
+
   /** Every row the reader can currently see, in reading order. */
   const flatIds = useMemo(() => {
     const out: string[] = []
     for (const node of nodes) {
       if (collapsed.has(node.key)) continue
-      for (const entry of node.entries) out.push(entry.id)
+      // Sliced the same way the render is, because everything downstream of
+      // this list — the pruning effect, a shift-range, the sheet's prev/next —
+      // means "what the reader can see". A row behind the fold is exactly as
+      // invisible as one behind a collapsed node.
+      for (const entry of shownEntries(node)) out.push(entry.id)
     }
     return out
-  }, [nodes, collapsed])
+  }, [nodes, collapsed, shownEntries])
 
   const flatRef = useRef(flatIds)
   flatRef.current = flatIds
@@ -492,10 +617,19 @@ export default function TracksIndex(): ReactElement {
     // `flatIds`, so the pruning effect above would drop every id this just
     // added, one tick later, with no feedback at all. Expanding first makes the
     // selection legal and shows the reader what they are about to act on.
+    //
+    // BOTH FOLDS, for one reason: the row fold hides rows the same way a
+    // collapsed node does, so ticking a heading that reads "60 open" while only
+    // 25 are mounted would silently select 25 — the count on the bar would
+    // disagree with the count on the heading the reader just clicked.
     if (on) {
       setPrefs((p) => (p.collapsed.includes(node.key)
         ? { collapsed: p.collapsed.filter((k) => k !== node.key) }
         : p))
+      setUnfolded((prev) => {
+        if (prev.has(node.key) || node.entries.length <= MAX_ROWS) return prev
+        return new Set(prev).add(node.key)
+      })
     }
     setSelected((prev) => {
       const next = new Set(prev)
@@ -573,10 +707,6 @@ export default function TracksIndex(): ReactElement {
   /**
    * One bulk run: N independent optimistic patches, ONE summary.
    *
-   * Sequential rather than parallel, for the reason store/entries.bulkCreate
-   * gives: twenty simultaneous requests is twenty sessions' worth of load from
-   * one click, and nothing here is faster for it.
-   *
    * Partial success is REPORTED, not rolled back — discarding nine accepted
    * writes because the tenth failed is a worse outcome than saying which failed.
    * The rows that failed stay selected, so the retry is one more click.
@@ -600,21 +730,7 @@ export default function TracksIndex(): ReactElement {
       }
 
       setBusy(true)
-      let done = 0
-      let queued = 0
-      const failedIds: string[] = []
-      for (const id of ids) {
-        const result = await patchEntry(id, patch)
-        if (result.ok) {
-          done += 1
-        } else if (result.error === QUEUED_ERROR_KEY) {
-          // Outstanding, not failed: the outbox replays it on reconnect.
-          queued += 1
-          done += 1
-        } else {
-          failedIds.push(id)
-        }
-      }
+      const { done, queued, failedIds } = await runBulk(ids, patch, patchEntry)
       setBusy(false)
 
       const failed = failedIds.length
@@ -657,6 +773,8 @@ export default function TracksIndex(): ReactElement {
     const open = !collapsed.has(node.key)
     const total = node.entries.length
     const picked = node.entries.reduce((n, e) => (selected.has(e.id) ? n + 1 : n), 0)
+    const shown = shownEntries(node)
+    const hidden = total - shown.length
 
     return (
       <li
@@ -726,22 +844,44 @@ export default function TracksIndex(): ReactElement {
               )}
             </div>
           ) : (
-            <ul className="tree-rows">
-              {node.entries.map((entry) => (
-                <TreeRow
-                  key={entry.id}
-                  entry={entry}
-                  health={healthMap.get(entry.id)}
-                  members={members}
-                  memberMap={memberMap}
-                  canEdit={canEdit(entry)}
-                  selected={selected.has(entry.id)}
-                  onToggle={toggleRow}
-                  onOpen={handleOpen}
-                  onOwner={setRowOwner}
-                />
-              ))}
-            </ul>
+            <>
+              <ul className="tree-rows">
+                {shown.map((entry) => (
+                  <TreeRow
+                    key={entry.id}
+                    entry={entry}
+                    health={healthMap.get(entry.id)}
+                    members={members}
+                    memberMap={memberMap}
+                    canEdit={canEdit(entry)}
+                    selected={selected.has(entry.id)}
+                    onToggle={toggleRow}
+                    onOpen={handleOpen}
+                    onOwner={setRowOwner}
+                  />
+                ))}
+              </ul>
+              {total > MAX_ROWS ? (
+                // Named after its node, because six of these are on screen at
+                // once and "Show all" on its own says nothing about which list
+                // grows.
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost tree-more"
+                  onClick={() => toggleFold(node.key)}
+                  aria-label={
+                    hidden > 0
+                      ? t('tree.showAllIn', { track: node.label })
+                      : t('tree.showLessIn', { track: node.label })
+                  }
+                >
+                  {hidden > 0 ? t('tree.showAll') : t('tree.showLess')}
+                  {hidden > 0 ? (
+                    <span className="pill tabular">{t('tree.rowsHidden', { count: hidden })}</span>
+                  ) : null}
+                </button>
+              ) : null}
+            </>
           )
         ) : null}
       </li>

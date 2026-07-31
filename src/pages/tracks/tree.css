@@ -245,6 +245,14 @@
   padding-block: 4px 12px;
 }
 
+/* The row fold. Indented to the rows it belongs to rather than to the heading,
+   so it reads as the end of that list and not as a second node control. */
+.tree-more {
+  margin-inline-start: 24px;
+  margin-block-end: 12px;
+  gap: 6px;
+}
+
 .tree-row {
   display: flex;
   align-items: center;
@@ -467,7 +475,8 @@
      is 6% of a 375px one, and spending it on whitespace costs the titles the
      room they need more. */
   .tree-rows,
-  .tree-clear {
+  .tree-clear,
+  .tree-more {
     margin-inline-start: 0;
   }
 

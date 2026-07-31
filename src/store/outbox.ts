@@ -498,6 +498,49 @@ export async function submit<T>(op: MutOp): Promise<ApiResult<T>> {
   return (await send(op)) as ApiResult<T>
 }
 
+/**
+ * Take custody of a status-transition row whose own request failed.
+ *
+ * FIX-BACKLOG R1-DB-2. `api/entries.updateEntry()` is two requests: the PATCH on
+ * `entries`, then a separate insert of the `entry_updates` row that records the
+ * transition. The second one used to be allowed to vanish with a `console.warn`,
+ * and 0004:604-612 had traded the narrow `entries_update` policy away for
+ * exactly that record. This is where it goes instead; `main.tsx` points
+ * `setOrphanedTransitionSink()` here.
+ *
+ * NOT `submit()`. submit() queues only when `navigator.onLine` is false, and the
+ * whole point of this path is the case where it is TRUE — a live but flaky link,
+ * a 5xx, a request killed by a closed tab. `enqueue()` directly, then ask for a
+ * flush.
+ *
+ * A FRESH `tempId` PER CALL, and it is the dedupe key that needs it. The
+ * convention is `${table}:${op}:${id ?? tempId}:${sortedPayloadKeys}`, and an
+ * `entry_updates:insert` has no `op.id` — so two different transitions, on two
+ * different entries, would produce the identical key and the second would
+ * COLLAPSE onto the first and be lost. That is the failure this function exists
+ * to prevent, reintroduced one layer down.
+ *
+ * `dependsOn` is empty because the parent entry demonstrably exists: the PATCH
+ * that produced this transition already succeeded against a real row id.
+ */
+export function queueOrphanedTransition(row: NewEntryUpdate): void {
+  const tempId = TEMP_PREFIX + crypto.randomUUID()
+  enqueue({
+    table: 'entry_updates',
+    op: 'insert',
+    id: null,
+    tempId,
+    payload: row,
+    dedupeKey: `entry_updates:insert:${tempId}:${Object.keys(row).sort().join(',')}`,
+    dependsOn: [],
+  })
+  // Ask for a drain. Inside a drain this is a no-op (`flushing` is set) and
+  // flushOutbox()'s own `finally` schedules the next pass; outside one it is the
+  // only thing that will ever send this row, since no connectivity event is
+  // coming — the link never went down.
+  scheduleRetry()
+}
+
 // ── queue reads ────────────────────────────────────────────────────────────
 
 // STILL UNRENDERED, and saying so here rather than in a comment that reads like
@@ -533,6 +576,28 @@ export type OutboxSettleFn = (op: MutOp, data: unknown) => void
 let settleFn: OutboxSettleFn | null = null
 
 /**
+ * What a store is told when one of its queued writes leaves WITHOUT being sent.
+ *
+ * The mirror of OutboxSettleFn, and it exists for the same reason: the caller
+ * applied an optimistic row and handed the write to this queue, and every path
+ * out of the queue has to say which way it went. Until this existed there was
+ * only the success half — `discardOutboxItem()` deleted the item and told
+ * nobody, so `store/entries.ts` kept the row marked `pending` for the life of
+ * the tab (patchEntry deliberately does NOT retire a queued write; see its
+ * comment at the QUEUED_KEY branch). A `pending` row survives every refetch
+ * (mergeOpenFetch preserves it verbatim) and refuses every realtime row
+ * (acceptsServerRow), so one Discard froze one row at the value the user had
+ * just thrown away, with a permanent "Queued" pill and no way back short of
+ * reloading the tab.
+ *
+ * `op` is the op as it stood in the queue, so the receiving store can find its
+ * optimistic row by `op.tempId` (an insert) or `op.id` (an update).
+ */
+export type OutboxDiscardFn = (op: MutOp) => void
+
+let discardFn: OutboxDiscardFn | null = null
+
+/**
  * Register the callback that puts a drained write back into its store.
  *
  * A queue that sends a write and never tells anybody is only half a queue: the
@@ -547,6 +612,32 @@ let settleFn: OutboxSettleFn | null = null
  */
 export function setOutboxSettle(fn: OutboxSettleFn | null): void {
   settleFn = fn
+}
+
+/**
+ * Register the callback that unwinds a write this queue threw away.
+ *
+ * Same seam, same direction, same wiring line in main.tsx as setOutboxSettle().
+ * Kept as a SECOND callback rather than an outcome flag on the first, because
+ * the two carry different arguments — a settle hands over the server's row and
+ * a discard has no row to hand — and a settle handler that had to branch on
+ * `data === undefined` is exactly how the swap gets forgotten.
+ */
+export function setOutboxDiscard(fn: OutboxDiscardFn | null): void {
+  discardFn = fn
+}
+
+/**
+ * Tell the owning store an op left unsent. Never throws, for drain()'s reason:
+ * a store's handler is code this file does not own.
+ */
+function announceDiscard(op: MutOp): void {
+  if (!discardFn) return
+  try {
+    discardFn(op)
+  } catch (e) {
+    console.warn('[outbox] discard settle threw:', e)
+  }
 }
 
 /** Pull the server's id off whatever a transport returned, or null. */
@@ -765,9 +856,55 @@ function removeIfUnchanged(id: string, revision: number): boolean {
   return true
 }
 
-/** Drop one op the user gave up on. The optimistic row is the caller's problem. */
+/**
+ * Drop one op the user gave up on, and tell the store that queued it.
+ *
+ * The announcement is the whole point. "The optimistic row is the caller's
+ * problem" was the old contract and there was no caller to hear it: the only
+ * call site is OutboxSheet's Discard, which knows nothing about entries. See
+ * OutboxDiscardFn for what the silence cost.
+ */
 export function discardOutboxItem(id: string): void {
+  const item = useOutboxStore.getState().items.find((i) => i.id === id)
+  if (!item) return
   removeItem(id)
+  announceDiscard(item.op)
+}
+
+/**
+ * Cancel an insert that has not been sent yet, and everything queued behind it.
+ *
+ * WHAT THIS IS FOR: the capture toast's Undo. Undoing an offline capture used to
+ * remove only the local row, leaving the `entries:insert` op in the queue — so
+ * the entry the user had just been told was "Undone" was created on the server
+ * the moment the network came back, and the realtime echo of that insert put it
+ * straight back on screen. `settleCreate()` early-returns for a row that is gone
+ * and its comment names this case, but suppressing the local swap is not the
+ * same as cancelling the write.
+ *
+ * DEPENDENTS GO TOO, and matching on `dependsOn` is necessary rather than
+ * defensive: `postUpdate()` queues a thread note against a temp row with
+ * `dependsOn: [tempId]`, and `patchEntry()` queues an update with `op.id` set to
+ * the temp id. Left behind, both are unsendable for ever — drain() stamps them
+ * 'offline.syncFailed' on every pass because no queued insert can mint that id
+ * any more. They are announced like any other discard, so the store unwinds
+ * their optimistic rows too.
+ *
+ * Returns how many ops were cancelled, for the test and for the caller that
+ * wants to know whether there was anything to cancel.
+ */
+export function discardOpsForTempId(tempId: string): number {
+  const items = useOutboxStore.getState().items
+  const doomed = items.filter(
+    (i) => i.op.tempId === tempId || i.op.id === tempId || i.op.dependsOn.includes(tempId),
+  )
+  if (doomed.length === 0) return 0
+  // Remove them ALL before announcing any: a store handler that reads the queue
+  // back (or triggers a flush) must never see a half-cancelled create.
+  const doomedIds = new Set(doomed.map((i) => i.id))
+  setItems(items.filter((i) => !doomedIds.has(i.id)))
+  for (const item of doomed) announceDiscard(item.op)
+  return doomed.length
 }
 
 /** Sign-out. Another account's queued writes must never leave on this session. */

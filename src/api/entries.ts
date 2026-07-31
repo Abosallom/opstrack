@@ -472,6 +472,29 @@ export async function createEntry(input: NewEntry): Promise<ApiResult<Entry>> {
 }
 
 /**
+ * Where a transition row goes when its own request failed.
+ *
+ * ONE INJECTION POINT, NOT AN IMPORT. `store/outbox.ts` is the queue, and this
+ * file's header states the direction that must not be inverted: store → api is
+ * allowed, api → store is not, "which is exactly why the outbox lives in store/
+ * and why src/api/mutate.ts does not exist". So the sink is a seam the
+ * composition root fills (`main.tsx` calls
+ * `setOrphanedTransitionSink(queueOrphanedTransition)`), the same shape as
+ * `setEntriesSubmit` / `setOutboxSettle` one layer up.
+ *
+ * Unset — in a test, in `?shell`, before main.tsx runs — the behaviour is the
+ * old one: the console warning and nothing else.
+ */
+export type OrphanedTransitionSink = (row: NewEntryUpdate) => void
+
+let orphanedTransitionSink: OrphanedTransitionSink | null = null
+
+/** Point the sink at the queue. `null` restores the warn-only default. */
+export function setOrphanedTransitionSink(fn: OrphanedTransitionSink | null): void {
+  orphanedTransitionSink = fn
+}
+
+/**
  * Patch an entry. When the status actually changes, an entry_updates row
  * recording the transition is appended — the audit thread is the only place
  * status history exists, and a silent status flip is exactly what this app is
@@ -479,13 +502,47 @@ export async function createEntry(input: NewEntry): Promise<ApiResult<Entry>> {
  *
  * The transition row is written HERE rather than by a database trigger so it
  * carries the acting user as author_id under the same RLS as a hand-typed
- * update; 0001:476 says the same thing from the other side. If a trigger is ever
- * added for this, delete that branch — you would otherwise get two rows per
+ * update; 0001:497-499 says the same thing from the other side. If a trigger is
+ * ever added for this, delete that branch — you would otherwise get two rows per
  * transition.
  *
  * The pre-read is what makes "actually changes" true rather than assumed: a
  * board drop onto the column an item is already in must not write a
  * blocked → blocked row into an append-only thread nobody can clean up.
+ *
+ * ── FIX-BACKLOG R1-DB-2: THE SECOND REQUEST IS NOT ALLOWED TO JUST VANISH ───
+ *
+ * These are two requests, and the second one can fail on its own. That mattered
+ * more than it looked, because 0004:604-612 traded the narrow `entries_update`
+ * policy away FOR this record — "the accountability layer is not this policy, it
+ * is entry_updates … and records every status transition with its author" — and
+ * nothing in the database enforces it (0001:497-499 leaves the write to the app
+ * deliberately, so a trigger cannot race the client's own insert). A dropped
+ * connection between the two requests left a status change with no thread row at
+ * all: Aziz asks who moved an item to Blocked last Tuesday and there is simply
+ * no line, not because anyone hid it but because one HTTP request never landed.
+ *
+ * It was not retried either, and that is the part that made it likely rather
+ * than theoretical: `submit()` only enqueues when `isOffline()` is true
+ * (store/outbox.ts), so this branch fires precisely on a live-but-flaky link —
+ * the case the queue exists for and was not covering. `entry_updates:insert` was
+ * already a registered outbox route, so the row now goes there and drains with
+ * everything else, with the same backoff, the same persistence across a reload
+ * and the same discard control.
+ *
+ * Deliberately NOT a database trigger, which is what the finding first
+ * prescribed: it would double-write for the length of a deploy (this branch and
+ * the trigger both firing), and it would have to invent an author for the
+ * JWT-less materialiser and SQL-editor paths. Queueing costs neither.
+ *
+ * THE TRADE THIS MAKES, stated rather than discovered later. A reply that is
+ * lost on the way BACK — the insert committed, the response did not arrive —
+ * now produces a retry, and `entry_updates` has no unique constraint to absorb
+ * it, so the thread can end up with two identical transition lines. That is the
+ * right side to err on: a duplicate is visible and self-explanatory, and a
+ * missing one is invisible and permanent. If it ever shows up in practice, the
+ * fix is a dedupe at render time in UpdateThread (same entry, same
+ * status_from/status_to, seconds apart) and not a return to dropping the row.
  */
 export async function updateEntry(id: string, patch: EntryPatch): Promise<ApiResult<Entry>> {
   if (!supabase) return notConfigured()
@@ -513,19 +570,27 @@ export async function updateEntry(id: string, patch: EntryPatch): Promise<ApiRes
   const entry = data as Entry
 
   if (statusFrom) {
-    const appended = await addUpdate({
+    const transition: NewEntryUpdate = {
       entryId: id,
       body: '',
       statusFrom,
       statusTo: entry.status,
-    })
-    // Deliberately NOT fatal. The status change is already durable; returning a
-    // failure here would make the caller roll back a change the server
-    // accepted, and the visible result of that is a card that moves, snaps back,
-    // and is nonetheless moved after a refresh. Losing the thread row is the
-    // smaller wrong, and it is loud in the console.
+    }
+    const appended = await addUpdate(transition)
+    // Still deliberately NOT fatal. The status change is already durable;
+    // returning a failure here would make the caller roll back a change the
+    // server accepted, and the visible result of that is a card that moves,
+    // snaps back, and is nonetheless moved after a refresh.
+    //
+    // What changed is what happens next. "The smaller wrong, and it is loud in
+    // the console" was true of the wrong and false of the loudness — nobody is
+    // reading a console, and the row was gone for good. It goes into the queue
+    // instead, which retries it, persists it across a reload and shows it in the
+    // outbox sheet if it keeps failing. The warning stays: a transition that
+    // needed a retry is worth seeing while debugging.
     if (!appended.ok) {
       console.warn('[entries] status transition row not written for', id, appended.error)
+      orphanedTransitionSink?.(transition)
     }
   }
 

@@ -70,9 +70,22 @@ export async function collectDigest(q: DigestQuery): Promise<ApiResult<DigestRow
   ])
   if (!tracks.ok) return tracks
 
-  const snapshot = getEntriesSnapshot()
   // Read AFTER the warms above, so it describes the fetches this call made.
   const coverage = getEntriesCoverage()
+  // A FAILED CLOSED READ FAILS THE DOCUMENT. This module's header states the
+  // principle — "a status report missing its oldest rows with no caveat is worse
+  // than one that fails" — and the closed tail is the half most exposed to it:
+  // `loadEntries(force)` short-circuits on the store the Shell already warmed,
+  // so `loadClosedSince()` is usually the ONLY entries fetch a digest makes.
+  // When it failed, `collectDigest` still returned ok with an empty closed set,
+  // buildDigestModel dropped the whole Closed section (`build.ts`: empty buckets
+  // are skipped) and the summary line quietly lost its "N closed" clause — a
+  // report you paste into an email to your boss that under-states finished work
+  // and looks exactly like a quiet week. The error key travels to Digest.tsx,
+  // which already renders it with a Retry.
+  if (coverage.closedError !== null) return fail(coverage.closedError)
+
+  const snapshot = getEntriesSnapshot()
   const entries = inRange([...snapshot.byId.values()], q)
 
   let lastUpdate = new Map<string, EntryUpdate>()

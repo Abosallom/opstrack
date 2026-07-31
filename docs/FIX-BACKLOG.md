@@ -45,6 +45,29 @@ Wave 5:
 | **+** `brand.test.ts` — generated filenames, and the envelope tag pinned as the *old* slug | — | +6 |
 | **+** `members.test.ts` `toMember`, `Capture.test.tsx` wiring (**R4**) | — | +4 |
 | **`v1.0.1` (tag)** | **59** | **1615** |
+| **+** the three post-tag fixes on `main` (`push.test.ts` ordering, `members.test.ts` malformed-cache) | +1 | +15 |
+| **`115e16e`** — the tree the revision-r1 round started from | **60** | **1630** |
+| **+** six new suites: `auth` (R1-MOBILE-2), `closedWindow` (R1-ARCH-3), `offlineQueue`, `digestCollect`, `pooled` (R1-PERF-2), `migrationContract` (R1-SEC-2) | +6 | — |
+| **+** additions to `outbox`, `entries`, `parse`, `localeParity`, `TracksIndex`, `FollowUps`, `Dashboard`, `Capture`, `recurrence` | — | — |
+| **`fix(revision-r1)`** | **66** | **1727** |
+
+Both rows of that last block were measured, not derived, and the two `—` cells
+are deliberate: the round's suites and its additions to existing files were
+counted together (+97) rather than apportioned, because apportioning them would
+have meant a per-file diff of two JSON reporter runs and the total is the number
+this table is checked against. **60/1630 is `115e16e` exported to a clean tree and
+run there**, not the working directory — which is the distinction the next
+paragraph is about.
+
+**Measure the committed tree, not the working directory.** At the revision-r1
+close the working directory also carried an uncommitted parallel workstream
+(`src/lib/mindtree/**`, `src/components/mindtree/**`, `src/pages/Mindtree.tsx`),
+whose five suites make `npm run test` in the repo answer **71 / 1905** — neither
+number describes what CI runs or what this commit contains. The check that does
+is `git checkout-index -a -f --prefix=<dir>/` into an empty directory, then
+`vitest run` there. Anyone reconciling **66 / 1727** against a local run that
+says something larger should look for untracked files under `src/` before
+looking for a defect.
 
 **Do not read a count here without re-running it.** `npm run test` prints its own
 totals as its last two lines, so the check is
@@ -635,3 +658,68 @@ silent downgrade to the unpeppered digest is the thing it exists to prevent).
 Neither function is covered by `tsc` or `oxlint`, so for those files deployment
 **is** the type check. RUNBOOK §4.1 has the secret; Wave-4 acceptance gate (f) is
 where the deploy gets proven.
+
+---
+
+## Found by the revision-r1 review round — 2026-07-31
+
+The round that ran between `115e16e` and `fix(revision-r1)`: an expert pass and a
+user-review pass, dispositioned by four parallel fixers and reconciled at the
+gate. **Only the two rows below are cited from code**, and that is why they are
+the two written out in full — `src/api/templates.ts`, `src/store/outbox.ts` and
+migrations `0001`, `0004` and `0014` all say "FIX-BACKLOG R1-SEC-2" or
+"R1-DB-2" in prose, and until this section existed those citations pointed at
+nothing. A comment that names a backlog row the backlog does not have is the
+failure mode this document's own header warns about, one level up: it invites the
+next reader to conclude the row was deleted, or that they are reading a stale
+checkout.
+
+The remaining eight findings of the round (`R1-ARCH-1/2/3`, `R1-MOBILE-2`,
+`R1-PERF-2/4`, `R1-I18N-1` and the plural/copy cluster) are recorded in the
+fixers' handoffs and in the code comments at each fix, and are listed in the
+gate report for the round. They are summarised here rather than transcribed
+because none of them is referenced by id from the source, so none of them can
+produce the dangling-citation problem above.
+
+| Id | Severity | Disposition |
+| --- | --- | --- |
+| **R1-SEC-2** | major | `fixed-in-<revision-r1>` — **a recurring template had no author, anywhere.** `recurring_templates` carried no `created_by`, no audit trigger and bare `is_member()` on insert *and* update (`0001:286,290`, re-stated at `0009:180,184`), and `/settings/recurring` is reachable by any member (only Delete is admin-gated). So a member could aim a recipe at a colleague and press "Run now": `materialize_template()` omitted `created_by` (`0008:172`), `entries.created_by` has no default (`0001:319`), and `entries_notify()` reads INSERT-with-NULL as `v_scheduled` (`0004:323`) — so the entry *and* the lock-screen push it generates both arrived as "the schedule did it", with nothing in the database naming who actually did. **Fixed wider than prescribed, on purpose:** closing only the "Run now" path leaves the same hole one sign-in slower. `0014` adds `created_by`/`updated_by` stamped from the JWT by a BEFORE trigger and pinned by `recurring_templates_guard_write()` (a raw POST can neither forge nor omit them, and a lone `{"updated_by": null}` PATCH cannot erase the mark), an audit trigger writing whole row images to `config_audit`, and a rebuilt `materialize_template()` that records the member who pressed the button. **`materialize_due_recurring()` is deliberately untouched** — the cron path keeps writing NULL, because the actor-less "the schedule did it" notification is correct there and is a regression that was already fixed once (`0004:305-321`). The audit trigger deliberately does **not** route through `log_config_audit()`: that function raises on any non-admin caller (`0002:345`), and this table is member-writable by design, so routing through it would 42501 every ordinary member's template write — while relaxing its guard to `is_member()` would let any member forge audit rows about any table. **Migration `0014` is PENDING APPLICATION** — see the note below. |
+| **R1-DB-2** | major | `fixed-in-<revision-r1>` — **a status transition could vanish, and a policy comment had been traded away for the promise that it could not.** `api/entries.updateEntry()` is two requests — the PATCH on `entries`, then the `entry_updates` insert recording the transition — and the second was allowed to fail with a `console.warn`. Meanwhile `0004`'s `entries_update` block justified widening UPDATE to any member on the grounds that `entry_updates` "records every status transition with its author". The database does not enforce that and was never going to: `0001:497-499` leaves the transition row to the app on purpose, because a trigger would race the client's own insert and write two rows for one transition. **Both halves are fixed.** The write: `store/outbox.queueOrphanedTransition()` takes custody of the failed insert — `enqueue()` directly rather than `submit()`, because `submit()` only queues when `navigator.onLine` is false and this path exists for the case where it is *true* (a flaky link, a 5xx, a request killed by a closed tab), with a fresh `tempId` per call because the dedupe key `${table}:${op}:${id ?? tempId}:…` would otherwise collapse two transitions on two different entries into one and lose the second — the exact failure the function exists to prevent, reintroduced one layer down. The comment: `0001` and `0004` now state which of the three columns are enforced and which is not — `entries.updated_by` is server-stamped and unforgeable, `entry_updates` rows are immutable once written, and *that a transition row exists at all is a best-effort client write and must not be described as a schema invariant*. The insider case (a raw PATCH with a member's own JWT) stays deliberately out of scope, for the reason the original paragraph gives: on a small trusted team it is friction, not safety. **Comment-only in `0001`/`0004` — no DDL changed, so neither needs re-applying.** |
+
+**The cross-fixer hazard, and where it landed.** `queueOrphanedTransition()` files
+an `entry_updates:insert` with no optimistic thread row and no `beginWrite()`,
+which collides with the discard path built in the same round for `R1-ARCH-2`:
+naively retiring any discarded `entry_updates:insert` would decrement a counter
+belonging to a *different*, genuinely in-flight edit on the same entry and reopen
+the monotonic realtime guard under the user's cursor. The two fixers were working
+in parallel and the first flagged it to the second rather than assuming.
+Reconciled at `src/store/entries.ts:1957-1967`: `discardOutboxWrite()` tests
+ownership by looking for the optimistic thread row before retiring anything, and
+returns without touching the counters when the op is not this store's. The
+comment there names the hazard, which is why this note can be short.
+
+**PENDING APPLICATION: `0014_recurring_template_authorship.sql`.** It is committed
+and it is **not** applied to `lrysgpbkmuqgzsjesfkr` — **measured, not assumed.**
+Over PostgREST with the anon key on 2026-07-31:
+
+```
+GET /rest/v1/recurring_templates?select=created_by&limit=1
+  → 400  {"code":"42703","message":"column recurring_templates.created_by does not exist"}
+GET /rest/v1/recurring_templates?select=id&limit=1          → 200  []
+GET /rest/v1/entries?select=created_by&limit=1              → 200  []
+```
+
+The two controls are what make the first line evidence rather than noise. An
+unauthenticated caller sees no rows through RLS either way, so `[]` alone proves
+nothing — but `42703` is raised while parsing the column list, *before* any policy
+runs, and the controls show that a column which exists answers `200 []` instead of
+erroring. Missing column, not a hidden row. (The OpenAPI root is useless for this:
+it reports zero tables to anon, which reflects grants, not schema.) The Supabase management token
+was revoked by the owner before this round, so no agent in it could run admin SQL,
+and nothing in the app's own gates — `tsc`, `oxlint`, `vitest`, `vite build` —
+touches the database. **Until an owner applies it, R1-SEC-2 is fixed in the repo
+and still open in production**, exactly like `S1d`/`S1e` above and for the same
+reason. The file carries three self-verifying probes and is written to be applied
+twice without error; RUNBOOK §4 is the procedure. `src/lib/migrationContract.test.ts`
+pins the *shape* of what 0014 promises from the client side, which is the most a
+browser test can do — it is not evidence that the migration has run.

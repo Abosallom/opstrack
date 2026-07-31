@@ -32,6 +32,7 @@ import {
   flushOutbox,
   getOutboxSnapshot,
   isTempId,
+  queueOrphanedTransition,
   resetOutbox,
   setOutboxSettle,
   startOutboxSync,
@@ -276,6 +277,92 @@ describe('submit — offline', () => {
     await submit(op({ id: 'e1', dedupeKey: 'k1' }))
     await submit(op({ id: 'e2', dedupeKey: 'k2' }))
     expect(getOutboxSnapshot()).toHaveLength(2)
+  })
+})
+
+/**
+ * FIX-BACKLOG R1-DB-2 — the status-transition row that lost its own request.
+ *
+ * `api/entries.updateEntry()` is two requests: the PATCH on `entries`, then the
+ * `entry_updates` row recording the transition. The second used to be dropped
+ * with a `console.warn`, and 0004:604-612 had traded the narrow `entries_update`
+ * policy away for exactly that record. It now comes here instead.
+ *
+ * ONLINE in every test below, on purpose. This path exists for the case
+ * `submit()` does NOT cover — a live but flaky link, where `navigator.onLine` is
+ * true and the offline branch never runs.
+ */
+describe('queueOrphanedTransition — R1-DB-2', () => {
+  const transition = (entryId: string, to: string) => ({
+    entryId,
+    body: '',
+    statusFrom: 'new' as never,
+    statusTo: to as never,
+  })
+
+  it('queues an entry_updates insert while the browser believes it is online', () => {
+    queueOrphanedTransition(transition('e1', 'blocked'))
+
+    const items = getOutboxSnapshot()
+    expect(items).toHaveLength(1)
+    expect(`${items[0].op.table}:${items[0].op.op}`).toBe('entry_updates:insert')
+    expect(items[0].op.payload).toEqual(transition('e1', 'blocked'))
+  })
+
+  it('NEVER collapses two transitions onto one op', () => {
+    // The regression this function's tempId exists to prevent. The dedupe key
+    // convention is `${table}:${op}:${id ?? tempId}:${sortedPayloadKeys}` and an
+    // entry_updates insert has no op.id — so a shared key would make the second
+    // transition overwrite the first, losing exactly what was being rescued.
+    queueOrphanedTransition(transition('e1', 'blocked'))
+    queueOrphanedTransition(transition('e2', 'done'))
+    // …including two moves on the SAME entry, which is the harder case: same
+    // payload keys, same absent id.
+    queueOrphanedTransition(transition('e1', 'done'))
+
+    const items = getOutboxSnapshot()
+    expect(items).toHaveLength(3)
+    expect(new Set(items.map((i) => i.op.dedupeKey)).size).toBe(3)
+  })
+
+  it('carries no dependency, because the parent entry provably exists', () => {
+    // The PATCH that produced this transition already succeeded against a real
+    // row id. A stray dependsOn would strand the op behind an insert that is
+    // never coming, and the drain marks those 'offline.syncFailed' for ever.
+    queueOrphanedTransition(transition('e1', 'blocked'))
+    expect(getOutboxSnapshot()[0].op.dependsOn).toEqual([])
+    expect(getOutboxSnapshot()[0].op.id).toBeNull()
+  })
+
+  it('reaches addUpdate on the next drain and then leaves the queue', async () => {
+    signIn('u1')
+    // Settle the flush the sign-in itself triggers. flushOutbox() returns the
+    // IN-FLIGHT promise while one is running, so without this the assertion
+    // would await a drain that started before the row was queued.
+    await flushOutbox()
+    vi.mocked(addUpdate).mockResolvedValue(ok({ id: 'u-1' }) as never)
+
+    queueOrphanedTransition(transition('e1', 'blocked'))
+    await flushOutbox()
+
+    expect(addUpdate).toHaveBeenCalledWith(transition('e1', 'blocked'))
+    expect(getOutboxSnapshot()).toHaveLength(0)
+  })
+
+  it('keeps the row and stamps the failure when the retry fails too', async () => {
+    signIn('u1')
+    await flushOutbox()
+    vi.mocked(addUpdate).mockResolvedValue(no('common.error') as never)
+
+    queueOrphanedTransition(transition('e1', 'blocked'))
+    await flushOutbox()
+
+    // Still queued, and now visible: OutboxSheet renders it as 'offline.opNote'
+    // with a discard control. Before this it was a console line and nothing.
+    const items = getOutboxSnapshot()
+    expect(items).toHaveLength(1)
+    expect(items[0].error).toBe('common.error')
+    expect(items[0].attempts).toBe(1)
   })
 })
 
@@ -1137,5 +1224,17 @@ describe('transport registry coverage', () => {
     const main = Object.values(MAIN_FILE)[0] ?? ''
     expect(main).toContain('createRoot')
     expect(main).toContain('startOutboxSync()')
+  })
+
+  it('points api/entries at the queue for orphaned transition rows', () => {
+    // FIX-BACKLOG R1-DB-2, and the same half-wired failure mode one layer down.
+    // api/entries.ts cannot import store/outbox.ts — store → api is the allowed
+    // direction and api → store is not — so the sink is filled here or not at
+    // all, and unfilled it silently reverts to warn-and-forget. There is no test
+    // that can see that from inside either module, because supplying the missing
+    // half is what a mock does.
+    const main = Object.values(MAIN_FILE)[0] ?? ''
+    expect(main).toContain('createRoot')
+    expect(main).toContain('setOrphanedTransitionSink(queueOrphanedTransition)')
   })
 })

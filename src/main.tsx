@@ -7,11 +7,18 @@ import App from './App'
 import { applyTheme } from './lib/theme'
 import { applyLocale, t } from './lib/i18n'
 import { initNative } from './lib/native'
+import { setOrphanedTransitionSink } from './api/entries'
 import { initAuth } from './store/auth'
-import { setEntriesSubmit, settleOutboxWrite } from './store/entries'
+import { discardOutboxWrite, setEntriesSubmit, settleOutboxWrite } from './store/entries'
 import { setMeetingsSubmit } from './store/meetings'
 import { setNotificationsSubmit } from './store/notifications'
-import { setOutboxSettle, startOutboxSync, submit } from './store/outbox'
+import {
+  queueOrphanedTransition,
+  setOutboxDiscard,
+  setOutboxSettle,
+  startOutboxSync,
+  submit,
+} from './store/outbox'
 import { toast } from './components/toast'
 
 // Theme and direction are applied BEFORE the first render so the very first
@@ -86,10 +93,36 @@ initAuth()
 // because either half alone breaks the feature: an unregistered route answers
 // 'common.error' for every write, online or off. src/store/outbox.test.ts
 // asserts both halves off the source so the pairing cannot drift again.
+//
+// `setOutboxDiscard` is the fifth line and the same lesson one step on: a queue
+// that tells its store about the writes that LAND and not about the ones the
+// user throws away is still only half a queue. Without it, Discard in the
+// outbox sheet removed the op and nothing else — the row kept its "Queued" pill
+// for the life of the tab, kept showing the change that was discarded, and
+// stopped accepting realtime edits from anyone else, because store/entries.ts
+// deliberately leaves a queued write outstanding until the queue reports back.
 setEntriesSubmit(submit)
 setMeetingsSubmit(submit)
 setNotificationsSubmit(submit)
 setOutboxSettle(settleOutboxWrite)
+setOutboxDiscard(discardOutboxWrite)
+
+// The sixth line, and the only one that points the API layer at the queue rather
+// than a store. FIX-BACKLOG R1-DB-2: `api/entries.updateEntry()` writes a status
+// change and its `entry_updates` transition row as two requests, and the second
+// one used to be allowed to disappear with a `console.warn` — on a live but
+// flaky link, which is precisely the case `submit()` does not queue, because
+// `navigator.onLine` is true. 0004:604-612 traded the narrow `entries_update`
+// policy away FOR that record ("who changed what stays answerable"), so losing
+// it silently was losing the thing the widening was paid for.
+//
+// It is wired HERE, and not by an import inside api/entries.ts, because
+// store → api is the allowed direction and api → store is not — the same rule
+// that is why the outbox lives in store/ and why src/api/mutate.ts does not
+// exist. Unwired, the behaviour is the old warn-and-forget, which is why this
+// line is part of the same wiring block as the five above rather than a
+// nice-to-have beside it.
+setOrphanedTransitionSink(queueOrphanedTransition)
 
 // Install the flush triggers — `online`, tab-visible, and the bounded backoff
 // timer — and drain whatever the last session left in `opstrack_outbox_v1`.

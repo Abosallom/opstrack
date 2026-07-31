@@ -602,13 +602,42 @@ create trigger entries_guard_update
 -- can. On a small trusted team that is friction, not safety.
 --
 -- The accountability layer is not this policy — it is entry_updates, which has
--- no UPDATE and no DELETE policy at all and records every status transition with
--- its author, plus entries.updated_by for the field edits that write no thread
--- row. Who changed what stays answerable; who was ALLOWED to becomes "any
--- member", which is what the team already is.
+-- no UPDATE and no DELETE policy at all, plus entries.updated_by for the field
+-- edits that write no thread row. Who was ALLOWED to change something becomes
+-- "any member", which is what the team already is.
 --
--- DELETE stays admin-only. Widening UPDATE loses nothing that can't be read back
--- out of the thread; widening DELETE loses the row.
+-- WHAT "ANSWERABLE" ACTUALLY MEANS HERE, corrected. This paragraph used to say
+-- entry_updates "records every status transition with its author" and offer that
+-- as the thing the widening was traded for. The database does not enforce it and
+-- was never going to: 0001:497-499 leaves the transition row to the app on
+-- purpose, because a trigger would race the client's own insert and write two
+-- rows for one transition. src/api/entries.ts's updateEntry() is therefore two
+-- requests — the PATCH, then the entry_updates insert — and the second can fail
+-- on its own. FIX-BACKLOG R1-DB-2.
+--
+-- Two of the three columns are enforced and one is not, and the split is worth
+-- knowing before anyone leans on this again:
+--
+--   * entries.updated_by IS server-stamped, by entries_guard_update() above, on
+--     every write that changes anything. It cannot be omitted, forged or
+--     cleared. "Who touched this row last" is a database guarantee.
+--   * entry_updates rows are IMMUTABLE once written — no UPDATE policy, no
+--     DELETE policy, and author_id must equal auth.uid(). Nothing can be
+--     rewritten or removed after the fact.
+--   * That a transition row EXISTS at all is a best-effort client write. It is
+--     not a schema invariant and must not be described as one.
+--
+-- The app closes the realistic gap rather than the theoretical one: a failed
+-- transition insert is handed to the offline queue (store/outbox.ts's
+-- queueOrphanedTransition, wired in main.tsx), which retries with backoff,
+-- survives a reload and surfaces in the outbox sheet if it keeps failing. What
+-- remains open is the insider case — a raw PATCH with a member's own JWT, which
+-- this policy permits and no trigger compensates for. That is deliberately out
+-- of scope, for the reason four paragraphs up: on a small trusted team it is
+-- friction, not safety. updated_by still names them.
+--
+-- DELETE stays admin-only. Widening UPDATE loses nothing that cannot be read
+-- back out of the thread or off updated_by; widening DELETE loses the row.
 drop policy if exists entries_update on public.entries;
 create policy entries_update on public.entries
   for update using (public.is_member()) with check (public.is_member());

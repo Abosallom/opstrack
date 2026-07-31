@@ -135,7 +135,7 @@ const fx = vi.hoisted(() => {
 
   const empty: Entry[] = []
 
-  return { TODAY, CREATED, state, entries, healthRows, empty }
+  return { TODAY, CREATED, state, entry, entries, healthRows, empty }
 })
 
 vi.mock('../store/entries', () => ({
@@ -149,6 +149,11 @@ vi.mock('../store/entries', () => ({
   refreshEntries: () => Promise.resolve(),
   patchEntry: () => Promise.resolve({ ok: false, error: 'common.error' }),
   postUpdate: () => Promise.resolve({ ok: false, error: 'common.error' }),
+  // Declared even though a static render never fires it: Vitest's module mock
+  // is a proxy that throws on an export the factory does not name, so an
+  // omission here would turn the first interactive test of "Mark done" into a
+  // confusing module error rather than an assertion failure.
+  setStatus: () => Promise.resolve({ ok: false, error: 'common.error' }),
   snoozeFollowUp: () => Promise.resolve({ ok: false, error: 'common.error' }),
 }))
 
@@ -253,17 +258,86 @@ describe('FollowUps — row actions', () => {
     // pointer tooltip.
     expect(countOf(html, `class="fu-act-label">${esc(t('followups.takeIt'))}<`)).toBe(1)
   })
+
+  it('can FINISH an item from the row, not only defer one', () => {
+    // The gap this closes: the row could take, comment on and snooze an item
+    // but not complete it, so the most common outcome of a morning pass was the
+    // only one that needed the sheet — open it, scroll past the description,
+    // tap the status chip, dismiss. `followups.markDone` shipped translated in
+    // both bundles with ZERO call sites, which is what a designed-then-dropped
+    // action looks like. There is no keyboard fallback either: the 1-4 status
+    // hotkeys act on the detail surface, not on a focused list row.
+    const html = render(<FollowUps />)
+    expect(countOf(html, `class="fu-act-label">${esc(t('followups.markDone'))}<`)).toBe(
+      fx.entries.length,
+    )
+    expect(countOf(html, 'fu-act-done')).toBe(fx.entries.length)
+  })
+})
+
+describe('FollowUps — a section longer than the screen', () => {
+  /** `count` rows that all land in one bucket, with no health rows to look up. */
+  const manyRows = (count: number): void => {
+    fx.state.entries = Array.from({ length: count }, (_, i) =>
+      fx.entry({ id: `m${i}`, title: `Row ${i}` }),
+    )
+    // No view rows: the local fallback then reads every one of them as stale
+    // (9 days since activity against an 8-day threshold), so they bucket
+    // together and the fold has one long section to act on.
+    fx.state.health = new Map()
+  }
+
+  const restore = (): void => {
+    fx.state.entries = fx.entries
+    fx.state.health = fx.healthRows
+  }
+
+  it('mounts a bounded number of rows, not the whole bucket', () => {
+    // A FollowUpRow is ~56 DOM elements — swipe wrapper, two hint strips, the
+    // row, an SLA pill and up to four label-and-glyph buttons — so 500 rows is
+    // ~28 000 elements on the screen this product exists to open first thing in
+    // the morning. Board.tsx folds at 25 per column for the same reason.
+    manyRows(40)
+    try {
+      const html = render(<FollowUps />)
+      expect(countOf(html, 'class="fu-swipe"')).toBe(25)
+      expect(html).toContain('Row 24')
+      expect(html).not.toContain('Row 25')
+    } finally {
+      restore()
+    }
+  })
+
+  it('keeps the heading count truthful and says how many are folded away', () => {
+    // EntrySection takes `count` as a prop precisely so a sliced body cannot
+    // make the heading lie — the fold hides rows, never facts.
+    manyRows(40)
+    try {
+      const html = render(<FollowUps />)
+      expect(html).toContain('entry-section-count">40<')
+      expect(html).toContain(esc(t('followups.showAll')))
+      expect(html).toContain(esc(t('followups.rowsHidden', { count: 15 })))
+      // Named after its section: six of these can be on screen at once.
+      expect(html).toContain(esc(t('followups.showAllIn', { section: t('followups.stale') })))
+    } finally {
+      restore()
+    }
+  })
+
+  it('draws no fold at all for a section that fits', () => {
+    expect(render(<FollowUps />)).not.toContain('fu-fold')
+  })
 })
 
 describe('FollowUps — the resolved SLA source', () => {
   it('reads a deadline that matches the priority default as the default', () => {
     const html = render(<FollowUps />)
-    expect(html).toContain(esc(t('followups.slaFromPriority', { days: 5 })))
+    expect(html).toContain(esc(t('followups.slaFromPriority', { count: 5 })))
   })
 
   it('reads a deadline the priority default cannot explain as a track override', () => {
     const html = render(<FollowUps />)
-    expect(html).toContain(esc(t('followups.slaFromTrack', { days: 2 })))
+    expect(html).toContain(esc(t('followups.slaFromTrack', { count: 2 })))
   })
 
   it('marks only the breached rows', () => {
@@ -345,7 +419,7 @@ describe('FollowUps — Arabic', () => {
       expect(html).toContain(esc(t('followups.overdue')))
       expect(html).toContain(esc(t('followups.slaBreach')))
       expect(html).toContain(esc(t('followups.snoozeThreeDays')))
-      expect(html).toContain(esc(t('followups.slaFromTrack', { days: 2 })))
+      expect(html).toContain(esc(t('followups.slaFromTrack', { count: 2 })))
       expect(html).toContain(esc(t('followups.onceOnly')))
       // The direction is carried by <html dir> and CSS logical properties, so
       // the markup itself is byte-identical in both languages apart from text —

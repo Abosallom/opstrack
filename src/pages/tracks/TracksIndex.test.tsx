@@ -227,6 +227,7 @@ vi.mock('../../store/entrySheet', () => ({
 
 const { MemoryRouter } = await import('react-router-dom')
 const TracksIndex = (await import('./TracksIndex')).default
+const { runBulk } = await import('./TracksIndex')
 const { t } = await import('../../lib/i18n')
 
 const render = (path = '/tracks'): string =>
@@ -420,6 +421,118 @@ describe('TracksIndex — distribution is the point', () => {
     // The bar is a mode, not chrome: an empty one is a permanent strip of
     // disabled controls across the reading area.
     expect(render()).not.toContain('class="tree-bulk"')
+  })
+})
+
+/* ──────────────────────────── the row fold ──────────────────────────── */
+
+describe('TracksIndex — a node longer than the screen', () => {
+  /** `count` rows on the Network track, with no health rows to look up. */
+  const manyRows = (count: number): void => {
+    fx.state.entries = Array.from({ length: count }, (_, i) =>
+      fx.entry({ id: `n${i}`, title: `Bulk row ${i}` }),
+    )
+    fx.state.health = new Map()
+  }
+
+  it('mounts a bounded number of rows, not the whole track', () => {
+    // The measured cost this bounds: a tree row is 38 DOM elements with an
+    // eight-person roster and 50 with twenty, so an unbounded node of 500 is
+    // ~19 000 elements on one mount — on a phone, on the screen a department
+    // head opens first thing. MAX_ROWS = 25.
+    manyRows(40)
+    const html = render()
+    expect(countOf(html, 'class="tree-row"')).toBe(25)
+    expect(html).toContain('Bulk row 24')
+    expect(html).not.toContain('Bulk row 25')
+  })
+
+  it('keeps the heading count truthful and says how many are folded away', () => {
+    // The fold hides ROWS, never facts — the same contract Board.tsx's MAX_CARDS
+    // keeps. A heading that counted what happens to be mounted would lie on
+    // exactly the tracks where the number matters.
+    manyRows(40)
+    const html = render()
+    expect(html).toContain(esc(t('tree.countOpen', { count: 40 })))
+    expect(html).toContain(esc(t('tree.showAll')))
+    expect(html).toContain(esc(t('tree.rowsHidden', { count: 15 })))
+    // Named after its node: six of these can be on screen at once.
+    expect(html).toContain(esc(t('tree.showAllIn', { track: 'Network' })))
+  })
+
+  it('draws no fold at all for a node that fits', () => {
+    expect(render()).not.toContain('tree-more')
+  })
+})
+
+/* ──────────────────────── the bulk run ──────────────────────── */
+
+describe('runBulk', () => {
+  const patch = { priority: 'high' as const }
+  const ok = (id: string) => ({ ok: true as const, data: fx.entry({ id, title: id }) })
+
+  /** An `apply` that records how many of its calls are in flight at once. */
+  const spy = (
+    outcome: (id: string) => { ok: true; data: Entry } | { ok: false; error: string } = ok,
+  ) => {
+    let live = 0
+    let peak = 0
+    const seen: string[] = []
+    return {
+      peak: () => peak,
+      seen,
+      apply: async (id: string) => {
+        live += 1
+        peak = Math.max(peak, live)
+        seen.push(id)
+        await new Promise((r) => setTimeout(r, 2))
+        live -= 1
+        return outcome(id)
+      },
+    }
+  }
+
+  it('sends six at a time instead of one at a time', async () => {
+    // THE REGRESSION THIS EXISTS FOR. This loop used to be `for (const id of
+    // ids) await patchEntry(...)`, and a non-status patch is exactly one
+    // PostgREST request — so at the 253 ms measured against the live project,
+    // ticking a track heading and assigning its thirty rows froze the bulk bar
+    // for seven and a half seconds, and a hundred rows for twenty-five. A
+    // regression to sequential keeps every other assertion in this file green
+    // and shows up only as a screen that sits there; counting peak concurrency
+    // is what turns it back into a test failure.
+    const s = spy()
+    const ids = Array.from({ length: 20 }, (_, i) => `e${i}`)
+    const out = await runBulk(ids, patch, s.apply)
+    expect(s.peak()).toBe(6)
+    expect(s.seen).toHaveLength(20)
+    expect(out.done).toBe(20)
+  })
+
+  it('names the rows that failed, and only those', async () => {
+    // The reason pooled() must answer in INPUT order: these ids are indexed back
+    // out of the results array, and a completion-ordered answer would leave the
+    // wrong rows selected for the retry.
+    const s = spy((id) => (id === 'e3' || id === 'e11' ? { ok: false, error: 'common.error' } : ok(id)))
+    const ids = Array.from({ length: 14 }, (_, i) => `e${i}`)
+    const out = await runBulk(ids, patch, s.apply)
+    expect(out.failedIds).toEqual(['e3', 'e11'])
+    expect(out.done).toBe(12)
+    expect(out.queued).toBe(0)
+  })
+
+  it('counts an offline write as done, because the outbox will send it', async () => {
+    const s = spy((id) => (id === 'e1' ? { ok: false, error: 'offline.queued' } : ok(id)))
+    const out = await runBulk(['e0', 'e1', 'e2'], patch, s.apply)
+    expect(out.queued).toBe(1)
+    expect(out.done).toBe(3)
+    expect(out.failedIds).toEqual([])
+  })
+
+  it('is a no-op on an empty selection', async () => {
+    const s = spy()
+    expect(await runBulk([], patch, s.apply)).toEqual({ done: 0, queued: 0, failedIds: [] })
+    expect(s.seen).toHaveLength(0)
   })
 })
 

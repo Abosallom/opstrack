@@ -30,6 +30,11 @@
       "one": "{count} past SLA",
       "other": "{count} past SLA"
     },
+    "showAll": "Show all",
+    "showLess": "Show fewer",
+    "showAllIn": "Show all rows under ⁨{track}⁩",
+    "showLessIn": "Show fewer rows under ⁨{track}⁩",
+    "rowsHidden": "{count} more",
     "allClear": "All clear",
     "allClearHint": "Nothing open on this track.",
     "noMatch": "Nothing here matches the filters.",
