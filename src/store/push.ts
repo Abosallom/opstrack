@@ -461,6 +461,95 @@ export async function setPushPref(key: keyof PushPrefs, value: boolean): Promise
 }
 
 /**
+ * How long a caller waits for `releasePushForSignOut()` before going ahead
+ * without it.
+ *
+ * The caller is sign-out, and sign-out must never hang. `fetch` on a browser
+ * that KNOWS it is offline rejects at once, but a captive portal or a dead
+ * access point is a live socket that answers nothing, and there the delete below
+ * can sit for the OS's TCP timeout — over a minute, with the button reading
+ * "Signing out…" the whole time. Bounding it costs the row in exactly the case
+ * where the row could not have been deleted anyway.
+ */
+const RELEASE_BUDGET_MS = 4000
+
+/** Resolve when `work` finishes or when the budget runs out, whichever is first. */
+function withBudget(work: Promise<void>, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms)
+    void work.finally(() => {
+      // Cleared rather than left to fire: a pending timer keeps a node test
+      // process (and a backgrounded tab's timer queue) alive for no reason.
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+}
+
+/**
+ * Give this device's registration up entirely: drop the browser subscription
+ * AND delete the `push_subscriptions` row.
+ *
+ * CALLED BEFORE `supabase.auth.signOut()`, from store/auth.ts, and the ordering
+ * is the fix rather than an optimisation. The delete is an authenticated write
+ * under 0011's owner-only RLS: issued after the session is gone it matches no
+ * rows, returns no error, and looks exactly like success. Sign-out teardown in
+ * App.tsx runs later still — the shell only unmounts once `session` is already
+ * null — so `resetPush()` alone could never have done this.
+ *
+ * WHY THE ENDPOINT IS READ FIRST. The row is keyed by endpoint, so losing the
+ * endpoint means losing the ability to delete the row. `unsubscribeThisDevice()`
+ * returns the endpoint it removed, which is the best source — but it can also
+ * throw before returning anything (a service worker registration that will not
+ * resolve), and that is precisely the failure this cleanup exists for. So the
+ * endpoint is established up front, from the store or from the browser, and the
+ * unsubscribe can then fail freely without taking the delete with it.
+ *
+ * Never rejects, and never reports: nothing downstream of a sign-out can act on
+ * a failure here, and the honest remedy — a signed-out user cannot delete their
+ * own row — is RUNBOOK §9.4's manual one.
+ */
+export function releasePushForSignOut(
+  known: string | null = usePushStore.getState().endpoint,
+): Promise<void> {
+  const work = releaseRegistration(known).catch((e: unknown) => {
+    console.warn('[push] releasing this device failed:', (e as Error).message)
+  })
+  return withBudget(work, RELEASE_BUDGET_MS)
+}
+
+async function releaseRegistration(known: string | null): Promise<void> {
+  // Only ask the browser when the store cannot answer. It cannot whenever the
+  // user never opened Settings this session — nothing else calls
+  // loadPushState() — which is the ordinary way to sign out.
+  const endpoint = known ?? (await peekEndpoint())
+
+  let removed: string | null = null
+  try {
+    removed = await unsubscribeThisDevice()
+  } catch (e) {
+    console.warn('[push] unsubscribing this device failed:', (e as Error).message)
+  }
+  usePushStore.setState({ endpoint: null })
+
+  // `removed` wins when both exist: a browser is free to rotate a subscription
+  // at any time, and then the store's copy is the stale one.
+  const target = removed ?? endpoint
+  if (!target || !supabase) return
+  const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', target)
+  if (error) console.warn('[push] removing the subscription row failed:', error.message)
+}
+
+/** This browser's endpoint, without disturbing anything. Never throws. */
+async function peekEndpoint(): Promise<string | null> {
+  try {
+    return (await currentDeviceSubscription())?.endpoint ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Sign-out. The device list and the preferences belong to the account that just
  * left, and the next person to sign in on this browser must not see either.
  *
@@ -470,8 +559,19 @@ export async function setPushPref(key: keyof PushPrefs, value: boolean): Promise
  * else is now holding. 0011's `upsert_push_subscription()` can move an endpoint
  * between accounts precisely because this cleanup is best-effort — but the
  * cleanup is what makes the takeover rare rather than routine.
+ *
+ * THE RELEASE HERE IS THE BACKSTOP, NOT THE MAIN PATH. store/auth.signOut()
+ * already awaited `releasePushForSignOut()` while the session token was still
+ * valid, and the second call is a cheap no-op after it: the browser has no
+ * subscription left to find and the store's endpoint is already null, so it
+ * returns before touching the network. It still runs because this teardown is
+ * reached by sign-outs that never went through that function — an expired
+ * session, a revoked token, a sign-out performed in another tab — and there a
+ * best-effort unsubscribe is the only cleanup available.
  */
 export function resetPush(): void {
+  // Read BEFORE the clear below, which is what would otherwise lose it.
+  const known = usePushStore.getState().endpoint
   inFlight = null
   usePushStore.setState({
     verdict: 'unsupported',
@@ -483,5 +583,5 @@ export function resetPush(): void {
     busy: false,
     error: null,
   })
-  void unsubscribeThisDevice().catch(() => undefined)
+  void releasePushForSignOut(known)
 }

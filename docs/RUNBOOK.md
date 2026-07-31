@@ -1038,29 +1038,43 @@ installed-PWA path has no headless equivalent), a physically locked screen, and
    ```sql
    select count(*) from public.push_subscriptions;
    ```
-   **Measured 2026-07-30: the browser subscription is dropped but the row is
-   NOT.** `resetPush()` in `src/store/push.ts` clears the store and calls
-   `unsubscribeThisDevice()`, which is browser-side only; nothing deletes the
-   `push_subscriptions` row, so the count stays where it was. Earlier revisions of
-   this page claimed the row disappears. It does not.
+   **The count must drop by one.** Sign-out drops the browser subscription *and*
+   deletes the row, so the next person to use that machine cannot receive the
+   previous user's notifications. If it does not drop, treat that as a blocker —
+   it means the previous user's endpoint and both of their subscription keys are
+   still in the table, and the failure is silent by construction (see below).
 
-   What that costs, precisely. In the ordinary case the browser unsubscribe
-   succeeds first, so the endpoint is already dead at the push service: the next
-   send gets a `410`, the drain prunes the row, and nobody receives anything they
-   should not. The row is stale data — an endpoint and two subscription keys
-   retained for a user who has signed out — rather than a live channel. **The
-   exception is the one that matters:** `unsubscribeThisDevice()` swallows its own
-   failure, so a sign-out with no network leaves the row *and* a still-valid
-   registration, and the previous user keeps receiving notifications on a machine
-   somebody else is now using.
+   **This was measured broken on 2026-07-30 and the history is worth keeping.**
+   `resetPush()` in `src/store/push.ts` cleared the store and called
+   `unsubscribeThisDevice()`, which is browser-side only; nothing deleted the row.
+   In the ordinary case that was stale data rather than a live channel — the
+   browser unsubscribe lands first, the endpoint is dead at the push service, and
+   the next send's `410` makes the drain prune the row. **The exception was the
+   one that mattered:** `unsubscribeThisDevice()` swallows its own failure, so an
+   *offline* sign-out left the row **and** a still-valid registration, and the
+   previous user kept receiving notifications on a machine somebody else was now
+   using.
 
-   **Open defect, raised at the Wave-5 push proof and not fixed there** because
-   `src/store/push.ts` belonged to another worker. The fix is a
-   `delete from push_subscriptions where endpoint = …` alongside the unsubscribe,
-   sequenced so the row goes even when the unsubscribe throws. Until it lands, a
-   shared machine should be signed out **online**, and
-   `delete from public.push_subscriptions where user_id = '<uuid>';` is the manual
-   remedy.
+   **Fixed in `<push-signout>`**, and the fix is in two files rather than one,
+   because a delete alone would not have worked. `push_subscriptions` is
+   owner-only RLS (migration `0011`), so a delete issued after the session is
+   gone matches no rows and **returns no error** — indistinguishable from
+   success. `resetPush()` runs from App.tsx's sign-out teardown, which is reached
+   only *after* `session` has gone null, so it could never have been the place.
+   So `store/auth.signOut()` now awaits `releasePushForSignOut()` **before**
+   `supabase.auth.signOut()`, with the endpoint read up front (from the store, or
+   from the browser when Settings was never opened this session) so the delete
+   still happens when the unsubscribe throws. `resetPush()` remains as the
+   backstop for sign-outs that never go through `signOut()` — an expired session,
+   a revoked token, a sign-out in another tab — where an unsubscribe is the only
+   cleanup a signed-out tab can still perform. `src/store/push.test.ts` pins it,
+   and pins the **ordering** specifically, for the RLS reason above.
+
+   Two things that are still true after the fix. An **offline** sign-out cannot
+   delete the row, because nothing can reach PostgREST — the cleanup is bounded
+   at 4 s so sign-out never hangs on a dead network, and a shared machine should
+   still be signed out online. And a row that survives anyway is removed with
+   `delete from public.push_subscriptions where user_id = '<uuid>';`.
 
 If step 5 produces nothing, work §9.3 from the top — the config row is the most
 common cause, and it is silent.
