@@ -543,7 +543,7 @@ export interface ClaimInput {
 // ── label overrides (Settings › Terminology) ────────────────────────────────
 
 /**
- * One row of `label_overrides` (migration 0016): an admin-authored replacement
+ * One row of `label_overrides` (migration 0017): an admin-authored replacement
  * for a shipped i18n string, in either or both languages.
  *
  * NAMED `…Row` LIKE `VocabRow`, AND NOT `LabelOverride`, because lib/i18n.ts
@@ -554,7 +554,7 @@ export interface ClaimInput {
  *
  * `en` and `ar` are BOTH NULLABLE and that is a real case, not a defect:
  * rewording only the Arabic of `entry.owner` must leave the English alone. Null
- * and blank mean the same thing — no override for this language — and 0016's
+ * and blank mean the same thing — no override for this language — and 0017's
  * `label_overrides_touch()` collapses blank to null on the way in, so a row read
  * back from the table carries null and never `''`.
  *

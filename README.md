@@ -1,5 +1,9 @@
 # CoreTrack
 
+> **Pending database migrations:** see [`docs/PENDING-MIGRATIONS.md`](docs/PENDING-MIGRATIONS.md). Migrations `0014`–`0017` are written, tested and **not yet
+> applied**; four user-facing guarantees are broken until they are run.
+
+
 A multi-track action and decision tracker for an operations lead who owns several
 domains at once (PMO, IT Operations, Network, Infrastructure, SRE) and delegates
 most of the execution.

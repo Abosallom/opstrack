@@ -18,7 +18,7 @@
 // maps to admin.errForbidden; raw Postgres English never reaches an RTL layout.
 //
 // MISSING TABLE IS A SUPPORTED STATE, and at the time of writing it is the ONLY
-// state: supabase/migrations/0016_label_overrides.sql is written and NOT YET
+// state: supabase/migrations/0017_label_overrides.sql is written and NOT YET
 // APPLIED (the management token is revoked — see the handoff for the owner's
 // copy-paste steps). Until it runs, listOverrides() fails with PGRST205,
 // store/labels.ts keeps an empty layer, every t() lands on its shipped string,
@@ -40,7 +40,7 @@
 // at this boundary would be a second opinion on the same question, and applying
 // isolates a second time would nest them inside the ones already placed.
 //
-// Authorization is server-side, as everywhere else: 0016's policies gate writes
+// Authorization is server-side, as everywhere else: 0017's policies gate writes
 // on is_admin() and reads on is_member(), so nothing in this file checks a role.
 // Members must read the table — they render the labels too.
 
@@ -101,7 +101,7 @@ export interface LabelOverrideInput {
  * Blank IS the way to say "no override" (spec §5), so an empty or
  * whitespace-only value becomes null rather than an empty string.
  *
- * 0016's `label_overrides_touch()` does the same with `nullif(btrim(x), '')` and
+ * 0017's `label_overrides_touch()` does the same with `nullif(btrim(x), '')` and
  * is the authority — the rule that keeps a nav label from rendering as blank
  * space does not get to depend on a client. This is the client half of that
  * belt-and-braces, and it exists for a second reason the trigger cannot serve:
@@ -175,7 +175,7 @@ export async function listOverrides(): Promise<ApiResult<LoadedOverrides>> {
 /**
  * Write one key's wording, in either or both languages.
  *
- * BOTH LANGUAGES BLANK IS SENT AS A DELETE, and resolves with null. 0016 would
+ * BOTH LANGUAGES BLANK IS SENT AS A DELETE, and resolves with null. 0017 would
  * converge on the same state on its own — `label_overrides_prune_empty()` drops
  * a row that overrides nothing in either language, by design, so that every
  * route back to the shipped string works. Sending the delete directly is not a
@@ -199,7 +199,7 @@ export async function upsertOverride(
 
   const row = toRow({ key, en, ar })
   // A blank key names nothing and would occupy the primary key a real key needs.
-  // 0016's `label_overrides_key_shape` refuses it too; catching it here costs
+  // 0017's `label_overrides_key_shape` refuses it too; catching it here costs
   // the caller a round trip rather than a 23514 it cannot explain. The screen
   // cannot produce one — its rows come from lib/labelSections.listLabels() — so
   // this only ever fires on a hand-edited import file.
@@ -236,7 +236,7 @@ export async function upsertOverride(
  * leaves the upserts unsent (it runs first), a failed upsert leaves the deletes
  * done. The caller refetches either way, so the screen always shows what the
  * database actually holds — PostgREST has no transaction across two requests,
- * and the honest alternative is an RPC, which 0016 does not have and which this
+ * and the honest alternative is an RPC, which 0017 does not have and which this
  * feature does not yet need.
  */
 export async function upsertOverrides(
@@ -268,7 +268,7 @@ export async function upsertOverrides(
  * 0 when it had already been reset.
  *
  * Through `reset_label_overrides(key)` rather than a plain DELETE, because that
- * function is what 0016 built as THE escape hatch and what its probe proves
+ * function is what 0017 built as THE escape hatch and what its probe proves
  * works under RLS. It is `security invoker`, so it needs atomicity rather than
  * privilege and a member is rejected by the policy exactly as if they had typed
  * the DELETE by hand; the `is_admin()` test at the top of it is there so that

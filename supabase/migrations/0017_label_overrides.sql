@@ -1,4 +1,4 @@
--- 0016 — label_overrides: the owner renames anything a person reads, in both
+-- 0017 — label_overrides: the owner renames anything a person reads, in both
 -- languages, himself, and it takes effect for everyone without a deploy.
 --
 -- This is the storage half of Settings › Terminology (docs/TERMINOLOGY-SPEC.md).
@@ -611,7 +611,7 @@ begin
 
   if v_en_after is not null then
     raise exception
-      'OpsTrack 0016 FAILED: an empty-string `en` was stored as % instead of null. label_overrides_touch() is not normalising, and a blank override will render as an empty label (spec rule 5).',
+      'OpsTrack 0017 FAILED: an empty-string `en` was stored as % instead of null. label_overrides_touch() is not normalising, and a blank override will render as an empty label (spec rule 5).',
       quote_literal(v_en_after);
   end if;
 
@@ -623,7 +623,7 @@ begin
 
   if v_blank_rows <> 0 then
     raise exception
-      'OpsTrack 0016 FAILED: a row inserted with both languages blank still exists. label_overrides_prune_empty() did not fire on INSERT.';
+      'OpsTrack 0017 FAILED: a row inserted with both languages blank still exists. label_overrides_prune_empty() did not fire on INSERT.';
   end if;
 
   if v_ws_rows <> 0 then
@@ -633,7 +633,7 @@ begin
 
   if v_invisible <> 0 then
     raise exception
-      'OpsTrack 0016 FAILED: % of the invisible-blank rows survived. label_overrides_norm() is not treating a tab, a no-break space or a format character (U+200B, U+200E, U+200F, U+061C, U+2060, U+00AD, U+FEFF, the isolates) as empty — so an override holding one of them is stored and renders as a label with nothing in it (spec rule 5).',
+      'OpsTrack 0017 FAILED: % of the invisible-blank rows survived. label_overrides_norm() is not treating a tab, a no-break space or a format character (U+200B, U+200E, U+200F, U+061C, U+2060, U+00AD, U+FEFF, the isolates) as empty — so an override holding one of them is stored and renders as a label with nothing in it (spec rule 5).',
       v_invisible;
   end if;
 
@@ -657,7 +657,7 @@ begin
 
   if v_forged_at < timestamptz '2000-01-01' then
     raise exception
-      'OpsTrack 0016 FAILED: a client-supplied updated_at was stored verbatim (%). The column default does not protect it — an explicit value overrides a default, so label_overrides_touch() must assign it on INSERT.',
+      'OpsTrack 0017 FAILED: a client-supplied updated_at was stored verbatim (%). The column default does not protect it — an explicit value overrides a default, so label_overrides_touch() must assign it on INSERT.',
       v_forged_at;
   end if;
 
@@ -724,7 +724,7 @@ begin
 
   if v_rejected is not null then
     raise exception
-      'OpsTrack 0016 FAILED: label_overrides_key_shape rejected keys that SHIP TODAY: %. The character class is too narrow — it must be at least [A-Za-z0-9_-] with dot separators. Widen it; do not work around it in the client.',
+      'OpsTrack 0017 FAILED: label_overrides_key_shape rejected keys that SHIP TODAY: %. The character class is too narrow — it must be at least [A-Za-z0-9_-] with dot separators. Widen it; do not work around it in the client.',
       v_rejected;
   end if;
 
@@ -873,19 +873,19 @@ begin
 
   if v_skipped then
     raise notice
-      'OpsTrack 0016 probe 3 SKIPPED: this role cannot `set role authenticated`, so the RLS half could not run. The policies ARE installed. Verify by hand: sign in as a member and PATCH /rest/v1/label_overrides — it must affect zero rows.';
+      'OpsTrack 0017 probe 3 SKIPPED: this role cannot `set role authenticated`, so the RLS half could not run. The policies ARE installed. Verify by hand: sign in as a member and PATCH /rest/v1/label_overrides — it must affect zero rows.';
     return;
   end if;
 
   if v_read is distinct from 'Owner' then
     raise exception
-      'OpsTrack 0016 FAILED: a member read % instead of the override. label_overrides_select is too strict — a member who cannot read this table sees different words than everyone else, which is worse than shipping no feature at all.',
+      'OpsTrack 0017 FAILED: a member read % instead of the override. label_overrides_select is too strict — a member who cannot read this table sees different words than everyone else, which is worse than shipping no feature at all.',
       coalesce(quote_literal(v_read), 'NULL');
   end if;
 
   if v_wrote then
     raise exception
-      'OpsTrack 0016 FAILED: a plain member changed or reset a label override. The write policies are not admin-gated.';
+      'OpsTrack 0017 FAILED: a plain member changed or reset a label override. The write policies are not admin-gated.';
   end if;
 
   if v_stamp is distinct from v_admin then
@@ -896,25 +896,25 @@ begin
 
   if v_erased is distinct from v_admin then
     raise exception
-      'OpsTrack 0016 FAILED: a bare {"updated_by": null} PATCH erased the author (now %). label_overrides_touch() needs the else-branch that restores old.updated_by — without it the client''s value is simply stored, and the rename loses the only record of who made it.',
+      'OpsTrack 0017 FAILED: a bare {"updated_by": null} PATCH erased the author (now %). label_overrides_touch() needs the else-branch that restores old.updated_by — without it the client''s value is simply stored, and the rename loses the only record of who made it.',
       coalesce(v_erased::text, 'NULL');
   end if;
 
   if v_reset <> 1 or v_left <> 0 then
     raise exception
-      'OpsTrack 0016 FAILED: reset_label_overrides(''probe0016.rls'') reported % deletions and left % rows. Per-row reset — the escape hatch behind every Reset button — does not work.',
+      'OpsTrack 0017 FAILED: reset_label_overrides(''probe0016.rls'') reported % deletions and left % rows. Per-row reset — the escape hatch behind every Reset button — does not work.',
       v_reset, v_left;
   end if;
 
   if v_all <> 0 then
     raise exception
-      'OpsTrack 0016 FAILED: reset_label_overrides(null) left % rows behind. The global escape hatch does not work, and spec rule 4 requires that it always does.',
+      'OpsTrack 0017 FAILED: reset_label_overrides(null) left % rows behind. The global escape hatch does not work, and spec rule 4 requires that it always does.',
       v_all;
   end if;
 
   if v_audit < 2 then
     raise exception
-      'OpsTrack 0016 FAILED: this probe added only % config_audit rows for label_overrides — expected at least the insert and the reset delete. A rename with no trail is the one thing config_audit exists to prevent, and `before` is the ONLY record of what a label used to say.',
+      'OpsTrack 0017 FAILED: this probe added only % config_audit rows for label_overrides — expected at least the insert and the reset delete. A rename with no trail is the one thing config_audit exists to prevent, and `before` is the ONLY record of what a label used to say.',
       v_audit;
   end if;
 

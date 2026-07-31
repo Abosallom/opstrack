@@ -75,11 +75,11 @@
 // ── DEGRADATION IS THE SAFETY NET, NOT A GAP ───────────────────────────────
 //
 // The catalogue comes from the BUNDLES, not the database, so this screen renders
-// in full with migration 0016 unapplied: every default is visible and searchable
+// in full with migration 0017 unapplied: every default is visible and searchable
 // and only saving fails. store/labels.ts swallows a failed load on purpose (the
 // app runs on the shipped wording), which is why there is no load-error banner
 // here — there is no failure for one to describe. A SAVE that fails says so, and
-// a generic failure adds the "0016 is not applied" line, because that is the one
+// a generic failure adds the "0017 is not applied" line, because that is the one
 // realistic cause and it is a supported state rather than a fault.
 //
 // THE ESCAPE HATCH IS A CONTROL, NOT A FOOTNOTE. "Reset every change" sits in
@@ -131,7 +131,7 @@ import './terminology.css'
 const PAGE_SIZE = 25
 
 /**
- * The longest label the table will store — 0016's `label_overrides_text_len`.
+ * The longest label the table will store — 0017's `label_overrides_text_len`.
  *
  * Named here as well as there because the two have to agree: the constraint is
  * what keeps the localStorage cache from becoming a quota failure, and an input
@@ -144,7 +144,7 @@ const PAGE_STEP = 50
 
 /**
  * Cosmetic admin gate — the same one VocabularyAdmin and TracksAdmin document.
- * The real authority is `is_admin()` in 0016's RLS policies: every write here
+ * The real authority is `is_admin()` in 0017's RLS policies: every write here
  * fails with 42501 for a member whatever this returns, and hiding the screen
  * only avoids offering an action that cannot succeed.
  *
@@ -440,7 +440,7 @@ export default function Terminology(): ReactElement {
    *
    * Called after every successful write. Leaving the draft in place would pin
    * the input to what was typed, so a row reset from another device — or the
-   * value 0016's trigger normalised — would never show up here.
+   * value 0017's trigger normalised — would never show up here.
    */
   const clearDraft = useCallback((key: string): void => {
     setDrafts((current) => {
@@ -923,7 +923,7 @@ function SlotEditor({
               value={draft.en}
               autoComplete="off"
               spellCheck={false}
-              // 0016's `label_overrides_text_len`, enforced where the owner can
+              // 0017's `label_overrides_text_len`, enforced where the owner can
               // still do something about it. A label is a few words; the bound
               // exists because this whole table is cached in localStorage, and
               // a pasted document would be a quota failure several thousand
@@ -984,7 +984,7 @@ function SlotEditor({
           {/* ONLY when the failure actually says the table is missing. This
               note used to hang off the GENERIC save error, so every unmapped
               refusal — an over-long paste, an RLS surprise — told the owner his
-              project had no label_overrides table, which after 0016 is applied
+              project had no label_overrides table, which after 0017 is applied
               is simply false and sends him to a runbook section about a problem
               he does not have. pgErrorKey() maps PostgREST's PGRST205 for
               exactly this. */}

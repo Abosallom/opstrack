@@ -31,7 +31,7 @@ string is kept anywhere to go stale.
 | The one writer of the live layer | `src/store/labels.ts` |
 | The screen | `src/pages/settings/Terminology.tsx` + `terminology.css` (`.term-`) |
 | Download / upload a wording pass | `src/components/settings/LabelIO.tsx` + `labelio.css` (`.lio-`) |
-| Storage, RLS, audit, the reset RPC | `supabase/migrations/0016_label_overrides.sql` **(pending)** |
+| Storage, RLS, audit, the reset RPC | `supabase/migrations/0017_label_overrides.sql` **(pending)** |
 
 Route `/settings/terminology`, admin-gated in `App.tsx` with a member redirect, titled through
 `routeTitle.ts`, reachable from the Settings admin block beside Vocabulary and from the command
@@ -53,7 +53,7 @@ explicitly, and it is survivable because "Reset every change" sits permanently i
    rollback.
 5. **Blank means default.** One predicate — `isBlankLabel()` in `lib/labelOverrides.ts` — used
    by all four keepers (validator, api, store cache, resolver), and matched character for
-   character by `label_overrides_norm()` in 0016.
+   character by `label_overrides_norm()` in 0017.
 
 ## 3. The plural decision, and why
 
@@ -77,29 +77,29 @@ What makes it safe is that **no rule lives in the screen**:
 
 The form is named for a reader (`A few (3–10)` / `قليل (⁦3–10⁩)`), never by its CLDR identifier.
 
-## 4. Migration 0016 — **PENDING APPLICATION**
+## 4. Migration 0017 — **PENDING APPLICATION**
 
-`supabase/migrations/0016_label_overrides.sql` has **never been run**. The Supabase management
+`supabase/migrations/0017_label_overrides.sql` has **never been run**. The Supabase management
 token is revoked, so nothing on this branch could apply it. Until it is applied the feature
 degrades exactly as designed: the read fails, the layer stays empty, every `t()` lands on its
 shipped string, the screen still renders in full from the bundles, and only saving fails —
 with a message that now says *the table is not set up* only when PostgREST actually says so.
 
-**It is 0016, not 0015 as the spec says**: `0015_entry_write_guard_and_line_authorship.sql` was
+**It is 0017, not 0015 as the spec says**: `0015_entry_write_guard_and_line_authorship.sql` was
 taken while this branch was being built. There is no ordering dependency beyond "after 0003".
 
 ### Copy-paste steps for the owner
 
 1. Open the Supabase dashboard for project `lrysgpbkmuqgzsjesfkr` → **SQL Editor** → **New query**.
-2. Open `supabase/migrations/0016_label_overrides.sql` and copy **the whole file**.
+2. Open `supabase/migrations/0017_label_overrides.sql` and copy **the whole file**.
 3. Paste and press **Run**.
 4. Read the **Notices** panel. Three lines must appear, one per probe:
-   - `OpsTrack 0016 probe 1: blank normalised to null … Rolled back.`
-   - `OpsTrack 0016 probe 2: all nine real key shapes accepted … Rolled back.`
-   - `OpsTrack 0016 probe 3: a member read the override … Rolled back.`
+   - `OpsTrack 0017 probe 1: blank normalised to null … Rolled back.`
+   - `OpsTrack 0017 probe 2: all nine real key shapes accepted … Rolled back.`
+   - `OpsTrack 0017 probe 3: a member read the override … Rolled back.`
      (or `probe 3 SKIPPED`, if the editor's role cannot `set role authenticated` — the policies
      are still installed; verify by hand as the notice describes.)
-5. Any `OpsTrack 0016 FAILED:` message rolls the **whole** migration back. The text names what
+5. Any `OpsTrack 0017 FAILED:` message rolls the **whole** migration back. The text names what
    broke and what it means for the owner; nothing is half-applied.
 6. Re-running the file at any time is safe and changes no stored override in either direction.
 7. Then reload the app and open **Settings › Terminology**. Rename one label, save, and check it
@@ -124,7 +124,7 @@ Ten findings were handed over; all ten were verified against the branch, and all
 
 | # | Fix | Root |
 |---|---|---|
-| 1 | **Blank means default was defeated by invisible characters.** An override of a single U+200B / U+200E / U+200F / U+061C / U+2060 / U+00AD passed all four emptiness tests and rendered as a genuinely empty label — including on this screen's own Reset buttons. Now one shared `isBlankLabel()` (`stripInvisible()` + `trim()`), used by the validator, the api, the store cache and the resolver, and mirrored exactly by 0016's `label_overrides_norm()`. The migration's old `nullif(btrim(x), '')` did not even collapse a tab: one-argument `btrim` removes spaces only, measured. | `lib/bidi.ts`, `lib/labelOverrides.ts`, `lib/i18n.ts`, `store/labels.ts`, `api/labels.ts`, `lib/labelIO.ts`, `0016` |
+| 1 | **Blank means default was defeated by invisible characters.** An override of a single U+200B / U+200E / U+200F / U+061C / U+2060 / U+00AD passed all four emptiness tests and rendered as a genuinely empty label — including on this screen's own Reset buttons. Now one shared `isBlankLabel()` (`stripInvisible()` + `trim()`), used by the validator, the api, the store cache and the resolver, and mirrored exactly by 0017's `label_overrides_norm()`. The migration's old `nullif(btrim(x), '')` did not even collapse a tab: one-argument `btrim` removes spaces only, measured. | `lib/bidi.ts`, `lib/labelOverrides.ts`, `lib/i18n.ts`, `store/labels.ts`, `api/labels.ts`, `lib/labelIO.ts`, `0017` |
 | 2 | **`listOverrides()` was the only unbounded read in `src/api`.** A complete wording pass is ~2,100 rows (1,670 keys, 91 plural nodes) and the import path can write them all at once; PostgREST's 1000-row ceiling would have silently dropped everything after `followups.showAll` — in the live layer, the cache, the header count and the export. Now paged with `.range()` to a 4-page cap, returning `{rows, truncated}`; a clipped read is applied but never stamped and never cached. | `api/labels.ts`, `store/labels.ts` |
 | 3 | **Placeholder refusals named the token without its braces** — "put `name` back", while `errTokenUnknown` ended "braces and all". | `lib/labelOverrides.ts` |
 | 4 | **The raw CLDR category leaked into owner-facing errors** — an untranslated `few` inside an Arabic sentence, naming a field by a word that appears nowhere in the UI. Both render sites now go through one helper that swaps in the form's own name. | new `lib/labelErrors.ts`, `Terminology.tsx`, `LabelIO.tsx` |
@@ -132,7 +132,7 @@ Ten findings were handed over; all ten were verified against the branch, and all
 | 6 | **THE BIGGEST ONE: search only ever matched the SHIPPED wording.** Rename "Follow-ups" to "My Desk", come back next week, type the only name the app still shows you, and the answer was "Nothing matches My Desk" — the screen worked the first time and stopped working the second. The match now unions the owner's own wording (`labelMatches()`, keyed on `byKey`, built once per save, zero allocation per keystroke), and both hints say so. | `lib/labelSections.ts`, `Terminology.tsx`, both `terminology.json` |
 | 7 | **Twelve groups of rows were indistinguishable** — same section, same where-note, same English and same Arabic ("Details" ×2, "Open", "Closed", "Track" ×2, "Someone else", "Every day", "Discard", "{count} lines", `ahmed.otaibi`, and two recurring errors that are word-for-word identical). Where-notes refined for all of them, and a test now fails on any future collision. | `lib/labelSections.ts`, both `terminology.json` |
 | 8 | **`loadLabels()` returned the in-flight promise before honouring `force`,** so the invalidate every mutation ends with could be swallowed — "Reset every change" could be undone by a read that predated it, and re-cached. `force` now chains a genuinely fresh read, and an epoch counter drops any response that predates a mutation. | `store/labels.ts` |
-| 9 | **0016's stated contract with `pgError.ts` was unimplemented,** so an over-long paste failed as a bare 23514 and the screen told the owner the table was not installed — when it was. Both constraints mapped, `PGRST205` mapped to `common.errMissingTable`, `maxLength={4000}` on both inputs, and the "not installed" note gated on the error that actually means it. | `lib/pgError.ts`, `Terminology.tsx`, both `common.json`, both `terminology.json` |
+| 9 | **0017's stated contract with `pgError.ts` was unimplemented,** so an over-long paste failed as a bare 23514 and the screen told the owner the table was not installed — when it was. Both constraints mapped, `PGRST205` mapped to `common.errMissingTable`, `maxLength={4000}` on both inputs, and the "not installed" note gated on the error that actually means it. | `lib/pgError.ts`, `Terminology.tsx`, both `common.json`, both `terminology.json` |
 | 10 | **`clearOverrides()` had no caller and a docstring asserting two.** Removed: it was a second door into a layer whose optimistic rollback depends on having one writer, and a sign-out clear would be wrong anyway (these are workspace-wide data, and the cache is what puts the owner's wording on the sign-in screen). `shippedKeys()` went the same way — a second walker over a tree `labelSections.ts` already walks. | `lib/i18n.ts` |
 
 Every behavioural fix carries a regression test. Notable ones: the blank table in
@@ -156,7 +156,7 @@ has the search union and the no-two-rows-alike gate; `labelErrors.test.ts` is ne
 - **`upsertOverrides()` is still two statements.** A file that both clears and sets keys can
   fail with the clears already done; `terminology.errImport` says nothing changed, which is true
   for every file that only sets keys and overstates it for the other kind. The refetch keeps the
-  SCREEN honest. The fix is an RPC, which 0016 does not have and this feature does not yet need.
+  SCREEN honest. The fix is an RPC, which 0017 does not have and this feature does not yet need.
 - **`download()` is duplicated** between `LabelIO.tsx` and `pages/settings/Export.tsx`. The only
   honest home for a shared copy is a new `lib/download.ts`, which means editing a shipped page
   from a feature branch. Dedupe candidate for after the merge.
@@ -196,7 +196,7 @@ has the search union and the no-two-rows-alike gate; `labelErrors.test.ts` is ne
 `src/api/labels.ts` + suite, `src/store/labels.ts` + suite, `src/lib/i18n.test.ts`,
 `src/pages/settings/Terminology.tsx`, `src/pages/settings/terminology.css`,
 `src/components/settings/LabelIO.tsx` + `labelio.css` + suite,
-`src/locales/{en,ar}/terminology.json`, `supabase/migrations/0016_label_overrides.sql`,
+`src/locales/{en,ar}/terminology.json`, `supabase/migrations/0017_label_overrides.sql`,
 `docs/TERMINOLOGY-HANDOFF.md`.
 
 **Measured against main's working tree at 2026-07-31 21:0x** (a second fleet is building

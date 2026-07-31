@@ -70,7 +70,7 @@ export function pgErrorKey(error: unknown): string {
       // whole statement, so a batch that hides several at once is rolled back
       // entirely; the message says what must remain, not which row lost.
       if (text.includes('last_visible_option')) return 'vocabadmin.errLastVisible'
-      // label_overrides_text_len / _key_shape / _key_len — 0016. The migration
+      // label_overrides_text_len / _key_shape / _key_len — 0017. The migration
       // splits these three constraints APART specifically so this file can tell
       // them from each other; "that wording is too long" and "that is not a
       // label key" want different sentences, and both used to arrive as the

@@ -204,7 +204,7 @@ describe('a failed load does not latch', () => {
     // Against a `finally`-stamped `loadedAt` the second call short-circuits and
     // this is 1 — the app then renders the shipped wording for the rest of the
     // session with nothing to say the owner's configuration was ever missed.
-    // This is also the state an unapplied 0016 produces on every call.
+    // This is also the state an unapplied 0017 produces on every call.
     expect(listCalls).toBe(2)
     expect(store.getLabelOverrides()).toEqual([])
 
@@ -273,7 +273,7 @@ describe('optimistic save, and rollback on 42501', () => {
     expect(result.ok).toBe(true)
     expect(layer().en['nav.board']).toBe('Delivery')
     expect(layer().ar['nav.board']).toBeUndefined()
-    // invalidateLabels() forces a re-read, so 0016's trigger-stamped
+    // invalidateLabels() forces a re-read, so 0017's trigger-stamped
     // updated_at/updated_by replace the optimistic guess.
     expect(listCalls).toBeGreaterThan(1)
   })

@@ -140,7 +140,7 @@ export function overrideKey(base: string, category?: PluralCategory): string {
  *
  * Spec rule 5 is "blank means default, never an empty label", and it has four
  * keepers: this validator refuses to PRODUCE a blank override, api/labels.ts
- * refuses to SEND one, 0016's `label_overrides_touch()` refuses to STORE one and
+ * refuses to SEND one, 0017's `label_overrides_touch()` refuses to STORE one and
  * lib/i18n.ts's overrideFor() refuses to RENDER one. Four tests of emptiness in
  * four layers is four chances to disagree, and they did: every one of them was
  * `String.trim() === ''`, which is blind to the invisible format characters —

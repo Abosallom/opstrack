@@ -539,6 +539,12 @@ order by file;
 
 Verified against the live project on 30 July 2026: the first ten rows returned
 `yes`. **Re-verified 31 July 2026 with `0012` and `0013` added: all twelve `yes`.**
+
+> **This query is INCOMPLETE and a clean run does not mean the database is current.**
+> It checks twelve things ending at `0013`, so it reports "all twelve yes" while
+> `0014`–`0017` sit unapplied — which was true for four migrations on 31 July 2026 and
+> is the reason [`docs/PENDING-MIGRATIONS.md`](PENDING-MIGRATIONS.md) exists. Read that
+> file first; extend the query below whenever you add a migration.
 Both new files were applied twice that day, probes passing on both runs.
 
 `0005` has no fingerprint on purpose: it is a one-time correction that clears the

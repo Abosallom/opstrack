@@ -613,7 +613,7 @@ export default function App(): ReactElement {
                 element={isAdmin ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
               />
               {/* Terminology rewrites what every screen SAYS, for everyone, so
-                  it is gated exactly like the vocabulary editor above. 0016's
+                  it is gated exactly like the vocabulary editor above. 0017's
                   RLS is the real authority; this only avoids offering an
                   editable list of 1,665 labels to someone every write refuses. */}
               <Route

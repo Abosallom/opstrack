@@ -37,7 +37,7 @@
 // return a hit as-is and no override can render a label as empty space. It is
 // one rule with four keepers, each covering what the others cannot reach —
 // lib/labelOverrides.ts refuses to PRODUCE a blank override, api/labels.ts
-// refuses to SEND one, 0016's `label_overrides_touch()` collapses blank to null
+// refuses to SEND one, 0017's `label_overrides_touch()` collapses blank to null
 // so `''` cannot be STORED, and lib/i18n's `overrideFor()` is the last backstop
 // for a row hand-edited past all three. This one covers the localStorage cache,
 // which no trigger and no validator ever sees. All four now ask the SAME
@@ -45,7 +45,7 @@
 // `trim() === ''` tests were four chances to disagree, and they did: an
 // invisible format character is empty to a reader and non-empty to trim().
 //
-// MISSING TABLE IS A SUPPORTED STATE. Until 0016 is applied, listOverrides()
+// MISSING TABLE IS A SUPPORTED STATE. Until 0017 is applied, listOverrides()
 // fails, the layer stays empty, every t() lands on its shipped string and the
 // app renders exactly as it does today. See api/labels.ts's header — that
 // degradation is the feature's safety net, not a gap.
@@ -105,7 +105,7 @@ function text(value: string | null): string | null {
  * Does this row change what anyone reads?
  *
  * A row of nulls is not an error — it is what an upsert leaves behind for the
- * instant before 0016's prune trigger deletes it, and what a cached response of
+ * instant before 0017's prune trigger deletes it, and what a cached response of
  * that upsert holds — but counting it would tell the owner he has an override he
  * cannot find.
  */
@@ -146,7 +146,7 @@ function buildMap(rows: readonly LabelOverrideRow[]): LabelOverrideMap {
   const en: Record<string, string> = {}
   const ar: Record<string, string> = {}
   for (const row of rows) {
-    // A blank key names nothing and cannot be looked up. 0016's
+    // A blank key names nothing and cannot be looked up. 0017's
     // `label_overrides_key_shape` refuses one, so this only ever fires on a
     // cache written before that constraint existed.
     const key = row.key.trim()
@@ -345,7 +345,7 @@ function begin(): Promise<void> {
       }
       if (!result.ok) {
         // No stamp, no cache write, no clear: whatever was cached stays, which
-        // for an unapplied 0016 is an empty layer and the shipped wording.
+        // for an unapplied 0017 is an empty layer and the shipped wording.
         console.warn('[labels] load failed:', result.error)
         return
       }
@@ -393,7 +393,7 @@ function begin(): Promise<void> {
 /**
  * Mark the cache stale and refetch. Called after every mutation below, so the
  * screen ends up showing what the database holds — including the `updated_at`
- * and `updated_by` that 0016's trigger stamped, which an optimistic row can only
+ * and `updated_by` that 0017's trigger stamped, which an optimistic row can only
  * guess at, and any row the prune trigger removed on its own.
  */
 export function invalidateLabels(): void {
@@ -426,7 +426,7 @@ export function invalidateLabels(): void {
 /**
  * Save one key's wording. Blank in a language clears that language; blank in
  * both removes the override entirely, matching what api/labels.ts sends and what
- * 0016's prune trigger would do anyway, so the optimistic view and the stored
+ * 0017's prune trigger would do anyway, so the optimistic view and the stored
  * state never disagree.
  *
  * `en` and `ar` are what lib/labelOverrides.validateOverride() returned — its
@@ -536,7 +536,7 @@ export async function importOverrides(
  * The audit fields of a new or edited row are a GUESS: `updated_at` is this
  * client's clock, and `updated_by` is carried over from the row being replaced
  * rather than resolved, because this store has no business reading the session
- * for a value 0016's trigger is about to overwrite. invalidateLabels() replaces
+ * for a value 0017's trigger is about to overwrite. invalidateLabels() replaces
  * both a fetch later, and nothing renders them in between except a "last edited"
  * column that corrects itself.
  */

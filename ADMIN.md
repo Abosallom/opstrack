@@ -1,5 +1,9 @@
 # CoreTrack — administration
 
+> **Pending database migrations:** see [`docs/PENDING-MIGRATIONS.md`](docs/PENDING-MIGRATIONS.md). Migrations `0014`–`0017` are written, tested and **not yet
+> applied**; four user-facing guarantees are broken until they are run.
+
+
 What an admin can change from the app, what is deliberately not changeable, what
 it costs to change one of those things anyway, how member accounts are created and
 claimed, and how to recover when the last admin loses the role.

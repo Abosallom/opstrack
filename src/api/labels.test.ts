@@ -7,8 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 //     build without credentials degrades into a readable message;
 //   · blank is sent as NULL, never as an empty string (spec §5);
 //   · blanking BOTH languages is sent as a DELETE, not as an upsert whose
-//     response describes a row 0016's prune trigger has already removed;
-//   · both resets go through `reset_label_overrides()`, the function 0016 built
+//     response describes a row 0017's prune trigger has already removed;
+//   · both resets go through `reset_label_overrides()`, the function 0017 built
 //     and probed as the escape hatch, rather than through an ad-hoc DELETE;
 //   · an import writes every key in one statement, not one request per key.
 //
@@ -209,7 +209,7 @@ describe('listOverrides', () => {
     expect(result.ok && result.data.rows).toHaveLength(4000)
   })
 
-  it('reports an unapplied 0016 as a failure the store can absorb', async () => {
+  it('reports an unapplied 0017 as a failure the store can absorb', async () => {
     const api = await loadApi()
     // PostgREST's answer when label_overrides does not exist yet — verified
     // against the live project on 2026-07-31, before the migration was applied.
@@ -219,7 +219,7 @@ describe('listOverrides', () => {
     // NAMED rather than generic, and the difference is the terminology screen's
     // "the table is not installed" note: hanging that off the catch-all told
     // the owner his project had no label_overrides table whenever ANY save
-    // failed, which after 0016 is applied is simply false.
+    // failed, which after 0017 is applied is simply false.
     answer = { data: null, error: { code: 'PGRST205', message: 'Could not find the table' } }
 
     const result = await api.listOverrides()
@@ -243,7 +243,7 @@ describe('upsertOverride', () => {
     const row = argsOf(calls[0], 'upsert')?.[0] as Record<string, unknown>
     expect(row).toEqual({ key: 'nav.board', en: 'Pipeline', ar: null })
     expect(argsOf(calls[0], 'upsert')?.[1]).toEqual({ onConflict: 'key' })
-    // Audit columns belong to 0016's trigger: a client that stamps its own can
+    // Audit columns belong to 0017's trigger: a client that stamps its own can
     // lie about them, and the row exists to say who changed the wording.
     expect(Object.keys(row)).toEqual(['key', 'en', 'ar'])
   })
@@ -255,7 +255,7 @@ describe('upsertOverride', () => {
     const result = await api.upsertOverride('nav.board', '', '   ')
 
     expect(result).toEqual({ ok: true, data: null })
-    // No upsert at all. 0016's prune trigger would remove the row anyway, but
+    // No upsert at all. 0017's prune trigger would remove the row anyway, but
     // the response to that upsert describes a row that no longer exists by the
     // time it is written — the migration flags exactly this for whoever writes
     // the client. Asking for the deletion that is meant avoids the phantom.
@@ -304,7 +304,7 @@ describe('upsertOverrides — the import path', () => {
   })
 })
 
-describe('the escape hatch goes through the reset function 0016 built', () => {
+describe('the escape hatch goes through the reset function 0017 built', () => {
   it('resets one key by name and reports the row count', async () => {
     const api = await loadApi()
     answer = { data: 1, error: null }

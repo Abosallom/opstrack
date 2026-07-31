@@ -174,7 +174,7 @@ function byKey(a: string, b: string): number {
  * The override set as a document.
  *
  * A pair that overrides NOTHING is dropped rather than written as two nulls. It
- * cannot normally exist — 0016's prune trigger deletes a row the moment both
+ * cannot normally exist — 0017's prune trigger deletes a row the moment both
  * languages go blank — but the localStorage cache can hold one for the instant
  * before a refetch, and "here is a change" is not a true thing for a file to say
  * about it. The IMPORTER is deliberately not symmetrical about this: an entry
