@@ -27,9 +27,14 @@
 //   3. One ask per ENTRY per 24 hours, from ANYBODY — not per asker. The owner
 //      is the person being interrupted, and two colleagues chasing the same item
 //      in one afternoon is still two interruptions about one thing.
-//   4. AFTER AN ASK, THE ROW STOPS OFFERING TO ASK. It states the outstanding
-//      request instead — "Asked 2 days ago, no reply yet" — which answers the
-//      question the second tap was going to ask.
+//   4. AFTER AN ASK, THE ROW STOPS OFFERING TO ASK — for as long as rail 3 says,
+//      and on THAT clock alone. It states the record instead — "Asked 2 hours
+//      ago" — which answers the question the second tap was going to ask.
+//      `askOffer()` is the whole rule and it reads `mayAskAgain` and nothing
+//      else: whether the item has MOVED since is a fact about the sentence the
+//      row shows, never about whether the button exists. Deciding the offer
+//      from `answered` put a first-ask button on a row the database was still
+//      refusing, and every tap on it produced PT429.
 //
 // AND ONE THING IT DELIBERATELY DOES NOT DO: confirm(). The hard rule is a
 // confirm in front of DESTRUCTIVE acts, and this is not one — nothing is lost, a
@@ -75,40 +80,6 @@ import { sendNudge, useLocalAsk } from '../../store/nudges'
 import { toast } from '../toast'
 import type { Entry } from '../../types'
 import './nudge.css'
-
-/**
- * A speech bubble with a centred tail — the narrow-viewport form of the button.
- *
- * Declared here rather than added to `components/icons.tsx` for the reason
- * `components/fields/glyphs.tsx` gives in its header, and drawn to the same
- * recipe (24 grid, currentColor stroke, 1.8 weight, round joins, aria-hidden):
- * icons.tsx is a single-owner file and §1.0.4 forbids editing another worker's
- * module. The handoff files it for the fold-in.
- *
- * THE TAIL POINTS DOWN, not along the inline axis, and that is deliberate rather
- * than a drawing preference: a bubble with a side tail carries a reading
- * direction and would need `icon-directional` at every call site to survive
- * Arabic. A centred tail reads identically in both.
- */
-function IconAsk({ className, size = 24 }: { className?: string; size?: number }): ReactElement {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M20 5v9a1 1 0 0 1-1 1h-5.2L12 18.5 10.2 15H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1z" />
-    </svg>
-  )
-}
 
 /**
  * Migration 0019's two columns, which `src/types.ts` does not declare yet.
@@ -217,6 +188,34 @@ export function outstandingAsk(
   }
 }
 
+/**
+ * May the ask be OFFERED, and how must it be labelled? `null` means no button.
+ *
+ * PURE AND EXPORTED, like the two rules above it, and for a sharper reason:
+ * this is the one rule that has to agree with 0019 line for line. The server's
+ * gate is `v_nudged > v_now - interval '24 hours'` and NOTHING ELSE —
+ * it does not care whether the item moved since. So neither may this.
+ *
+ * THE BUG IT REPLACES. The row used to fall back to a plain "Ask for an update"
+ * the moment `answered` went true, which happens the instant anything at all
+ * touches the item — the owner posting the very update that was asked for. An
+ * item that is still overdue stays on Follow-ups, so the row then offered a
+ * FIRST ask, inside a window the database was still refusing: tap → PT429 →
+ * "Someone already asked about this one today" → refresh → the same dead button
+ * back, every tap until the window expired. This file's own header calls an
+ * affordance whose only possible outcome is a refusal worse than none.
+ *
+ *   · `null` ask   → 'first'. Nobody has asked; the plain offer.
+ *   · `mayAskAgain` → 'again'. The window has reopened, so the server will
+ *     accept it — and it is a repeat, which is what the label must say so
+ *     nobody sends a second one believing it is the first.
+ *   · otherwise    → `null`. Inside the window. The row states the ask instead.
+ */
+export function askOffer(ask: { mayAskAgain: boolean } | null): 'first' | 'again' | null {
+  if (ask === null) return 'first'
+  return ask.mayAskAgain ? 'again' : null
+}
+
 export interface NudgeButtonProps {
   entry: Entry
   /** The signed-in profile's id, or null. */
@@ -261,6 +260,7 @@ export default function NudgeButton({
 
   const ownerLabel = labelFor(entry.owner_id, entry.owner_name)
   const ask = outstandingAsk(entry, local)
+  const offer = askOffer(ask)
 
   const send = (): void => {
     if (sending) return
@@ -282,7 +282,7 @@ export default function NudgeButton({
     })
   }
 
-  const askButton = (first: boolean): ReactElement => (
+  const askButton = (kind: 'first' | 'again'): ReactElement => (
     <button
       type="button"
       className={`btn btn-sm btn-ghost ndg-act${className ? ` ${className}` : ''}`}
@@ -291,21 +291,42 @@ export default function NudgeButton({
       // The tooltip carries the WHO and the WHAT the label cannot: three rows on
       // a screen all say "Ask for an update" and they are three different
       // people. Same shape as this row's other action titles.
-      title={t(first ? 'nudge.askOf' : 'nudge.askAgainOf', {
+      title={t(kind === 'first' ? 'nudge.askOf' : 'nudge.askAgainOf', {
         name: ownerLabel,
         title: entry.title,
       })}
     >
-      <IconAsk size={15} className="ndg-icon" />
-      <span className="ndg-label">{t(first ? 'nudge.ask' : 'nudge.askAgain')}</span>
+      {/* TWO SPANS, ONE VISIBLE PER WIDTH, ONE ACCESSIBLE NAME.
+          `.ndg-short` is the phone's word and `aria-hidden`; `.ndg-label` is the
+          full sentence and is the accessible name at EVERY viewport, visually
+          hidden below 640px where it does not fit. Both are whole strings from
+          the locale tree — never a sentence assembled from two fragments, which
+          is a translation nobody can write correctly.
+
+          This control has no glyph form. nudge.css carries the 375px
+          measurements: the full sentence leaves the row's title 31px wide, and
+          the one verb costs exactly nothing — it measures the same 44px the
+          speech bubble did. A tap that notifies a colleague, cannot be undone
+          and has no confirm may not be a picture. */}
+      <span className="ndg-short" aria-hidden="true">
+        {t('nudge.askShort')}
+      </span>
+      <span className="ndg-label">{t(kind === 'first' ? 'nudge.ask' : 'nudge.askAgain')}</span>
     </button>
   )
 
-  // Nobody has asked, or somebody asked and the item has moved since. Either
-  // way there is nothing outstanding to report and the row simply offers the
-  // ask — an answered ask is a fact with nothing left to do about it, and a row
-  // carrying a spent record is a row that has stopped being scannable.
-  if (ask === null || ask.answered) return askButton(true)
+  // Nobody has asked: the plain first offer, and nothing to report.
+  if (ask === null) return askButton('first')
+
+  // THE WINDOW DECIDES, NOT THE MOVEMENT — see askOffer(). `null` here means
+  // the database would refuse, so no button is drawn at all.
+  const button = offer === null ? null : askButton(offer)
+
+  // ANSWERED, AND THE WINDOW HAS REOPENED. The record is spent — something
+  // happened on the item after the ask — so there is nothing outstanding to
+  // report and a row carrying a spent record has stopped being scannable. The
+  // offer comes back alone, labelled "Ask again", because it IS a repeat.
+  if (ask.answered && button !== null) return button
 
   const when = formatRelativeTime(ask.askedAt, locale)
   const mine = ask.askedBy !== null && ask.askedBy === meId
@@ -320,9 +341,23 @@ export default function NudgeButton({
     (ask.askedBy !== null ? memberMap.get(ask.askedBy)?.displayName?.trim() : '') ||
     t('nudge.someone')
 
-  const sentence = mine
-    ? t('nudge.askedByYou', { time: when })
-    : t('nudge.askedByOther', { name: askerName, time: when })
+  /**
+   * "Nothing since" IS A CLAIM, so it is only made when it is true.
+   *
+   * The only answered ask that reaches this point is one still inside the
+   * window — the state that used to render a dead button. What it renders now is
+   * the record ALONE, with a sentence that says what actually happened: somebody
+   * asked, and the item has moved since. Saying "nothing since" there would be a
+   * lie the reader could disprove by scrolling to the update thread, and
+   * rendering nothing at all would leave the missing button unexplained.
+   */
+  const sentence = ask.answered
+    ? mine
+      ? t('nudge.answeredByYou', { time: when })
+      : t('nudge.answeredByOther', { name: askerName, time: when })
+    : mine
+      ? t('nudge.askedByYou', { time: when })
+      : t('nudge.askedByOther', { name: askerName, time: when })
 
   return (
     <>
@@ -333,7 +368,8 @@ export default function NudgeButton({
           is what an answer needs. The `warn` tint appears only once the window
           has reopened, which is the moment the record stops being reassurance
           ("it has been asked") and starts being a prompt ("and nothing came
-          back"). */}
+          back") — and never on an answered ask, because the early return above
+          means `mayAskAgain` here always carries `answered === false`. */}
       <span
         className={`pill tabular ndg-pill${ask.mayAskAgain ? ' warn' : ''}`}
         role="img"
@@ -348,8 +384,8 @@ export default function NudgeButton({
           workflow this feature exists to replace. It comes back after 0019's
           window, labelled as a repeat so nobody sends a second one believing it
           is the first, and the pill beside it says how long the silence has
-          been. */}
-      {ask.mayAskAgain ? askButton(false) : null}
+          been. `button` is null for exactly as long as 0019 would refuse it. */}
+      {button}
     </>
   )
 }

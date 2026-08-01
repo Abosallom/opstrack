@@ -84,17 +84,46 @@ export interface NotificationRow {
 const DEFAULT_LIMIT = 50
 
 /**
+ * The kinds this build has a sentence for, as an exhaustive `Record<Union, true>`
+ * literal — the same frozen-union guard lib/entryFilter.ts:119 uses, and here for
+ * the same reason: adding a member to `NotificationKind` REDS THIS FILE at compile
+ * time.
+ *
+ * WHY THIS SHAPE AND NOT A COMPARISON CHAIN. The line this replaced was
+ * `row.kind === 'completed' ? 'completed' : 'assigned'`, and it was not a
+ * hypothetical hazard — migration 0019 added 'nudged' to the column's CHECK and to
+ * `nudge_entry()`, and every nudge then arrived here, failed the one equality it
+ * was tested against, and fell out of the ternary as 'assigned'. The recipient was
+ * told a colleague had assigned them an item that `canNudge()` guarantees they
+ * already owned. A chain has no arity; this literal does, and the compiler counts
+ * it.
+ *
+ * `Object.hasOwn`, not `in`, for entryFilter's reason: `in` walks the prototype
+ * chain, and this value comes off the wire.
+ */
+const KIND_KEYS: Readonly<Record<NotificationKind, true>> = {
+  assigned: true,
+  completed: true,
+  nudged: true,
+}
+
+function isNotificationKind(v: string): v is NotificationKind {
+  return Object.hasOwn(KIND_KEYS, v)
+}
+
+/**
  * Row → view model. Pure; exported because store/notifications.ts maps realtime
  * payloads with it too, and because it is the one place the snake_case/camelCase
  * boundary this app draws at the api layer is actually drawn for this table.
  *
- * `kind` is narrowed rather than cast: the column has a CHECK, but a row written
- * by a future trigger this build has never heard of must render as *something*
- * — 'assigned' is the safe default, since it is the kind whose sentence works
- * for any entry.
+ * `kind` is VALIDATED rather than cast or defaulted: a row written by a future
+ * migration this build has never heard of still has to render as *something*, and
+ * 'assigned' remains that fallback because its sentence works for any entry. What
+ * changed is that the fallback is now reached ONLY by a genuinely unknown kind —
+ * which is what the old comment claimed and 0019 disproved.
  */
 export function toAppNotification(row: NotificationRow): AppNotification {
-  const kind: NotificationKind = row.kind === 'completed' ? 'completed' : 'assigned'
+  const kind: NotificationKind = isNotificationKind(row.kind) ? row.kind : 'assigned'
   return {
     id: String(row.id),
     recipientId: row.recipient_id,

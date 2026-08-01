@@ -282,6 +282,15 @@
   color: var(--green);
 }
 
+/* Yellow, not a fourth hue: a nudge is somebody WAITING on you, which is the
+   same "attention, not alarm" register the palette already spends --yellow on
+   for `stale`. Both themes' --yellow are contrast-verified tokens
+   (global.css:61 / :126), so this pill clears the bar without a new colour to
+   check. */
+.notif-kind-nudged {
+  color: var(--yellow);
+}
+
 .notif-item-body {
   min-inline-size: 0;
   display: flex;

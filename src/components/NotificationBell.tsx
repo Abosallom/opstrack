@@ -119,6 +119,42 @@ export function IconBell({ className, size = 24 }: IconProps): ReactElement {
   )
 }
 
+/**
+ * The kind glyph for a nudge: a speech bubble, because somebody is talking to
+ * you.
+ *
+ * THE SAME PATH AS `IconAsk` in components/entry/NudgeButton.tsx, on purpose and
+ * not by accident — the button that sends the ask and the inbox row that
+ * delivers it are two ends of one gesture, and a user who learns the bubble on
+ * the entry row should meet the same bubble in the bell. It is duplicated rather
+ * than shared for this file's own ICON OWNERSHIP reason above: icons.tsx is a
+ * single-owner file. The handoff asks for `IconBell`, `IconAsk` and this one to
+ * be folded in together, at which point both call sites import the same symbol.
+ *
+ * The tail points DOWN, not along the inline axis: a side tail carries a reading
+ * direction and would need `icon-directional` to survive Arabic. A centred tail
+ * reads identically in both.
+ */
+function IconAsk({ className, size = 24 }: IconProps): ReactElement {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M20 5v9a1 1 0 0 1-1 1h-5.2L12 18.5 10.2 15H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1z" />
+    </svg>
+  )
+}
+
 /* ---------- the sentence ---------- */
 
 /**
@@ -129,7 +165,7 @@ export function IconBell({ className, size = 24 }: IconProps): ReactElement {
  * second implementation there is precisely how `actorName` would find its way
  * back onto a screen.
  *
- * The four sentence keys are written as literals rather than built with a
+ * The six sentence keys are written as literals rather than built with a
  * template so lib/localeReach.test.ts can see them — a `t(\`notif.${kind}\`)`
  * is invisible to that scan, which is how the Wave-2 SLA keys shipped missing.
  */
@@ -144,14 +180,27 @@ export function notificationSentence(
   const live = item.actorId === null ? '' : (memberMap.get(item.actorId)?.displayName.trim() ?? '')
   const actor = live || item.actorName.trim()
   const title = item.entryTitle.trim() || t('notif.untitled')
-  if (actor === '') {
-    return item.kind === 'completed'
-      ? t('notif.completedNoActor', { title })
-      : t('notif.assignedNoActor', { title })
+  // A SWITCH WITH NO `default:`, and that is the repair rather than a tidy-up.
+  // With `kind` a closed union, an unhandled member leaves this function able to
+  // reach its end, and the annotated `: string` return type turns that into a
+  // tsc error. The ternary pair this replaced had no such floor: it absorbed any
+  // kind that was not 'completed' into the 'assigned' sentence, so migration
+  // 0019's 'nudged' shipped telling an owner that an item they already own had
+  // just been assigned to them — in both languages, and on the push banner too.
+  switch (item.kind) {
+    case 'completed':
+      return actor === ''
+        ? t('notif.completedNoActor', { title })
+        : t('notif.completed', { actor, title })
+    case 'nudged':
+      return actor === ''
+        ? t('notif.nudgedNoActor', { title })
+        : t('notif.nudged', { actor, title })
+    case 'assigned':
+      return actor === ''
+        ? t('notif.assignedNoActor', { title })
+        : t('notif.assigned', { actor, title })
   }
-  return item.kind === 'completed'
-    ? t('notif.completed', { actor, title })
-    : t('notif.assigned', { actor, title })
 }
 
 /* ---------- shared hooks ---------- */
@@ -255,8 +304,18 @@ export function NotificationItem({
   return (
     <li className="notif-item" data-unread={unread || undefined} data-fresh={fresh || undefined}>
       <button type="button" className="notif-item-main" onClick={() => onOpen(item)}>
+        {/* Decorative, and deliberately so: `notificationSentence()` beside it
+            already says which kind this is, in words, in the button's accessible
+            name. The glyph is a scanning aid for the eye, not a second channel —
+            announcing it would read every row twice. */}
         <span className={`notif-kind notif-kind-${item.kind}`} aria-hidden="true">
-          {item.kind === 'completed' ? <IconCheck size={15} /> : <IconUser size={15} />}
+          {item.kind === 'completed' ? (
+            <IconCheck size={15} />
+          ) : item.kind === 'nudged' ? (
+            <IconAsk size={15} />
+          ) : (
+            <IconUser size={15} />
+          )}
         </span>
         <span className="notif-item-body">
           <span className="notif-item-sentence">{notificationSentence(memberMap, item)}</span>

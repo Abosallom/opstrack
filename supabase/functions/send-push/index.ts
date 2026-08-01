@@ -397,14 +397,18 @@ export async function sendOne(
 /* ────────────────────────────── the payload ────────────────────────────── */
 
 /**
- * The two sentences, in both languages, duplicated from `notif.json` in each of
- * the two locale trees under `src/locales/`.
+ * The three sentences, in both languages, duplicated from `notif.json` in each
+ * of the two locale trees under `src/locales/`.
  *
  * THIS IS A DELIBERATE SECOND COPY AND IT IS THE ONLY ONE IN THE PRODUCT. A
  * service worker cannot call `t()` — the app bundle is not running when a push
  * arrives, and the whole point of a push is that no tab is open — so the
  * sentence has to be built where the recipient's locale is known, which is
  * here: `profiles.locale` is a column and the queue hands it over with the row.
+ *
+ * The `nudged` pair is byte-identical to `notif.nudged` / `notif.nudgedNoActor`
+ * in both trees, and it must stay that way: the push and the inbox row describe
+ * the SAME event, and a person who taps the banner lands on the inbox line.
  *
  * The bidi isolates (U+2068 … U+2069) around the two interpolations are carried
  * over verbatim. They matter MORE here than in the app: an Arabic notification
@@ -415,21 +419,27 @@ const STRINGS = {
   en: {
     assignedTitle: 'Assigned to you',
     completedTitle: 'Item completed',
+    nudgedTitle: 'Update requested',
     assigned: '⁨{actor}⁩ assigned you “⁨{title}⁩”',
     completed: '⁨{actor}⁩ completed “⁨{title}⁩”',
+    nudged: '⁨{actor}⁩ is asking for an update on “⁨{title}⁩”',
     assignedNoActor: 'You were assigned “⁨{title}⁩”',
     completedNoActor: '“⁨{title}⁩” was completed',
+    nudgedNoActor: 'Someone is asking for an update on “⁨{title}⁩”',
     untitled: 'Untitled item',
   },
   ar: {
     assignedTitle: 'أُسنِد إليك',
     completedTitle: 'اكتمل بند',
+    nudgedTitle: 'طُلب منك تحديث',
     assigned:
       'أسند إليك ⁨{actor}⁩ «⁨{title}⁩»',
     completed: 'أكمل ⁨{actor}⁩ «⁨{title}⁩»',
+    nudged: 'يطلب ⁨{actor}⁩ تحديثًا عن «⁨{title}⁩»',
     assignedNoActor:
       'أُسنِد إليك «⁨{title}⁩»',
     completedNoActor: 'اكتمل «⁨{title}⁩»',
+    nudgedNoActor: 'طلب أحد الزملاء تحديثًا عن «⁨{title}⁩»',
     untitled: 'بند بلا عنوان',
   },
 } as const
@@ -446,29 +456,66 @@ export interface QueuedNotification {
 }
 
 /**
- * Row → the JSON string the service worker reads.
+ * The kinds this sender has a sentence for — the live `notifications_kind_check`
+ * list (0004 for the first two, 0019 for `nudged`), narrowed by hand.
+ *
+ * `row.kind` arrives as `text` because the column is a CHECK constraint and not
+ * an enum, so a future migration can widen it without this file being rebuilt.
+ * That is exactly what happened to `nudged`: 0019 widened the constraint, the
+ * trigger started writing the new kind, and this function — which tested a
+ * BOOLEAN, `kind === 'completed'`, and treated everything else as `assigned` —
+ * told the owner of an item they already owned that it had just been assigned
+ * to them. A three-valued domain read through a boolean can only ever be wrong
+ * about the third value, so the narrowing below is explicit and total.
+ */
+const PUSH_KINDS = ['assigned', 'completed', 'nudged'] as const
+type PushKind = (typeof PUSH_KINDS)[number]
+
+function pushKind(kind: string): PushKind | null {
+  return (PUSH_KINDS as readonly string[]).includes(kind) ? (kind as PushKind) : null
+}
+
+/**
+ * Row → the JSON string the service worker reads, or NULL when this build has
+ * no sentence for the row's kind.
+ *
+ * NULL RATHER THAN A FALLBACK, and it is the whole lesson of the `nudged`
+ * defect. The old default asserted a specific sentence — "X assigned you …" —
+ * about a kind it had never heard of, and a lock-screen banner that states
+ * something untrue is worse than no banner at all: the person cannot check it,
+ * cannot correct it, and acts on it. Suppressing costs nothing, because the
+ * in-app inbox already holds the row and renders it from the client's own
+ * locale tree. The drain treats null exactly as it treats a recipient with no
+ * registered device: obligation completed, nothing to retry.
  *
  * `path` is a hash route, not a URL: the service worker resolves it against its
  * own registration scope, so the same payload works on `localhost:5173`, on
  * `abosallom.github.io/opstrack/` and inside the installed PWA without this
  * function knowing where the app is deployed.
  */
-export function buildPayload(row: QueuedNotification): string {
+export function buildPayload(row: QueuedNotification): string | null {
+  const kind = pushKind(row.kind)
+  if (!kind) return null
+
   const s = STRINGS[row.recipient_locale === 'ar' ? 'ar' : 'en']
-  const completed = row.kind === 'completed'
   const title = row.entry_title.trim() || s.untitled
   const actor = row.actor_name.trim()
-  const template = completed
-    ? actor
-      ? s.completed
-      : s.completedNoActor
-    : actor
-      ? s.assigned
-      : s.assignedNoActor
+
+  // One lookup table, three kinds, both branches of "is there an actor" — so
+  // adding a fourth kind is a compile error here rather than a wrong sentence
+  // on somebody's phone.
+  const sentence: Record<PushKind, { heading: string; withActor: string; without: string }> = {
+    assigned: { heading: s.assignedTitle, withActor: s.assigned, without: s.assignedNoActor },
+    completed: { heading: s.completedTitle, withActor: s.completed, without: s.completedNoActor },
+    nudged: { heading: s.nudgedTitle, withActor: s.nudged, without: s.nudgedNoActor },
+  }
+  const chosen = sentence[kind]
+  const template = actor ? chosen.withActor : chosen.without
+
   return JSON.stringify({
     id: String(row.notification_id),
-    kind: completed ? 'completed' : 'assigned',
-    title: completed ? s.completedTitle : s.assignedTitle,
+    kind,
+    title: chosen.heading,
     body: template.replace('{actor}', actor).replace('{title}', title),
     path: `#/entry/${row.entry_id}`,
     // One notification per inbox row: a re-send after a retry replaces the
@@ -526,6 +573,19 @@ async function drain(): Promise<DrainSummary> {
     }
 
     const payload = buildPayload(row)
+    if (payload === null) {
+      // A kind this deployment has no sentence for — a migration widened
+      // `notifications_kind_check` and this function has not been redeployed.
+      // Same disposition as "no registered device": the obligation is complete
+      // because the in-app inbox already holds the row, and there is nothing a
+      // retry could improve. Logged with the kind (never the title, never the
+      // actor) so the gap is a line in the function log rather than a silence.
+      console.warn(`[send-push] no sentence for kind "${row.kind}" — suppressed`)
+      summary.suppressed++
+      await admin.rpc('settle_push', { p_outbox_id: row.outbox_id, p_ok: true, p_error: null })
+      continue
+    }
+
     const outcomes = await Promise.all(subs.map((sub) => sendOne(sub, payload, vapid)))
 
     const dead = outcomes.filter((o) => o.gone).map((o) => o.endpoint)

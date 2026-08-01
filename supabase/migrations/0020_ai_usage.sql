@@ -50,18 +50,33 @@
 -- table with the same three functions would be a second thing to get wrong.
 -- So this file widens `claim_counters_scope_ck` by two values and stops there.
 --
--- ⚠ HAZARD, STATED RATHER THAN DISCOVERED LATER. `0010_claim_counters.sql` is
--- re-runnable and drops-then-adds that same constraint with its own two-value
--- list. Running 0010 again AFTER this file silently reverts the widening, and
--- every `claim_bump('ai_user', …)` then fails with 23514.
+-- ⚠ HAZARD — STATED HERE, AND CLOSED BY 0022. `0010_claim_counters.sql` is
+-- re-runnable and drops-then-adds that same constraint with its own list.
+-- Running 0010 again AFTER this file reverted the widening, and every
+-- `claim_bump('ai_user', …)` then failed with 23514.
 --
--- The blast radius is bounded ON PURPOSE and is worth reading before anyone
--- "fixes" it: `bump()` in capture-assist logs its error and returns, exactly as
--- claim-account's does, so a reverted constraint costs the BURST limiter and
--- nothing else. The DAILY ceiling lives in `ai_usage` below, is read before any
--- spend, and fails CLOSED — so the wallet is still guarded by the guard that
--- actually protects it. The fix is a one-line edit to 0010's constraint list;
--- it is named in the W-AI handoff note because 0010 is not this file's to edit.
+-- MEASURED ON THE LIVE PROJECT rather than reasoned about, because the shape of
+-- the failure turned out to depend on the table's contents:
+--
+--   * with `ai_user`/`ai_ip` rows present, re-running the OLD 0010 aborts with
+--     `23514 … is violated by some row` and the whole migration rolls back —
+--     loud, and harmless;
+--   * with those rows absent — which is the NORMAL state, since the buckets are
+--     60-second rolling windows that the GC pass clears — the old 0010 applies
+--     cleanly and the constraint comes back as
+--     `CHECK (scope = ANY (ARRAY['username', 'ip']))`. Verified: the next
+--     `claim_bump('ai_user', …)` wrote no row and raised nothing a person sees.
+--
+-- So the silent half is the likely half. The blast radius is still bounded on
+-- purpose — `bump()` in capture-assist logs its error and returns, so a reverted
+-- constraint costs the BURST limiter and nothing else, and the DAILY ceiling
+-- lives in `ai_usage` below, is read before any spend, and fails CLOSED — but
+-- "bounded" was never a reason to leave it armed.
+--
+-- 0010 now carries all four scopes in its OWN `add constraint`, so re-running
+-- any migration in any order leaves the constraint correct, and 0022's PROBE 3
+-- reads it out of the catalog and refuses if any of the four is missing. See
+-- docs/W-AI-HANDOFF.md for the rest of this wave's residual risks.
 --
 --
 -- ═══ WHAT IS DELIBERATELY NOT HERE ═══
@@ -225,10 +240,23 @@ $$;
  * lands as zero instead of as a constraint violation that would throw away the
  * call record entirely.
  *
- * IT IS CALLED ONLY AFTER A BILLED CALL SUCCEEDS. A call that timed out or was
- * refused upstream is not recorded here — it is counted by the per-minute
- * `claim_counters` buckets, which is the counter that exists to throttle
- * attempts rather than to account for spend.
+ * IT IS CALLED FOR EVERY CALL THAT COST MONEY, WHICH IS NOT THE SAME AS EVERY
+ * CALL THAT SUCCEEDED. The edge function's `isBilled()` decides, and the rule
+ * is the invoice's rather than the feature's: a refusal and an unusable reply
+ * are HTTP 200s with real `usage` blocks, so the model ran and the tokens are
+ * billed; an aborted call is recorded as one call with ZERO tokens, because the
+ * model does not stop generating when this function stops listening and there
+ * is no token count to invent; and a 429 or a 4xx — no credit, a bad key, a
+ * rejected shape — is refused before inference, has no `usage` block, and is
+ * deliberately NOT recorded, so a project whose key has run out does not burn
+ * its own daily quota discovering that on every keystroke.
+ *
+ * An earlier draft recorded only the success path. That left every refusal, and
+ * every reply the validator could not use, free against the daily ceiling — the
+ * one guard in that function that fails closed and the one holding the wallet —
+ * so a prompt that reliably produced garbage could be retried indefinitely at
+ * the owner's expense. The per-minute `claim_counters` buckets bound the RATE
+ * and were never the spend account.
  */
 create or replace function public.ai_usage_record(
   p_user   uuid,

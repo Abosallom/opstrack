@@ -165,8 +165,16 @@ export default function AiSettings(): ReactElement {
         ) : (
           <>
             <p className="ais-usage">
-              <span className="ais-usage-count tabular">{usage ? usage.calls : 0}</span>
-              <span className="ais-usage-of">{t('ai.usageCalls')}</span>
+              {/* THE NUMBER LIVES INSIDE THE STRING, and it has to.
+                  `selectPlural()` reads `vars.count` and nothing else
+                  (lib/plural.ts), so a count in one span beside a frozen noun in
+                  the next cannot inflect at all: this rendered "1 suggestions"
+                  in English, and «1 اقتراحًا» in Arabic — the accusative tamyīz
+                  form, which is correct only for 11–99 — on every count below
+                  11. One element, one plural node, `{count}` interpolated. */}
+              <span className="ais-usage-count tabular">
+                {t('ai.usageCalls', { count: usage ? usage.calls : 0 })}
+              </span>
               {/* The ceiling appears only once it is KNOWN. `ai_usage` cannot
                   report it — the number lives in the edge function — so it is
                   learned from the first suggestion of the session, and printing

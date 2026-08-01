@@ -152,7 +152,9 @@ entry_updates  id 7dd5b716-797b-421f-8458-1d864e5a9341
                status_from null  status_to null   created_at 15:00:35.809Z
 ```
 
-`[nudge]` is not a leak — it is `NUDGE_BODY_TOKEN` (`src/api/nudge.ts:68`), a sentinel that `threadBodyKey()` maps to the localized `nudge.threadLine`, so the audit thread renders a sentence in both languages.
+`[nudge]` is not a leak — it is `NUDGE_BODY_TOKEN` (`src/api/nudge.ts`), a sentinel the client maps to the localized `nudge.threadLine` via `threadBodyKey()`.
+
+> **Correction, filed after this document was written.** The sentence above described the design, not the build. At the commit this evidence was gathered from (`f8ee26f`), `threadBodyKey()` had **no caller**: `UpdateThread.tsx` and `TrackTimeline.tsx` both printed `update.body` verbatim, so `nudge.threadLine` was dead in both locale trees and the audit thread showed the literal `[nudge]` in Arabic and English alike. The same commit left the READ side of `notifications.kind` unaware of `'nudged'`, so the inbox and the push banner both rendered a nudge with the *assigned* sentence — telling an owner that an item they already own had just been assigned to them. Both were repaired in the follow-on fix pass (`src/api/notifications.ts`, `src/types.ts`, `src/components/NotificationBell.tsx`, both `notif.json` trees, and the two thread renderers); the live rows quoted above are unchanged and were never the thing in doubt. Recorded here rather than silently edited, because an evidence file that asserts a behaviour nobody exercised is the failure mode this document exists to prevent.
 
 **The clock claim holds.** This is the subtle one and it is correct:
 

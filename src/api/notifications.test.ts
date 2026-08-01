@@ -75,6 +75,21 @@ describe('toAppNotification', () => {
     expect(toAppNotification(row({ kind: 'completed' })).kind).toBe('completed')
   })
 
+  it("carries 'nudged' through instead of collapsing it into assigned", () => {
+    // REGRESSION, and a shipped one. Migration 0019 widened
+    // `notifications_kind_check` to ('assigned','completed','nudged') and had
+    // `nudge_entry()` write the third — but this mapper was still
+    // `kind === 'completed' ? 'completed' : 'assigned'`, so every nudge arrived
+    // in the inbox as an ASSIGNMENT. `canNudge()` refuses to offer the button on
+    // a row you own, so the recipient of a nudge is by construction the owner:
+    // "X assigned you this" was not merely imprecise, it was impossible, in both
+    // languages and on the push banner too.
+    //
+    // The narrow is now driven by an exhaustive `Record<NotificationKind, true>`
+    // literal, so the next kind cannot repeat this silently — it reds the file.
+    expect(toAppNotification(row({ kind: 'nudged' })).kind).toBe('nudged')
+  })
+
   it('carries read_at through as the only unread signal', () => {
     // The badge counts nulls; there is deliberately no `read` boolean to drift
     // from the timestamp.

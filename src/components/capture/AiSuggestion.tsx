@@ -66,6 +66,28 @@ import './ai-suggest.css'
  */
 const DEBOUNCE_MS = 700
 
+/**
+ * The first of these forms that is actually a name, or `''`.
+ *
+ * THE CHIP AND THE TOKEN MUST DRAW ON THE SAME SOURCES. `trackToken()` and
+ * `ownerToken()` (lib/ai/toLine.ts:165, :190) each walk a LIST of forms and
+ * emit on the first that resolves, so a chip built from one field of that list
+ * is narrower than the token it is supposed to describe — and a token with no
+ * chip is exactly the promise this row's header says it cannot make.
+ *
+ * The ORDER differs from the token's on purpose: the token picks the form that
+ * MATCHES (`ownerToken` tries the handle first because tier 0 cannot be
+ * outvoted), the chip picks the form a person RECOGNISES. Order is free to
+ * differ; membership is not.
+ */
+function firstNamed(forms: readonly (string | null | undefined)[]): string {
+  for (const form of forms) {
+    const value = (form ?? '').trim()
+    if (value !== '') return value
+  }
+  return ''
+}
+
 export interface AiSuggestionProps {
   /** The raw input string. The suggestion is pinned to it byte for byte. */
   line: string
@@ -170,9 +192,18 @@ export function AiSuggestion({
       // painted with. The context is the fallback for the one case they differ:
       // a track archived after this line was parsed — where the name is still
       // the right word to show and the colour no longer matters.
+      //
+      // The chain then runs on through the OTHER name and the aliases, because
+      // `trackToken()` does: a track whose `name` is blank can still be named by
+      // `name_ar` or by an alias, and that token would arrive with no chip.
       const track = tracks.get(fields.trackId)
-      const fromCtx = ctx.tracks.find((tr) => tr.id === fields.trackId)?.name ?? ''
-      const name = track ? trackLabel(track) : fromCtx
+      const fromCtx = ctx.tracks.find((tr) => tr.id === fields.trackId)
+      const name = firstNamed([
+        track ? trackLabel(track) : '',
+        fromCtx?.name,
+        fromCtx?.nameAr,
+        ...(fromCtx?.aliases ?? []),
+      ])
       if (name) out.push({ key: 'track', text: name, kind: 'track', trackId: fields.trackId })
     }
     if (fields.ownerId) {
@@ -185,7 +216,17 @@ export function AiSuggestion({
       // resolve the token against, so a second read could name somebody the
       // suggestion is not actually about. It is also one hook fewer for the
       // capture screen to carry.
-      const name = ctx.members.find((m) => m.id === fields.ownerId)?.displayName ?? ''
+      //
+      // THE HANDLE IS A FALLBACK, NOT A DECORATION. `display_name` is
+      // `row.display_name?.trim() || ''` (api/members.ts:168) and an account
+      // nobody has named is an ordinary, documented state — while
+      // `ownerToken()` tries the USERNAME FIRST, so that member survives
+      // `validate()` and emits `@nasser`. Reading only `displayName` here left
+      // the chip empty, the row hidden, and Tab still assigning the entry to
+      // somebody who was never on screen. Same sources as the token, so a token
+      // can no longer outlive its chip.
+      const member = ctx.members.find((m) => m.id === fields.ownerId)
+      const name = firstNamed([member?.displayName, member?.username, ...(member?.aliases ?? [])])
       if (name) out.push({ key: 'owner', text: t('ai.chipOwner', { owner: name }), kind: 'owner' })
     }
     if (fields.priority) {
@@ -219,7 +260,23 @@ export function AiSuggestion({
     return out
   }, [fields, tracks, trackLabel, vocabLabel, ctx, locale])
 
-  const showing = mine !== null && tokens.length > 0 && chips.length > 0
+  /**
+   * WORD FOR WORD THE CONDITION `takeAiTokens()` APPLIES.
+   *
+   * It used to carry `&& chips.length > 0` as well, and that extra term was the
+   * defect rather than the safety net it looked like: Capture's Tab handler
+   * (Capture.tsx:803) gates on the TOKENS alone, so any field that could make a
+   * token but not a chip — an owner with no display name was the live one —
+   * left this row rendering nothing while Tab quietly appended it. Two gates,
+   * two answers, and the disagreement was invisible by construction.
+   *
+   * One gate now, and the chip list is what is made to match it: every source
+   * `toTokens()` can write from is a source `chips` can name, and
+   * `validate()` has already dropped every field that has no writable token at
+   * all. `chips.length === tokens.length` is asserted in this component's test
+   * for the member that used to break it.
+   */
+  const showing = mine !== null && tokens.length > 0
 
   // ANNOUNCED FOR THE FINISHED ARTICLE ONLY — never for the pending state, which
   // would read a sentence about waiting to a screen-reader user every time they

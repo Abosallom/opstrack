@@ -19,6 +19,30 @@ export default defineConfig({
     environment: 'node',
     // Co-located with the code they cover: src/lib/dates.test.ts sits next to
     // src/lib/dates.ts. No separate tests/ tree to keep in step with a rename.
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    //
+    // THE SECOND LINE IS THE EDGE FUNCTIONS, AND IT IS NOT A CONVENIENCE.
+    // `supabase/functions/capture-assist/index.ts` holds `validateProposal()`,
+    // which is the copy of the AI validator an attacker CANNOT skip: the client
+    // copy runs in a browser the caller controls, so anyone with a valid
+    // session can POST that endpoint directly and meet only this one. Until
+    // this line existed, the boundary that is actually load-bearing had zero
+    // automated coverage while the browser-side copy had 543 lines of it, and
+    // any hand-drift between them was invisible to CI, to the gates and to
+    // review. Same for `send-push`'s `buildPayload()`, which renders the
+    // sentence that lands on a lock screen where nobody can correct it.
+    include: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'supabase/functions/**/*.test.ts',
+    ],
+  },
+  // Deno spells its dependencies `npm:pkg@2`; Node does not. This one rewrite
+  // is what lets a test import the DEPLOYED file rather than a copy of it —
+  // and importing the deployed file is the whole point, because a test against
+  // a copy proves nothing about the function that is actually serving. Nothing
+  // in the app bundle uses `npm:` specifiers, so this cannot affect a build:
+  // `vite build` does not read this file.
+  resolve: {
+    alias: [{ find: /^npm:(@supabase\/supabase-js)@\d+$/, replacement: '$1' }],
   },
 })

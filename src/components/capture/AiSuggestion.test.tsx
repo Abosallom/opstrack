@@ -87,6 +87,11 @@ vi.mock('../../store/config', () => ({
 
 const { AiSuggestion } = await import('./AiSuggestion')
 const { parse } = await import('../../lib/capture/parse')
+// The REAL token writer — the mock above spreads `...actual`, so this is the
+// same function Capture's Tab handler calls through `takeAiTokens`. Asserting
+// the row against it is what makes "one chip per token" a fact rather than a
+// comment.
+const { suggestionTokens } = await import('../../store/ai')
 
 import type { ParseContext } from '../../lib/capture/parse'
 import type { ValidatedSuggestion } from '../../lib/ai/types'
@@ -155,8 +160,15 @@ describe('AiSuggestion', () => {
     expect(html).not.toContain('Sprint 38 deployment')
     expect(html).not.toContain('trackId')
 
-    // Preview is the badge that earns the "Not right" button beside it.
-    expect(html).toContain('Preview')
+    // The badge that earns the "Not right" button beside it — and it may not be
+    // the word "Preview". Capture renders `capture.preview` ("Preview") within
+    // ~50px of this badge, meaning "here is what Enter will save"; this one
+    // means "experimental, and it may be wrong", which is the OPPOSITE warning.
+    // The Arabic tree always had two different words for the two concepts
+    // («معاينة» vs «تجريبي»); the English tree collided them and disarmed the
+    // badge. Both halves are asserted, so neither can drift back.
+    expect(html).toContain('Beta')
+    expect(html).not.toContain('Preview')
     expect(html).toContain('Not right')
     expect(html).toContain('Add these')
     expect(html).toContain('Ignore')
@@ -189,6 +201,58 @@ describe('AiSuggestion', () => {
     expect(html).not.toContain('⁨sara⁩')
   })
 
+  it('shows a chip for every token it will add — including an unnamed member', () => {
+    // THE ROW AND TAB MUST NEVER DISAGREE. The row used to require at least one
+    // CHIP while Capture's Tab handler required at least one TOKEN, and the
+    // owner chip was read from `displayName` alone while `ownerToken()` tries
+    // the USERNAME FIRST (toLine.ts:193). `toMember()` sets
+    // `displayName: row.display_name?.trim() || ''` (api/members.ts:168), so an
+    // account nobody has named is an ordinary state — and for that member the
+    // row rendered NOTHING while Tab still appended `@nasser` and assigned the
+    // entry to somebody who had never been on screen.
+    //
+    // The assertion is the invariant itself, not the symptom: one chip per
+    // token, counted off the real markup and the real token writer.
+    const ctx: ParseContext = {
+      tracks: [{ id: 't-devqa', name: 'Dev & QA', nameAr: 'التطوير والجودة' }],
+      members: [{ id: 'm-nasser', displayName: '', username: 'nasser' }],
+      now: new Date('2026-08-01T09:00:00Z'),
+      locale: 'en',
+    }
+    const owned: ValidatedSuggestion = {
+      title: null,
+      trackId: null,
+      ownerId: 'm-nasser',
+      priority: null,
+      type: null,
+      dueDate: null,
+      followUpDate: null,
+      tags: [],
+      dropped: [],
+    }
+    const line = 'someone should look at the firewall rules'
+    const parsed = parse(line, ctx)
+    fx.state.suggestion = { line, suggestion: owned, model: 'claude-sonnet-5' }
+    const html = renderToStaticMarkup(
+      <AiSuggestion
+        line={line}
+        parsed={parsed}
+        ctx={ctx}
+        onAccept={() => {}}
+        onDismiss={() => {}}
+      />,
+    )
+
+    // The token Tab would add is real, and it is the handle — which is the
+    // whole reason the chip could go missing.
+    expect(suggestionTokens(owned, parsed, ctx)).toEqual(['@nasser'])
+    // One chip, one token. This is the equality the row's header promises.
+    expect(html.match(/class="chip ais-chip"/g) ?? []).toHaveLength(1)
+    // And the row is actually on screen, rather than silently applying.
+    expect(html).toContain('for ⁨nasser⁩')
+    expect(html.match(/<button/g)).toHaveLength(3)
+  })
+
   it('offers only what the line does not already say', () => {
     // A track already on the line must not come back as a chip, because it
     // would not come back as a token either.
@@ -213,7 +277,8 @@ describe('AiSuggestion', () => {
     fx.state.pending = true
     const html = render()
     expect(html).toContain('Reading your line')
-    expect(html).toContain('Preview')
+    expect(html).toContain('Beta')
+    expect(html).not.toContain('Preview')
     // Nothing to press, and nothing announced: a live region that reported
     // waiting would read a sentence to a screen-reader user on every pause.
     expect(html).not.toContain('<button')

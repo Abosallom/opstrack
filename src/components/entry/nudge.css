@@ -27,9 +27,14 @@
 
    LOGICAL PROPERTIES ONLY, like the rest of the repo. */
 
-/* The glyph is the narrow form; the words are the default. Both are always in
-   the DOM so the accessible name never changes with the viewport. */
-.ndg-icon {
+/* THIS CONTROL IS WORDS AT EVERY WIDTH. There is no glyph form of it.
+
+   `.ndg-short` is the phone's word — one verb where the full sentence will not
+   fit — and it is off here, where the sentence does fit. See the media query at
+   the foot of this file for the measurements and the reasoning; the short form
+   is `aria-hidden`, so the accessible name is the SAME full sentence at every
+   viewport and a rotate cannot change what the button announces. */
+.ndg-short {
   display: none;
 }
 
@@ -46,25 +51,50 @@
 
 /* ---------- phone ----------
 
-   The same label→glyph swap `.fu-act` makes below 640px, written for this
-   sheet's own classes rather than inherited from that one.
+   A SHORTER WORD, NEVER NO WORD.
 
-   NOT A DUPLICATE BY ACCIDENT. followups.css may not style `.ndg-*` and this
-   file may not style `.fu-*` — that is the registry rule, and it is the rule
-   that lets this control move to the board without dragging a screen's
-   stylesheet behind it. The technique is global.css's `.sr-only`, applied to a
-   class rather than toggled from JavaScript, for followups.css's reason: a
-   control whose accessible name depends on a viewport width read at render time
-   announces the wrong thing after a rotate.
+   `.fu-act` swaps its label for an icon below 640px and this sheet used to copy
+   that, which was the wrong thing to copy. The three Follow-ups actions beside
+   this one — mark done, add an update, snooze — are reversible and in-app, so a
+   mis-tap on a bare glyph costs one tap to undo. This is the only control in the
+   application that reaches ANOTHER HUMAN: it sends a colleague a push
+   notification, there is deliberately no confirm() (the component header argues
+   it), and there is no undo, for the reason a sent email has none. Touch has no
+   hover, so the `title` carrying "Ask Sara Ahmed for an update on …" never
+   renders on a phone — which left the entire consequence of the tap nowhere on
+   screen, for the engineer the plan puts on a phone mid-task and for an intern
+   on day three meeting a speech bubble for the first time.
 
-   The 44px inline minimum comes from `.fu-act` when Follow-ups passes it. On a
-   screen that does not pass an action class, `.btn-sm`'s own `.tap-44` overlay
-   covers the block axis and the glyph plus padding measures 35px inline — so
-   the minimum is restated here, unconditionally, rather than made to depend on
-   which screen happened to mount the button. */
+   MEASURED, NOT ASSUMED — 375px, real Cairo, a Follow-ups row with all four
+   actions (width of the row's TITLE is what pays for the button):
+
+     bare glyph, as shipped ............ button  44px → title 127px
+     glyph + "Ask for an update" ....... button 140px → title  31px
+     "Ask for an update", no glyph ..... button 117px → title  54px
+     glyph + "Ask" ..................... button  63px → title 108px
+     "Ask", no glyph ................... button  44px → title 127px  ← this
+     «اطلب», no glyph .................. button  48px → title 123px
+
+   So the full sentence genuinely does not fit: it leaves the title 31px, which
+   is not a truncated title, it is no title. The one verb costs NOTHING — 44px is
+   exactly what the glyph measured, because `.btn-sm`'s padding plus three
+   characters is exactly the 44px minimum — and it puts a word where there was a
+   picture. The glyph is gone rather than kept beside it: at 63px it would take
+   19px off the title to say a second time what the word already says.
+
+   `.ndg-label` keeps the FULL sentence and is hidden visually only, by
+   global.css's `.sr-only` technique applied to a class this sheet owns. That is
+   not the old defect returning: the old rule left NO words on screen, this one
+   leaves a word on screen and the whole sentence in the accessible name, which
+   stays identical at every viewport.
+
+   The 44px inline minimum is restated unconditionally rather than left to depend
+   on which screen mounted the button — `.btn-sm`'s `::after` overlay only grows
+   the block axis. The 9px padding override is gone with the glyph it was
+   measured for. */
 @media (max-width: 639px) {
-  .ndg-icon {
-    display: inline-flex;
+  .ndg-short {
+    display: inline;
   }
 
   .ndg-label {
@@ -80,7 +110,6 @@
 
   .ndg-act {
     min-inline-size: 44px;
-    padding-inline: 9px;
   }
 
   .ndg-pill {

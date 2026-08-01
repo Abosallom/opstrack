@@ -12,6 +12,7 @@
 // globals for the same reason.
 
 import { describe, expect, it, vi } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
 import type { Entry } from '../../types'
 
 vi.hoisted(() => {
@@ -32,7 +33,8 @@ vi.mock('../../store/nudges', () => ({
   sendNudge: () => Promise.resolve({ ok: false, error: 'nudge.errFailed' }),
 }))
 
-const { canNudge, outstandingAsk } = await import('./NudgeButton')
+const { askOffer, canNudge, outstandingAsk } = await import('./NudgeButton')
+const { default: NudgeButton } = await import('./NudgeButton')
 
 /**
  * The component's own source, for the wiring assertions at the bottom. Read
@@ -53,6 +55,24 @@ const SOURCE = SOURCES['./NudgeButton.tsx'] ?? ''
  * is the explanation of the rule, not a violation of it.
  */
 const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+/**
+ * The sheet, for the one rule that lives in CSS and decides whether a person can
+ * see what this button will do before they tap it.
+ *
+ * NOT `import.meta.glob('?raw')`, which works for the .tsx above and cannot work
+ * here: vitest.config.ts leaves `css` disabled and Vitest stubs on the file
+ * EXTENSION before the query is read, so a glob returns '' and every assertion
+ * below would pass while checking nothing. styles/contrast.test.ts hit exactly
+ * this and its header records the fix — a computed `node:fs` specifier, so
+ * tsconfig.app.json's `types: ["vite/client"]` stays pinned.
+ */
+const NODE_FS = 'node:fs'
+const { readFileSync } = (await import(NODE_FS)) as {
+  readFileSync: (path: URL, encoding: 'utf8') => string
+}
+const CSS = readFileSync(new URL('./nudge.css', import.meta.url), 'utf8')
+if (CSS.trim() === '') throw new Error('nudge.css is empty')
 
 const DAY = 86_400_000
 const NOW = Date.parse('2026-08-01T12:00:00.000Z')
@@ -210,6 +230,119 @@ describe('outstandingAsk', () => {
   })
 })
 
+describe('askOffer — the window decides, not the movement', () => {
+  it('offers the first ask when nobody has asked', () => {
+    expect(askOffer(null)).toBe('first')
+  })
+
+  it('offers the repeat once the server’s window has passed', () => {
+    expect(askOffer({ mayAskAgain: true })).toBe('again')
+  })
+
+  it('offers NOTHING inside the window, however much the item has moved', () => {
+    // THE DEAD BUTTON THIS FUNCTION EXISTS TO DELETE. The row used to fall back
+    // to a plain "Ask for an update" the moment `answered` went true — which
+    // happens the instant anything touches the item, INCLUDING the owner posting
+    // the very update that was asked for. 0019's gate is
+    // `v_nudged > v_now - interval '24 hours'` and nothing else, so:
+    //
+    //   09:00 nudge Sara · 10:00 Sara posts an update (answered = true, and the
+    //   item is still overdue so the row stays on Follow-ups) · 11:00 the row
+    //   offered a FIRST ask → PT429 → "Someone already asked about this one
+    //   today" → refreshEntries() → the same dead button back, every tap.
+    //
+    // An affordance whose only possible outcome is a refusal is worse than none;
+    // this file's own header says so about the no-owner case.
+    expect(askOffer({ mayAskAgain: false })).toBeNull()
+  })
+
+  it('agrees with outstandingAsk on the answered-but-fresh row', () => {
+    // End to end on real timestamps, because the bug lived in the JOIN between
+    // these two functions rather than in either of them.
+    const ask = outstandingAsk(
+      entry({
+        nudged_at: '2026-08-01T09:00:00.000Z',
+        nudged_by: 'me',
+        last_activity_at: '2026-08-01T10:00:00.000Z',
+      }),
+      undefined,
+      NOW,
+    )
+    expect(ask?.answered).toBe(true)
+    expect(ask?.mayAskAgain).toBe(false)
+    expect(askOffer(ask)).toBeNull()
+  })
+})
+
+/* ─────────────────────── the four states, rendered ─────────────────────── */
+//
+// The rules above are pure and provable; this is what a person actually SEES,
+// which is where the defect lived. `renderToStaticMarkup` under
+// `environment: 'node'` is the same technique AiSuggestion.test.tsx and
+// NotificationBell.test.tsx use — the stores this component touches are already
+// mocked at the top of this file, so there is nothing left that needs a
+// document.
+//
+// `nudged_at` is written relative to a FIXED now so `formatRelativeTime` has a
+// stable answer; the assertions are on the presence of the control and the
+// claim the sentence makes, never on the exact phrasing of the interval.
+
+function markup(over: Partial<Entry> & { nudged_at?: string | null; nudged_by?: string | null }): string {
+  return renderToStaticMarkup(<NudgeButton entry={entry(over)} meId="me" className="fu-act" />)
+}
+
+const HOURS_2 = new Date(Date.now() - 2 * 3600_000).toISOString()
+const DAYS_2 = new Date(Date.now() - 2 * DAY).toISOString()
+
+describe('what the row shows', () => {
+  it('offers the first ask, in words, with a shorter word for the phone', () => {
+    const html = markup({})
+    expect(html).toContain('Ask for an update')
+    // The narrow-width word. It is in the DOM at every width — the stylesheet
+    // chooses which of the two is painted — and it is aria-hidden, so the
+    // accessible name is the full sentence either way.
+    expect(html).toContain('class="ndg-short" aria-hidden="true">Ask<')
+    expect(html).not.toContain('ndg-pill')
+  })
+
+  it('states the outstanding ask and offers nothing while the window is open', () => {
+    const html = markup({ nudged_at: HOURS_2, nudged_by: 'me' })
+    expect(html).toContain('ndg-pill')
+    expect(html).toContain('nothing since')
+    expect(html).not.toContain('<button')
+  })
+
+  it('NEVER offers a dead ask on an item that moved inside the window', () => {
+    // THE DEFECT. Nudge Sara at 09:00, Sara posts an update at 10:00, the item
+    // is still overdue so the row stays on Follow-ups. At 11:00 this used to
+    // render "Ask for an update" — labelled as a FIRST ask — and the database
+    // answered PT429 every single time it was tapped.
+    const html = markup({ nudged_at: HOURS_2, nudged_by: 'me', last_activity_at: new Date().toISOString() })
+    expect(html).not.toContain('<button')
+    // The record stays, because the missing button needs explaining — and it
+    // does NOT claim a silence that ended.
+    expect(html).toContain('ndg-pill')
+    expect(html).toContain('moved since')
+    expect(html).not.toContain('nothing since')
+    // Untinted: the warn tint means "and nothing came back", which is now false.
+    expect(html).not.toContain('ndg-pill warn')
+  })
+
+  it('brings the repeat back once the window has passed, labelled as a repeat', () => {
+    const html = markup({ nudged_at: DAYS_2, nudged_by: 'me' })
+    expect(html).toContain('Ask again')
+    expect(html).not.toContain('Ask for an update')
+    // The prompt tint, and the pill saying how long the silence has been.
+    expect(html).toContain('ndg-pill warn')
+  })
+
+  it('drops the spent record once the item has moved and the window has passed', () => {
+    const html = markup({ nudged_at: DAYS_2, nudged_by: 'me', last_activity_at: new Date().toISOString() })
+    expect(html).toContain('Ask again')
+    expect(html).not.toContain('ndg-pill')
+  })
+})
+
 describe('the component reads its record and never fetches it', () => {
   it('has no effect and no loader of its own', () => {
     // The ask is a COLUMN ON THE ENTRY, so the row it was handed already carries
@@ -222,6 +355,32 @@ describe('the component reads its record and never fetches it', () => {
     // having no data at all.
     expect(CODE).toContain('useLocalAsk(entry.id)')
     expect(CODE).toContain('outstandingAsk(entry, local)')
+  })
+
+  it('never decides whether to OFFER the ask from whether the item moved', () => {
+    // The regression, in source form. `answered` may decide what the row SAYS;
+    // only the window may decide whether the button exists.
+    expect(CODE).not.toContain('ask === null || ask.answered')
+    expect(CODE).toContain('askOffer(ask)')
+  })
+
+  it('carries a word on the button at every width, and no glyph', () => {
+    // The narrow form is a SHORTER WORD, never a picture: this is the only
+    // control in the app that reaches another human, it has no confirm and no
+    // undo, and touch has no hover to reveal the `title`. nudge.css carries the
+    // 375px measurements that rule out the full sentence.
+    expect(CODE).toContain('ndg-short')
+    // aria-hidden on the short word, so the accessible name is the full
+    // sentence at EVERY viewport rather than changing with the layout.
+    expect(CODE).toContain('aria-hidden="true"')
+    expect(CODE).toContain('ndg-label')
+
+    const narrow = CSS.slice(CSS.indexOf('@media (max-width: 639px)'))
+    expect(narrow).toContain('.ndg-short')
+    // No glyph anywhere: the icon that used to replace the words is gone, in
+    // both the component and the sheet, so there is nothing to "restore".
+    expect(CSS).not.toContain('.ndg-icon')
+    expect(CODE).not.toContain('IconAsk')
   })
 
   it('never renders an error sentence it wrote itself', () => {

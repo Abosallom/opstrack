@@ -71,16 +71,20 @@ export const NUDGE_BODY_TOKEN = '[nudge]'
  * The i18n key for a thread row the database wrote, or null for a human's.
  *
  * THE SEAM, and it lives here rather than in the thread because the token is
- * NUDGE knowledge: `components/entry/UpdateThread.tsx` and
- * `pages/tracks/TrackTimeline.tsx` are other workers' modules (§1.0.4), and the
- * handoff carries the one-import diff that has each of them render
- * `t(threadBodyKey(u.body) ?? u.body)`. Until that lands the thread shows the
- * literal `[nudge]`, which is ugly for one deploy and never wrong and never in
- * the wrong language — the property the token was chosen for.
+ * NUDGE knowledge. Both renderers now call it —
+ * `components/entry/UpdateThread.tsx` and `pages/tracks/TrackTimeline.tsx` — and
+ * that wiring is the whole feature, not a finishing touch: it shipped once with
+ * NO CALLER, so `nudge.threadLine` was dead in both locale trees and every ask
+ * appeared in the audit thread as a literal `[nudge]` in Arabic and English
+ * alike. A mapper nobody calls is not a seam, it is a comment.
  *
  * Compared on the TRIMMED body so a future writer that pads the token still
- * resolves, and returning null rather than the body itself so a caller cannot
- * accidentally push arbitrary user text through t().
+ * resolves, and returning NULL RATHER THAN THE BODY so a caller cannot
+ * accidentally push arbitrary user text through t(). That return type is load
+ * bearing: `t(threadBodyKey(b) ?? b)` reads well and is wrong, because a
+ * colleague whose update happens to spell a real key — or one an admin has an
+ * override for — would have their words silently replaced by a translation.
+ * Both call sites branch on null instead.
  */
 export function threadBodyKey(body: string): string | null {
   return body.trim() === NUDGE_BODY_TOKEN ? 'nudge.threadLine' : null

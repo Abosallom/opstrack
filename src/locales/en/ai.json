@@ -3,8 +3,8 @@
     "title": "AI assist",
     "manage": "AI assist",
     "subtitle": "When a line reads like a sentence instead of the shorthand, CoreTrack can offer what it thinks you meant. You confirm it — nothing is ever filed for you.",
-    "previewNote": "Preview. It gets things wrong, and saying so is one tap. That is what makes the next version better.",
-    "preview": "Preview",
+    "previewNote": "Beta. It gets things wrong, and saying so is one tap. That is what makes the next version better.",
+    "preview": "Beta",
     "rowLabel": "AI suggestion",
     "understood": "This line looks like",
     "thinking": "Reading your line…",
@@ -35,7 +35,10 @@
     "keyNote": "The key is held on the server as a secret. It is never in the app and never in your browser.",
     "neverFiles": "A suggestion only ever adds words to the box. Nothing is saved until you press Enter, and your own words are never rewritten.",
     "usageTitle": "Used today",
-    "usageCalls": "suggestions",
+    "usageCalls": {
+      "one": "{count} suggestion",
+      "other": "{count} suggestions"
+    },
     "usageOf": "of {limit}",
     "usageTokens": "Tokens in: {input} · out: {output}",
     "usageHint": "Counted per person, and it starts again at midnight.",

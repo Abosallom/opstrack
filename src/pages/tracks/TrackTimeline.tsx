@@ -64,6 +64,7 @@ import { EntryRow, StatusPill, type EntryRowShow } from '../../components/entry'
 import { IconArrowStart, IconLayers } from '../../components/icons'
 import { EmptyState, Skeleton } from '../../components/shared'
 import { toast } from '../../components/toast'
+import { threadBodyKey } from '../../api/nudge'
 import { loadTrackTimeline, type TrackTimelineRows } from '../../api/timeline'
 import {
   addDays,
@@ -280,7 +281,7 @@ function itemKindKey(item: TimelineItem): string {
   return isTransition(item.update) ? 'track.statusChange' : 'track.update'
 }
 
-interface UpdateItemProps {
+export interface UpdateItemProps {
   update: EntryUpdate
   entry: Entry | undefined
   meId: string | null
@@ -288,7 +289,25 @@ interface UpdateItemProps {
   onOpen: (id: string) => void
 }
 
-function UpdateItem({ update, entry, meId, authorName, onOpen }: UpdateItemProps): ReactElement {
+/**
+ * One thread row on the feed.
+ *
+ * EXPORTED FOR THE TEST, in the idiom `UpdateThread.submitComposerUpdate` set
+ * and for the same reason: the feed's rows only exist after
+ * `loadTrackTimeline()` resolves into state, effects do not run under
+ * `renderToStaticMarkup`, and vitest.config.ts is `environment: 'node'` with no
+ * jsdom — so nothing reachable from `render()` in the test can see this markup.
+ * The alternative was a grep over the source, which is the weaker instrument
+ * this file's R3-PERF-1 block already apologises for. The page renders it
+ * exactly as it always did; only the visibility changed.
+ */
+export function UpdateItem({
+  update,
+  entry,
+  meId,
+  authorName,
+  onOpen,
+}: UpdateItemProps): ReactElement {
   const locale = useLocale()
   const vocabLabel = useVocabLabel()
   // Read into locals so TypeScript narrows the fields themselves — a boolean
@@ -300,6 +319,13 @@ function UpdateItem({ update, entry, meId, authorName, onOpen }: UpdateItemProps
   // note carries text and no statuses — but one row can legitimately be both,
   // so the two blocks below are independent rather than a branch.
   const author = update.author_id !== null && update.author_id === meId ? t('entry.author') : authorName
+  // A row `nudge_entry()` (migration 0019) wrote, or a colleague's own words.
+  // The migration deliberately stores the ask as the token `[nudge]` so the
+  // sentence can be chosen per reader; `threadBodyKey()` is the mapper, and it
+  // shipped with no caller, so nudges have been showing here as a literal
+  // `[nudge]` in both languages. Branched rather than `t(key ?? body)` so that
+  // user text never reaches the lookup — see UpdateThread.tsx for the full why.
+  const bodyKey = threadBodyKey(update.body)
 
   return (
     <article className="tl-upd">
@@ -334,7 +360,9 @@ function UpdateItem({ update, entry, meId, authorName, onOpen }: UpdateItemProps
         </p>
       ) : null}
 
-      {update.body !== '' ? <p className="tl-upd-body">{update.body}</p> : null}
+      {update.body !== '' ? (
+        <p className="tl-upd-body">{bodyKey === null ? update.body : t(bodyKey)}</p>
+      ) : null}
 
       {entry ? (
         <button

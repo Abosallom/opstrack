@@ -81,8 +81,9 @@
 -- ── the table ──────────────────────────────────────────────────────────────
 
 create table if not exists public.claim_counters (
-  -- 'username' or 'ip'. Two dimensions in one table rather than two tables:
-  -- they have identical lifecycles, identical GC and one bump function.
+  -- 'username' or 'ip' for claim-account; 'ai_user' or 'ai_ip' for the AI
+  -- capture assist (0020). Four dimensions in one table rather than four
+  -- tables: they have identical lifecycles, identical GC and one bump function.
   scope        text        not null,
   -- The username as submitted (lowercased, length-capped by the caller) or the
   -- peppered hex of an address prefix. Opaque here on purpose.
@@ -98,19 +99,45 @@ create table if not exists public.claim_counters (
 
 -- Added separately rather than inline so the file stays re-runnable against a
 -- table that already exists from an earlier run.
+--
+-- ⚠ THE LIST BELOW IS THE UNION OF EVERY SCOPE ANY MIGRATION USES, AND IT HAS TO
+-- STAY THAT WAY. `drop constraint if exists` immediately followed by `add`
+-- means this file OVERWRITES the constraint on every run — so a re-run of 0010
+-- after a later file widened it would silently narrow it back. 0020 added
+-- 'ai_user' and 'ai_ip' for the AI assist's burst limiter and named the hazard
+-- (0020:53-64) rather than fixing it, because 0010 was not that file's to edit.
+-- 0022 is the file that edits it. This is the fix: the two AI scopes are listed
+-- HERE, at the only place that can overwrite them.
+--
+-- The failure it prevents is silent, which is why it is worth two paragraphs.
+-- With the constraint narrowed, every `claim_bump('ai_user', …)` raises 23514;
+-- `bump()` in capture-assist/index.ts:1017-1027 logs the error and returns,
+-- deliberately, because losing the burst limiter must not lose the suggestion.
+-- So the per-minute abuse ceiling on a metered upstream simply stops existing,
+-- and nothing anywhere says so. 0022's PROBE 3 reads this constraint out of the
+-- catalog and fails loudly if any of the four is missing.
+--
+-- ADDING A SCOPE LATER: add it here as well as in the file that introduces it.
 alter table public.claim_counters drop constraint if exists claim_counters_scope_ck;
 alter table public.claim_counters
-  add constraint claim_counters_scope_ck check (scope in ('username', 'ip'));
+  add constraint claim_counters_scope_ck
+  check (scope in ('username', 'ip', 'ai_user', 'ai_ip'));
 
 -- The GC below deletes by age; without this it is a seq scan on every bump.
 create index if not exists claim_counters_updated_idx
   on public.claim_counters (updated_at);
 
 comment on table public.claim_counters is
-  'claim-account failure counters. Two scopes: username (the submitted string, '
-  'so a nonexistent account throttles identically to a real one) and ip (a '
-  'peppered hash of the caller address prefix). Bumped only through '
-  'claim_bump(); service_role only.';
+  'Rolling-window counters for the two metered edge functions. claim-account '
+  'counts FAILURES in two scopes: username (the submitted string, so a '
+  'nonexistent account throttles identically to a real one) and ip (a peppered '
+  'hash of the caller address prefix). capture-assist (0020) counts ATTEMPTS in '
+  'ai_user and ai_ip, because there every call costs money whether it succeeds '
+  'or not, and its ip bucket is a readable prefix rather than a peppered hash — '
+  'it guards a budget, not a credential. Bumped only through claim_bump(); '
+  'service_role only. The scope CHECK above is the union of all four and this '
+  'file overwrites it on every run, so a new scope must be added HERE as well '
+  'as in the file that introduces it.';
 
 -- RLS with zero policies is the deny-all. Nothing in the app reads this table;
 -- the edge functions reach it as service_role, which bypasses RLS, so an empty

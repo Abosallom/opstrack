@@ -451,6 +451,12 @@ const COUNTED_NOUNS: Readonly<Record<Locale, readonly string[]>> = {
     'مسار', 'مسارًا', 'مسارا', 'مسارات',
     'حرف', 'حرفًا', 'حرفا', 'أحرف', 'حروف',
     'رمز', 'رمزًا', 'رمزا', 'رموز',
+    // `ai.usageCalls` shipped as the plain string «اقتراحًا» beside a count in a
+    // separate span — the accusative tamyīz, correct only for 11–99, rendered as
+    // «1 اقتراحًا» and «2 اقتراحًا» on the AI settings screen. Doubly invisible
+    // to the gate below: the number was not an interpolation at all, and the
+    // noun was not on this list.
+    'اقتراح', 'اقتراحًا', 'اقتراحا', 'اقتراحات', 'اقتراحان', 'اقتراحين',
   ],
   // Both numbers of each noun. The SINGULAR earns its place as much as the
   // plural: `"{n} entry"` is wrong for every value but one in exactly the way
@@ -468,6 +474,9 @@ const COUNTED_NOUNS: Readonly<Record<Locale, readonly string[]>> = {
     'member', 'members', 'tag', 'tags', 'change', 'changes',
     'row', 'rows', 'result', 'results', 'character', 'characters',
     'letter', 'letters',
+    // The English half of the same defect: "1 suggestions", on the most common
+    // day of use.
+    'suggestion', 'suggestions',
   ],
 }
 

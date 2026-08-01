@@ -23,6 +23,7 @@
 
 import { useState, type ReactElement } from 'react'
 import { StatusPill } from './atoms'
+import { threadBodyKey } from '../../api/nudge'
 import { formatRelativeTime } from '../../lib/dates'
 import { t, useLocale } from '../../lib/i18n'
 import { useAuth } from '../../store/auth'
@@ -223,6 +224,22 @@ export default function UpdateThread({
           // on a row that a realtime patch could in principle have replaced.
           const from = update.status_from
           const to = update.status_to
+          // A row the DATABASE wrote, or a colleague's own words.
+          //
+          // `nudge_entry()` (migration 0019) puts the ask in this thread as the
+          // literal token `[nudge]` rather than a sentence, on purpose: an
+          // English sentence written by Postgres would appear untranslated in a
+          // fully-Arabic thread. `threadBodyKey()` is the other half of that
+          // bargain and it shipped with no caller, so every nudge has been
+          // rendering here as the raw `[nudge]` in both languages.
+          //
+          // BRANCHED, NOT `t(threadBodyKey(body) ?? body)`. The shorthand relies
+          // on t() echoing an unknown key, which is true — but a human body that
+          // happens to spell a real key ("entry.showFewer", say, or anything an
+          // admin has an override for) would come back TRANSLATED, silently
+          // replacing what a colleague actually typed. User text never enters
+          // the lookup here; only the token does.
+          const bodyKey = threadBodyKey(update.body)
 
           return (
             <li key={update.id} className="upd-item">
@@ -264,7 +281,9 @@ export default function UpdateThread({
                 </p>
               )}
 
-              {update.body !== '' && <p className="upd-body">{update.body}</p>}
+              {update.body !== '' && (
+                <p className="upd-body">{bodyKey === null ? update.body : t(bodyKey)}</p>
+              )}
             </li>
           )
         })}

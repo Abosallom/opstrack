@@ -1,7 +1,7 @@
 {
   "notif": {
     "title": "Notifications",
-    "subtitle": "Work assigned to you, and items you asked for that are now done.",
+    "subtitle": "Work assigned to you, updates people are asking you for, and items you raised that are now done.",
     "openInbox": "Open notifications",
     "list": "Notification inbox",
     "unread": {
@@ -10,7 +10,7 @@
     },
     "unreadRow": "Unread",
     "empty": "You're all caught up",
-    "emptyHint": "You'll be notified when something is assigned to you, or when an item you asked for is completed.",
+    "emptyHint": "You'll be notified when something is assigned to you, when a colleague asks you for an update, or when an item you asked for is completed.",
     "noUnread": "Nothing unread",
     "noUnreadHint": "You've read everything. Switch to All to see the history.",
     "markAllRead": "Mark all as read",
@@ -18,8 +18,10 @@
     "allRead": "All notifications marked as read.",
     "assigned": "⁨{actor}⁩ assigned you “⁨{title}⁩”",
     "completed": "⁨{actor}⁩ completed “⁨{title}⁩”",
+    "nudged": "⁨{actor}⁩ is asking for an update on “⁨{title}⁩”",
     "assignedNoActor": "You were assigned “⁨{title}⁩”",
     "completedNoActor": "“⁨{title}⁩” was completed",
+    "nudgedNoActor": "Someone is asking for an update on “⁨{title}⁩”",
     "untitled": "Untitled item",
     "seeAll": "See all notifications",
     "errLoad": "Couldn't load your notifications.",

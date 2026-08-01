@@ -1032,6 +1032,43 @@ export function backoffMs(count: number): number {
   return Math.min(BACKOFF_BASE_MS * 2 ** (count - AI_FREE_CALLS - 1), BACKOFF_MAX_MS)
 }
 
+/**
+ * Did this call cost money? The ONLY question `ai_usage` should be asked.
+ *
+ * The first version of this function did not exist, and step 10 recorded usage
+ * only on `result.ok`. That is the wrong test in both directions and the
+ * difference is the daily ceiling — the one guard here that fails closed and
+ * the one holding the wallet:
+ *
+ *   * A REFUSAL and an UNUSABLE REPLY are HTTP 200 with a real `usage` block.
+ *     The model ran, the tokens were spent, and the invoice will show them.
+ *     Recording only `ok` meant a prompt that reliably produced unusable
+ *     replies could be retried against the daily ceiling forever, for free, at
+ *     the owner's expense — the exact runaway the ceiling exists to bound.
+ *   * A TIMEOUT is the same hazard with less information. This function aborts
+ *     at 8s (UPSTREAM_TIMEOUT_MS); the model does not stop generating because
+ *     we stopped listening, so the call is very likely billed and we will never
+ *     see the token counts for it. It is recorded as a CALL with ZERO TOKENS,
+ *     which is the only honest pair of numbers available: `calls` is a rate
+ *     ceiling and must count it, `input_tokens`/`output_tokens` are the bill
+ *     and must not be invented.
+ *   * A 429 or a 4xx — no credit, a bad key, a rejected request shape — is
+ *     refused BEFORE inference and costs nothing. `inputTokens` is 0 because
+ *     there was no `usage` block to read, so it is correctly not recorded, and
+ *     a project whose key has run out does not burn its own quota discovering
+ *     that on every keystroke.
+ *
+ * Pure, so the rule above is a test and not a paragraph.
+ */
+export function isBilled(result: UpstreamResult): boolean {
+  if (result.ok) return true
+  if (result.code === 'upstream_timeout') return true
+  // A usage block only exists on a 200, so a positive count IS the evidence
+  // that inference happened. Output alone is enough: a refusal can answer with
+  // zero input tokens reported and still have generated something.
+  return result.inputTokens > 0 || result.outputTokens > 0
+}
+
 /* ──────────────────────────── workspace read ───────────────────────────── */
 
 interface TrackRow {
@@ -1249,34 +1286,45 @@ export async function handle(req: Request): Promise<Response> {
 
   // 8. The one billed call.
   const result = await callAnthropic(apiKey, ctx, line)
+
+  // 9. RECORD WHAT IT COST, BEFORE ANYTHING DECIDES WHETHER THE ANSWER WAS ANY
+  //    GOOD. See isBilled(): a refusal and an unusable reply are 200s with real
+  //    token counts, and a timeout is a call this function stopped listening to
+  //    rather than one the model stopped making. Recording only the happy path
+  //    left every one of those free against the DAILY ceiling — the guard that
+  //    fails closed and the one holding the wallet — so a prompt that reliably
+  //    produced garbage could be retried forever at the owner's expense.
+  //
+  //    A 429 or a 4xx is refused before inference, has no `usage` block, and is
+  //    correctly not recorded: a project whose key has run out must not burn its
+  //    own quota discovering that on every keystroke.
+  //
+  //    A FAILURE OF THIS CALL IS LOGGED AND SWALLOWED, and that is a deliberate,
+  //    uncomfortable choice: the money is already spent, so failing the request
+  //    would lose both the accounting row AND the answer the member is waiting
+  //    for. The residual risk — a persistently broken ai_usage means the daily
+  //    ceiling stops rising — is bounded by the per-minute ceilings above and is
+  //    written down in docs/W-AI-HANDOFF.md rather than left to be discovered.
+  let dailyCalls: number | null = null
+  if (isBilled(result)) {
+    const { data: recorded, error: recordErr } = await admin.rpc('ai_usage_record', {
+      p_user: callerId,
+      p_input: result.inputTokens,
+      p_output: result.outputTokens,
+    })
+    if (recordErr) console.error('[assist] ai_usage_record failed:', recordErr.message)
+    else if (typeof recorded === 'number') dailyCalls = recorded
+  }
+
   if (!result.ok) {
     console.error(`[assist] upstream ${result.code}: ${result.detail}`)
     const status = result.code === 'upstream_timeout' ? 504 : result.code === 'rate_limited' ? 429 : 502
     return failure(result.code ?? 'upstream_error', 'The suggestion service is unavailable.', status)
   }
 
-  // 9. THE GATE. Nothing above this line has been trusted; nothing below it is
-  //    anything but a workspace value.
+  // 10. THE GATE. Nothing above this line has been trusted; nothing below it is
+  //     anything but a workspace value.
   const suggestion = validateProposal(result.proposal, ctx, line)
-
-  // 10. Record what it cost. Recorded only for a call that actually completed —
-  //     a timeout or a refusal is counted by the burst buckets, which exist to
-  //     throttle attempts, not to account for spend.
-  //
-  //     A failure here is LOGGED AND SWALLOWED, and that is a deliberate,
-  //     uncomfortable choice: the money is already spent, so failing the request
-  //     would lose both the accounting row AND the answer the member is waiting
-  //     for. The residual risk — a persistently broken ai_usage means the daily
-  //     ceiling stops rising — is bounded by the per-minute ceilings above and
-  //     is named in the W-AI handoff note rather than left to be discovered.
-  let dailyCalls: number | null = null
-  const { data: recorded, error: recordErr } = await admin.rpc('ai_usage_record', {
-    p_user: callerId,
-    p_input: result.inputTokens,
-    p_output: result.outputTokens,
-  })
-  if (recordErr) console.error('[assist] ai_usage_record failed:', recordErr.message)
-  else if (typeof recorded === 'number') dailyCalls = recorded
 
   if (suggestion.dropped.length > 0) {
     // Field names only. This is the line an owner reads when he wants to know

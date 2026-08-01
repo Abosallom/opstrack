@@ -14,8 +14,16 @@
 // rather than the key it came from.
 
 import { describe, expect, it, vi } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
 import type { ApiResult } from '../../api/result'
 import type { EntryUpdate } from '../../types'
+
+/**
+ * The rows `useEntryUpdates` hands the component, mutable so a test can stage a
+ * thread and render it. `vi.hoisted` because the mock factory below is hoisted
+ * above the imports and would otherwise close over a temporal-dead-zone binding.
+ */
+const fx = vi.hoisted(() => ({ updates: [] as EntryUpdate[] }))
 
 vi.hoisted(() => {
   const mem = new Map<string, string>()
@@ -37,7 +45,7 @@ vi.hoisted(() => {
 })
 
 vi.mock('../../store/entries', () => ({
-  useEntryUpdates: () => ({ updates: [], loading: false, error: null }),
+  useEntryUpdates: () => ({ updates: fx.updates, loading: false, error: null }),
   loadUpdates: () => Promise.resolve(),
   postUpdate: () => Promise.resolve({ ok: false, error: 'common.error' }),
 }))
@@ -55,7 +63,29 @@ vi.mock('../../store/vocab', () => ({
 }))
 
 const { submitComposerUpdate } = await import('./UpdateThread')
-const { t } = await import('../../lib/i18n')
+const UpdateThread = (await import('./UpdateThread')).default
+const { t, setLocale } = await import('../../lib/i18n')
+const { NUDGE_BODY_TOKEN } = await import('../../api/nudge')
+
+/** One `entry_updates` row, defaulted to a plain human note. */
+const update = (over: Partial<EntryUpdate> & Pick<EntryUpdate, 'id'>): EntryUpdate => ({
+  entry_id: 'e1',
+  author_id: 'u-other',
+  body: 'ring switch replaced',
+  status_from: null,
+  status_to: null,
+  created_at: '2026-07-29T09:00:00Z',
+  ...over,
+})
+
+const renderThread = (updates: EntryUpdate[]): string => {
+  fx.updates = updates
+  try {
+    return renderToStaticMarkup(<UpdateThread entryId="e1" readOnly />)
+  } finally {
+    fx.updates = []
+  }
+}
 
 // The component's own source, for the wiring assertions at the bottom. Read
 // through import.meta.glob('?raw') rather than node:fs, for the reason
@@ -149,6 +179,55 @@ describe('UpdateThread — submitComposerUpdate', () => {
       return landed(i.body ?? '')
     })
     expect(calls).toEqual([{ entryId: 'e1', body: 'ring switch replaced' }])
+  })
+})
+
+/* ────────── the nudge sentinel: a DB row must not render as a token ────────── */
+//
+// REGRESSION. Migration 0019 stores a nudge in this thread as the literal token
+// `[nudge]`, and its own comment justifies that choice on the grounds that the
+// client maps it to a localized line — "an English sentence written by the
+// database would appear untranslated in a fully-Arabic thread". The mapper was
+// written (`threadBodyKey()` in api/nudge.ts, with its own tests) and then never
+// called from anywhere, so `nudge.threadLine` was dead in both locale trees and
+// every ask showed up here as `[nudge]` in Arabic and English alike.
+//
+// The negative assertion is the one that would have caught it: the token must
+// not survive to the markup.
+describe('UpdateThread — the [nudge] sentinel', () => {
+  it('renders the localized nudge line, never the raw token', () => {
+    const html = renderThread([update({ id: 'u-n1', body: NUDGE_BODY_TOKEN })])
+    expect(html).toContain(t('nudge.threadLine'))
+    expect(html).not.toContain(NUDGE_BODY_TOKEN)
+  })
+
+  it('renders it in Arabic when the reader is Arabic', () => {
+    // The whole point of the token. If this ever asserts English, the sentinel
+    // has bought nothing and the database should just write a sentence.
+    setLocale('ar')
+    try {
+      const html = renderThread([update({ id: 'u-n2', body: NUDGE_BODY_TOKEN })])
+      expect(html).toContain(t('nudge.threadLine'))
+      expect(html).toMatch(/[؀-ۿ]/)
+      expect(html).not.toContain(NUDGE_BODY_TOKEN)
+    } finally {
+      setLocale('en')
+    }
+  })
+
+  it("leaves a colleague's own words exactly as typed", () => {
+    // The other half of the contract, and why the renderer branches on a null
+    // key rather than `t(key ?? body)`: user text never enters the lookup, so a
+    // body that happens to spell a real key cannot come back translated.
+    const html = renderThread([update({ id: 'u-n3', body: 'entry.showFewer' })])
+    expect(html).toContain('entry.showFewer')
+    expect(html).not.toContain(t('entry.showFewer'))
+  })
+
+  it('does not treat a body that merely mentions the token as a nudge', () => {
+    const html = renderThread([update({ id: 'u-n4', body: 'see [nudge] below' })])
+    expect(html).toContain('see [nudge] below')
+    expect(html).not.toContain(t('nudge.threadLine'))
   })
 })
 

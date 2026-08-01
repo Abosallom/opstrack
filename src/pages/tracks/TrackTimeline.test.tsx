@@ -29,7 +29,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactElement } from 'react'
-import type { Entry, EntryHealth, Track } from '../../types'
+import type { Entry, EntryHealth, EntryUpdate, Track } from '../../types'
 
 const fx = vi.hoisted(() => {
   // lib/i18n reads localStorage at module scope, store/config adds a window
@@ -217,6 +217,8 @@ vi.mock('../../store/entrySheet', () => ({ openEntry: () => {} }))
 
 const { MemoryRouter, Route, Routes } = await import('react-router-dom')
 const TrackTimeline = (await import('./TrackTimeline')).default
+const { UpdateItem } = await import('./TrackTimeline')
+const { NUDGE_BODY_TOKEN } = await import('../../api/nudge')
 const { setLocale, t } = await import('../../lib/i18n')
 const { lastNDays, todayIso } = await import('../../lib/dates')
 
@@ -648,5 +650,71 @@ describe('Arabic', () => {
     // guillemet-free Arabic row still reorders `direct-integration` against the
     // digits beside it.
     expect(html).toContain('⁨direct-integration⁩')
+  })
+})
+
+/* ═══════════ the [nudge] sentinel on the track feed ═══════════ */
+//
+// REGRESSION, and the second half of one defect. Migration 0019 records an ask
+// in `entry_updates` as the literal token `[nudge]` — deliberately, so the
+// SENTENCE can be chosen per reader instead of being frozen in English by the
+// database. `threadBodyKey()` (api/nudge.ts) is the mapper that makes that
+// bargain pay, and it shipped with NO CALLER: both this feed and the entry
+// sheet's thread printed `update.body` verbatim, so `nudge.threadLine` was dead
+// in both locale trees and every nudge appeared as `[nudge]` in Arabic and
+// English alike.
+//
+// Rendered through the exported `UpdateItem` rather than through `render()`,
+// because the feed's rows only exist after `loadTrackTimeline()` resolves into
+// state and effects never run under renderToStaticMarkup — see that component's
+// docstring.
+
+describe('the [nudge] sentinel on the feed', () => {
+  const update = (body: string): EntryUpdate => ({
+    id: 'u-n',
+    entry_id: 'a',
+    author_id: 'u2',
+    body,
+    status_from: null,
+    status_to: null,
+    created_at: '2026-07-20T09:00:00.000Z',
+  })
+
+  const renderUpdate = (body: string): string =>
+    renderToStaticMarkup(
+      <MemoryRouter initialEntries={['/tracks/t-onb']}>
+        <UpdateItem
+          update={update(body)}
+          entry={undefined}
+          meId="u1"
+          authorName="Layla"
+          onOpen={() => {}}
+        />
+      </MemoryRouter>,
+    )
+
+  it('renders the localized nudge line, never the raw token', () => {
+    const html = renderUpdate(NUDGE_BODY_TOKEN)
+    expect(html).toContain(t('nudge.threadLine'))
+    expect(html).not.toContain(NUDGE_BODY_TOKEN)
+  })
+
+  it('renders it in Arabic when the reader is Arabic', () => {
+    // The whole justification for the token. If this ever reads English, the
+    // sentinel bought nothing and 0019 should have written a sentence.
+    setLocale('ar')
+    const html = renderUpdate(NUDGE_BODY_TOKEN)
+    expect(html).toContain(t('nudge.threadLine'))
+    expect(html).toMatch(/[؀-ۿ]/)
+    expect(html).not.toContain(NUDGE_BODY_TOKEN)
+  })
+
+  it("leaves a colleague's own words exactly as typed", () => {
+    // Why the renderer branches on a null key instead of `t(key ?? body)`: user
+    // text must never enter the lookup, or a body that happens to spell a real
+    // key — or one an admin has an override for — comes back translated.
+    const html = renderUpdate('track.feed')
+    expect(html).toContain('track.feed')
+    expect(html).not.toContain(t('track.feed'))
   })
 })

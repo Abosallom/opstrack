@@ -543,8 +543,21 @@ export interface MeetingLine {
 
 // ── notifications (0004) ───────────────────────────────────────────────────
 
-/** Why a notification exists. Written by DB triggers, never by the client. */
-export type NotificationKind = 'assigned' | 'completed'
+/**
+ * Why a notification exists. Written by DB triggers and by `nudge_entry()`,
+ * never by the client.
+ *
+ * THESE THREE ARE THE LIVE CHECK, not a superset of it: `notifications_kind_check`
+ * on lrysgpbkmuqgzsjesfkr reads `kind = ANY (ARRAY['assigned','completed','nudged'])`
+ * after migration 0019 widened it. 'nudged' was added to this union LATE — 0019
+ * taught the write side the word and left the read side narrowing every unknown
+ * kind to 'assigned', so a nudge told its recipient the item had been assigned to
+ * them, on an item `canNudge()` guarantees they already own. A new kind in the
+ * database is only half a feature; the other half is a member of this union, a
+ * `notif.*` sentence in BOTH locale trees, and an arm in
+ * `send-push/index.ts`'s STRINGS table.
+ */
+export type NotificationKind = 'assigned' | 'completed' | 'nudged'
 
 /**
  * A notification as the UI consumes it — camelCase because this is a VIEW

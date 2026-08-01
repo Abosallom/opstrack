@@ -206,6 +206,66 @@ describe('notificationSentence', () => {
     )
     expect(line).toBe(t('notif.completed', { actor: 'Mallory Vance', title: 'Firewall rule DC2' }))
   })
+
+  // ── the nudge sentence ──────────────────────────────────────────────────
+  //
+  // REGRESSION, and the reason this block asserts the NEGATIVE as well as the
+  // positive. Migration 0019 taught the database to write `kind = 'nudged'` and
+  // nothing on the read side learned the word: `NotificationKind` was still a
+  // two-member union, api/notifications.ts collapsed anything that was not
+  // 'completed' into 'assigned', and this function's ternary then chose
+  // `notif.assigned`. So the ask a colleague sent — "please update me on this" —
+  // was delivered as "⁨Aziz⁩ assigned you “⁨X⁩”", to the person who ALREADY OWNS
+  // the item, because `canNudge()` (entry/NudgeButton.tsx) refuses to render on
+  // any row you do not own. The sentence was not merely wrong, it described
+  // something that cannot happen.
+  //
+  // Asserted in BOTH languages because the defect was symmetric: `notif.json`
+  // was untouched by that wave, so there was no nudge sentence in either tree
+  // and a green English test would have proved nothing about the Arabic one.
+
+  it('uses the nudge sentence for a nudged row, not the assigned one', () => {
+    const line = notificationSentence(
+      map(fx.members),
+      fx.notif({ id: '8', entryId: 'e1', kind: 'nudged', actorId: 'u-actor' }),
+    )
+    expect(line).toBe(t('notif.nudged', { actor: 'Mallory Vance', title: 'Firewall rule DC2' }))
+    // The precise shape of the shipped bug: never the assignment sentence.
+    expect(line).not.toBe(
+      t('notif.assigned', { actor: 'Mallory Vance', title: 'Firewall rule DC2' }),
+    )
+    expect(line).not.toContain('assigned you')
+  })
+
+  it('uses the actor-less nudge sentence when the asker cannot be named', () => {
+    const line = notificationSentence(
+      map(fx.members),
+      fx.notif({ id: '9', entryId: 'e1', kind: 'nudged', actorId: null, actorName: '' }),
+    )
+    expect(line).toBe(t('notif.nudgedNoActor', { title: 'Firewall rule DC2' }))
+    expect(line).not.toContain('{actor}')
+  })
+
+  it('says it in Arabic too, and says something different from the assignment', async () => {
+    const { setLocale } = await import('../lib/i18n')
+    setLocale('ar')
+    try {
+      const item = fx.notif({ id: '10', entryId: 'e1', kind: 'nudged', actorId: 'u-actor' })
+      const line = notificationSentence(map(fx.members), item)
+      expect(line).toBe(t('notif.nudged', { actor: 'Mallory Vance', title: 'Firewall rule DC2' }))
+      // «أسند إليك …» is the assignment; a nudge must not borrow it.
+      expect(line).not.toBe(
+        t('notif.assigned', { actor: 'Mallory Vance', title: 'Firewall rule DC2' }),
+      )
+      // Arabic, not an English fallback echoed out of the en tree — the ar
+      // bundle really carries the key.
+      expect(line).toMatch(/[؀-ۿ]/)
+      expect(line).not.toContain('asking')
+    } finally {
+      // Every later assertion in this file reads the English bundle.
+      setLocale('en')
+    }
+  })
 })
 
 /* ─────────────────────────────── the bell ───────────────────────────── */
@@ -267,6 +327,22 @@ describe('Notifications page', () => {
     // its 44px spacer so the text column does not shift between the two.
     expect(html.split(`aria-label="${asHtml(t('notif.markRead'))}"`).length - 1).toBe(1)
     expect(html).toContain('notif-item-spacer')
+  })
+
+  it('gives a nudge row its own glyph and its own sentence, in real markup', () => {
+    // The sentence is asserted purely above; this is the ROW — the half that
+    // shipped broken twice over. `notif-kind-${item.kind}` interpolates the kind
+    // straight into a class name, so an unknown kind silently lands on a rule
+    // that does not exist and the pill renders in body text colour. The glyph
+    // moved too: a nudge is a person TALKING to you, not a handover.
+    fx.state.items = [fx.notif({ id: '1', entryId: 'e1', kind: 'nudged', actorId: 'u-actor' })]
+    fx.state.unread = 1
+    const html = renderPage()
+    expect(html).toContain('notif-kind-nudged')
+    expect(html).not.toContain('notif-kind-assigned')
+    expect(html).toContain(
+      asHtml(t('notif.nudged', { actor: 'Mallory Vance', title: 'Firewall rule DC2' })),
+    )
   })
 
   it('disables mark-all when there is nothing to clear', () => {

@@ -56,6 +56,18 @@ vi.hoisted(() => {
 
 const { setLocale, t } = await import('./i18n')
 
+/**
+ * The AI settings screen's source, for the call-site half of its counter.
+ *
+ * Same mechanism and same reason as the TracksAdmin glob at the foot of this
+ * file: the tree can prove the node is well formed, only the source can prove
+ * the number is handed to it as `count` instead of printed beside it.
+ */
+const AI_SETTINGS: Record<string, string> = import.meta.glob(
+  '../pages/settings/AiSettings.tsx',
+  { query: '?raw', import: 'default', eager: true },
+)
+
 /** The four keys, with a full variable set for each. */
 const COUNTED: readonly { key: string; vars: (n: number) => Record<string, string | number> }[] = [
   { key: 'followups.total', vars: (n) => ({ count: n }) },
@@ -122,6 +134,52 @@ describe('every counted string, both languages', () => {
     }
     setLocale('en')
     expect(stray).toEqual([])
+  })
+})
+
+/* ───────────────────── "Used today", on Settings › AI assist ───────────────────── */
+
+// THE SAME CLASS, ONE SPAN FURTHER OUT. `ai.usageCalls` was not a broken plural
+// node — it was a FROZEN NOUN in its own <span>, with the number in the span
+// beside it: `<span>{usage.calls}</span><span>{t('ai.usageCalls')}</span>`. So
+// selectPlural() could never run, because there was no `count` to run on.
+//
+// English read "1 suggestions" on the most common day of use. Arabic read
+// «1 اقتراحًا» — the accusative tamyīz, which is correct for 11–99 and wrong for
+// every number below it («اقتراح واحد» at 1, «اقتراحان» at 2, «3 اقتراحات» at 3).
+//
+// The counted-noun gate was blind to it TWICE: the number was not an
+// interpolation at all, so its regex had nothing to anchor on, and neither
+// `suggestion` nor «اقتراح» was in COUNTED_NOUNS. Both lists have them now; this
+// pins the sentences the gate still cannot see, through the real t().
+describe('the AI usage counter', () => {
+  it('agrees its noun with the number in English', () => {
+    setLocale('en')
+    expect(t('ai.usageCalls', { count: 1 })).toBe('1 suggestion')
+    expect(t('ai.usageCalls', { count: 2 })).toBe('2 suggestions')
+    // The empty state of the card, which is what most days start as.
+    expect(t('ai.usageCalls', { count: 0 })).toBe('0 suggestions')
+  })
+
+  it('walks all six Arabic categories', () => {
+    setLocale('ar')
+    expect(t('ai.usageCalls', { count: 0 })).toBe('لا اقتراحات')
+    expect(t('ai.usageCalls', { count: 1 })).toBe('اقتراح واحد')
+    expect(t('ai.usageCalls', { count: 2 })).toBe('اقتراحان')
+    expect(t('ai.usageCalls', { count: 3 })).toBe('3 اقتراحات')
+    expect(t('ai.usageCalls', { count: 11 })).toBe('11 اقتراحًا')
+    expect(t('ai.usageCalls', { count: 100 })).toBe('100 اقتراح')
+    setLocale('en')
+  })
+
+  it('is rendered with the number INSIDE the string, not in a span beside it', () => {
+    // The regression the tree cannot see, and the exact shape that shipped.
+    // A screen that goes back to printing the count itself would satisfy every
+    // structural assertion in localeParity while rendering "1 suggestions".
+    const src = Object.values(AI_SETTINGS)[0]
+    expect(src, 'AiSettings.tsx not found by the glob').toBeTypeOf('string')
+    expect(src).toMatch(/t\('ai\.usageCalls',\s*\{\s*count:/)
+    expect(src).not.toMatch(/\{usage \? usage\.calls : 0\}<\/span>/)
   })
 })
 
