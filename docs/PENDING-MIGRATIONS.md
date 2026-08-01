@@ -7,29 +7,46 @@ It exists because the critic caught the failure it prevents: `README`, `ADMIN.md
 things ending at `0013` and reported **"all twelve yes"** — while four migrations sat unapplied.
 A verification that cannot fail is worse than none.
 
-## Status — 31 July 2026
+## Status — 1 August 2026
 
-| # | File | What breaks until it runs |
+**Nothing is pending.** `0014`–`0017` were applied to the live project on 1 August 2026, each
+twice, and verified by querying the catalog rather than by trusting the apply:
+
+| # | File | Verified live by |
 |---|---|---|
-| **0014** | `recurring_template_authorship.sql` | A scheduled-item recipe has no author, so anyone can point one at a colleague, press **Run now**, and the item plus its phone alert arrive as *"the schedule did it"*. |
-| **0015** | `entry_write_guard_and_line_authorship.sql` | Any member can assign work to any colleague — delivered as a phone push — with the entry recorded as authored by nobody and no trace of who did it. |
-| **0016** | `name_pin_close_date_and_handover_clock.sql` | Three things: a teammate can rename themselves to a colleague's name permanently, on every screen and lock-screen notification; a close date can be edited directly, silently moving items into and out of throughput, lead-time and SLA numbers; and handing an item over resets its neglect clock, so delegating erases the evidence that it was ignored. |
-| **0017** | `label_overrides.sql` | `Settings › Terminology` renders and searches, but **nothing can be saved** — the app says so plainly (`common.errMissingTable`) rather than failing silently. |
+| 0014 | `recurring_template_authorship.sql` | `materialize_template` present |
+| 0015 | `entry_write_guard_and_line_authorship.sql` | `entries_guard_update` BEFORE UPDATE trigger on `entries` |
+| 0016 | `name_pin_close_date_and_handover_clock.sql` | `guard_profile_role` present |
+| 0017 | `label_overrides.sql` | `label_overrides_norm(text)` + `reset_label_overrides(text)` present |
 
-**Order matters. Run 0014 → 0015 → 0016 → 0017.**
+### 0017 refused itself first, and was right to
 
-## How to run them
+Its own probe block raised `btrim stored NULL — expected the ends trimmed and the interior
+spacing intact`. The cause: `v_trim` was **declared and asserted on, but never assigned**, so it
+was always NULL and the assertion was unconditionally true. The migration could not apply, ever.
 
-1. Open the Supabase dashboard → your `opstrack` project → **SQL Editor**.
-2. For each file in order: open `supabase/migrations/<file>`, copy the whole thing, paste, **Run**.
-3. Every migration here is re-runnable — running one twice is safe and is how they were tested.
-4. After each, look at the `NOTICE` lines. They are the migration's own self-checks; a `FAILED`
-   notice means it refused to apply and nothing changed.
+Reading the file did not reveal it — the declaration, the header's fixture comment and the
+assertion all read like a complete probe; only the missing `insert`/`select` between them was
+absent. **Running it against a real database is what found it**, which is the whole argument for
+applying twice and reading the notices rather than trusting a green file.
+
+The missing probe was written (insert `'  Assigned  to  '`, read it back), and the fixture keeps
+its doubled interior space deliberately: a normaliser that collapsed interior whitespace would
+pass a single-space fixture and silently rewrite what the owner typed.
+
+## How to run one
+
+1. Supabase dashboard → `opstrack` project → **SQL Editor**.
+2. Open `supabase/migrations/<file>`, copy all, paste, **Run**. In numeric order.
+3. Every migration here is re-runnable — running one twice is safe and is how they are tested.
+4. Read the `NOTICE` lines. They are the migration's own self-checks; a `FAILED` notice means it
+   refused to apply and nothing changed.
 
 ## How to confirm afterwards
 
-`RUNBOOK.md` §5 has the verification query. It is currently **stale — it stops at 0013**; treat a
-clean run of it as *necessary, not sufficient*, until it is extended.
+`RUNBOOK.md` §5 has a verification query, but it **stops at 0013** — treat a clean run of it as
+necessary, not sufficient, until it is extended. Prefer checking the specific object a migration
+creates, as the table above does.
 
 ## The rule this file encodes
 

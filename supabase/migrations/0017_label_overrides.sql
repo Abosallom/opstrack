@@ -568,6 +568,22 @@ begin
       values ('probe0016.keepsInvisible', E'Owner\u00ADship');
     select en into v_kept from public.label_overrides where key = 'probe0016.keepsInvisible';
 
+    -- …and the ENDS are trimmed while the INTERIOR is left exactly as typed.
+    --
+    -- THIS PROBE WAS MISSING. `v_trim` was declared and asserted on, but never
+    -- assigned, so it was always NULL and the assertion at the bottom of this
+    -- block — `v_trim is distinct from 'Assigned  to'` — was unconditionally
+    -- true. The migration could not apply, ever, and only running it revealed
+    -- that: reading the file, the declaration, the fixture comment in the header
+    -- and the assertion all look like a complete probe.
+    --
+    -- The two spaces between the words are deliberate. A normaliser that
+    -- collapses interior whitespace would pass a single-space fixture and
+    -- silently rewrite what the owner typed; only a doubled space catches it.
+    insert into public.label_overrides (key, en)
+      values ('probe0016.trims', E'  Assigned  to  ');
+    select en into v_trim from public.label_overrides where key = 'probe0016.trims';
+
     -- Both bookkeeping columns are SERVER-CONTROLLED: a client that supplies its
     -- own updated_by and updated_at must have both discarded.
     --
