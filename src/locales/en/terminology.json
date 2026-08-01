@@ -59,6 +59,8 @@
       "recurringLead": "Recurring items — the box that says how many days ahead an item is raised.",
       "recurringSummary": "Recurring items — the one-line summary of a saved schedule.",
       "settings": "Settings — the main page.",
+      "settingsAi": "Settings, then AI assist — the switch, what is sent, and today's count.",
+      "settingsGroups": "Settings, then Groups — the two halves of the workspace and which tracks are in each.",
       "settingsExport": "Settings, then Export.",
       "settingsMembers": "Settings, then Members.",
       "settingsPush": "Settings, then Push notifications.",

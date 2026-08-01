@@ -803,6 +803,34 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       },
     ],
   },
+  // The chase (0019). Filed under Follow-ups because that is the only screen it
+  // renders on today, and because an owner rewording "Ask for an update" is
+  // rewording the follow-ups pass — they will want both in one sitting. It gets
+  // its own namespace rather than a corner of `followups` for the reason the
+  // registry exists: the control is a component, not a screen, and it moves to
+  // the board and the entry sheet next.
+  //
+  // EVERY STRING HERE IS RENAMEABLE ON PURPOSE. This is the most tone-sensitive
+  // copy in the app — a button whose whole job is interrupting a colleague — and
+  // "Ask for an update" is a guess about how this particular team talks to each
+  // other. Being able to change it to their words, in both languages, without a
+  // deploy, is worth more here than almost anywhere else in the tree.
+  nudge: {
+    section: 'messages',
+    where: 'terminology.where.followups',
+    rules: [
+      // `ask` claims askAgain/askOf/askAgainOf too — one prefix, four controls
+      // and their tooltips, which are the same act said at four lengths.
+      { prefixes: ['ask'], section: 'actions' },
+      // …and `askedBy` takes them back, because longest prefix wins: those two
+      // are the accessible sentence on the record, not a control.
+      { prefixes: ['askedBy'], section: 'messages' },
+      // What the ROW says about itself once somebody has asked — the same
+      // reading `followups.sla*` gets, and it sits beside that pill on the row.
+      { prefixes: ['pill'], section: 'healthStates' },
+    ],
+  },
+
   notif: {
     section: 'entryFields',
     where: 'terminology.where.notifications',
@@ -892,6 +920,51 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'tracks.slaAfterSave',
           'tracks.slaRule',
           'tracks.suggestedTagsHint',
+        ],
+        section: 'messages',
+      },
+    ],
+  },
+  // Settings › Groups (0018) — the level above tracks, and the screen that says
+  // which half of the org a track belongs to. Placed beside `admin` because the
+  // two are one family: an owner renaming "Track" here will want to rename
+  // "Group" in the same sitting.
+  groups: {
+    section: 'entryFields',
+    where: 'terminology.where.settingsGroups',
+    rules: [
+      { prefixes: ['subtitle', 'title'], section: 'screenTitles' },
+      // `settingsHint` is the line under the Settings card, not a title —
+      // there IS no groups.settingsTitle, because the card and the header are
+      // the same word and two keys holding "Groups" would be two rows an
+      // admin cannot tell apart on the Terminology screen.
+      { prefixes: ['settingsHint'], section: 'messages' },
+      // `unsaved` and `archived` are what a row IS, not what it says — the same
+      // reading `admin.tracks.archived` gets four blocks up.
+      { prefixes: ['archived', 'ungrouped', 'unsaved'], section: 'healthStates' },
+      {
+        // `moveUp`/`moveDown` and not `move`: the `moved*` family below is three
+        // sentences, and one four-letter prefix would file all five together.
+        prefixes: ['discard', 'manage', 'moveDown', 'moveUp', 'rename', 'save'],
+        section: 'actions',
+      },
+      // `empty` covers emptyHint and emptyGroup too, which is the point of the
+      // longest-prefix rule: one entry, and a later `emptyXyz` needs no edit.
+      { prefixes: ['empty'], section: 'emptyStates' },
+      {
+        // Every one of these is a sentence rather than a label. `saved` and
+        // `moved` are listed even though `save` and `moveUp` sit in Actions —
+        // longest prefix wins, which is exactly how a rule gets refined without
+        // being moved.
+        prefixes: [
+          'err',
+          'loadFailed',
+          'moved',
+          'nameArHint',
+          'nameRequired',
+          'reordered',
+          'saved',
+          'ungroupedHint',
         ],
         section: 'messages',
       },
@@ -1034,6 +1107,47 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'unsupported',
         ],
         section: 'messages',
+      },
+    ],
+  },
+  // TWO SCREENS, ONE NAMESPACE, and the `where` rules are what keep that
+  // honest: the switch and the privacy statement live in Settings, while the
+  // chips, the badge and the keyboard hint are read under the capture box. An
+  // admin renaming "Not right" needs to be told where that word appears, and
+  // "Settings, then AI assist" would send them to the wrong screen.
+  ai: {
+    // Messages by default: most of this namespace is a sentence explaining what
+    // leaves the browser, which is the long tail the section list was designed
+    // for.
+    section: 'messages',
+    where: 'terminology.where.settingsAi',
+    rules: [
+      { prefixes: ['subtitle', 'title'], section: 'screenTitles' },
+      // The three card headings. Named individually rather than by a `Title`
+      // suffix rule, because prefixes match the START of a local path.
+      { prefixes: ['sentTitle', 'switchTitle', 'usageTitle'], section: 'screenTitles' },
+      { prefixes: ['manage'], section: 'navigation' },
+      // What the switch IS, in a word — the same reading `push.status*` gets.
+      { prefixes: ['status'], section: 'healthStates' },
+      // The Preview badge is a status ON THE FEATURE, and it is read on the
+      // capture screen…
+      { prefixes: ['preview'], section: 'healthStates', where: 'terminology.where.capture' },
+      // …while `previewNote` is the sentence under the settings heading. Longest
+      // prefix wins, so this takes it back without disturbing the rule above.
+      { prefixes: ['previewNote'], section: 'messages' },
+      {
+        prefixes: ['accept', 'dismiss', 'wrong'],
+        section: 'actions',
+        where: 'terminology.where.capture',
+      },
+      // The chips name FIELDS — a due date, an owner, a tag — so they belong
+      // beside the other field words rather than in the message tail.
+      { prefixes: ['chip'], section: 'entryFields', where: 'terminology.where.capture' },
+      { prefixes: ['toggleLabel'], section: 'entryFields' },
+      {
+        prefixes: ['announce', 'keysHint', 'reportedToast', 'rowLabel', 'thinking', 'understood'],
+        section: 'messages',
+        where: 'terminology.where.capture',
       },
     ],
   },

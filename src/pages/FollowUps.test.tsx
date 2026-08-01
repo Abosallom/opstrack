@@ -186,11 +186,29 @@ vi.mock('../store/members', () => ({
     () =>
     (ownerId?: string | null, ownerName?: string | null): string =>
       ownerId ?? ownerName?.trim() ?? '',
+  // NudgeButton resolves the asker's live display name through this map, per
+  // api/notifications.ts's contract (the profile first, never a snapshot alone).
+  // Empty is the right default here for the same reason `useMembers` is: this
+  // file's cases were written against a workspace with no member list, and an
+  // unresolvable asker falls back to `nudge.someone`.
+  useMemberMap: () => new Map(),
+}))
+
+// The nudge overlay (store/nudges) holds only asks made in THIS session, over
+// `entries.nudged_at` on the row. Empty means "this session has asked nothing",
+// which is every case in this file: the rows below carry no nudge columns, so
+// every nudgeable row renders the ask button and none renders a record.
+vi.mock('../store/nudges', () => ({
+  useLocalAsk: () => undefined,
+  sendNudge: () => Promise.resolve({ ok: false, error: 'nudge.errFailed' }),
 }))
 
 vi.mock('../store/config', () => ({
   useTrackMap: () => new Map(),
-  useActiveTracks: () => [],
+  useActiveTracks: () => [],  // FilterBar reads the workspace's groups for its Group facet (0018). Empty
+  // here on purpose: this screen's tests are about ITS surface, and the facet
+  // renders nothing without groups — which is also the pre-migration state.
+  useGroups: () => [],
 }))
 
 vi.mock('../store/auth', () => ({
@@ -390,6 +408,81 @@ describe('FollowUps — the filter round-trips through the URL', () => {
 // department head with six tracks, distributing the morning's unowned work meant
 // opening each item and scrolling to its owner picker. "Take it" is the right
 // answer for one person and the wrong verb for a lead.
+
+/* ────────────── the chase: where this screen offers to ask ────────────── */
+//
+// TWO RULES, TWO OWNERS, and this block only tests the one that belongs here.
+// `NudgeButton.canNudge` decides WHO can be asked (not yourself, not a row with
+// no member owning it) and is tested in that file; `NUDGEABLE` decides WHICH
+// BUCKETS asking is fair in, and that is a judgement about this screen's
+// sections, so it is tested against this screen's rendered output.
+//
+// The default fixture owns nothing — every row is `owner_name: 'Vendor'` with a
+// null owner_id — so no button appears anywhere in the rest of this file. These
+// cases swap in a set owned by a real teammate and put it back.
+describe('FollowUps — asking a colleague for an update', () => {
+  const owned = (over: Partial<Entry> & Pick<Entry, 'id' | 'title'>): Entry =>
+    fx.entry({ owner_id: 'u2', owner_name: null, ...over })
+
+  const withEntries = (entries: Entry[], run: (html: string) => void): void => {
+    const before = fx.state.entries
+    fx.state.entries = entries
+    try {
+      run(render(<FollowUps />))
+    } finally {
+      fx.state.entries = before
+    }
+  }
+
+  it('offers the ask on a colleague’s late, breached, quiet or blocked row', () => {
+    // The four buckets that name a fact the owner would want to know about: a
+    // promise already missed, a service window already blown, an item gone
+    // silent, or one stuck and possibly waiting on the asker.
+    withEntries(
+      [
+        owned({ id: 'a', title: 'Overdue one', due_date: '2026-07-20' }),
+        owned({ id: 'b', title: 'Breach by default' }),
+        owned({ id: 'e', title: 'Quiet one' }),
+        owned({ id: 'f', title: 'Blocked one', status: 'blocked' }),
+      ],
+      (html) => {
+        expect(countOf(html, esc(t('nudge.ask')))).toBe(4)
+      },
+    )
+  })
+
+  it('does NOT offer it on an item that is merely due soon', () => {
+    // NOTHING HAS GONE WRONG YET. An item due Thursday, on Tuesday, with its
+    // owner working on it, is the single easiest way to turn this button into
+    // the thing colleagues learn to ignore — and no amount of careful copy saves
+    // a request that had no reason to be sent.
+    withEntries([owned({ id: 'd', title: 'Due soon one', due_date: '2026-07-31' })], (html) => {
+      expect(html).toContain(esc(t('followups.dueSoon')))
+      expect(html).not.toContain(esc(t('nudge.ask')))
+    })
+  })
+
+  it('does NOT offer it in the Unassigned bucket, which has nobody to ask', () => {
+    // By construction: bucketFollowUps puts a row there only when BOTH owner
+    // columns are empty. That bucket already carries the two controls that fix
+    // it — take it, assign it — and those are the right answer to an unowned
+    // item, not "chase".
+    withEntries([fx.entry({ id: 'g', title: 'Nobody owns me', owner_name: null })], (html) => {
+      expect(html).toContain(esc(t('followups.unassigned')))
+      expect(html).not.toContain(esc(t('nudge.ask')))
+    })
+  })
+
+  it('does NOT offer it on your own row', () => {
+    // The mocked profile is `u1`. Chasing yourself is a joke the second time and
+    // noise the third; 0019 refuses it too, so the affordance and the policy
+    // agree rather than the user meeting a refusal.
+    withEntries([owned({ id: 'e', title: 'Quiet one', owner_id: 'u1' })], (html) => {
+      expect(html).toContain(esc(t('followups.stale')))
+      expect(html).not.toContain(esc(t('nudge.ask')))
+    })
+  })
+})
 
 describe('FollowUps — the Unassigned bucket hands work to someone', () => {
   const withTeam = (run: () => void): void => {

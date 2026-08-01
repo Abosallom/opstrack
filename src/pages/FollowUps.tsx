@@ -94,6 +94,11 @@ import {
 import { Link, useSearchParams } from 'react-router-dom'
 import FilterBar, { type FilterFacet } from '../components/FilterBar'
 import { EntryRow, EntrySection, useSwipeActions, type EntryRowShow } from '../components/entry'
+// Imported from the file rather than through `components/entry`'s barrel: that
+// barrel is another worker's module (§1.0.4) and this control arrived after it
+// was written. The handoff files the two-line re-export so the one-import-path
+// rule holds again at the wave close.
+import NudgeButton from '../components/entry/NudgeButton'
 import { IconChecklist, IconClock, IconUser } from '../components/icons'
 import { IconCheck, IconPlus } from '../components/fields/glyphs'
 import { EmptyState, Skeleton } from '../components/shared'
@@ -217,7 +222,21 @@ const SLA_TOLERANCE_MS = 12 * 3_600_000
  *  primary axis, not a detail behind a disclosure) and follow-ups is a question
  *  about OPEN work by construction — bucketFollowUps never buckets a closed
  *  entry, so a scope switch here would be a control that does nothing. */
-const FACETS: readonly FilterFacet[] = ['search', 'track', 'status', 'priority', 'type', 'owner', 'tag', 'health']
+/*  `group` leads the narrowing facets, above `track`, per FilterBar's
+ *  DEFAULT_FACETS. This is the screen where it earns the most: "what is slipping
+ *  on my half" is the question three people carrying five domains ask every
+ *  morning, and before 0018 the only way to ask it was to tick six tracks. */
+const FACETS: readonly FilterFacet[] = [
+  'search',
+  'group',
+  'track',
+  'status',
+  'priority',
+  'type',
+  'owner',
+  'tag',
+  'health',
+]
 
 type SectionKey = keyof FollowUpSections
 type Density = 'comfortable' | 'compact'
@@ -243,6 +262,40 @@ const SECTIONS: readonly SectionSpec[] = [
   { key: 'blocked', tone: 'default' },
   { key: 'unassigned', tone: 'default' },
 ]
+
+/**
+ * The buckets where asking a colleague for an update is a REASONABLE thing to
+ * do — the screen's half of the nudge rule. (`NudgeButton.canNudge` owns the
+ * other half: who may be asked. Two questions, two owners.)
+ *
+ * FOUR OF THE SIX, and the two omissions are the argument:
+ *
+ *   · `dueSoon` is out because NOTHING HAS GONE WRONG YET. An item due on
+ *     Thursday, on Tuesday, with its owner working on it, is the single easiest
+ *     way to turn this button into the thing colleagues learn to ignore — and
+ *     the copy can only carry so much; a request sent for no reason still reads
+ *     as a prod. The four that remain each name a fact the owner would want to
+ *     know about: a promise already missed, a service window already blown, an
+ *     item that has gone silent, or one that is blocked and may be waiting on
+ *     something the asker can unblock.
+ *   · `unassigned` is out because there is nobody to ask, by construction —
+ *     `bucketFollowUps` puts a row there only when both owner columns are empty.
+ *     That bucket already carries the two controls that FIX it (take it, assign
+ *     it), which is the correct answer to an unowned item and is not "chase".
+ *
+ * `slaBreach` is IN, and that is a deliberate reading of "overdue": the
+ * follow-ups spec names stale, blocked and overdue, and an SLA breach is the
+ * same kind of fact as an overdue date — a commitment already missed on an open
+ * item somebody else owns. The difference is only whose promise it was (one
+ * person's date vs the workspace's service window), and that difference does not
+ * change whether asking is fair.
+ */
+const NUDGEABLE: ReadonlySet<SectionKey> = new Set<SectionKey>([
+  'overdue',
+  'slaBreach',
+  'stale',
+  'blocked',
+])
 
 /**
  * Density survives navigation without touching storage.
@@ -381,6 +434,25 @@ interface FollowUpRowProps {
   offerOwner: boolean
   /** The people work can be handed to. Only read when `offerOwner`. */
   members: readonly Member[]
+  /**
+   * Is this bucket one where chasing is fair? See NUDGEABLE.
+   *
+   * The SECOND half of the rule — whether this particular row has somebody who
+   * can be asked — is `NudgeButton.canNudge`, inside the component, which
+   * returns null when the answer is no. So this flag is about the SECTION and
+   * never about the entry, and the two conditions are never written down in the
+   * same place.
+   */
+  nudgeable: boolean
+  /**
+   * The signed-in profile's id. Needed for the nudge rule (you cannot ask
+   * yourself) and for telling "you asked" from "Sara asked" on the record.
+   *
+   * Passed in rather than read from `useAuth()` inside the row: this component
+   * is memo()'d and mounted up to 150 times, and a store subscription per row is
+   * the hazard EntryRow's header describes one file over.
+   */
+  meId: string | null
   quickOpen: boolean
   onOpen: (id: string) => void
   onQuick: (id: string) => void
@@ -402,6 +474,8 @@ const FollowUpRow = memo(function FollowUpRow({
   density,
   offerOwner,
   members,
+  nudgeable,
+  meId,
   quickOpen,
   onOpen,
   onQuick,
@@ -529,6 +603,25 @@ const FollowUpRow = memo(function FollowUpRow({
                   {t('followups.slaDays', { count: sla.days })}
                 </span>
               ) : null}
+              {/* THE CHASE, and the record of one — the third of the four pains
+                  this product exists for, and the only one the app had no
+                  feature for at all.
+
+                  IT SITS HERE, before the three action buttons, because it
+                  renders a PILL as well as a button: "asked 2 days ago, no
+                  reply" is a fact about the row and belongs beside the SLA fact,
+                  not after three verbs. The consequence is that on a row someone
+                  ELSE owns, "Ask for an update" is the first control — which is
+                  the right order for exactly those rows, since marking someone
+                  else's work done is the rarer intent. On a row you own the
+                  component renders nothing, so "Mark done" is still first there.
+
+                  `fu-act` is passed IN rather than reached for from nudge.css:
+                  the registry rule (§1.0.7) is that a screen's difference rides
+                  on a class it hands over, so the button inks and reveals with
+                  its three neighbours and nudge.css never learns this screen
+                  exists. */}
+              {nudgeable ? <NudgeButton entry={entry} meId={meId} className="fu-act" /> : null}
               {/* Each action carries BOTH a glyph and its words, and the
                   stylesheet decides which one is drawn: full text where there is
                   room, glyph-only below 640px with the words moved into the
@@ -992,6 +1085,9 @@ export default function FollowUps(): ReactElement {
 
   const handleRefresh = (): void => {
     setRefreshing(true)
+    // Nothing extra is needed for the nudge marks: `entries.nudged_at` and
+    // `nudged_by` are columns on the entry (0019), so this one read refreshes
+    // "asked 2 days ago, no reply" along with everything else on the row.
     void refreshEntries().then(() => {
       // The screen can be navigated away from mid-fetch; refreshEntries never
       // rejects, so this is the only guard the promise needs.
@@ -1181,6 +1277,8 @@ export default function FollowUps(): ReactElement {
                         density={density}
                         offerOwner={s.key === 'unassigned'}
                         members={members}
+                        nudgeable={NUDGEABLE.has(s.key)}
+                        meId={meId}
                         quickOpen={quickId === entry.id}
                         onOpen={handleOpen}
                         onQuick={handleQuick}

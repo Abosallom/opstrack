@@ -75,6 +75,9 @@ import { selectEntries, filterKey } from '../lib/entryFilter'
 import { todayIso, addDays } from '../lib/dates'
 import { t } from '../lib/i18n'
 import { toast } from '../components/toast'
+// The group half of useFilterContext(). A store may read another store — the
+// layering rule this repo enforces is that `src/lib/**` imports neither.
+import { useTrackMap } from './config'
 import type { MutOp } from './outbox'
 import type { ApiResult } from '../api/result'
 import type { EntryPatch, NewEntry, NewEntryUpdate } from '../api/entries'
@@ -822,17 +825,40 @@ export function countEntries(
 }
 
 /**
- * `me` and `today` — the two values every filter needs and no filter can know.
+ * `me`, `today`, and every track's group — the values every filter needs and no
+ * filter can know.
  *
- * Memoised on its two primitives so the object identity is stable across
- * renders; it is a useMemo dependency in three other hooks in this file, and an
- * unstable one would defeat all of them.
+ * Memoised on its inputs so the object identity is stable across renders; it is
+ * a useMemo dependency in three other hooks in this file, and an unstable one
+ * would defeat all of them. `useTrackMap()` is already reference-stable —
+ * store/config.ts computes its derived views once, when tracks land, precisely
+ * so a selector cannot return a new Map per render.
+ *
+ * WHY THE GROUP MAP IS BUILT HERE AND NOT IN EACH SCREEN. This function is the
+ * one producer of a FilterContext in the app, so the group facet works on
+ * follow-ups, the board, the timeline, the dashboard and the Mindtree the moment
+ * the control offers it — no screen had to learn what a group is. The map is
+ * derived rather than stored because it is one pass over ~9 tracks; a second
+ * derived view in the config store for it would be a second thing to keep in
+ * step with the first.
  */
 export function useFilterContext(): FilterContext {
   const { profile } = useAuth()
   const meId = profile?.id ?? null
   const today = todayIso()
-  return useMemo(() => ({ meId, today }), [meId, today])
+  const tracks = useTrackMap()
+  const groupOfTrack = useMemo(() => {
+    const map = new Map<string, string | null>()
+    // `?? null`, never `=== null`: `Track.group_id` is optional for the length
+    // of this wave (src/types.ts says why), so absent and null both mean
+    // ungrouped and a strict read would file `undefined` as a group id.
+    for (const [id, track] of tracks) map.set(id, track.group_id ?? null)
+    return map
+  }, [tracks])
+  return useMemo(
+    () => ({ meId, today, groupOfTrack }),
+    [meId, today, groupOfTrack],
+  )
 }
 
 // ── loading ────────────────────────────────────────────────────────────────

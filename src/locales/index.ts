@@ -46,6 +46,7 @@
 // and the two bundles are exported separately rather than as a keyed record.
 
 import enAdmin from './en/admin.json'
+import enAi from './en/ai.json'
 import enApp from './en/app.json'
 import enBoard from './en/board.json'
 import enCapture from './en/capture.json'
@@ -62,12 +63,14 @@ import enEntry from './en/entry.json'
 import enExport from './en/export.json'
 import enFilter from './en/filter.json'
 import enFollowups from './en/followups.json'
+import enGroups from './en/groups.json'
 import enHealth from './en/health.json'
 import enMeeting from './en/meeting.json'
 import enMembers from './en/members.json'
 import enMindtree from './en/mindtree.json'
 import enMinutes from './en/minutes.json'
 import enNav from './en/nav.json'
+import enNudge from './en/nudge.json'
 import enNotif from './en/notif.json'
 import enOffline from './en/offline.json'
 import enPriority from './en/priority.json'
@@ -85,6 +88,7 @@ import enType from './en/type.json'
 import enVocabadmin from './en/vocabadmin.json'
 
 import arAdmin from './ar/admin.json'
+import arAi from './ar/ai.json'
 import arApp from './ar/app.json'
 import arBoard from './ar/board.json'
 import arCapture from './ar/capture.json'
@@ -98,12 +102,14 @@ import arEntry from './ar/entry.json'
 import arExport from './ar/export.json'
 import arFilter from './ar/filter.json'
 import arFollowups from './ar/followups.json'
+import arGroups from './ar/groups.json'
 import arHealth from './ar/health.json'
 import arMeeting from './ar/meeting.json'
 import arMembers from './ar/members.json'
 import arMindtree from './ar/mindtree.json'
 import arMinutes from './ar/minutes.json'
 import arNav from './ar/nav.json'
+import arNudge from './ar/nudge.json'
 import arNotif from './ar/notif.json'
 import arOffline from './ar/offline.json'
 import arPriority from './ar/priority.json'
@@ -135,6 +141,7 @@ export interface LocaleTree {
  */
 export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   admin: enAdmin,
+  ai: enAi,
   app: enApp,
   board: enBoard,
   capture: enCapture,
@@ -148,6 +155,7 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   export: enExport,
   filter: enFilter,
   followups: enFollowups,
+  groups: enGroups,
   health: enHealth,
   meeting: enMeeting,
   members: enMembers,
@@ -155,6 +163,7 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   minutes: enMinutes,
   nav: enNav,
   notif: enNotif,
+  nudge: enNudge,
   offline: enOffline,
   priority: enPriority,
   push: enPush,
@@ -173,6 +182,7 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
 
 export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   admin: arAdmin,
+  ai: arAi,
   app: arApp,
   board: arBoard,
   capture: arCapture,
@@ -186,6 +196,7 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   export: arExport,
   filter: arFilter,
   followups: arFollowups,
+  groups: arGroups,
   health: arHealth,
   meeting: arMeeting,
   members: arMembers,
@@ -193,6 +204,7 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   minutes: arMinutes,
   nav: arNav,
   notif: arNotif,
+  nudge: arNudge,
   offline: arOffline,
   priority: arPriority,
   push: arPush,
@@ -220,6 +232,7 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
  */
 export const en: LocaleTree = {
   ...enAdmin,
+  ...enAi,
   ...enApp,
   ...enBoard,
   ...enCapture,
@@ -233,6 +246,7 @@ export const en: LocaleTree = {
   ...enExport,
   ...enFilter,
   ...enFollowups,
+  ...enGroups,
   ...enHealth,
   ...enMeeting,
   ...enMembers,
@@ -240,6 +254,7 @@ export const en: LocaleTree = {
   ...enMinutes,
   ...enNav,
   ...enNotif,
+  ...enNudge,
   ...enOffline,
   ...enPriority,
   ...enPush,
@@ -258,6 +273,7 @@ export const en: LocaleTree = {
 
 export const ar: LocaleTree = {
   ...arAdmin,
+  ...arAi,
   ...arApp,
   ...arBoard,
   ...arCapture,
@@ -271,6 +287,7 @@ export const ar: LocaleTree = {
   ...arExport,
   ...arFilter,
   ...arFollowups,
+  ...arGroups,
   ...arHealth,
   ...arMeeting,
   ...arMembers,
@@ -278,6 +295,7 @@ export const ar: LocaleTree = {
   ...arMinutes,
   ...arNav,
   ...arNotif,
+  ...arNudge,
   ...arOffline,
   ...arPriority,
   ...arPush,

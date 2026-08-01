@@ -1,0 +1,20 @@
+{
+  "nudge": {
+    "ask": "Ask for an update",
+    "askAgain": "Ask again",
+    "askOf": "Ask ⁨{name}⁩ for an update on “⁨{title}⁩”",
+    "askAgainOf": "Ask ⁨{name}⁩ again about “⁨{title}⁩”",
+    "sent": "Asked ⁨{name}⁩ for an update on “⁨{title}⁩”.",
+    "pill": "Asked ⁨{time}⁩",
+    "askedByYou": "You asked for an update ⁨{time}⁩ — nothing since.",
+    "askedByOther": "⁨{name}⁩ asked for an update ⁨{time}⁩ — nothing since.",
+    "someone": "Someone",
+    "threadLine": "Asked the owner for an update.",
+    "errNotMember": "Your session has expired. Sign in again to ask.",
+    "errYours": "This one is yours — there is nobody to ask.",
+    "errNoOwner": "Nobody in the workspace owns this one, so there is nobody to ask.",
+    "errGone": "That one is no longer here.",
+    "errTooSoon": "Someone already asked about this one today. Give them a little longer.",
+    "errFailed": "Couldn't send that request."
+  }
+}

@@ -102,8 +102,23 @@ const NAMED_BLOCKERS = 1
  * is what three of these panels are measuring and a status facet would let a
  * reader filter the answer out of its own question. No `health` for the same
  * reason: the track chart's bands ARE the health split.
+ *
+ * `group` IS offered, and it does not fall foul of the rule that just excluded
+ * status and health: no panel here measures group, so narrowing to one is
+ * changing the POPULATION the panels describe, not deleting the answer from the
+ * question. It is the closest this screen gets to the "my half vs theirs"
+ * document, until the digest grows its own group section.
  */
-const FACETS: readonly FilterFacet[] = ['search', 'track', 'priority', 'type', 'owner', 'tag', 'mine']
+const FACETS: readonly FilterFacet[] = [
+  'search',
+  'group',
+  'track',
+  'priority',
+  'type',
+  'owner',
+  'tag',
+  'mine',
+]
 
 /**
  * Window and age-basis survive navigation without touching storage — the same

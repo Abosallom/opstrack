@@ -287,6 +287,24 @@ export const IconCloud = icon(
   <path d="M17.2 19.5H7a4.5 4.5 0 0 1-.4-8.98 5.5 5.5 0 0 1 10.44 1.5 3.75 3.75 0 0 1 .16 7.48z" />,
 )
 
+/**
+ * Onboarding — a plug, for "connecting somebody else's system to ours".
+ *
+ * This one is not decoration: `tracks.icon = 'plug'` has been in the seed since
+ * the Onboarding track was created, and until this icon existed `trackIcon()`
+ * fell through to its circle, so the track rendered as a blank dot on the
+ * board, the rail, the timeline, the Mindtree and the Settings chip row. The
+ * registry's forgiving contract hid a missing glyph instead of a crash — which
+ * is the right trade, and is also why nobody noticed for two waves.
+ */
+export const IconPlug = icon(
+  <>
+    <path d="M9 8V2.5M15 8V2.5" />
+    <path d="M6 8h12v5a4.5 4.5 0 0 1-4.5 4.5h-3A4.5 4.5 0 0 1 6 13z" />
+    <path d="M12 17.5v4" />
+  </>,
+)
+
 export const IconTerminal = icon(
   <>
     <rect x="2.5" y="4" width="19" height="16" rx="2.5" />

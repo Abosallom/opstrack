@@ -1,0 +1,272 @@
+/* AI assist — the `.ais-*` prefix, registered per EXECUTION-PLAN §1.0.7.
+
+   ONE SHEET, TWO CONSUMERS: `components/capture/AiSuggestion.tsx` (the row under
+   the capture box) and `pages/settings/AiSettings.tsx` (the switch, the privacy
+   statement and today's count). They are one feature with one vocabulary — the
+   Preview badge, the "what is sent" wording, the muted note — and §1.0.4 is the
+   rule against two sheets having to agree about the same variables. The same
+   call the Mindtree made when one sheet took four files.
+
+   IT STYLES NO PRIMITIVE AND NO OTHER PREFIX. `.pill`, `.chip`, `.chip-row`,
+   `.btn*`, `.card`, `.switch`, `.track-dot` and `.sr-only` are used as
+   `global.css` ships them; where this sheet needs a variant it adds an `.ais-`
+   class alongside rather than reaching into the primitive. `.cap-*` is
+   Capture's and is not touched here, which is what lets this row sit inside
+   that screen without owning any of it.
+
+   LOGICAL PROPERTIES ONLY, so the whole thing mirrors under dir="rtl" with no
+   [dir] rule anywhere in this file. SPACING on the 4px grid. MOTION inherits
+   global.css's prefers-reduced-motion kill switch — a local @media block would
+   be a second copy of a rule that already covers this file. */
+
+/* ---------- the row under the capture box ---------- */
+
+/* Deliberately NOT a card. It sits between the parse chips and the suggested
+   tags, both of which are bare sections, and a raised panel here would read as
+   a dialog demanding an answer — which is the one thing a suggestion that
+   appeared uninvited must not do. The start border is the whole frame: it marks
+   the block as machine-written without spending contrast on it. */
+.ais {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-inline-start: 12px;
+  border-inline-start: 3px solid var(--accent);
+}
+
+.ais-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Preview, on every AI surface. Uppercase and small, because it is a status on
+   the feature rather than a word in the sentence beside it. `letter-spacing`
+   is physical-property-free by nature and mirrors correctly. */
+.ais-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ais-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.ais-chips {
+  /* .chip-row already scrolls on overflow; this only stops the row from
+     stretching its chips to the full inline size on a wide screen. */
+  align-items: center;
+}
+
+/* Read-only marks, not controls — so no hover, no pointer, and a cursor that
+   says so. The weight difference from an interactive .chip is deliberate: a
+   chip you cannot press must not look like the ones two lines above that you
+   can. */
+.ais-chip {
+  cursor: default;
+  font-weight: 600;
+}
+
+.ais-chip:hover {
+  /* .chip lifts its background on hover. These do nothing, so they say nothing. */
+  background: var(--bg-elev);
+}
+
+.ais-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* The correction. Muted at rest so it never competes with Accept, but a real
+   4.5:1 reading in both themes — --text-dim is AA at every elevation — because
+   a control nobody can read is a control nobody presses, and this one is the
+   only route a user has to improve the feature. */
+.ais-wrong {
+  color: var(--text-dim);
+}
+
+.ais-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  max-inline-size: 62ch;
+}
+
+/* The 700ms in-between. Same block position and near enough the same height as
+   the row it becomes, so the page does not jump under a thumb already moving
+   toward the box. */
+.ais-thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 28px;
+}
+
+.ais-thinking-text {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+/* ---------- the settings screen ---------- */
+
+.ais-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Clears the fixed tab bar on mobile, the allowance every settings
+     sub-screen makes. */
+  padding-block-end: 24px;
+}
+
+.ais-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ais-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ais-lead {
+  font-size: 14px;
+  color: var(--text-dim);
+  max-inline-size: 62ch;
+}
+
+.ais-note {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-faint);
+  max-inline-size: 62ch;
+}
+
+.ais-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ais-card-title {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.ais-body {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  max-inline-size: 62ch;
+}
+
+/* The whole row is the control, so the label is part of the 44px target — the
+   same construction NotificationPrefs.tsx uses, and the reason `aria-checked`
+   is repeated on the visual span there: `.switch` reads that attribute for its
+   own styling, and this sheet may not restyle it. */
+.ais-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding-block: 8px;
+  text-align: start;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ais-toggle:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ais-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.ais-toggle-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* The privacy statement. A list because each line is a separate promise, and a
+   reader checking whether their meeting notes leave the building should be able
+   to find the one line that answers it without reading a paragraph. */
+.ais-sent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ais-sent li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* The mark is content-generated so it never reaches a clipboard or a screen
+   reader: "plus" and "minus" read aloud before every line would bury the
+   sentences they are marking. The colour is the meaning. */
+.ais-sent li::before {
+  content: '';
+  flex: none;
+  inline-size: 6px;
+  block-size: 6px;
+  margin-block-start: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.ais-sent li[data-tone='yes']::before {
+  background: var(--yellow);
+}
+
+.ais-sent li[data-tone='no']::before {
+  background: var(--green);
+}
+
+.ais-usage {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Tabular figures so the count does not shuffle its own width as it climbs. */
+.ais-usage-count {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ais-usage-of {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.ais-error {
+  font-size: 13px;
+}

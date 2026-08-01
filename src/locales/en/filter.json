@@ -8,6 +8,8 @@
     "active": "Active filters",
     "activeCount": { "one": "{count} filter", "other": "{count} filters" },
     "track": "Track",
+    "group": "Group",
+    "anyGroup": "Any group",
     "owner": "Owner",
     "priority": "Priority",
     "type": "Type",

@@ -1,0 +1,89 @@
+/* Nudge — the ask button and the record of an outstanding ask.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.ndg-*` and styles nothing
+   else. It leans on three global.css primitives — `.btn`/`.btn-sm`/`.btn-ghost`
+   for the control, `.pill` (+ its `.warn` variant) for the record, `.tabular`
+   for the figures inside it — and USES them, never redeclares them. The colour,
+   the border and the tint of the pill all come from `.pill`'s currentColor
+   recipe, which is why there is no colour in this file at all: `.pill` defaults
+   to --text-dim (8.71/8.05/6.97 dark, 6.50/7.04/5.98 light) and `.pill.warn` to
+   --yellow (8.76 dark, 5.36/4.55 light), both AA at every elevation the row can
+   sit on, both MEASURED in global.css rather than asserted here.
+
+   IT IS A SEPARATE SHEET FROM `entry.css`, and that is filed under §1.0.4
+   rather than assumed: entry.css owns the entry KIT — the row, the card, the
+   sheet, the thread and the atoms they share — and it is another worker's file.
+   This is one optional control that a screen drops into a row's action slot, it
+   ships with its own locale namespace and its own store, and it is the piece
+   most likely to be reused on the board and the timeline next. One sheet, one
+   feature, one owner.
+
+   WHAT IT DOES NOT OWN: how quiet the button is at rest. Follow-ups passes
+   `fu-act` in `className`, so the button inks --text-faint and lifts to --text
+   on row hover exactly like the three beside it, and the contrast reasoning for
+   that lives with that rule in followups.css where it was measured. A control
+   that styled its own resting ink here would be a second opinion about a screen
+   it does not belong to.
+
+   LOGICAL PROPERTIES ONLY, like the rest of the repo. */
+
+/* The glyph is the narrow form; the words are the default. Both are always in
+   the DOM so the accessible name never changes with the viewport. */
+.ndg-icon {
+  display: none;
+}
+
+/* A relative time can be two words ("2 days ago") or a whole date once it is
+   more than a week old, and `.pill` is `white-space: nowrap`. Capping it stops
+   one old ask from pushing the row's title out of a 375px line; the full
+   sentence is the accessible name either way, so nothing is lost to a reader
+   who needs it. */
+.ndg-pill {
+  max-inline-size: 20ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- phone ----------
+
+   The same label→glyph swap `.fu-act` makes below 640px, written for this
+   sheet's own classes rather than inherited from that one.
+
+   NOT A DUPLICATE BY ACCIDENT. followups.css may not style `.ndg-*` and this
+   file may not style `.fu-*` — that is the registry rule, and it is the rule
+   that lets this control move to the board without dragging a screen's
+   stylesheet behind it. The technique is global.css's `.sr-only`, applied to a
+   class rather than toggled from JavaScript, for followups.css's reason: a
+   control whose accessible name depends on a viewport width read at render time
+   announces the wrong thing after a rotate.
+
+   The 44px inline minimum comes from `.fu-act` when Follow-ups passes it. On a
+   screen that does not pass an action class, `.btn-sm`'s own `.tap-44` overlay
+   covers the block axis and the glyph plus padding measures 35px inline — so
+   the minimum is restated here, unconditionally, rather than made to depend on
+   which screen happened to mount the button. */
+@media (max-width: 639px) {
+  .ndg-icon {
+    display: inline-flex;
+  }
+
+  .ndg-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .ndg-act {
+    min-inline-size: 44px;
+    padding-inline: 9px;
+  }
+
+  .ndg-pill {
+    max-inline-size: 16ch;
+  }
+}

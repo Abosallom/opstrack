@@ -224,7 +224,10 @@ vi.mock('../store/members', () => ({
 
 vi.mock('../store/config', () => ({
   useTrackMap: () => new Map([fx.net, fx.retiredTrack].map((t) => [t.id, t])),
-  useActiveTracks: () => [fx.net],
+  useActiveTracks: () => [fx.net],  // FilterBar reads the workspace's groups for its Group facet (0018). Empty
+  // here on purpose: this screen's tests are about ITS surface, and the facet
+  // renders nothing without groups — which is also the pre-migration state.
+  useGroups: () => [],
 }))
 
 vi.mock('../store/auth', () => ({

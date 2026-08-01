@@ -187,7 +187,20 @@ const MAX_CARDS: Readonly<Record<Density, number>> = { comfortable: 25, compact:
  * No `scope` — see the file header. `status` is appended when status is NOT the
  * column axis, which is the one facet whose usefulness depends on the grouping.
  */
-const BOARD_FACETS: readonly FilterFacet[] = ['search', 'mine', 'track', 'owner', 'priority', 'tag']
+// `group` sits above `track` for the reason FilterBar's DEFAULT_FACETS gives:
+// it is the coarser cut and the one somebody reaches for first. On a board it
+// earns its place twice over — "the technical half, by owner" is the standing
+// question this screen was built for, and before 0018 it took selecting six
+// tracks by hand.
+const BOARD_FACETS: readonly FilterFacet[] = [
+  'search',
+  'mine',
+  'group',
+  'track',
+  'owner',
+  'priority',
+  'tag',
+]
 
 /**
  * store/entries.ts's private QUEUED_KEY, which is not a failure: the write is

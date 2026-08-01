@@ -397,6 +397,11 @@ function pathTo(node: MindNodeModel, id: string, trail: MindNodeModel[] = []): M
 const FACETS: readonly FilterFacet[] = [
   'search',
   'mine',
+  // Above `track`, per FilterBar's DEFAULT_FACETS. On this screen it is also the
+  // cheapest way to halve the map: ring 1 is one node per track, so narrowing to
+  // one group is the difference between nine branches and six on the phone,
+  // where the header explains one ring has to fit a 375px viewport.
+  'group',
   'track',
   'status',
   'priority',

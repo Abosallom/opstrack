@@ -36,6 +36,8 @@ import { loadTrackSlas, resetEntries, startEntriesRealtime } from './store/entri
 import { loadMembers, resetMembers } from './store/members'
 import { resetMeetings } from './store/meetings'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
+import { resetAi } from './store/ai'
+import { resetNudges } from './store/nudges'
 import { resetOutbox } from './store/outbox'
 import { resetPush } from './store/push'
 import { setLocaleSetting, setTheme, useSettings } from './store/settings'
@@ -91,6 +93,10 @@ const Settings = lazy(() => import('./pages/Settings'))
 // permanent source of wrong-file edits.
 const TracksAdmin = lazy(() => import('./pages/settings/TracksAdmin'))
 const TrackEditor = lazy(() => import('./pages/settings/TrackEditor'))
+// The level ABOVE tracks (0018). Its own chunk rather than a fold into
+// TracksAdmin: the two screens write two tables, and an admin who only wants to
+// rename a track should not pay for the group editor's palette to find out.
+const GroupsAdmin = lazy(() => import('./pages/settings/GroupsAdmin'))
 const VocabularyAdmin = lazy(() => import('./pages/settings/VocabularyAdmin'))
 const Terminology = lazy(() => import('./pages/settings/Terminology'))
 // NOT route-gated on admin, unlike the three above: the screen renders the
@@ -102,6 +108,11 @@ const RecurringAdmin = lazy(() => import('./pages/settings/RecurringAdmin'))
 const Members = lazy(() => import('./pages/settings/Members'))
 const Export = lazy(() => import('./pages/settings/Export'))
 const NotificationPrefs = lazy(() => import('./pages/settings/NotificationPrefs'))
+// AI assist: the per-user switch, the statement of what is sent, and today's
+// count. NOT admin-gated, and deliberately — the switch decides whether THIS
+// person's capture lines leave the browser, which is nobody else's setting to
+// hold.
+const AiSettings = lazy(() => import('./pages/settings/AiSettings'))
 
 /* ---------- navigation model ---------- */
 
@@ -461,6 +472,20 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // session, a revoked token, a sign-out in another tab. It clears the
       // store and re-attempts the unsubscribe; both are idempotent.
       resetPush()
+      // Nudges is the seventh, and the smallest: it holds only the asks THIS
+      // session sent, as an optimistic overlay over `entries.nudged_at` until
+      // realtime delivers the stamped row. Two lines of it still name a
+      // colleague and an item they owe, and the entries store holding the
+      // durable copy is cleared four lines up for exactly that reason — so
+      // leaving this one standing would mean the next person on a shared laptop
+      // sees "you asked 5 minutes ago" on somebody else's chase.
+      resetNudges()
+      // Eighth, and the one holding raw TEXT: store/ai.ts caches capture lines
+      // — a person's unfiled thoughts, before they are even an entry — in a
+      // module-level Map that outlives this tree. The next person to sign in on
+      // this browser must not be able to have them handed back by retyping a
+      // first word.
+      resetAi()
     }
   }, [])
 
@@ -608,6 +633,16 @@ export default function App(): ReactElement {
                 path="/settings/tracks/:id"
                 element={isAdmin ? <TrackEditor /> : <Navigate to="/settings" replace />}
               />
+              {/* Groups sit one level above tracks and are gated identically.
+                  Renaming a group or moving a track between the two halves
+                  changes what every other member's filters, board and digest
+                  say, so it is admin work in the same sense the track editor
+                  is. 0018's RLS is the real authority; this only avoids
+                  offering an editor to someone every write refuses. */}
+              <Route
+                path="/settings/groups"
+                element={isAdmin ? <GroupsAdmin /> : <Navigate to="/settings" replace />}
+              />
               <Route
                 path="/settings/vocabulary"
                 element={isAdmin ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
@@ -643,6 +678,10 @@ export default function App(): ReactElement {
                   gated either. `/settings/notifications` is push; the top-level
                   `/notifications` is the inbox history. Two screens, two
                   routes, and lib/routeTitle.ts titles them apart. */}
+              {/* Per-user AI preferences: everybody's own switch, so not gated
+                  either. The privacy statement on it is the reason it is a
+                  screen rather than a line in the Settings list. */}
+              <Route path="/settings/ai" element={<AiSettings />} />
               <Route path="/settings/notifications" element={<NotificationPrefs />} />
               <Route path="*" element={<Navigate to="/followups" replace />} />
             </Routes>

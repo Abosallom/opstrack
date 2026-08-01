@@ -183,6 +183,11 @@ export const SCREENS: readonly PaletteScreen[] = [
   // `/notifications` above is the inbox history. Two screens, two rows, and two
   // distinct labels — see the same warning in lib/routeTitle.ts.
   { to: '/settings/notifications', labelKey: 'push.title' },
+  // AI assist, on the same rule: named out of its own namespace, ungated in
+  // App.tsx because the switch is per-person, and here because a screen that
+  // states what leaves the browser is exactly the screen someone goes looking
+  // for by typing its name rather than by scrolling a settings list.
+  { to: '/settings/ai', labelKey: 'ai.title' },
 ]
 
 /**
@@ -199,6 +204,9 @@ export const SCREENS: readonly PaletteScreen[] = [
  * member bouncing off a screen the palette just promised them.
  */
 export const ADMIN_SCREENS: readonly PaletteScreen[] = [
+  // Above tracks, the level it sits above — the same coarse-to-fine reading
+  // order the filter bar's facets and the Settings page's two cards use.
+  { to: '/settings/groups', labelKey: 'groups.title' },
   { to: '/settings/tracks', labelKey: 'admin.tracks.title' },
   { to: '/settings/vocabulary', labelKey: 'vocabadmin.title' },
   { to: '/settings/terminology', labelKey: 'terminology.title' },

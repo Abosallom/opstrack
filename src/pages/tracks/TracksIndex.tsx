@@ -185,8 +185,15 @@ const MAX_ROWS = 25
  * No `scope` (forced to open), no `owner` (the unassigned toggle owns it), no
  * `track` (the tree IS the track axis — a track facet would empty five of the
  * six nodes it is drawn beside).
+ *
+ * `group` IS offered, and the track exclusion above is the reason rather than an
+ * objection to it: a group is the level ABOVE the axis this tree is drawn on, so
+ * choosing one narrows the tree to that half's tracks instead of collapsing it
+ * to a single node. The other half's nodes stay, empty, exactly as they do under
+ * a status or priority filter — this screen has always listed every active
+ * track and let the counts say where the work is.
  */
-const TREE_FACETS: readonly FilterFacet[] = ['search', 'mine', 'status', 'priority', 'tag']
+const TREE_FACETS: readonly FilterFacet[] = ['search', 'mine', 'group', 'status', 'priority', 'tag']
 
 /** What a bulk control writes. One shape so `applyBulk` needs no switch. */
 type BulkKind = 'owner' | 'priority' | 'track'

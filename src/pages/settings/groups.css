@@ -1,0 +1,303 @@
+/* Settings › Groups — the `.grp-*` prefix, per the class registry
+   (docs/EXECUTION-PLAN.md §1.0.7).
+
+   A SEPARATE SHEET FROM admin.css, which owns `.admin-*` and the track manager.
+   The two screens look alike and are not: the track manager edits a flat list of
+   rows, this one edits a CONTAINER and shows what is inside it, which is a
+   different layout (a card whose body is a second list) and a different set of
+   states (a disclosure for the rename, a warning section for tracks with no
+   group). Reaching into `.admin-*` for the half that happens to match would make
+   every future change to the track manager a change to this screen too.
+
+   Almost everything visible here is a global.css primitive and is deliberately
+   NOT restyled: `.card`, `.btn`, `.btn-sm`, `.pill`, `.field`, `.select`,
+   `.track-bar`, `.track-dot`, `.track-glyph`, `.swatch`, `.swatch-grid` and
+   `.row-actions`. This file owns the four layouts that have no primitive — the
+   group card's head, its rename panel, its track list, and the ungrouped
+   section.
+
+   LOGICAL PROPERTIES ONLY, like the rest of the repo, so the Arabic mirror
+   comes free. */
+
+.grp {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-inline-size: 720px;
+}
+
+.grp-bar {
+  display: flex;
+  align-items: center;
+}
+
+/* The route's h1 lives in the app header, so the page opens on its standfirst
+   rather than repeating the title. */
+.grp-intro {
+  font-size: 13px;
+  line-height: 1.55;
+  /* --text-dim, not --text-faint: this sits directly on --bg, and dim is the
+     token that clears AA at every elevation. */
+  color: var(--text-dim);
+}
+
+.grp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---------- one group ---------- */
+
+.grp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* TOP-ALIGNED, not centred, and that is a fix rather than a preference. The
+   text block is three lines (name, the other language, the track count) and the
+   action cluster is one; centring parked "Rename" level with the SECOND line, so
+   the Arabic name and the buttons read as one row and the group's name floated
+   above them unattached. Aligning to the start puts the buttons level with the
+   name they act on. */
+.grp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* The group's own colour, resolved the one sanctioned way: the caller sets the
+   two hexes inline (lib/trackStyle.trackVars) and CSS picks between them, so the
+   bar stays correct when the `auto` theme flips at sunset under a mounted page.
+   Composed with the global `.track-bar`, which supplies the 3px
+   border-inline-start and its padding — this rule only resolves the pair, the
+   same shape `admin.css .admin-track-bar` uses for a track row. */
+.grp-head-text {
+  --track-color: var(--track-c-dark);
+  display: flex;
+  flex: 1 1 200px;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+:root[data-theme='light'] .grp-head-text {
+  --track-color: var(--track-c-light);
+}
+
+.grp-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* The other language, always — an admin renaming a group needs both halves of
+   the pair on screen at once. */
+.grp-alt {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.grp-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 4px;
+}
+
+/* Reorder is up/down buttons, not drag: a drag handle is unreachable by
+   keyboard and unusable one-handed, which is this app's primary posture. */
+/* 44, not 40 — `.btn-icon`'s floor is min-inline-size and the block-axis
+   `.tap-44` overlay cannot cover for a narrowed box. Same correction
+   `admin.css .admin-move` and `vocab.css .vocab-move` carry. */
+.grp-move {
+  min-inline-size: 44px;
+  padding-inline: 8px;
+}
+
+/* One chevron glyph serves both directions. Up and down are axis-neutral, so
+   these must NOT carry `.icon-directional` — mirroring them in Arabic would
+   point them sideways. */
+.grp-move-icon {
+  transition: transform 0.15s ease;
+}
+
+.grp-move-up {
+  transform: rotate(-90deg);
+}
+
+.grp-move-down {
+  transform: rotate(90deg);
+}
+
+/* ---------- rename / recolour ---------- */
+
+/* Inline disclosure rather than a dialog, for the reason admin.css's reassign
+   panel gives: Confirm.tsx owns the only focus trap in the app, and a second
+   modal with its own trap and Esc handling is a lot of machinery for two text
+   fields and a colour grid. Dashed, because this is a form over the card above
+   it, not another card. */
+.grp-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+.grp-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.grp-fields .field {
+  flex: 1 1 200px;
+  min-inline-size: 0;
+}
+
+.grp-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* The colour picker is a <fieldset> because its six options need ONE accessible
+   name and a <legend> is the element that gives a group of controls one. The UA
+   then draws its default groove border and notches the legend into it, which is
+   a box nothing else on this screen has — so it is reset here, exactly as
+   `admin.css .admin-fieldset` resets it for the track editor's two pickers. The
+   `.field` class supplies the column layout; only the chrome is removed. */
+.grp-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
+}
+
+/* Six swatches, not fourteen: `.swatch-grid` is auto-fill, so on a 720px panel
+   it would stretch six 44px squares across the full width and leave the picker
+   reading as a colour BAR rather than a set of choices. */
+.grp-swatches {
+  max-inline-size: 320px;
+}
+
+/* global.css's `.swatch` draws its selection ring off `aria-pressed`, which is
+   the toggle-button spelling. These six are a RADIOGROUP — one of six, arrows
+   move the selection — so the state lives on `aria-checked` and the ring has to
+   follow it. Same double ring, for the same reason: an outline in one colour
+   cannot read against both a pale and a dark swatch. The inner ring is
+   --bg-elev-2 rather than --bg-elev because this grid sits inside the rename
+   panel, which is that colour. */
+.grp-swatch[aria-checked='true'] {
+  box-shadow: 0 0 0 2px var(--bg-elev-2), 0 0 0 4px var(--text);
+}
+
+/* ---------- the tracks inside a group ---------- */
+
+.grp-tracks,
+.grp-track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.grp-tracks-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--text-dim);
+}
+
+/* Two columns at any width the app supports: the track, and the one control
+   that moves it. They stack only when the name genuinely cannot share a line —
+   see the query at the foot of this file. */
+.grp-track {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  /* 16px in the block axis because the row WRAPS at 375px: `.select` is 44px
+     tall by its own box, and the name line above it needs clear space rather
+     than a 6px gap that reads as one control with two labels. */
+  row-gap: 16px;
+  padding-block: 4px;
+}
+
+.grp-track-mark {
+  flex: 0 0 auto;
+}
+
+.grp-track-name {
+  flex: 1 1 140px;
+  min-inline-size: 0;
+  font-size: 14px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* The select carries the row's whole action, so it gets a real width rather
+   than shrinking to its longest option: "Technical" and "Business" are near
+   enough the same length that an auto-sized control would jump between rows. */
+.grp-track-select {
+  flex: 0 0 auto;
+  inline-size: 190px;
+  max-inline-size: 100%;
+}
+
+/* A group with nothing in it is a legal state (everything was moved out), and
+   the sentence has to say what to do next rather than just report the absence. */
+.grp-empty {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* ---------- tracks with no group ---------- */
+
+/* Amber, not red: an ungrouped track is not broken — every screen still renders
+   it and every entry under it is untouched. It is invisible to a GROUP filter
+   and absent from group totals, which is a thing to fix rather than an error to
+   apologise for. Any track created in Settings › Tracks starts here. */
+.grp-loose {
+  border-color: color-mix(in srgb, var(--yellow) 45%, transparent);
+}
+
+.grp-loose-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ---------- states ---------- */
+
+.grp-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
+  color: var(--text);
+}
+
+@media (max-width: 479px) {
+  /* At 375px the head's two move buttons and the rename button cannot share a
+     line with the name. Dropping the text to full width puts the actions on
+     their own row at full tap size instead of shrinking either. */
+  .grp-head-text {
+    flex-basis: 100%;
+  }
+
+  /* Full-width select on a phone: 190px next to a wrapped track name leaves a
+     dead column, and the control is the only thing on the row worth touching. */
+  .grp-track-select {
+    inline-size: 100%;
+  }
+}

@@ -15,7 +15,14 @@ import { supabase } from './supabase'
 import { fail, notConfigured, type ApiResult } from './result'
 import { pgErrorKey } from '../lib/pgError'
 import type { TrackSlaRule } from '../lib/health'
-import type { EntryPriority, Track, TrackInput, TrackUsage } from '../types'
+import type {
+  EntryPriority,
+  Track,
+  TrackGroup,
+  TrackGroupInput,
+  TrackInput,
+  TrackUsage,
+} from '../types'
 
 // Re-exported so a caller reaching for the row type has ONE import path for it,
 // even though the definition lives in lib/health.ts (lib/** may not import from
@@ -100,6 +107,11 @@ export async function createTrack(input: TrackInput): Promise<ApiResult<Track>> 
     color_light: input.colorLight,
     icon: input.icon,
     suggested_tags: cleanTags(input.suggestedTags),
+    // Explicitly null rather than omitted, so the row this function sends is
+    // the whole row it means. `undefined` would be dropped by the JSON
+    // serialiser and the column default applied instead — the same answer
+    // today, but silently, and only for as long as the default stays null.
+    group_id: input.groupId ?? null,
     sort_order: await nextSortOrder(),
     created_by: userId,
   }
@@ -125,6 +137,11 @@ export async function updateTrack(
   if (input.colorLight !== undefined) row.color_light = input.colorLight
   if (input.icon !== undefined) row.icon = input.icon
   if (input.suggestedTags !== undefined) row.suggested_tags = cleanTags(input.suggestedTags)
+  // `null` is a real instruction here — "take this track out of its group" —
+  // and it is NOT the same as leaving the key off, which means "do not touch
+  // the group". The `!== undefined` test is what keeps those two apart; a
+  // truthiness test would silently turn every un-group into a no-op.
+  if (input.groupId !== undefined) row.group_id = input.groupId
 
   // A no-op PATCH would come back with zero rows and .single() would then error
   // out on a request that did nothing wrong. Read the row back instead.
@@ -321,4 +338,185 @@ export async function deleteTrack(
   })
   if (error) return fail(pgErrorKey(error))
   return { ok: true, data: moved }
+}
+
+// ── track groups (0018) ─────────────────────────────────────────────────────
+//
+// The level above tracks: Technical and Business. Four functions, deliberately
+// the same four shapes as the track half above — list, create, patch, reorder —
+// because a reader who has understood one has understood the other, and the
+// admin screen that edits groups is the track screen with fewer fields.
+//
+// NO deleteGroup, and its absence is a decision rather than an omission.
+// `tracks.group_id` is `on delete set null`, so a delete would silently ungroup
+// every track under it and the screen would have to explain that BEFORE the
+// click — the same reasoning that made deleteTrack take a reassignment target
+// and count what it moved. Two groups that map to two halves of an org are not
+// something anyone deletes casually, so the honest move is to ship no button
+// until there is a flow behind it. Adding one later is an RPC and a
+// confirmation, not a rewrite.
+//
+// Errors are i18n KEYS here too, per this file's header. Note that pgErrorKey()
+// does not yet name this table's unique indexes — `track_groups_name_uidx` and
+// `track_groups_name_ar_uidx` — so a duplicate group name currently falls
+// through to `common.error`. That mapping belongs in src/lib/pgError.ts, which
+// this module does not own; it is in the handoff.
+
+/**
+ * Every group, ordered for display.
+ *
+ * Readable by any member (RLS `track_groups_select` is `is_member()`), and that
+ * is deliberate: groups are how two teams stay out of each other's way, and a
+ * member who cannot read them gets an empty filter facet and a digest with no
+ * sections — worse than shipping no grouping at all.
+ *
+ * There is no `includeArchived` counterpart to listTracks: groups have no
+ * `archived` column. A group with nothing in it is already invisible on every
+ * surface, because every group surface renders tracks and a group renders
+ * nothing of its own.
+ */
+export async function listGroups(): Promise<ApiResult<TrackGroup[]>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase
+    .from('track_groups')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    // The same stable second key listTracks uses, for the same reason:
+    // sort_order defaults to 0 and reorder_groups only rewrites the ids it was
+    // handed, so without this two loads of the same data can render in
+    // different orders — which reads as data loss, not as a sort.
+    .order('name', { ascending: true })
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: (data ?? []) as TrackGroup[] }
+}
+
+/**
+ * Where a newly created group lands. Computed client-side rather than left to
+ * the column default, because every new group defaulting to sort_order 0 would
+ * pile them at the top of the list in reverse creation order — nextSortOrder()
+ * above, for the same reason.
+ */
+async function nextGroupSortOrder(): Promise<number> {
+  if (!supabase) return 0
+  const { data } = await supabase
+    .from('track_groups')
+    .select('sort_order')
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const row = data as { sort_order: number } | null
+  return (row?.sort_order ?? 0) + 1
+}
+
+/**
+ * '' means "no light-theme override" on the way in, NULL in the column.
+ *
+ * The database's `track_groups_color_light_chk` accepts null or a six-digit
+ * hex and nothing else, so sending the empty string a cleared colour input
+ * produces would be a 23514 on an action the admin performed correctly. This is
+ * the one place that translates between the two, so no caller has to know.
+ */
+function toColorLight(value: string): string | null {
+  const hex = value.trim()
+  return hex === '' ? null : hex
+}
+
+export async function createGroup(input: TrackGroupInput): Promise<ApiResult<TrackGroup>> {
+  if (!supabase) return notConfigured()
+  const name = input.name.trim()
+  if (!name) return fail('common.error')
+
+  const userId = await currentUserId()
+  if (!userId) return fail('common.notSignedIn')
+
+  const row = {
+    name,
+    name_ar: input.nameAr.trim(),
+    color: input.color,
+    color_light: toColorLight(input.colorLight),
+    sort_order: await nextGroupSortOrder(),
+    created_by: userId,
+  }
+
+  const { data, error } = await supabase.from('track_groups').insert(row).select('*').single()
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: data as TrackGroup }
+}
+
+/** Patch a group. Undefined keys are left untouched, exactly like updateTrack. */
+export async function updateGroup(
+  id: string,
+  input: Partial<TrackGroupInput>,
+): Promise<ApiResult<TrackGroup>> {
+  if (!supabase) return notConfigured()
+
+  const row: Record<string, unknown> = {}
+  if (input.name !== undefined) row.name = input.name.trim()
+  if (input.nameAr !== undefined) row.name_ar = input.nameAr.trim()
+  if (input.color !== undefined) row.color = input.color
+  if (input.colorLight !== undefined) row.color_light = toColorLight(input.colorLight)
+
+  // A no-op PATCH would come back with zero rows and .single() would then error
+  // out on a request that did nothing wrong. Read the row back instead —
+  // updateTrack's reasoning, verbatim.
+  if (Object.keys(row).length === 0) {
+    const { data, error } = await supabase.from('track_groups').select('*').eq('id', id).single()
+    if (error) return fail(pgErrorKey(error))
+    return { ok: true, data: data as TrackGroup }
+  }
+
+  const { data, error } = await supabase
+    .from('track_groups')
+    .update(row)
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: data as TrackGroup }
+}
+
+/**
+ * Move one track into a group, or out of every group with `null`.
+ *
+ * `updateTrack(id, { groupId })` does exactly the same PATCH; this exists for
+ * `setTrackArchived`'s reason, one line above the same argument: the group
+ * picker is a single-purpose control on a screen that edits nothing else about
+ * the track, and naming the operation keeps that call site from having to know
+ * that "move to a group" and "rename and recolour" are the same endpoint.
+ *
+ * `null` is a first-class argument, not a missing one — ungrouped is a legal
+ * state and a member has to be able to get back to it.
+ */
+export async function setTrackGroup(
+  id: string,
+  groupId: string | null,
+): Promise<ApiResult<Track>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase
+    .from('tracks')
+    .update({ group_id: groupId })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: data as Track }
+}
+
+/**
+ * Rewrite sort_order for the given ids, in array order, returning how many rows
+ * moved. An RPC rather than N PATCHes for reorderTracks' reason: a half-applied
+ * reorder leaves duplicate positions behind, and only a single statement is
+ * atomic under PostgREST.
+ *
+ * `security invoker` on the SQL side — the function needs atomicity, not
+ * privilege, so RLS still rejects a member exactly as if they had run the
+ * update by hand. Its `is_admin()` guard raises 42501 rather than reporting a
+ * zero-row update as success.
+ */
+export async function reorderGroups(ids: string[]): Promise<ApiResult<number>> {
+  if (!supabase) return notConfigured()
+  if (ids.length === 0) return { ok: true, data: 0 }
+  const { data, error } = await supabase.rpc('reorder_groups', { p_ids: ids })
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: typeof data === 'number' ? data : ids.length }
 }

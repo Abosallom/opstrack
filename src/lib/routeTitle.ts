@@ -83,6 +83,21 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   // chrome that names it. 'terminology.title' ships in both languages — and,
   // like every other string, is itself renameable from the screen it names.
   if (pathname.startsWith('/settings/terminology')) return 'terminology.title'
+  // Settings › Groups (0018), the level above tracks. Names itself out of its
+  // own namespace on the vocabulary/recurring/terminology precedent —
+  // 'groups.title' already ships in both languages and a route.groups twin would
+  // only ever hold the same word. ABOVE the '/settings/tracks' tests as well as
+  // '/settings': the prefixes do not overlap today, but "tracks" and "groups"
+  // are the two halves of one screen family and the next person to add
+  // '/settings/tracks/:id/groups' should find this rule already in the right
+  // place rather than discover the ordering by shipping a mistitled header.
+  if (pathname.startsWith('/settings/groups')) return 'groups.title'
+  // Settings › AI assist. Same precedent as vocabulary/recurring/terminology/
+  // groups: it names itself out of its own namespace, because 'ai.title' already
+  // ships in both languages and a route.ai twin would only ever hold the same
+  // two words — and because that key is renameable from the Terminology screen,
+  // so the header follows a rename the moment it is saved.
+  if (pathname.startsWith('/settings/ai')) return 'ai.title'
   if (pathname.startsWith('/settings/members')) return 'route.members'
   if (pathname.startsWith('/settings/export')) return 'export.title'
   if (pathname.startsWith('/settings/notifications')) return 'push.title'

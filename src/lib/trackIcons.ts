@@ -22,6 +22,7 @@ import {
   IconDatabase,
   IconLayers,
   IconNetwork,
+  IconPlug,
   IconServer,
   IconServerCog,
   IconShieldCheck,
@@ -42,6 +43,15 @@ const REGISTRY = {
   activity: IconActivity,
   database: IconDatabase,
   cloud: IconCloud,
+  // Beside `network` and `cloud` in meaning, but it cannot go beside them in
+  // position: the first five ARE the names 0001 seeds and moving them would
+  // reshuffle the picker under every existing track. So it lands at the head of
+  // the second group, where the connectivity glyphs already are.
+  //
+  // Added because 0018 seeded `Onboarding` with `icon = 'plug'` and this
+  // registry had no such key — the track had been drawing itself as the
+  // fallback circle. Verified against the live row, not assumed.
+  plug: IconPlug,
   terminal: IconTerminal,
   shield: IconShieldCheck,
   layers: IconLayers,

@@ -54,6 +54,11 @@ import {
   TypePicker,
 } from '../pickers'
 import { EmptyState, Skeleton } from '../shared'
+// The chase, on the one surface where somebody is already looking at the item
+// they are chasing. It owns its whole rule — who may be asked, whether an ask is
+// outstanding, and the repeat window — and renders null when the answer is no,
+// so this file passes it the entry and gets out of the way.
+import NudgeButton from './NudgeButton'
 import { IconArrowStart, IconChevronEnd, IconFile } from '../icons'
 import { formatTimestamp } from '../../lib/dates'
 import { t, useLocale } from '../../lib/i18n'
@@ -486,6 +491,24 @@ export default function EntrySheet({
           <span className="pill">{pending.queued ? t('entry.queued') : t('entry.saving')}</span>
         )}
         {readOnly && <span className="pill">{t('entry.readOnly')}</span>}
+        {/* Beside the health and age pills, because those two are the reason
+            anyone reaches for this button: "12 days, no movement" and the way
+            to do something about it should not be on opposite ends of a screen.
+            NudgeButton's own record renders as a `pill` too, so an outstanding
+            ask reads as one more fact in this row rather than as a control that
+            wandered in.
+
+            `closed_at === null` is THE SHEET'S HALF of the rule, and the same
+            half Follow-ups states with its NUDGEABLE section set: there is no
+            bucket here to consult, and "still open" is what a bucket was
+            standing in for. Chasing someone about something already finished is
+            the one ask no guard rail inside the component could refuse, because
+            from the entry's side it looks exactly like a fair one.
+
+            NOT gated on `readOnly`. Asking is not editing — a member who cannot
+            change a field can still need an answer about it, and 0019 authorises
+            the write on membership, not on authorship. */}
+        {entry.closed_at === null && <NudgeButton entry={entry} meId={profile?.id ?? null} />}
       </div>
 
       {readOnly && <p className="sheetx-note">{t('entry.cannotEdit')}</p>}

@@ -18,6 +18,28 @@
 // FACETS ARE OPT-IN PER SCREEN. The board owns its own status columns, so it
 // passes a facet list without `status`; the dashboard has no scope switch. A
 // component that decided this for itself would be wrong on at least one screen.
+//
+// ── GROUP (0018) ───────────────────────────────────────────────────────────
+//
+// The group facet is FIRST-CLASS, not a shortcut that expands into track ids.
+// Expanding was the tempting version — it would have needed no model change at
+// all — and it is wrong in three ways that only show up later: the URL would
+// read `track=a,b,c` so a shared link could not say "Technical"; picking a track
+// after a group would silently clear the group chip, because both controls would
+// be writing one field; and a group that gained a track would leave every saved
+// link filtering to yesterday's membership. So `FilterState.groupIds` is its own
+// array, matched in lib/entryFilter through the track→group map in
+// FilterContext, and this control is the only thing that writes it.
+//
+// SINGLE-SELECT OVER AN ARRAY, exactly like `track` and for the same reason: one
+// group is what every screen asks for, and the array shape is what makes adding
+// a multi-select later a component change rather than a model change. With two
+// groups in the workspace, selecting both is the same as selecting neither.
+//
+// THERE IS NO "no group" OPTION, and that is not an omission. A track with no
+// group is an admin state that Settings › Groups surfaces and fixes; offering it
+// as a filter here would put a permanent third choice in front of every user for
+// a condition that should never last more than a minute.
 
 import { useId, useMemo, useState, type ReactElement } from 'react'
 import {
@@ -28,17 +50,42 @@ import {
   type PickerOption,
 } from './pickers'
 import { IconChevronDown } from './fields/glyphs'
-import { t, useLocale } from '../lib/i18n'
+import { t, useLocale, type Locale } from '../lib/i18n'
+import { trackVars } from '../lib/trackStyle'
 import { countActiveFacets, EMPTY_FILTER, type FilterState } from '../lib/entryFilter'
+import { useGroups } from '../store/config'
 import { useMembers } from '../store/members'
 import { useVocab } from '../store/vocab'
-import type { EntryPriority, EntryStatus, EntryType, HealthLevel } from '../types'
+import type {
+  EntryPriority,
+  EntryStatus,
+  EntryType,
+  HealthLevel,
+  TrackGroup,
+} from '../types'
 import './filters.css'
+
+/**
+ * A group's name in the given locale — `lib/labels.trackLabel` for the level
+ * above tracks, fallback rule included: `name_ar` is `not null default ''`, so
+ * the test is for EMPTY, not null.
+ *
+ * LOCAL, AND IT SHOULD NOT STAY THAT WAY — the same note pages/settings/
+ * GroupsAdmin.tsx carries over its identical copy. This belongs beside
+ * `trackLabel` in src/lib/labels.ts, which is that file's whole subject; it is
+ * duplicated because labels.ts is not this worker's file and the group data
+ * layer landed without it. The handoff carries the diff that consolidates both.
+ */
+function groupLabelIn(group: TrackGroup, locale: Locale): string {
+  if (locale === 'ar') return group.name_ar.trim() || group.name
+  return group.name
+}
 
 export type FilterFacet =
   | 'search'
   | 'scope'
   | 'mine'
+  | 'group'
   | 'track'
   | 'status'
   | 'priority'
@@ -51,6 +98,10 @@ const DEFAULT_FACETS: readonly FilterFacet[] = [
   'search',
   'scope',
   'mine',
+  // Above `track` in the panel as well as here: group is the coarser cut and the
+  // one a person reaches for first ("my half"), and a facet list reads top to
+  // bottom in the order it narrows.
+  'group',
   'track',
   'status',
   'priority',
@@ -107,9 +158,10 @@ export default function FilterBar({
   tagHint,
   className,
 }: FilterBarProps): ReactElement {
-  useLocale()
+  const locale = useLocale()
   const [open, setOpen] = useState(false)
   const panelId = useId()
+  const groups = useGroups()
   const members = useMembers()
   const statuses = useVocab('status')
   const priorities = useVocab('priority')
@@ -125,8 +177,45 @@ export default function FilterBar({
     onChange({ ...value, [key]: next })
   }
 
+  const groupOptions = useMemo<PickerOption[]>(
+    () =>
+      groups.map((group) => ({
+        key: group.id,
+        label: groupLabelIn(group, locale),
+        // `.track-dot` with trackVars() — the stored PAIR handed to CSS, never a
+        // hex chosen in JavaScript. lib/trackStyle.ts's header has the reason: a
+        // JS-picked colour is picked once, at render, and keeps yesterday's hex
+        // when the `auto` theme flips at sunset under a mounted page.
+        mark: (
+          <span
+            className="track-dot"
+            style={trackVars(group.color, group.color_light)}
+            aria-hidden="true"
+          />
+        ),
+      })),
+    [groups, locale],
+  )
+
+  // RESOLVED OUTSIDE THE MEMO, and that is a fix rather than a style choice.
+  //
+  // These two labels used to be called inside `ownerOptions`, which was keyed on
+  // `[members, value.owner]`. Neither of those changes when the LANGUAGE does,
+  // so switching to Arabic with the panel open re-rendered the component
+  // (useLocale subscribes) and the memo handed back the previous language's
+  // array: the facet read "أي مسؤول … Unassigned", one English word in an
+  // otherwise Arabic control, until something else invalidated it. Found by
+  // toggling the language during the group facet's live pass.
+  //
+  // Depending on the STRINGS rather than on `locale` fixes a second case the
+  // narrower fix would have missed: Settings › Terminology renames
+  // `filter.unassigned` without the language changing at all, and t() then
+  // returns something new while `locale` sits still.
+  const unassignedLabel = t('filter.unassigned')
+  const mineLabel = t('common.mine')
+
   const ownerOptions = useMemo<PickerOption[]>(() => {
-    const items: PickerOption[] = [{ key: OWNER_UNASSIGNED, label: t('filter.unassigned') }]
+    const items: PickerOption[] = [{ key: OWNER_UNASSIGNED, label: unassignedLabel }]
     for (const m of members) items.push({ key: m.id, label: m.displayName })
     // A filter restored from a URL can name an owner who is not in the member
     // list — a free-text vendor, or `me` before the profile resolved. It renders
@@ -136,10 +225,10 @@ export default function FilterBar({
     if (value.owner.kind === 'name') {
       items.push({ key: OWNER_OTHER, label: value.owner.name, retired: true })
     } else if (value.owner.kind === 'me') {
-      items.push({ key: OWNER_OTHER, label: t('common.mine'), retired: true })
+      items.push({ key: OWNER_OTHER, label: mineLabel, retired: true })
     }
     return items
-  }, [members, value.owner])
+  }, [members, value.owner, unassignedLabel, mineLabel])
 
   const ownerValue =
     value.owner.kind === 'any'
@@ -234,6 +323,28 @@ export default function FilterBar({
       </div>
 
       <div id={panelId} className="flt-panel" hidden={!open}>
+        {/* Rendered only when the workspace HAS groups. Before 0018 is applied —
+            and on a build with no Supabase project at all — `useGroups()` is
+            empty, and an empty facet is a heading over a single "Any group"
+            chip: a control that looks broken rather than one that is not there.
+            The same reasoning `tag` uses two facets down. */}
+        {has('group') && groupOptions.length > 0 && (
+          <section className="flt-facet">
+            <h3 className="flt-facet-title">{t('filter.group')}</h3>
+            <OptionGroup
+              label={t('filter.group')}
+              options={groupOptions}
+              value={value.groupIds[0] ?? null}
+              clearLabel={t('filter.anyGroup')}
+              // The model holds an ARRAY and this control sets one, for the
+              // reason the track facet below spells out: a single group is what
+              // every screen asks for, and the array is what makes a multi-group
+              // chip row a component change rather than a model change.
+              onChange={(id) => set('groupIds', id === null ? [] : [id])}
+            />
+          </section>
+        )}
+
         {has('track') && (
           <section className="flt-facet">
             <h3 className="flt-facet-title">{t('filter.track')}</h3>

@@ -25,9 +25,11 @@
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
+  IconBolt,
   IconChevronEnd,
   IconClipboardList,
   IconClock,
+  IconColumns,
   IconCompass,
   IconDatabase,
   IconGlobe,
@@ -334,8 +336,48 @@ export default function Settings(): ReactElement {
         </NavLink>
       </Section>
 
+      {/* Beside the notification card and above the recurring one, because it
+          belongs to the same family: things this person decides for themselves,
+          on every device they sign in on. NOT in the admin block — the switch
+          governs whether THIS member's capture lines are sent to a third party,
+          which is not a setting anybody else should be holding for them.
+
+          Named out of the `ai` namespace rather than `settings.*`: the header
+          for the screen this row opens uses the same key (lib/routeTitle.ts), so
+          the row and the title it produces cannot drift apart. */}
+      <Section icon={IconBolt} title={t('ai.title')} description={t('ai.subtitle')}>
+        <NavLink to="/settings/ai" className="btn btn-ghost">
+          {t('ai.manage')}
+          {/* Forward through the hierarchy — forward is leftward in Arabic,
+              hence icon-directional. */}
+          <IconChevronEnd className="icon-directional" size={16} />
+        </NavLink>
+      </Section>
+
       {isAdmin ? (
         <>
+          {/* ABOVE Tracks, because a group contains tracks and the app reads
+              coarse-to-fine everywhere else it offers both — the filter bar puts
+              Group above Track for the same reason. This is also the only
+              entrance to /settings/groups: like its three neighbours below, the
+              screen is absent from both navs.
+
+              IconColumns rather than the IconLayers on the row beneath: two
+              halves standing side by side is what the screen is, and two
+              adjacent rows wearing the same glyph would be two rows nobody can
+              tell apart at a glance. */}
+          <Section
+            icon={IconColumns}
+            title={t('groups.title')}
+            description={t('groups.settingsHint')}
+          >
+            <NavLink to="/settings/groups" className="btn btn-ghost">
+              {t('groups.manage')}
+              {/* Forward through the hierarchy — forward is leftward in
+                  Arabic, hence icon-directional. */}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
+          </Section>
           <Section
             icon={IconLayers}
             title={t('admin.tracks.title')}

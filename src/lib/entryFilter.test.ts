@@ -110,6 +110,86 @@ describe('the closed-vocabulary facets', () => {
   })
 })
 
+describe('group — the level above tracks (0018)', () => {
+  // tr1 → Technical, tr2 → Business, tr3 → a track nobody has grouped.
+  const GROUPED: FilterContext = {
+    ...CTX,
+    groupOfTrack: new Map([
+      ['tr1', 'g-tech'],
+      ['tr2', 'g-biz'],
+      ['tr3', null],
+    ]),
+  }
+
+  it('keeps an entry whose track is in the group and drops one whose track is not', () => {
+    expect(matches(entry(), { groupIds: ['g-tech'] }, undefined, GROUPED)).toBe(true)
+    expect(matches(entry({ track_id: 'tr2' }), { groupIds: ['g-tech'] }, undefined, GROUPED)).toBe(
+      false,
+    )
+    expect(matches(entry({ track_id: 'tr2' }), { groupIds: ['g-biz'] }, undefined, GROUPED)).toBe(
+      true,
+    )
+  })
+
+  it('an UNGROUPED track answers no group filter — "unfiled" is not a third group', () => {
+    // The failure this pins: passing these through would put every ungrouped
+    // row into BOTH halves of a "my half vs theirs" report, and the two halves
+    // would then add up to more than the whole.
+    expect(matches(entry({ track_id: 'tr3' }), { groupIds: ['g-tech'] }, undefined, GROUPED)).toBe(
+      false,
+    )
+    expect(matches(entry({ track_id: 'tr3' }), { groupIds: ['g-biz'] }, undefined, GROUPED)).toBe(
+      false,
+    )
+    // …and it is untouched by a filter that asks no group question.
+    expect(matches(entry({ track_id: 'tr3' }), {}, undefined, GROUPED)).toBe(true)
+  })
+
+  it('a track-less entry matches no group either', () => {
+    expect(matches(entry({ track_id: null }), { groupIds: ['g-tech'] }, undefined, GROUPED)).toBe(
+      false,
+    )
+  })
+
+  it('a track the map has never heard of is ungrouped, not an error', () => {
+    expect(matches(entry({ track_id: 'tr-new' }), { groupIds: ['g-tech'] }, undefined, GROUPED)).toBe(
+      false,
+    )
+  })
+
+  it('matches NOTHING when the context cannot say what any track’s group is', () => {
+    // The deliberate failure mode documented on FilterContext.groupOfTrack: a
+    // caller that offers the facet and forgets the map shows an empty list,
+    // which is visible in five seconds. Silently ignoring the facet ships a
+    // filter that does nothing and looks like it worked.
+    expect(matches(entry(), { groupIds: ['g-tech'] })).toBe(false)
+    // Without a group facet the missing map changes nothing at all — which is
+    // what makes the field safe to add without touching a single call site.
+    expect(matches(entry(), {})).toBe(true)
+  })
+
+  it('is ANDed with the track facet, not replaced by it', () => {
+    const f = { groupIds: ['g-tech'], trackIds: ['tr2'] }
+    // tr2 is in Business, so a Technical group filter rejects it even though
+    // the track facet names it.
+    expect(matches(entry({ track_id: 'tr2' }), f, undefined, GROUPED)).toBe(false)
+  })
+
+  it('counts as its own facet, so Clear all is honest about what it removes', () => {
+    expect(countActiveFacets(filter({ groupIds: ['g-tech'] }))).toBe(1)
+    expect(countActiveFacets(filter({ groupIds: ['g-tech'], trackIds: ['tr1'] }))).toBe(2)
+    expect(isFilterEmpty(filter({ groupIds: ['g-tech'] }))).toBe(false)
+  })
+
+  it('changes the memo key, and does not depend on the order it was built in', () => {
+    const base = filterKey(EMPTY_FILTER)
+    expect(filterKey(filter({ groupIds: ['g-tech'] }))).not.toBe(base)
+    expect(filterKey(filter({ groupIds: ['g-tech', 'g-biz'] }))).toBe(
+      filterKey(filter({ groupIds: ['g-biz', 'g-tech'] })),
+    )
+  })
+})
+
 describe('owner', () => {
   it('me is owner_id, not created_by', () => {
     expect(matches(entry({ owner_id: 'me' }), { owner: { kind: 'me' } })).toBe(true)
@@ -351,6 +431,7 @@ describe('URL round-trip', () => {
 
   it('round-trips every facet', () => {
     const f = filter({
+      groupIds: ['g-tech'],
       trackIds: ['tr1', 'tr2'],
       statuses: ['blocked', 'waiting_on'],
       priorities: ['critical'],

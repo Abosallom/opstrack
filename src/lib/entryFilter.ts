@@ -29,6 +29,21 @@ export type EntryScope = 'open' | 'closed' | 'all'
 export type EntrySort = 'activity' | 'due' | 'priority' | 'created' | 'title'
 
 export interface FilterState {
+  /**
+   * [] = all groups — `track_groups` (0018), the level above tracks.
+   *
+   * ITS OWN DIMENSION, NOT A SHORTHAND FOR A SET OF TRACK IDS. Expanding a
+   * group into `trackIds` at the control would have needed no model change at
+   * all, and it is wrong in three ways that only surface later: a shared link
+   * would read `track=a,b,c` and could never say "Technical"; picking a track
+   * after a group would silently clear the group, because one field cannot hold
+   * two questions; and a saved link would keep filtering to the membership the
+   * group had on the day it was copied.
+   *
+   * An entry's group is its TRACK's group, which is a fact this module cannot
+   * know — see `FilterContext.groupOfTrack`.
+   */
+  groupIds: string[]
   /** [] = all tracks. */
   trackIds: string[]
   statuses: EntryStatus[]
@@ -57,6 +72,23 @@ export interface FilterContext {
   meId: string | null
   today: IsoDate
   weekStartsOn?: 0 | 1 | 6
+  /**
+   * track id → the group it sits under, or null when it sits under none —
+   * `tracks.group_id` (0018). `store/entries.useFilterContext()` builds it from
+   * the config store, so every screen gets it without knowing it exists.
+   *
+   * OPTIONAL, so that adding the group dimension changed no call site: every
+   * existing caller keeps compiling and keeps behaving identically, because a
+   * filter with `groupIds: []` never reads this map.
+   *
+   * WHEN IT IS ABSENT AND `groupIds` IS NOT EMPTY, NOTHING MATCHES. That is the
+   * strict reading of the question — "restrict to entries in this group", asked
+   * of a caller that cannot say which group anything is in — and it is the
+   * failure worth having: an empty list is visible in the first five seconds of
+   * testing, while quietly ignoring the facet ships a filter that does nothing
+   * and looks like it worked.
+   */
+  groupOfTrack?: ReadonlyMap<string, string | null>
 }
 
 /**
@@ -64,6 +96,7 @@ export interface FilterContext {
  * its own state and quietly change every other screen's starting point.
  */
 export const EMPTY_FILTER: Readonly<FilterState> = Object.freeze({
+  groupIds: [],
   trackIds: [],
   statuses: [],
   priorities: [],
@@ -209,6 +242,16 @@ export function matchesFilter(
   c: FilterContext,
 ): boolean {
   if (!matchesScope(e, f.scope)) return false
+
+  // Group before track: it is the coarser cut, so on a filter carrying both it
+  // rejects more rows per test. An entry with no track has no group either —
+  // "unfiled" is not a third group, and passing it through would put every
+  // untracked row into both halves of a "my half vs theirs" report.
+  if (f.groupIds.length > 0) {
+    const group = e.track_id === null ? null : (c.groupOfTrack?.get(e.track_id) ?? null)
+    if (group === null || !f.groupIds.includes(group)) return false
+  }
+
   if (f.trackIds.length > 0 && (e.track_id === null || !f.trackIds.includes(e.track_id)))
     return false
   if (f.statuses.length > 0 && !f.statuses.includes(e.status)) return false
@@ -323,6 +366,10 @@ export function selectEntries(
  */
 export function countActiveFacets(f: FilterState): number {
   let n = 0
+  // Counted separately from `track`, because they ARE separate decisions: a
+  // person who narrowed to Technical and then to Infrastructure made two, and
+  // Clear removes both.
+  if (f.groupIds.length > 0) n += 1
   if (f.trackIds.length > 0) n += 1
   if (f.statuses.length > 0) n += 1
   if (f.priorities.length > 0) n += 1
@@ -357,6 +404,7 @@ export function isFilterEmpty(f: FilterState): boolean {
  */
 export function filterKey(f: FilterState): string {
   return [
+    [...f.groupIds].sort().join(','),
     [...f.trackIds].sort().join(','),
     [...f.statuses].sort().join(','),
     [...f.priorities].sort().join(','),
@@ -395,6 +443,7 @@ function ownerKey(owner: OwnerFilter): string {
 // loses a facet.
 
 const P = {
+  group: 'group',
   track: 'track',
   status: 'status',
   priority: 'priority',
@@ -422,6 +471,9 @@ const P = {
  */
 export function filterToParams(f: FilterState): URLSearchParams {
   const p = new URLSearchParams()
+  // Comma-joined like the other id list: a uuid cannot contain a comma, which is
+  // the property that makes `tag` a repeated param and this one not.
+  if (f.groupIds.length > 0) p.set(P.group, f.groupIds.join(','))
   if (f.trackIds.length > 0) p.set(P.track, f.trackIds.join(','))
   if (f.statuses.length > 0) p.set(P.status, f.statuses.join(','))
   if (f.priorities.length > 0) p.set(P.priority, f.priorities.join(','))
@@ -457,6 +509,11 @@ export function filterToParams(f: FilterState): URLSearchParams {
  */
 export function filterFromParams(p: URLSearchParams): FilterState {
   return {
+    // Not validated against the workspace's groups, exactly as `trackIds` is
+    // not validated against its tracks: this module is pure and holds no config,
+    // and an id that names nothing simply matches nothing — which is the honest
+    // rendering of a link to a group somebody deleted.
+    groupIds: splitList(p.get(P.group)),
     trackIds: splitList(p.get(P.track)),
     statuses: splitList(p.get(P.status)).filter(isStatus),
     priorities: splitList(p.get(P.priority)).filter(isPriority),

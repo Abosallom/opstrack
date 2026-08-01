@@ -104,6 +104,29 @@ export interface Track {
   created_by: string | null
   created_at: string
   updated_at: string
+  /**
+   * Which TrackGroup this track sits under — `tracks.group_id` (0018).
+   *
+   * NULL IS A LEGAL, ORDINARY STATE, not a missing value: a track created in
+   * Settings › Tracks before anyone thinks about grouping is ungrouped, and
+   * every group-aware surface has to render it (an "Ungrouped" section), never
+   * hide it. The column is `on delete set null`, so deleting a group ungroups
+   * its tracks rather than taking them — and through them every entry ever
+   * filed — with it.
+   *
+   * OPTIONAL RATHER THAN REQUIRED, and only for the length of this wave. Twelve
+   * test files build whole `Track` literals by hand; a required field would red
+   * `tsc -b` in all of them at once and block every other worker in the wave on
+   * files this one does not own. That is precisely the trade `suggestedTags`
+   * below documents, and it is resolved the same way: tighten to
+   * `group_id: string | null` in the commit that adds `group_id: null` to those
+   * fixtures. Real rows always carry the key — PostgREST returns every column.
+   *
+   * TEST FOR IT WITH `== null`, NEVER `=== null`. Until it is tightened, absent
+   * and null both mean ungrouped, and `=== null` silently files an absent value
+   * as if it were a group id. `track.group_id ?? null` is the other safe form.
+   */
+  group_id?: string | null
 }
 
 /**
@@ -136,6 +159,66 @@ export interface TrackInput {
    * "deliberately empty" indistinguishable at every call site.
    */
   suggestedTags: string[]
+  /**
+   * Which group the track belongs to — `tracks.group_id` (0018). `null` is the
+   * explicit "no group", which is a choice a form can make and must be able to
+   * send.
+   *
+   * OPTIONAL, and here the optionality is permanent rather than transitional:
+   * `updateTrack` patches only the keys it is handed, so `undefined` has a
+   * meaning of its own on this type — "leave the group alone" — which is what
+   * every caller that is not the group picker wants. `null` and `undefined` are
+   * therefore genuinely different instructions, exactly as they are on the
+   * PATCH this maps to.
+   */
+  groupId?: string | null
+}
+
+/**
+ * track_groups — the level above tracks (0018). Technical and Business today.
+ *
+ * A CONTAINER FOR TRACKS AND NOTHING ELSE: no entries, no SLAs, no tags are
+ * filed against a group. It is two levels by design and not a general tree —
+ * there is no `parent_id`, because a depth nobody asked for would have to be
+ * understood by the board, the timeline, the Mindtree, the digest and the
+ * filter bar at once.
+ */
+export interface TrackGroup {
+  id: string
+  name: string
+  /** `not null default ''` — fall back to `name` when empty, not when null. */
+  name_ar: string
+  /** Hex for the dark theme, mirroring `Track.color`. */
+  color: string
+  /**
+   * Hex used instead of `color` under [data-theme='light'].
+   *
+   * NULLABLE with `Track.color_light`'s exact semantics: null means "no
+   * light-theme override" and every reader falls back to `color`. The preset
+   * palette in styles/global.css is defined in PAIRS because one hex cannot
+   * clear 3:1 on both #212932 and #e9edf1 — shipping a group ring with a single
+   * hex would reproduce the defect 0002's seed repair had to go back and fix.
+   */
+  color_light: string | null
+  sort_order: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * The editable half of a group, camelCase because it is a form's view-model —
+ * api/tracks.ts hand-maps it to the snake_case columns, exactly as `TrackInput`
+ * is. `sort_order` is absent for the same reason it is absent there: reordering
+ * is its own operation with its own guard (`reorderGroups`), not a field on a
+ * form.
+ */
+export interface TrackGroupInput {
+  name: string
+  nameAr: string
+  color: string
+  /** '' means "no light-theme override" and is stored as NULL — see TrackGroup. */
+  colorLight: string
 }
 
 /**

@@ -234,7 +234,10 @@ vi.mock('../store/members', () => ({
 
 vi.mock('../store/config', () => ({
   useTrackMap: () => new Map([fx.net, fx.inf].map((tr) => [tr.id, tr])),
-  useActiveTracks: () => [fx.net, fx.inf],
+  useActiveTracks: () => [fx.net, fx.inf],  // FilterBar reads the workspace's groups for its Group facet (0018). Empty
+  // here on purpose: this screen's tests are about ITS surface, and the facet
+  // renders nothing without groups — which is also the pre-migration state.
+  useGroups: () => [],
 }))
 
 const { MemoryRouter } = await import('react-router-dom')

@@ -90,6 +90,9 @@ describe('titleKeyFor', () => {
       ['/settings/members', 'route.members'],
       ['/settings/export', 'export.title'],
       ['/settings/notifications', 'push.title'],
+      // 0018. The level above tracks, absent from both navs like the rest of
+      // this block, so the header is the only chrome that names it.
+      ['/settings/groups', 'groups.title'],
     ])('%s → %s', (pathname, expected) => {
       expect(title(pathname)).toBe(expected)
     })
@@ -106,10 +109,11 @@ describe('titleKeyFor', () => {
         '/settings/members',
         '/settings/export',
         '/settings/notifications',
+        '/settings/groups',
       ]
       for (const p of admin) expect(title(p), p).not.toBe('route.settings')
       // …and they must not all collapse onto one another either.
-      expect(new Set(admin.map(title)).size).toBe(8)
+      expect(new Set(admin.map(title)).size).toBe(9)
     })
 
     it('does not confuse /settings/notifications with the /notifications page', () => {

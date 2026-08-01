@@ -54,7 +54,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import type { FormEvent, ReactElement } from 'react'
+import type { FormEvent, KeyboardEvent, ReactElement } from 'react'
 import { canSubmit, parse, toNewEntry, toRecurringTemplateInput } from '../lib/capture/parse'
 import type {
   ParseContext,
@@ -83,6 +83,12 @@ import { openEntry } from '../store/entrySheet'
 // submitTemplate(). Stores first, then the api layer, as MeetingTriage orders it.
 import { createTemplate } from '../api/templates'
 import { EntryRow } from '../components/entry'
+// The AI assist row. It owns its own debounce, its own privacy gate and its own
+// rendering; this screen owes it the line, the parse and the SAME context it
+// hands parse(), and takes back token STRINGS. Nothing about the assist reaches
+// the submit path — see the accept handler.
+import { AiSuggestion } from '../components/capture/AiSuggestion'
+import { dismissSuggestion, takeAiTokens } from '../store/ai'
 import { toast } from '../components/toast'
 import { IconBolt, IconClock, IconWifiOff } from '../components/icons'
 import { isolateTokens } from '../lib/bidi'
@@ -463,10 +469,29 @@ export default function Capture(): ReactElement {
     [parseTracks, parseMembers, locale, vocabAliases],
   )
 
+  /**
+   * The context THIS parse ran against, kept so the AI assist can be handed the
+   * very same object.
+   *
+   * `text` IS IN THE DEPENDENCY LIST ON PURPOSE, and it is the whole reason this
+   * is a memo rather than a `useMemo(() => makeCtx(), [makeCtx])`: `makeCtx()`
+   * stamps `now: new Date()`, and a context memoised only on its inputs would
+   * freeze `now` at the moment the tab was opened — resolving `due:tomorrow`
+   * against yesterday for anyone who leaves this app pinned, which is everyone.
+   * Rebuilding it per keystroke is exactly what `parse(text, makeCtx())` did
+   * before; the only change is that the object now has a name.
+   *
+   * lib/ai/types.ts:29 explains why the assist must be given THIS object rather
+   * than an equivalent one built from the stores: the validator's guarantee —
+   * that the parser will read a suggested line back as the fields it approved —
+   * holds only while both are looking at the same tracks and the same members.
+   */
+  const ctx = useMemo(() => makeCtx(), [makeCtx, text])
+
   // The live parse. Cheap by construction — parse() is pure, allocates a few
   // small arrays and touches no store — so running it per keystroke is the
   // simple implementation as well as the correct one.
-  const parsed: ParsedEntry = useMemo(() => parse(text, makeCtx()), [text, makeCtx])
+  const parsed: ParsedEntry = useMemo(() => parse(text, ctx), [text, ctx])
 
   const okTokens = parsed.tokens.filter((token) => token.ok).length
 
@@ -726,6 +751,63 @@ export default function Capture(): ReactElement {
     [focusInput],
   )
 
+  /**
+   * Accept the assist: append its tokens, and nothing else.
+   *
+   * THIS IS THE ONLY PLACE THE AI TOUCHES THE SCREEN, and it touches it through
+   * `appendToken` — the same helper the example chips and the tag suggestions
+   * use. The keystone rule above is intact: the assist edits the INPUT STRING,
+   * `parse()` re-reads it on the next render, and every chip, warning and
+   * submit payload is computed from the line exactly as if it had been typed.
+   *
+   * It cannot replace the title, cannot clear the box and cannot submit. The
+   * user's own words are still their own words, and Enter still saves what is
+   * visibly in the box.
+   */
+  const applyAiTokens = useCallback(
+    (tokens: readonly string[]): void => {
+      setText((prev) => tokens.reduce((line, token) => appendToken(line, token), prev))
+      focusInput()
+    },
+    [focusInput],
+  )
+
+  /**
+   * Tab accepts the suggestion; Esc dismisses it.
+   *
+   * TAB IS INTERCEPTED ONLY AT THE END OF THE LINE, and that caveat is doing
+   * real work. Tab out of this input is how a keyboard user reaches Clear and
+   * Submit, and swallowing it whenever a suggestion happened to be showing would
+   * take both controls away from them — a suggestion that appeared uninvited
+   * must not be able to cost anyone their way off the field. At the end of the
+   * line is where the caret is while someone is typing, which is the only moment
+   * the shortcut is for; move the caret (Home, an arrow, a click) and Tab is
+   * ordinary again. Shift+Tab and every modified Tab are never touched.
+   *
+   * Enter is deliberately absent from this handler. The form owns it, it submits
+   * what is in the box, and the assist may not change that — `ai.keysHint` says
+   * so on screen.
+   */
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>): void => {
+      if (event.key === 'Escape') {
+        // A no-op unless something is actually showing (store/ai.ts), so this
+        // costs nothing on the many Escapes that mean something else.
+        dismissSuggestion(text)
+        return
+      }
+      if (event.key !== 'Tab') return
+      if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return
+      const el = event.currentTarget
+      if (el.selectionStart !== el.value.length || el.selectionEnd !== el.value.length) return
+      const tokens = takeAiTokens(text, parsed, ctx)
+      if (!tokens) return
+      event.preventDefault()
+      applyAiTokens(tokens)
+    },
+    [applyAiTokens, ctx, parsed, text],
+  )
+
   const clearLine = useCallback((): void => {
     setText('')
     setError(null)
@@ -805,6 +887,7 @@ export default function Capture(): ReactElement {
                 setText(e.target.value)
                 if (error) setError(null)
               }}
+              onKeyDown={handleKeyDown}
               placeholder={t('capture.placeholder')}
               autoComplete="off"
               autoCorrect="off"
@@ -905,6 +988,21 @@ export default function Capture(): ReactElement {
           </div>
         </section>
       ) : null}
+
+      {/* The AI assist, in the same slot as the suggested tags above and for the
+          same reason: both are offers, neither is a warning, and the problems
+          panel below is where anything actually wrong is said. It renders
+          nothing at all unless the line is prose, the switch is on, and an
+          answer came back — so on a keyed line, an offline device or a bad
+          minute at the API, this screen is byte-for-byte the one that shipped
+          before it existed. */}
+      <AiSuggestion
+        line={text}
+        parsed={parsed}
+        ctx={ctx}
+        onAccept={applyAiTokens}
+        onDismiss={focusInput}
+      />
 
       {/* The two-option picker plan §2.13 example 8 calls for: `#i` matches both
           Infrastructure and IT Operations, and one tap is faster than backing
