@@ -36,6 +36,21 @@
 // `expandNode`/`collapseNode` sentence as a native tooltip for pointer users,
 // but it is `aria-hidden` and it is not separately clickable.
 //
+// WHAT THE INTERACTIVE BUILD ADDED, and what it deliberately did not. This
+// component now FORWARDS three more gestures — the press that may become a drag,
+// the pointer crossing in and out (which raises the hover card), and the
+// right-click that opens the node menu — and it still decides nothing about any
+// of them. `onPointerDown` is `MindDragController.onNodePointerDown` handed down
+// unchanged; whether that press becomes a lift is DragLayer.tsx's judgement, made
+// against the drop rules, not a `draggable` attribute here.
+//
+// The ONE piece of state it reads for itself is whether its entry is ticked, and
+// store/mindtree.ts's `useMindIsSelected` says why: a narrow per-node selector
+// makes ticking one row re-render one row. That is the opposite of the rule in
+// the paragraph above — and it is the same rule underneath. Nothing is COMPUTED
+// here; one boolean is SUBSCRIBED here, because subscribing per node is what
+// keeps four hundred of them off the page's render path.
+//
 // WHAT THE 44 ACTUALLY GUARANTEES, stated exactly, because the first cut of
 // this header stated it wrongly and the wrong version was load-bearing. It said
 // "`sizeForCount` floors every node at the 44px the rest of the app is held
@@ -48,10 +63,16 @@
 // is therefore: every node is at least `nodeSize.height` units tall and the
 // card is the only target; the page owns the units-to-pixels half.
 
-import { memo, type ReactElement } from 'react'
+import {
+  memo,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactElement,
+} from 'react'
 import { isolate, stripIsolates } from '../../lib/bidi'
 import type { PositionedNode } from '../../lib/mindtree/layout'
 import type { MindNode as MindNodeModel } from '../../lib/mindtree/model'
+import { useMindIsSelected } from '../../store/mindtree'
 
 /** Everything this component would otherwise have had to resolve itself. */
 export interface MindNodeView {
@@ -81,11 +102,47 @@ export interface MindNodeProps {
   focused: boolean
   /** The node the reader most recently acted on — a quiet persistent marker. */
   current: boolean
-  onActivate: (node: MindNodeModel) => void
+  /**
+   * A tap, a click, or Enter on this node.
+   *
+   * TAKES THE EVENT, because a MODIFIER-CLICK is a different act: Ctrl/Cmd+click
+   * ticks a leaf so several travel together, which is the pointer half of the
+   * Ctrl+Space binding the tree already had. Without the event that gesture is
+   * not even representable, and the whole bulk story — the selection bar, the
+   * drag-many, the branch verbs — is keyboard-only. The page decides what the
+   * modifier means; this only passes it on.
+   */
+  onActivate: (node: MindNodeModel, event: ReactMouseEvent<SVGGElement>) => void
   /** Called on real DOM focus, so a click and an arrow key agree on the cursor. */
   onFocus: (id: string) => void
   /** Lets the page call `.focus()` without a `getElementById` round trip. */
   registerRef: (id: string, el: SVGGElement | null) => void
+  /**
+   * The press that may become a drag — `MindDragController.onNodePointerDown`,
+   * handed down unchanged.
+   *
+   * The whole gesture lives in components/mindtree/DragLayer.tsx; this component
+   * only says where it started. It is NOT an `onDragStart`: the map uses pointer
+   * events throughout (lib/dnd.ts's argument), so a finger can still pan from a
+   * node until the hold lands.
+   */
+  onPointerDown: (pos: PositionedNode<MindNodeModel>, event: ReactPointerEvent<Element>) => void
+  /** Pointer in, pointer out — what raises the hover card. Null clears it. */
+  onHover: (id: string | null) => void
+  /** Right-click, or the ContextMenu key routed through the page's keydown. */
+  onMenu: (pos: PositionedNode<MindNodeModel>, at: { x: number; y: number }) => void
+  /**
+   * The hover card's element id (`NODE_CARD_ID`), on the ONE node the card is
+   * describing, or undefined on every other.
+   *
+   * A description rather than a label: the card carries the detail the drawing
+   * cannot hold — the oldest item, who is carrying it, the last update — and the
+   * node's own `aria-label` already says what it is and how much is under it.
+   * NodeCard.tsx's header explains why the id is a constant: there is exactly one
+   * card on screen by construction, and a dangling idref (the card is not shown)
+   * is ignored by every engine, which is the behaviour wanted here.
+   */
+  describedBy?: string
 }
 
 /** Inline breathing room inside a node box, and the space kept for the count. */
@@ -162,9 +219,26 @@ export const MindNode = memo(function MindNode({
   onActivate,
   onFocus,
   registerRef,
+  onPointerDown,
+  onHover,
+  onMenu,
+  describedBy,
 }: MindNodeProps): ReactElement {
   const node = pos.node
   const isLeaf = node.kind === 'entry'
+  /**
+   * SUBSCRIBED HERE RATHER THAN PASSED IN, and store/mindtree.ts's
+   * `useMindIsSelected` header is the reason: it is one Set lookup per node, so
+   * ticking one entry re-renders that entry's mark and nothing else. A page
+   * holding the whole selection and passing a boolean down would re-render four
+   * hundred nodes on every tick — which is the one thing this memo() exists to
+   * prevent.
+   *
+   * The empty string for a branch is safe by construction: `selection` only ever
+   * holds `entries.id` values, so a branch's lookup is a miss on every render and
+   * costs the same as the `entryId === null` guard it replaces.
+   */
+  const selected = useMindIsSelected(node.entryId ?? '')
   // Whether children are DRAWN — not whether the model calls this collapsed.
   // See the third bullet in the header.
   const expanded = pos.childIds.length > 0
@@ -193,6 +267,8 @@ export const MindNode = memo(function MindNode({
   const endX = rtl ? PAD : pos.width - PAD
   const chevronX = rtl ? -9 : pos.width + 9
   const markX = rtl ? PAD : pos.width - PAD
+  /** The selection tick's corner — the mirror of the breach mark's. */
+  const tickX = rtl ? pos.width - PAD : PAD
 
   return (
     <g
@@ -215,15 +291,37 @@ export const MindNode = memo(function MindNode({
       data-breach={node.health.slaBreached ? '' : undefined}
       data-current={current ? '' : undefined}
       data-empty={node.count === 0 ? '' : undefined}
+      data-selected={selected ? '' : undefined}
       role="treeitem"
       tabIndex={focused ? 0 : -1}
       aria-level={pos.depth + 1}
       aria-posinset={pos.index + 1}
       aria-setsize={pos.siblingCount}
       aria-expanded={pos.hasChildren ? expanded : undefined}
+      // ONLY ON A LEAF. `aria-selected` on a treeitem means "this item is part
+      // of the current selection", and the tree is `aria-multiselectable` for
+      // that reason — but only entry leaves can be ticked (a branch is a bucket,
+      // not a row), and putting the attribute on a branch would make every track
+      // and every group announce "not selected" for a state it can never enter.
+      aria-selected={isLeaf ? selected : undefined}
       aria-label={view.name}
-      onClick={() => onActivate(node)}
+      aria-describedby={describedBy}
+      onClick={(event: ReactMouseEvent<SVGGElement>) => onActivate(node, event)}
       onFocus={() => onFocus(pos.id)}
+      onPointerDown={(event) => onPointerDown(pos, event)}
+      // pointerenter/leave, not over/out: they do not bubble, so a pointer
+      // travelling across the map raises exactly one enter per node instead of
+      // one per child element of every node it crosses.
+      onPointerEnter={() => onHover(pos.id)}
+      onPointerLeave={() => onHover(null)}
+      onContextMenu={(event: ReactMouseEvent<SVGGElement>) => {
+        // The platform menu is suppressed because this node HAS a menu — the one
+        // the page opens with the same verbs the keyboard reaches through
+        // Shift+F10. Suppressing it without offering a replacement would be
+        // taking a control away.
+        event.preventDefault()
+        onMenu(pos, { x: event.clientX, y: event.clientY })
+      }}
     >
       <rect
         className="mtree-node-box"
@@ -299,6 +397,23 @@ export const MindNode = memo(function MindNode({
       {/* A leaf gets a quiet dot at the reading start so a row of entries reads
           as a list rather than as four unrelated cards. Purely decorative. */}
       {isLeaf && <circle className="mtree-leaf-dot" cx={rtl ? pos.width - 4 : 4} cy={pos.height / 2} r={2} aria-hidden="true" />}
+
+      {/* The selection tick, at the block-start reading-START corner — the one
+          corner nothing else uses (the breach mark owns the reading END, and the
+          label and count own the middle band), so a ticked, breached item shows
+          both marks rather than one covering the other.
+
+          aria-hidden because `aria-selected` on the group above already carries
+          it: a screen reader announcing "selected" and then a tick glyph would
+          say the same fact twice. It is drawn at all because a SIGHTED reader
+          ticking six items across three branches has no other way to see which
+          six are travelling when the drag starts. */}
+      {isLeaf && selected && (
+        <g className="mtree-node-tick" aria-hidden="true">
+          <circle cx={tickX} cy={11} r={7} />
+          <path className="mtree-node-tick-glyph" d={`M ${tickX - 3} ${11} l 2 2.4 l 4 -4.8`} />
+        </g>
+      )}
     </g>
   )
 })

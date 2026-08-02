@@ -304,6 +304,32 @@ describe('what <Toaster /> renders', () => {
     expect(prompts(html)).toBe(2)
   })
 
+  // REGRESSION. The host is `role="status" aria-live="polite"`, so every toast
+  // IS an announcement — which is right, except where the caller already said
+  // the same sentence into a live region of its own. `DragLayer.commitDrop`
+  // pairs `announce()` with `toast()` on four paths so a keyboard drop is both
+  // heard and seen; without this flag a screen-reader user heard the whole move
+  // twice, every time.
+  it('hides a silent toast from the live region while still drawing it', () => {
+    toast('Moved Firewall rule DC2 to Blocked', { silent: true })
+    const html = renderToStaticMarkup(createElement(Toaster))
+    // Drawn: the reader can still see and dismiss it.
+    expect(nodes(html)).toBe(1)
+    expect(html).toContain('Moved Firewall rule DC2 to Blocked')
+    // Not announced: an aria-hidden node inserted into a live region is not part
+    // of the accessible text.
+    expect(html).toContain('aria-hidden="true"')
+    // …and the host itself is untouched, so the ordinary path still speaks.
+    expect(html).toContain('aria-live="polite"')
+  })
+
+  it('leaves an ordinary toast announceable', () => {
+    toast('Entry captured')
+    const html = renderToStaticMarkup(createElement(Toaster))
+    expect(nodes(html)).toBe(1)
+    expect(html).not.toContain('aria-hidden')
+  })
+
   it('keeps the live region mounted with nothing in it', () => {
     // Unchanged by any of this, and asserted here because the keyed path is a
     // new way to empty the stack: assistive tech only announces content added to

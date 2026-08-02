@@ -1,0 +1,206 @@
+/* The map's per-node menu. Registry prefix: `.mtree-*` (§1.0.7).
+
+   WHY THIS IS A SECOND SHEET UNDER ONE PREFIX. `pages/mindtree.css` opens by
+   explaining that it is one sheet for the feature "whose components exist only
+   inside it", and that is still true of the map, its nodes, its edges and its
+   table — all four are drawn inside `.mtree-canvas`. This menu is not: it is
+   PORTALLED to `document.body`, so it shares no ancestor, no stacking context
+   and not one variable with that sheet. Co-locating it with the component that
+   owns it is what keeps `NodeMenu.tsx` deletable in one move, and §1.0.4's rule
+   is against two sheets that must AGREE about the same values — these two share
+   none. The prefix is unchanged, so the registry line is unchanged.
+
+   NOTHING HERE RESTYLES A PRIMITIVE. The rows are bare `<button>`s rather than
+   `.btn`s on purpose: a menu row is a full-bleed line with a hover fill, not a
+   pill with a border, and layering the two would mean overriding six of `.btn`'s
+   declarations — which toast.css records as the way a sheet ends up depending on
+   CSS import order. `:focus-visible` still comes from global.css and this file
+   must not declare `outline: none`.
+
+   LOGICAL PROPERTIES ONLY, and here that is load-bearing rather than tidy. The
+   panel is `position: fixed` and its offsets are set INLINE by
+   `NodeMenu.menuPlacement()`, which converts the pointer's `clientX` into a
+   distance from the viewport's INLINE-START edge exactly once. A fixed element
+   resolves `inset-inline-start` against the viewport using its own `direction`,
+   so the same number is measured from the left in English and from the right in
+   Arabic — and this file needs no `[dir='rtl']` rule at all. There is no
+   physical direction in this sheet.
+
+   CONTRAST, both themes, against `--bg-elev` (the panel fill):
+     label            --text        14.56 / 13.1
+     title            --text-faint   5.92 / 5.54
+     refusal sentence --text-dim     8.05 / 7.4
+   A DISABLED ROW KEEPS `--text-dim`, not a fainter grey, and that is R3-A11Y-1's
+   lesson applied: the whole reason a refused verb is drawn at all is so somebody
+   can read why it is refused, and dimming it below AA to signal "unavailable"
+   would hide the one thing it is there to say. `aria-disabled`, the sentence and
+   the missing hover fill carry that instead. */
+
+/* ---------- light dismiss ---------- */
+
+/* Transparent, and deliberately not a scrim: a menu is not modal, the map behind
+   it stays legible, and darkening the picture the reader is choosing a branch
+   from would defeat the point of anchoring the menu to it. It exists only to
+   catch the press — without it the click that closes the menu also lands on the
+   node underneath and opens the entry the reader was steering away from. */
+.mtree-menu-catch {
+  position: fixed;
+  inset: 0;
+  /* Above the map, the legend and the shell's fab; below the panel it dismisses
+     (93), below the command palette (100) and below `.confirm-backdrop` (110),
+     so a confirmation raised from a row sits on top of everything. Above the
+     entry sheet (90) is intentional and unreachable in practice: the menu closes
+     before the sheet opens, and this ordering only decides what happens in the
+     frame between the two. */
+  z-index: 92;
+}
+
+/* ---------- the panel ---------- */
+
+.mtree-menu {
+  position: fixed;
+  z-index: 93;
+  /* Offsets arrive inline from menuPlacement(). Until the first layout pass has
+     measured the panel it is `visibility: hidden`, so this default corner is
+     never painted — but the inline size has to be settled BEFORE that
+     measurement or the panel would be measured at one width and placed at
+     another. */
+  inset-inline-start: 0;
+  inset-block-start: 0;
+  inline-size: max-content;
+  min-inline-size: 220px;
+  max-inline-size: min(320px, calc(100vw - 16px));
+  /* The tallest a menu may be before it scrolls: an owner list is as long as the
+     roster, and a panel taller than the viewport is a panel whose last option
+     cannot be reached. */
+  max-block-size: min(60vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  padding-block: 4px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  animation: mtree-menu-in 0.12s ease both;
+}
+
+/* Block axis only. There is no logical `translate`, and a panel that entered on
+   the inline axis would enter from the wrong side in Arabic — the trade
+   sheet.css already made and documented. global.css's reduced-motion block
+   collapses this to nothing for anyone who asked. */
+@keyframes mtree-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The accessible name, drawn rather than hidden: the reader right-clicked one of
+   forty nodes and the menu opens away from it, so the panel has to say which
+   branch it belongs to. */
+.mtree-menu-title {
+  padding-block: 6px;
+  padding-inline: 14px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---------- a row ---------- */
+
+.mtree-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* WCAG 2.5.8. This menu opens on a long press, so every row is a thumb target
+     wherever it is rendered. */
+  min-block-size: 44px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.mtree-menu-item:hover:not([aria-disabled='true']) {
+  background: var(--accent-soft);
+}
+
+/* The keyboard's position, at rest. A menu is one tab stop with a roving
+   tabindex, so this is the only mark that says where Enter will land — and
+   unlike the palette's list, these rows really are focused, so the global
+   :focus-visible ring does the work. This adds the resting fill under it. */
+.mtree-menu-item:focus {
+  background: var(--accent-soft);
+}
+
+.mtree-menu-item[aria-disabled='true'] {
+  cursor: default;
+}
+
+/* The tick slot is reserved on EVERY row, not just on the checked one: a slot
+   that appears with the tick shifts every label in the panel by 16px the moment
+   a value is selected, and a list that moves under the pointer is a list that
+   gets mis-clicked. */
+.mtree-menu-tick {
+  flex: 0 0 auto;
+  inline-size: 16px;
+  block-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mtree-menu-tick svg {
+  inline-size: 14px;
+  block-size: 14px;
+  fill: none;
+  stroke: var(--accent);
+  /* An SVG geometry presentation attribute, not the physical `width` the
+     standing grep looks for — components/charts/charts.css sets the precedent. */
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mtree-menu-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.mtree-menu-label {
+  overflow-wrap: anywhere;
+}
+
+/* The refusal. It wraps rather than truncating: half a sentence explaining why
+   somebody may not change an item is worse than none, because it reads as a
+   glitch instead of as a rule. */
+.mtree-menu-why {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* "Back" sits above the values it returns from, separated so it does not read as
+   one of them. */
+.mtree-menu-item[data-shape='back'] {
+  color: var(--text-dim);
+  border-block-end: 1px solid var(--border);
+  margin-block-end: 4px;
+}

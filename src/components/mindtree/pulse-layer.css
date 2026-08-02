@@ -1,0 +1,194 @@
+/* The watch layer's own sheet — components/mindtree/PulseLayer.tsx.
+
+   PREFIX REGISTRY (§1.0.7). This file owns exactly `.mtree-pulses`,
+   `.mtree-pulse` and `.mtree-ghost`, and styles nothing else. It is the ONE
+   documented exception to pages/mindtree.css's "one sheet for a feature whose
+   components exist only inside it": that sheet's families are all static
+   painting, and this one is entirely about TIME. Keeping the keyframes, their
+   durations and their two kill-switches in a single file is what makes the
+   answer to "is anything on this screen animated, and can it be turned off"
+   readable in one place instead of grepped out of eight hundred lines. If this
+   file ever grows a rule that is not about motion, it is in the wrong file.
+
+   LOGICAL PROPERTIES: there are none to use. Every rule below styles an SVG
+   element, where there is no CSS box model and no logical direction — the
+   drawing is already mirrored for RTL by lib/mindtree/layout.ts's arithmetic, so
+   a mark placed at a node's own x/y is correct in both scripts with no rule
+   here doing anything about it. `stroke-width` is an SVG geometry property, not
+   the physical `width` the standing grep looks for; charts.css and mindtree.css
+   set the same precedent.
+
+   COLOUR. The two custom-property declarations below are pages/mindtree.css's
+   own resolution rule, scoped to this sheet's own classes — the pattern that
+   sheet documents ("this sheet's own copy of global.css's, scoped to this
+   sheet's own classes"). A track's hue reaches a mark ONLY as the
+   `--track-c-dark`/`--track-c-light` pair that lib/trackStyle.trackVars()
+   produced and model.ts stapled onto the node; nothing here picks a colour, and
+   nothing here may read the theme in JavaScript.
+
+   CONTRAST. Every mark in this file is transient decoration for information
+   that is ALSO on screen permanently — the count is on the node, the breach has
+   its own dot, and the table view carries both — so nothing is knowable only
+   from an animation, which is what makes it skippable for reduced motion and for
+   screen readers alike. The strokes are nevertheless the measured tokens rather
+   than new ones:
+     · ring, `--mtree-ink`: 6.06 / 5.53 against the canvas, 6.35 / 5.53 against
+       a node fill (dark / light, from pages/mindtree.css's sweep);
+     · breach ring, `--red`: the token already carrying the breach dot at
+       4.07 / 4.45 against a node fill;
+     · ghost, the node's own `--mtree-fill` and `--mtree-ink` — literally the
+       card that just left, so it cannot differ from what it is standing in for.
+   The mid-frames of a fade sit below those figures by definition. That is
+   accepted here and NOWHERE else in this feature, because 1.4.11 is about marks
+   a reader must be able to find and act on, and every one of these is gone
+   within 2.4 seconds by construction.
+
+   MOTION IS KILLED TWICE, on purpose. PulseLayer.tsx's `useReducedMotion()`
+   stops the elements being rendered at all, and the block at the foot of this
+   file stops any that somehow are. global.css's app-wide flattening is NOT a
+   third kill and must not be mistaken for one: `animation-duration: 0.01ms`
+   still mounts the element, still runs the animation and still paints a frame of
+   it. Every rule below therefore has an INVISIBLE resting state — `opacity: 0`
+   is the base and the animation is the only thing that ever raises it — so a
+   flattened animation lands back on nothing rather than on a mark stuck at full
+   strength.
+
+   SPACING/TIMING: durations arrive from PulseLayer.tsx as `--mtree-pulse-ms`
+   (pulse.ts's `PULSE_MS` for the kind) so there is exactly one place the four
+   numbers live, and it is the module with the tests. */
+
+.mtree-pulses {
+  /* The rings are painted OVER the cards — SVG has no z-index, so this group is
+     rendered last — and a decoration that intercepted a press would break the
+     one thing this screen is for: dragging work between branches. */
+  pointer-events: none;
+}
+
+.mtree-pulse,
+.mtree-ghost {
+  --track-color: var(--track-c-dark, var(--field-border));
+  --mtree-ink: color-mix(in srgb, var(--track-color) 35%, var(--text));
+  --mtree-fill: color-mix(in srgb, var(--track-color) 16%, var(--bg-elev));
+}
+
+[data-theme='light'] .mtree-pulse,
+[data-theme='light'] .mtree-ghost {
+  --track-color: var(--track-c-light, var(--track-c-dark, var(--field-border)));
+}
+
+/* ---------- the ring ---------- */
+
+.mtree-pulse {
+  fill: none;
+  stroke: var(--mtree-ink);
+  stroke-width: 2;
+  /* The map lives inside a fitted viewBox that can scale to a quarter, and a
+     highlight that thins to half a pixel at the fit this screen opens at is a
+     highlight nobody sees. The ring is the one mark in this feature whose job is
+     to be NOTICED, so it keeps its width in screen pixels while its position
+     stays in drawing units. */
+  vector-effect: non-scaling-stroke;
+  opacity: 0;
+  animation: mtree-pulse-ring var(--mtree-pulse-ms, 1200ms) ease-out;
+}
+
+/* Up fast, hold, down slow. The asymmetry is the whole difference between a
+   signal and a blink: the rise has to be quick enough to catch the eye of
+   someone looking elsewhere on the map, and the fall slow enough that arriving
+   late still tells you WHERE it was. */
+@keyframes mtree-pulse-ring {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.9;
+  }
+  55% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Escalation is the one kind that needs ACTING on, so it is the one kind that
+   changes colour — to the token the breach dot already uses, which means a
+   breach ring and the mark it leaves behind are the same red rather than two
+   reds a reader has to reconcile. Everything else stays in the branch's own ink:
+   four hues for four kinds would be a third visual variable on a map whose
+   budget is two. */
+.mtree-pulse[data-kind='breached'] {
+  stroke: var(--red);
+  stroke-width: 2.5;
+}
+
+/* Arrival lands: the ring starts a touch wide and settles onto the card, which
+   reads as something being PUT there rather than something happening to what was
+   already there. Scale only, and only here — see the budget note above. */
+.mtree-pulse[data-kind='added'] {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation-name: mtree-pulse-land;
+}
+
+@keyframes mtree-pulse-land {
+  0% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+  10% {
+    opacity: 0.9;
+  }
+  55% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* ---------- the departing card ---------- */
+
+/* An entry that closes LEAVES the map — the working set is open work — and a
+   card that vanishes between two frames is indistinguishable from a card that
+   was never there. So it is drawn once more where it was, dissolving inward,
+   while the tween slides its neighbours into the gap. It carries no label: this
+   is a card leaving, not a card to read. */
+.mtree-ghost {
+  fill: var(--mtree-fill);
+  stroke: var(--mtree-ink);
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  opacity: 0;
+  animation: mtree-ghost-out var(--mtree-exit-ms, 320ms) ease-in;
+}
+
+@keyframes mtree-ghost-out {
+  0% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  /* The braces to PulseLayer.tsx's belt. Nothing should reach this block —
+     `useReducedMotion()` returns true and neither element is rendered — and it
+     is here for the case that matters most: a reader whose setting is honoured
+     by everything EXCEPT the one screen that got it wrong has no way to tell
+     which layer failed. `display: none` rather than `animation: none`, because
+     an element whose animation is removed falls back to its base style, and a
+     base style is exactly what a mark that exists only in time must not have. */
+  .mtree-pulse,
+  .mtree-ghost {
+    display: none;
+  }
+}
