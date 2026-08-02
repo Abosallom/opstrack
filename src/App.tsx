@@ -150,10 +150,21 @@ const NAV: NavDest[] = [
   },
   { to: '/board', icon: IconColumns, navKey: 'nav.board', titleKey: 'route.board', inTabBar: true },
   {
-    to: '/tracks',
+    // POINTS AT THE MAP, not the list. Tracks and Mindtree are one job in two
+    // views — the `List | Map` switcher on both screens is what makes them one
+    // destination rather than two — and the owner asked for the map to be the
+    // main thing. The tab bar is capped at five (see `inTabBar` above), so
+    // promoting the map means changing which view this tab OPENS, never adding
+    // a sixth destination that would shrink every target on a phone.
+    // `/tracks` keeps working: it is still routed, still linked from the
+    // switcher, and any existing deep link or bookmark still resolves.
+    to: '/mindtree',
     icon: IconLayers,
     navKey: 'nav.tracks',
-    titleKey: 'route.tracks',
+    // `mindtree.title`, not a route.* twin — routeTitle.ts:56 already decided
+    // that for this screen and says why. The header title comes from there
+    // anyway; this field only matters if a NAV entry ever needs a longer form.
+    titleKey: 'mindtree.title',
     inTabBar: true,
   },
   // No short nav.* form exists for these two: their route labels are already
@@ -596,7 +607,16 @@ export default function App(): ReactElement {
         <ErrorBoundary resetKey={pathname}>
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
-              <Route path="/" element={<Navigate to="/followups" replace />} />
+              {/* WHERE YOU LAND FOLLOWS THE PERSON. An admin runs several tracks
+                  and opens the app asking "where is everything and who has
+                  what" — the map answers that. A member owns a handful of items
+                  and asks "what do I do now" — Follow-ups answers that, and the
+                  map would be noise on their first screen. One line, no
+                  preference machinery, and either is one press from the other. */}
+              <Route
+                path="/"
+                element={<Navigate to={isAdmin ? '/mindtree' : '/followups'} replace />}
+              />
               {/* Signed in, so the sign-in route is dead — send it home rather
                   than showing a form that cannot do anything. */}
               <Route path="/signin" element={<Navigate to="/followups" replace />} />
