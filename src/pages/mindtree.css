@@ -14,6 +14,33 @@
    alternative is three sheets that all have to agree about the same six
    variables, which §1.0.4 is the rule against.
 
+   The interactive build adds co-located component sheets under
+   components/mindtree/, each owning a disjoint slice of the same `.mtree-`
+   prefix and named in its own header. This sheet still owns the drawing;
+   whatever a sibling sheet registers, no rule here may name those classes and no
+   rule there may name these.
+
+   THE SIX SIBLINGS, in full, so this list is the one place a reader has to look
+   (each is also registered in docs/EXECUTION-PLAN.md §1.0.7):
+
+     drag-layer.css   `.mtree-drag-*`      the ghost, the drop-target outlines,
+                                           the refusal chip, the keyboard bar
+     node-menu.css    `.mtree-menu*`       the actions panel and its sub-menus
+     quick-add.css    `.mtree-qa*`         "add an item here"
+     node-card.css    `.mtree-card*`       the hover/focus detail card
+     breadcrumb.css   `.mtree-crumbbar*`   the drill-in trail
+     pulse-layer.css  `.mtree-pulses`, `.mtree-pulse`, `.mtree-ghost`
+
+   pulse-layer.css is called out rather than merely listed because the rules in
+   THIS file depend on it: those are the watch layer's marks, which exist only
+   while something is changing. Its own header argues the split; the short version
+   is that everything in that file is about TIME, and the motion paragraph below
+   is only half the answer without it.
+
+   This sheet keeps `.mtree-node*`, `.mtree-edge*`, `.mtree-tbl*`, and the
+   screen's own frame — including `.mtree-selbar*`, the bulk bar, which is the
+   page's row and not any component's.
+
    Primitives it USES and never redeclares: `.card`, `.btn`, `.btn-sm`,
    `.btn-ghost`, `.btn-icon`, `.chip`, `.chip-row`, `.pill`, `.sr-only`,
    `.tabular`, `.row-actions`, `.tap-44`, `.track-dot`, `.page-title`,
@@ -116,11 +143,26 @@
    1.66 / 1.60, which is where this rule came from.) Depth is cued by STROKE
    WIDTH below, which costs no contrast at all.
 
-   MOTION is 140ms and only ever on `fill`, `stroke` and `opacity`; global.css's
-   prefers-reduced-motion block flattens every transition in the app to 0.01ms,
-   and the block at the foot of this file additionally kills the expand/collapse
-   redraw's transition outright, because a map that re-tweens 200 nodes is the
-   one case where "almost instant" still reads as movement.
+   MOTION comes in two speeds and both are declared, not improvised.
+
+   140ms on `fill` and `stroke` is FEEDBACK: a hover, a focus, a node becoming
+   the current one. It answers something the reader just did.
+
+   `--mtree-tween` (240ms) is the RELAYOUT: the drawing rearranging itself
+   because the data moved or the grouping switched. It rides on `transform` and
+   on the node box's `width`/`height`, which are the two things layout.ts
+   actually recomputes — a tween between two deterministic layouts, never a
+   simulation, and reproducible because both ends are.
+
+   THREE THINGS SWITCH IT OFF, in descending order of how much they can be
+   relied on: this file's own prefers-reduced-motion block at the foot (which
+   kills the transitions outright rather than trusting global.css's app-wide
+   0.01ms flattening, because 200 nodes moving "almost instantly" still reads as
+   movement); `data-motion="off"`, which the page writes from
+   `useMindPulses().motion` when the reader asked for less motion OR the map is
+   too big to tween honestly; and PulseLayer.tsx's own JS gate, which stops the
+   watch layer rendering anything at all. Every one of them is independent, and
+   the first needs no cooperation from any caller.
 
    SPACING is on the 4px grid. */
 
@@ -231,19 +273,53 @@
   color: var(--text-faint);
 }
 
-/* ---------- breadcrumb (the small-screen drill-in) ---------- */
+/* ---------- the drill-in trail ---------- */
 
-.mtree-crumbs {
+/* DELETED AT THE INTEGRATION, and recorded rather than silently dropped:
+   `.mtree-crumbs` and `.mtree-crumb-sep` styled the page's first hand-rolled
+   trail — a flex row of buttons separated by a literal `›`. That markup is gone;
+   components/mindtree/Breadcrumb.tsx renders the trail now and
+   components/mindtree/breadcrumb.css owns `.mtree-crumbbar*`.
+
+   That sheet's header predicted this and asked for it: it took a name of its own
+   precisely so the two could coexist until the swap happened, and said "the
+   page's two rules become dead the moment the integrator swaps the markup, and
+   deleting them is on the handoff". This is that deletion. Leaving them would be
+   two sheets holding one idea, which is the collision §1.0.7 exists to prevent
+   arriving by the slow route. */
+
+/* ---------- the selection bar ---------- */
+
+/* The bulk bar, and the reason it can be believed: `pruneMindSelection` drops
+   anything the reader can no longer see on every rebuild, so the count here is a
+   count of rows on the screen. pages/tracks/TracksIndex.tsx states the rule.
+
+   Not sticky, not floating. It sits in the document flow above the canvas
+   because the map's own height is already the thing competing for the screen,
+   and a floating bar over a drawing you are dragging work across is a bar that
+   covers the branch you are aiming at. */
+.mtree-selbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  column-gap: 4px;
-  row-gap: 8px;
+  gap: 8px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   font-size: 12.5px;
 }
 
-.mtree-crumb-sep {
-  color: var(--text-faint);
+.mtree-selbar-count {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mtree-selbar-hint {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  color: var(--text-dim);
 }
 
 /* ---------- the canvas ---------- */
@@ -272,6 +348,19 @@
      label would otherwise select it instead of panning, and the selection
      highlight survives the gesture. */
   user-select: none;
+
+  /* THE RELAYOUT TWEEN, declared once here and spent by the three rules below.
+
+     240ms is the shortest duration at which a card crossing half the canvas is
+     followable rather than teleporting, and the longest at which the map is
+     never in the reader's way — a regroup has to be over before the hand gets
+     back to the pointer. The easing is the app's own standard curve: quick
+     start, settled end, nothing overshooting. NOTHING HERE IS A SIMULATION:
+     both ends of every transition are positions layout.ts computed
+     deterministically, and the browser interpolates between them. There is no
+     third state the tween can leave the drawing in. */
+  --mtree-tween: 240ms;
+  --mtree-ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .mtree-svg[data-panning] {
@@ -311,7 +400,18 @@
   stroke: var(--mtree-ink);
   stroke-width: 1.5;
   stroke-linecap: round;
-  transition: stroke 140ms ease;
+  /* `d` rides along with the nodes so a connector stays attached to the card it
+     is drawn from. It is a PROGRESSIVE ENHANCEMENT and is written as one: `d` is
+     an animatable CSS property in Chromium and nowhere else yet, so on Safari
+     and Firefox the connectors re-draw instantly under cards that glide. That
+     degrades honestly — a 1.5px curve landing 240ms early is far less noticeable
+     than the cards themselves snapping — and it needs no feature query, because
+     an unsupported transition property is simply ignored. Every edge in this
+     drawing is the same four-point cubic (layout.ts's `edgePath`), which is the
+     precondition for interpolating `d` at all. */
+  transition:
+    stroke 140ms ease,
+    d var(--mtree-tween) var(--mtree-ease);
 }
 
 /* The deeper the ring, the quieter the connector, so the eye reads the trunk
@@ -336,15 +436,48 @@
 
 .mtree-node {
   cursor: pointer;
+  /* THE NODE GLIDES BETWEEN LAYOUTS, and this one declaration is the whole of
+     it. layout.ts recomputes every position when the data changes or the
+     grouping switches; MindNode.tsx writes the new one into `transform`; the
+     browser interpolates. Nothing tracks a velocity, nothing runs a frame loop,
+     and two renders of the same data always end in the same place — which is
+     the property a force simulation cannot offer and the reason this feature
+     bans one.
+
+     A card that MOUNTS has no previous position to come from, so instead of
+     sliding out of a corner it fades in where it belongs (see @starting-style
+     below). That is what "the branch grew" looks like when a branch opens or
+     when somebody else's new item arrives. */
+  opacity: 1;
+  transition:
+    transform var(--mtree-tween) var(--mtree-ease),
+    opacity var(--mtree-tween) linear;
+}
+
+/* Scoped to the tweening map on purpose: `data-motion="off"` is set by the page
+   from `useMindPulses().motion`, and a starting style cannot be undone by a
+   later transition-property change — it has to not apply in the first place. */
+@starting-style {
+  .mtree-svg:not([data-motion='off']) .mtree-node {
+    opacity: 0;
+  }
 }
 
 .mtree-node-box {
   fill: var(--mtree-fill);
   stroke: var(--mtree-ink);
   stroke-width: 1;
+  /* Size is the map's FIRST visual variable — `sizeForCount` encodes the count
+     as area — so a branch that gains or loses work has to be seen changing
+     size, not found to have changed size. `width`/`height` are SVG2 geometry
+     properties and animate as CSS in engines that implement them; where they do
+     not, the box snaps inside a node that is still gliding, which is invisible
+     at 240ms. */
   transition:
     fill 140ms ease,
-    stroke 140ms ease;
+    stroke 140ms ease,
+    width var(--mtree-tween) var(--mtree-ease),
+    height var(--mtree-tween) var(--mtree-ease);
 }
 
 /* The workspace root is not a track and has no hue to inherit; giving it the
@@ -456,6 +589,35 @@
 
 .mtree-node[data-empty] .mtree-node-label {
   fill: var(--text-faint);
+}
+
+/* A ticked item — one of several the reader is about to move together.
+
+   THE MARK IS A SECOND STROKE, not a fill change and not an opacity change, for
+   the reason the whole sheet gives about `[data-current]`: a fill that shifted
+   would move the label's contrast with it, and the label is what the reader is
+   reading to decide whether this is the right row. `--mtree-ink` is the token
+   already computed to clear 4.5:1 against both the canvas and the node fill in
+   both themes, so the tick costs no contrast anywhere.
+
+   Selection and "current" can both be true, and the tick's glyph is what tells
+   them apart — the stroke alone would be ambiguous, which is exactly why the
+   mark is drawn as well as the outline widened. */
+.mtree-node[data-selected] .mtree-node-box {
+  stroke: var(--mtree-ink);
+  stroke-width: 2;
+}
+
+.mtree-node-tick circle {
+  fill: var(--mtree-ink);
+}
+
+.mtree-node-tick-glyph {
+  fill: none;
+  stroke: var(--bg-elev);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* THE FOCUS INDICATOR, AND IT MUST STAY THE LAST RULE IN THIS SHEET THAT
@@ -782,6 +944,26 @@
   }
 }
 
+/* ---------- motion off ---------- */
+
+/* THE MAP MAY REFUSE TO TWEEN ITSELF, and the page says so by writing
+   `data-motion="off"` onto the <svg> from `useMindPulses().motion`. Two
+   conditions produce it: the reader prefers reduced motion, or the drawing is
+   simply too big to move honestly (PulseLayer.tsx's `MIND_TWEEN_MAX` — an SVG
+   transform transition is not composited, so the cost is linear in what is on
+   screen, and four hundred cards re-rasterising per frame is a slideshow, not
+   an animation).
+
+   COLOUR TRANSITIONS SURVIVE. The 140ms on fill and stroke is a hover and a
+   focus answering a pointer, which is feedback rather than movement — it is
+   what the reader just did, not the picture rearranging itself. Only geometry
+   is dropped. */
+.mtree-svg[data-motion='off'] .mtree-node,
+.mtree-svg[data-motion='off'] .mtree-node-box,
+.mtree-svg[data-motion='off'] .mtree-edge {
+  transition-property: fill, stroke;
+}
+
 /* ---------- reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -789,7 +971,13 @@
      belt to that braces, and it exists because expand/collapse here is not one
      transition — it is up to two hundred nodes changing position at once, and
      "almost instant" across that many marks still reads as movement to a
-     reader who asked for none. */
+     reader who asked for none.
+
+     It is also the guarantee that does not depend on a caller: the page has to
+     REMEMBER to write `data-motion`, and this block holds whether it did or
+     not. `transition: none` and not a shorter duration — a 0.01ms slide across
+     two hundred marks is still two hundred marks moving. */
+  .mtree-node,
   .mtree-node-box,
   .mtree-edge {
     transition: none;

@@ -1,0 +1,344 @@
+/* The node card's sheet — co-located with the one component that uses it.
+
+   PREFIX REGISTRY (§1.0.7). This file owns `.mtree-card*` and styles nothing
+   else. The prefix is `.mtree-` because that is the Mindtree's registered
+   family; the SUFFIX namespace `-card` keeps it from colliding with the three
+   families pages/mindtree.css already carries (`.mtree-node*`, `.mtree-edge*`,
+   `.mtree-tbl*`) without registering a second prefix for one component.
+
+   IT IS A SEPARATE FILE, and that is worth one sentence because
+   pages/mindtree.css's header argues the other way ("one sheet for a feature
+   whose components exist only inside it"). That argument holds for MindNode and
+   MindEdge, which share the `--track-c-*` resolution rule and the whole measured
+   contrast system with the page. This card shares NONE of it: it paints no track
+   hue (see NodeCard.tsx's header for why), it sits on the neutral elevated
+   surface every other panel in the app uses, and it is imported by its own
+   component rather than by the screen. A file that shares no variable with the
+   sheet next to it is not a fragment of that sheet.
+
+   ── DIRECTION, AND THE ONE PLACE THIS APP ALLOWS A PHYSICAL COORDINATE ──────
+
+   Everything in the box model here is logical. The POSITION is not, and that is
+   deliberate and load-bearing rather than an oversight:
+
+   lib/mindtree/layout.ts mirrors the entire drawing by ARITHMETIC for RTL (SVG
+   has no logical properties, so there is nothing else it could do), which means
+   a node's x is already the x it is painted at in Arabic. The card is placed
+   from exactly those numbers. Anchoring it with `inset-inline-start` would ask
+   the engine to mirror a coordinate that has already been mirrored, and the card
+   would land on the far side of the canvas in Arabic and nowhere near the node —
+   the same double-mirror MindNode.tsx's header records making with
+   `text-anchor`. So the origin is pinned physically with `inset: 0 auto auto 0`
+   and the offset is applied as a TRANSFORM, which is geometry and carries no
+   direction of its own. No rule below flips anything, and the four standing
+   greps see no `left`, `right`, `width` or `height` declaration.
+
+   ── THE CARD CANNOT COVER ITS OWN NODE ─────────────────────────────────────
+
+   `--mtree-card-y` is the node's edge and `--mtree-card-flip` is `0%` (hang
+   down) or `-100%` (hang up); `--mtree-card-room` is the space that exists on
+   that side. Because the block-size is CAPPED to the room rather than the box
+   being measured and nudged, overlap is arithmetically impossible and there is
+   no second layout pass — see `placeNodeCard()` in NodeCard.tsx.
+
+   The cap is why `overflow: hidden` is here rather than `auto`: the card takes
+   no pointer events, so a scrollbar inside it would be a control nobody can
+   reach. On a canvas tight enough to bite, the row that falls off is the tail of
+   the owner list, which is why the content is ordered most-important-first.
+
+   ── CONTRAST, COMPUTED IN BOTH THEMES, ON THE SURFACE IT ACTUALLY USES ──────
+
+   Every figure is against `--bg-elev-2` (the card's own fill), read dark/light,
+   and every one is a theme token — there is no admin-chosen hue anywhere on this
+   card, so there is nothing to sweep and the numbers are exact rather than a
+   worst case over 140,608 hues.
+
+   TEXT — 4.5:1, all of it small text
+     title, numbers          (--text)         12.61 / 15.14
+     values                  (--text-dim)      6.97 /  5.98
+     terms, headings, tags   (--text-faint)    5.13 /  4.71  ← the text floor
+     unassigned              (--yellow)        8.76 /  5.36
+     breached / overdue      (--red)           5.82 /  5.49
+
+   NON-TEXT — 3:1 (WCAG 1.4.11)
+     the card's own outline  (--field-border)  3.26 / 3.10 on --bg-elev-2
+
+   MOTION is one 120ms fade on `opacity`, and only on the way in. global.css
+   flattens every transition to 0.01ms under prefers-reduced-motion; the block at
+   the foot of this file removes it outright, because "almost instant" on a panel
+   that appears under the pointer still reads as movement.
+
+   SPACING is on the 4px grid. */
+
+.mtree-card {
+  position: absolute;
+  /* Physical, and only here. See the direction note in the header — `inset` is
+     the shorthand, so no banned property name is declared. */
+  inset: 0 auto auto 0;
+  transform: translate(var(--mtree-card-x), var(--mtree-card-y))
+    translateY(var(--mtree-card-flip));
+  z-index: 4;
+
+  inline-size: var(--mtree-card-w);
+  max-inline-size: calc(100% - 16px);
+  max-block-size: var(--mtree-card-room);
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+
+  background: var(--bg-elev-2);
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+
+  /* THE RULE THAT MAKES THE CARD SAFE ON A PAN SURFACE. The canvas sets
+     `touch-action: none` and owns every pointer for the pan and the pinch; a
+     card that took a pointerdown would eat the start of a drag that happened to
+     begin over it, and — worse — covering the pointer would fire `pointerleave`
+     on the node underneath, unmounting the card, un-covering the node, and
+     re-entering it, at frame rate. It holds no control precisely so that this
+     line can be unconditional. */
+  pointer-events: none;
+
+  animation: mtree-card-in 120ms ease-out both;
+}
+
+/* NOTHING INSIDE THE CARD IS SQUASHED — the card is CUT instead, and the cut
+   falls at the bottom, where the least important row is.
+
+   This is not belt-and-braces; without it the cap above squashes exactly the
+   wrong thing. `max-block-size` makes this a space-constrained flex column, so
+   the algorithm shrinks its items — and a flex item's automatic minimum size is
+   ZERO rather than its content when it carries `overflow` other than `visible`,
+   which is true of the title (it clamps to two lines) and of nothing else here.
+   Measured in the browser: with the card's natural 238px capped to 232px of
+   room, every one of the six children kept its height except the title, which
+   collapsed from its 18.2px line box to a 12.6px ink box and cut the ascender
+   off the one word on the card that names what the reader is pointing at.
+   Six pixels of overflow, spent on the heading. */
+.mtree-card > * {
+  flex-shrink: 0;
+}
+
+@keyframes mtree-card-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- the title ---------- */
+
+/* Two lines of an entry title, then it is cut.
+
+   CLAMPED BY `max-block-size`, AND NOT BY `-webkit-line-clamp`, which is what
+   this rule shipped first and what a render caught immediately. `-webkit-line-clamp`
+   needs `display: -webkit-box`, and this element is a FLEX ITEM (the card is a
+   flex column) — so the display is BLOCKIFIED before it takes effect. Measured
+   in the browser: the computed display came back `flow-root`, the clamp did
+   nothing, and the line box collapsed from the 18.2px `line-height` to the
+   12.6px ink box, which cut the ascender off every title on the card. Wrapping
+   it in a second div to escape the flex context would fix the clamp and buy an
+   ellipsis; it would also add a layout box between the flex column and its
+   child, for a nicety.
+
+   Two line-heights of room, `overflow: hidden`, and no ellipsis. The cost is a
+   long title that stops rather than trailing off; the full string is one
+   keypress away in the entry sheet, and the title of an ENTRY is the one thing
+   on this card the reader is already looking at on the node itself.
+
+   `overflow-wrap: anywhere` because a title can be a single unbroken token — a
+   hostname, a ticket reference — and a word longer than the card would otherwise
+   push its own row wide inside a box that cannot scroll. */
+.mtree-card-title {
+  overflow: hidden;
+  max-block-size: calc(2 * 1.35em);
+  overflow-wrap: anywhere;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+/* An archived track or a hidden vocabulary option that still holds work. The
+   map dashes its outline; here there is no outline to dash, so it is said. */
+.mtree-card-tag {
+  padding-inline-start: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.mtree-card-breach {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--red);
+}
+
+.mtree-card-quiet {
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--text-faint);
+}
+
+/* ---------- the three numbers ---------- */
+
+.mtree-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.mtree-card-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.mtree-card-num {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* The word under the number is separated by SIZE, never by fading the number
+   toward its own background — the mistake mindtree.css records on the node
+   count. Same ink for the digits in all three tones; only the term moves. */
+.mtree-card-term {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.mtree-card-stat[data-tone='warn'] .mtree-card-num,
+.mtree-card-stat[data-tone='warn'] .mtree-card-term {
+  color: var(--yellow);
+}
+
+.mtree-card-stat[data-tone='bad'] .mtree-card-num,
+.mtree-card-stat[data-tone='bad'] .mtree-card-term {
+  color: var(--red);
+}
+
+/* ---------- term / value rows ---------- */
+
+.mtree-card-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* A <div> between <dl> and <dt>/<dd> is valid HTML and is what makes each pair a
+   grid row of its own; without it the terms and the values are siblings in one
+   flow and nothing lines up. */
+.mtree-card-row {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 8px;
+}
+
+.mtree-card-dt {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  /* The term is a fixed vocabulary ("Status", "Owner") and never needs a second
+     line; letting it wrap would push its own value out of alignment with the
+     four above it. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mtree-card-dd {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-inline-size: 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.mtree-card-dd[data-tone='warn'] {
+  color: var(--yellow);
+  font-weight: 600;
+}
+
+.mtree-card-dd[data-tone='bad'] {
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* Free text of any length — an entry title, a person's name, a vocabulary label
+   an admin typed. It is the only content on this card that can push a row wide,
+   so it is the only thing clipped. Clipped VISUALLY: the whole string stays in
+   the DOM, so a screen reader still reads it. */
+.mtree-card-value {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* An age or a count riding beside a value. `flex: 0 0 auto` so the value gives
+   up its room first — the number is short and fixed, the title is not. */
+.mtree-card-suffix {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+
+/* ---------- who is carrying it ---------- */
+
+.mtree-card-heading {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.mtree-card-owners {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mtree-card-owner {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-inline-size: 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.mtree-card-owner .mtree-card-num {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+}
+
+.mtree-card-more {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  /* global.css flattens transitions, not animations. A fade on a panel that
+     appears under the pointer is exactly the kind of movement a reader who asked
+     for none is asking not to see, so it is removed rather than shortened. */
+  .mtree-card {
+    animation: none;
+  }
+}

@@ -1,0 +1,118 @@
+/* The map's branch composer. Registry prefix: `.mtree-*` (§1.0.7).
+
+   SECOND SHEET, SAME PREFIX, and node-menu.css's header carries the argument in
+   full: this popover is PORTALLED to `document.body`, so it shares no ancestor,
+   no stacking context and no variable with `pages/mindtree.css`. §1.0.4 is the
+   rule against two sheets that must agree about the same values; these agree
+   about nothing because they touch nothing in common. What they DO share is the
+   `.mtree-` prefix and therefore the registry line, which is unchanged.
+
+   IT LAYERS ON `.input` AND `.btn`, both from global.css, and redeclares
+   neither. The one thing this sheet adds to the field is a font size that stops
+   iOS zooming the whole viewport on focus — the same 16px `cmd.css` sets on the
+   palette's input and for the same reason.
+
+   LOGICAL PROPERTIES ONLY. The offsets are set inline by `menuPlacement()`,
+   which resolves the pointer into a distance from the viewport's INLINE-START
+   edge once; a fixed element reads `inset-inline-start` through its own
+   direction, so this file needs no `[dir='rtl']` rule and contains no physical
+   direction at all. See node-menu.css for the long version.
+
+   CONTRAST, both themes, against `--bg-elev`:
+     heading   --text-faint  5.92 / 5.54
+     hint      --text-dim    8.05 / 7.40
+     refusal   --text-dim    8.05 / 7.40
+   The refusal is `--text-dim` rather than `--red`: a branch that cannot take new
+   work is a filing rule, not an error the reader caused, and colouring it as a
+   failure would send somebody looking for something they broke. */
+
+/* Transparent light-dismiss layer, exactly as the node menu's — a composer is
+   not modal, and dimming the map would hide the branch the item is being filed
+   under while the reader is typing its title. It exists to swallow the press so
+   the click that closes the popover does not also open the node behind it. */
+.mtree-qa-catch {
+  position: fixed;
+  inset: 0;
+  /* One rung below the panel, on the node menu's ladder: above the map and the
+     shell, below the command palette (100) and `.confirm-backdrop` (110). */
+  z-index: 92;
+}
+
+.mtree-qa {
+  position: fixed;
+  z-index: 93;
+  /* Overwritten inline the moment the panel has been measured; never painted at
+     this corner, because it is `visibility: hidden` until then. The inline size
+     must be settled BEFORE that measurement, or the panel is measured at one
+     width and placed at another. */
+  inset-inline-start: 0;
+  inset-block-start: 0;
+  inline-size: min(320px, calc(100vw - 16px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  animation: mtree-qa-in 0.12s ease both;
+}
+
+/* Block axis only — there is no logical `translate`, and an inline entrance
+   would arrive from the wrong side in Arabic. sheet.css made the same trade and
+   wrote down why. global.css's reduced-motion block collapses it to nothing. */
+@keyframes mtree-qa-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Which branch this is filing into. Not decoration: the popover opens away from
+   the node it belongs to, and an item filed under the wrong branch is the single
+   thing this control must never do quietly. */
+.mtree-qa-title {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mtree-qa-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 16px, not the field's inherited size: iOS Safari zooms the viewport on focus
+   for anything smaller, and a map that has just been panned into place must not
+   jump. cmd.css sets the same floor on the palette's input. */
+.mtree-qa-input {
+  font-size: 16px;
+}
+
+.mtree-qa-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* `.btn-sm` is a 32px control by default; this composer opens under a thumb on a
+   long press, so both buttons take the 44px floor here rather than relying on
+   the reader having a mouse. */
+.mtree-qa-row .btn {
+  min-block-size: 44px;
+}
+
+.mtree-qa-hint,
+.mtree-qa-why {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.4;
+}

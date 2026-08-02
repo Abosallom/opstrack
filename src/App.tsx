@@ -38,6 +38,7 @@ import { resetMeetings } from './store/meetings'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
 import { resetAi } from './store/ai'
 import { resetNudges } from './store/nudges'
+import { resetMindtree } from './store/mindtree'
 import { resetOutbox } from './store/outbox'
 import { resetPush } from './store/push'
 import { setLocaleSetting, setTheme, useSettings } from './store/settings'
@@ -486,6 +487,11 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // this browser must not be able to have them handed back by retyping a
       // first word.
       resetAi()
+      // Ninth: the Mindtree's own screen state. The selection is a list of entry
+      // ids and the persisted focus addresses one track's branch — both are the
+      // last session's business, and restoring a drill-in under the NEXT account
+      // would open somebody else's screen on a branch they did not choose.
+      resetMindtree()
     }
   }, [])
 

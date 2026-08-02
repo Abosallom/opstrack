@@ -1,0 +1,307 @@
+/* The drag layer — the ghost that follows the pointer, the branch that lights
+   up, and the sentence that says why one will not take the work.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.mtree-drag-*` and styles
+   nothing else. `pages/mindtree.css` owns the rest of `.mtree-*` — the canvas,
+   the nodes, the edges and the table — and this file may not add a selector to
+   any of them: two sheets setting one class makes the winner depend on CSS
+   import order, which differs between the dev server and a production build
+   (`components/toast.css`'s header states the same rule for the same reason).
+   It is co-located with `DragLayer.tsx`, beside `node-menu.css`, `node-card.css`
+   and `pulse-layer.css`, because a drag only exists where that component is
+   mounted.
+
+   TWO COORDINATE SPACES, AND ONLY ONE OF THEM IS CSS. The SVG half
+   (`.mtree-drag-overlay` and the two rectangles under it) is drawn inside the
+   map's own viewBox, where there is no such thing as a logical property: SVG has
+   `x` and nothing else, and `lib/mindtree/layout.ts` mirrors the whole drawing
+   for Arabic, so nothing here flips. The HTML half is positioned in VIEWPORT
+   pixels, because that is the space `PointerEvent.clientX` is already in.
+
+   WHICH IS WHY `.mtree-drag-layer` IS `direction: ltr`, and it is the one
+   declaration in this file that has to be justified rather than merely read. The
+   layer is a COORDINATE SPACE, not a text container: its children are placed by
+   a transform written from `clientX`/`clientY`, which are physical and identical
+   in both reading directions. Under `direction: rtl` an `inset-inline-start: 0`
+   child would be pinned to the viewport's RIGHT edge and every pointer position
+   would be mirrored away from the pointer. The text inside re-establishes its own
+   direction explicitly — `DragLayer.tsx` puts `dir` on the card and the bar, the
+   same device `MindNode.tsx` uses on its `<g>` — so nothing reads backwards.
+   `inset-block`/`inset-inline` are still the properties used; the direction they
+   resolve against is simply pinned.
+
+   The `stroke-width` and `line-height` declarations below match the standing
+   grep for physical box properties (`\bwidth:` / `\bheight:` after a hyphen) and
+   are not what it is looking for: the first is SVG geometry and the second is
+   typography, neither has a logical counterpart, and `pages/mindtree.css` and
+   `components/charts/charts.css` set the precedent for both.
+
+   NOTHING HERE IS A TARGET. Every element in this sheet is
+   `pointer-events: none`, so none of them owes the 44px minimum: the drop targets
+   are the map's own nodes, which `layout.ts` floors at 44 units and the page's
+   fit floors again in pixels. An overlay that could take a pointer would only
+   ever intercept the gesture it exists to describe.
+
+   Z-INDEX 94, one rung above the node menu (92/93) and one below the toast host
+   (95). The ghost is under the reader's finger and must clear every panel on the
+   screen; it must NOT clear the toast that reports a failed drop, or the
+   confirmation (110) that a closing drop raises — both of those are the gesture's
+   own consequences and have to be readable while it settles.
+
+   CONTRAST, COMPUTED IN BOTH THEMES, with the sRGB relative-luminance formula
+   `src/styles/global.css` and `pages/mindtree.css` use. Figures read dark/light
+   and every one names the surface it was measured against.
+
+   TEXT — 4.5:1
+     ghost title (--text) on --bg-elev-2              12.61 / 15.14
+     count chip (--text) on --accent-soft over
+       --bg-elev-2                                    11.98 / 14.30
+     refusal (--red) on --bg-elev-2                    5.82 / 5.49  ← text floor
+     "already there" (--text-dim) on --bg-elev-2       6.97 / 5.98
+
+   NON-TEXT — 3:1 (WCAG 1.4.11)
+     candidate outline (--field-border) on the
+       canvas (--bg-elev)                              3.77 / 3.65  ← the floor
+     accepting outline (--accent) on a node fill       4.07 / 4.36
+     …on the hover fill                                3.29 / 3.74
+     …on the bare canvas                               6.72 / 6.32
+     refusing outline (--red) on any node fill         4.07 / 4.45
+     card border (--accent) on --bg-elev-2             4.51 / 11.57
+
+   The five node-fill figures are `pages/mindtree.css`'s own sweep — the same two
+   colours over the same surfaces, measured there across all 140,608 hues an
+   admin's free `tracks.color` hex can produce — quoted rather than re-derived so
+   the two files cannot drift to two different answers about one mark.
+
+   MOTION: there are no keyframes in this file. The only movement is the ghost
+   following the pointer, which is direct manipulation rather than animation, and
+   two 140ms colour transitions (mindtree.css's number). The block at the foot
+   removes those outright under `prefers-reduced-motion`, on top of global.css's
+   blanket flattening — a colour that eases while a reader is deciding where to
+   let go is exactly the movement that rule is about.
+
+   SPACING is on the 4px grid. */
+
+/* ---------- the drawing's overlay ---------- */
+
+.mtree-drag-overlay {
+  pointer-events: none;
+}
+
+/* Every branch that can take a drop, while one is in flight. Stroke-only and
+   INSET from the node's own box, so the outline reads as a target drawn around
+   the card rather than as a second border on it. */
+.mtree-drag-zone {
+  fill: none;
+  stroke: var(--field-border);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  transition:
+    stroke 140ms ease,
+    stroke-width 140ms ease;
+}
+
+/* The one under the pointer. Solid and heavier — the same
+   width-not-opacity device the map uses for depth, so the highlight costs no
+   contrast anywhere. */
+.mtree-drag-zone[data-over] {
+  stroke-width: 3;
+  stroke-dasharray: none;
+}
+
+.mtree-drag-zone[data-state='ok'] {
+  stroke: var(--accent);
+}
+
+/* A branch that will not take this work. Never silent, and never the same colour
+   as one that will. */
+.mtree-drag-zone[data-state='no'] {
+  stroke: var(--red);
+}
+
+/* The branch the row is ALREADY under. Not an error and not an invitation: the
+   drop is legal and will simply write nothing, so it is marked in the neutral
+   border colour rather than in red. */
+.mtree-drag-zone[data-state='same'] {
+  stroke: var(--field-border);
+}
+
+/* The node (or nodes) travelling. A dashed outline, NOT a scrim: dimming the
+   card would take contrast off its own label at the moment the reader is
+   checking what they picked up, and the ghost already says what is in the air. */
+.mtree-drag-lifted {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+/* ---------- the layer ---------- */
+
+.mtree-drag-layer {
+  position: fixed;
+  inset-block: 0;
+  inset-inline: 0;
+  z-index: 94;
+  pointer-events: none;
+  /* A coordinate space, not a text container — see the header. */
+  direction: ltr;
+}
+
+/* The anchor: a zero-sized box translated to the pointer from JS. It is empty on
+   purpose, so its origin IS the pointer and the card can be hung off it in
+   percentages of the card's own size. */
+.mtree-drag-ghost {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  /* The transform is rewritten on every pointer move; promoting the element
+     keeps that off the main thread's paint path. */
+  will-change: transform;
+}
+
+/* Centred on the pointer and lifted clear of it, so a finger does not cover the
+   thing it is carrying. Both offsets are percentages of this box, which is why
+   the anchor above has no size of its own. */
+.mtree-drag-hold {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  transform: translate(-50%, calc(-100% - 14px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.mtree-drag-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-inline-size: 264px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  background: var(--bg-elev-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  transition: border-color 140ms ease;
+}
+
+.mtree-drag-card[data-state='ok'] {
+  border-color: var(--accent);
+}
+
+.mtree-drag-card[data-state='no'] {
+  border-color: var(--red);
+}
+
+.mtree-drag-card[data-state='same'] {
+  border-color: var(--field-border);
+}
+
+/* One line, clipped. The full title is in the node the ghost came from and in
+   the entry sheet a keystroke away; a ghost that grew to three lines would cover
+   the branches the reader is aiming at. */
+.mtree-drag-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* How many rows are travelling. A bare numeral: the sentence that inflects it
+   ("3 items") is in the live region, and this chip is `aria-hidden` along with
+   the rest of the ghost. */
+.mtree-drag-count {
+  flex: 0 0 auto;
+  min-inline-size: 22px;
+  padding-inline: 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Why this branch will not take it — shown while the pointer is still down,
+   because a refusal a reader only meets after letting go is a snap-back with no
+   explanation. */
+.mtree-drag-why {
+  max-inline-size: 264px;
+  padding-block: 6px;
+  padding-inline: 10px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.mtree-drag-why[data-state='no'] {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+/* ---------- the keyboard's status bar ---------- */
+
+/* A keyboard move has no pointer to hang a ghost from, so what is being carried
+   and where it would land is stated once, in one place, at the block-end of the
+   viewport — the same corner a bulk bar occupies, and out of the map's way. */
+.mtree-drag-bar {
+  position: absolute;
+  inset-block-end: calc(16px + env(safe-area-inset-bottom, 0px));
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-inline-size: min(92vw, 460px);
+  padding-block: 8px;
+  padding-inline: 12px;
+  background: var(--bg-elev-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  transition: border-color 140ms ease;
+}
+
+.mtree-drag-bar[data-state='ok'] {
+  border-color: var(--accent);
+}
+
+.mtree-drag-bar[data-state='no'] {
+  border-color: var(--red);
+}
+
+.mtree-drag-bar .mtree-drag-why {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  text-align: start;
+}
+
+/* ---------- reduced motion ---------- */
+
+/* global.css already flattens every transition in the app to 0.01ms; this
+   removes these two outright, because a border easing between "this branch will
+   take it" and "this one will not" is a colour changing under a reader who is
+   deciding where to let go. The ghost itself keeps following the pointer: that
+   is the gesture, not an animation of it. */
+@media (prefers-reduced-motion: reduce) {
+  .mtree-drag-zone,
+  .mtree-drag-card,
+  .mtree-drag-bar {
+    transition: none;
+  }
+}

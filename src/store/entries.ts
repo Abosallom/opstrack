@@ -700,6 +700,25 @@ export function useEntriesTruncated(): boolean {
   return useEntriesStore((s) => s.coverage.truncated || s.coverage.closedTruncated)
 }
 
+/**
+ * Has the open working set landed AT LEAST ONCE?
+ *
+ * "None" versus "not yet", as one boolean — the distinction `EntriesCoverage`
+ * exists for, narrowed so a screen can subscribe to it without re-rendering on
+ * every other coverage change.
+ *
+ * IT IS NOT `!loading`. A screen mounts with `loading` false, flips it true in
+ * an effect, and flips it back — so a cold first paint reads "not loading" while
+ * holding nothing, and any code that PRUNES against the working set in that
+ * frame prunes against an empty one. pages/Mindtree.tsx is where that cost
+ * something real: its drill-in reconciler cleared a `?focus=` from a shared link
+ * before the tracks it named had arrived, so a deep link opened the whole map
+ * and stripped its own parameter.
+ */
+export function useEntriesLoadedOnce(): boolean {
+  return useEntriesStore((s) => s.coverage.loadedAt !== null)
+}
+
 export function useHealthMap(): ReadonlyMap<string, EntryHealth> {
   return useEntriesStore((s) => s.health)
 }
@@ -714,6 +733,30 @@ export function usePendingOp(id: string | null | undefined): PendingOp | undefin
 
 export function useEntryFlash(id: string | null | undefined): FlashMark | undefined {
   return useEntriesStore((s) => (id ? s.flash.get(id) : undefined))
+}
+
+/**
+ * Every live flash mark at once — the WHOLE map, by reference.
+ *
+ * The per-id hook above answers "did THIS row change" for a rendered row, which
+ * is right for a list. The Mindtree's watch layer asks the opposite question —
+ * "what changed anywhere" — because the row that changed is usually inside a
+ * collapsed branch and has no element of its own to subscribe.
+ *
+ * SAFE TO RETURN WHOLE because `commit()` only ever hands `flash` a new Map when
+ * a mark is added or swept, so the identity is stable across the ordinary commit
+ * and this is as narrow as `useEntryList`. It is a read of the collection, NOT a
+ * derivation of one: returning `[...s.flash]` here would build a new array per
+ * render and is the getSnapshot-caching trap this file's header opens with.
+ *
+ * WHY THE WATCH LAYER READS FLASH RATHER THAN DIFFING ROWS: the rule "never
+ * flash my own work back at me" (applyRealtimeBatch) lives here, and it is the
+ * whole difference between a map that reports the team's movement and one that
+ * congratulates the reader for typing. A second copy of that rule in a component
+ * would be the copy that rots.
+ */
+export function useEntryFlashes(): ReadonlyMap<string, FlashMark> {
+  return useEntriesStore((s) => s.flash)
 }
 
 /**

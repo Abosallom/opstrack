@@ -1,0 +1,109 @@
+/* The drill-in trail's sheet — co-located with Breadcrumb.tsx.
+
+   PREFIX REGISTRY (§1.0.7). This file owns `.mtree-crumbbar*` and styles nothing
+   else. It uses the `.btn`, `.btn-sm` and `.btn-ghost` primitives and NEVER
+   redeclares them: the 44px minimum block-size every touch target in this app is
+   held to comes from `.btn` in global.css, so the crumbs inherit it rather than
+   restating a number that would then have two owners.
+
+   THE SUFFIX IS `-crumbbar` AND NOT `-crumb`, WHICH IS THE WHOLE POINT OF THE
+   NAME. pages/mindtree.css owned `.mtree-crumbs` and `.mtree-crumb-sep` from the
+   page's first hand-rolled trail (a flex row of buttons separated by a literal
+   `›`). Two sheets declaring one class is exactly the collision §1.0.7 exists to
+   prevent, and it would be settled by load ORDER — which is decided by an import
+   statement in a file neither sheet can see. So this component took a name of its
+   own and the two coexisted harmlessly until the swap.
+
+   RESOLVED AT THE INTEGRATION: the page now renders this component, and its two
+   dead rules were deleted in the same change. A comment stands in their place in
+   that file recording what went and why, so the next reader of either sheet
+   finds the same story from either end.
+
+   LOGICAL PROPERTIES ONLY, and this file genuinely needs nothing else: unlike
+   node-card.css there is no SVG coordinate anywhere near it, so the whole
+   component mirrors for free. The ONE mark that carries a direction is the
+   chevron, and it is mirrored by global.css's `[dir='rtl'] .icon-directional`
+   rule from the class the component puts on it at the call site.
+
+   CONTRAST, computed in both themes, read dark / light:
+     crumb link ink     `.btn-ghost` (--text-dim)   6.97 / 5.98 on --bg-elev-2,
+                                                    8.71 / 6.50 on --bg
+     …on hover          `.btn-ghost:hover` (--text) 12.61 / 15.14 on --bg-elev-2
+     current location   (--text)                    15.74 / 16.44 on --bg
+     the chevron        (--text-faint)               6.40 / 5.11 on --bg
+   Every one is a theme token — this component paints no track hue, so there is
+   no admin-chosen hex to sweep and the figures are exact.
+
+   SPACING is on the 4px grid. */
+
+.mtree-crumbbar {
+  min-inline-size: 0;
+}
+
+.mtree-crumbbar-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  /* WRAPS, never scrolls. The trail is at most four hops deep (model.ts's tree
+     is root → track → group → more → entry, and focus.ts refuses the leaf), so
+     there is nothing to fold — and a crumb that has scrolled out of a horizontal
+     strip is a crumb the reader has to find before they can press it, which
+     breaks the one promise this component makes: the root is ALWAYS one press
+     away. */
+  column-gap: 2px;
+  /* 8px between wrapped lines, not 4: two rows of `.btn` targets need the
+     clearance or their 44px hit areas touch. `.row-actions` in global.css and
+     `.mtree-bar` document the same floor. */
+  row-gap: 8px;
+  /* The list markers, suppressed. The <ol> is here for its SEMANTICS — a path is
+     ordered, and a screen reader announcing "list, 3 items" is telling the
+     reader how deep they are. */
+  list-style: none;
+}
+
+.mtree-crumbbar-item {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+}
+
+/* The crumb's own label is database text of any length — a track name, a
+   person's name. It is clipped VISUALLY: the whole string stays in the DOM, so a
+   screen reader reads all of it and the button's accessible name (`backTo`)
+   carries it in full. */
+.mtree-crumbbar-btn {
+  max-inline-size: 14rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* `.btn` centres its content; a trail reads better start-aligned, and the
+     ellipsis has to fall at the END of the run rather than around a centred
+     middle. `display: block` would drop the 44px flex centring `.btn` sets up,
+     so only the two alignment properties are overridden. */
+  justify-content: flex-start;
+  text-align: start;
+  font-size: 12.5px;
+}
+
+.mtree-crumbbar-sep {
+  flex: 0 0 auto;
+  /* Not a hit target and not a control — the chevron says "and then", and the
+     press it stands for is the crumb next to it. */
+  color: var(--text-faint);
+  /* Optically centred against the button's cap height rather than its 44px box,
+     which is mostly padding. */
+  margin-inline: 2px;
+}
+
+.mtree-crumbbar-here {
+  /* Same inline budget as a link crumb, so the trail does not change shape when
+     the reader drills one ring deeper. */
+  max-inline-size: 14rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding-inline: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}

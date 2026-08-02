@@ -31,6 +31,29 @@ export interface ToastOptions {
    * Unrelated to React's `key`, which <Toaster /> takes from `id`.
    */
   key?: string
+  /**
+   * Render it, but do NOT let the live region speak it.
+   *
+   * FOR THE ONE CASE WHERE A TOAST IS THE SECOND VOICE, not the only one. The
+   * host below is `role="status" aria-live="polite"` and is mounted
+   * persistently, so every ordinary `toast()` is an announcement — which is
+   * exactly what it should be. But a surface that already announced the same
+   * sentence into its OWN region and raises a toast as the VISUAL half of the
+   * same event makes a screen-reader user hear it twice; the mindtree's drag is
+   * the one that does (`DragLayer.commitDrop` pairs `announce()` with `toast()`
+   * on four paths, so that the sentence keeps its place in the drag's own
+   * ordering and a sighted reader still sees the confirmation).
+   *
+   * Implemented as `aria-hidden` ON THE ITEM rather than as a second host,
+   * because a second host would be a second stacking context and the two would
+   * overlap. An aria-hidden node inserted into a live region is not part of the
+   * accessible text, so nothing is announced — and the toast is still visible,
+   * still hoverable, still dismissible with the pointer.
+   *
+   * DO NOT reach for this to quieten a noisy screen. A toast nobody announced
+   * and nobody else spoke is a message a screen-reader user never receives.
+   */
+  silent?: boolean
 }
 
 export interface ToastItem extends ToastOptions {
@@ -221,6 +244,9 @@ export function Toaster(): ReactElement {
         <div
           key={it.id}
           className={`toast${it.tone && it.tone !== 'default' ? ` ${it.tone}` : ''}`}
+          // See ToastOptions.silent: the caller already said this sentence in a
+          // live region of its own, and hearing it twice is the defect.
+          aria-hidden={it.silent === true ? 'true' : undefined}
           onPointerEnter={() => hold(it.id)}
           onPointerLeave={() => release(it)}
         >
