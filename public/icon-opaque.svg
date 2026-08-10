@@ -35,6 +35,7 @@
       <stop offset="0" stop-color="#d0587c"/><stop offset="1" stop-color="#d75873"/>
     </linearGradient>
   </defs>
+  <rect width="1024" height="1024" fill="#ffffff"/>
   <g fill="none" stroke-width="74" stroke-linecap="round">
     <path stroke="url(#g0)" d="M 447.55 208.77 A 310 310 0 0 1 576.45 208.77"/>
     <path stroke="url(#g1)" d="M 680.84 252.01 A 310 310 0 0 1 771.99 343.16"/>
