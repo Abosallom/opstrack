@@ -12,14 +12,14 @@ import NotificationBell from './components/NotificationBell'
 // — a shortcut that works on the second press is worse than none. It renders
 // null until something opens it, so the mount itself costs one listener.
 import CommandPalette from './components/CommandPalette'
+// EAGER, unlike every page below, and deliberately: ModeFrame is 107 lines of
+// chrome that the lazy mode page renders INSIDE, so loading it with the page
+// would leave a reader looking at a spinner with no way back to the map. It is
+// the map's way out and the way back in — see docs/MAP-CONTRACT.md §U7.
+import ModeFrame from './components/map/ModeFrame'
 import {
-  IconBolt,
-  IconChart,
-  IconChecklist,
-  IconColumns,
   IconGear,
   IconLayers,
-  IconMic,
   IconMonitor,
   IconMoon,
   IconSun,
@@ -54,19 +54,11 @@ const SignIn = lazy(() => import('./pages/SignIn'))
 // account. `store/auth.claimAccount()` signs the member in on success, so this
 // route unmounts itself — see the note on the signed-out branch below.
 const Claim = lazy(() => import('./pages/Claim'))
-const Capture = lazy(() => import('./pages/Capture'))
-const FollowUps = lazy(() => import('./pages/FollowUps'))
-const Board = lazy(() => import('./pages/Board'))
-// The two halves of the Tracks tab. Wave 3 split the shared placeholder that
-// used to serve both: /tracks is the distribution TREE (every active track with
-// its open work, for handing items out), /tracks/:id is one track's
-// chronological log. Two files, two prefixes — `.tree-` and `.tl-`.
-const TracksIndex = lazy(() => import('./pages/tracks/TracksIndex'))
-const TrackTimeline = lazy(() => import('./pages/tracks/TrackTimeline'))
-// The map half of the same job: /tracks is what is open, /mindtree is the shape
-// of it. Reached from the List | Map switcher on /tracks, not from a sixth nav
-// destination — the tab bar is capped at five and a second tracks-shaped
-// entry would dilute both.
+// THE ONE DESTINATION. Capture, follow-ups, the board, the tracks index, the
+// track timeline, the dashboard and the notification history were seven routes
+// and are now five lenses and a panel on this one — see docs/MAP-CONTRACT.md §1.
+// Their pages, their sheets and their tests are gone; every guarantee those
+// tests held is restated in src/components/map/*.test.tsx.
 const Mindtree = lazy(() => import('./pages/Mindtree'))
 const Entry = lazy(() => import('./pages/Entry'))
 // The overlay half of the same module, mounted once at the root (below). Lazy
@@ -83,11 +75,7 @@ const MeetingsIndex = lazy(() => import('./pages/meetings/MeetingsIndex'))
 const MeetingLive = lazy(() => import('./pages/meetings/MeetingLive'))
 const MeetingTriage = lazy(() => import('./pages/meetings/MeetingTriage'))
 const MeetingMinutes = lazy(() => import('./pages/meetings/MeetingMinutes'))
-const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Digest = lazy(() => import('./pages/Digest'))
-// The inbox HISTORY. The bell in the header is the peek at it, and it is not
-// lazy — it lives in the chrome, so it is part of every screen.
-const Notifications = lazy(() => import('./pages/Notifications'))
 const Settings = lazy(() => import('./pages/Settings'))
 // Admin config. Under pages/settings/ rather than pages/, because pages/Tracks.tsx
 // is already the per-track timeline — two Tracks.tsx in one directory is a
@@ -124,68 +112,34 @@ const Privacy = lazy(() => import('./pages/Privacy'))
 interface NavDest {
   to: string
   icon: IconComponent
-  /** Short label for the sidebar row / tab. */
+  /** Short label for the sidebar row. */
   navKey: string
   /** Longer label for the header — "Quick capture" vs the tab's "Capture". */
   titleKey: string
-  /** Tabs are capped at five; capture reaches mobile through the FAB instead. */
-  inTabBar: boolean
 }
 
-// One list is the single source of truth for both navs. The two renderers below
-// are thin — they differ only in element names, because app-shell.css styles
-// .sidebar and .tabbar completely differently and swaps them with `display` at
-// the 768px breakpoint. A `display: none` nav is out of the accessibility tree
-// and the tab order too, so the hidden one can never steal a tap or a Tab stop.
+// TWO DESTINATIONS, AND THE SECOND ONE IS SETTINGS. Six tabs became two rows,
+// because the six screens became five lens chips and a panel on one route
+// (docs/MAP-CONTRACT.md §0-§1). Everything the tab bar used to reach is still
+// one tap away — from a chip on the map, from `MapModeBar` for the two modes,
+// or from the gear in the header — so what was deleted is the SWITCHING, not
+// the destinations.
+//
+// `inTabBar` went with the tab bar itself. Under 768px the map fills the
+// viewport and `MapCapture` is docked at its block end; a five-slot bar under
+// that composer would have covered the one input the whole design exists to put
+// under a thumb, to offer a choice of one. The phone's navigation is now the
+// lens chips, the mode bar and the header gear — see the `.tabbar` deletion in
+// app-shell.css and U7's re-measure of `.mt-commit-bar`.
 const NAV: NavDest[] = [
   {
-    to: '/capture',
-    icon: IconBolt,
-    navKey: 'nav.capture',
-    titleKey: 'route.capture',
-    inTabBar: false,
-  },
-  {
-    to: '/followups',
-    icon: IconChecklist,
-    navKey: 'nav.followups',
-    titleKey: 'route.followups',
-    inTabBar: true,
-  },
-  { to: '/board', icon: IconColumns, navKey: 'nav.board', titleKey: 'route.board', inTabBar: true },
-  {
-    // POINTS AT THE MAP, not the list. Tracks and Mindtree are one job in two
-    // views — the `List | Map` switcher on both screens is what makes them one
-    // destination rather than two — and the owner asked for the map to be the
-    // main thing. The tab bar is capped at five (see `inTabBar` above), so
-    // promoting the map means changing which view this tab OPENS, never adding
-    // a sixth destination that would shrink every target on a phone.
-    // `/tracks` keeps working: it is still routed, still linked from the
-    // switcher, and any existing deep link or bookmark still resolves.
     to: '/mindtree',
     icon: IconLayers,
-    navKey: 'nav.tracks',
-    // `mindtree.title`, not a route.* twin — routeTitle.ts:56 already decided
-    // that for this screen and says why. The header title comes from there
-    // anyway; this field only matters if a NAV entry ever needs a longer form.
+    // `nav.map`, not `nav.tracks`: this row no longer stands for one of six
+    // screens, it stands for the app. `mindtree.title` is the longer form —
+    // routeTitle.ts already decided that for this screen and says why.
+    navKey: 'nav.map',
     titleKey: 'mindtree.title',
-    inTabBar: true,
-  },
-  // No short nav.* form exists for these two: their route labels are already
-  // single words, so a second key would only ever hold the same string.
-  {
-    to: '/meetings',
-    icon: IconMic,
-    navKey: 'route.meetings',
-    titleKey: 'route.meetings',
-    inTabBar: true,
-  },
-  {
-    to: '/dashboard',
-    icon: IconChart,
-    navKey: 'route.dashboard',
-    titleKey: 'route.dashboard',
-    inTabBar: true,
   },
 ]
 
@@ -214,7 +168,14 @@ function BootSplash(): ReactElement {
 
 /* ---------- shell chrome ---------- */
 
-/** Persistent inline-start rail at 768px and up. */
+/**
+ * Persistent inline-start rail at 768px and up — and now the ONLY nav.
+ *
+ * It renders NAV (the map) and then Settings in its footer, which is the whole
+ * of "Map + Settings and nothing else". Under 768px it is `display: none` and
+ * nothing replaces it: the phone's navigation is the lens chips, `MapModeBar`
+ * and the header's gear, all of which are on the map itself.
+ */
 function Sidebar(): ReactElement {
   return (
     <nav className="sidebar" aria-label={t('nav.primary')}>
@@ -245,26 +206,6 @@ function Sidebar(): ReactElement {
           <span className="nav-label">{t('route.settings')}</span>
         </NavLink>
       </div>
-    </nav>
-  )
-}
-
-/** Fixed bottom bar under 768px. Exactly five tabs — see NAV. */
-function TabBar(): ReactElement {
-  return (
-    <nav className="tabbar" aria-label={t('nav.primary')}>
-      {NAV.filter((n) => n.inTabBar).map(({ to, icon: Icon, navKey }) => (
-        <NavLink
-          key={to}
-          to={to}
-          className={({ isActive }) => `tabbar-item${isActive ? ' active' : ''}`}
-        >
-          <span className="tabbar-icon">
-            <Icon />
-          </span>
-          <span className="tabbar-label">{t(navKey)}</span>
-        </NavLink>
-      ))}
     </nav>
   )
 }
@@ -524,15 +465,19 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
           {children}
         </main>
       </div>
-      <TabBar />
-      {/* Capture is the app's reason to exist, so on mobile it gets a thumb-
-          reachable FAB instead of one of the five tab slots. Hidden on the
-          capture screen itself, where it would only cover the input. */}
-      {pathname !== '/capture' && (
-        <NavLink to="/capture" className="fab" aria-label={t('route.capture')}>
-          <IconBolt size={26} />
-        </NavLink>
-      )}
+      {/* THE FAB IS GONE, AND THAT IS HOW OPEN TASK #67 CLOSES.
+          It existed to put capture under a thumb without spending a tab slot,
+          and it cost two taps: one on the FAB, one on the input the route it
+          navigated to had just mounted. `components/map/MapCapture.tsx` is now
+          mounted at the block end of the map — the landing route — so the first
+          tap lands on a real input inside a real user activation, which is what
+          raises a software keyboard. Wiring the FAB to `focusMapCapture()`
+          instead (the contract's other option) would have left a control on top
+          of the composer it duplicates: app-shell.css docked `.fab` at
+          `74px + safe-area` and map-capture.css docks the bar across roughly
+          53px–117px + safe-area, so they overlapped on the inline end at 375px.
+          On the mode routes, where the composer is not mounted, the way to
+          capture is the way back to the map — one tap on ModeFrame's trail. */}
     </div>
   )
 }
@@ -611,56 +556,99 @@ export default function App(): ReactElement {
   return (
     <>
       <Shell>
-        {/* One boundary for all the lazy routes, INSIDE Shell so the tab
-            bar, header and sign-out survive a screen that crashes — the user
+        {/* One boundary for all the lazy routes, INSIDE Shell so the rail,
+            the header and sign-out survive a screen that crashes — the user
             can navigate out of the failure instead of being left on a page
             whose only control is Reload. `resetKey` is what makes that work:
             leaving the route clears the error. */}
         <ErrorBoundary resetKey={pathname}>
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
-              {/* WHERE YOU LAND FOLLOWS THE PERSON. An admin runs several tracks
-                  and opens the app asking "where is everything and who has
-                  what" — the map answers that. A member owns a handful of items
-                  and asks "what do I do now" — Follow-ups answers that, and the
-                  map would be noise on their first screen. One line, no
-                  preference machinery, and either is one press from the other. */}
-              <Route
-                path="/"
-                element={<Navigate to={isAdmin ? '/mindtree' : '/followups'} replace />}
-              />
+              {/* EVERYONE LANDS ON THE MAP, and the person no longer changes
+                  the answer. The split used to send an admin to the map and a
+                  member to Follow-ups, because the map could not answer "what
+                  do I do now". It can now: `needs-me` is the DEFAULT lens and
+                  its panel is the follow-ups list, real DOM, beside the canvas
+                  — so the member's first screen is the list they had, and the
+                  admin's is the picture they had, at one URL. */}
+              <Route path="/" element={<Navigate to="/mindtree" replace />} />
               {/* Signed in, so the sign-in route is dead — send it home rather
                   than showing a form that cannot do anything. */}
-              <Route path="/signin" element={<Navigate to="/followups" replace />} />
-              <Route path="/capture" element={<Capture />} />
-              <Route path="/followups" element={<FollowUps />} />
-              <Route path="/board" element={<Board />} />
-              <Route path="/tracks" element={<TracksIndex />} />
+              <Route path="/signin" element={<Navigate to="/mindtree" replace />} />
               <Route path="/mindtree" element={<Mindtree />} />
-              <Route path="/tracks/:id" element={<TrackTimeline />} />
               {/* The entry as a PAGE — a URL somebody was sent. Every in-app
                   tap opens the same detail surface as an overlay instead, via
-                  openEntry() and the host mounted at the root below. */}
+                  openEntry() and the host mounted at the root below. STAYS a
+                  real route under the collapse: it is the target of every push
+                  notification, chat link and phone share sheet. */}
               <Route path="/entry/:id" element={<Entry />} />
-              <Route path="/meetings" element={<MeetingsIndex />} />
+              {/* THE MODES, and the frame is applied HERE rather than inside
+                  the five pages. Fast typing and a printed document both fight
+                  a canvas, so these stay real routes — a route is exactly how
+                  you leave and come back with Back, print and paste intact —
+                  and `ModeFrame` is the single way back to the map.
+                  WRAPPING AT THE ROUTE IS THE SAFE SHAPE, not merely the cheap
+                  one: `startMeetingsRealtime()` is ref-counted by the two
+                  screens that render lines and `flushLinePlans()` runs in the
+                  triage screen's unmount cleanup, so a frame that changed where
+                  those screens MOUNT would silently lose a second attendee's
+                  lines or the last triage decision. `element=` cannot change
+                  that, and it covers each page's early-return branches too.
+                  `titleKey` is exactly what lib/routeTitle.ts resolves for the
+                  same path, so the trail and the <main> landmark's name cannot
+                  disagree. */}
+              <Route
+                path="/meetings"
+                element={
+                  <ModeFrame titleKey="route.meetings">
+                    <MeetingsIndex />
+                  </ModeFrame>
+                }
+              />
               {/* Ranked by React Router, not by order: '/meetings/:id/triage'
                   and '/meetings/:id/minutes' both out-rank '/meetings/:id'
                   because a static segment beats a dynamic one, so no id can be
                   read as a sub-screen and no sub-screen as an id. */}
-              <Route path="/meetings/:id" element={<MeetingLive />} />
-              <Route path="/meetings/:id/triage" element={<MeetingTriage />} />
-              <Route path="/meetings/:id/minutes" element={<MeetingMinutes />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/digest" element={<Digest />} />
-              <Route path="/notifications" element={<Notifications />} />
+              <Route
+                path="/meetings/:id"
+                element={
+                  <ModeFrame titleKey="route.meeting" wide>
+                    <MeetingLive />
+                  </ModeFrame>
+                }
+              />
+              <Route
+                path="/meetings/:id/triage"
+                element={
+                  <ModeFrame titleKey="meeting.triage" wide>
+                    <MeetingTriage />
+                  </ModeFrame>
+                }
+              />
+              <Route
+                path="/meetings/:id/minutes"
+                element={
+                  <ModeFrame titleKey="route.minutes" wide>
+                    <MeetingMinutes />
+                  </ModeFrame>
+                }
+              />
+              <Route
+                path="/digest"
+                element={
+                  <ModeFrame titleKey="digest.title">
+                    <Digest />
+                  </ModeFrame>
+                }
+              />
               {/* The same page inside the shell: no `standalone`, so it draws
                   no <h1> of its own — the app header already renders one from
                   titleKeyFor(). */}
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/settings" element={<Settings />} />
               {/* Admin config hangs off /settings rather than taking a top-level
-                  route: NAV is capped at five tab-bar slots, and these screens
-                  are reached from the Settings page. React Router ranks the
+                  route: NAV is two rows and these screens are reached from the
+                  Settings page. React Router ranks the
                   static '/new' above the dynamic ':id' regardless of order, so
                   creating cannot be mistaken for editing a track called "new". */}
               <Route
@@ -725,7 +713,13 @@ export default function App(): ReactElement {
                   screen rather than a line in the Settings list. */}
               <Route path="/settings/ai" element={<AiSettings />} />
               <Route path="/settings/notifications" element={<NotificationPrefs />} />
-              <Route path="*" element={<Navigate to="/followups" replace />} />
+              {/* THE SEVEN COLLAPSED ROUTES LAND HERE. /capture, /followups,
+                  /board, /tracks, /tracks/:id, /dashboard and /notifications
+                  are gone, so an old bookmark, an old tab or a link somebody
+                  pasted last week resolves to the map rather than to a blank
+                  screen. The lens they wanted is one chip away, and the map is
+                  where every one of those questions is now answered. */}
+              <Route path="*" element={<Navigate to="/mindtree" replace />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>

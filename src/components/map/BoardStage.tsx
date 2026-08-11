@@ -1,79 +1,72 @@
-// The board — every item the filter admits, in a column per whatever the reader
-// is currently grouping by.
+// THE BOARD, AS A STAGE OF THE MAP — every item the filter admits, in a column
+// per whatever the reader is grouping by.
 //
-// THE COLUMN AXIS IS A CHOICE, NOT A CONSTANT (WAVE3-NOTES §1). Status is the
-// default and the one everybody means by "kanban", but the same card machinery
-// bands by track, by owner or by priority, and a drag along each of those axes
-// is a re-file, a re-assignment or a re-prioritisation. There is exactly ONE
-// place in this file that knows which: `patchFor()`. Everything else — the
-// bucketing, the hit test, the keyboard path, the announcements, the quick-add
-// seed — is written against an opaque column key, which is why a fifth
-// dimension would be a row in `DIMENSIONS` plus a case in three switches rather
-// than a second board.
+// A RE-HOST, NOT A REWRITE. This is `pages/Board.tsx` mounted where the canvas
+// used to draw, under the `by-status` lens. The gesture, the four move paths,
+// the overflow rail, the fold, the composer and the announcements are the same
+// ones that shipped; the pure half now lives in `lib/board/columns.ts` where it
+// can be tested without a render, and the parts that were page furniture — the
+// route, the URL codec, its own FilterBar — belong to the shell now.
 //
-// COLUMNS COME FROM THE VOCABULARY (and the track list, and the member list),
-// not from the frozen unions. An admin who renamed `waiting_on` to "Awaiting
-// vendor" and reordered the statuses sees that here, at zero cost, because the
-// keys are frozen and the labels are resolved at render (store/vocab.ts's
-// header). Options an admin retired, tracks they archived, and free-text
-// owners who were never members all leave the board — but only as COLUMNS: a
-// bucket that still holds entries gets a strip in the overflow rail below,
-// because "hiding an option must never hide data". You can drag work OUT of a
-// retired bucket; you cannot drag it in, which is the whole point of retiring
-// one. Free-text owners are permanently in that rail, because a board has no
-// control for typing a vendor's name and an affordance that cannot be honoured
-// is worse than none.
+// WHY THE BOARD IS A STAGE AND NOT AN OVERLAY. Its Done and Cancelled columns
+// are a question about CLOSED work, and closed work has no node: `useMapModel`
+// pins `scope: 'open'` and `buildMindtree` emits nothing for a closed entry. So
+// the board REPLACES the canvas, and it reads the closed window ITSELF —
+// `loadClosedSince(today − CLOSED_WINDOW_DAYS)` on mount, under every axis,
+// exactly as the page did. The scope pin is NOT moved to make that happen: it
+// lives outside filter state so Clear-all cannot change what the map is about
+// (contract risk 9), and a board that reached for it would take "what did the
+// team finish this fortnight" away from every other surface the day somebody
+// pressed Clear.
 //
-// SCOPE IS FORCED TO 'all', AND THE STATUS FACET IS DROPPED ONLY WHEN STATUS IS
-// THE AXIS. A status facet fighting status columns would leave Done and
-// Cancelled permanently, inexplicably empty; a status facet over OWNER columns
-// is the useful question "who is sitting on the blocked work". The board also
-// asks for a window of recently-closed rows on mount either way — see
-// CLOSED_WINDOW_DAYS.
+// THE STATUS FACET AND THE STATUS COLUMNS. The page dropped the facet from its
+// own FilterBar whenever status was the axis, because a status filter fighting
+// status columns leaves Done and Cancelled permanently, inexplicably empty. The
+// shell owns the FilterBar now and this component cannot remove a facet from
+// it, so the rule survives where it can: the filter's statuses are dropped from
+// what the board APPLIES under the status axis, and a note says so in place,
+// beside the axis switch that resolves it. Silently applying it would empty
+// half the columns; silently ignoring it with the chip still lit would be a
+// control that lies. The note is the third option, and it is one line.
 //
-// TWO PATHS TO ONE STORE CALL. A drag, the arrow keys, and the card's own move
-// menu all end in `move()`, which is the only place in this file that writes.
-// The keyboard path is not a fallback bolted on for an audit: EntryCard renders
-// its move menu unconditionally (its own header says why), the arrow and digit
-// shortcuts are delegated from the board root so they work wherever focus sits
-// inside a card, and every move — pointer or key — announces itself in the live
-// region. A board that only works for a mouse is a board half this team cannot
-// use on the day they most need it.
+// FOUR INDEPENDENT MOVE PATHS, ALL FIRST-CLASS. Mouse drag past a 6px
+// threshold; touch drag after a 420ms hold; the arrow keys with a card focused
+// (one column per press, clamped); the digits 1–9 (straight to column N). Plus
+// the card's own status <select>, which is ALWAYS a status menu whatever the
+// axis is — making it mean "owner" because the columns happen to be owners
+// would be a control that lies.
 //
-// ON A PHONE, A DRAG STARTS WITH A HOLD — and the pan belongs to the browser
-// until it does. The first cut of this screen gave cards `touch-action: pan-y`
-// and claimed any sideways finger as a drag, which on a 375px screen left the
-// 8px gutter between two cards as the only surface that could swipe to the next
-// column. Now a card is `touch-action: manipulation` (the page and the board
-// pan from anywhere, as they should), and the card is only lifted after
-// HOLD_MS of a finger resting on it — at which point this screen cancels the
-// browser's scrolling for the rest of the gesture by preventing the first
-// touchmove, which is the only moment at which that is still possible. The
-// press itself is visible while the clock runs (`data-press`), so the hold is
-// an affordance rather than a secret. lib/dnd.ts's header has the full
-// argument, and dnd.test.ts asserts both halves of the handshake.
+// THE DIGIT NEGOTIATION, RESOLVED. Two other layers could want 1–9. (1) The
+// map's own grammar (`useMapKeyboard`) is a React `onKeyDown` on the `<svg>`,
+// and React events bubble through the SVG subtree only — under this lens the
+// canvas is not mounted at all, and it claims no digits in any case. (2) The
+// global layer (`lib/hotkeys.ts`) binds 1–4 to the OPEN ENTRY's status, on the
+// document's bubble phase, and bails on `defaultPrevented`; this board calls
+// `preventDefault()` on every digit and arrow it acts on, so it wins the same
+// way it did as a page. No edit to either file was needed, and none was made.
 //
-// THE CARD'S OWN MENU IS ALWAYS A STATUS MENU, whatever the column axis is. It
-// is a StatusPill; it is labelled with statuses; making it mean "owner" when
-// the board happens to be grouped by owner would be a control that lies. So
-// under a non-status axis the pill still moves the card WITHIN its column, and
-// the arrow/digit keys are the axis-aware path. Both are first-class, and the
-// keyboard hint says so.
+// ESCAPE, IN THE ORDER MapPanel's HEADER DECLARES IT. A lifted card is claim
+// (1) — the innermost thing on the screen and the only one the reader is
+// physically holding. The page bound its Escape on `window`, which bubbles
+// LAST, so an open overlay's document listener would have dismissed itself
+// first and the drag would have been cancelled as well: two things for one key.
+// The listener is on `document` in the CAPTURE phase now, registered only for
+// the length of a gesture, and it stops the event only while a card is actually
+// in the air. An armed press that never became a drag has claimed nothing and
+// lets Escape through.
 //
-// THE TRANSITION ROW COMES FROM THE API LAYER. `api/entries.updateEntry()` reads
-// the previous status and appends the `status_from`/`status_to` thread row
-// itself, so a move made here is attributable in the entry's thread without this
-// screen writing anything extra — and writing it here as well would produce two
-// rows for one move. See move()'s comment.
+// ONE LIVE REGION, AND IT IS THE SHELL'S. The page carried its own polite
+// region keyed on a counter so that two identical consecutive sentences both
+// announce. The shell's region (MapSummary) is keyed the same way and is
+// rendered under every stage, so this component announces THROUGH it via the
+// `announce` prop — the guarantee is kept and there are not two polite regions
+// on one screen talking over each other.
 //
-// OPTIMISM COMES FROM THE STORE, NOT FROM HERE. `setStatus()`/`patchEntry()`
-// apply locally, re-derive, and roll the row back themselves if the write
-// fails; the card is in its new column before the request leaves. So this file
-// holds no shadow copy of the board — the one thing that would guarantee a
-// divergence between what the screen shows and what the store believes. A
-// member who has lost permission sees the card snap back (store) and a toast
-// naming the reason (store), plus the positional sentence in the live region
-// (here).
+// OPTIMISM AND THE TRANSITION ROW BOTH COME FROM BELOW.
+// `setStatus()`/`patchEntry()` apply locally and roll the row back themselves
+// if the write fails, so this file holds no shadow copy of the board; and
+// `api/entries.updateEntry()` appends the `status_from`/`status_to` thread row
+// itself, so writing one here would produce two rows for one move.
 
 import {
   memo,
@@ -90,13 +83,37 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import FilterBar, { type FilterFacet } from '../components/FilterBar'
-import { EmptyState, Skeleton } from '../components/shared'
-import { EntryCard, OwnerBadge, TrackDot } from '../components/entry'
-import { IconChevronDown, IconPlus } from '../components/fields'
-import { IconColumns } from '../components/icons'
-import { toast } from '../components/toast'
+import { EmptyState, Skeleton } from '../shared'
+import { EntryCard, OwnerBadge, TrackDot } from '../entry'
+import { IconChevronDown, IconPlus } from '../fields'
+import { IconColumns } from '../icons'
+import { toast } from '../toast'
+import {
+  BOARD_DENSITIES,
+  BOARD_DIMENSIONS,
+  BOARD_PREFS_KEY,
+  CLOSED_WINDOW_DAYS,
+  COLUMN_EMPTY,
+  DEFAULT_BOARD_PREFS,
+  MAX_CARDS,
+  NAME_PREFIX,
+  NO_VALUE,
+  OVERFLOW_TITLE,
+  bucketOf,
+  collapsedFor,
+  enterDiff,
+  parseBoardPrefs,
+  patchFor,
+  seedFor,
+  splitColumns,
+  toggleCollapsed,
+  type BoardColumn,
+  type BoardColumnDef,
+  type BoardDensity,
+  type BoardDim,
+  type BoardPrefs,
+  type CardEnter,
+} from '../../lib/board/columns'
 import {
   HOLD_MS,
   arrowStep,
@@ -113,22 +130,16 @@ import {
   startDrag,
   type DndSession,
   type DndZone,
-} from '../lib/dnd'
-import { addDays, todayIso } from '../lib/dates'
-import {
-  EMPTY_FILTER,
-  filterFromParams,
-  filterToParams,
-  isFilterEmpty,
-  type FilterState,
-} from '../lib/entryFilter'
-import { t, useLocale } from '../lib/i18n'
-import { useTrackLabel } from '../lib/labels'
-import { canEditEntry } from '../lib/permissions'
-import { trackVars } from '../lib/trackStyle'
-import { vocabVars } from '../lib/vocabStyle'
-import { useAuth } from '../store/auth'
-import { useActiveTracks, useTrackMap } from '../store/config'
+} from '../../lib/dnd'
+import { addDays, todayIso } from '../../lib/dates'
+import { isFilterEmpty, type FilterState } from '../../lib/entryFilter'
+import { t, useLocale } from '../../lib/i18n'
+import { useTrackLabel } from '../../lib/labels'
+import { canEditEntry } from '../../lib/permissions'
+import { trackVars } from '../../lib/trackStyle'
+import { vocabVars } from '../../lib/vocabStyle'
+import { useAuth } from '../../store/auth'
+import { useActiveTracks, useTrackMap } from '../../store/config'
 import {
   createEntryOptimistic,
   loadClosedSince,
@@ -136,6 +147,7 @@ import {
   patchEntry,
   refreshEntries,
   setStatus,
+  useClosedEntriesError,
   useEntriesError,
   useEntriesLoading,
   useEntryFlash,
@@ -143,289 +155,52 @@ import {
   useFilteredEntries,
   useHealthMap,
   usePendingOp,
-} from '../store/entries'
-import { openEntry } from '../store/entrySheet'
-import { useMemberLabel, useMemberMap, useMembers } from '../store/members'
-import { useVocabAll, useVocabLabel } from '../store/vocab'
-import type {
-  Entry,
-  EntryHealth,
-  EntryPatch,
-  EntryPriority,
-  EntryStatus,
-  NewEntry,
-  Track,
-  UserRole,
-} from '../types'
-import './board.css'
-
-/**
- * How far back the Done and Cancelled columns reach.
- *
- * The store's working set is OPEN entries; closed rows arrive only when a screen
- * asks for them. Asking for everything ever closed would grow without bound on a
- * log nothing deletes, and a Done column showing two years of history is not a
- * board, it is an archive. Two weeks is "what this team finished recently",
- * which is the question a board answers — and it is loaded under every axis,
- * because "what did Layla finish this fortnight" is the same question asked of
- * the owner columns.
- */
-const CLOSED_WINDOW_DAYS = 14
-
-/**
- * Cards rendered per column before the fold, per density.
- *
- * A column with 300 items is not read, it is scrolled past — and rendering all
- * of them costs a phone its frame budget on every drag. The count in the header
- * is always the true total, so the fold hides cards, never facts.
- */
-const MAX_CARDS: Readonly<Record<Density, number>> = { comfortable: 25, compact: 40 }
-
-/**
- * The facets the board offers under every axis.
- *
- * No `scope` — see the file header. `status` is appended when status is NOT the
- * column axis, which is the one facet whose usefulness depends on the grouping.
- */
-// `group` sits above `track` for the reason FilterBar's DEFAULT_FACETS gives:
-// it is the coarser cut and the one somebody reaches for first. On a board it
-// earns its place twice over — "the technical half, by owner" is the standing
-// question this screen was built for, and before 0018 it took selecting six
-// tracks by hand.
-const BOARD_FACETS: readonly FilterFacet[] = [
-  'search',
-  'mine',
-  'group',
-  'track',
-  'owner',
-  'priority',
-  'tag',
-]
+} from '../../store/entries'
+import { openEntry } from '../../store/entrySheet'
+import { useMemberLabel, useMemberMap, useMembers } from '../../store/members'
+import { useVocabAll, useVocabLabel } from '../../store/vocab'
+import type { Entry, EntryHealth, EntryStatus, NewEntry, UserRole } from '../../types'
+import './map-board.css'
 
 /**
  * store/entries.ts's private QUEUED_KEY, which is not a failure: the write is
- * sitting in the outbox and will land on reconnect. Duplicated as a literal here
- * because the store does not export it — recorded as an extension-slot gap
- * rather than reached for across the module boundary.
+ * sitting in the outbox and will land on reconnect. Duplicated as a literal
+ * because the store does not export it — an extension-slot gap rather than a
+ * reach across the module boundary.
  */
 const QUEUED_ERROR_KEY = 'offline.queued'
 
 /** How long after a drag a click is still that drag's mouseup, in ms. */
 const CLICK_SUPPRESS_MS = 400
 
-/** How long a card wears its arrival animation. Matches board.css's 180ms. */
+/** How long a card wears its arrival animation. Matches map-board.css's 180ms. */
 const ENTER_MS = 240
 
-/**
- * Above this many cards changing column at once, nothing animates.
- *
- * A teammate moving one card is an event worth showing. A filter change, a
- * first load or an axis switch re-buckets everything at once, and animating
- * forty cards is not "livelier", it is a screen that convulses every time
- * somebody types in the search box.
- */
-const ENTER_BURST_MAX = 6
-
-/** How far a card slides in from, in px. Physical — the sign is resolved by dir. */
-const ENTER_SLIDE_PX = 14
-
-/** The bucket key for "no value" — untracked, unassigned. Never a real id. */
-const NO_VALUE = ''
-
-/**
- * Prefix for an owner bucket that is free text rather than a member.
- *
- * `entries.owner_name` holds vendors and other people outside the workspace,
- * and they own real work. They get a column so that work is visible and can be
- * dragged onto a teammate; they never accept a drop, because assigning TO a
- * vendor means typing a name and a board has nowhere to type.
- */
-const NAME_PREFIX = 'name:'
-
-/** localStorage record of the three choices that should outlive a reload. */
-const PREFS_KEY = 'nphiescore_board_v1'
-
-/** Which dimension the columns are cut along. */
-type BoardDim = 'status' | 'track' | 'owner' | 'priority'
-
-type Density = 'comfortable' | 'compact'
-
-const DIMENSIONS: readonly { key: BoardDim; labelKey: string }[] = [
-  { key: 'status', labelKey: 'board.groupStatus' },
-  { key: 'track', labelKey: 'board.groupTrack' },
-  { key: 'owner', labelKey: 'board.groupOwner' },
-  { key: 'priority', labelKey: 'board.groupPriority' },
-]
-
-const DENSITIES: readonly { key: Density; labelKey: string }[] = [
-  { key: 'comfortable', labelKey: 'board.densityComfortable' },
-  { key: 'compact', labelKey: 'board.densityCompact' },
-]
-
-/**
- * The overflow rail's heading, per axis.
- *
- * Written as a literal Record rather than `t(\`board.overflow${dim}\`)` because
- * lib/localeReach.test.ts finds keys by scanning for quoted dotted strings — a
- * template literal has no key until it runs, and the four families that are
- * built that way have to be enumerated in the test itself. A lookup table costs
- * three lines and stays inside the mechanism.
- */
-const OVERFLOW_TITLE: Readonly<Record<BoardDim, string>> = {
-  status: 'board.overflowStatus',
-  track: 'board.overflowTrack',
-  owner: 'board.overflowOwner',
-  priority: 'board.overflowPriority',
-}
-
-/**
- * What an empty column says, per axis. Same lookup-table reason as above, plus
- * one of its own: one shared sentence cannot be written. "Nothing in Blocked"
- * and "Nothing on Network" both read; "Nothing in Layla" and "Nothing in High"
- * do not. The owner line deliberately drops the name — the column header is
- * three centimetres above it, and "Nothing assigned to Unassigned" is the
- * sentence a shared template produces.
- */
-const COLUMN_EMPTY: Readonly<Record<BoardDim, string>> = {
-  status: 'board.columnEmptyStatus',
-  track: 'board.columnEmptyTrack',
-  owner: 'board.columnEmptyOwner',
-  priority: 'board.columnEmptyPriority',
-}
-
-interface BoardColumn {
-  /** The dimension value. `NO_VALUE` for the untracked/unassigned bucket. */
-  key: string
-  label: string
-  /** Inline custom properties painting this column's accent, or `{}`. */
-  vars: CSSProperties
-  /** Source only. Lives in the overflow rail and never accepts a drop. */
-  retired: boolean
-  entries: Entry[]
-  /** How many of this column's cards are past their SLA. */
-  breached: number
-}
-
-/** One card's arrival animation, resolved by the board and read by CSS. */
-interface CardEnter {
-  kind: 'new' | 'moved' | 'landed'
-  /** Physical px offset to slide in from. 0 for a card that did not travel. */
-  slide: number
-}
-
-interface BoardPrefs {
-  dimension: BoardDim
-  density: Density
-  /** Collapsed column keys, per dimension — a track id means nothing to the status axis. */
-  collapsed: Record<string, string[]>
-}
-
-const DEFAULT_PREFS: BoardPrefs = { dimension: 'status', density: 'comfortable', collapsed: {} }
-
-/** Nothing is ever pushed into this; one shared empty array keeps deps stable. */
-const NO_ENTRIES: readonly Entry[] = Object.freeze([])
 const NO_ENTER: ReadonlyMap<string, CardEnter> = new Map()
 
-function isDim(v: unknown): v is BoardDim {
-  return DIMENSIONS.some((d) => d.key === v)
+export interface BoardStageProps {
+  filter: FilterState
+  compact: boolean
+  rtl: boolean
+  announce: (text: string) => void
 }
 
-/**
- * Read the persisted choices.
- *
- * Every field is validated rather than trusted: this is user-writable storage
- * that survives a schema change, and a stale `dimension: 'assignee'` from a
- * future build must degrade to the default rather than render zero columns.
- */
 function readPrefs(): BoardPrefs {
   try {
-    const raw = localStorage.getItem(PREFS_KEY)
-    if (raw === null) return DEFAULT_PREFS
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return DEFAULT_PREFS
-    const rec = parsed as Record<string, unknown>
-    const collapsed: Record<string, string[]> = {}
-    if (typeof rec.collapsed === 'object' && rec.collapsed !== null) {
-      for (const [dim, keys] of Object.entries(rec.collapsed as Record<string, unknown>)) {
-        if (Array.isArray(keys)) collapsed[dim] = keys.filter((k): k is string => typeof k === 'string')
-      }
-    }
-    return {
-      dimension: isDim(rec.dimension) ? rec.dimension : DEFAULT_PREFS.dimension,
-      density: rec.density === 'compact' ? 'compact' : 'comfortable',
-      collapsed,
-    }
+    return parseBoardPrefs(localStorage.getItem(BOARD_PREFS_KEY))
   } catch {
-    // Private mode, a quota wall, or a half-written value. A board that throws
-    // on mount because a preference is malformed is worse than a default board.
-    return DEFAULT_PREFS
+    // Private mode or a quota wall. A stage that throws on mount because a
+    // preference could not be read is worse than a default board.
+    return DEFAULT_BOARD_PREFS
   }
 }
 
 function writePrefs(prefs: BoardPrefs): void {
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+    localStorage.setItem(BOARD_PREFS_KEY, JSON.stringify(prefs))
   } catch {
     // Preferences are a convenience; losing them must never break a move.
   }
-}
-
-/** Which column an entry belongs to, on a given axis. */
-function bucketOf(e: Entry, dim: BoardDim): string {
-  if (dim === 'status') return e.status
-  if (dim === 'priority') return e.priority
-  if (dim === 'track') return e.track_id ?? NO_VALUE
-  if (e.owner_id !== null) return e.owner_id
-  const name = (e.owner_name ?? '').trim()
-  return name === '' ? NO_VALUE : NAME_PREFIX + name
-}
-
-/**
- * The write a drop onto `key` performs — THE ONE PLACE the axis becomes a
- * mutation. Null for a bucket that cannot be a target.
- *
- * The owner case clears `owner_name` alongside setting `owner_id`, because
- * types.ts declares the two mutually exclusive: leaving a vendor's name behind
- * on a row now owned by a teammate makes every reader that falls back to
- * owner_name (the digest, the CSV export) disagree with the board.
- */
-function patchFor(dim: BoardDim, key: string): EntryPatch | null {
-  if (key.startsWith(NAME_PREFIX)) return null
-  switch (dim) {
-    case 'status':
-      return { status: key as EntryStatus }
-    case 'priority':
-      return { priority: key as EntryPriority }
-    case 'track':
-      return { trackId: key === NO_VALUE ? null : key }
-    case 'owner':
-      return { ownerId: key === NO_VALUE ? null : key, ownerName: null }
-  }
-}
-
-/** What a quick-add in `key`'s column pre-fills. Mirrors `patchFor`. */
-function seedFor(dim: BoardDim, key: string): Partial<NewEntry> {
-  switch (dim) {
-    case 'status':
-      return { status: key as EntryStatus }
-    case 'priority':
-      return { priority: key as EntryPriority }
-    case 'track':
-      return { trackId: key === NO_VALUE ? null : key }
-    case 'owner':
-      return { ownerId: key === NO_VALUE ? null : key }
-  }
-}
-
-/**
- * Resolved at the moment of the key press rather than from the locale, which is
- * the choice useSwipeActions makes for the same reason: `dir` on <html> is what
- * the browser actually laid the columns out with, and it is one read instead of
- * a second copy of the locale-to-direction map.
- */
-function readDir(): 'ltr' | 'rtl' {
-  if (typeof document === 'undefined') return 'ltr'
-  return document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr'
 }
 
 /** A keystroke inside a field belongs to the field. */
@@ -452,20 +227,22 @@ function openEntryFrom(columns: readonly BoardColumn[], id: string): void {
   openEntry(id, { list: column ? column.entries.map((e) => e.id) : [] })
 }
 
-export default function Board(): ReactElement {
+export default function BoardStage({
+  filter,
+  compact,
+  rtl,
+  announce,
+}: BoardStageProps): ReactElement {
   useLocale()
   const { profile } = useAuth()
   // `null`, never a stand-in id: canEditEntry() tests the signed-out case FIRST
   // and answers false, which is what keeps a card un-draggable in the moment
-  // between mount and the profile arriving. A placeholder would satisfy the open
-  // branch's `!!meId` and hand out an affordance the server would then refuse —
-  // the exact "moves, snaps back, reads as broken" sequence lib/permissions.ts
-  // exists to prevent. EntrySheet and FollowUps resolve it the same way.
+  // between mount and the profile arriving. A placeholder would hand out an
+  // affordance the server would then refuse.
   const meId = profile?.id ?? null
   const role: UserRole = profile?.role ?? 'member'
   // Every signed-in member may insert (0001's entries_insert), so quick-add is
-  // gated on a session and nothing else. There is no per-column variant of this
-  // question: a column is a value, not a permission.
+  // gated on a session and nothing else. A column is a value, not a permission.
   const canCreate = meId !== null
 
   // ── the three persisted choices ──────────────────────────────────────────
@@ -479,49 +256,29 @@ export default function Board(): ReactElement {
   const setDimension = useCallback((next: BoardDim) => {
     setPrefs((p) => (p.dimension === next ? p : { ...p, dimension: next }))
   }, [])
-  const setDensity = useCallback((next: Density) => {
+  const setDensity = useCallback((next: BoardDensity) => {
     setPrefs((p) => (p.density === next ? p : { ...p, density: next }))
   }, [])
-  const toggleCollapsed = useCallback((dim: BoardDim, key: string) => {
-    setPrefs((p) => {
-      const current = p.collapsed[dim] ?? []
-      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
-      return { ...p, collapsed: { ...p.collapsed, [dim]: next } }
-    })
+  const collapse = useCallback((dim: BoardDim, key: string) => {
+    setPrefs((p) => toggleCollapsed(p, dim, key))
   }, [])
-  const collapsedSet = useMemo(
-    () => new Set(prefs.collapsed[dimension] ?? []),
-    [prefs.collapsed, dimension],
-  )
+  const collapsedSet = useMemo(() => collapsedFor(prefs, dimension), [prefs, dimension])
 
-  // ── filter, in the URL ───────────────────────────────────────────────────
+  // ── the filter the shell hands down ──────────────────────────────────────
   //
-  // The board's filter round-trips through the address bar, so a triage view is
-  // a link someone can paste into a chat. `replace` rather than push: search is
-  // not debounced (FilterBar's header says why), and a history entry per
-  // keystroke would make the back button unusable.
-  const [params, setParams] = useSearchParams()
-  const filter = useMemo(() => {
-    const parsed = filterFromParams(params)
-    // A hand-edited or inherited URL can carry a scope this screen has no
-    // control for, and — when status is the axis — a status facet that would
-    // fight the columns. Dropping them HERE rather than only in `effective` is
-    // what stops the facet pill counting a filter the user can neither see nor
-    // switch off.
-    const dropStatus = dimension === 'status' && parsed.statuses.length > 0
-    if (!dropStatus && parsed.scope === EMPTY_FILTER.scope) return parsed
-    return { ...parsed, statuses: dropStatus ? [] : parsed.statuses, scope: EMPTY_FILTER.scope }
-  }, [params, dimension])
-  const onFilterChange = useCallback(
-    (next: FilterState) => {
-      setParams(filterToParams(next), { replace: true })
-    },
-    [setParams],
-  )
-  const effective = useMemo<FilterState>(() => ({ ...filter, scope: 'all' }), [filter])
-  const facets = useMemo<readonly FilterFacet[]>(
-    () => (dimension === 'status' ? BOARD_FACETS : [...BOARD_FACETS, 'status']),
-    [dimension],
+  // `scope: 'all'` because Done and Cancelled are the point; the map's own pin
+  // is 'open' and is not touched. The status facet is dropped only when status
+  // is the AXIS — over owner columns "who is sitting on the blocked work" is
+  // the useful question, and the facet stays live. See the file header for why
+  // the drop is announced rather than silent.
+  const statusFought = dimension === 'status' && filter.statuses.length > 0
+  const effective = useMemo<FilterState>(
+    () => ({
+      ...filter,
+      scope: 'all',
+      statuses: dimension === 'status' ? [] : filter.statuses,
+    }),
+    [filter, dimension],
   )
 
   const entries = useFilteredEntries(effective)
@@ -529,6 +286,7 @@ export default function Board(): ReactElement {
   const healthMap = useHealthMap()
   const loading = useEntriesLoading()
   const errorKey = useEntriesError()
+  const closedErrorKey = useClosedEntriesError()
   const statusOptions = useVocabAll('status')
   const priorityOptions = useVocabAll('priority')
   const vocabLabel = useVocabLabel()
@@ -541,31 +299,18 @@ export default function Board(): ReactElement {
 
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set())
   const [expandedOverflow, setExpandedOverflow] = useState<ReadonlySet<string>>(() => new Set())
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     void loadEntries()
-    // Without this the Done and Cancelled columns are empty forever: the working
-    // set is open rows only.
+    // Without this the Done and Cancelled columns are empty forever: the map's
+    // working set is open rows only, and nothing else on this screen asks.
     void loadClosedSince(addDays(todayIso(), -CLOSED_WINDOW_DAYS))
   }, [])
 
   // ── columns ──────────────────────────────────────────────────────────────
 
   const { live, overflow, membership } = useMemo(() => {
-    const buckets = new Map<string, Entry[]>()
-    const membershipMap = new Map<string, string>()
-    for (const entry of entries) {
-      const key = bucketOf(entry, dimension)
-      membershipMap.set(entry.id, key)
-      const bucket = buckets.get(key)
-      if (bucket) bucket.push(entry)
-      else buckets.set(key, [entry])
-    }
-
-    // The declared columns, in the order the axis defines. `retired` marks the
-    // ones that exist as buckets but must never be targets.
-    const defs: { key: string; label: string; vars: CSSProperties; retired: boolean }[] = []
-
     const residualLabel = (key: string): string => {
       if (dimension === 'track') {
         const track = trackMap.get(key)
@@ -578,18 +323,20 @@ export default function Board(): ReactElement {
       return vocabLabel(dimension, key)
     }
 
-    const residualVars = (key: string): CSSProperties => {
-      if (dimension !== 'track') return {}
-      const track = trackMap.get(key)
-      return track ? trackVars(track.color, track.color_light) : {}
+    const residual = (key: string): { label: string; vars: CSSProperties } => {
+      const track = dimension === 'track' ? trackMap.get(key) : undefined
+      return {
+        label: residualLabel(key),
+        vars: track ? trackVars(track.color, track.color_light) : {},
+      }
     }
 
+    const defs: BoardColumnDef[] = []
     if (dimension === 'status' || dimension === 'priority') {
       // The cast is the boundary between a string-keyed store and the frozen
       // unions, and it is sound in one direction only: every key here came from
       // useVocabAll(), which walks FROZEN_KEYS — the same list EntryStatus and
-      // EntryPriority are declared from. FilterBar makes the identical cast for
-      // the identical reason.
+      // EntryPriority are declared from. FilterBar makes the identical cast.
       for (const option of dimension === 'status' ? statusOptions : priorityOptions) {
         defs.push({
           key: option.key,
@@ -599,7 +346,7 @@ export default function Board(): ReactElement {
         })
       }
     } else if (dimension === 'track') {
-      // The residual bucket LEADS on both of the assignment axes: untracked and
+      // The residual bucket LEADS on both assignment axes: untracked and
       // unassigned work is the queue, and a queue belongs at the front of the
       // reading order, not past six columns of work that already has a home.
       defs.push({ key: NO_VALUE, label: t('entry.noTrack'), vars: {}, retired: false })
@@ -618,28 +365,13 @@ export default function Board(): ReactElement {
       }
     }
 
-    // Anything the data holds that the axis does not declare: an archived
-    // track, a deleted member, a free-text vendor, a key from a build that
-    // knew one more option than this one does. All source-only.
-    const declared = new Set(defs.map((d) => d.key))
-    for (const key of buckets.keys()) {
-      if (declared.has(key)) continue
-      defs.push({ key, label: residualLabel(key), vars: residualVars(key), retired: true })
-    }
-
-    const liveCols: BoardColumn[] = []
-    const overflowCols: BoardColumn[] = []
-    for (const def of defs) {
-      const held = buckets.get(def.key) ?? (NO_ENTRIES as Entry[])
-      let breached = 0
-      for (const entry of held) if (healthMap.get(entry.id)?.sla_breached) breached += 1
-      const column: BoardColumn = { ...def, entries: held, breached }
-      if (!def.retired) liveCols.push(column)
-      // A retired bucket with nothing in it is genuinely gone; one still holding
-      // work has to stay reachable or that work is stranded.
-      else if (held.length > 0) overflowCols.push(column)
-    }
-    return { live: liveCols, overflow: overflowCols, membership: membershipMap }
+    return splitColumns({
+      entries,
+      dim: dimension,
+      defs,
+      isBreached: (id) => healthMap.get(id)?.sla_breached === true,
+      residual,
+    })
   }, [
     entries,
     dimension,
@@ -655,24 +387,6 @@ export default function Board(): ReactElement {
     vocabLabel,
   ])
 
-  const tagOptions = useMemo(() => {
-    const tags = new Set<string>()
-    for (const entry of entries) for (const tag of entry.tags) tags.add(tag)
-    // The suggested tags of whatever track is in view — the vocabulary the team
-    // agreed on for that track, offered before anyone has typed it even once.
-    const inView: Track[] =
-      filter.trackIds.length > 0
-        ? filter.trackIds
-            .map((id) => trackMap.get(id))
-            .filter((track): track is Track => track !== undefined)
-        : activeTracks
-    for (const track of inView) for (const tag of track.suggested_tags) tags.add(tag)
-    // An applied tag always stays offered, or a filter that empties the board
-    // would take its own off-switch with it.
-    for (const tag of filter.tags) tags.add(tag)
-    return [...tags].sort()
-  }, [entries, filter.trackIds, filter.tags, trackMap, activeTracks])
-
   // ── refs the gesture layer reads ─────────────────────────────────────────
   //
   // The window listeners below are registered once per gesture and must not be
@@ -686,12 +400,12 @@ export default function Board(): ReactElement {
   liveRef.current = live
   const dimRef = useRef(dimension)
   dimRef.current = dimension
+  const rtlRef = useRef(rtl)
+  rtlRef.current = rtl
 
   const labelOf = useCallback(
     (key: string): string =>
-      live.find((c) => c.key === key)?.label ??
-      overflow.find((c) => c.key === key)?.label ??
-      key,
+      live.find((c) => c.key === key)?.label ?? overflow.find((c) => c.key === key)?.label ?? key,
     [live, overflow],
   )
   const labelRef = useRef(labelOf)
@@ -700,6 +414,13 @@ export default function Board(): ReactElement {
   const canEdit = useCallback((entry: Entry) => canEditEntry(entry, meId, role), [meId, role])
   const canEditRef = useRef(canEdit)
   canEditRef.current = canEdit
+
+  const announceRef = useRef(announce)
+  announceRef.current = announce
+  /** Stable for the length of the component, so no listener re-binds on it. */
+  const say = useCallback((text: string) => {
+    announceRef.current(text)
+  }, [])
 
   const columnEls = useRef(new Map<string, HTMLElement>())
   const cardEls = useRef(new Map<string, HTMLElement>())
@@ -720,21 +441,11 @@ export default function Board(): ReactElement {
    * The card a finger is currently resting on, while its hold clock runs.
    *
    * One id in state rather than a class written onto the node: the press is a
-   * RENDERED state of one memoised card (board.css turns it into the squeeze
-   * that makes the hold discoverable), and reaching into the DOM to paint it
-   * would put the board's appearance in two places.
+   * RENDERED state of one memoised card (map-board.css turns it into the
+   * squeeze that makes the hold discoverable), and reaching into the DOM to
+   * paint it would put the board's appearance in two places.
    */
   const [pressId, setPressId] = useState<string | null>(null)
-
-  // ── the live region ──────────────────────────────────────────────────────
-  //
-  // `seq` keys the child so an identical consecutive sentence still re-announces
-  // — moving two cards into the same column in a row produces the same string,
-  // and a region that only reacts to text CHANGES swallows the second one.
-  const [announcement, setAnnouncement] = useState({ text: '', seq: 0 })
-  const announce = useCallback((text: string) => {
-    setAnnouncement((prev) => ({ text, seq: prev.seq + 1 }))
-  }, [])
 
   // ── the one write ────────────────────────────────────────────────────────
 
@@ -746,10 +457,9 @@ export default function Board(): ReactElement {
       if (bucketOf(entry, dim) === toKey) return
       if (!canEditRef.current(entry)) {
         // Should be unreachable — a card the user cannot edit is not draggable
-        // and its move menu is disabled — so this is the belt to that braces,
-        // not the affordance. lib/permissions.ts's header has the argument.
+        // and its move menu is disabled — so this is the belt to that braces.
         toast(t('board.moveDisabled'), { tone: 'error' })
-        announce(t('board.moveDisabledHint'))
+        say(t('board.moveDisabledHint'))
         return
       }
       const patch = patchFor(dim, toKey)
@@ -777,20 +487,9 @@ export default function Board(): ReactElement {
         // The store has already rolled the card back and toasted the REASON
         // (`entry.errNotYours` for an RLS refusal, and so on). This sentence is
         // the other half: what happened to the card.
-        announce(t('board.errMove'))
+        say(t('board.errMove'))
         return
       }
-
-      // THE TRANSITION ROW IS NOT WRITTEN HERE, and that is deliberate.
-      // `api/entries.updateEntry()` reads the previous status before its PATCH
-      // and appends the `status_from`/`status_to` row itself, so every writer in
-      // the app gets an attributable transition without knowing to ask for one.
-      // A second `postUpdate()` from this screen would produce TWO rows for one
-      // move — precisely what 0001's comment ("a trigger would race the client's
-      // own insert and produce two rows for one transition") exists to prevent.
-      // The same applies to a re-assignment: the assigned-notification trigger
-      // is server-side, so a drag onto a teammate's column notifies them with
-      // zero plumbing on this screen.
 
       if (via === 'key') {
         // A drag has its own motion for feedback; a keypress has none, so it
@@ -798,7 +497,7 @@ export default function Board(): ReactElement {
         toast(t('board.moved', { title: entry.title, column: labelRef.current(toKey) }))
       }
     },
-    [announce],
+    [say],
   )
   const moveRef = useRef(move)
   moveRef.current = move
@@ -816,7 +515,7 @@ export default function Board(): ReactElement {
     const at = column.entries.findIndex((e) => e.id === target.id)
     if (at < 0) return
     announceAfterMove.current = null
-    announce(
+    say(
       t('board.moveAnnounce', {
         title: entryMap.get(target.id)?.title ?? '',
         column: column.label,
@@ -824,31 +523,19 @@ export default function Board(): ReactElement {
         total: column.entries.length,
       }),
     )
-  }, [live, entryMap, announce])
+  }, [live, entryMap, say])
 
   /** Focus follows a keyboard move: the card is re-mounted in its new column. */
   useEffect(() => {
     const id = focusAfterMove.current
     if (id === null) return
-    const card = boardRef.current?.querySelector<HTMLElement>(
-      `[data-entry-id="${CSS.escape(id)}"]`,
-    )
+    const card = boardRef.current?.querySelector<HTMLElement>(`[data-entry-id="${CSS.escape(id)}"]`)
     if (!card) return
     focusAfterMove.current = null
     card.focus()
   }, [live])
 
   // ── arrival motion ───────────────────────────────────────────────────────
-  //
-  // A card that changed column since the last render animates INTO its new one:
-  // a spring if this reader moved it, a directional slide if somebody else did
-  // (carrying the kit's own updated-by flash, which the store sets), a fade-up
-  // if it is new. Computed by comparing two membership snapshots rather than by
-  // measuring the DOM, so it costs one Map walk and needs no layout read.
-  //
-  // The slide's SIGN is physical and resolved here from `dir`, for the reason
-  // lib/dnd.ts's header gives: CSS has no logical transform, and direction is
-  // something this screen already knows.
 
   const prevMembership = useRef<ReadonlyMap<string, string> | null>(null)
   const [enter, setEnter] = useState<ReadonlyMap<string, CardEnter>>(NO_ENTER)
@@ -860,35 +547,29 @@ export default function Board(): ReactElement {
     // there a moment ago.
     if (prev === null) return
 
-    const order = new Map(live.map((c, i) => [c.key, i]))
-    const sign = readDir() === 'rtl' ? -1 : 1
-    const next = new Map<string, CardEnter>()
-    for (const [id, key] of membership) {
-      const was = prev.get(id)
-      if (was === key) continue
-      if (was === undefined) {
-        next.set(id, { kind: 'new', slide: 0 })
-        continue
-      }
-      const mine = mineRef.current.delete(id)
-      const from = order.get(was)
-      const to = order.get(key)
-      const travel = from === undefined || to === undefined ? 0 : Math.sign(to - from) * sign
-      next.set(id, { kind: mine ? 'landed' : 'moved', slide: -travel * ENTER_SLIDE_PX })
-    }
-
-    if (next.size === 0) return
-    if (next.size > ENTER_BURST_MAX) {
+    const diff = enterDiff({
+      prev,
+      next: membership,
+      order: new Map(live.map((c, i) => [c.key, i])),
+      // Physical, and resolved from the direction the shell already knows —
+      // CSS has no logical transform. The page read `document.dir`; the prop is
+      // the same fact, handed down rather than re-derived.
+      sign: rtl ? -1 : 1,
+      mine: mineRef.current,
+    })
+    if (diff.enter.size === 0) return
+    if (diff.burst) {
       // A filter change, an axis switch or a first load. Not an event.
       mineRef.current.clear()
       return
     }
-    setEnter(next)
+    for (const id of diff.enter.keys()) mineRef.current.delete(id)
+    setEnter(diff.enter)
     const timer = window.setTimeout(() => setEnter(NO_ENTER), ENTER_MS)
     return () => {
       window.clearTimeout(timer)
     }
-  }, [membership, live])
+  }, [membership, live, rtl])
 
   // ── pointer drag ─────────────────────────────────────────────────────────
 
@@ -935,12 +616,12 @@ export default function Board(): ReactElement {
     (session: DndSession) => {
       draggedAtRef.current = Date.now()
       const entry = entryMapRef.current.get(session.itemId)
-      announce(t('board.grabbed', { title: entry?.title ?? '' }))
+      say(t('board.grabbed', { title: entry?.title ?? '' }))
       if (rafRef.current === null) rafRef.current = requestAnimationFrame(tick)
       setPressId(null)
       setDragView({ itemId: session.itemId, overId: session.overId })
     },
-    [announce, tick],
+    [say, tick],
   )
 
   const onWindowMove = useCallback(
@@ -981,17 +662,11 @@ export default function Board(): ReactElement {
   )
 
   /**
-   * THE ONE CALL THAT MAKES A TOUCH DRAG POSSIBLE.
-   *
-   * `touch-action: manipulation` on a card means the browser is willing to pan
-   * from it — which is the whole point of the hold, and is also why it would
-   * happily pan out from under a card that has just been lifted. A touchmove is
-   * cancelable only until the pan actually begins, and the pan cannot have
-   * begun yet: the finger has been still for HOLD_MS. So the FIRST move after
-   * the lift is both the last chance to say no and a guaranteed one.
-   *
-   * Non-passive by necessity, and registered only for the length of a touch
-   * gesture, so the board never taxes ordinary scrolling with a listener.
+   * THE ONE CALL THAT MAKES A TOUCH DRAG POSSIBLE. A touchmove is cancelable
+   * only until the pan begins, and the pan cannot have begun yet — the finger
+   * has been still for HOLD_MS. So the first move after the lift is both the
+   * last chance to stop the browser panning out from under the card and a
+   * guaranteed one. lib/dnd.ts's header has the full argument.
    */
   const onWindowTouchMove = useCallback((ev: TouchEvent) => {
     if (!isHeld(sessionRef.current)) return
@@ -999,13 +674,10 @@ export default function Board(): ReactElement {
   }, [])
 
   /**
-   * A long press on a phone otherwise means "select this text" (both engines)
-   * and "open the context menu" (Android, at around 500ms — which is why the
-   * lift at 420ms wins the race and this is the belt to that braces).
-   *
-   * Both are suppressed for the whole touch gesture rather than only once the
-   * hold has landed: a caret that appears at 300ms and is dismissed at 420ms is
-   * a flicker, and the user pressing a card never meant either of them.
+   * A long press otherwise means "select this text" and, on Android at ~500ms,
+   * "open the context menu". Both are suppressed for the WHOLE touch gesture
+   * rather than only once the hold lands: a caret that appears at 300ms and is
+   * dismissed at 420ms is a flicker, and the user meant neither.
    */
   const onWindowSuppress = useCallback((ev: Event) => {
     if (!isHoldGesture(sessionRef.current)) return
@@ -1021,9 +693,24 @@ export default function Board(): ReactElement {
     endRef.current(false)
   }, [])
 
-  const onWindowKey = useCallback((ev: KeyboardEvent) => {
+  /**
+   * Escape, claim (1) of MapPanel's five.
+   *
+   * CAPTURE PHASE ON `document`, and only while a card is genuinely in the air:
+   * a lifted card outranks the phone sheet, an open overlay and the drill-in,
+   * and `lib/overlayStack`'s listener is on the document's BUBBLE phase, so a
+   * `window` listener (which bubbles last of all) would have let an overlay
+   * dismiss itself on the same keypress that cancelled the drag. An ARMED press
+   * has claimed nothing and does not stop the event.
+   */
+  const onDocKey = useCallback((ev: KeyboardEvent) => {
     if (ev.key !== 'Escape') return
+    if (!isDragging(sessionRef.current)) {
+      endRef.current(false)
+      return
+    }
     ev.preventDefault()
+    ev.stopPropagation()
     endRef.current(false)
   }, [])
 
@@ -1034,12 +721,12 @@ export default function Board(): ReactElement {
       window.removeEventListener('pointermove', onWindowMove)
       window.removeEventListener('pointerup', onWindowUp)
       window.removeEventListener('pointercancel', onWindowCancel)
-      window.removeEventListener('keydown', onWindowKey)
+      document.removeEventListener('keydown', onDocKey, true)
       window.removeEventListener('touchmove', onWindowTouchMove)
       window.removeEventListener('selectstart', onWindowSuppress)
       window.removeEventListener('contextmenu', onWindowSuppress)
       if (holdTimerRef.current !== null) {
-        // A press that ended — by release, by pan, or by the route unmounting —
+        // A press that ended — by release, by pan, or by the lens changing —
         // must not lift a card four hundred milliseconds after it is over.
         window.clearTimeout(holdTimerRef.current)
         holdTimerRef.current = null
@@ -1060,19 +747,19 @@ export default function Board(): ReactElement {
 
       const drop = commit ? dropOf(session) : null
       if (drop === null) {
-        announce(t('board.dragCancelled'))
+        say(t('board.dragCancelled'))
         return
       }
       // Announced at RELEASE rather than after the store settles: the motion is
       // the feedback for everyone who can see it, and this is the sentence for
       // everyone who cannot. A failure replaces it with errMove.
-      announce(t('board.dropped', { column: labelRef.current(drop.toId) }))
+      say(t('board.dropped', { column: labelRef.current(drop.toId) }))
       void moveRef.current(drop.itemId, drop.toId, 'drag')
     },
     [
-      announce,
+      say,
+      onDocKey,
       onWindowCancel,
-      onWindowKey,
       onWindowMove,
       onWindowSuppress,
       onWindowTouchMove,
@@ -1083,8 +770,8 @@ export default function Board(): ReactElement {
 
   useEffect(
     () => () => {
-      // Leaving the route mid-drag must not leave four window listeners and an
-      // animation frame behind.
+      // Leaving the stage mid-drag — a lens chip, a mode, a sign-out — must not
+      // leave four listeners and an animation frame behind.
       endRef.current(false)
     },
     [],
@@ -1096,13 +783,10 @@ export default function Board(): ReactElement {
       if (ev.pointerType === 'mouse' && ev.button !== 0) return
 
       // THE CARD'S OWN CONTROLS KEEP THEIR OWN GESTURES. `dragHandleProps` is
-      // spread on the card ROOT (EntryCard's header says why it is not a grip),
-      // so a press on the status <select> — the keyboard move path, which
-      // entry.css deliberately lifts above the title's stretched overlay —
-      // bubbles here too. Claiming it is not a cosmetic problem: opening a
-      // native select popup swallows the pointerup that would have ended the
-      // gesture, leaving a session that never finishes and, on the next mouse
-      // move, becomes a phantom drag of the card the user was only relabelling.
+      // spread on the card ROOT, so a press on the status <select> bubbles here
+      // too — and a native select popup swallows the pointerup that would have
+      // ended the gesture, leaving a session that becomes a phantom drag on the
+      // next mouse move.
       const origin = ev.target instanceof Element ? ev.target : null
       if (origin?.closest('select, input, textarea, a[href]')) return
 
@@ -1138,7 +822,7 @@ export default function Board(): ReactElement {
       window.addEventListener('pointermove', onWindowMove, { passive: false })
       window.addEventListener('pointerup', onWindowUp)
       window.addEventListener('pointercancel', onWindowCancel)
-      window.addEventListener('keydown', onWindowKey)
+      document.addEventListener('keydown', onDocKey, true)
 
       if (!held) return
 
@@ -1157,8 +841,8 @@ export default function Board(): ReactElement {
         sessionRef.current = next
         // Feedback for a hand that is looking at the card, not at the screen.
         // Guarded because iOS has no Vibration API at all and Firefox gates it
-        // behind a setting — a board must not depend on a buzz nobody gets, and
-        // the card's own squeeze-then-lift is the feedback that always lands.
+        // behind a setting — the card's own squeeze-then-lift is the feedback
+        // that always lands.
         if (typeof navigator.vibrate === 'function') navigator.vibrate(8)
         beginDrag(next)
       }, HOLD_MS)
@@ -1166,8 +850,8 @@ export default function Board(): ReactElement {
     [
       beginDrag,
       measureZones,
+      onDocKey,
       onWindowCancel,
-      onWindowKey,
       onWindowMove,
       onWindowSuppress,
       onWindowTouchMove,
@@ -1209,7 +893,7 @@ export default function Board(): ReactElement {
     if (!entry) return
     const columns = liveRef.current
     const at = columns.findIndex((c) => c.key === bucketOf(entry, dimRef.current))
-    const step = arrowStep(ev.key, readDir())
+    const step = arrowStep(ev.key, rtlRef.current ? 'rtl' : 'ltr')
     // A card parked in a retired bucket has no position on the live axis, so
     // the arrows have nothing to step from. A digit still names a column
     // outright, which is how you get such a card back onto the board.
@@ -1221,6 +905,8 @@ export default function Board(): ReactElement {
     const to = columns[index]
     if (!to) return
 
+    // The global layer bails on `defaultPrevented` (lib/hotkeys.ts, rule 1), so
+    // this call is also what keeps 1–9 here from setting a status there.
     ev.preventDefault()
     focusAfterMove.current = id
     void moveRef.current(id, to.key, 'key')
@@ -1240,6 +926,16 @@ export default function Board(): ReactElement {
     void moveRef.current(id, status, 'key')
   }, [])
 
+  const handleRefresh = useCallback(() => {
+    // FollowUps' refresh, not the page's bare `refreshEntries()`: a control
+    // that does nothing visible while it works is a control people press twice.
+    setRefreshing(true)
+    void refreshEntries().then(() => {
+      setRefreshing(false)
+      toast(t('board.refreshed'))
+    })
+  }, [])
+
   // ── quick add ────────────────────────────────────────────────────────────
 
   const [composeIn, setComposeIn] = useState<string | null>(null)
@@ -1253,12 +949,9 @@ export default function Board(): ReactElement {
 
   /**
    * The `+` button of each column, so closing a composer can hand focus back.
-   *
-   * Esc and Cancel both unmount the <form> the focused <input> lives in. The
-   * button that opened it stays mounted, but nothing was refocusing it, so
-   * focus fell to <body> and the next Tab restarted at the top of the document
-   * — WCAG 2.4.3, and a direct contradiction of the success path two callbacks
-   * down, which refocuses on purpose so the next card can be typed straight in.
+   * Esc and Cancel unmount the <form> the focused <input> lives in, and without
+   * this focus falls to <body> and the next Tab restarts at the top of the
+   * document — WCAG 2.4.3.
    */
   const addEls = useRef(new Map<string, HTMLButtonElement>())
 
@@ -1273,12 +966,10 @@ export default function Board(): ReactElement {
   }, [])
 
   /**
-   * Close it and give the keyboard somewhere to be.
-   *
-   * The focus call comes BEFORE the state change on purpose: React batches the
-   * re-render to the end of the event handler, so the `+` button is still the
-   * live DOM node here and focusing it now means the input unmounts from an
-   * element that is no longer focused. Nothing flickers and no effect is needed.
+   * Close it and give the keyboard somewhere to be. The focus call comes BEFORE
+   * the state change on purpose: React batches the re-render to the end of the
+   * handler, so the `+` button is still the live node and the input unmounts
+   * from an element that is no longer focused. No flicker, no effect.
    */
   const closeComposer = useCallback((key: string) => {
     addEls.current.get(key)?.focus()
@@ -1310,15 +1001,14 @@ export default function Board(): ReactElement {
       // queued write is a success that has not left the building yet.
       if (!result.ok && result.error !== QUEUED_ERROR_KEY) return
       // Cleared, not closed: "Enter adds it and keeps focus for the next one"
-      // is the whole point of a composer that lives in the column. The explicit
-      // refocus is for the CLICK path — the submit button disables itself the
-      // moment the draft empties, and a disabled control drops focus to the
-      // body, which is where a keyboard user would then be stranded.
+      // is the whole point of a composer in the column. The explicit refocus is
+      // for the CLICK path — the submit button disables itself as the draft
+      // empties, and a disabled control drops focus to the body.
       setDraft('')
       composerRef.current?.focus()
-      announce(t('board.quickAddDone', { title, column: column.label }))
+      say(t('board.quickAddDone', { title, column: column.label }))
     },
-    [adding, draft, announce],
+    [adding, draft, say],
   )
 
   // ── render ───────────────────────────────────────────────────────────────
@@ -1334,8 +1024,7 @@ export default function Board(): ReactElement {
   }, [])
 
   const maxCards = MAX_CARDS[density]
-  const draggedTitle =
-    dragView === null ? '' : (entryMap.get(dragView.itemId)?.title ?? '')
+  const draggedTitle = dragView === null ? '' : (entryMap.get(dragView.itemId)?.title ?? '')
 
   const renderCards = (column: BoardColumn, slot: ReactNode): ReactElement => {
     const total = column.entries.length
@@ -1346,7 +1035,7 @@ export default function Board(): ReactElement {
     return (
       <>
         <ul
-          className="bd-cards"
+          className="mbd-cards"
           ref={(el) => {
             registerCards(column.key, el)
           }}
@@ -1370,7 +1059,7 @@ export default function Board(): ReactElement {
         {total > maxCards ? (
           <button
             type="button"
-            className="btn btn-sm btn-ghost bd-fold"
+            className="btn btn-sm btn-ghost mbd-fold"
             onClick={() =>
               setUnfolded((prev) => {
                 const next = new Set(prev)
@@ -1394,10 +1083,9 @@ export default function Board(): ReactElement {
     <>
       {/* The digit is for the eye; the label is for everyone else. A bare "2"
           beside a heading announces as "2" and means nothing — `role="img"` +
-          aria-label is the same trick the entry kit's own pills use to give a
-          glyph a sentence. */}
+          aria-label is the same trick the entry kit's own pills use. */}
       <span
-        className="pill bd-col-count tabular"
+        className="pill mbd-col-count tabular"
         role="img"
         aria-label={t('board.columnCountLabel', { count: column.entries.length })}
       >
@@ -1405,7 +1093,7 @@ export default function Board(): ReactElement {
       </span>
       {column.breached > 0 ? (
         <span
-          className="pill bd-sla tabular"
+          className="pill mbd-sla tabular"
           role="img"
           aria-label={t('board.slaBadgeLabel', { count: column.breached })}
         >
@@ -1435,7 +1123,7 @@ export default function Board(): ReactElement {
         ref={(el) => {
           registerColumn(column.key, el)
         }}
-        className="bd-col"
+        className="mbd-col"
         data-dim={dimension}
         data-over={over ? 'true' : undefined}
         data-collapsed={collapsed ? 'true' : undefined}
@@ -1445,11 +1133,11 @@ export default function Board(): ReactElement {
         {collapsed ? (
           <button
             type="button"
-            className="bd-rail"
+            className="mbd-rail"
             aria-expanded={false}
-            // The label is rotated to fit a 56px rail, which is legible but not
-            // comfortable; the tooltip is the sighted reader's equivalent of the
-            // aria-label everyone else already gets.
+            // The label wraps to fit a 64px rail, which is legible but not
+            // comfortable; the tooltip is the sighted reader's equivalent of
+            // the aria-label everyone else already gets.
             title={column.label}
             // The count rides IN the label because an aria-label on a button
             // replaces its contents wholesale — the pill inside would otherwise
@@ -1458,32 +1146,32 @@ export default function Board(): ReactElement {
               column: column.label,
               count: column.entries.length,
             })}
-            onClick={() => toggleCollapsed(dimension, column.key)}
+            onClick={() => collapse(dimension, column.key)}
           >
-            <span className="pill bd-col-count tabular" aria-hidden="true">
+            <span className="pill mbd-col-count tabular" aria-hidden="true">
               {t('board.columnCount', { count: column.entries.length })}
             </span>
-            <span className="bd-rail-label" aria-hidden="true">
+            <span className="mbd-rail-label" aria-hidden="true">
               {column.label}
             </span>
           </button>
         ) : (
           <>
-            <header className="bd-col-head">
+            <header className="mbd-col-head">
               <button
                 type="button"
-                className="bd-col-fold"
+                className="mbd-col-fold"
                 aria-expanded
                 aria-label={t('board.collapseColumn', {
                   column: column.label,
                   count: column.entries.length,
                 })}
-                onClick={() => toggleCollapsed(dimension, column.key)}
+                onClick={() => collapse(dimension, column.key)}
               >
-                <IconChevronDown size={16} className="bd-caret" />
+                <IconChevronDown size={16} className="mbd-caret" />
               </button>
               {columnMark(column)}
-              <h3 className="bd-col-title">{column.label}</h3>
+              <h3 className="mbd-col-title">{column.label}</h3>
               {renderCounts(column)}
               {canCreate ? (
                 <button
@@ -1491,7 +1179,7 @@ export default function Board(): ReactElement {
                     registerAdd(column.key, el)
                   }}
                   type="button"
-                  className="bd-col-add"
+                  className="mbd-col-add"
                   aria-expanded={composing}
                   aria-label={t('board.quickAdd', { column: column.label })}
                   onClick={() => openComposer(column.key)}
@@ -1503,7 +1191,7 @@ export default function Board(): ReactElement {
 
             {composing ? (
               <form
-                className="bd-add"
+                className="mbd-add"
                 onSubmit={(ev) => {
                   ev.preventDefault()
                   void submitAdd(column)
@@ -1511,7 +1199,7 @@ export default function Board(): ReactElement {
               >
                 <input
                   ref={composerRef}
-                  className="input bd-add-input"
+                  className="input mbd-add-input"
                   type="text"
                   value={draft}
                   maxLength={200}
@@ -1521,13 +1209,13 @@ export default function Board(): ReactElement {
                   onKeyDown={(ev) => {
                     if (ev.key !== 'Escape') return
                     // Stopped, not just prevented: Escape also cancels a drag
-                    // from the window listener, and closing a composer must not
-                    // read as abandoning a gesture nobody started.
+                    // from the document listener, and closing a composer must
+                    // not read as abandoning a gesture nobody started.
                     ev.stopPropagation()
                     closeComposer(column.key)
                   }}
                 />
-                <div className="bd-add-row">
+                <div className="mbd-add-row">
                   <button
                     type="submit"
                     className="btn btn-sm"
@@ -1544,16 +1232,16 @@ export default function Board(): ReactElement {
                     {t('common.cancel')}
                   </button>
                 </div>
-                <p className="bd-add-hint">{t('board.quickAddHint')}</p>
+                <p className="mbd-add-hint">{t('board.quickAddHint')}</p>
               </form>
             ) : null}
 
             {column.entries.length === 0 && !over ? (
-              <div className="bd-col-empty">
-                <p className="bd-col-empty-title">
+              <div className="mbd-col-empty">
+                <p className="mbd-col-empty-title">
                   {t(COLUMN_EMPTY[dimension], { column: column.label })}
                 </p>
-                <p className="bd-col-empty-hint">{t('board.columnEmptyHint')}</p>
+                <p className="mbd-col-empty-hint">{t('board.columnEmptyHint')}</p>
               </div>
             ) : (
               renderCards(
@@ -1564,9 +1252,9 @@ export default function Board(): ReactElement {
                   // last_activity_at, and every list in this app is ordered by
                   // it. A placeholder promising the position under the pointer
                   // would be a preview of something that never happens.
-                  <li className="bd-slot" aria-hidden="true">
-                    <span className="bd-slot-title">{draggedTitle}</span>
-                    <span className="bd-slot-hint">{t('board.dropTop')}</span>
+                  <li className="mbd-slot" aria-hidden="true">
+                    <span className="mbd-slot-title">{draggedTitle}</span>
+                    <span className="mbd-slot-hint">{t('board.dropTop')}</span>
                   </li>
                 ) : null,
               )
@@ -1577,18 +1265,21 @@ export default function Board(): ReactElement {
     )
   }
 
-  // A filtered board that admits nothing needs a way back out; an EMPTY
-  // workspace needs the columns, because the quick-add composer lives in them
-  // and an empty state would be a dead end on day one.
+  // A filtered board that admits nothing needs saying so; an EMPTY workspace
+  // needs the columns, because the quick-add composer lives in them and an
+  // empty state would be a dead end on day one. The way OUT of a filter is the
+  // shell's own FilterBar, one tap above this stage and always visible — which
+  // is why this empty state carries no Clear-all of its own to disagree with.
   const filtered = !isFilterEmpty(filter)
   const showEmpty = !loading && errorKey === null && entries.length === 0 && filtered
 
   return (
     <div
-      className="bd"
+      className="mbd"
       data-density={density}
-      // Read by board.css for exactly one rule: a mandatory scroll-snap and a
-      // per-frame `scrollLeft` are two things steering one scroller, and the
+      data-compact={compact ? 'true' : undefined}
+      // Read by map-board.css for exactly one rule: a mandatory scroll-snap and
+      // a per-frame `scrollLeft` are two things steering one scroller, and the
       // snap wins — the phone's edge auto-scroll would be dragged back to the
       // nearest column every frame. Snapping resumes the moment the card lands.
       data-dragging={dragView !== null ? 'true' : undefined}
@@ -1596,24 +1287,14 @@ export default function Board(): ReactElement {
       onKeyDown={onBoardKeyDown}
       onClickCapture={onClickCapture}
     >
-      <p className="bd-sub">{t('board.subtitle')}</p>
+      <p className="mbd-sub">{t('board.subtitle')}</p>
 
-      <FilterBar
-        value={filter}
-        onChange={onFilterChange}
-        facets={facets}
-        tags={tagOptions}
-        count={entries.length}
-        resultLabel={(n) => t('board.total', { count: n })}
-        tagHint={t('board.closedWindow', { count: CLOSED_WINDOW_DAYS })}
-      />
-
-      <div className="bd-bar">
-        <div className="chip-row bd-group" role="group" aria-label={t('board.groupBy')}>
-          <span className="bd-group-label" aria-hidden="true">
+      <div className="mbd-bar">
+        <div className="chip-row mbd-group" role="group" aria-label={t('board.groupBy')}>
+          <span className="mbd-group-label" aria-hidden="true">
             {t('board.groupBy')}
           </span>
-          {DIMENSIONS.map((option) => (
+          {BOARD_DIMENSIONS.map((option) => (
             <button
               key={option.key}
               type="button"
@@ -1626,11 +1307,11 @@ export default function Board(): ReactElement {
           ))}
         </div>
 
-        <div className="chip-row bd-group bd-density" role="group" aria-label={t('board.density')}>
-          <span className="bd-group-label" aria-hidden="true">
+        <div className="chip-row mbd-group mbd-density" role="group" aria-label={t('board.density')}>
+          <span className="mbd-group-label" aria-hidden="true">
             {t('board.density')}
           </span>
-          {DENSITIES.map((option) => (
+          {BOARD_DENSITIES.map((option) => (
             <button
               key={option.key}
               type="button"
@@ -1645,45 +1326,62 @@ export default function Board(): ReactElement {
 
         <button
           type="button"
-          className="btn btn-sm btn-ghost bd-refresh"
-          onClick={() => void refreshEntries()}
+          className="btn btn-sm btn-ghost mbd-refresh"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          aria-busy={refreshing}
         >
           {t('board.refresh')}
         </button>
       </div>
 
+      {/* The two facts about the window this stage reads, and the one facet it
+          cannot honour. Both are one line and both name the fix. */}
+      <p className="mbd-hint mbd-window">{t('board.closedWindow', { count: CLOSED_WINDOW_DAYS })}</p>
+      {statusFought ? (
+        <p className="mbd-note" role="status">
+          {t('board.statusAxisNote')}
+        </p>
+      ) : null}
+
       {/* Two sentences, one shown: the gesture a phone offers is not the
           gesture a mouse offers, and a hint that describes the wrong one is
           worse than none. The choice is a media query rather than a matchMedia
           read because it must survive a window being dragged onto a touch
-          screen mid-session, and because `display: none` is the one way to
-          hide a string from a screen reader as well as from an eye. */}
-      <p className="bd-hint bd-hint-fine">{t('board.dragHint')}</p>
-      <p className="bd-hint bd-hint-touch">{t('board.holdHint')}</p>
+          screen mid-session, and because `display: none` is the one way to hide
+          a string from a screen reader as well as from an eye. */}
+      <p className="mbd-hint mbd-hint-fine">{t('board.dragHint')}</p>
+      <p className="mbd-hint mbd-hint-touch">{t('board.holdHint')}</p>
       <p className="sr-only">{t('board.keyboardHint')}</p>
 
-      {/* One polite region for every move, however it was made. Assertive would
-          interrupt a screen-reader user mid-sentence on a board where several
-          cards move in a row. */}
-      <p className="sr-only" role="status" aria-live="polite">
-        <span key={announcement.seq}>{announcement.text}</span>
-      </p>
-
       {errorKey !== null ? (
-        <div className="card bd-error" role="alert">
-          <p className="bd-error-title">{t('board.errLoad')}</p>
+        <div className="card mbd-error" role="alert">
+          <p className="mbd-error-title">{t('board.errLoad')}</p>
           <p className="muted">{t(errorKey)}</p>
-          <button type="button" className="btn btn-sm" onClick={() => void refreshEntries()}>
+          <button type="button" className="btn btn-sm" onClick={handleRefresh} disabled={refreshing}>
             {t('common.retry')}
           </button>
         </div>
       ) : null}
 
+      {/* The closed window is a SEPARATE read and only this stage and the
+          numbers stage make it. Its failure used to be indistinguishable from a
+          quiet fortnight: Done and Cancelled simply came up short, with nothing
+          on screen saying why. */}
+      {closedErrorKey !== null ? (
+        <p className="mbd-note" role="status">
+          {t('board.errClosed')}{' '}
+          <button type="button" className="btn btn-sm" onClick={handleRefresh} disabled={refreshing}>
+            {t('common.retry')}
+          </button>
+        </p>
+      ) : null}
+
       {loading && entries.length === 0 ? (
-        <div className="bd-scroller" aria-hidden="true">
-          <div className="bd-cols">
+        <div className="mbd-scroller" aria-hidden="true">
+          <div className="mbd-cols">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="bd-col bd-col-skeleton">
+              <div key={i} className="mbd-col mbd-col-skeleton">
                 <Skeleton height={18} width="60%" />
                 <Skeleton height={92} count={3} radius={8} />
               </div>
@@ -1695,36 +1393,27 @@ export default function Board(): ReactElement {
           icon={<IconColumns size={30} />}
           title={t('board.empty')}
           description={t('board.emptyHint')}
-          action={
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => onFilterChange({ ...EMPTY_FILTER })}
-            >
-              {t('filter.clearAll')}
-            </button>
-          }
         />
       ) : (
         <>
-          <div className="bd-scroller" ref={scrollerRef}>
-            <div className="bd-cols" role="group" aria-label={t('board.title')}>
+          <div className="mbd-scroller" ref={scrollerRef}>
+            <div className="mbd-cols" role="group" aria-label={t('board.title')}>
               {live.map(renderColumn)}
             </div>
           </div>
 
           {overflow.length > 0 ? (
-            <section className="bd-overflow" aria-label={t(OVERFLOW_TITLE[dimension])}>
-              <h3 className="bd-overflow-title">{t(OVERFLOW_TITLE[dimension])}</h3>
-              <p className="bd-overflow-hint">{t('board.overflowHint')}</p>
-              <ul className="bd-overflow-list">
+            <section className="mbd-overflow" aria-label={t(OVERFLOW_TITLE[dimension])}>
+              <h3 className="mbd-overflow-title">{t(OVERFLOW_TITLE[dimension])}</h3>
+              <p className="mbd-overflow-hint">{t('board.overflowHint')}</p>
+              <ul className="mbd-overflow-list">
                 {overflow.map((column) => {
                   const open = expandedOverflow.has(column.key)
                   return (
-                    <li key={column.key} className="bd-overflow-item" style={column.vars}>
+                    <li key={column.key} className="mbd-overflow-item" style={column.vars}>
                       <button
                         type="button"
-                        className="bd-overflow-toggle"
+                        className="mbd-overflow-toggle"
                         aria-expanded={open}
                         aria-label={
                           open
@@ -1745,11 +1434,11 @@ export default function Board(): ReactElement {
                           })
                         }
                       >
-                        <span className="bd-overflow-label">{column.label}</span>
+                        <span className="mbd-overflow-label">{column.label}</span>
                         {renderCounts(column)}
                       </button>
                       {open ? (
-                        <div className="bd-overflow-cards">{renderCards(column, null)}</div>
+                        <div className="mbd-overflow-cards">{renderCards(column, null)}</div>
                       ) : null}
                     </li>
                   )
@@ -1778,20 +1467,10 @@ interface BoardCardProps {
 
 /**
  * One card, plus the two per-entry subscriptions the kit's connectedness rule
- * keeps out of EntryCard itself.
- *
- * That rule says a ROW must not read store/entries, because sixty rows each
- * subscribing to the LIST would re-render the whole board on one realtime patch.
- * These two hooks are the narrow per-id selectors the store publishes for
- * exactly this case: `s.pending.get(id)` is a Map lookup, and only the card
- * whose value actually changed re-renders. There is no map-shaped equivalent
- * (`usePendingMap`/`useFlashMap` do not exist), so the alternative would be the
- * board subscribing to two whole Maps and re-rendering every column whenever any
- * single write starts or settles — strictly worse. Recorded as an extension-slot
- * gap.
- *
- * memo() with primitive props is what keeps a drag cheap: `entry` and `health`
- * are reference-stable store values, and a drag changes `dragging` on one card.
+ * keeps out of EntryCard itself: a ROW must not read the entries LIST, or
+ * sixty rows re-render the whole board on one realtime patch. These two hooks
+ * are the narrow per-id selectors published for exactly this case. memo() with
+ * primitive props is what keeps a drag cheap.
  */
 const BoardCard = memo(function BoardCard({
   entry,
@@ -1825,7 +1504,7 @@ const BoardCard = memo(function BoardCard({
     // 60-card board. This exists so focus can be RESTORED here after a keyboard
     // move re-mounts the card in another column.
     <li
-      className="bd-card"
+      className="mbd-card"
       data-entry-id={entry.id}
       data-enter={enter?.kind}
       // The grab cursor is the pointer half of "this card can be moved", and it
@@ -1834,9 +1513,13 @@ const BoardCard = memo(function BoardCard({
       // refuse. On touch the same fact is carried by the press animation.
       data-draggable={canEdit ? 'true' : undefined}
       data-press={pressed ? 'true' : undefined}
-      // Physical, and resolved from `dir` by the board — CSS has no logical
+      // Physical, and resolved from the shell's `rtl` — CSS has no logical
       // transform, and the sign is a fact this screen already holds.
-      style={enter && enter.slide !== 0 ? ({ '--bd-slide': `${enter.slide}px` } as CSSProperties) : undefined}
+      style={
+        enter && enter.slide !== 0
+          ? ({ '--mbd-slide': `${enter.slide}px` } as CSSProperties)
+          : undefined
+      }
       tabIndex={-1}
     >
       <EntryCard

@@ -73,6 +73,32 @@
 // reconciler repairs to an ancestor, or a store that rejects an over-long id,
 // costs one skipped mirror and no more.
 //
+// ── THE LENS AND THE STAGE RIDE THE SAME TWO EFFECTS ───────────────────────
+//
+// `?lens=` and `?stage=` are two more MIRRORED params, in the shape of `?dim=`
+// rather than in a second pair of effects: two effects calling `setParams` on
+// one render both start from the same `params` snapshot, so the second drops the
+// first's contribution and the pair costs an extra replace per navigation. One
+// inbound, one outbound, and TWO CLAIMS — per concern, because a link carrying
+// `?lens=` and no `?focus=` must not hold the drill-in's mirror shut.
+//
+// THE LIVE LENS IS READ FROM THE STORE HERE rather than taken as a parameter:
+// `dimension` is half of `MindtreeUrlView`, which the composition already holds,
+// while the lens belongs to no other caller. The inbound effect's dependency
+// array is still `[params]` alone.
+//
+// THE STAGE IS DERIVED, NOT STORED — `stageWithTable(lens, view === 'table')`,
+// because `view` has held map⇄table since before lenses existed. So the only
+// stage the URL ever spells out is the one that disagrees with the lens's own,
+// and a hand-edited `?stage=board` under `?lens=shape` is normalised rather than
+// obeyed: obeying it draws a board with no chip lit to explain it.
+//
+// A NOTE FOR WHOEVER WIRES `useMapUrlFilter`: it is exported and called by
+// nobody — `useMapModel` still holds the filter in `useState`, so the map's
+// FACETS do not round-trip through the URL today. When that is fixed,
+// `mapParamsFor` must be composed with `mapParamsForLens` at the call site, or
+// the first keystroke strips `?lens=` off the link until the mirror restores it.
+//
 // THE DECISIONS ARE PURE AND EXPORTED, because vitest.config.ts is
 // `environment: 'node'` and effects do not run in a server render — the same
 // reason PulseLayer.tsx exports `ghostsFor` and `isViewChange`. The test drives
@@ -92,8 +118,29 @@ import {
   viewToParams,
   type MindtreeUrlView,
 } from '../../lib/mindtree/focus'
+import {
+  allowedStages,
+  isMapLens,
+  isMapStage,
+  stageForLens,
+  stageWithTable,
+  type MapLens,
+  type MapStage,
+} from '../../lib/mindtree/lens'
 import type { MindDimension } from '../../lib/mindtree/model'
-import { setMindDimension, useMindDimension, useMindFocus } from '../../store/mindtree'
+import {
+  setMindDimension,
+  setMindLens,
+  setMindView,
+  useMindDimension,
+  useMindFocus,
+  useMindLens,
+  useMindView,
+} from '../../store/mindtree'
+
+/** The two params this file adds. `dim` and `focus` are named by focus.ts. */
+const P_LENS = 'lens'
+const P_STAGE = 'stage'
 
 /* ── the pure decisions ─────────────────────────────────────────────────── */
 
@@ -196,6 +243,69 @@ export function mapMirrorParams(
   return next.toString() === current.toString() ? null : next
 }
 
+/* ── the lens half of the codec ─────────────────────────────────────────── */
+
+/** What the shell is for, as the URL carries it. */
+export interface MapUrlLens {
+  lens: MapLens
+  stage: MapStage
+}
+
+/**
+ * The lens the URL is asking for, or null when it is asking for nothing.
+ *
+ * NULL MEANS "KEEP THE PERSISTED LENS", never "take the default" — the same
+ * asymmetry `mapUrlInbound` runs on, and what lets a reader who prefers `shape`
+ * keep it while a pasted attention link still works.
+ *
+ * `?stage=` ALONE IS NOT AN OPINION: the mirror never writes one without a lens,
+ * and a bare stage lights no chip. A stage this lens cannot show is normalised
+ * to the lens's own rather than obeyed, for the same reason.
+ */
+export function mapLensFromParams(p: URLSearchParams): MapUrlLens | null {
+  const rawLens = p.get(P_LENS)
+  if (!isMapLens(rawLens)) return null
+  const rawStage = p.get(P_STAGE)
+  const stage =
+    isMapStage(rawStage) && allowedStages(rawLens).includes(rawStage)
+      ? rawStage
+      : stageForLens(rawLens)
+  return { lens: rawLens, stage }
+}
+
+/**
+ * Write the lens into an existing params object — `viewToParams`'s shape, so the
+ * two compose without either owning the other's names.
+ *
+ * THE STAGE IS WRITTEN ONLY WHEN IT DISAGREES WITH THE LENS. Every lens implies
+ * its stage; the one exception is the ledger, which is a way of drawing the open
+ * tree rather than a lens. Writing `stage=map` on every link would put a
+ * redundant param in front of every reader for a case that round-trips anyway.
+ */
+export function mapParamsForLens(p: URLSearchParams, v: MapUrlLens): URLSearchParams {
+  const next = new URLSearchParams(p)
+  next.set(P_LENS, v.lens)
+  if (v.stage === stageForLens(v.lens)) next.delete(P_STAGE)
+  else next.set(P_STAGE, v.stage)
+  return next
+}
+
+/**
+ * The params for the lens the store currently holds, or null for "leave the URL
+ * alone" — `mapMirrorParams`'s two refusals, for the other concern. The claim is
+ * compared on BOTH fields because the pair is written as a pair:
+ * `mapLensFromParams` resolves a stage for every lens it accepts.
+ */
+export function mapLensMirror(
+  current: URLSearchParams,
+  live: MapUrlLens,
+  claim: MapUrlLens | null,
+): URLSearchParams | null {
+  if (claim !== null && (claim.lens !== live.lens || claim.stage !== live.stage)) return null
+  const next = mapParamsForLens(current, live)
+  return next.toString() === current.toString() ? null : next
+}
+
 /* ── the hooks ──────────────────────────────────────────────────────────── */
 
 export interface MapUrlFilter {
@@ -247,14 +357,32 @@ export function useMapUrl(
   focusBranch: (nodeId: string | null) => void,
 ): void {
   const [params, setParams] = useSearchParams()
+  const lens = useMindLens()
+  // The other half of the derived stage — see the header. `view` is the store's
+  // own map⇄table preference, which MapToolbar's switch has always written.
+  const stage = stageWithTable(lens, useMindView() === 'table')
   /**
    * What the effect below just handed the store, until the effect after it has
    * seen the store catch up. A ref and not state: nothing renders differently
    * because of it, and a state write here would be a render per navigation.
+   *
+   * TWO CLAIMS, ONE PER CONCERN. A link carrying `?lens=` and no `?focus=` says
+   * nothing about the drill-in, and one shared claim would hold the drill-in's
+   * mirror shut for a pass on every lens chip.
    */
   const claim = useRef<MindtreeUrlView | null>(null)
+  const lensClaim = useRef<MapUrlLens | null>(null)
 
   useEffect(() => {
+    const wanted = mapLensFromParams(params)
+    if (wanted !== null) {
+      setMindLens(wanted.lens)
+      // Only the open tree has two ways to be drawn, so only those two stages
+      // say anything about `view`. `board` and `numbers` follow from the lens
+      // and must leave a reader's ledger preference where it was.
+      if (wanted.stage === 'table' || wanted.stage === 'map') setMindView(wanted.stage)
+      lensClaim.current = wanted
+    }
     const url = mapUrlInbound(params)
     if (url === null) return
     if (url.dimension !== null) setMindDimension(url.dimension)
@@ -276,8 +404,15 @@ export function useMapUrl(
     // and the URL would then stop tracking the map altogether.
     const outstanding = claim.current
     claim.current = null
-    const next = mapMirrorParams(params, { focusId: focusPref, dimension }, outstanding)
-    if (next === null) return
+    const lensOutstanding = lensClaim.current
+    lensClaim.current = null
+    // COMPOSED, NOT TWO WRITES. Each mirror answers null for "leave this half
+    // alone", so the other half's params are the base for the next, and the one
+    // string comparison at the end is what stops a write that changes nothing.
+    const view = mapMirrorParams(params, { focusId: focusPref, dimension }, outstanding)
+    const base = view ?? params
+    const next = mapLensMirror(base, { lens, stage }, lensOutstanding) ?? base
+    if (next.toString() === params.toString()) return
     setParams(next, { replace: true })
-  }, [focusPref, dimension, params, setParams])
+  }, [focusPref, dimension, lens, stage, params, setParams])
 }

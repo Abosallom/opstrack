@@ -121,6 +121,7 @@ const { getLocale, setLocale, t } = await import('../lib/i18n')
 const { trackLabel } = await import('../lib/labels')
 const {
   ADMIN_SCREENS,
+  LENSES,
   PaletteDialog,
   SCREENS,
   actionCandidates,
@@ -233,7 +234,12 @@ interface ParsedRoute {
  */
 function parseSignedInRoutes(source: string): ParsedRoute[] {
   const blocks = source.split('<Routes>').slice(1)
-  const block = blocks.map((b) => b.split('</Routes>')[0] ?? '').find((b) => b.includes('"/capture"'))
+  // Picked by a route only the signed-in block contains. It was '"/capture"'
+  // until the collapse deleted that route; '"/mindtree"' is the same kind of
+  // marker and is now the one route the whole application is built around.
+  const block = blocks
+    .map((b) => b.split('</Routes>')[0] ?? '')
+    .find((b) => b.includes('"/mindtree"'))
   if (block === undefined) return []
   const clean = block.replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
   const out: ParsedRoute[] = []
@@ -242,7 +248,12 @@ function parseSignedInRoutes(source: string): ParsedRoute[] {
     if (path === undefined) continue
     const components = [...segment.matchAll(/<([A-Z][A-Za-z0-9]*)/g)]
       .map((m) => m[1] ?? '')
-      .filter((name) => name !== 'Navigate')
+      // `ModeFrame` joins `Navigate` on the exclusion list, and for the same
+      // reason: it is CHROME the route wraps a page in — the trail back to the
+      // map — not a screen of its own. Left in, it would be seen on
+      // '/meetings/:id' too and would therefore mark '/meetings' and '/digest'
+      // as detail surfaces, quietly excusing both from every assertion below.
+      .filter((name) => name !== 'Navigate' && name !== 'ModeFrame')
     out.push({ path, components, adminGated: segment.includes('isAdmin') })
   }
   return out
@@ -309,7 +320,7 @@ describe('the palette registry against App.tsx', () => {
   it('names every screen with a key that resolves in both languages', () => {
     for (const locale of ['en', 'ar'] as const) {
       setLocale(locale)
-      for (const screen of [...SCREENS, ...ADMIN_SCREENS]) {
+      for (const screen of [...SCREENS, ...LENSES, ...ADMIN_SCREENS]) {
         // t() echoes an unknown key, so a label equal to its own key is a
         // missing string rendering a dot path at the user.
         expect(t(screen.labelKey)).not.toBe(screen.labelKey)
@@ -319,17 +330,38 @@ describe('the palette registry against App.tsx', () => {
     setLocale('en')
   })
 
-  it('gives the two screens under /settings that share a word distinct labels', () => {
-    // `/notifications` is the inbox history and `/settings/notifications` is
-    // per-device push preferences. Two rows reading the same word would make the
-    // palette's own list ambiguous — lib/routeTitle.ts carries the same warning.
-    const inbox = SCREENS.find((s) => s.to === '/notifications')
+  it('gives the inbox lens and push preferences distinct labels', () => {
+    // `/notifications` was the inbox history and `/settings/notifications` is
+    // per-device push preferences; the two rows read one word apart. The inbox
+    // is a LENS now (`/mindtree?lens=what-changed`), which does not make the
+    // ambiguity go away — both rows are still in one list — so the check moves
+    // with it rather than being deleted. lib/routeTitle.ts carries the same
+    // warning.
+    const inbox = LENSES.find((s) => s.to === '/mindtree?lens=what-changed')
     const push = SCREENS.find((s) => s.to === '/settings/notifications')
     expect(inbox).toBeDefined()
     expect(push).toBeDefined()
     for (const locale of ['en', 'ar'] as const) {
       setLocale(locale)
       expect(t(inbox?.labelKey ?? '')).not.toBe(t(push?.labelKey ?? ''))
+    }
+    setLocale('en')
+  })
+
+  it('offers a row for every lens, each landing on the one routed map path', () => {
+    // The five lenses replaced six palette rows (capture, follow-ups, board,
+    // tracks, dashboard, notifications). They are QUERIES on `/mindtree`, so the
+    // "nothing App.tsx does not route" case above cannot see them — this is the
+    // half that keeps them honest.
+    expect(LENSES).toHaveLength(5)
+    const routed = new Set(ROUTES.map((r) => r.path))
+    for (const lens of LENSES) {
+      expect(lens.to.startsWith('/mindtree?lens=')).toBe(true)
+      expect(routed.has(lens.to.split('?')[0] ?? '')).toBe(true)
+    }
+    for (const locale of ['en', 'ar'] as const) {
+      setLocale(locale)
+      for (const lens of LENSES) expect(t(lens.labelKey)).not.toBe(lens.labelKey)
     }
     setLocale('en')
   })
@@ -340,14 +372,14 @@ describe('the palette registry against App.tsx', () => {
 describe('screenCandidates', () => {
   it('withholds the admin screens from a member', () => {
     const rows = screenCandidates('member', () => {})
-    expect(rows).toHaveLength(SCREENS.length)
+    expect(rows).toHaveLength(SCREENS.length + LENSES.length)
     expect(rows.map((r) => r.item.id)).not.toContain('screen:/settings/members')
   })
 
   it('appends them for an admin, leaving the shared order alone', () => {
     const member = screenCandidates('member', () => {}).map((r) => r.item.id)
     const admin = screenCandidates('admin', () => {}).map((r) => r.item.id)
-    expect(admin).toHaveLength(SCREENS.length + ADMIN_SCREENS.length)
+    expect(admin).toHaveLength(SCREENS.length + LENSES.length + ADMIN_SCREENS.length)
     // Same rows in the same places: a list that reorders itself by role is a
     // list nobody builds muscle memory on.
     expect(admin.slice(0, member.length)).toEqual(member)
@@ -501,7 +533,9 @@ describe('rankPalette', () => {
   })
 
   it('drops a group that matched nothing rather than showing an empty heading', () => {
-    const model = rankPalette('capture', sources({ screens: screenCandidates('member', () => {}) }), 0)
+    // 'privacy' matches exactly one row and nothing else in any group. It was
+    // 'capture' until that screen became the composer mounted on the map.
+    const model = rankPalette('privacy', sources({ screens: screenCandidates('member', () => {}) }), 0)
     expect(model.groups.map((g) => g.id)).toEqual(['screens'])
     expect(model.count).toBe(1)
   })
@@ -549,7 +583,7 @@ describe('rankPalette', () => {
 
   it('clamps a highlight that a shrinking list left past the end', () => {
     const screens = screenCandidates('member', () => {})
-    expect(rankPalette('', sources({ screens }), 99).at).toBe(SCREENS.length - 1)
+    expect(rankPalette('', sources({ screens }), 99).at).toBe(SCREENS.length + LENSES.length - 1)
     expect(rankPalette('zzzzz', sources({ screens }), 99).at).toBe(-1)
     expect(rankPalette('zzzzz', sources({ screens }), 99).count).toBe(0)
   })
@@ -639,7 +673,7 @@ describe('PaletteDialog', () => {
   })
 
   it('announces the result count without printing it', () => {
-    const html = dialog('capture', model('capture'))
+    const html = dialog('privacy', model('privacy'))
     expect(html).toContain('aria-expanded="true"')
     expect(html).toContain(`class="sr-only" role="status">${asHtml(t('cmd.results', { count: 1 }))}`)
     expect(html).not.toContain('{count}')

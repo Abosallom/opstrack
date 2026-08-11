@@ -1,12 +1,10 @@
 {
   "capture": {
     "title": "Quick capture",
-    "subtitle": "One line in. Tokens become fields.",
     "inputLabel": "Capture a line",
     "placeholder": "Firewall rule DC2 #network @ahmed !high due:thu",
     "submit": "Capture",
     "submitting": "Saving…",
-    "submitHint": "Press Enter to capture — the box clears straight away.",
     "mapHint": "One line in. Tokens become fields, and the item lands on the map.",
     "captured": "Captured “⁨{title}⁩”.",
     "capturedQueued": "Saved on this device: “⁨{title}⁩”. It syncs when you're back online.",
@@ -78,7 +76,6 @@
     "problems": "Worth a look",
     "problemCount": "{count} to check",
     "pickTrack": "Which track?",
-    "pickTrackHint": "Pick one, or keep typing to narrow it down.",
     "parsedAnnounce": {
       "one": "{count} token read",
       "other": "{count} tokens read"

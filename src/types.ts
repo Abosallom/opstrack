@@ -654,7 +654,7 @@ export interface ClaimInput {
  * `label_overrides_touch()` collapses blank to null on the way in, so a row read
  * back from the table carries null and never `''`.
  *
- * `key` is a dot path into the locale bundles (`nav.board`). For a CLDR plural
+ * `key` is a dot path into the locale bundles (`nav.map`). For a CLDR plural
  * node it carries the category too (`board.total.one`), because a plural key has
  * no single string to override — lib/labelOverrides.ts's `overrideKey()` is the
  * one place that format is written.

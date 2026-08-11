@@ -11,7 +11,7 @@ import type { RefObject } from 'react'
 import { toast } from '../../components/toast'
 import { formatTimestamp } from '../../lib/dates'
 import { isFilterEmpty, type FilterState } from '../../lib/entryFilter'
-import { t } from '../../lib/i18n'
+import { t, type Locale } from '../../lib/i18n'
 import { dimensionStableId } from '../../lib/mindtree/focus'
 import type { ViewBoxFit } from '../../lib/mindtree/layout'
 import {
@@ -43,7 +43,7 @@ export interface MapToolbarActionsOptions {
   density: 'compact' | 'comfortable'
   filter: FilterState
   rtl: boolean
-  locale: string
+  locale: Locale
   svgRef: RefObject<SVGSVGElement | null>
   wholeMapFit: ViewBoxFit
   summary: string

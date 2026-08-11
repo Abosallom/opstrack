@@ -82,7 +82,7 @@ const useSheetStore = create<SheetState>(() => ({
  * array, and what lets a toast's "view it" action open an entry the user is
  * already stepping through without truncating the walk.
  */
-export function openEntry(id: string, opts?: { list?: string[] }): void {
+export function openEntry(id: string, opts?: { list?: readonly string[] }): void {
   useSheetStore.setState((s) => {
     const list = opts?.list ?? (s.list.includes(id) ? s.list : [])
     // Reference-equal state on a repeat open of the same entry: tapping a row

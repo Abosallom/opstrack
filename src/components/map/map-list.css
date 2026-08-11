@@ -1,37 +1,34 @@
-/* The docked work list — the panel beside the canvas, and the split that holds
-   the two of them.
+/* The attention list — the body of the map's panel when the lens is `needs-me`.
 
    PREFIX REGISTRY (§1.0.7). This sheet owns the `.mtree-list*` slice of the
    `.mtree-` prefix and styles nothing else. That is the same deliberate
-   exception the six interactive-Mindtree sheets take: the prefix still has
-   exactly one owner — the feature — and a seventh top-level prefix would be
-   spent on a component that cannot exist outside this screen. No rule here
-   names `.mtree-canvas`, `.mtree-node*`, `.mtree-card*` or any other sibling's
+   exception the interactive-Mindtree sheets take: the prefix still has exactly
+   one owner — the feature — and a separate top-level prefix would be spent on a
+   component that cannot exist outside this screen. No rule here names
+   `.mtree-canvas`, `.mtree-node*`, `.mtree-card*` or any other sibling's
    classes, and no rule in a sibling may name these.
 
+   IT NO LONGER OWNS A SPLIT OR A BOX. `map-panel.css`'s `.mpan-split` is the
+   grid that puts the panel beside the canvas, `.mpan` draws the surround and
+   `.mpan-body` is the scroller — one panel host for five subjects, where this
+   sheet's old `.mtree-list-split` knew only about a list. Everything below
+   styles the CONTENT the host wraps.
+
    WHAT IT LEANS ON AND NEVER REDECLARES: `.btn`, `.btn-sm`, `.btn-ghost`,
-   `.pill`, `.input`, `.select`, `.sr-only`, `.tabular`, `.empty-state` from
-   global.css; `.entry-row*` and `.entry-section*` from `components/entry/
-   entry.css`. Where a control inside another component's slot needs to look
-   different here, the difference rides on a `.mtree-list-*` class this file
-   passes IN — `mtree-list-act` on the row's action buttons — never on a
-   selector reaching into `.entry-row-actions`.
+   `.chip`, `.chip-row`, `.pill`, `.input`, `.select`, `.sr-only`, `.tabular`,
+   `.empty-state` from global.css; `.entry-row*` and `.entry-section*` from
+   `components/entry/entry.css`. Where a control inside another component's slot
+   needs to look different here, the difference rides on a `.mtree-list-*` class
+   this file passes IN — `mtree-list-act` on the row's action buttons — never on
+   a selector reaching into `.entry-row-actions`.
 
-   THE SPLIT IS A GRID, NOT A FLEXBOX, AND THAT IS LOAD-BEARING.
-   `grid-template-columns: minmax(0, 1fr) auto` gives the canvas its
-   `min-inline-size: 0` for free, so the drawing can shrink below its intrinsic
-   size instead of pushing the panel off the screen — a flex row would need a
-   rule on the canvas itself, which this sheet is not allowed to write. The
-   second track is `auto` so a COLLAPSED panel gives its width back to the map
-   rather than holding an empty column open.
-
-   NO INK IS DIMMED HERE. `followups.css` inks its row actions --text-faint
-   until the row is hovered or focused, which is right on a full-width screen a
-   mouse sweeps. This panel is the phone surface: there is no hover to reveal
-   anything, so every action button keeps `.btn-ghost`'s own measured colour and
-   nothing in this file multiplies a token with `opacity`. That also keeps the
-   file outside the reach of `src/styles/contrast.test.ts`'s ban by having
-   nothing for it to ban.
+   NO INK IS DIMMED HERE. `followups.css` inked its row actions --text-faint
+   until the row was hovered or focused, which is right on a full-width screen a
+   mouse sweeps. This panel is also the phone surface: there is no hover to
+   reveal anything, so every action button keeps `.btn-ghost`'s own measured
+   colour and nothing in this file multiplies a token with `opacity`. That also
+   keeps the file outside the reach of `src/styles/contrast.test.ts`'s ban by
+   having nothing for it to ban.
 
    LOGICAL PROPERTIES ONLY, like the rest of the repo. There is no swipe here
    and therefore no `translateX`, so this sheet has no direction-aware line at
@@ -44,137 +41,68 @@
    prefers-reduced-motion block flattens all of it to 0.01ms, so nothing here
    needs its own reduced-motion rule. */
 
-/* ---------- the split ---------- */
-
-.mtree-list-split {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  /* The canvas has a `clamp()` block size and the panel has its own; `start`
-     stops the shorter of the two being stretched to match the taller, which is
-     what would put a 45rem-tall empty box under a five-row list. */
-  align-items: start;
-}
-
-/* 1024px, not 768: at 768 the map is already only 752px of drawing and taking
-   24rem out of it leaves a canvas narrower than the one the phone gets. Below
-   this the panel STACKS under the map, which is the honest small-screen shape —
-   the picture first, the list under it, one scroller for the page. */
-@media (min-width: 1024px) {
-  .mtree-list-split {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-}
-
-/* ---------- the panel ---------- */
+/* ---------- the body ---------- */
 
 .mtree-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   min-inline-size: 0;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elev);
 }
 
-@media (min-width: 1024px) {
-  .mtree-list {
-    /* 19rem is the narrowest a compact EntryRow plus four 44px glyph buttons
-       reads at without the title truncating to two words; 24rem is where the
-       panel stops being a companion and starts competing with the drawing. */
-    inline-size: clamp(19rem, 26vw, 24rem);
-  }
+/* ---------- the tool row ---------- */
 
-  /* Collapsed, the panel is just its own header, and the grid's `auto` track
-     hands the rest of the row back to the map. */
-  .mtree-list[data-open='false'] {
-    inline-size: auto;
-    max-inline-size: 24rem;
-  }
-}
-
-/* ---------- the header ---------- */
-
-.mtree-list-head {
+.mtree-list-tools {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   column-gap: 8px;
-  /* 16px row gap for the same reason `.row-actions` uses it: this band wraps at
+  /* 16px row gap for the reason `.row-actions` uses it: this band wraps at
      375px and two lines of 44px controls need the clearance or their hit areas
      overlap. */
   row-gap: 16px;
 }
 
-.mtree-list-title {
-  flex: 1 1 auto;
-  min-inline-size: 0;
-  margin: 0;
-  font-size: 14px;
-}
-
-/* The disclosure. A real <button> with aria-expanded — the same contract
-   EntrySection's toggle holds one component over, and for its reason: a div with
-   an onClick gives no keyboard, no role and no announced state. */
-.mtree-list-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  inline-size: 100%;
-  min-block-size: 44px;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-weight: 700;
-  color: var(--text);
-  text-align: start;
-  cursor: pointer;
-}
-
-.mtree-list-caret {
-  display: inline-flex;
+/* Everyone ⇄ Mine. First in the row and never behind a disclosure — it is the
+   axis of the whole list, not a detail. */
+.mtree-list-seg {
   flex: 0 0 auto;
-  color: var(--text-dim);
-  transition: transform 0.18s ease;
-}
-
-/* Closed points along the inline axis; `rotate(-90deg)` would point the wrong
-   way in Arabic, so the sign is taken from the document direction the one place
-   a rotation can read it. */
-.mtree-list-caret[data-open='false'] {
-  transform: rotate(-90deg);
-}
-
-[dir='rtl'] .mtree-list-caret[data-open='false'] {
-  transform: rotate(90deg);
-}
-
-.mtree-list-name {
-  flex: 1 1 auto;
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .mtree-list-count {
-  flex: 0 0 auto;
-  padding-block: 2px;
-  padding-inline: 8px;
-  border-radius: 999px;
-  background: var(--bg-elev-2);
-  font-size: 12px;
-  font-weight: 600;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-size: 12.5px;
   color: var(--text-dim);
 }
 
-/* What the list is currently about. Full width under the toggle, so a long
-   Arabic track name wraps rather than squeezing the count off the line. */
+.mtree-list-refresh {
+  flex: 0 0 auto;
+}
+
+/* On the phone sheet the count takes the whole line rather than competing with
+   the segment and the refresh for a 375px row: three items on one line there
+   means either a squeezed count or a chip below its 44px inline minimum, and
+   rule 4 forbids the second. `data-compact` is the shell's ONE reading of
+   `(max-width: 767px)` — a second breakpoint in CSS could disagree with it. */
+.mtree-list[data-compact] .mtree-list-count {
+  flex-basis: 100%;
+}
+
+/* ---------- what the list is about ---------- */
+
 .mtree-list-scope {
-  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 4px;
+}
+
+/* Full width under the segment, so a long Arabic track name wraps rather than
+   squeezing the way-out button off the line. */
+.mtree-list-scope-text {
+  flex: 1 1 12rem;
   min-inline-size: 0;
   font-size: 12.5px;
   line-height: 1.45;
@@ -185,37 +113,38 @@
   flex: 0 0 auto;
 }
 
-/* ---------- the body ---------- */
-
-.mtree-list-body {
-  min-inline-size: 0;
+/* A failed refetch with rows already on screen. A note, never a wipe. */
+.mtree-list-note {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  font-size: 12.5px;
+  color: var(--text-dim);
 }
 
-/* THE PANEL SCROLLS ITSELF ONLY WHERE IT SITS BESIDE THE MAP. Stacked on a
-   phone it has no cap at all and the page scrolls, because a nested scroller
-   inside a document scroller is the single most reliable way to make a list
-   feel broken under a thumb. The cap matches `.mtree-canvas`'s own
-   `clamp(22rem, 62vh, 45rem)` by VALUE rather than by selector — the two are
-   deliberately the same band, and this sheet may not name that class to say so.
-
-   No `touch-action` is declared and none is inherited: this element is a
-   SIBLING of the canvas, never a descendant, which is the whole reason the list
-   is here rather than drawn over the drawing. */
-@media (min-width: 1024px) {
-  .mtree-list-body {
-    max-block-size: clamp(22rem, 62vh, 45rem);
-    overflow-y: auto;
-    /* Room for a 2px focus ring at 2px offset on a row sitting against the
-       scroller's inline edge. */
-    padding-inline: 2px;
-    margin-inline: -2px;
-  }
+.mtree-list-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
+
+/* ---------- the sections ---------- */
 
 .mtree-list-sections {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* What the bucket MEANS, once, under its heading — the same sentence the screen
+   this replaces carried, because a heading reading "Going quiet" answers half a
+   question. */
+.mtree-list-hint {
+  margin-block-end: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-faint);
 }
 
 /* Rows are laid out by this container rather than by entry.css's
@@ -252,9 +181,9 @@
 
    ALWAYS GLYPHS, ALWAYS 44px, ALWAYS VISIBLE.
 
-   `followups.css` makes the label→glyph swap below 640px and explains the
+   `followups.css` made the label→glyph swap below 640px and explained the
    arithmetic: `.entry-row-actions` is `flex: 0 0 auto` in entry.css and cannot
-   shrink, so text buttons push the title out of the row. This panel is 24rem at
+   shrink, so text buttons push the title out of the row. This panel is 26rem at
    its very widest and carries up to five controls, so the swap is not a
    breakpoint here — it is the resting state, at every size.
 
@@ -268,7 +197,7 @@
 
    Once the label is gone the button is a 15px glyph in 9px of padding, and
    `.btn-sm`'s ::after only grows the BLOCK axis — so the inline axis has to be
-   told, exactly as followups.css tells it. */
+   told, exactly as followups.css told it. */
 
 .mtree-list-act {
   min-inline-size: 44px;
@@ -299,6 +228,14 @@
    here multiplies it. */
 .mtree-list-act-done:not(:disabled) {
   color: var(--green);
+}
+
+/* WHOSE deadline the breach was against. A reading, not a control, so it takes
+   `.pill`'s own resting colours and only holds its line: the number inside it is
+   `.tabular`, and a pill that wrapped mid-figure would read as two numbers. */
+.mtree-list-sla {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* The select cannot become a glyph — its VALUE is the label — so it shrinks

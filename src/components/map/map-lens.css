@@ -1,0 +1,147 @@
+/* The lens chips and the ledger switch.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.mlens*` and styles nothing
+   else. A prefix of its own rather than a slice of `.mtree-`, for the reason
+   map-panel.css gives: this row is the SHELL's chrome — it decides which surface
+   the shell shows — and it outlives any one of them.
+
+   Primitives it USES and never redeclares: `.tap-44`, `.tabular`, `.chip-row`'s
+   idea (not its class — this row scrolls, which `.chip-row` does not).
+
+   COLOUR comes only from existing tokens. The pressed chip is `--bg-elev-2` with
+   `--text` ink and a `--border` outline, which is the same recipe FilterBar's
+   segmented pairs already use and global.css already measured in both themes;
+   the badge is `--accent` ink on `--bg-elev-2`, the pair `.pill` was computed
+   on. No new contrast recipe is introduced here.
+
+   LOGICAL PROPERTIES ONLY — `padding-inline`, `margin-inline-start`,
+   `inline-size`, `scroll-padding-inline`. The chip row scrolls along the INLINE
+   axis, so it reverses with the document direction for free; there is no
+   physical direction in this file.
+
+   MOTION: none of its own. The only transition is the one `.btn`-family
+   primitives already carry.
+
+   SPACING is on the 4px grid. */
+
+.mlens {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  /* 16px row gap: this row wraps at 375px and two lines of 44px targets need
+     the clearance or their hit areas overlap. `.row-actions`' floor. */
+  row-gap: 16px;
+  min-inline-size: 0;
+}
+
+.mlens-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* The label is decorative on a phone — the group already carries the same words
+   as its accessible name — and 375px is better spent on the chips themselves. */
+.mlens[data-compact] .mlens-label {
+  display: none;
+}
+
+/* ---------- the five chips ---------- */
+
+.mlens-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+/* A PHONE SCROLLS THE ROW RATHER THAN SHRINKING THE CHIPS. Five destinations do
+   not fit 375px at a legible size, and compacting them is exactly what rule 4
+   forbids: the smallest targets must never ship to the smallest screens. The
+   row pans, snaps, and every chip keeps its full 44px. */
+.mlens[data-compact] .mlens-chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline mandatory;
+  scroll-padding-inline: 8px;
+  /* Room for the focus ring, which an `overflow` container clips. */
+  padding-block: 4px;
+}
+
+.mlens[data-compact] .mlens-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.mlens-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 30px;
+  padding-inline: 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.mlens-chip[aria-pressed='true'] {
+  color: var(--text);
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.mlens-chip-text {
+  white-space: nowrap;
+}
+
+.mlens-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ---------- the map / ledger switch ---------- */
+
+.mlens-stages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+}
+
+.mlens-stage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 30px;
+  padding-inline: 10px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.mlens-stage[aria-pressed='true'] {
+  color: var(--text);
+  background: var(--bg-elev-2);
+  border-color: var(--border);
+  font-weight: 700;
+}
+
+/* 30px + `.tap-44`'s ±7px pseudo-element = 44px of hit area on every one of
+   these, at every width. Nothing here is compacted for a fine pointer: the row
+   is already the cheapest thing on the screen to hit, and the unconditional
+   version of that compaction shipped the smallest targets to the smallest
+   screens once already. */

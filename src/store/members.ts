@@ -18,6 +18,12 @@
 
 import { create } from 'zustand'
 import { listMembers, type Member } from '../api/members'
+
+// Re-exported so the screens that render a roster take the row type from the
+// store they already import, rather than reaching past it into src/api. Three
+// map modules did exactly that and `tsc -b` refused the whole build: a `type`
+// import is not a re-export.
+export type { Member }
 import { t } from '../lib/i18n'
 import { hasSession } from './auth'
 

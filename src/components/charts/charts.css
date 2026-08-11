@@ -2,9 +2,10 @@
 
    PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.cht-*` and styles nothing
    else. `.skeleton`, `.sr-only`, `.tabular`, `.chip`, `.chip-row` and `.card`
-   belong to global.css and are USED here, never redeclared. The dashboard's own
-   layout — the grid these panels sit in, the stat tiles — is `.db-*` in
-   pages/dashboard.css and is not touched from here.
+   belong to global.css and are USED here, never redeclared. The numbers stage's
+   own layout — the grid these panels sit in, the stat tiles — is `.mnum-*` in
+   components/map/map-numbers.css and is not touched from here. (It was `.db-*`
+   in pages/dashboard.css until the collapse deleted that screen.)
 
    LOGICAL PROPERTIES ONLY, in the CSS. Inside the <svg> there is no such thing:
    SVG has `x` and nothing else, so direction is resolved in ARITHMETIC by

@@ -54,6 +54,10 @@ import { t } from '../lib/i18n'
 import { useTrackLabel } from '../lib/labels'
 import { canEditEntry } from '../lib/permissions'
 import { pushOverlay } from '../lib/overlayStack'
+import { LENS_KEY, MAP_LENSES } from '../lib/mindtree/lens'
+// The composer is mounted on the map, so `c` is a focus() rather than a
+// navigation — see the `capture` case in run().
+import { focusMapCapture } from './map/MapCapture'
 import {
   focusSearchField,
   focusSurfaceStart,
@@ -156,19 +160,13 @@ export interface PaletteScreen {
  * withhold a member's own screen from a member.
  */
 export const SCREENS: readonly PaletteScreen[] = [
-  { to: '/capture', labelKey: 'route.capture' },
-  { to: '/followups', labelKey: 'route.followups' },
-  { to: '/board', labelKey: 'route.board' },
-  { to: '/tracks', labelKey: 'route.tracks' },
-  // The map half of the tracks job. It is in no nav — its designed entry is the
-  // List | Map switcher on /tracks — which makes it exactly the kind of screen
-  // this table earns its keep on, and it named itself out of its own namespace
-  // for the reason the two Wave-4b rows below give.
+  // THE APP. Capture, follow-ups, the board, the tracks index, the dashboard and
+  // the notification history were six rows here and are now five LENSES on this
+  // one — see LENSES below, and docs/MAP-CONTRACT.md §1. It keeps naming itself
+  // out of its own namespace for the reason the two Wave-4b rows below give.
   { to: '/mindtree', labelKey: 'mindtree.title' },
   { to: '/meetings', labelKey: 'route.meetings' },
-  { to: '/dashboard', labelKey: 'route.dashboard' },
   { to: '/digest', labelKey: 'digest.title' },
-  { to: '/notifications', labelKey: 'notif.title' },
   { to: '/settings', labelKey: 'route.settings' },
   { to: '/settings/recurring', labelKey: 'route.recurring' },
   // The two Wave-4b screens that were missing. Named out of their OWN
@@ -195,6 +193,29 @@ export const SCREENS: readonly PaletteScreen[] = [
   // exists for.
   { to: '/privacy', labelKey: 'privacy.title' },
 ]
+
+/**
+ * The five lenses, as palette rows.
+ *
+ * NOT in SCREENS, and the difference is exactly the guarantee
+ * CommandPalette.test.tsx enforces: every entry in SCREENS must be a path
+ * App.tsx routes, and none of these is one. A lens is a QUERY on the single map
+ * route — `/mindtree?lens=numbers` — so a row here dead-ends only if `/mindtree`
+ * itself stops being routed, which the SCREENS row above already asserts.
+ *
+ * WHY THEY ARE ROWS AT ALL. Typing "board" or "dashboard" into the palette was
+ * how five of these surfaces were reached before the collapse, and the muscle
+ * memory does not go away because the architecture did. Without these rows the
+ * only way to a lens is a chip on a screen you first have to be looking at.
+ *
+ * `LENS_KEY` rather than five literals: lib/mindtree/lens.ts owns the lens↔label
+ * mapping and MapLensBar renders from the same table, so the palette row and the
+ * chip it lands on can never read differently. MAP_LENSES fixes the order.
+ */
+export const LENSES: readonly PaletteScreen[] = MAP_LENSES.map((lens) => ({
+  to: `/mindtree?lens=${lens}`,
+  labelKey: LENS_KEY[lens],
+}))
 
 /**
  * Admin-only screens.
@@ -331,7 +352,10 @@ export function trackCandidates(
  * muscle memory on.
  */
 export function screenCandidates(role: UserRole, navigate: NavigateFn): RankRow<Row>[] {
-  const screens = role === 'admin' ? [...SCREENS, ...ADMIN_SCREENS] : SCREENS
+  // The lenses sit after the plain routes and before the admin block, so the
+  // shared prefix of the member's list and the admin's list is unchanged — the
+  // property the "leaving the shared order alone" case pins.
+  const screens = role === 'admin' ? [...SCREENS, ...LENSES, ...ADMIN_SCREENS] : [...SCREENS, ...LENSES]
   return screens.map((screen) => ({
     item: {
       id: `screen:${screen.to}`,
@@ -618,7 +642,15 @@ export default function CommandPalette(): ReactElement {
     (hit: HotkeyHit) => {
       switch (hit.id) {
         case 'capture':
-          navigate('/capture')
+          // The composer is already mounted at the block end of the map, so `c`
+          // puts the caret in it with NO navigation at all — and because this
+          // call is inside the keydown, it is inside the user-activation stack,
+          // which is what raises a software keyboard. There is no fallback any
+          // more: /capture is deleted, `/mindtree` is where every session lands,
+          // and if the bar is not mounted (a mode route, settings) the honest
+          // answer is that this screen has no composer, not a route change to
+          // one that no longer exists.
+          focusMapCapture()
           return
         case 'palette':
           // A toggle, so the chord that opened it also closes it — which is what

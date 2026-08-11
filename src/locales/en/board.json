@@ -69,12 +69,16 @@
     "dragHint": "Drag a card to another column — that changes its status, track, owner or priority, whichever you're grouped by. With a card focused, the arrow keys move it one column and the number keys send it straight to one.",
     "keyboardHint": "No dragging needed. Tab to a card, then use the left and right arrow keys to move it one column at a time, or the number keys to send it to a numbered column. The card's own menu always sets its status, whatever the columns are showing.",
 
+    "statusAxisNote": "Your status filter isn't applied here — these columns are the statuses. Group by track, owner or priority to use it, or clear it above.",
+
     "cardsHidden": "{count} more",
     "showAll": "Show all",
     "showLess": "Show fewer",
     "refresh": "Refresh",
+    "refreshed": "Up to date.",
     "empty": "Nothing matches",
     "emptyHint": "Widen your filters, or clear them and start again.",
-    "errLoad": "Couldn't load the board."
+    "errLoad": "Couldn't load the board.",
+    "errClosed": "Couldn't load recently finished work, so Done and Cancelled may be short."
   }
 }

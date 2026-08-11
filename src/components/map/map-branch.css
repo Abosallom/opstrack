@@ -1,0 +1,623 @@
+/* The branch panel — a track's open work above its history.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns `.mbr-*` and styles nothing else.
+   `MapBranch.tsx` and `MapBranchHistory.tsx` are one component split for size
+   and share this one sheet; no rule here names `.mtree-*`, `.mpan-*`,
+   `.mlens-*`, `.mtree-list-*` or any other sibling's classes, and no rule in a
+   sibling may name these.
+
+   WHAT IT LEANS ON AND NEVER REDECLARES: `.btn*`, `.chip*`, `.pill`, `.input`,
+   `.select`, `.sr-only`, `.tabular`, `.tap-44`, `.section-title`, `.track-bar`,
+   `.muted`, `.empty-state` from global.css; `.entry-row*` from
+   `components/entry/entry.css`. Where a control inside another component's slot
+   has to look different here the difference rides on an `.mbr-*` class this file
+   passes IN — `.mbr-owner` on the row's action select — never on a selector
+   reaching into `.entry-row-actions`.
+
+   IT LIVES INSIDE `.mpan-body`, which is the scroller. Nothing here sets
+   `overflow` or a block-size on the root: the dock decides how tall the surface
+   is (rail at ≥768px, three sheet detents below), and a second opinion about
+   height inside it is how a bottom sheet ends up with two scrollbars.
+
+   LOGICAL PROPERTIES ONLY, and there is no SVG here and no hand-written x
+   arithmetic anywhere in the component — so RTL is LTR mirrored by the engine,
+   including the timeline rail, which hangs off `inset-inline-start`.
+
+   SPACING is on the 4px grid. MOTION is 150ms and only on colour and border;
+   global.css's prefers-reduced-motion block flattens it. NO INK IS DIMMED below
+   its measured token — nothing here multiplies a token with `opacity`, which is
+   what keeps the sheet outside `styles/contrast.test.ts`'s ban. */
+
+.mbr {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Room for the bulk bar, which is sticky at the block end of this column: the
+     last row of a distribution pass is the one a reader ends on, and parking it
+     under the bar is how the control that acts on it becomes unreachable. */
+  padding-block-end: 4px;
+}
+
+/* ---------- a band ---------- */
+
+.mbr-band {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mbr-band-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.mbr-band-count {
+  margin-inline-start: auto;
+  color: var(--text-dim);
+}
+
+.mbr-sub {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.mbr-hint {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* True, with a caveat — the amber that means exactly that everywhere else. */
+.mbr-note {
+  color: var(--yellow);
+  font-size: 13px;
+}
+
+/* ---------- as it stands today ---------- */
+
+.mbr-stats {
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  padding: 12px;
+}
+
+.mbr-stats-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* The scope the tiles count. Without it "As it stands today" can be read
+   against the section heading below, which follows the filter and the dates. */
+.mbr-stats-scope {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mbr-stat-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  list-style: none;
+  margin-block: 4px;
+}
+
+.mbr-stat {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 4.5rem;
+}
+
+.mbr-stat-n {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mbr-stat[data-tone='danger'] .mbr-stat-n {
+  color: var(--red);
+}
+
+.mbr-stat[data-tone='warn'] .mbr-stat-n {
+  color: var(--yellow);
+}
+
+.mbr-stat-k {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.mbr-stats-hint {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+/* ---------- tools ---------- */
+
+.mbr-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mbr-search {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+}
+
+/* ---------- the work sections ---------- */
+
+.mbr-nodes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+}
+
+.mbr-node {
+  /* LONGHANDS, not `border`: the inline-start edge is `.track-bar`'s colour bar
+     and the shorthand would reset it. `padding-inline-start` belongs to
+     `.track-bar` too, so setting it here would fight the primitive depending on
+     stylesheet order. */
+  border-block: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  padding-inline-end: 8px;
+  padding-block: 4px;
+  transition: border-color 0.15s ease;
+}
+
+.mbr-node:hover {
+  border-color: var(--field-border);
+}
+
+/* Retired — archived, hidden, or gone entirely — and still holding open work.
+   Marked so it reads as an exception, never hidden: hiding it strands the work
+   inside it and breaks the roll-up the map's numbers depend on. */
+.mbr-node[data-retired='true'] {
+  background: var(--bg);
+}
+
+.mbr-node-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mbr-node-toggle,
+.mbr-node-plain {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-inline-size: 0;
+  padding-block: 6px;
+  color: var(--text);
+  text-align: start;
+}
+
+.mbr-node-toggle {
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.mbr-node-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Points at the block end when open, at the inline end when shut — `rotate`
+   rather than a second glyph, and the closed angle is direction-aware so the
+   caret never points out of the panel in Arabic. */
+.mbr-caret {
+  flex: none;
+  transition: rotate 0.15s ease;
+  rotate: -90deg;
+}
+
+[dir='rtl'] .mbr-caret {
+  rotate: 90deg;
+}
+
+.mbr-node[data-open='true'] .mbr-caret {
+  rotate: 0deg;
+}
+
+.mbr-node-mark {
+  display: inline-flex;
+  flex: none;
+}
+
+.mbr-count {
+  flex: none;
+}
+
+.mbr-retired {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/* ---------- a work row ---------- */
+
+.mbr-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  padding-block: 4px;
+}
+
+.mbr-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+}
+
+.mbr-row[data-selected='true'] {
+  background: var(--accent-soft);
+}
+
+.mbr-row-body {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+/* 44px of target, drawn at 18px. The hit area is the pseudo-element, so the
+   checkbox does not push the row's rhythm around to earn it. */
+.mbr-check {
+  position: relative;
+  flex: none;
+  inline-size: 18px;
+  block-size: 18px;
+  margin-block-start: 10px;
+  accent-color: var(--accent);
+}
+
+.mbr-check::after {
+  content: '';
+  position: absolute;
+  inset: -13px;
+}
+
+.mbr-check-node {
+  margin-block-start: 0;
+}
+
+/* The owner control IS the owner display — see MapBranch.tsx's header. It goes
+   loud when there is nobody in it, because those are the rows this panel exists
+   to fix. */
+.mbr-owner {
+  max-inline-size: 10rem;
+  font-size: 13px;
+}
+
+.mbr-owner[data-unassigned='true'] {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+
+.mbr-more {
+  margin-inline-start: 26px;
+}
+
+/* ---------- the range ---------- */
+
+.mbr-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+}
+
+.mbr-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mbr-date {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mbr-date-label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.mbr-date-input {
+  min-block-size: 44px;
+  min-inline-size: 9rem;
+}
+
+.mbr-showing {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* ---------- the tag breakdown ---------- */
+
+.mbr-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mbr-tag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+}
+
+.mbr-tag-row {
+  display: grid;
+  grid-template-columns: minmax(4rem, 8rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.mbr-tag-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+/* Two fills laid end to end, so open and closed read as one bar rather than two
+   charts. `inline-size` is set inline as a percentage of the biggest row. */
+.mbr-tag-bar {
+  display: flex;
+  block-size: 10px;
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  overflow: hidden;
+}
+
+.mbr-tag-fill[data-part='open'] {
+  background: var(--accent);
+}
+
+.mbr-tag-fill[data-part='closed'] {
+  background: var(--field-border);
+}
+
+.mbr-tag-n {
+  display: flex;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.mbr-tag-open {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.mbr-tag-sep {
+  color: var(--text-faint);
+}
+
+/* ---------- the feed ---------- */
+
+.mbr-days,
+.mbr-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+}
+
+.mbr-day {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mbr-day-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding-block: 4px;
+  border-block-end: 1px solid var(--border);
+}
+
+.mbr-day-weekday {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.mbr-day-date,
+.mbr-day-count {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.mbr-day-count {
+  margin-inline-start: auto;
+}
+
+/* One vertical line down the whole stream: every item hangs off the same
+   geometry, which is what makes two different row shapes read as one history. */
+.mbr-item {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  padding-inline-start: 4px;
+}
+
+.mbr-rail {
+  position: relative;
+  flex: none;
+  inline-size: 10px;
+}
+
+.mbr-rail::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 4px;
+  inline-size: 1px;
+  background: var(--border);
+}
+
+.mbr-dot {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-start: 1px;
+  inline-size: 7px;
+  block-size: 7px;
+  border-radius: 999px;
+  background: var(--field-border);
+}
+
+.mbr-item[data-kind='entry'] .mbr-dot {
+  background: var(--accent);
+}
+
+.mbr-body {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.mbr-kind {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.mbr-fold {
+  align-self: flex-start;
+}
+
+/* ---------- an update row ---------- */
+
+.mbr-upd {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  padding: 8px;
+}
+
+.mbr-upd-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.mbr-upd-author {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.mbr-upd-time {
+  margin-inline-start: auto;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.mbr-upd-transition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.mbr-upd-body {
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mbr-upd-parent {
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: start;
+  min-block-size: 44px;
+}
+
+.mbr-upd-orphan {
+  font-size: 12px;
+}
+
+/* ---------- the bulk bar ---------- */
+
+/* STICKY, NOT FIXED. Fixed would put it over the map on a wide screen and over
+   the composer on a phone; sticky keeps it inside the dock's own scroller,
+   where it belongs to the list it acts on. */
+.mbr-bulk {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-elev-2);
+  padding: 8px;
+}
+
+.mbr-bulk-count {
+  font-weight: 700;
+}
+
+.mbr-bulk-select {
+  flex: 1 1 8rem;
+  min-inline-size: 0;
+  min-block-size: 44px;
+}
+
+.mbr-bulk-busy {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.mbr-bulk-clear {
+  margin-inline-start: auto;
+}
+
+/* ---------- the phone ---------- */
+
+/* Below the dock's own breakpoint the panel is a bottom sheet and every
+   horizontal pair has to be allowed to stack — a 375px sheet cannot hold a
+   label, a date input and a second date input on one line. Nothing here shrinks
+   a target: `.tap-44` and the explicit `min-block-size` above hold at every
+   width, because the unconditional compaction shipped the smallest targets to
+   the smallest screens once already. */
+@media (max-width: 599px) {
+  .mbr-tag-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .mbr-tag-bar {
+    grid-column: 1 / -1;
+  }
+
+  .mbr-owner {
+    max-inline-size: 100%;
+  }
+}

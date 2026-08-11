@@ -6,12 +6,12 @@
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
     "unassignedOnly": "Unassigned only",
+    "openWork": "Open work",
     "trackTree": "Tracks and their open work",
     "total": {
       "one": "{count} open item",
       "other": "{count} open items"
     },
-    "tagHint": "A row must carry every tag you pick.",
     "truncated": "Only part of the workspace is loaded, so these counts describe what is in view.",
     "errLoad": "The open work could not be loaded.",
     "empty": "No tracks yet",
@@ -37,7 +37,6 @@
     "rowsHidden": "{count} more",
     "allClear": "All clear",
     "allClearHint": "Nothing open on this track.",
-    "noMatch": "Nothing here matches the filters.",
     "archived": "Archived",
     "archivedHint": "This track is archived and still holds open work.",
     "unknownTrack": "Unknown track",

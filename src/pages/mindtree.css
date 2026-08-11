@@ -170,6 +170,48 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+
+  /* HOW TALL THE COMPOSER IS, published to the phone sheet.
+     `components/map/map-panel.css` sets the sheet's `inset-block-end` from this
+     variable so a full-height panel can never cover the capture bar — a reader
+     mid-triage typing the next thing is the reason that bar is always mounted.
+     The value here is a FLOOR, not a measurement: one line of input plus its
+     padding plus the home-indicator inset. MapCapture (U2) owns the real height
+     and must overwrite this variable when the bar grows a chip strip or a
+     problems panel, or the sheet will sit on top of both. */
+  --map-composer-block-size: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ---------- the shell's own row: lenses, then modes ---------- */
+
+/* The five destinations and the two modes, side by side. It wraps rather than
+   scrolls as a whole — the lens chips do their own scrolling on a phone (see
+   map-lens.css) and the mode entrances must never be the half that goes
+   off-screen: "a meeting starts while people are walking into a room" is a
+   one-tap job at every width. */
+.mtree-shellbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: 12px;
+  row-gap: 16px;
+  min-inline-size: 0;
+}
+
+/* The way back to a panel the reader closed. In the flow rather than floating:
+   it appears exactly where the panel it restores will appear. */
+.mtree-panel-show {
+  align-self: flex-start;
+}
+
+/* Room at the block end for the composer, which is fixed there below 768px.
+   Without it the last row of whatever is on screen sits under the capture bar
+   and the reader scrolls to a place the page says it has already reached. */
+@media (max-width: 767px) {
+  .mtree {
+    padding-block-end: var(--map-composer-block-size);
+  }
 }
 
 .mtree-sub {
@@ -988,5 +1030,19 @@
   .mtree-node-box,
   .mtree-edge {
     transition: none;
+  }
+}
+
+/* ---------- print ----------
+   Belt and braces. A mode route (the minutes document, the digest) is a separate
+   route, so the map is never mounted when one of them prints — but global.css's
+   print block hides the shell chrome and cannot name a surface it does not know
+   about, and `map-mode.css` may not reach `.mtree-*` without owning a second
+   prefix's rules. If the canvas ever does share a page with a printed document,
+   an SVG that size takes the whole first sheet. */
+@media print {
+  .mtree-canvas,
+  .mtree-shellbar {
+    display: none !important;
   }
 }

@@ -113,7 +113,9 @@ export default function Entry(): ReactElement {
   const back = (): void => {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0
     if (idx > 0) void navigate(-1)
-    else void navigate('/followups', { replace: true })
+    // The map, not the follow-ups list: /followups is deleted and the map IS
+    // where the app lands, so a deep link opened cold has somewhere real to go.
+    else void navigate('/mindtree', { replace: true })
   }
 
   return (

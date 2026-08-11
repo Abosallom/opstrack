@@ -290,11 +290,9 @@ button,
 .pill,
 .nav-item,
 .sidebar,
-.tabbar,
 .app-header,
 .page-title,
-.section-title,
-.tabbar-label {
+.section-title {
   -webkit-user-select: none;
   user-select: none;
 }
@@ -746,9 +744,15 @@ textarea.input {
 
 .status-pill,
 .vocab-pill,
-.bd-col-title,
-.bd-rail,
-.bd-overflow-label {
+/* WAS `.bd-col-title`, `.bd-rail`, `.bd-overflow-label` — pages/board.css's
+   names. That sheet is deleted; the board is a STAGE now
+   (components/map/map-board.css) and the three consumers renamed with it. Left
+   unchanged, this recipe would have silently stopped applying and every column
+   title, collapsed rail and overflow label would have fallen back to
+   `var(--text-dim)` — a colour regression no gate can see. */
+.mbd-col-title,
+.mbd-rail,
+.mbd-overflow-label {
   --vocab-ink: color-mix(in srgb, var(--vocab-c) 35%, var(--text));
 }
 
@@ -1181,11 +1185,9 @@ textarea.input {
 
 @media print {
   .sidebar,
-  .tabbar,
   .app-header,
   .offline-banner,
-  .toast-host,
-  .fab {
+  .toast-host {
     display: none !important;
   }
 

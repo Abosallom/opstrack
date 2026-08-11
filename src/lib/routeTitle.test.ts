@@ -15,15 +15,15 @@
 import { describe, expect, it } from 'vitest'
 import { titleKeyFor, type TitledRoute } from './routeTitle'
 
-/** The Wave-2 NAV table, reduced to the two fields the function reads. */
-const NAV: readonly TitledRoute[] = [
-  { to: '/capture', titleKey: 'route.capture' },
-  { to: '/followups', titleKey: 'route.followups' },
-  { to: '/board', titleKey: 'route.board' },
-  { to: '/tracks', titleKey: 'route.tracks' },
-  { to: '/meetings', titleKey: 'route.meetings' },
-  { to: '/dashboard', titleKey: 'route.dashboard' },
-]
+/**
+ * The NAV table after the collapse, reduced to the two fields the function
+ * reads. Six destinations became one: capture, follow-ups, the board, the
+ * tracks index, the track log and the dashboard are lenses on `/mindtree` now
+ * (docs/MAP-CONTRACT.md §1), so the scan below has exactly one entry to find and
+ * every other path in this file is decided by the ordered prefix tests — which
+ * makes the ordering matter MORE than it did, not less.
+ */
+const NAV: readonly TitledRoute[] = [{ to: '/mindtree', titleKey: 'mindtree.title' }]
 
 const title = (p: string): string => titleKeyFor(p, NAV)
 
@@ -32,9 +32,22 @@ describe('titleKeyFor', () => {
     for (const dest of NAV) expect(title(dest.to)).toBe(dest.titleKey)
   })
 
-  it('distinguishes a track log from the track index', () => {
-    expect(title('/tracks')).toBe('route.tracks')
-    expect(title('/tracks/abc-123')).toBe('route.trackDetail')
+  it('sends the collapsed paths to the map, exactly as the "*" route does', () => {
+    // /capture, /followups, /board, /tracks, /tracks/:id, /dashboard and
+    // /notifications no longer exist. App.tsx redirects each of them to
+    // /mindtree, so the header must name the map rather than flash the name of
+    // a screen the router is in the middle of leaving.
+    for (const gone of [
+      '/capture',
+      '/followups',
+      '/board',
+      '/tracks',
+      '/tracks/abc-123',
+      '/dashboard',
+      '/notifications',
+    ]) {
+      expect(title(gone), gone).toBe('mindtree.title')
+    }
   })
 
   describe('the meeting flow — four screens under one prefix', () => {
@@ -62,11 +75,10 @@ describe('titleKeyFor', () => {
     })
   })
 
-  it('titles the three screens that are in no nav at all', () => {
-    // Reached from the bell, from the dashboard, and from the List | Map
-    // switcher on /tracks respectively — never from a tab, so the header is the
-    // only place any of the three is named.
-    expect(title('/notifications')).toBe('notif.title')
+  it('titles the two screens that are in no nav at all', () => {
+    // Reached from MapModeBar in the map's header — never from the rail, so the
+    // header is the only place either is named. (`/notifications` was the third
+    // and is gone: the record is the map's `what-changed` lens.)
     expect(title('/digest')).toBe('digest.title')
     expect(title('/mindtree')).toBe('mindtree.title')
   })
@@ -116,15 +128,14 @@ describe('titleKeyFor', () => {
       expect(new Set(admin.map(title)).size).toBe(9)
     })
 
-    it('does not confuse /settings/notifications with the /notifications page', () => {
-      // Two different screens whose paths are a suffix of one another: the inbox
-      // HISTORY at the top level, and push preferences under settings. The
-      // top-level test is `startsWith('/notifications')`, which cannot see the
-      // settings path, and the settings test is below it — but only because
-      // neither string is a prefix of the other. Worth pinning: they were one
-      // sloppy `includes()` away from sharing a title.
-      expect(title('/notifications')).toBe('notif.title')
+    it('still titles push preferences after the inbox page was deleted', () => {
+      // These two were a suffix of one another — the inbox HISTORY at the top
+      // level and push preferences under settings — and the top-level test has
+      // now been removed with its page. The settings one must survive that
+      // deletion rather than fall through to the plain settings title, which is
+      // exactly the failure mode this whole file exists to catch.
       expect(title('/settings/notifications')).toBe('push.title')
+      expect(title('/notifications')).toBe('mindtree.title')
     })
 
     it('creating a track is not mistaken for editing one called "new"', () => {
@@ -134,9 +145,9 @@ describe('titleKeyFor', () => {
   })
 
   it('falls back to the home screen for anything unrecognised', () => {
-    // Matches the '*' route, which redirects to /followups — the header and the
+    // Matches the '*' route, which redirects to /mindtree — the header and the
     // redirect must agree, or the title flashes the wrong screen's name.
-    expect(title('/nope')).toBe('route.followups')
-    expect(title('/')).toBe('route.followups')
+    expect(title('/nope')).toBe('mindtree.title')
+    expect(title('/')).toBe('mindtree.title')
   })
 })

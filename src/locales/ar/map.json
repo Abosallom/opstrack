@@ -1,0 +1,8 @@
+{
+  "map": {
+    "scopeWhole": "جميع المسارات",
+    "scopeBranch": "⁨{label}⁩ فقط",
+    "showing": "التصفية على ⁨{label}⁩.",
+    "changesWhich": "أي تغييرات"
+  }
+}

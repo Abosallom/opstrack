@@ -50,6 +50,7 @@
 // only one of them would roll back.
 
 import { create } from 'zustand'
+import { DEFAULT_LENS, isMapLens, type MapLens } from '../lib/mindtree/lens'
 import { isMindDimension, ROOT_ID, type MindDimension } from '../lib/mindtree/model'
 
 /* ─────────────────────────────── the shapes ──────────────────────────────── */
@@ -136,6 +137,32 @@ export interface MindtreePrefs {
   view: MindtreeView
   density: MindDensity
   /**
+   * WHAT THE SHELL IS FOR — the chip that picks the stage and the panel subject
+   * together (lib/mindtree/lens.ts).
+   *
+   * PERSISTED, and the asymmetry with the URL matters: a link carrying `?lens=`
+   * wins, a link that says nothing leaves this alone, and DEFAULT_LENS applies
+   * only to a device that has never chosen. That is what lets a reader who
+   * prefers `shape` keep it while a pasted attention link still works.
+   *
+   * THE STAGE IS NOT PERSISTED BESIDE IT. `view` above already holds map⇄table
+   * and MapToolbar's switch already writes it; a second `stage` field would be
+   * two records of one idea, and they would disagree the first time either
+   * writer ran alone. `lens.stageWithTable(lens, view === 'table')` derives it.
+   */
+  lens: MapLens
+  /**
+   * Is the dock showing? Persisted because closing it is a deliberate act — a
+   * reader who wants the whole width for the picture should still have it
+   * tomorrow — and re-opening is one tap on the lens chip either way.
+   *
+   * The DETENT is deliberately NOT persisted: `lens.phoneDetentFor` decides it
+   * per subject, so a phone reader who taps the attention lens always gets the
+   * full-height list the contract requires rather than whatever height they last
+   * dragged the sheet to on some other lens.
+   */
+  panelOpen: boolean
+  /**
    * The drill-in root, as a node id — which IS the path, because model.ts builds
    * ids as `root/track:<id>/group:<key>`. Persisting the id therefore persists
    * the whole path for free, and restoring it needs no second field.
@@ -160,6 +187,8 @@ const DEFAULT_PREFS: MindtreePrefs = {
   dimension: 'status',
   view: 'map',
   density: 'comfortable',
+  lens: DEFAULT_LENS,
+  panelOpen: true,
   focus: null,
   collapsed: {},
   opened: {},
@@ -239,6 +268,12 @@ export function readMindtreePrefs(): MindtreePrefs {
       // ordinary case rather than the exceptional one — a missing field takes
       // the default exactly as a malformed one does.
       density: isMindDensity(rec.density) ? rec.density : DEFAULT_PREFS.density,
+      // Absent on every device that persisted before the lenses shipped, which
+      // is the ordinary case: a missing field takes the default — and the
+      // default is the attention lens, which is the screen those devices are
+      // being redirected away from.
+      lens: isMapLens(rec.lens) ? rec.lens : DEFAULT_PREFS.lens,
+      panelOpen: typeof rec.panelOpen === 'boolean' ? rec.panelOpen : DEFAULT_PREFS.panelOpen,
       focus: focusOf(rec.focus),
       collapsed: idMap(rec.collapsed),
       opened: idMap(rec.opened),
@@ -268,6 +303,8 @@ interface MindtreeState {
   dimension: MindDimension
   view: MindtreeView
   density: MindDensity
+  lens: MapLens
+  panelOpen: boolean
   focus: string | null
   collapsedByDim: Readonly<Record<string, string[]>>
   openedByDim: Readonly<Record<string, string[]>>
@@ -304,6 +341,8 @@ function initialState(): MindtreeState {
     dimension: prefs.dimension,
     view: prefs.view,
     density: prefs.density,
+    lens: prefs.lens,
+    panelOpen: prefs.panelOpen,
     focus: prefs.focus,
     collapsedByDim: prefs.collapsed,
     openedByDim: prefs.opened,
@@ -322,6 +361,8 @@ function persist(s: MindtreeState): void {
     dimension: s.dimension,
     view: s.view,
     density: s.density,
+    lens: s.lens,
+    panelOpen: s.panelOpen,
     focus: s.focus,
     collapsed: s.collapsedByDim,
     opened: s.openedByDim,
@@ -344,6 +385,8 @@ function updatePrefs(patch: Partial<MindtreeState>): void {
       next.dimension === s.dimension &&
       next.view === s.view &&
       next.density === s.density &&
+      next.lens === s.lens &&
+      next.panelOpen === s.panelOpen &&
       next.focus === s.focus &&
       next.collapsedByDim === s.collapsedByDim &&
       next.openedByDim === s.openedByDim
@@ -369,6 +412,24 @@ export function setMindView(view: MindtreeView): void {
 
 export function setMindDensity(density: MindDensity): void {
   updatePrefs({ density })
+}
+
+/**
+ * Choose the lens — what the shell is FOR.
+ *
+ * IT DOES NOT TOUCH `view`. The stage is derived from the two
+ * (`lens.stageWithTable`), so a reader who was reading the ledger and switches
+ * to the board and back finds the ledger again. It does not touch the drill-in
+ * either: `shape` and `needs-me` are two questions about the same branch, and
+ * clearing the focus on a lens change would make the chips destructive.
+ */
+export function setMindLens(lens: MapLens): void {
+  updatePrefs({ lens })
+}
+
+/** Show or hide the dock. Closing it gives the picture the whole width. */
+export function setMindPanelOpen(panelOpen: boolean): void {
+  updatePrefs({ panelOpen })
 }
 
 /**
@@ -606,6 +667,14 @@ export function useMindDensity(): MindDensity {
   return useMindtreeStore((s) => s.density)
 }
 
+export function useMindLens(): MapLens {
+  return useMindtreeStore((s) => s.lens)
+}
+
+export function useMindPanelOpen(): boolean {
+  return useMindtreeStore((s) => s.panelOpen)
+}
+
 export function useMindFocus(): string | null {
   return useMindtreeStore((s) => s.focus)
 }
@@ -701,6 +770,8 @@ export function resetMindtree(): void {
     dimension: DEFAULT_PREFS.dimension,
     view: DEFAULT_PREFS.view,
     density: DEFAULT_PREFS.density,
+    lens: DEFAULT_PREFS.lens,
+    panelOpen: DEFAULT_PREFS.panelOpen,
     focus: DEFAULT_PREFS.focus,
     collapsedByDim: {},
     openedByDim: {},

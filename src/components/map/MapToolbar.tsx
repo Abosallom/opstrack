@@ -12,7 +12,6 @@
 // owns is the chrome.
 
 import { useEffect, useRef, type ReactElement } from 'react'
-import { IconChart, IconLayers } from '../icons'
 import { t } from '../../lib/i18n'
 import { MIND_DIMENSIONS, type MindDimension } from '../../lib/mindtree/model'
 import type { MindtreeView } from '../../store/mindtree'
@@ -20,8 +19,18 @@ import type { MindtreeView } from '../../store/mindtree'
 export interface MapToolbarProps {
   dimension: MindDimension
   onDimension: (next: MindDimension) => void
+  /**
+   * READ ONLY, and there is no `onView` beside it any more.
+   *
+   * The map⇄ledger switch moved to `MapLensBar`, which owns the STAGE — this
+   * bar rendered a second `View: Map | Table` pair that wrote the same store
+   * value. Two controls telling one fact cannot disagree, but they can confuse,
+   * and only one of them can sit next to the lens chips that decide the rest of
+   * what is on screen. This prop stays because the bar still has to know which
+   * of its own groups apply: zoom, expand/collapse and the export menu are
+   * about a picture and mean nothing over a table.
+   */
   view: MindtreeView
-  onView: (next: MindtreeView) => void
   compact: boolean
   density: 'compact' | 'comfortable'
   onDensity: () => void
@@ -39,7 +48,6 @@ export default function MapToolbar({
   dimension,
   onDimension,
   view,
-  onView,
   compact,
   density,
   onDensity,
@@ -117,19 +125,6 @@ export default function MapToolbar({
       </div>
 
       <div className="mtree-bar-group">
-        <button
-          type="button"
-          className="btn btn-sm"
-          onClick={() => onView(view === 'map' ? 'table' : 'map')}
-        >
-          {view === 'map' ? (
-            <IconChart size={16} aria-hidden="true" />
-          ) : (
-            <IconLayers size={16} aria-hidden="true" />
-          )}
-          {view === 'map' ? t('mindtree.tableToggle') : t('mindtree.mapToggle')}
-        </button>
-
         {view === 'map' && (
           <>
             {/* Absent on a phone: one ring is drawn at a time there, so there

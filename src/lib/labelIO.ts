@@ -55,7 +55,7 @@
 //     "count": 2,
 //     "labels": {
 //       "entry.title": { "en": "Action", "ar": "الإجراء" },
-//       "nav.board":   { "en": "Wall",   "ar": null }
+//       "nav.map":   { "en": "Wall",   "ar": null }
 //     }
 //   }
 //
@@ -385,7 +385,7 @@ function readLabels(parsed: unknown): Record<string, unknown> | undefined {
  * refused, so a future version that adds one — or a person who left a "note" to
  * themselves beside a row — does not make the file unreadable.
  *
- * A bare string (`"nav.board": "Wall"`) is refused rather than guessed at: there
+ * A bare string (`"nav.map": "Wall"`) is refused rather than guessed at: there
  * is no honest answer to which of the two languages it meant.
  */
 function readPair(value: unknown): LabelFileEntry | undefined {

@@ -1,14 +1,8 @@
 {
   "route": {
     "signin": "Sign in",
-    "capture": "Quick capture",
-    "followups": "Follow-ups",
-    "board": "Board",
-    "tracks": "Tracks",
-    "trackDetail": "Track",
     "entry": "Entry",
     "meetings": "Meetings",
-    "dashboard": "Dashboard",
     "settings": "Settings",
     "meeting": "Meeting",
     "minutes": "Minutes",

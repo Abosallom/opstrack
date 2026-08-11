@@ -18,12 +18,13 @@
    most likely to be reused on the board and the timeline next. One sheet, one
    feature, one owner.
 
-   WHAT IT DOES NOT OWN: how quiet the button is at rest. Follow-ups passes
-   `fu-act` in `className`, so the button inks --text-faint and lifts to --text
-   on row hover exactly like the three beside it, and the contrast reasoning for
-   that lives with that rule in followups.css where it was measured. A control
-   that styled its own resting ink here would be a second opinion about a screen
-   it does not belong to.
+   WHAT IT DOES NOT OWN: how quiet the button is at rest. The map's attention
+   panel passes `mtree-list-act` in `className`, so the button takes `.btn-ghost`'s
+   resting ink and its hover lift exactly like the three beside it, and the
+   contrast reasoning for that lives in src/styles/contrast.test.ts where it is
+   measured. (It was `fu-act` and followups.css until the collapse deleted that
+   screen.) A control that styled its own resting ink here would be a second
+   opinion about a screen it does not belong to.
 
    LOGICAL PROPERTIES ONLY, like the rest of the repo. */
 
@@ -53,8 +54,8 @@
 
    A SHORTER WORD, NEVER NO WORD.
 
-   `.fu-act` swaps its label for an icon below 640px and this sheet used to copy
-   that, which was the wrong thing to copy. The three Follow-ups actions beside
+   `.mtree-list-act` swaps its label for an icon and this sheet used to copy
+   that, which was the wrong thing to copy. The three panel actions beside
    this one — mark done, add an update, snooze — are reversible and in-app, so a
    mis-tap on a bare glyph costs one tap to undo. This is the only control in the
    application that reaches ANOTHER HUMAN: it sends a colleague a push

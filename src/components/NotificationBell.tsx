@@ -588,7 +588,15 @@ export default function NotificationBell(): ReactElement {
   )
 
   const seeAll = (
-    <NavLink to="/notifications" className="btn btn-ghost btn-sm notif-seeall" onClick={close}>
+    // THE RECORD IS A LENS NOW, NOT A PAGE. /notifications is deleted; the same
+    // rows, grouped by day, are `MapChanges` inside the map's panel — so "See
+    // all" is still two taps from the bell and lands on a surface that can also
+    // act on what it shows.
+    <NavLink
+      to="/mindtree?lens=what-changed"
+      className="btn btn-ghost btn-sm notif-seeall"
+      onClick={close}
+    >
       {t('notif.seeAll')}
       {/* Forward through the hierarchy — forward is leftward in Arabic. */}
       <IconChevronEnd className="icon-directional" size={16} />
@@ -703,7 +711,10 @@ export function NotificationsSettingsRow(): ReactElement {
   useLocale()
   const unread = useUnreadCount()
   return (
-    <NavLink to="/notifications" className="btn btn-ghost notif-settings-row">
+    // Same repoint as "See all" above, and this row matters more: it is the ONLY
+    // way the inbox history is reachable on a phone, where the bell's popover is
+    // a sheet the reader has to open first.
+    <NavLink to="/mindtree?lens=what-changed" className="btn btn-ghost notif-settings-row">
       <span>{t('notif.title')}</span>
       {unread > 0 && (
         <span className="pill info notif-settings-count">

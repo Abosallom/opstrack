@@ -128,9 +128,9 @@ describe('the nullable-client guard is the first statement of every function', (
     // failed, so it is in the right language after a locale switch.
     const results = [
       await api.listOverrides(),
-      await api.upsertOverride('nav.board', 'Pipeline', null),
-      await api.upsertOverrides([{ key: 'nav.board', en: 'Pipeline', ar: null }]),
-      await api.deleteOverride('nav.board'),
+      await api.upsertOverride('nav.map', 'Pipeline', null),
+      await api.upsertOverrides([{ key: 'nav.map', en: 'Pipeline', ar: null }]),
+      await api.deleteOverride('nav.map'),
       await api.deleteAllOverrides(),
     ]
 
@@ -144,7 +144,7 @@ describe('the nullable-client guard is the first statement of every function', (
 describe('listOverrides', () => {
   it('asks for the named columns, ordered by key, and never `*`', async () => {
     const api = await loadApi()
-    answer = { data: [{ key: 'nav.board', en: 'Pipeline', ar: null }], error: null }
+    answer = { data: [{ key: 'nav.map', en: 'Pipeline', ar: null }], error: null }
 
     const result = await api.listOverrides()
 
@@ -236,12 +236,12 @@ describe('listOverrides', () => {
 describe('upsertOverride', () => {
   it('trims, and sends a blank language as NULL rather than an empty string', async () => {
     const api = await loadApi()
-    answer = { data: { key: 'nav.board', en: 'Pipeline', ar: null }, error: null }
+    answer = { data: { key: 'nav.map', en: 'Pipeline', ar: null }, error: null }
 
-    await api.upsertOverride('  nav.board  ', '  Pipeline  ', '   ')
+    await api.upsertOverride('  nav.map  ', '  Pipeline  ', '   ')
 
     const row = argsOf(calls[0], 'upsert')?.[0] as Record<string, unknown>
-    expect(row).toEqual({ key: 'nav.board', en: 'Pipeline', ar: null })
+    expect(row).toEqual({ key: 'nav.map', en: 'Pipeline', ar: null })
     expect(argsOf(calls[0], 'upsert')?.[1]).toEqual({ onConflict: 'key' })
     // Audit columns belong to 0017's trigger: a client that stamps its own can
     // lie about them, and the row exists to say who changed the wording.
@@ -252,7 +252,7 @@ describe('upsertOverride', () => {
     const api = await loadApi()
     answer = { data: 1, error: null }
 
-    const result = await api.upsertOverride('nav.board', '', '   ')
+    const result = await api.upsertOverride('nav.map', '', '   ')
 
     expect(result).toEqual({ ok: true, data: null })
     // No upsert at all. 0017's prune trigger would remove the row anyway, but
@@ -261,7 +261,7 @@ describe('upsertOverride', () => {
     // the client. Asking for the deletion that is meant avoids the phantom.
     expect(calls).toHaveLength(1)
     expect(calls[0].table).toBe('rpc:reset_label_overrides')
-    expect(calls[0].ops[0][1][0]).toEqual({ p_key: 'nav.board' })
+    expect(calls[0].ops[0][1][0]).toEqual({ p_key: 'nav.map' })
   })
 
   it('refuses a blank key rather than occupying the primary key with nothing', async () => {
@@ -277,11 +277,11 @@ describe('upsertOverride', () => {
 describe('upsertOverrides — the import path', () => {
   it('writes every key in ONE upsert and clears the blank ones in one delete', async () => {
     const api = await loadApi()
-    answer = { data: [{ key: 'nav.board', en: 'Pipeline', ar: null }], error: null }
+    answer = { data: [{ key: 'nav.map', en: 'Pipeline', ar: null }], error: null }
 
     await api.upsertOverrides([
-      { key: 'nav.board', en: 'Pipeline', ar: null },
-      { key: 'nav.tracks', en: '', ar: '  ' },
+      { key: 'nav.map', en: 'Pipeline', ar: null },
+      { key: 'nav.more', en: '', ar: '  ' },
       { key: '   ', en: 'x', ar: null },
     ])
 
@@ -289,9 +289,9 @@ describe('upsertOverrides — the import path', () => {
     // hundreds of sequential round trips over a phone connection is a different
     // product. The blank-keyed entry is dropped rather than sent.
     expect(calls).toHaveLength(2)
-    expect(argsOf(calls[0], 'in')).toEqual(['key', ['nav.tracks']])
+    expect(argsOf(calls[0], 'in')).toEqual(['key', ['nav.more']])
     expect(argsOf(calls[1], 'upsert')?.[0]).toEqual([
-      { key: 'nav.board', en: 'Pipeline', ar: null },
+      { key: 'nav.map', en: 'Pipeline', ar: null },
     ])
     // A bulk write reads nothing back per row, so no `.single()` anywhere.
     expect(names(calls[1])).not.toContain('single')
@@ -309,9 +309,9 @@ describe('the escape hatch goes through the reset function 0017 built', () => {
     const api = await loadApi()
     answer = { data: 1, error: null }
 
-    expect(await api.deleteOverride('  nav.board  ')).toEqual({ ok: true, data: 1 })
+    expect(await api.deleteOverride('  nav.map  ')).toEqual({ ok: true, data: 1 })
     expect(calls[0].table).toBe('rpc:reset_label_overrides')
-    expect(calls[0].ops[0][1][0]).toEqual({ p_key: 'nav.board' })
+    expect(calls[0].ops[0][1][0]).toEqual({ p_key: 'nav.map' })
   })
 
   it('treats "nothing to reset" as a success, not a failure', async () => {
@@ -319,7 +319,7 @@ describe('the escape hatch goes through the reset function 0017 built', () => {
     // Another admin got there first. The same call answers "reset this row" and
     // "reset a row already reset"; a red banner on the second is a lie.
     answer = { data: 0, error: null }
-    expect(await api.deleteOverride('nav.board')).toEqual({ ok: true, data: 0 })
+    expect(await api.deleteOverride('nav.map')).toEqual({ ok: true, data: 0 })
   })
 
   it('clears everything with p_key null — one statement, no half-applied reset', async () => {

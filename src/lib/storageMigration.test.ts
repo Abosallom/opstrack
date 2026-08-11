@@ -68,7 +68,7 @@ const SEED: Record<string, string> = {
   [`${LEGACY_PREFIX}track_groups_v1`]: JSON.stringify([{ id: 'g1', name: 'Infrastructure' }]),
   [`${LEGACY_PREFIX}members_v1`]: JSON.stringify([{ id: 'm1', display_name: 'Aziz' }]),
   [`${LEGACY_PREFIX}vocab_v1`]: JSON.stringify([{ id: 'v1', value: 'incident' }]),
-  [`${LEGACY_PREFIX}label_overrides_v1`]: JSON.stringify({ en: { 'nav.board': 'Wall' }, ar: {} }),
+  [`${LEGACY_PREFIX}label_overrides_v1`]: JSON.stringify({ en: { 'nav.map': 'Wall' }, ar: {} }),
   [`${LEGACY_PREFIX}mindtree_v1`]: JSON.stringify({ dimension: 'owner' }),
   [`${LEGACY_PREFIX}board_v1`]: JSON.stringify({ group: 'status' }),
   [`${LEGACY_PREFIX}tree_v1`]: JSON.stringify({ expanded: ['t1'] }),

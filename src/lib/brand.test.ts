@@ -295,7 +295,7 @@ describe('the format tags inside those files', () => {
     // envelope is what a reader in another workspace matches on, and a constant
     // that stopped being used would pass the first check alone.
     expect(LABEL_FILE_FORMAT).toBe('coretrack-terminology')
-    const file = buildLabelFile([{ key: 'nav.board', en: 'Wall', ar: null }], {
+    const file = buildLabelFile([{ key: 'nav.map', en: 'Wall', ar: null }], {
       exportedAt: '2026-07-31T18:22:04.123Z',
       appVersion: '1.0.1',
     })

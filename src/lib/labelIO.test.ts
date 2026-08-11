@@ -12,7 +12,7 @@
 // TWO KINDS OF LOOKUP, deliberately. Most cases run against a FIXTURE bundle
 // (`lookup` below) so that a case says what it is about — a dropped `{name}`, a
 // plural node with the wrong form — and does not break the day somebody rewords
-// `nav.board`. The last block runs against the REAL `shippedNode` from
+// `nav.map`. The last block runs against the REAL `shippedNode` from
 // lib/i18n.ts, because the fixture cannot prove the one thing that matters most
 // at the seam: that the function the component actually passes in has the shape
 // this module expects, over the bundles the app actually ships.
@@ -47,13 +47,13 @@ import type { PluralNode } from './plural'
  * lib/labelOverrides.ts on its way through.
  */
 const EN: Record<string, string | PluralNode> = {
-  'nav.board': 'Board',
+  'nav.map': 'Map',
   'entry.createdBy': `Created by ${FSI}{name}${PDI}`,
   'board.total': { one: '{count} item', other: '{count} items' },
 }
 
 const AR: Record<string, string | PluralNode> = {
-  'nav.board': 'اللوحة',
+  'nav.map': 'الخريطة',
   'entry.createdBy': `أنشأه ${FSI}{name}${PDI}`,
   'board.total': 'عدد البنود: {count}',
 }
@@ -114,7 +114,7 @@ function plan(source: string, current: readonly LabelPair[] = []) {
 
 describe('buildLabelFile', () => {
   it('names its own format and version, so a file found later identifies itself', () => {
-    const file = buildLabelFile([{ key: 'nav.board', en: 'Wall', ar: null }], META)
+    const file = buildLabelFile([{ key: 'nav.map', en: 'Wall', ar: null }], META)
     expect(file.format).toBe(LABEL_FILE_FORMAT)
     expect(file.version).toBe(LABEL_FILE_VERSION)
     expect(file.exportedAt).toBe(META.exportedAt)
@@ -125,7 +125,7 @@ describe('buildLabelFile', () => {
 
   it('sorts its keys, so two exports of one set differ only in the stamp', () => {
     const pairs: LabelPair[] = [
-      { key: 'nav.board', en: 'Wall', ar: null },
+      { key: 'nav.map', en: 'Wall', ar: null },
       { key: TOTAL_ONE, en: '{count} thing', ar: null },
       { key: 'entry.createdBy', en: null, ar: 'كتبه {name}' },
     ]
@@ -135,22 +135,22 @@ describe('buildLabelFile', () => {
     expect(Object.keys(buildLabelFile(pairs, META).labels)).toEqual([
       TOTAL_ONE,
       'entry.createdBy',
-      'nav.board',
+      'nav.map',
     ])
   })
 
   it('writes both languages on every entry, null included', () => {
-    const file = buildLabelFile([{ key: 'nav.board', en: 'Wall', ar: null }], META)
+    const file = buildLabelFile([{ key: 'nav.map', en: 'Wall', ar: null }], META)
     // Not `toEqual({en: 'Wall'})`: an absent `ar` would read as "leave the
     // Arabic alone", which is the one thing it does not mean.
-    expect(file.labels['nav.board']).toEqual({ en: 'Wall', ar: null })
+    expect(file.labels['nav.map']).toEqual({ en: 'Wall', ar: null })
     expect(serializeLabelFile(file)).toContain('"ar": null')
   })
 
   it('drops a pair that overrides nothing rather than writing two nulls', () => {
     const file = buildLabelFile(
       [
-        { key: 'nav.board', en: '   ', ar: '' },
+        { key: 'nav.map', en: '   ', ar: '' },
         { key: 'entry.createdBy', en: 'Written by {name}', ar: null },
       ],
       META,
@@ -160,8 +160,8 @@ describe('buildLabelFile', () => {
   })
 
   it('trims, and treats a blank as no wording at all', () => {
-    const file = buildLabelFile([{ key: 'nav.board', en: '  Wall  ', ar: '   ' }], META)
-    expect(file.labels['nav.board']).toEqual({ en: 'Wall', ar: null })
+    const file = buildLabelFile([{ key: 'nav.map', en: '  Wall  ', ar: '   ' }], META)
+    expect(file.labels['nav.map']).toEqual({ en: 'Wall', ar: null })
   })
 
   it('cannot have its prototype replaced by a hostile key', () => {
@@ -175,7 +175,7 @@ describe('buildLabelFile', () => {
   })
 
   it('emits Arabic as literal UTF-8, not \\u escapes', () => {
-    const text = serializeLabelFile(buildLabelFile([{ key: 'nav.board', en: null, ar: 'اللوحة' }], META))
+    const text = serializeLabelFile(buildLabelFile([{ key: 'nav.map', en: null, ar: 'اللوحة' }], META))
     expect(text).toContain('اللوحة')
     expect(text.endsWith('\n')).toBe(true)
   })
@@ -228,7 +228,7 @@ describe('planLabelImport — what it refuses to read at all', () => {
   })
 
   it('refuses a file that says it is some other document', () => {
-    const body = JSON.stringify({ format: 'opstrack-export', labels: { 'nav.board': { en: 'x' } } })
+    const body = JSON.stringify({ format: 'opstrack-export', labels: { 'nav.map': { en: 'x' } } })
     expect(planLabelImport(body, lookup, [])).toEqual({
       ok: false,
       error: 'terminology.errImportShape',
@@ -239,7 +239,7 @@ describe('planLabelImport — what it refuses to read at all', () => {
     const body = JSON.stringify({
       format: LABEL_FILE_FORMAT,
       version: LABEL_FILE_VERSION + 1,
-      labels: { 'nav.board': { en: 'Wall', ar: null } },
+      labels: { 'nav.map': { en: 'Wall', ar: null } },
     })
     expect(planLabelImport(body, lookup, [])).toEqual({
       ok: false,
@@ -248,28 +248,28 @@ describe('planLabelImport — what it refuses to read at all', () => {
   })
 
   it('reads a bare key→pair map, because that is what a person writes by hand', () => {
-    const result = plan(JSON.stringify({ 'nav.board': { en: 'Wall' } }))
-    expect(result.apply).toEqual([{ key: 'nav.board', en: 'Wall', ar: null }])
+    const result = plan(JSON.stringify({ 'nav.map': { en: 'Wall' } }))
+    expect(result.apply).toEqual([{ key: 'nav.map', en: 'Wall', ar: null }])
   })
 })
 
 describe('planLabelImport — the round trip', () => {
   it('reads back exactly what the app wrote', () => {
     const pairs: LabelPair[] = [
-      { key: 'nav.board', en: 'Wall', ar: 'الحائط' },
+      { key: 'nav.map', en: 'Wall', ar: 'الحائط' },
       { key: TOTAL_ONE, en: 'one item', ar: null },
     ]
     const text = serializeLabelFile(buildLabelFile(pairs, META))
     expect(plan(text).apply).toEqual([
       { key: TOTAL_ONE, en: 'one item', ar: null },
-      { key: 'nav.board', en: 'Wall', ar: 'الحائط' },
+      { key: 'nav.map', en: 'Wall', ar: 'الحائط' },
     ])
   })
 
   it('applies nothing when the file is already what the app is using', () => {
     // The owner loading the same file twice — the case that decides whether the
     // confirmation says "12 labels will change" or tells the truth.
-    const stored: LabelPair[] = [{ key: 'nav.board', en: 'Wall', ar: 'الحائط' }]
+    const stored: LabelPair[] = [{ key: 'nav.map', en: 'Wall', ar: 'الحائط' }]
     const text = serializeLabelFile(buildLabelFile(stored, META))
     const result = plan(text, stored)
     expect(result.apply).toEqual([])
@@ -278,10 +278,10 @@ describe('planLabelImport — the round trip', () => {
   })
 
   it('counts only the entries that would really change', () => {
-    const stored: LabelPair[] = [{ key: 'nav.board', en: 'Wall', ar: null }]
+    const stored: LabelPair[] = [{ key: 'nav.map', en: 'Wall', ar: null }]
     const result = plan(
       fileOf({
-        'nav.board': { en: 'Wall', ar: null },
+        'nav.map': { en: 'Wall', ar: null },
         'entry.createdBy': { en: 'Raised by {name}', ar: null },
       }),
       stored,
@@ -293,13 +293,13 @@ describe('planLabelImport — the round trip', () => {
 
 describe('planLabelImport — blank means default', () => {
   it('turns a blanked entry into a reset of a key that IS overridden', () => {
-    const stored: LabelPair[] = [{ key: 'nav.board', en: 'Wall', ar: 'الحائط' }]
-    const result = plan(fileOf({ 'nav.board': { en: '', ar: '   ' } }), stored)
-    expect(result.apply).toEqual([{ key: 'nav.board', en: null, ar: null }])
+    const stored: LabelPair[] = [{ key: 'nav.map', en: 'Wall', ar: 'الحائط' }]
+    const result = plan(fileOf({ 'nav.map': { en: '', ar: '   ' } }), stored)
+    expect(result.apply).toEqual([{ key: 'nav.map', en: null, ar: null }])
   })
 
   it('does not write a reset for a key that was never overridden', () => {
-    const result = plan(fileOf({ 'nav.board': { en: '', ar: null } }))
+    const result = plan(fileOf({ 'nav.map': { en: '', ar: null } }))
     expect(result.apply).toEqual([])
     expect(result.unchanged).toBe(1)
   })
@@ -316,9 +316,9 @@ describe('planLabelImport — blank means default', () => {
 
 describe('planLabelImport — an unknown key is skipped, never written', () => {
   it('skips a key this build does not have', () => {
-    const result = plan(fileOf({ 'nav.board': { en: 'Wall' }, [RETIRED]: { en: 'Ghost' } }))
+    const result = plan(fileOf({ 'nav.map': { en: 'Wall' }, [RETIRED]: { en: 'Ghost' } }))
     expect(result.skipped).toEqual([RETIRED])
-    expect(result.apply.map((e) => e.key)).toEqual(['nav.board'])
+    expect(result.apply.map((e) => e.key)).toEqual(['nav.map'])
     expect(result.rejected).toEqual([])
     expect(result.total).toBe(2)
   })
@@ -326,7 +326,7 @@ describe('planLabelImport — an unknown key is skipped, never written', () => {
   it('skips rather than refuses, so a file from another build still applies', () => {
     // The portability promise: a wording pass drafted against the next release
     // must not be rejected wholesale by this one.
-    const result = plan(fileOf({ 'future.thing': { en: 'x' }, 'nav.board': { en: 'Wall' } }))
+    const result = plan(fileOf({ 'future.thing': { en: 'x' }, 'nav.map': { en: 'Wall' } }))
     expect(result.apply).toHaveLength(1)
   })
 
@@ -356,7 +356,7 @@ describe('planLabelImport — every entry goes through the shared validator', ()
   })
 
   it('names a placeholder an entry invented', () => {
-    const result = plan(fileOf({ 'nav.board': { en: 'Board of {foo}' } }))
+    const result = plan(fileOf({ 'nav.map': { en: 'Board of {foo}' } }))
     expect(result.rejected[0]).toMatchObject({
       locale: 'en',
       error: 'terminology.errTokenUnknown',
@@ -411,7 +411,7 @@ describe('planLabelImport — all or nothing', () => {
   it('applies NOTHING when any entry is rejected, however good the rest are', () => {
     const result = plan(
       fileOf({
-        'nav.board': { en: 'Wall' },
+        'nav.map': { en: 'Wall' },
         'entry.createdBy': { en: 'Created by nobody' },
       }),
     )
@@ -423,17 +423,17 @@ describe('planLabelImport — all or nothing', () => {
 
   it('reports a malformed entry against its key and both languages at once', () => {
     const result = plan(
-      JSON.stringify({ labels: { 'nav.board': 'Wall', 'entry.createdBy': ['x'] } }),
+      JSON.stringify({ labels: { 'nav.map': 'Wall', 'entry.createdBy': ['x'] } }),
     )
     expect(result.rejected).toEqual([
       { key: 'entry.createdBy', locale: null, error: 'terminology.errImportShape' },
-      { key: 'nav.board', locale: null, error: 'terminology.errImportShape' },
+      { key: 'nav.map', locale: null, error: 'terminology.errImportShape' },
     ])
     expect(result.apply).toEqual([])
   })
 
   it('refuses a value that is neither a string nor null', () => {
-    const result = plan(fileOf({ 'nav.board': { en: 42 } }))
+    const result = plan(fileOf({ 'nav.map': { en: 42 } }))
     expect(result.rejected[0]).toMatchObject({ locale: null, error: 'terminology.errImportShape' })
   })
 
@@ -445,14 +445,14 @@ describe('planLabelImport — all or nothing', () => {
 
   it('ignores a field it does not know instead of failing on it', () => {
     // Forward compatibility, and the note somebody left themselves beside a row.
-    const result = plan(fileOf({ 'nav.board': { en: 'Wall', ar: null, note: 'ask Aziz' } }))
-    expect(result.apply).toEqual([{ key: 'nav.board', en: 'Wall', ar: null }])
+    const result = plan(fileOf({ 'nav.map': { en: 'Wall', ar: null, note: 'ask Aziz' } }))
+    expect(result.apply).toEqual([{ key: 'nav.map', en: 'Wall', ar: null }])
   })
 
   it('reports in key order, so a second read of one file reads the same', () => {
     const result = plan(
       fileOf({
-        'nav.board': { en: 'Board of {foo}' },
+        'nav.map': { en: 'Board of {foo}' },
         'board.total': { en: 'lots' },
         'entry.createdBy': { en: 'Created by' },
       }),
@@ -460,7 +460,7 @@ describe('planLabelImport — all or nothing', () => {
     expect(result.rejected.map((r) => r.key)).toEqual([
       'board.total',
       'entry.createdBy',
-      'nav.board',
+      'nav.map',
     ])
   })
 })
@@ -476,7 +476,7 @@ describe('the real seam', () => {
     const text = serializeLabelFile(
       buildLabelFile(
         [
-          { key: 'nav.board', en: 'Wall', ar: 'الحائط' },
+          { key: 'nav.map', en: 'Wall', ar: 'الحائط' },
           { key: CHANGED_ONE, en: 'one renamed', ar: null },
         ],
         META,

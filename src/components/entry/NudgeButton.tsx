@@ -223,8 +223,9 @@ export interface NudgeButtonProps {
   /**
    * Extra classes for the BUTTON only — the screen's own action styling.
    *
-   * Follow-ups passes `fu-act` so this button inks and reveals exactly like the
-   * three beside it. The registry rule (§1.0.7) is that a screen's difference
+   * The map's attention panel passes `mtree-list-act` so this button sizes and
+   * inks exactly like the three beside it (Follow-ups passed `fu-act` before the
+   * collapse deleted that screen). The registry rule (§1.0.7) is that a screen's difference
    * rides on a class it passes IN, never on a selector reaching into another
    * sheet's tree, and this is that seam.
    */

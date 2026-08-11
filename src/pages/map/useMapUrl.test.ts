@@ -33,7 +33,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { FilterState } from '../../lib/entryFilter'
 import type { MindtreeUrlView } from '../../lib/mindtree/focus'
+import { stageWithTable, type MapLens, type MapStage } from '../../lib/mindtree/lens'
 import type { MindDimension } from '../../lib/mindtree/model'
+import type { MapUrlLens } from './useMapUrl'
 
 vi.hoisted(() => {
   // store/mindtree reads localStorage at module scope (its store is created
@@ -58,9 +60,15 @@ vi.hoisted(() => {
 })
 
 const { EMPTY_FILTER } = await import('../../lib/entryFilter')
-const { mapFilterFromParams, mapMirrorParams, mapParamsFor, mapUrlInbound } = await import(
-  './useMapUrl'
-)
+const {
+  mapFilterFromParams,
+  mapLensFromParams,
+  mapLensMirror,
+  mapMirrorParams,
+  mapParamsFor,
+  mapParamsForLens,
+  mapUrlInbound,
+} = await import('./useMapUrl')
 
 /* ─────────────────────────────── fixtures ────────────────────────────────── */
 
@@ -246,11 +254,136 @@ describe('mapMirrorParams', () => {
   })
 })
 
+/* ─────────────────────────── the lens, in the URL ─────────────────────────── */
+
+describe('mapLensFromParams', () => {
+  it('is null when the URL has no opinion about the lens', () => {
+    // Not the same answer as "take the default": a reader who prefers `shape`
+    // keeps it when they open the app from the nav bar. DEFAULT_LENS applies
+    // only when nothing is persisted either.
+    expect(mapLensFromParams(params(''))).toBeNull()
+    expect(mapLensFromParams(params('q=vpn&focus=' + TRACK))).toBeNull()
+  })
+
+  it('is null for a lens that is not one of the five', () => {
+    expect(mapLensFromParams(params('lens=needsme'))).toBeNull()
+    expect(mapLensFromParams(params('lens=toString'))).toBeNull()
+    // A stage with no lens beside it names no chip, so there is nothing honest
+    // to show — the mirror never writes one without the other.
+    expect(mapLensFromParams(params('stage=board'))).toBeNull()
+  })
+
+  it('resolves the stage the lens implies when the URL is silent about it', () => {
+    expect(mapLensFromParams(params('lens=needs-me'))).toEqual({ lens: 'needs-me', stage: 'map' })
+    expect(mapLensFromParams(params('lens=by-status'))).toEqual({
+      lens: 'by-status',
+      stage: 'board',
+    })
+    expect(mapLensFromParams(params('lens=numbers'))).toEqual({ lens: 'numbers', stage: 'numbers' })
+  })
+
+  it('carries the ledger, which is the one stage a lens does not imply', () => {
+    expect(mapLensFromParams(params('lens=shape&stage=table'))).toEqual({
+      lens: 'shape',
+      stage: 'table',
+    })
+  })
+
+  it('NORMALISES A STAGE THIS LENS CANNOT SHOW', () => {
+    // Hand-edited, or inherited from a link written under another lens. Obeying
+    // it would draw a board with no chip lit and no control able to explain it.
+    expect(mapLensFromParams(params('lens=shape&stage=numbers'))?.stage).toBe('map')
+    expect(mapLensFromParams(params('lens=by-status&stage=table'))?.stage).toBe('board')
+    expect(mapLensFromParams(params('lens=numbers&stage=sideways'))?.stage).toBe('numbers')
+  })
+})
+
+describe('mapParamsForLens', () => {
+  it('writes the lens beside whatever else the link carries', () => {
+    const out = mapParamsForLens(params(`q=vpn&focus=${BRANCH}`), {
+      lens: 'what-changed',
+      stage: 'map',
+    })
+    expect(out.get('lens')).toBe('what-changed')
+    expect(out.get('q')).toBe('vpn')
+    expect(out.get('focus')).toBe(BRANCH)
+  })
+
+  it('spells out the stage only when it disagrees with the lens', () => {
+    expect(mapParamsForLens(params(''), { lens: 'shape', stage: 'map' }).has('stage')).toBe(false)
+    expect(mapParamsForLens(params(''), { lens: 'numbers', stage: 'numbers' }).has('stage')).toBe(
+      false,
+    )
+    expect(mapParamsForLens(params(''), { lens: 'shape', stage: 'table' }).get('stage')).toBe(
+      'table',
+    )
+  })
+
+  it('clears a stage that the new lens implies anyway', () => {
+    // Leaving `stage=table` behind after a switch to the board would make the
+    // next reader of the link land somewhere the sender never was.
+    const stale = params('lens=shape&stage=table')
+    expect(mapParamsForLens(stale, { lens: 'by-status', stage: 'board' }).has('stage')).toBe(false)
+  })
+
+  it('round-trips every pair it writes', () => {
+    for (const v of [
+      { lens: 'needs-me', stage: 'map' },
+      { lens: 'shape', stage: 'table' },
+      { lens: 'by-status', stage: 'board' },
+      { lens: 'what-changed', stage: 'map' },
+      { lens: 'numbers', stage: 'numbers' },
+    ] as const) {
+      expect(mapLensFromParams(mapParamsForLens(params('q=vpn'), v)), v.lens).toEqual(v)
+    }
+  })
+})
+
+describe('mapLensMirror', () => {
+  it('does nothing when the URL already says what the store says', () => {
+    expect(mapLensMirror(params('lens=shape'), { lens: 'shape', stage: 'map' }, null)).toBeNull()
+    expect(
+      mapLensMirror(params('lens=shape&stage=table'), { lens: 'shape', stage: 'table' }, null),
+    ).toBeNull()
+  })
+
+  it('writes the store back when the URL is silent', () => {
+    const next = mapLensMirror(params('q=vpn'), { lens: 'numbers', stage: 'numbers' }, null)
+    expect(next?.get('lens')).toBe('numbers')
+    expect(next?.get('q')).toBe('vpn')
+  })
+
+  it('refuses to write over a claim the store has not absorbed', () => {
+    // The stale-closure pass: the inbound effect has just handed the store the
+    // pasted lens, and `live` is the reading from the render BEFORE that write.
+    const claim = { lens: 'what-changed', stage: 'map' } as const
+    expect(
+      mapLensMirror(params('lens=what-changed'), { lens: 'needs-me', stage: 'map' }, claim),
+    ).toBeNull()
+  })
+
+  it('lets the write through once the store has caught up', () => {
+    const claim = { lens: 'what-changed', stage: 'map' } as const
+    expect(
+      mapLensMirror(params('q=vpn'), { lens: 'what-changed', stage: 'map' }, claim)?.get('lens'),
+    ).toBe('what-changed')
+  })
+})
+
 /* ────────────────────── the cold load, which is the point ─────────────────── */
 
 interface Store {
   focusId: string | null
   dimension: MindDimension
+  /**
+   * ABSENT IN EVERY CASE THAT PREDATES THE LENS, and `drive()` then leaves the
+   * two lens params alone entirely. Those cases assert the drill-in half of the
+   * mirror, which is a separate concern with its own claim; making them carry a
+   * lens would have them assert a `?lens=` write they were never about.
+   */
+  lens?: MapLens
+  /** The reader's map⇄table preference — the other half of the derived stage. */
+  table?: boolean
 }
 
 interface Run {
@@ -296,24 +429,44 @@ function drive(
   const settle = opts.settle ?? ((id: string): string => id)
   let current = start
   let claim: MindtreeUrlView | null = null
+  let lensClaim: MapUrlLens | null = null
   let ranInboundOn: URLSearchParams | null = null
   let ranOutboundOn: { params: URLSearchParams; store: Store } | null = null
   const urls = [current.toString()]
 
+  /** The store's derived stage, exactly as the hook derives it. */
+  const stageOf = (s: Store): MapStage | null =>
+    s.lens === undefined ? null : stageWithTable(s.lens, s.table === true)
+
   for (let pass = 0; pass < limit; pass++) {
-    const rendered: Store = { focusId: store.focusId, dimension: store.dimension }
+    const rendered: Store = {
+      focusId: store.focusId,
+      dimension: store.dimension,
+      lens: store.lens,
+      table: store.table,
+    }
 
     const inboundDue = ranInboundOn !== current
     const outboundDue =
       ranOutboundOn === null ||
       ranOutboundOn.params !== current ||
       ranOutboundOn.store.focusId !== rendered.focusId ||
-      ranOutboundOn.store.dimension !== rendered.dimension
+      ranOutboundOn.store.dimension !== rendered.dimension ||
+      ranOutboundOn.store.lens !== rendered.lens ||
+      ranOutboundOn.store.table !== rendered.table
 
     if (!inboundDue && !outboundDue) return { urls, store, params: current, settled: true }
 
     if (inboundDue) {
       ranInboundOn = current
+      // The lens half runs FIRST in the hook, and it runs even when the view
+      // half has nothing to say — the two are independent opinions.
+      const wanted = store.lens === undefined ? null : mapLensFromParams(current)
+      if (wanted !== null) {
+        store.lens = wanted.lens
+        if (wanted.stage === 'table' || wanted.stage === 'map') store.table = wanted.stage === 'table'
+        lensClaim = wanted
+      }
       const url = mapUrlInbound(current)
       if (url !== null) {
         if (url.dimension !== null) store.dimension = url.dimension
@@ -326,8 +479,20 @@ function drive(
       ranOutboundOn = { params: current, store: rendered }
       const outstanding = claim
       claim = null
-      const next = mapMirrorParams(current, rendered, claims ? outstanding : null)
-      if (next !== null) {
+      const lensOutstanding = lensClaim
+      lensClaim = null
+      const view = mapMirrorParams(current, rendered, claims ? outstanding : null)
+      const base = view ?? current
+      const stage = stageOf(rendered)
+      const next =
+        rendered.lens === undefined || stage === null
+          ? base
+          : (mapLensMirror(
+              base,
+              { lens: rendered.lens, stage },
+              claims ? lensOutstanding : null,
+            ) ?? base)
+      if (next.toString() !== current.toString()) {
         current = next
         urls.push(current.toString())
       }
@@ -397,6 +562,73 @@ describe('a pasted deep link, on a cold load', () => {
     const run = drive(pasted, { focusId: TRACK, dimension: 'owner' })
     expect(run.settled).toBe(true)
     expect(run.urls).toEqual([pasted.toString()])
+  })
+
+  it('A PASTED LENS SURVIVES A STORE THAT PREFERS ANOTHER ONE', () => {
+    // The ordinary shared-link case: the sender was reading the activity record,
+    // the recipient's persisted lens is the map's shape. Nothing may be written,
+    // because a write in the first frame is a reload or a copy that loses it.
+    const pasted = params(`lens=what-changed&focus=${TRACK}&dim=owner`)
+    const run = drive(pasted, { focusId: null, dimension: 'status', lens: 'shape' })
+
+    expect(run.settled).toBe(true)
+    expect(run.urls).toEqual([pasted.toString()])
+    expect(run.store.lens).toBe('what-changed')
+    expect(run.store.focusId).toBe(TRACK)
+    expect(run.store.dimension).toBe('owner')
+  })
+
+  it('a link carrying only a lens still settles, and keeps the drill-in half', () => {
+    // The two claims are independent: the lens claim must not hold the
+    // drill-in's mirror shut for a pass, or every chip costs a wasted replace.
+    const run = drive(params('lens=numbers'), {
+      focusId: TRACK,
+      dimension: 'owner',
+      lens: 'shape',
+    })
+    expect(run.settled).toBe(true)
+    expect(run.store.lens).toBe('numbers')
+    expect(run.params.get('lens')).toBe('numbers')
+    // …and the reader's own drill-in reached the URL in the same pass.
+    expect(run.params.get('focus')).toBe(TRACK)
+    expect(run.params.get('dim')).toBe('owner')
+  })
+
+  it('seeds the lens from the store when the link says nothing', () => {
+    const run = drive(params('q=vpn'), { focusId: null, dimension: 'status', lens: 'by-status' })
+    expect(run.settled).toBe(true)
+    expect(run.params.get('lens')).toBe('by-status')
+    expect(run.params.has('stage')).toBe(false)
+    expect(run.params.get('q')).toBe('vpn')
+  })
+
+  it('carries the ledger through the round trip and settles', () => {
+    const pasted = params('lens=shape&stage=table')
+    const run = drive(pasted, { focusId: null, dimension: 'status', lens: 'needs-me', table: false })
+    expect(run.settled).toBe(true)
+    expect(run.store.lens).toBe('shape')
+    expect(run.store.table).toBe(true)
+    // The link said nothing about the dimension, so the mirror seeds that one
+    // from the store — the pre-existing rule. What matters here is that the two
+    // lens params it DID carry come out the other side untouched.
+    expect(run.params.get('lens')).toBe('shape')
+    expect(run.params.get('stage')).toBe('table')
+  })
+
+  it('A NORMALISED STAGE IS CORRECTED IN THE URL, IN ONE PASS', () => {
+    // `?stage=numbers` under `?lens=shape` is the settles-differently case for
+    // the lens pair: the store cannot hold what the link asked for, so the claim
+    // must not wedge the mirror shut — the URL has to end up describing what is
+    // actually drawn.
+    const run = drive(params('lens=shape&stage=numbers'), {
+      focusId: null,
+      dimension: 'status',
+      lens: 'needs-me',
+    })
+    expect(run.settled).toBe(true)
+    expect(run.store.lens).toBe('shape')
+    expect(run.params.get('lens')).toBe('shape')
+    expect(run.params.has('stage')).toBe(false)
   })
 
   it('a claim the store settles differently costs one pass and no more', () => {

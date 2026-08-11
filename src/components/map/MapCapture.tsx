@@ -74,6 +74,42 @@
 // arrival would scroll a phone to the top of the document and put a blinking
 // cursor over the picture the lead came to look at. `focusMapCapture()` is
 // exported so a hotkey can take the caret when the reader actually asks for it.
+//
+// ── WHERE THIS SITS IN THE ESCAPE STACK ────────────────────────────────────
+//
+// components/map/MapPanel.tsx's header states the whole order; this file owns
+// level 3 and the note there says it "must preventDefault or this panel closes
+// underneath it". It does, on EVERY Escape it sees — and it only ever sees one
+// while the caret is in its own <input>, because it binds nothing on document.
+// The three steps are one press each: dismiss the assist → clear the line →
+// leave the field. The third step consumes the key too, which is a deliberate
+// reading of that order rather than an omission: an Escape pressed with the
+// caret in the box is about the box, and blurring plus closing the phone sheet
+// in one press is two answers to one question. The press after the blur is not
+// seen here at all and reaches the panel normally.
+//
+// ── WHAT /capture COULD DO THAT THIS NOW DOES TOO ──────────────────────────
+//
+// The page is being deleted, so the two things on it that were not on the bar
+// moved here rather than dying with it: the SUGGESTED TAGS of the parsed track
+// (one tap to add, the same helper a keystroke would produce) and the TOKEN
+// CHEATSHEET, which is the only place in the app that says what `every:`,
+// `+tag` and a quoted `#"IT Operations"` do. The cheatsheet is behind a
+// disclosure, so at rest it costs one ghost button. What did NOT move is the
+// "Just captured" session list: this bar's unresolved-capture notice is the
+// record that mattered, and a five-row entry list on a map screen is the page
+// this collapse exists to remove.
+//
+// ── THE PHONE ──────────────────────────────────────────────────────────────
+//
+// map-capture.css fixes this section to the block end of the viewport below
+// 768px, above the tab bar and above the home indicator, and INVERTS the visual
+// order so the input row is last: the software keyboard then covers the input
+// and nothing else, and the chip strip and the problems panel — the only
+// answers to "did it understand me" — stay on screen while someone types. The
+// DOM order is untouched, so the tab and reading order still run input first.
+// The bar publishes its own measured height back to the shell so the phone
+// panel's sheet can never sit on top of it; see the effect that does it.
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -102,6 +138,7 @@ import { createTemplate } from '../../api/templates'
 import { AiSuggestion } from '../capture/AiSuggestion'
 import { toast } from '../toast'
 import { IconBolt, IconClock, IconWifiOff } from '../icons'
+import { isolateTokens } from '../../lib/bidi'
 import { formatDate } from '../../lib/dates'
 import { t, useLocale } from '../../lib/i18n'
 import { useTrackLabel } from '../../lib/labels'
@@ -189,6 +226,20 @@ const KIND_LABEL: Readonly<Record<TokenKind, string>> = {
   recurring: 'capture.chipRecurring',
   unknown: 'capture.chipUnknown',
 }
+
+/**
+ * The three lines the cheatsheet offers to type for you.
+ *
+ * LITERALS, like every key table in this file: `localeReach.test.ts` scans
+ * source for quoted dotted strings, so a `t(\`capture.example${n}\`)` would ship
+ * missing in one language with nothing to notice it. The twelve `hint*` keys are
+ * written out as literals in the JSX for the same reason.
+ */
+const EXAMPLE_KEYS: readonly string[] = [
+  'capture.exampleMinimal',
+  'capture.exampleFull',
+  'capture.exampleRecurring',
+]
 
 const CADENCE_LABEL: Readonly<Record<Cadence, string>> = {
   daily: 'capture.cadenceDaily',
@@ -287,7 +338,7 @@ function aliasesFor(
 /* ─────────────────────────── the honesty decision ─────────────────────────── */
 
 /** What the confirmation toast says, and what its one button does. */
-interface CaptureConfirmation {
+export interface CaptureConfirmation {
   key: string
   /** `success` paints the green border; anything unresolved must not. */
   tone: 'default' | 'success'
@@ -318,8 +369,20 @@ interface CaptureConfirmation {
  * The rule, restated so a reader of THIS file does not have to open the other:
  * OFFLINE changes where the row is; PROBLEMS change whether it is right; the two
  * are independent, and the sentence has to be able to say both.
+ *
+ * EXPORTED, which the contract's signature list did not ask for, for the reason
+ * pages/Capture.tsx exports its twin and CommandPalette.tsx exports
+ * `shouldRestoreFocus()`: vitest runs `environment: 'node'`, so a decision taken
+ * inside an event handler is a decision no test in this repo can reach. The ten
+ * assertions that pin these four branches live in Capture.test.tsx today and die
+ * with that page; MapCapture.test.tsx restates them against this copy. The
+ * export is additive — nothing published was changed.
  */
-function confirmationFor(queued: boolean, problems: number, hasId: boolean): CaptureConfirmation {
+export function confirmationFor(
+  queued: boolean,
+  problems: number,
+  hasId: boolean,
+): CaptureConfirmation {
   const clean = problems === 0
   return {
     key: clean
@@ -376,7 +439,31 @@ interface UnresolvedCapture {
 
 /* ──────────────────────────────── the bar ─────────────────────────────────── */
 
-export default function MapCapture(): ReactElement {
+export interface MapCaptureProps {
+  /**
+   * The line the bar starts with. `''` everywhere in the app.
+   *
+   * THIS IS A TEST SEAM AND IT IS LABELLED AS ONE. `vitest.config.ts` pins
+   * `environment: 'node'`: there is no jsdom, no testing-library and no events,
+   * so `renderToStaticMarkup` can run this component but can never type into it.
+   * pages/Capture.tsx's render proof got its line from `/capture?q=`, a shipped
+   * path — this bar deliberately has no route of its own to carry one, and
+   * teaching it to read a query param would make the composer route-aware and
+   * put a `?q=` through a URL codec (pages/map/useMapUrl.ts) that would strip it
+   * on the next keystroke. The initial state is therefore the only way a test
+   * can put a parsed line in front of this renderer, and the twenty assertions
+   * that cover the chip strip, the problems panel, the picker and the two
+   * languages are worth one optional prop that the shell never passes.
+   *
+   * It cannot drift into a feature: the bar is mounted once and never
+   * remounted (pages/Mindtree.tsx says so), so a value passed after mount would
+   * be ignored. Anything that wants to hand the composer a line at runtime uses
+   * `focusMapCapture()` and the reader's own keyboard.
+   */
+  initialLine?: string
+}
+
+export default function MapCapture({ initialLine = '' }: MapCaptureProps = {}): ReactElement {
   const locale = useLocale()
   const tracks = useActiveTracks()
   const trackMap = useTrackMap()
@@ -389,9 +476,11 @@ export default function MapCapture(): ReactElement {
 
   const inputId = useId()
   const hintId = useId()
+  const hintsId = useId()
 
-  const [text, setText] = useState('')
+  const [text, setText] = useState(initialLine)
   const [busy, setBusy] = useState(false)
+  const [showHints, setShowHints] = useState(false)
   /** An i18n KEY, never a sentence — the rule every store in this repo follows. */
   const [error, setError] = useState<string | null>(null)
   /** The title of a failed capture that could not be put back in the box. */
@@ -400,6 +489,7 @@ export default function MapCapture(): ReactElement {
   const [announce, setAnnounce] = useState('')
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const barRef = useRef<HTMLElement>(null)
 
   /**
    * What is in the box RIGHT NOW, readable after an await.
@@ -423,6 +513,53 @@ export default function MapCapture(): ReactElement {
     liveInput = el
     return () => {
       if (liveInput === el) liveInput = null
+    }
+  }, [])
+
+  /**
+   * HOW TALL THIS BAR IS, published to the phone sheet.
+   *
+   * `pages/mindtree.css` declares `--map-composer-block-size` on `.mtree` as a
+   * FLOOR — one line of input plus its padding — and `map-panel.css` sets the
+   * sheet's `inset-block-end` from it so a full-height panel can never cover the
+   * composer. The floor is wrong from the first keystroke, which is exactly when
+   * a reader most needs to see the chip strip and the problems panel, so the
+   * real number is measured here. It is written onto the `.mtree` element
+   * itself: that element DECLARES the property, and a declaration on the element
+   * beats any value inherited from <html>, so writing it at the root would be
+   * silently ignored. The comment in mindtree.css asks for exactly this.
+   *
+   * NOT A DOCUMENT OR WINDOW LISTENER — the rule this file keeps everywhere
+   * else. A ResizeObserver watches this element and nothing else, and it is
+   * disconnected on unmount along with the property it set.
+   *
+   * The number published is the GAP from the bottom of the viewport to the top
+   * of the bar, not the bar's height: it therefore already contains whatever the
+   * bar is docked above (the tab bar, the home indicator) and stays correct when
+   * that inset changes under a media query. Above 768px the bar is in normal
+   * flow, nothing is fixed and no sheet exists, so the property is removed and
+   * mindtree.css's own floor applies again.
+   */
+  useEffect(() => {
+    const el = barRef.current
+    if (el === null || typeof ResizeObserver === 'undefined') return
+    const host = el.closest<HTMLElement>('.mtree') ?? document.documentElement
+    let last = ''
+    const publish = (): void => {
+      const fixed = window.getComputedStyle(el).position === 'fixed'
+      const gap = document.documentElement.clientHeight - el.getBoundingClientRect().top
+      const next = fixed && gap > 0 ? `${Math.round(gap)}px` : ''
+      if (next === last) return
+      last = next
+      if (next === '') host.style.removeProperty('--map-composer-block-size')
+      else host.style.setProperty('--map-composer-block-size', next)
+    }
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      host.style.removeProperty('--map-composer-block-size')
     }
   }, [])
 
@@ -734,6 +871,22 @@ export default function MapCapture(): ReactElement {
   )
 
   /**
+   * One tap adds a tag the admin curated for this track.
+   *
+   * The SAME `appendToken` a keystroke would produce, on the same input string —
+   * the keystone rule of this file. `quoteIfNeeded` because a suggested tag may
+   * be two words, and `+direct integration` unquoted would file the tag
+   * `direct` and weld `integration` onto the title.
+   */
+  const addTag = useCallback(
+    (tag: string): void => {
+      setText((prev) => appendToken(prev, `+${quoteIfNeeded(tag)}`))
+      focusInput()
+    },
+    [focusInput],
+  )
+
+  /**
    * Accept the assist: append its tokens, and nothing else.
    *
    * THIS IS THE ONLY PLACE THE MODEL TOUCHES THIS COMPONENT, and it touches it
@@ -835,6 +988,12 @@ export default function MapCapture(): ReactElement {
   )
 
   const parsedTrack = parsed.trackId ? trackMap.get(parsed.trackId) : undefined
+  // Compared FOLDED, because the parser stores tags lower-cased (normalizeTag)
+  // while `suggested_tags` holds whatever the admin typed — an exact-match test
+  // would keep offering a tag that is already on the line.
+  const suggestedTags = parsedTrack
+    ? parsedTrack.suggested_tags.filter((tag) => !parsed.tags.includes(tag.trim().toLowerCase()))
+    : []
   const ambiguous = parsed.tokens.filter(
     (token) => token.kind === 'track' && (token.candidates?.length ?? 0) > 0,
   )
@@ -849,7 +1008,7 @@ export default function MapCapture(): ReactElement {
     // the map, "Quick capture" is how a reader jumps straight to it. NOT a
     // <form> at this level — the reading strip and the assist sit outside the
     // form so that a stray Enter inside them can never submit.
-    <section className="mcap" aria-label={t('capture.title')}>
+    <section className="mcap" ref={barRef} aria-label={t('capture.title')}>
       <form className="mcap-form" onSubmit={(e) => void handleSubmit(e)} noValidate>
         <label className="sr-only" htmlFor={inputId}>
           {t('capture.inputLabel')}
@@ -954,6 +1113,31 @@ export default function MapCapture(): ReactElement {
             {t('capture.openTemplates')}
           </button>
         </p>
+      ) : null}
+
+      {/* The admin's curated tags for the track this line resolved to, minus
+          any the line already carries. An OFFER, not a warning — it sits above
+          the problems panel for the same reason the assist does. It moved off
+          pages/Capture.tsx rather than dying with it: one tap is the whole
+          feature, and re-typing a two-word tag by hand is not the same job. */}
+      {suggestedTags.length > 0 ? (
+        <div className="mcap-suggest">
+          <span className="mcap-suggest-title">{t('capture.suggested')}</span>
+          <div className="chip-row">
+            {suggestedTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className="chip mcap-suggest-chip"
+                onClick={() => addTag(tag)}
+                aria-label={t('capture.addTag', { tag })}
+              >
+                <span aria-hidden="true">+</span>
+                {tag}
+              </button>
+            ))}
+          </div>
+        </div>
       ) : null}
 
       {/* The assist. It renders nothing at all unless the line is prose, the
@@ -1064,6 +1248,67 @@ export default function MapCapture(): ReactElement {
         </div>
       ) : null}
 
+      {/* THE GRAMMAR, BEHIND ONE DISCLOSURE. pages/Capture.tsx is the only place
+          in the app that has ever said what `every:`, `+tag` or a quoted
+          `#"IT Operations"` do, and it is being deleted — so the lesson moves
+          onto the bar rather than going with it. Collapsed it costs one ghost
+          button, which is the whole of what this adds to a map screen at rest.
+          The twelve keys are literals in the JSX because localeReach.test.ts
+          reads source, not runtime. */}
+      <div className="mcap-hints">
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost mcap-hints-toggle"
+          onClick={() => setShowHints((v) => !v)}
+          aria-expanded={showHints}
+          aria-controls={hintsId}
+        >
+          {showHints ? t('capture.hideHints') : t('capture.showHints')}
+        </button>
+        <div id={hintsId} className="mcap-hints-body" hidden={!showHints}>
+          <p className="mcap-hints-title">{t('capture.hints')}</p>
+          <ul className="mcap-hints-list">
+            <li>{t('capture.hintTrack')}</li>
+            <li>{t('capture.hintOwner')}</li>
+            <li>{t('capture.hintPriority')}</li>
+            <li>{t('capture.hintType')}</li>
+            <li>{t('capture.hintTag')}</li>
+            <li>{t('capture.hintDue')}</li>
+            <li>{t('capture.hintFollowUp')}</li>
+            <li>{t('capture.hintRecurring')}</li>
+            <li>{t('capture.hintDates')}</li>
+            <li>{t('capture.hintQuoted')}</li>
+            <li>{t('capture.hintEscape')}</li>
+            <li>{t('capture.hintPlain')}</li>
+          </ul>
+          <p className="mcap-hints-title">{t('capture.examples')}</p>
+          <div className="mcap-examples">
+            {/* DISPLAYED isolated, INSERTED raw. Under `dir="rtl"` the Unicode
+                algorithm resolves the neutral sigils from their neighbours, so
+                `@sara` renders as `sara@` and `due:+7d +portal` comes out in the
+                opposite order — these lines ARE the grammar being taught, and a
+                lesson that reads back-to-front teaches the wrong thing.
+                `isolateTokens()` wraps only the Latin runs, which is why the
+                locale strings themselves stay isolate-free: the parser must
+                never see U+2066 (see lib/bidi's header), and setText() below
+                hands it the raw string. */}
+            {EXAMPLE_KEYS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                className="mcap-example"
+                onClick={() => {
+                  setText(t(key))
+                  focusInput()
+                }}
+              >
+                {isolateTokens(t(key))}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* The one live region this component owns. Debounced, and it announces a
           COUNT rather than the chips themselves — "4 tokens read" is the fact a
           non-sighted reader needs; the detail is reachable by arrowing the line. */}
@@ -1114,12 +1359,19 @@ function TokenChip({ token, label, track, onRemove }: TokenChipProps): ReactElem
       </span>
       <span className="mcap-chip-value">{label}</span>
       <span className="sr-only">{kindLabel}</span>
+      {/* The × is drawn on this empty <span>, not on the button's own pseudo-
+          elements: map-capture.css spends ::after on the 44px hit overlay, and
+          one ::before can only draw one of the two strokes. The control still
+          has NO text content, so its aria-label is the whole accessible name —
+          a literal "×" would be announced as "multiplication sign". */}
       <button
         type="button"
         className="mcap-chip-x"
         onClick={() => onRemove(token)}
         aria-label={t('capture.chipRemove', { token: token.raw })}
-      />
+      >
+        <span aria-hidden="true" />
+      </button>
     </span>
   )
 }

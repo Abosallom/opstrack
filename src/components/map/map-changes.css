@@ -1,0 +1,99 @@
+/* The record of changes — the body of the map's panel when the lens is
+   `what-changed`.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns `.mchg-*` and styles nothing else.
+   The rows it lays out are NotificationBell's `.notif-*` elements and this file
+   never names one of them: the day headings, the tool row and the gaps between
+   groups are this panel's business, and how an inbox row looks is
+   `components/notifications.css`'s. A rule here reaching into `.notif-item`
+   would be a second owner for a component two surfaces share.
+
+   IT DRAWS NO SURROUND AND NO SCROLLER. `map-panel.css` owns both: `.mpan` is
+   the box, `.mpan-body` is the element that scrolls, and on a phone `.mpan` is
+   the sheet at its detent. Everything below styles the CONTENT that host wraps.
+
+   WHAT IT LEANS ON AND NEVER REDECLARES: `.btn`, `.btn-sm`, `.btn-ghost`,
+   `.chip`, `.chip-row`, `.pill`, `.pill.info`, `.empty-state` from global.css.
+
+   LOGICAL PROPERTIES ONLY. There is nothing direction-aware in this panel at
+   all — no swipe, no rotation, no arithmetic — so it is byte-identical in LTR
+   and RTL.
+
+   SPACING is on the 4px grid; MOTION is global.css's, and the row arrival
+   animation belongs to notifications.css, which already honours
+   prefers-reduced-motion. */
+
+.mchg {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+}
+
+/* ---------- the tool row ---------- */
+
+.mchg-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  /* 16px, not 8: this band wraps at 375px and two lines of 44px controls need
+     the clearance or their hit areas overlap. `.row-actions`' floor. */
+  row-gap: 16px;
+}
+
+.mchg-seg {
+  flex: 0 0 auto;
+}
+
+/* The count sits between the filter and the two verbs and takes the slack, so
+   "Mark all as read" stays at the end of the row at every width. */
+.mchg-unread {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.mchg-refresh,
+.mchg-markall {
+  flex: 0 0 auto;
+}
+
+/* On the phone sheet the bulk action takes its own full-width line: it clears
+   every unread row at once, it is the one control here worth a deliberate
+   thumb, and four items on a 375px row means a target below 44px. `data-compact`
+   is the shell's ONE reading of `(max-width: 767px)` — a second breakpoint in
+   CSS could disagree with it. */
+.mchg[data-compact] .mchg-markall {
+  flex: 1 1 100%;
+}
+
+/* ---------- the day groups ---------- */
+
+.mchg-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mchg-group {
+  min-inline-size: 0;
+}
+
+/* The heading is the only thing distinguishing three otherwise identical
+   stacks of rows, so it is a real heading with real weight rather than a caption
+   — and it sticks to the block start of the panel's scroller, because the
+   question this panel answers is "when did that happen" and a reader forty rows
+   into `Earlier` has otherwise lost the answer. */
+.mchg-group-head {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  margin-block-end: 8px;
+  padding-block: 6px;
+  background: var(--bg-elev);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}

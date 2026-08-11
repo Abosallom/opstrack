@@ -68,6 +68,12 @@ describe('readMindtreePrefs — every field validated', () => {
       dimension: 'status',
       view: 'map',
       density: 'comfortable',
+      // The map shell's two: the lens a device that has never chosen lands on —
+      // 'needs-me', because the app lands on /followups today and anywhere else
+      // is a day-one regression — and the dock, which starts open because the
+      // lens is only worth choosing when its panel is showing.
+      lens: 'needs-me',
+      panelOpen: true,
       focus: null,
       collapsed: {},
       opened: {},

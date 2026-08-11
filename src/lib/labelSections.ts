@@ -302,7 +302,7 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
     section: 'entryFields',
     where: 'terminology.where.followups',
     rules: [
-      { prefixes: ['subtitle', 'title'], section: 'screenTitles' },
+      { prefixes: ['title'], section: 'screenTitles' },
       {
         // The six section headings and their hints ARE the health vocabulary of
         // this screen — lib/entrySections.ts buckets by exactly these names.
@@ -312,8 +312,6 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       {
         prefixes: [
           'addUpdate',
-          'clearFilters',
-          'captureCta',
           'collapseSection',
           'expandSection',
           'markDone',
@@ -389,6 +387,16 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
     ],
   },
 
+  // The map's own panel strings (U3's `map` namespace), placed beside mindtree
+  // because they are the same screen: the four keys name the panel's
+  // Everyone/Mine scope pair, its filter announcement and the changes-filter
+  // group. `changes*` goes to Actions because it labels a control.
+  map: {
+    section: 'messages',
+    where: 'terminology.where.mindtree',
+    rules: [{ prefixes: ['changes'], section: 'actions' }],
+  },
+
   board: {
     section: 'entryFields',
     where: 'terminology.where.board',
@@ -432,7 +440,7 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
     section: 'entryFields',
     where: 'terminology.where.capture',
     rules: [
-      { prefixes: ['subtitle', 'title'], section: 'screenTitles' },
+      { prefixes: ['title'], section: 'screenTitles' },
       {
         prefixes: [
           'addTag',
@@ -457,7 +465,6 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'newOwner',
           'parsedAnnounce',
           'problem',
-          'submitHint',
           'submitting',
           'undone',
           'warn',
@@ -487,7 +494,7 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
         ],
         section: 'actions',
       },
-      { prefixes: ['allClear', 'empty', 'noMatch'], section: 'emptyStates' },
+      { prefixes: ['allClear', 'empty'], section: 'emptyStates' },
       { prefixes: ['archived'], section: 'healthStates' },
       { prefixes: ['archivedHint'], section: 'messages' },
       {
@@ -503,7 +510,6 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'err',
           'hint',
           'selectionCleared',
-          'tagHint',
           'truncated',
         ],
         section: 'messages',
@@ -514,14 +520,12 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
     section: 'entryFields',
     where: 'terminology.where.trackLog',
     rules: [
-      { prefixes: ['back'], section: 'navigation' },
       { prefixes: ['refresh'], section: 'actions' },
       { prefixes: ['empty', 'tagsEmpty'], section: 'emptyStates' },
       { prefixes: ['statOverdue', 'statStale', 'statBlocked', 'statSla'], section: 'healthStates' },
       {
         prefixes: [
           'err',
-          'notFound',
           'orphan',
           'refreshed',
           'statsHint',
@@ -547,7 +551,7 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
     where: 'terminology.where.dashboard',
     rules: [
       { prefixes: ['subtitle'], section: 'screenTitles' },
-      { prefixes: ['goBoard', 'goDigest', 'goFollowups', 'refresh', 'showData'], section: 'actions' },
+      { prefixes: ['goDigest', 'refresh', 'showData'], section: 'actions' },
       {
         prefixes: [
           'ageEmpty',

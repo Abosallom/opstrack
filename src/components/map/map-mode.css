@@ -1,0 +1,167 @@
+/* The modes: the two entrances in the shell header, and the frame every mode
+   route renders inside.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.mmode*` and styles nothing
+   else. One sheet for two components — MapModeBar.tsx and ModeFrame.tsx —
+   because they are the two halves of one idea (leaving the map, and coming back)
+   and they have to agree about the same trail metrics forever. That is §1.0.4's
+   rule, and it is the same reason `ai-suggest.css` serves two consumers.
+
+   Primitives it USES and never redeclares: `.btn`, `.btn-sm`, `.btn-ghost`,
+   `.tap-44`, `.pill`/`.pill.ok`. The live badge in particular is a `.pill.ok`
+   verbatim — global.css re-solved that green for the pill's own 12%-tint
+   background in both themes, and a hand-rolled badge here would be the fifth
+   place that measurement has to be repeated.
+
+   COLOUR is entirely borrowed. Nothing in this file introduces a contrast
+   recipe: the trail's separator and its current step are `--text-faint` and
+   `--text-dim`, the two ink tokens global.css already measured at every
+   elevation.
+
+   LOGICAL PROPERTIES ONLY. `padding-inline`, `margin-inline-start`,
+   `max-inline-size`, `border-inline-start`. There is no physical direction in
+   this file, and the two icons that MEAN a direction (the back arrow, the trail
+   separator) are mirrored by global.css's `[dir='rtl'] .icon-directional` from
+   the call site, not from here.
+
+   MOTION: none of its own. The only transition on anything here is the one the
+   `.btn` family already carries, which global.css's `prefers-reduced-motion`
+   block already flattens.
+
+   SPACING is on the 4px grid. */
+
+/* ══════════════ the entrances — MapModeBar, in the shell header ══════════ */
+
+.mmode {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Never grows and never shrinks below its content: `.mtree-shellbar` is
+     `justify-content: space-between`, so this row sits at the inline end of the
+     header and wraps to its own line before it would squeeze the lens chips.
+     Two destinations that wrapped INTERNALLY would put one of them under the
+     other at 375px and cost the row its "one row, one tap" property. */
+  flex: 0 0 auto;
+}
+
+/* `.mmode .mmode-item`, NOT `.mmode-item`. `.btn` already declares `gap: 8px` at
+   the same (0,1,0) specificity, so a bare class here would win or lose on
+   BUNDLER SOURCE ORDER — the one thing a co-located sheet cannot depend on. The
+   descendant selector settles it at (0,2,0) and settles it in this file. */
+.mmode .mmode-item {
+  /* `.btn btn-sm btn-ghost tap-44` carries the box, the ink and the 44px of hit
+     area. This rule only says how the icon, the label and the badge sit inside
+     it — a tighter gap than `.btn`'s 8px, because three things in a 32px-tall
+     control read as one object rather than a list. */
+  gap: 6px;
+  padding-inline: 10px;
+}
+
+.mmode-text {
+  white-space: nowrap;
+}
+
+.mmode-live {
+  /* Pulled in against the label: the badge belongs to the word before it, not to
+     the row. `.pill`'s own padding does the rest. */
+  margin-inline-start: 2px;
+  font-size: 11px;
+}
+
+/* A PHONE KEEPS BOTH LABELS. The compaction available here is horizontal
+   padding and nothing else: dropping to icon-only would make two of the app's
+   five destinations unreadable to anyone who has not already learned them, and
+   `.tap-44` keeps the hit area at 44px regardless of how narrow the box gets —
+   which is the half of rule 4 that actually protects a thumb. */
+.mmode[data-compact] .mmode-item {
+  padding-inline: 8px;
+}
+
+.mmode[data-compact] .mmode-live {
+  /* The badge is the only thing on this row that can be sacrificed for width,
+     and it is sacrificed to its own padding rather than to its text. */
+  padding-inline: 6px;
+}
+
+/* ══════════════════ the frame — ModeFrame, on every mode route ══════════ */
+
+.mmode-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-inline-size: 0;
+  /* A READING MEASURE BY DEFAULT. `.main-content` already caps the shell at
+     1180px; a meeting list, a triage decision and a digest are all read as
+     prose or as a single column of controls, and 1180px of it is a line the eye
+     loses its place on. The three surfaces that genuinely want the shell's full
+     width — live capture, triage and the minutes document — ask for it. */
+  max-inline-size: 980px;
+}
+
+.mmode-frame[data-wide] {
+  max-inline-size: none;
+}
+
+.mmode-trail {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Wraps rather than truncates: the current step can be a long localized mode
+     name, and a trail whose only affordance is the way back must never push
+     that link off the inline edge. */
+  flex-wrap: wrap;
+  row-gap: 8px;
+  min-inline-size: 0;
+}
+
+/* Descendant-scoped for the reason `.mmode .mmode-item` is: `.btn`'s `gap` is
+   the same specificity and source order must not be the tie-breaker. */
+.mmode-trail .mmode-back {
+  /* The one target that must be easy: it is the way back from every mode, at
+     every arrival path, including the ones that started from a push
+     notification with nothing behind them in the history stack. */
+  gap: 6px;
+  padding-inline: 10px;
+  font-size: 13px;
+}
+
+.mmode-sep {
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+.mmode-where {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  /* The trail's current step is a label, not a heading: the screen below owns
+     the `<h1>`, and this must never out-weigh it. */
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ════════════════════════════════ print ════════════════════════════════ */
+
+/* THE FRAME ADDS CHROME, SO THE FRAME TAKES IT AWAY AGAIN. The digest and the
+   minutes are printed, PDF'd and pasted; `digest.css`, `minutes.css` and
+   `global.css` each already hide their own page furniture under this at-rule,
+   and a wrapper that did not join them would spend the top of page one on a
+   breadcrumb nobody can click on paper.
+
+   The mode bar is listed too. It lives in the map's header rather than on a
+   mode route, so it is not on the page when a document prints — but it is one
+   `!important` for a surface the export path may yet grow, and leaving it out
+   would be relying on a routing fact rather than on a rule. */
+@media print {
+  .mmode,
+  .mmode-trail {
+    display: none !important;
+  }
+
+  .mmode-frame {
+    /* A sheet of paper is the measure now. Holding 980px here would print a
+       document into a column and waste the margin. */
+    max-inline-size: none;
+    gap: 0;
+  }
+}
