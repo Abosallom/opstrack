@@ -52,6 +52,40 @@
 // The day Aziz ticks workspace.admin onto Director the two answers separate, and
 // each guard must keep mirroring its own server rather than the other's.
 //
+// ── THE POSITION: DISPLAY ONLY, AND WRITTEN HERE OR NOWHERE ────────────────
+//
+// `profiles.position` was read by this screen from the day the column existed
+// and written by NOTHING, so all eighteen rows printed an empty string and the
+// separator never appeared — a roster of eighteen usernames with no way to tell
+// an Executive Director from a Developer. It is now typed in the create form and
+// edited inline on the row.
+//
+// ⚠ IT GATES NOTHING. Not here, not anywhere, ever. It is free text a person
+//   typed into a box, and the app must never infer seniority by parsing it —
+//   that is what ROLES are for, and "Business Operations & Product Director
+//   (Delegation)" is exactly the string a title parser would read as two ranks
+//   or as none. 0025's own column comment says the same thing (0025:483). The
+//   only decision this value participates in is which characters get painted
+//   beside a name.
+//
+// AND BECAUSE IT IS FREE TEXT IT IS `bdi`-ISOLATED WHEREVER IT IS RENDERED.
+// "PMO (OB related)" beside an Arabic display name drags its parentheses to the
+// wrong side of the line otherwise, and the `·` before it lands after it.
+//
+// WHO MAY WRITE IT IS `members.manage`, WHICH IS NOT `useIsAdmin()`, and the
+// difference is the whole reason the check below is computed rather than
+// assumed. `guard_profile_role()` reverts the column — silently, with a 200 —
+// for any writer without that key (0025:1800), so the control is offered only to
+// somebody the loaded permission rows say holds it, and the write reads back
+// what persisted rather than trusting its own request. Same shape as the role
+// picker, same reason.
+//
+// THE POSITION UI IS ABSENT ENTIRELY WHEN THE `profiles` READ FAILED. On a
+// project with 0025 unapplied the column does not exist, the read that would
+// carry it answers 42703, and a field that wrote into a 42703 would be a form
+// control that silently does nothing. `refsReady` is that read's own flag, kept
+// separate from `rolesReady` because they answer different questions.
+//
 // THE PICKER DEGRADES TO THE OLD PAIR OF BUTTONS. Migrations 0023–0025 are
 // unapplied as this ships: there is no `roles` table on the live project yet, so
 // the reads that feed the picker fail, and a screen that answered that with an
@@ -70,7 +104,9 @@ import {
   deleteMember,
   listMemberAccounts,
   listMemberRoleRefs,
+  normalizePosition,
   reissueInvite,
+  setMemberPosition,
   setMemberRole,
   setMemberRoleId,
   type Invite,
@@ -83,51 +119,66 @@ import {
   grants,
   listRolePermissions,
   listRoles,
+  type PermissionKey,
   type Role,
   type RolePermission,
 } from '../../api/roles'
 import { formatRelativeTime, formatTimestamp } from '../../lib/dates'
 import { t, useLocale, type Locale } from '../../lib/i18n'
-import { useAuth } from '../../store/auth'
+import { useIsAdmin } from '../../store/auth'
 import { invalidateMembers } from '../../store/members'
 import type { UserRole } from '../../types'
 import './members.css'
 
 /**
- * Cosmetic admin gate. The real authority is the `admin-members` function's own
- * JWT check — every write on this screen answers 403 for a member whatever this
- * returns, and gate (e) of the Wave-4 plan proves it with curl. Hiding the
- * screen only avoids offering an action that cannot succeed.
+ * THE ADMIN GATE ON THIS SCREEN IS `store/auth.useIsAdmin()`, which is
+ * `useHasPerm('workspace.admin')` — the same question `is_admin()` asks in the
+ * database since 0025. This file used to define its own four-line copy over the
+ * legacy `profiles.role` column; the `?shell` preview flag it carried now lives
+ * once, in `decide()` in store/auth.ts, and behaves identically.
  *
- * `?shell` mirrors App.tsx's dev-only preview flag. Without it these screens are
- * unreachable in a build with no Supabase project, which is exactly where the
- * layout and the RTL mirror get reviewed. `import.meta.env.DEV` is the literal
- * `false` in a production build, so Vite tree-shakes the whole expression out
- * and this cannot become a way in.
- *
- * The fourth copy of this hook (TracksAdmin, TrackEditor, VocabularyAdmin). It
- * stays a copy because §1.0.4 forbids reaching into another worker's file to
- * extract one; lifting all four into `lib/adminGate.ts` is in the handoff note.
+ * Cosmetic, like every gate in this app. The real authority is the
+ * `admin-members` function's own JWT check — every write on this screen answers
+ * 403 for a member whatever this returns, and gate (e) of the Wave-4 plan proves
+ * it with curl. Hiding the screen only avoids offering an action that cannot
+ * succeed.
  */
-function useIsAdmin(): boolean {
-  const { profile } = useAuth()
-  if (profile?.role === 'admin') return true
-  return import.meta.env.DEV && new URLSearchParams(window.location.search).has('shell')
-}
 
 /** Mirrors USERNAME_RE in supabase/functions/admin-members/index.ts. */
 const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{1,30}[a-z0-9]$/
 
 const DISPLAY_NAME_MAX = 80
 const USERNAME_MAX = 32
+/**
+ * `profiles.position` is unbounded `text`, so this is a UI limit and not a
+ * schema one. 80 is `DISPLAY_NAME_MAX`, chosen for the same reason: the longest
+ * title on the real roster is "Business Operations & Product Director
+ * (Delegation)" at 50 characters, and the value is printed on ONE line beside a
+ * name — past this it stops being a subtitle and starts being a paragraph.
+ */
+const POSITION_MAX = 80
+
+/**
+ * The key that decides who may write a position — and, in the database, who may
+ * move anybody else between roles.
+ *
+ * A local constant rather than an import because api/roles.ts exports
+ * `ADMIN_PERMISSION` and no twin for this one, and that file belongs to another
+ * unit this wave (§1.0.4). It is typed `PermissionKey`, so the day the union
+ * loses this member the build says so here rather than silently comparing
+ * against a string nothing grants.
+ */
+const MANAGE_PERMISSION: PermissionKey = 'members.manage'
 
 interface FormState {
   username: string
   displayName: string
+  /** Free text, DISPLAY ONLY. See the file header — it gates nothing. */
+  position: string
   role: UserRole
 }
 
-const EMPTY_FORM: FormState = { username: '', displayName: '', role: 'member' }
+const EMPTY_FORM: FormState = { username: '', displayName: '', position: '', role: 'member' }
 
 /**
  * Copy, with an honest failure.
@@ -284,8 +335,30 @@ export default function Members(): ReactElement {
   const [refs, setRefs] = useState<ReadonlyMap<string, MemberRoleRef>>(new Map())
   /** True once all three landed. False on a project with 0025 unapplied. */
   const [rolesReady, setRolesReady] = useState(false)
+  /**
+   * Did the `profiles` read — the one carrying `position` — come back at all?
+   *
+   * SEPARATE FROM `rolesReady`, which requires this AND two more reads AND a
+   * non-empty roles table. The questions are different: `rolesReady` asks "is
+   * there a list of roles to pick from", and this asks "does the `position`
+   * column exist on this database". On a project with 0025 unapplied both are
+   * false; they are not the same false, and a position field gated on the wrong
+   * one would be a control whose absence nobody could explain.
+   */
+  const [refsReady, setRefsReady] = useState(false)
   /** The account whose role_id is in flight, so its picker can go disabled. */
   const [movingId, setMovingId] = useState<string | null>(null)
+  /**
+   * The ONE row whose position is being edited, and the draft in its box.
+   *
+   * One at a time, deliberately. Eighteen simultaneous drafts is eighteen ways
+   * to lose an unsaved edit to a background refresh, and the roster is read far
+   * more often than it is retitled — the row that is being edited is an
+   * exception on this screen, not the normal state of a row.
+   */
+  const [editingPosition, setEditingPosition] = useState<{ id: string; value: string } | null>(null)
+  /** The account whose position is in flight, so its box can go disabled. */
+  const [savingPositionId, setSavingPositionId] = useState<string | null>(null)
   /** Announced after a role move — see the live region at the foot of the page. */
   const [liveMessage, setLiveMessage] = useState('')
 
@@ -324,6 +397,9 @@ export default function Members(): ReactElement {
     // which is the one failure mode worse than no picker.
     const ready = roleResult.ok && permResult.ok && refResult.ok
     setRolesReady(ready && roleResult.data.length > 0)
+    // Narrower, and on purpose: this is the one read that names `position`, so
+    // it alone answers whether the column is there to be written.
+    setRefsReady(refResult.ok)
     setRoles(roleResult.ok ? roleResult.data : [])
     setPerms(permResult.ok ? permResult.data : [])
     setRefs(refResult.ok ? new Map(refResult.data.map((ref) => [ref.id, ref])) : new Map())
@@ -364,9 +440,33 @@ export default function Members(): ReactElement {
     // screen, so it goes up before anything else can push it around, and the
     // form closes so a double-tap cannot mint a second account.
     setInvite(result.data.invite)
+    const position = normalizePosition(form.position)
     setForm(EMPTY_FORM)
     setSubmitted(false)
     setFormOpen(false)
+
+    // ── the position, as a SECOND write, and it has to be ──────────────────
+    //
+    // `admin-members` mints the auth user and the `profiles` row with the
+    // service role, and its `create` action's body has three fields — username,
+    // displayName, role. It does not carry a position and cannot be taught one
+    // from here (supabase/functions/ is outside this unit). So the title lands
+    // as an ordinary `profiles` UPDATE the moment the row exists, which it does:
+    // the function inserts the profiles row inside the same request that answers
+    // with this id.
+    //
+    // NON-FATAL BY CONSTRUCTION. The account is already created and the code is
+    // already on screen; a failure here means one empty column on a row that is
+    // otherwise fine, and the fix is the inline edit on that row. Saying that in
+    // words beats a red toast that reads as "the member was not created".
+    if (position) {
+      const posResult = await setMemberPosition(result.data.member.id, position)
+      if (!alive.current) return
+      if (!posResult.ok || posResult.data.position !== position) {
+        toast(t('members.errPositionNotSaved'), { tone: 'error' })
+      }
+    }
+
     invalidateMembers()
     void load()
   }
@@ -374,6 +474,20 @@ export default function Members(): ReactElement {
   // ---- roles: who holds what, and who can administer ----------------------
 
   const roleLabel = useCallback((role: Role) => roleLabelIn(role, locale), [locale])
+
+  /**
+   * Focus the position box the moment it mounts — which is inside the tap that
+   * opened it, so iOS raises the keyboard (R2-MOBILE-6's rule: a focus deferred
+   * to an effect on that platform gets a caret and no keyboard).
+   *
+   * A `useCallback` ref rather than `autoFocus` or an inline arrow. An inline
+   * callback ref is a new function every render, so React detaches and
+   * reattaches it — and calls `.focus()` again — on every keystroke. Stable
+   * identity means mount only, which is the whole intent.
+   */
+  const focusOnMount = useCallback((el: HTMLInputElement | null) => {
+    el?.focus()
+  }, [])
 
   /**
    * The system `admin` role's id — the ONE id `profiles_role_sync()` derives the
@@ -434,6 +548,34 @@ export default function Members(): ReactElement {
       ),
     [refs, roles, perms],
   )
+
+  /**
+   * Does the signed-in admin hold `members.manage` — the key the position write
+   * actually answers to?
+   *
+   * NOT `useIsAdmin()`, and that gap is the point. The hook reads
+   * `profile.role`, the legacy text column, which 0025 keeps derived from the
+   * two SYSTEM roles only; a custom role carrying `members.manage` without
+   * `workspace.admin` is invisible to it. `guard_profile_role()` asks the other
+   * question (0025:1800), so this asks the other question too.
+   *
+   * DERIVED FROM THE THREE READS THIS SCREEN ALREADY HAS rather than from a
+   * fourth one: `rows` says which row is mine (`isSelf`, the server's own
+   * answer), `effectiveRoleId` resolves it through the same `coalesce` as
+   * `has_perm()`, and `perms` says what that role grants. A separate probe would
+   * be a second answer to a question this screen has already asked, free to
+   * disagree with the guards computed beside it.
+   *
+   * COSMETIC, like everything else on this screen. False here hides a control;
+   * it does not protect the column. The trigger does, by reverting.
+   */
+  const canWritePosition = useMemo(() => {
+    if (!refsReady) return false
+    const me = (rows ?? []).find((row) => row.isSelf)
+    if (!me) return false
+    const roleId = effectiveRoleId(me)
+    return roleId !== null && grants(perms, roleId, MANAGE_PERMISSION)
+  }, [refsReady, rows, effectiveRoleId, perms])
 
   /**
    * `profiles_role_sync()`'s derivation, applied locally so the pill, the admin
@@ -624,6 +766,89 @@ export default function Members(): ReactElement {
       name: row.displayName,
       role: roleLabel(target),
     })
+    setLiveMessage(message)
+    toast(message)
+  }
+
+  /**
+   * Save one person's job title — `moveRole`'s idiom above, minus one half.
+   *
+   * OPTIMISTIC, THEN ROLLBACK, THEN SETTLE ON WHAT PERSISTED, for the three
+   * reasons that function gives. The difference is that only ONE piece of state
+   * moves here: `position` lives in `refs` and nowhere else, while `role_id` had
+   * a legacy text twin in `rows[]` that had to move with it. So there is no
+   * paired `apply()` — there is nothing to pair it with.
+   *
+   * THE SETTLE IS NOT OPTIONAL, and it is the same trap. `guard_profile_role()`
+   * refuses a writer without `members.manage` by REVERTING the column rather
+   * than raising (0025:1800) — a 200 whose row did not move — so `ok: true` here
+   * means the statement ran, not that the title changed. `canWritePosition`
+   * above is a mirror of that rule and mirrors go stale: the role behind it can
+   * be edited on another screen while this one is open.
+   */
+  async function savePosition(row: MemberAccount, draft: string): Promise<void> {
+    const previousRef = refs.get(row.id) ?? null
+    // The api's own normalisation, so "did it move?" and "what was sent?" are
+    // asked of the same string. Comparing the raw draft would report a refusal
+    // for a trailing space.
+    const next = normalizePosition(draft)
+    if (next === (previousRef?.position ?? '')) {
+      // Not a write, and not an error either — the admin opened the box and
+      // changed nothing, or trimmed a space back out of it.
+      setEditingPosition(null)
+      return
+    }
+
+    /** One piece of state, one place. Kept a named function anyway so the three
+     *  exits below read as the same operation rather than three map splices. */
+    const apply = (ref: MemberRoleRef | null): void => {
+      setRefs((current) => {
+        const nextRefs = new Map(current)
+        if (ref) nextRefs.set(row.id, ref)
+        else nextRefs.delete(row.id)
+        return nextRefs
+      })
+    }
+
+    apply(
+      previousRef
+        ? { ...previousRef, position: next }
+        : // Unreachable while the button is gated on `hasProfile` and `refsReady`
+          // — and written anyway, because a synthetic ref is one object and a
+          // crash on a stale roster is a screen.
+          { id: row.id, role: row.role, roleId: null, position: next },
+    )
+    setSavingPositionId(row.id)
+    const result = await setMemberPosition(row.id, next)
+    if (!alive.current) return
+    setSavingPositionId(null)
+
+    if (!result.ok) {
+      // The previous value is known exactly, so put THIS row back rather than
+      // re-reading — a refresh would also discard any other row edited while
+      // this request was in flight.
+      apply(previousRef)
+      toast(t(result.error), { tone: 'error' })
+      return
+    }
+
+    apply(result.data)
+    if (result.data.position !== next) {
+      // The 200 that did nothing. The box stays open holding what the admin
+      // typed, so the sentence has something to be about.
+      const refused = t('members.errPositionReverted')
+      setLiveMessage(refused)
+      toast(refused, { tone: 'error' })
+      return
+    }
+
+    setEditingPosition(null)
+    // NO `invalidateMembers()`, deliberately. That store is fed by
+    // `listMembers()` → `member_directory()`, which answers four columns and
+    // none of them is `position` — every owner picker in the app would refetch
+    // an identical answer. The role picker invalidates because it moves `role`,
+    // which that read does carry.
+    const message = t('members.positionSaved', { name: row.displayName })
     setLiveMessage(message)
     toast(message)
   }
@@ -836,6 +1061,42 @@ export default function Members(): ReactElement {
             </p>
           </div>
 
+          {/* THE POSITION, AT THE MOMENT THE PERSON IS ADDED. Eighteen people
+              arrive in one sitting and going back over eighteen rows afterwards
+              to say which of them is a director is the reason the column sat
+              empty in the first place.
+
+              ONLY WHEN IT CAN ACTUALLY BE WRITTEN. `canWritePosition` is false
+              on a database without the column (0025 unapplied) and false for an
+              admin whose role does not grant `members.manage` — in both cases
+              the write would be accepted and discarded, and a form field that
+              silently does nothing is worse than a field that is not there.
+
+              NO `dir` OF ITS OWN, unlike the username above. A title is prose in
+              whichever language the workspace speaks — "Raqeeb Clinical Expert"
+              or "مدير تنفيذي" — so it takes the page's direction, and the `bdi`
+              on the roster is what keeps the two from fighting when they meet. */}
+          {canWritePosition && (
+            <div className="field">
+              <label className="field-label" htmlFor="mem-position">
+                {t('members.position')}
+              </label>
+              <input
+                id="mem-position"
+                className="input"
+                value={form.position}
+                placeholder={t('members.positionPlaceholder')}
+                maxLength={POSITION_MAX}
+                autoComplete="off"
+                aria-describedby="mem-position-hint"
+                onChange={(e) => setForm((c) => ({ ...c, position: e.target.value }))}
+              />
+              <p className="mem-field-hint" id="mem-position-hint">
+                {t('members.positionHint')}
+              </p>
+            </div>
+          )}
+
           <div className="field">
             <label className="field-label" htmlFor="mem-role">
               {t('settings.role')}
@@ -982,6 +1243,19 @@ export default function Members(): ReactElement {
             const showsAsAdmin = rolesReady ? grantsAdmin : isAdminRow
             const RoleIcon = showsAsAdmin ? IconShieldCheck : IconUser
             const position = refs.get(row.id)?.position ?? ''
+            // ── the position, as an edit ─────────────────────────────────
+            // The draft, or null when this is not the row being edited. A
+            // NARROWED value rather than a boolean, so the box below can read
+            // `.value` without TypeScript having to be told twice that the
+            // state it just tested is not null.
+            const positionDraft =
+              editingPosition !== null && editingPosition.id === row.id ? editingPosition : null
+            const savingPosition = savingPositionId === row.id
+            // The same reason the role picker refuses a row with no `profiles`
+            // row: the UPDATE would match nothing and answer `errNotFound`,
+            // which reads as "this account is gone" when it is half-provisioned.
+            const positionBlock =
+              canWritePosition && !row.hasProfile ? 'members.errNoProfileRow' : null
             // Every option's refusal, computed once per row rather than twice
             // per option: the reason list under the row needs them all, and the
             // <option>s need them one at a time.
@@ -1027,12 +1301,15 @@ export default function Members(): ReactElement {
             // role control sits before Delete, so its reason does too. When the
             // picker is on screen its reasons stand in for the demote button's,
             // because that button is not rendered — a row must never print a
-            // sentence about a control it does not have.
+            // sentence about a control it does not have. "Edit position" sits
+            // between the role control and Delete, and its reason sits there
+            // too; it dedupes away entirely when the picker has already said
+            // the same sentence about the same missing row.
             const blockReasons = [
               ...new Set(
                 rolesReady
-                  ? [...roleBlocks.values(), deleteBlock]
-                  : [demoteBlock, deleteBlock],
+                  ? [...roleBlocks.values(), positionBlock, deleteBlock]
+                  : [demoteBlock, positionBlock, deleteBlock],
               ),
             ].filter((key): key is string => key !== null)
 
@@ -1050,12 +1327,19 @@ export default function Members(): ReactElement {
                           by username, and "Nawaf Alharbi · PMO Director" is how
                           the person is introduced in the room.
 
-                          DISPLAY ONLY, and 0025:301 is emphatic about it: it
-                          gates nothing, here or anywhere. It is also FREE TEXT
-                          somebody typed, so it is `bdi`-isolated exactly like
-                          the handle below — an Arabic title beside a Latin name
-                          reorders the line otherwise, and the separator ends up
-                          on the wrong side of both.
+                          DISPLAY ONLY, and 0025:483 is emphatic about it: it
+                          gates nothing, here or anywhere.
+
+                          IT IS ALSO FREE TEXT SOMEBODY TYPED, so it is isolated
+                          exactly like the handle below. `<bdi>` and not
+                          `lib/bidi.isolate()` because there is a DOM node here
+                          rather than an assembled string — the element carries
+                          `unicode-bidi: isolate`, which is the FSI…PDI pair
+                          that module wraps, and lib/bidi.ts's header draws the
+                          line in those words. Without it "PMO (OB related)"
+                          beside an Arabic display name hands its parentheses
+                          and the `·` in front of it to the paragraph
+                          direction, and both land on the wrong side.
 
                           `.mem-position` is 13px dim like `.mem-handle` and
                           drops the 600 weight `.mem-name` would otherwise pass
@@ -1252,6 +1536,29 @@ export default function Members(): ReactElement {
                       </button>
                     ))}
 
+                  {/* THE POSITION EDIT, and only for somebody the loaded
+                      permission rows say can actually write it. It is a
+                      TOGGLE, not a link: the box opens on the row's own line
+                      below, so `aria-expanded` is what says what the press
+                      did, and `aria-controls` names the thing it opened. */}
+                  {canWritePosition && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={!row.hasProfile || busy || savingPosition}
+                      aria-expanded={positionDraft !== null}
+                      aria-controls={positionDraft ? `mem-position-${row.id}` : undefined}
+                      aria-describedby={positionBlock ? `mem-block-${row.id}` : undefined}
+                      onClick={() =>
+                        setEditingPosition(
+                          positionDraft ? null : { id: row.id, value: position },
+                        )
+                      }
+                    >
+                      {t('members.editPosition')}
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     className="btn btn-sm btn-danger"
@@ -1262,6 +1569,78 @@ export default function Members(): ReactElement {
                     {t('common.delete')}
                   </button>
                 </div>
+
+                {positionDraft && (
+                  // ── the position box ───────────────────────────────────
+                  //
+                  // `.mem-role` again, and borrowed rather than minted for the
+                  // reason that class was split out of `.mem-block` in the
+                  // first place: it means "a CONTROL on a line of its own",
+                  // which is exactly what this is, and `.mem-block`'s 12px
+                  // faint type is what a control must not have. members.css is
+                  // outside this unit's file ownership, so a `.mem-position-
+                  // edit` of its own is a follow-up rather than a thing to
+                  // reach across for — the handoff note carries it.
+                  //
+                  // `.field` and `.mem-form-actions` inside it are the create
+                  // form's own two classes: a 6px column stack, and a wrapping
+                  // end-aligned button row. Nothing here is new geometry.
+                  <div className="mem-role">
+                    <div className="field">
+                      <input
+                        id={`mem-position-${row.id}`}
+                        ref={focusOnMount}
+                        className="input"
+                        value={positionDraft.value}
+                        placeholder={t('members.positionPlaceholder')}
+                        maxLength={POSITION_MAX}
+                        autoComplete="off"
+                        // Its own accessible name, interpolating the person, for
+                        // the role picker's reason: a visible "Position" label
+                        // on each of eighteen rows repeats what the row already
+                        // says, and an unlabelled box in a list of eighteen is
+                        // unnavigable. No `dir` — a title is prose in whichever
+                        // language the workspace speaks.
+                        aria-label={t('members.positionFor', { name: row.displayName })}
+                        disabled={savingPosition}
+                        aria-describedby={
+                          blockReasons.length > 0 ? `mem-block-${row.id}` : undefined
+                        }
+                        onChange={(e) => setEditingPosition({ id: row.id, value: e.target.value })}
+                        onKeyDown={(e) => {
+                          // Enter saves and Escape abandons, because this box is
+                          // NOT inside a <form> — the roster is a <ul> — so
+                          // neither key does anything on its own here, and a
+                          // text field that swallows Enter reads as broken.
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            void savePosition(row, positionDraft.value)
+                          } else if (e.key === 'Escape') {
+                            setEditingPosition(null)
+                          }
+                        }}
+                      />
+                      <div className="mem-form-actions">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={savingPosition}
+                          onClick={() => setEditingPosition(null)}
+                        >
+                          {t('common.cancel')}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          disabled={savingPosition}
+                          onClick={() => void savePosition(row, positionDraft.value)}
+                        >
+                          {t('common.save')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Visible, not a tooltip: when a control is blocked the admin
                     should be able to READ why, and a `title` is unreachable on

@@ -84,7 +84,7 @@ import {
 } from '../../api/map'
 import { t, useLocale, type Locale } from '../../lib/i18n'
 import { invalidateConfig } from '../../store/config'
-import { useAuth } from '../../store/auth'
+import { useHasPerm } from '../../store/auth'
 import type { MapNodeKind, UseCase } from '../../types'
 import './catalogue.css'
 
@@ -96,30 +96,6 @@ import './catalogue.css'
  */
 const USE_CASE_NAME_MAX = 60
 const KIND_NAME_MAX = 40
-
-/**
- * Cosmetic admin gate — the SEVENTH copy of this hook (TracksAdmin,
- * TrackEditor, VocabularyAdmin, Members, Terminology, GroupsAdmin). The real
- * authority is `is_admin()` in 0023/0024's RLS policies: every write on this
- * screen fails with 42501 for a member whatever this returns, and hiding the
- * screen only avoids offering an action that cannot succeed.
- *
- * It is copied rather than shared for GroupsAdmin's stated reason: the one
- * place it could live is `store/auth.ts` — `src/lib/**` may not import a store,
- * so lib/permissions.ts cannot host it — and that file is not this worker's to
- * edit. The seven are byte-identical today and a copy is exactly the thing that
- * drifts; the handoff carries it.
- *
- * `?shell` mirrors App.tsx's dev-only preview flag, so the layout and the RTL
- * mirror stay reviewable in a build with no Supabase project.
- * `import.meta.env.DEV` is the literal `false` in a production build, so Vite
- * drops the whole expression and this cannot become a way in.
- */
-function useIsAdmin(): boolean {
-  const { profile } = useAuth()
-  if (profile?.role === 'admin') return true
-  return import.meta.env.DEV && new URLSearchParams(window.location.search).has('shell')
-}
 
 /**
  * A row's name in the given locale.
@@ -166,7 +142,28 @@ type ListId = 'uc' | 'kind'
 
 export default function CatalogueAdmin(): ReactElement {
   const locale = useLocale()
-  const isAdmin = useIsAdmin()
+  // COSMETIC GATE, ASKING FOR `vocab.edit`. The real authority is 0023/0024's
+  // RLS policies; every write here fails with 42501 for anyone without the key
+  // whatever this returns. This file held the seventh byte-identical
+  // `useIsAdmin`, which read `profiles.role` — a column 0025 keeps derived from
+  // the SYSTEM roles only, so no custom role was visible to it. store/auth's
+  // `useHasPerm` reads the grants, falls back to that column when 0025 is
+  // unapplied, and carries the dev-only `?shell` flag this file used to repeat.
+  //
+  // ⚠ THIS IS THE ONE SCREEN 0025 SPLITS DOWN THE MIDDLE, and the split is
+  //   recorded rather than designed around. `use_cases` — the ten-row half this
+  //   screen is named for — takes `vocab.edit`. `map_node_kinds`, the three-row
+  //   half below it, takes `structure.edit`, and so does
+  //   `reorder_map_node_kinds()`. One key has to gate the route (App.tsx) and
+  //   the screen, and `vocab.edit` is the one the larger half needs.
+  //
+  //   Nobody is affected today, which is why the second half is not separately
+  //   withheld: Admin and Director both hold BOTH keys and no other role holds
+  //   either, so nobody who can open this screen can be refused by half of it.
+  //   IF A VOCAB-ONLY ROLE IS EVER MINTED, this is the file to come back to:
+  //   gate the kinds <section> and its Add button on a second `useHasPerm`, the
+  //   way TrackEditor.tsx withholds the SLA matrix. That costs no new strings.
+  const canEdit = useHasPerm('vocab.edit')
 
   const [useCases, setUseCases] = useState<readonly UseCase[] | null>(null)
   const [kinds, setKinds] = useState<readonly MapNodeKind[] | null>(null)
@@ -273,8 +270,8 @@ export default function CatalogueAdmin(): ReactElement {
   }, [])
 
   useEffect(() => {
-    if (isAdmin) void load()
-  }, [isAdmin, load])
+    if (canEdit) void load()
+  }, [canEdit, load])
 
   // ---- focus choreography -------------------------------------------------
   // Two maps rather than one: a reorder returns focus to a move button, a
@@ -619,7 +616,7 @@ export default function CatalogueAdmin(): ReactElement {
     [useCases],
   )
 
-  if (!isAdmin) return <Navigate to="/settings" replace />
+  if (!canEdit) return <Navigate to="/settings" replace />
 
   const loading = useCases === null || kinds === null
   const errors: DraftErrors = draft

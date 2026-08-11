@@ -90,39 +90,33 @@ import {
   type RolePermission,
 } from '../../api/roles'
 import { t, useLocale, type Locale } from '../../lib/i18n'
-import { useAuth } from '../../store/auth'
+import { useIsAdmin } from '../../store/auth'
 import './roles.css'
 
 /**
- * Cosmetic admin gate. The real authority is `has_perm('members.manage')` in the
- * `roles` / `role_permissions` policies (0025) — every write on this screen
- * fails with 42501 for anybody else, whatever this returns; hiding the screen
- * only avoids offering an action that cannot succeed.
+ * THE ADMIN GATE ON THIS SCREEN IS `store/auth.useIsAdmin()`, which is
+ * `useHasPerm('workspace.admin')` — the same question `is_admin()` asks in the
+ * database since 0025. This file used to define its own four-line copy over the
+ * legacy `profiles.role` column; that was the last of nine such copies, and the
+ * `?shell` preview flag they each carried now lives once, in `decide()`.
  *
- * THE SEVENTH COPY OF THIS HOOK (TracksAdmin, TrackEditor, VocabularyAdmin,
- * Members, Terminology, GroupsAdmin). Copied rather than shared for the reason
- * GroupsAdmin states: the one place it could live is `store/auth.ts`, and
- * `src/lib/**` may not import a store. Flagged in the handoff.
+ * Cosmetic, like every gate in this app. The real authority is
+ * `has_perm('members.manage')` in the `roles` / `role_permissions` policies
+ * (0025) — every write on this screen fails with 42501 for anybody else,
+ * whatever this returns; hiding the screen only avoids offering an action that
+ * cannot succeed.
  *
- * ⚠ IT ASKS THE WRONG QUESTION BY EXACTLY ONE ROLE, and that is worth writing
+ * ⚠ IT ASKS A QUESTION ONE KEY WIDER THAN THE POLICY, and that is worth writing
  *   down rather than discovering later. The write gate on these two tables is
- *   `members.manage`; this hook reads `profiles.role`, which 0025 keeps derived
- *   from the SYSTEM role only. A custom role carrying members.manage WITHOUT
- *   workspace.admin would therefore be sent back to /settings by a screen its
- *   holder is allowed to use. Today that role does not exist — the seeded
- *   Director deliberately lacks members.manage, and only Admin carries it — so
- *   the gate is exactly right for the workspace as decided. Making it truthful
- *   means an async `has_perm` probe in store/auth, which is that file's change.
- *
- * `?shell` mirrors App.tsx's dev-only preview flag. `import.meta.env.DEV` is the
- * literal `false` in a production build, so Vite tree-shakes the whole
- * expression out and this cannot become a way in.
+ *   `members.manage`; this screen asks for `workspace.admin`. A custom role
+ *   carrying members.manage WITHOUT workspace.admin would therefore be sent back
+ *   to /settings by a screen its holder is allowed to use. Today that role does
+ *   not exist — the seeded Director deliberately lacks members.manage, and only
+ *   Admin carries both — so the gate is exactly right for the workspace as
+ *   decided. `useHasPerm('members.manage')` is now available and is the truthful
+ *   gate the day such a role is minted; that is a product call for whoever owns
+ *   this screen, not a mechanical swap.
  */
-function useIsAdmin(): boolean {
-  const { profile } = useAuth()
-  if (profile?.role === 'admin') return true
-  return import.meta.env.DEV && new URLSearchParams(window.location.search).has('shell')
-}
 
 /**
  * A role's name in the given locale, with `groups.groupLabelIn`'s fallback rule:

@@ -30,7 +30,7 @@ import { t, useLocale } from './lib/i18n'
 // of that file. The nav table below is passed in rather than imported by it.
 import { titleKeyFor } from './lib/routeTitle'
 import { startRealtime, stopRealtime } from './api/realtime'
-import { useAuth } from './store/auth'
+import { resetPermissions, useAuth, useHasPerm, useIsAdmin } from './store/auth'
 import { loadConfig } from './store/config'
 import { loadTrackSlas, resetEntries, startEntriesRealtime } from './store/entries'
 import { loadMembers, resetMembers } from './store/members'
@@ -98,14 +98,15 @@ const GroupsAdmin = lazy(() => import('./pages/settings/GroupsAdmin'))
 // an admin renaming a phase should not pay for the capability list to load.
 const StructureAdmin = lazy(() => import('./pages/settings/StructureAdmin'))
 const CatalogueAdmin = lazy(() => import('./pages/settings/CatalogueAdmin'))
-// Roles & permissions (0025). Admin-gated below for the reason the groups
-// screen is: what is ticked here is what is_admin() answers at 183 policy
-// call sites. The RLS gate is has_perm('members.manage'); this only avoids
-// offering an editor to someone every write refuses.
+// Roles & permissions (0025). The STRICTEST gate in the file, and the one that
+// did not move to a narrower key: what is ticked here is what is_admin() answers
+// at 183 policy call sites. The RLS gate is has_perm('members.manage'), which
+// only the system Admin role carries; this only avoids offering an editor to
+// someone every write refuses.
 const RolesAdmin = lazy(() => import('./pages/settings/RolesAdmin'))
 const VocabularyAdmin = lazy(() => import('./pages/settings/VocabularyAdmin'))
 const Terminology = lazy(() => import('./pages/settings/Terminology'))
-// NOT route-gated on admin, unlike the three above: the screen renders the
+// NOT route-gated at all, unlike the three above: the screen renders the
 // schedule read-only for a member and hides its own edit affordances, because
 // "what is going to be raised for me next Sunday" is everybody's question.
 const RecurringAdmin = lazy(() => import('./pages/settings/RecurringAdmin'))
@@ -465,6 +466,15 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // last session's business, and restoring a drill-in under the NEXT account
       // would open somebody else's screen on a branch they did not choose.
       resetMindtree()
+      // Tenth, and the one this file's own route guards read: the permission
+      // set. It is not confidential — every member may read `role_permissions`,
+      // which is what lets the client mirror the policy at all — but it is
+      // WHOSE. Left standing, the next account signing in on this tab is offered
+      // the previous one's screens for the length of a profile round trip, and
+      // an Admin signing out in front of a member is the case that matters. The
+      // store re-answers `false` for everything until the new profile's grants
+      // land, which is the safe direction: the database refuses either way.
+      resetPermissions()
     }
   }, [])
 
@@ -518,37 +528,52 @@ export default function App(): ReactElement {
   const preview = useShellPreview()
   const loading = preview ? false : auth.loading
   const session = preview ? ({ user: { id: 'preview' } } as never) : auth.session
-  // Route-level admin gate, in addition to whatever the pages themselves do.
-  // A member who bookmarks /settings/tracks should land back on Settings, not
-  // watch an editable list render and then have every save rejected by RLS.
-  // The preview session has no profiles row at all, so it is admitted
-  // explicitly — otherwise `?shell` could never reach these screens, which is
-  // the only way to review them without a Supabase project.
+  // Route-level permission gates, in addition to whatever the pages themselves
+  // do. A member who bookmarks /settings/tracks should land back on Settings,
+  // not watch an editable list render and then have every save rejected by RLS.
   //
-  // ⚠ THIS IS NOW ONE ROLE NARROWER THAN THE DATABASE, AND IT IS THE ONE OPEN
-  //   GAP IN WAVE B. Migration 0025 (unapplied) re-points the write policies on
-  //   `tracks`, `track_groups`, `map_nodes`, `map_node_kinds`, `use_cases`,
-  //   `vocab_options` and `label_overrides` — and the eight RPCs that write them
-  //   — at `has_perm('structure.edit')` / `has_perm('vocab.edit')`, which the
-  //   Director role holds and `workspace.admin` no longer implies directly.
-  //   `profiles.role` stays derived from the SYSTEM role only, so a Director
-  //   reads as 'member' here and is redirected away from every screen the
-  //   database now lets them write.
+  // THREE QUESTIONS, NOT ONE, AND THEY MIRROR 0025'S POLICIES KEY FOR KEY.
+  // Migration 0025 re-points the write policies on `tracks`, `track_groups`,
+  // `map_nodes`, `map_node_kinds`, `use_cases`, `vocab_options` and
+  // `label_overrides` — and the eight RPCs that write them — at
+  // `has_perm('structure.edit')` / `has_perm('vocab.edit')`, which the Director
+  // role holds and `workspace.admin` no longer implies directly. So the routes
+  // below ask for the key the table asks for:
   //
-  //   THE FIX IS NOT TO WIDEN THIS LINE. It is a permission-aware hook reading
-  //   `role_permissions` for the signed-in profile (both tables are
-  //   member-readable by design, precisely so the client can mirror the policy),
-  //   seeded from the legacy role so a project without 0025 behaves exactly as
-  //   it does today, and TRI-STATE — a hook answering `false` while the read is
-  //   in flight would redirect the Director before the answer arrives. Then the
-  //   nine ternaries below split into canEditStructure / canEditVocab, and
-  //   /settings/roles and /settings/members keep `isAdmin`, because their gate
-  //   is `members.manage` and only Admin holds it.
+  //   structure.edit  — /settings/tracks, /settings/tracks/new,
+  //                     /settings/tracks/:id, /settings/groups,
+  //                     /settings/structure
+  //   vocab.edit      — /settings/catalogue, /settings/vocabulary,
+  //                     /settings/terminology
+  //   workspace.admin — /settings/roles, /settings/members. Unchanged, and
+  //                     deliberately: creating, deleting and re-roling PEOPLE is
+  //                     the power withheld from Director, and `roles` /
+  //                     `role_permissions` stay on `members.manage`, which only
+  //                     the system Admin role carries. A Director who could edit
+  //                     the roles table would be one click from Admin.
   //
-  //   Until then: DO NOT PUT ANYBODY IN THE DIRECTOR ROLE. They would lose every
-  //   configuration screen and gain nothing visible. Written up in
-  //   docs/PENDING-MIGRATIONS.md under "What 0025 does NOT do".
-  const isAdmin = preview || auth.profile?.role === 'admin'
+  // THE ROUTE AND THE SCREEN MUST ASK THE SAME QUESTION. Each page below
+  // re-checks with the same key and renders its own <Navigate>; a row that
+  // admitted someone the screen then bounces is worse than no row at all,
+  // because the redirect happens after the chunk has loaded and reads as a
+  // crash. Both are still COSMETIC — RLS is what refuses the writes.
+  //
+  // `useHasPerm` reads `role_permissions` for the signed-in profile and falls
+  // back to the legacy `profiles.role` when 0025 has not been applied (or the
+  // profile has no `role_id`), so a workspace without the roles tables behaves
+  // exactly as it did before this split: admin sees everything, member sees
+  // none of it.
+  //
+  // NO `preview ||` ON THESE THREE, unlike `loading` and `session` above. The
+  // dev-only `?shell` flag now lives INSIDE store/auth's answer — it was carried
+  // there verbatim from the seven screen-local copies this replaces — so
+  // repeating it here would be two implementations of one escape hatch. It would
+  // also be a conditional hook call: `preview || useHasPerm(...)` short-circuits
+  // the call, and the hook order would change the moment somebody appends
+  // `?shell` to the URL.
+  const canEditStructure = useHasPerm('structure.edit')
+  const canEditVocab = useHasPerm('vocab.edit')
+  const isAdmin = useIsAdmin()
   // Subscribing at the root re-renders the whole tree on a language switch, so
   // every t() call picks up the new bundle. t() is a plain function; without a
   // subscription React has no way to know its output went stale.
@@ -698,66 +723,91 @@ export default function App(): ReactElement {
                   titleKeyFor(). */}
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/settings" element={<Settings />} />
-              {/* Admin config hangs off /settings rather than taking a top-level
-                  route: NAV is two rows and these screens are reached from the
-                  Settings page. React Router ranks the
+              {/* Configuration hangs off /settings rather than taking a
+                  top-level route: NAV is two rows and these screens are reached
+                  from the Settings page. React Router ranks the
                   static '/new' above the dynamic ':id' regardless of order, so
-                  creating cannot be mistaken for editing a track called "new". */}
+                  creating cannot be mistaken for editing a track called "new".
+
+                  Tracks are the top of the structure tree, so all three rows ask
+                  for `structure.edit` — the key 0025 put on the `tracks` write
+                  policies and on reorder_tracks()/delete_track_reassign(). */}
               <Route
                 path="/settings/tracks"
-                element={isAdmin ? <TracksAdmin /> : <Navigate to="/settings" replace />}
+                element={canEditStructure ? <TracksAdmin /> : <Navigate to="/settings" replace />}
               />
               <Route
                 path="/settings/tracks/new"
-                element={isAdmin ? <TrackEditor /> : <Navigate to="/settings" replace />}
+                element={canEditStructure ? <TrackEditor /> : <Navigate to="/settings" replace />}
               />
               <Route
                 path="/settings/tracks/:id"
-                element={isAdmin ? <TrackEditor /> : <Navigate to="/settings" replace />}
+                element={canEditStructure ? <TrackEditor /> : <Navigate to="/settings" replace />}
               />
               {/* Groups sit one level above tracks and are gated identically.
                   Renaming a group or moving a track between the two halves
                   changes what every other member's filters, board and digest
-                  say, so it is admin work in the same sense the track editor
-                  is. 0018's RLS is the real authority; this only avoids
-                  offering an editor to someone every write refuses. */}
+                  say, so it is structure work in the same sense the track editor
+                  is — and 0025 says so too: `track_groups` writes take
+                  `structure.edit`. 0018's RLS is the real authority; this only
+                  avoids offering an editor to someone every write refuses. */}
               <Route
                 path="/settings/groups"
-                element={isAdmin ? <GroupsAdmin /> : <Navigate to="/settings" replace />}
+                element={canEditStructure ? <GroupsAdmin /> : <Navigate to="/settings" replace />}
               />
               {/* The tree BELOW tracks, gated exactly as the tree above them is.
-                  0023's RLS is the real authority (`map_nodes` writes are
-                  is_admin()); this only avoids offering an editor to someone
-                  every write refuses. */}
+                  0023's RLS is the real authority (`map_nodes` writes take
+                  `structure.edit` since 0025); this only avoids offering an
+                  editor to someone every write refuses. */}
               <Route
                 path="/settings/structure"
-                element={isAdmin ? <StructureAdmin /> : <Navigate to="/settings" replace />}
+                element={
+                  canEditStructure ? <StructureAdmin /> : <Navigate to="/settings" replace />
+                }
               />
+              {/* The catalogue edits the WORDS the tree is described with, so
+                  `vocab.edit` — 0025 puts `use_cases` on that key.
+
+                  ⚠ IT IS THE ONE SCREEN 0025 SPLITS DOWN THE MIDDLE: its second
+                    section writes `map_node_kinds`, which is `structure.edit`.
+                    One key had to gate the route, and `vocab.edit` is the one
+                    the screen is named for and the one its ten-row half writes.
+                    Nobody is affected today — Admin and Director both hold both
+                    keys, and no other role holds either — so this is recorded
+                    rather than designed around. CatalogueAdmin.tsx's header
+                    carries the same note and what to do if a vocab-only role is
+                    ever minted. */}
               <Route
                 path="/settings/catalogue"
-                element={isAdmin ? <CatalogueAdmin /> : <Navigate to="/settings" replace />}
+                element={canEditVocab ? <CatalogueAdmin /> : <Navigate to="/settings" replace />}
               />
               {/* Roles decide what every OTHER gate answers, so this one is the
-                  strictest of them. 0025 gates the two tables on
-                  has_perm('members.manage'), which today only the system Admin
-                  role carries — so `isAdmin` and the policy agree exactly. */}
+                  strictest of them, and it does NOT move to a narrower key. 0025
+                  gates the two tables on has_perm('members.manage'), which only
+                  the system Admin role carries; a Director who could edit
+                  `role_permissions` would be one click from Admin. The screen
+                  itself still reads the legacy `profiles.role`, which is
+                  equivalent while only the system Admin role holds
+                  `workspace.admin`. */}
               <Route
                 path="/settings/roles"
                 element={isAdmin ? <RolesAdmin /> : <Navigate to="/settings" replace />}
               />
               <Route
                 path="/settings/vocabulary"
-                element={isAdmin ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
+                element={canEditVocab ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
               />
               {/* Terminology rewrites what every screen SAYS, for everyone, so
-                  it is gated exactly like the vocabulary editor above. 0017's
-                  RLS is the real authority; this only avoids offering an
-                  editable list of 1,665 labels to someone every write refuses. */}
+                  it is gated exactly like the vocabulary editor above —
+                  `label_overrides` writes and reset_label_overrides() both take
+                  `vocab.edit`. 0017's RLS is the real authority; this only
+                  avoids offering an editable list of 1,665 labels to someone
+                  every write refuses. */}
               <Route
                 path="/settings/terminology"
-                element={isAdmin ? <Terminology /> : <Navigate to="/settings" replace />}
+                element={canEditVocab ? <Terminology /> : <Navigate to="/settings" replace />}
               />
-              {/* No isAdmin ternary — see the lazy import. A member reads the
+              {/* No permission ternary — see the lazy import. A member reads the
                   schedule; the page itself withholds the editing. */}
               <Route path="/settings/recurring" element={<RecurringAdmin />} />
               {/* Members mints credentials — a one-time invite code that is

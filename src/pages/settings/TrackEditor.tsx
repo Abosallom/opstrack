@@ -14,6 +14,12 @@
 // overrides section writes `track_slas`, one row per changed priority. A form
 // that saved half of itself on a different gesture would be a worse contract
 // than the one extra await this costs.
+//
+// AND SINCE 0025, TWO TABLES MEANS TWO PERMISSIONS: `tracks` takes
+// `structure.edit`, `track_slas` stays on `workspace.admin`. So the SLA section
+// is rendered only to someone who holds the second key, which is what keeps the
+// one save button from becoming a half-applied save for a Director. The two
+// gates are `canEdit` and `canEditSlas`, both read at the top of the component.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
@@ -31,7 +37,7 @@ import { t, useLocale } from '../../lib/i18n'
 import { invalidateConfig, loadConfig, useTrackMap } from '../../store/config'
 import { invalidateTrackSlas } from '../../store/entries'
 import { loadVocab, useSlaDays, useVocabLabel } from '../../store/vocab'
-import { useAuth } from '../../store/auth'
+import { useHasPerm } from '../../store/auth'
 import type { EntryPriority, Track } from '../../types'
 import './admin.css'
 import './track-sla.css'
@@ -181,16 +187,26 @@ function validate(form: Form): FieldErrors {
   return errors
 }
 
-/** Cosmetic gate; the real one is `is_admin()` in RLS. See TracksAdmin.tsx. */
-function useIsAdmin(): boolean {
-  const { profile } = useAuth()
-  if (profile?.role === 'admin') return true
-  return import.meta.env.DEV && new URLSearchParams(window.location.search).has('shell')
-}
-
 export default function TrackEditor(): ReactElement {
   const locale = useLocale()
-  const isAdmin = useIsAdmin()
+  // COSMETIC GATE on the form as a whole: 0025 re-points the `tracks` write
+  // policies from `is_admin()` at `has_perm('structure.edit')`, the key the
+  // Director role holds. TracksAdmin.tsx — the list this editor is reached from,
+  // gated on the same key — carries the long form of why the question is a
+  // permission and no longer a role.
+  const canEdit = useHasPerm('structure.edit')
+  // THE SECOND GATE, because TWO TABLES, ONE SAVE BUTTON is also two
+  // permissions. The fields at the top write `tracks`; the SLA overrides section
+  // writes `track_slas`, which 0025 deliberately LEAVES on `workspace.admin` —
+  // an SLA is a service commitment the workspace makes, not part of the shape of
+  // the map, so it stayed behind when the shape moved. Without this, a Director
+  // editing a name and an SLA cell in one gesture would have the first half
+  // committed and the second refused with 42501: exactly the half-applied save
+  // this file's header says one save button exists to prevent. Withholding the
+  // section is free — it needs no new string, and saveSlaOverrides() writes
+  // nothing when no cell differs from its baseline, which is the state a section
+  // nobody can edit is always in.
+  const canEditSlas = useHasPerm('workspace.admin')
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const editing = Boolean(id)
@@ -448,7 +464,7 @@ export default function TrackEditor(): ReactElement {
     void navigate('/settings/tracks')
   }
 
-  if (!isAdmin) return <Navigate to="/settings" replace />
+  if (!canEdit) return <Navigate to="/settings" replace />
 
   // Resolved once so each render site is a plain value rather than two calls TS
   // cannot narrow against each other.
@@ -732,96 +748,106 @@ export default function TrackEditor(): ReactElement {
 
           {/* The track half of the track × priority SLA matrix (0006). The
               workspace-wide default per priority lives in the vocabulary
-              screen; this section only overrides it, one priority at a time. */}
-          <fieldset className="admin-fieldset">
-            <legend className="field-label">{t('admin.tracks.slaOverrides')}</legend>
-            <p className="tsla-rule">{t('admin.tracks.slaRule')}</p>
+              screen; this section only overrides it, one priority at a time.
 
-            {/* No id yet, so there is nothing to hang an override on. Saying so
-                beats four disabled inputs, and it keeps the create path from
-                being able to half-apply across two tables. */}
-            {!editing && <p className="tsla-note">{t('admin.tracks.slaAfterSave')}</p>}
+              GATED SEPARATELY FROM THE FORM AROUND IT, and it is the only place
+              in this file where the two keys part company: `track_slas` stays on
+              `workspace.admin` where 0025 moved `tracks` to `structure.edit`.
+              See `canEditSlas` at the top of the component — this is a
+              withholding, not a disabled control: nothing below is rendered
+              greyed out, and the save path writes nothing because no cell can
+              differ from its baseline. */}
+          {canEditSlas && (
+            <fieldset className="admin-fieldset">
+              <legend className="field-label">{t('admin.tracks.slaOverrides')}</legend>
+              <p className="tsla-rule">{t('admin.tracks.slaRule')}</p>
 
-            {editing && slaLoading && <Skeleton height={44} count={4} />}
+              {/* No id yet, so there is nothing to hang an override on. Saying so
+                  beats four disabled inputs, and it keeps the create path from
+                  being able to half-apply across two tables. */}
+              {!editing && <p className="tsla-note">{t('admin.tracks.slaAfterSave')}</p>}
 
-            {editing && !slaLoading && slaLoadError && (
-              <p className="field-error" role="alert">
-                {t(slaLoadError)}
-              </p>
-            )}
+              {editing && slaLoading && <Skeleton height={44} count={4} />}
 
-            {editing && !slaLoading && !slaLoadError && (
-              <div className="tsla-list">
-                {PRIORITIES.map((priority) => {
-                  const raw = slaForm[priority]
-                  const parsed = parseSla(raw)
-                  const invalid = parsed === undefined && (submitted || slaTouched[priority])
-                  const overridden = typeof parsed === 'number'
-                  // The SAME resolver the entry lists use, so what this line
-                  // promises is what the view will enforce.
-                  const effective = resolveSlaDays(
-                    id ?? null,
-                    priority,
-                    slaOverrides,
-                    priorityDefault(priority),
-                  )
-                  const inputId = `track-sla-${priority}`
-                  const label = vocabLabel('priority', priority)
-                  return (
-                    <div className="tsla-row" key={priority}>
-                      <label className="tsla-name" htmlFor={inputId}>
-                        {label}
-                      </label>
-                      {/* type="text" + inputMode="numeric", not type="number":
-                          the spinner is a 16px hit target, the scroll wheel
-                          silently changes a committed value, and Firefox
-                          reports a non-numeric entry as an empty string, which
-                          would read here as "inherit". dir="ltr" because a
-                          number of days is a Latin token inside a page that may
-                          be RTL. */}
-                      <input
-                        id={inputId}
-                        className="input tsla-input"
-                        type="text"
-                        inputMode="numeric"
-                        dir="ltr"
-                        value={raw}
-                        placeholder={t('admin.tracks.slaInherit')}
-                        maxLength={4}
-                        autoComplete="off"
-                        aria-invalid={invalid ? true : undefined}
-                        aria-describedby={
-                          invalid ? `${inputId}-eff ${inputId}-err` : `${inputId}-eff`
-                        }
-                        onChange={(e) => setSla(priority, e.target.value)}
-                        onBlur={() => setSlaTouched((c) => ({ ...c, [priority]: true }))}
-                      />
-                      <p
-                        className={`tsla-effective${overridden ? ' tsla-effective-own' : ''}`}
-                        id={`${inputId}-eff`}
-                      >
-                        {effective === null
-                          ? t('admin.tracks.slaEffectiveNone')
-                          : t(
-                              overridden
-                                ? 'admin.tracks.slaEffectiveOwn'
-                                : 'admin.tracks.slaEffectiveInherited',
-                              // `count`: both keys are plural nodes ("1 day",
-                              // not "1 days"), and the selector reads `count`.
-                              { count: effective },
-                            )}
-                      </p>
-                      {invalid && (
-                        <p className="field-error tsla-error" id={`${inputId}-err`}>
-                          {t('admin.tracks.errSlaRange', { min: SLA_MIN, max: SLA_MAX })}
+              {editing && !slaLoading && slaLoadError && (
+                <p className="field-error" role="alert">
+                  {t(slaLoadError)}
+                </p>
+              )}
+
+              {editing && !slaLoading && !slaLoadError && (
+                <div className="tsla-list">
+                  {PRIORITIES.map((priority) => {
+                    const raw = slaForm[priority]
+                    const parsed = parseSla(raw)
+                    const invalid = parsed === undefined && (submitted || slaTouched[priority])
+                    const overridden = typeof parsed === 'number'
+                    // The SAME resolver the entry lists use, so what this line
+                    // promises is what the view will enforce.
+                    const effective = resolveSlaDays(
+                      id ?? null,
+                      priority,
+                      slaOverrides,
+                      priorityDefault(priority),
+                    )
+                    const inputId = `track-sla-${priority}`
+                    const label = vocabLabel('priority', priority)
+                    return (
+                      <div className="tsla-row" key={priority}>
+                        <label className="tsla-name" htmlFor={inputId}>
+                          {label}
+                        </label>
+                        {/* type="text" + inputMode="numeric", not type="number":
+                            the spinner is a 16px hit target, the scroll wheel
+                            silently changes a committed value, and Firefox
+                            reports a non-numeric entry as an empty string, which
+                            would read here as "inherit". dir="ltr" because a
+                            number of days is a Latin token inside a page that may
+                            be RTL. */}
+                        <input
+                          id={inputId}
+                          className="input tsla-input"
+                          type="text"
+                          inputMode="numeric"
+                          dir="ltr"
+                          value={raw}
+                          placeholder={t('admin.tracks.slaInherit')}
+                          maxLength={4}
+                          autoComplete="off"
+                          aria-invalid={invalid ? true : undefined}
+                          aria-describedby={
+                            invalid ? `${inputId}-eff ${inputId}-err` : `${inputId}-eff`
+                          }
+                          onChange={(e) => setSla(priority, e.target.value)}
+                          onBlur={() => setSlaTouched((c) => ({ ...c, [priority]: true }))}
+                        />
+                        <p
+                          className={`tsla-effective${overridden ? ' tsla-effective-own' : ''}`}
+                          id={`${inputId}-eff`}
+                        >
+                          {effective === null
+                            ? t('admin.tracks.slaEffectiveNone')
+                            : t(
+                                overridden
+                                  ? 'admin.tracks.slaEffectiveOwn'
+                                  : 'admin.tracks.slaEffectiveInherited',
+                                // `count`: both keys are plural nodes ("1 day",
+                                // not "1 days"), and the selector reads `count`.
+                                { count: effective },
+                              )}
                         </p>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </fieldset>
+                        {invalid && (
+                          <p className="field-error tsla-error" id={`${inputId}-err`}>
+                            {t('admin.tracks.errSlaRange', { min: SLA_MIN, max: SLA_MAX })}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </fieldset>
+          )}
 
           {serverError && (
             <p className="field-error" role="alert">

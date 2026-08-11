@@ -14,6 +14,12 @@
 import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
 import { materializeRecurring } from '../api/entries'
+import {
+  ADMIN_PERMISSION,
+  ALL_PERMISSION_KEYS,
+  MEMBER_PERMISSION_KEYS,
+  myPermissions,
+} from '../api/roles'
 import { supabase } from '../api/supabase'
 import { baseUrlFrom } from '../lib/appBase'
 import { setLocale, t } from '../lib/i18n'
@@ -147,6 +153,226 @@ export function useAuth(): AuthState {
  */
 export function hasSession(): boolean {
   return useAuthStore.getState().session !== null
+}
+
+// ── permissions ────────────────────────────────────────────────────────────
+//
+// ONE PLACE THAT ANSWERS "MAY THIS PERSON DO X", and it lives here because it
+// can live nowhere else: `src/lib/**` may not import a store, and the answer is
+// a property of the signed-in session. Before this, NINE screens each carried a
+// byte-identical `useIsAdmin()` reading `profile.role` — the LEGACY text column,
+// which 0025 keeps derived from the two SYSTEM roles only. A custom role holding
+// `structure.edit` without `workspace.admin` — the Director, which is the whole
+// point of 0025 — was invisible to every one of them, so the database opened
+// twenty-one write policies to seven people and the client kept redirecting them
+// away from the screens behind those policies.
+//
+// ⚠ THIS IS COSMETIC AND MUST STAY COSMETIC. It decides what RENDERS. RLS
+//   decides what is WRITTEN, and `has_perm()` in the database is the authority
+//   for both — every gate below is an attempt to MIRROR that authority honestly,
+//   never a second one. Getting a key wrong shows or hides a screen; it cannot
+//   grant a row. That is why a failed read falls back rather than failing shut:
+//   a false "no" here is a user locked out of a screen the server would have
+//   served them, which is the worse of the two mistakes when the server is the
+//   thing that actually refuses.
+
+/** The empty answer, as ONE object: an identity every no-permissions state shares. */
+const NO_PERMISSIONS: ReadonlySet<string> = new Set<string>()
+
+interface PermState {
+  /**
+   * The granted keys. A STORED Set, never rebuilt in a selector — `usePermissions`
+   * returns this reference, and a selector that built a Set per call would return a
+   * new reference every render, which under useSyncExternalStore means "the snapshot
+   * changed" forever. store/config.ts's header is the long version.
+   */
+  keys: ReadonlySet<string>
+  /**
+   * Epoch ms of the last AUTHORITATIVE load — one that actually read
+   * `role_permissions`. Null after a fallback or a failure, which is what stops
+   * either from latching: the next auth event tries again.
+   */
+  loadedAt: number | null
+  /** Whose keys these are. A second account in this tab must not inherit them. */
+  userId: string | null
+}
+
+const usePermStore = create<PermState>(() => ({
+  keys: NO_PERMISSIONS,
+  loadedAt: null,
+  userId: null,
+}))
+
+/** The permission load in progress, so two auth events cost one round trip. */
+let permInFlight: Promise<void> | null = null
+
+/**
+ * The permission set implied by the LEGACY `profiles.role` text column.
+ *
+ * THIS IS THE FALLBACK THE FEATURE IS BUILT ON, not a defensive extra. Migration
+ * 0025 is unapplied on the live project: `roles`, `role_permissions` and
+ * `profiles.role_id` do not exist, so the read below cannot succeed and this is
+ * the ONLY answer available. It reproduces today's behaviour exactly — an admin
+ * sees every admin screen, a member sees none — so a build carrying this hook is
+ * deployable BEFORE the migration and gains the Director the moment it lands. A
+ * build that only works after a migration is a build that cannot be deployed
+ * before one.
+ *
+ * It is also the answer for a profile whose `role_id` is null AFTER 0025, which
+ * is not a coincidence: `has_perm()` (0025:400) coalesces to the same column, so
+ * the client and the database agree by construction rather than by luck.
+ */
+export function legacyPermissionKeys(role: UserRole): ReadonlySet<string> {
+  return new Set<string>(role === 'admin' ? ALL_PERMISSION_KEYS : MEMBER_PERMISSION_KEYS)
+}
+
+/**
+ * The dev-only `?shell` preview flag, read the way currentHref() reads the URL.
+ *
+ * It is carried over verbatim from the seven copies this hook replaces, and it
+ * earns its place for their reason: without it the settings screens are
+ * unreachable in a build with no Supabase project, which is exactly where the
+ * layout and the RTL mirror get reviewed. `import.meta.env.DEV` is the literal
+ * `false` in a production build, so Vite tree-shakes the whole expression out
+ * and this cannot become a way in.
+ *
+ * `window.location` is read through a widened shape because the node tests that
+ * exercise this store stub `window` with only the members they need — see
+ * currentHref() above, which exists for the same reason.
+ */
+function devShellPreview(): boolean {
+  if (!import.meta.env.DEV) return false
+  const loc = (globalThis as { window?: { location?: { search?: unknown } } }).window?.location
+  if (typeof loc?.search !== 'string') return false
+  return new URLSearchParams(loc.search).has('shell')
+}
+
+/** The one decision, so the hook and the imperative call cannot drift apart. */
+function decide(keys: ReadonlySet<string>, key: string): boolean {
+  return keys.has(key) || devShellPreview()
+}
+
+/**
+ * Every key the signed-in member holds.
+ *
+ * The RAW set — `?shell` does not widen it, because a preview build has no
+ * session and a list of permissions it does not have would be a fiction. The
+ * flag answers the QUESTION (`useHasPerm`), it does not invent the data.
+ */
+export function usePermissions(): ReadonlySet<string> {
+  return usePermStore((s) => s.keys)
+}
+
+/** May the signed-in member do this? Reactive; re-renders when the set lands. */
+export function useHasPerm(key: string): boolean {
+  return usePermStore((s) => decide(s.keys, key))
+}
+
+/**
+ * The same question, non-reactively, for imperative call sites — a command
+ * handler, a guard inside a promise callback. hasSession()'s reasoning: a guard
+ * that re-rendered its caller would be a subscription.
+ */
+export function hasPerm(key: string): boolean {
+  return decide(usePermStore.getState().keys, key)
+}
+
+/**
+ * The admin gate, now a thin wrapper over the real question.
+ *
+ * `is_admin()` in the database IS `has_perm('workspace.admin')` since 0025, so
+ * this asks precisely what the server asks. It is exported from here because
+ * nine screens used to define it themselves; they import it now — and most of
+ * them ask `useHasPerm` a SHARPER question than "admin" once they can, which is
+ * the whole point of the split.
+ */
+export function useIsAdmin(): boolean {
+  return useHasPerm(ADMIN_PERMISSION)
+}
+
+/**
+ * Clear the permission cache. Called on sign-out, from Shell's teardown and from
+ * this store's own sign-out paths.
+ *
+ * Both, deliberately: Shell's cleanup is where every store's reset is wired and
+ * where signOutReset.test.ts can see it, but a session can also end without Shell
+ * ever unmounting in that tick (a revoked token adopted as null). The next
+ * account in this tab must not be offered the previous one's screens for the
+ * length of a profile round-trip.
+ */
+export function resetPermissions(): void {
+  permInFlight = null
+  usePermStore.setState({ keys: NO_PERMISSIONS, loadedAt: null, userId: null })
+}
+
+/**
+ * Load this profile's permission keys — legacy answer first, real answer after.
+ *
+ * THE TWO-STEP IS THE POINT, and it is what makes this safe to ship today:
+ *
+ *   1. Publish `legacyPermissionKeys(profile.role)` SYNCHRONOUSLY. From this
+ *      instant the app behaves exactly as it did before this hook existed —
+ *      there is no window in which a signed-in admin is treated as a member,
+ *      which is what a load that only published on success would create.
+ *   2. Read `role_permissions` through the profile's `role_id` and replace the
+ *      set if the read succeeds. That is the step that finds the Director.
+ *
+ * A FAILURE MUST NOT LATCH. `loadedAt` is stamped only by step 2, so a 404 from
+ * a database without the tables, a dropped connection, or a null `role_id`
+ * awaiting 0025's backfill all leave the store willing to try again on the next
+ * auth event. store/config.ts's `settle()` is the precedent and FIX-APP-6 is the
+ * lesson: a read that failed once must not become the answer forever.
+ *
+ * Never rejects. It is called unawaited from adopt(), and a permission read that
+ * could break the sign-in path would be a worse bug than the one it fixes.
+ *
+ * `force` re-reads a set that is already authoritative — refreshProfile()'s
+ * out-of-band promotion. A forced call made while a load is already in flight
+ * JOINS it rather than issuing a second: the one in flight is at most a tick old
+ * and two concurrent reads would only race to publish the same answer.
+ */
+export function loadPermissions(profile: Profile, force = false): Promise<void> {
+  if (permInFlight) return permInFlight
+  const state = usePermStore.getState()
+  const sameUser = state.userId === profile.id
+  if (!force && sameUser && state.loadedAt !== null) return Promise.resolve()
+
+  // Step 1. Also the ONLY step that runs on a database without the roles tables,
+  // and the reason this file can be deployed before migration 0025.
+  if (!sameUser || state.loadedAt === null) {
+    usePermStore.setState({
+      keys: legacyPermissionKeys(profile.role),
+      loadedAt: null,
+      userId: profile.id,
+    })
+  }
+
+  permInFlight = myPermissions(profile.id)
+    .then((result) => {
+      // Another account signed in while this was in flight. Publishing now would
+      // hand them the previous member's keys.
+      if (usePermStore.getState().userId !== profile.id) return
+      if (!result.ok) {
+        // Expected, loudly, until 0025 lands: `profiles.role_id` does not exist
+        // yet and PostgREST answers 42703. The legacy set from step 1 stands.
+        console.warn('[auth] permission load failed; using the legacy role:', result.error)
+        return
+      }
+      // No role_id: `has_perm()` would answer from the legacy column, and step 1
+      // already did. Left unstamped on purpose — a workspace mid-backfill gets
+      // the true answer on the next auth event instead of this one, cached.
+      if (result.data.roleId === null) return
+      usePermStore.setState({
+        keys: new Set(result.data.keys),
+        loadedAt: Date.now(),
+        userId: profile.id,
+      })
+    })
+    .finally(() => {
+      permInFlight = null
+    })
+
+  return permInFlight
 }
 
 function notConfigured(): string {
@@ -561,6 +787,9 @@ export async function signOut(): Promise<void> {
   // onAuthStateChange also clears this, but doing it here means the UI flips
   // to signed-out immediately instead of waiting on the network round-trip.
   useAuthStore.setState({ session: null, profile: null, loading: false })
+  // With the profile, not after it: the keys ARE the profile's, and a set left
+  // standing for the length of a round trip is a set the next account inherits.
+  resetPermissions()
 }
 
 async function loadProfile(session: Session): Promise<Profile | null> {
@@ -580,13 +809,20 @@ async function loadProfile(session: Session): Promise<Profile | null> {
     // Falling back to the local part of the email keeps avatars and "assigned
     // to" labels readable for accounts provisioned without a display name.
     displayName: row.display_name?.trim() || email.split('@')[0] || email,
-    // profiles.role is the ONLY admin signal, deliberately. Every RLS policy
-    // gates on is_admin(), which reads this same column — so any second source
-    // here (this used to OR in a hardcoded email list) can only ever disagree
-    // with the server, and the failure mode is the bad direction: the admin
-    // screens render, then every write comes back 42501. One source means the
-    // UI can promise exactly what the database will allow. The first admin is
-    // promoted by migration 0002's bootstrap update, not by the client.
+    // THE LEGACY COLUMN, and since 0025 it is a DERIVED one: `is_admin()` is now
+    // `has_perm('workspace.admin')`, and a trigger keeps this text in step with
+    // the two SYSTEM roles only. So it can no longer answer for a custom role —
+    // a Director holding `structure.edit` reads 'member' here, correctly and
+    // uselessly. It is still fetched and still true, because it is what
+    // `has_perm()` falls back to when `role_id` is null and what
+    // legacyPermissionKeys() derives the whole key set from on a database where
+    // 0025 has not run. What it stopped being is the ADMIN GATE: that question
+    // goes to useHasPerm(), which reads the grants themselves.
+    //
+    // The rule the old comment was defending has not moved an inch — one source,
+    // the server's — it just moved to a truer column. A second source here (this
+    // used to OR in a hardcoded email list) can only ever disagree with RLS, and
+    // in the bad direction: the screen renders, then every write answers 42501.
     role: row.role === 'admin' ? 'admin' : 'member',
     locale: row.locale ?? 'en',
   }
@@ -595,11 +831,12 @@ async function loadProfile(session: Session): Promise<Profile | null> {
 /**
  * Re-read the signed-in user's profiles row into the store.
  *
- * `role` is otherwise fetched once per sign-in, and it is the single gate on
- * the admin screens (see loadProfile). Since guard_profile_role() blocks
- * changing a role from the browser, a promotion always happens out-of-band in
- * the SQL editor — without this the freshly-promoted admin has to sign out and
- * back in before Settings admits it happened.
+ * The profile AND the permission keys are otherwise read once per sign-in, and
+ * between them they decide every admin surface in the app. Since
+ * guard_profile_role() blocks changing a role from the browser, a promotion
+ * always happens out-of-band in the SQL editor — without this the freshly
+ * promoted admin (or Director) has to sign out and back in before Settings
+ * admits it happened.
  *
  * A failed fetch leaves the existing profile in place rather than writing null:
  * blanking it would silently demote the user to member on one flaky request,
@@ -609,7 +846,14 @@ export async function refreshProfile(): Promise<void> {
   const { session } = useAuthStore.getState()
   if (!session) return
   const profile = await loadProfile(session)
-  if (profile) useAuthStore.setState({ profile })
+  if (!profile) return
+  useAuthStore.setState({ profile })
+  // FORCED, unlike adopt()'s call. This function exists because a promotion
+  // happens out-of-band in the SQL editor, and since 0025 a promotion is a
+  // change of `role_id` — the exact thing the cached key set would otherwise
+  // keep answering from. Refreshing the profile without the keys would flip the
+  // role pill and leave every screen still hidden.
+  await loadPermissions(profile, true)
 }
 
 /** The user whose saved locale has already been applied this session. */
@@ -657,12 +901,17 @@ async function adopt(session: Session | null) {
   // `loading` is settled either way: something has to be rendered.
   if (session && useAuthStore.getState().recovery === 'active') {
     useAuthStore.setState({ session: null, profile: null, loading: false })
+    resetPermissions()
     return
   }
   if (!session) {
     localeAppliedFor = null
     recurrenceRunFor = null
     useAuthStore.setState({ session: null, profile: null, loading: false })
+    // Every path out of a session clears the keys, including the ones Shell's
+    // teardown cannot see: a revoked token, a sign-out in another tab, the
+    // recovery branch above. Idempotent, so the two callers cannot conflict.
+    resetPermissions()
     return
   }
   // Gate the shell ONLY while there is nothing to show. supabase-js re-fires
@@ -688,6 +937,12 @@ async function adopt(session: Session | null) {
   // On the FIRST adopt for a session there is nothing to protect and a null is
   // the true answer (a signed-in user with no profiles row), so it is written.
   useAuthStore.setState(profile || !booted ? { profile, loading: false } : { loading: false })
+  // ALONGSIDE THE PROFILE, and only when there is one: the keys are read through
+  // `role_id` on that very row, and a profile that could not be read leaves
+  // nothing to fall back to either. Unawaited — the shell must not wait on a
+  // read that is expected to fail until 0025 lands — and self-deduping, so the
+  // hourly TOKEN_REFRESHED that re-runs adopt() costs no round trip.
+  if (profile) void loadPermissions(profile)
   if (profile) materializeOnce(session)
 }
 

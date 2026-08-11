@@ -68,10 +68,53 @@
 // hard error. A caller that trusted its own request would render a role the
 // database does not hold. `setMemberRoleId()` therefore returns the PERSISTED
 // row and the caller settles on that, never on what it asked for.
+//
+// ── AND `position`, WHICH IS DISPLAY ONLY AND GATES NOTHING ────────────────
+//
+// `profiles.position` IS A JOB TITLE SOMEBODY TYPED AND NOTHING ELSE. 0025's own
+// column comment says it (0025:483) and this module repeats it because the
+// temptation is real: with eighteen people and seven Associate Directors, a
+// string that says "Executive Director, UHR" looks exactly like something a
+// screen could branch on. It must never be. Seniority is a ROLE — a row in
+// `roles` with permission keys attached — and "Business Operations & Product
+// Director (Delegation)" is precisely the string a title parser would read as
+// two ranks, or as none. Nothing in this file, and nothing downstream of it,
+// may derive a capability from this value.
+//
+// THE WRITE IS A PLAIN `profiles` UPDATE, NOT A FIFTH EDGE ACTION, for the same
+// reason `setMemberRoleId()` is: the column is an ordinary `profiles` column and
+// nothing about it lives in `auth.users`.
+//
+// IT REVERTS RATHER THAN RAISING, exactly like role_id, and the caller has to
+// know that. Two gates stand between this UPDATE and the stored value, and they
+// are not the same gate:
+//
+//   RLS — `profiles_update` is `id = auth.uid() or is_admin()` (0009:165) and
+//   0025 deliberately LEAVES IT THERE (0025:855). So somebody else's row needs
+//   `is_admin()`, and a refusal there is a zero-row update, which surfaces below
+//   as `errNotFound`.
+//
+//   THE TRIGGER — `guard_profile_role()` reverts the column outright unless the
+//   writer holds `members.manage` (0025:1800): `new.position := old.position`.
+//   Not an exception, not a 42501: a 200 whose row did not move, because
+//   `profiles_update` also lets an ordinary member write their own row for
+//   `locale` and a raise would turn that save into a hard error.
+//
+// The refusal the trigger performs is therefore INVISIBLE to any caller that
+// trusts its own request. `setMemberPosition()` answers with the PERSISTED row
+// and the caller compares — the same contract, and for the same reason, as
+// `setMemberRoleId()` above.
+//
+// AND THE VALUE IS SCRUBBED BEFORE IT GOES. `stripInvisible()` rather than
+// `stripIsolates()`, which is the wider of the two on purpose: this string is
+// rendered after a separator ("Nawaf Alharbi · …"), so a paste out of Outlook
+// carrying one U+200E is a value that is non-empty to every `=== ''` test and
+// empty to every human, and the roster prints a name, a dot, and nothing.
 
 import { supabase } from './supabase'
 import { fail, notConfigured, type ApiResult } from './result'
 import { roleErrorKey } from './roles'
+import { stripInvisible } from '../lib/bidi'
 import { pgErrorKey } from '../lib/pgError'
 import type { ClaimInput, UserRole } from '../types'
 
@@ -471,6 +514,58 @@ export async function setMemberRoleId(
   const { data, error } = await supabase
     .from('profiles')
     .update({ role_id: roleId })
+    .eq('id', id)
+    .select('id, role, role_id, position')
+    .maybeSingle()
+  if (error) return fail(roleErrorKey(error))
+  if (!data) return fail('members.errNotFound')
+  return { ok: true, data: toMemberRoleRef(data as ProfileRoleRow) }
+}
+
+/**
+ * What a typed position becomes on its way to the column — the ONE definition,
+ * shared by the writer and by every caller that has to ask "did it move?".
+ *
+ * Exported and used on both sides deliberately. The revert this write can suffer
+ * is detected by comparing what came back against what was asked for, and if the
+ * caller compared the RAW input it would report a refusal every time somebody
+ * typed a trailing space. Two normalisations would be two answers.
+ *
+ * `stripInvisible`, not `stripIsolates`: the header argues it. A value made
+ * entirely of invisible format characters must come out as the empty string,
+ * because the roster prints this after a `·` and "a name, a dot, and nothing" is
+ * the failure the trim on the read side (`toMemberRoleRef`) already guards.
+ */
+export function normalizePosition(value: string): string {
+  return stripInvisible(value).trim()
+}
+
+/**
+ * Set the job title printed beside one person's name.
+ *
+ * DISPLAY ONLY. It gates nothing here and must gate nothing anywhere — see the
+ * header, and 0025's own comment on the column.
+ *
+ * ANSWERS WITH THE PERSISTED ROW, never with the requested value, because
+ * `guard_profile_role()` reverts rather than raising for a writer without
+ * `members.manage` (0025:1800). A caller must compare `data.position` against
+ * the `normalizePosition()` of what it sent and treat inequality as the refusal
+ * it is; success here means "the statement ran", not "the title changed".
+ *
+ * `maybeSingle()` and `errNotFound` for `setMemberRoleId()`'s reason exactly: an
+ * account whose `profiles` row was never written matches nothing, and PGRST116
+ * is not a sentence any admin can act on. It is also what an RLS refusal on
+ * somebody else's row looks like from here — zero rows, no error — and
+ * "reload the list" is the right advice for both.
+ */
+export async function setMemberPosition(
+  id: string,
+  position: string,
+): Promise<ApiResult<MemberRoleRef>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ position: normalizePosition(position) })
     .eq('id', id)
     .select('id, role, role_id, position')
     .maybeSingle()

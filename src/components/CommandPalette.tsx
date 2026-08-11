@@ -74,7 +74,11 @@ import {
   type HotkeyHit,
   type RankRow,
 } from '../lib/hotkeys'
-import { useAuth } from '../store/auth'
+// Type-only: the palette needs the KEY UNION to type its per-row gate, and
+// nothing else from api/roles. A value import would pull the whole permission
+// catalogue into this chunk to spell five string literals.
+import type { PermissionKey } from '../api/roles'
+import { useAuth, useHasPerm, useIsAdmin } from '../store/auth'
 import { useActiveTracks, useTrackMap } from '../store/config'
 import { loadEntries, refreshEntries, setStatus, useEntryList } from '../store/entries'
 import { getOpenEntryId, openEntry, stepEntry } from '../store/entrySheet'
@@ -127,6 +131,25 @@ export interface Row {
 export interface PaletteScreen {
   to: string
   labelKey: string
+}
+
+/**
+ * A destination App.tsx withholds, and THE KEY IT WITHHOLDS IT ON.
+ *
+ * The key is per ROW rather than per table because 0025 stopped the admin block
+ * being one thing: `structure.edit` opens Groups, Structure and Tracks to the
+ * Director, `vocab.edit` opens Catalogue, Vocabulary and Terminology, and Roles
+ * and Members stay on `workspace.admin`. A table that was still all-or-nothing
+ * would offer a Director either five rows they cannot open or none of the six
+ * they can.
+ *
+ * `PermissionKey` rather than `string`: api/roles owns that union, so a key
+ * renamed there is a compile error here rather than a row nobody is ever
+ * offered. CommandPalette.test.tsx asserts each row's key equals the one App.tsx
+ * guards the same path with.
+ */
+export interface AdminPaletteScreen extends PaletteScreen {
+  permKey: PermissionKey
 }
 
 /**
@@ -278,32 +301,46 @@ export const LENSES: readonly PaletteScreen[] = MAP_LENSES.map((lens) => ({
 }))
 
 /**
- * Admin-only screens.
+ * The screens App.tsx withholds, each with the key it is withheld on.
  *
  * Kept out of SCREENS rather than filtered from it at render time so the
- * distinction is visible in the source: App.tsx route-gates all three, and
- * offering a member a row that bounces them back to /settings is worse than not
+ * distinction is visible in the source: App.tsx route-gates every row, and
+ * offering someone a row that bounces them back to /settings is worse than not
  * offering it. /settings/recurring is NOT here — that screen is deliberately
  * readable by everyone and withholds its own editing.
  *
- * The split is asserted against App.tsx too: the test reads which routes carry
- * the `isAdmin` ternary, so a row in the wrong table is a failure rather than a
- * member bouncing off a screen the palette just promised them.
+ * ONE KEY PER ROW, NOT ONE PER TABLE, since 0025. The eight rows are three
+ * groups: structure, words, people. A Director holds the first two keys and not
+ * the third, so this table has to be able to offer six rows and withhold two —
+ * an all-or-nothing table would make Cmd-K the last place the Director role is
+ * still invisible.
+ *
+ * The split is asserted against App.tsx twice over: the test reads which routes
+ * carry a permission ternary (so a row in the wrong table is a failure rather
+ * than someone bouncing off a screen the palette just promised them) and which
+ * NAME each one carries (so a row's key here and the route's key there cannot
+ * drift apart).
  */
-export const ADMIN_SCREENS: readonly PaletteScreen[] = [
+export const ADMIN_SCREENS: readonly AdminPaletteScreen[] = [
   // Above tracks, the level it sits above — the same coarse-to-fine reading
   // order the filter bar's facets and the Settings page's two cards use.
-  { to: '/settings/groups', labelKey: 'groups.title' },
-  { to: '/settings/tracks', labelKey: 'admin.tracks.title' },
+  { to: '/settings/groups', labelKey: 'groups.title', permKey: 'structure.edit' },
+  { to: '/settings/tracks', labelKey: 'admin.tracks.title', permKey: 'structure.edit' },
   // Below tracks: the tree (0023), then the catalogue that tree is measured
   // against (0024). Same coarse-to-fine order, continued one level down.
-  { to: '/settings/structure', labelKey: 'structure.title' },
-  { to: '/settings/catalogue', labelKey: 'catalogue.title' },
-  { to: '/settings/vocabulary', labelKey: 'vocabadmin.title' },
-  { to: '/settings/terminology', labelKey: 'terminology.title' },
-  // A role is what a member holds, so it sits directly above them (0025).
-  { to: '/settings/roles', labelKey: 'roles.title' },
-  { to: '/settings/members', labelKey: 'route.members' },
+  { to: '/settings/structure', labelKey: 'structure.title', permKey: 'structure.edit' },
+  // ⚠ The catalogue writes `use_cases` (vocab.edit) in one half and
+  //   `map_node_kinds` (structure.edit) in the other. `vocab.edit` is the key
+  //   App.tsx gates the route on, so it is the key this row must carry — a row
+  //   offered on a key the route refuses is exactly the drift the test forbids.
+  //   CatalogueAdmin.tsx's header owns the note.
+  { to: '/settings/catalogue', labelKey: 'catalogue.title', permKey: 'vocab.edit' },
+  { to: '/settings/vocabulary', labelKey: 'vocabadmin.title', permKey: 'vocab.edit' },
+  { to: '/settings/terminology', labelKey: 'terminology.title', permKey: 'vocab.edit' },
+  // A role is what a member holds, so it sits directly above them (0025) — and
+  // both stay on `workspace.admin`, the power withheld from Director.
+  { to: '/settings/roles', labelKey: 'roles.title', permKey: 'workspace.admin' },
+  { to: '/settings/members', labelKey: 'route.members', permKey: 'workspace.admin' },
 ]
 
 /**
@@ -452,16 +489,26 @@ export function trackCandidates(
 /**
  * The screens this viewer may go to.
  *
- * The admin table is APPENDED rather than merged and re-sorted, so an admin sees
- * the same twelve rows in the same order a member does and the three extra ones
- * after them — a list that reorders itself by role is a list nobody builds
- * muscle memory on.
+ * The admin table is APPENDED rather than merged and re-sorted, so everyone sees
+ * the same twelve rows in the same order and whichever of the eight extra ones
+ * they hold the key for after them — a list that reorders itself by role is a
+ * list nobody builds muscle memory on. A Director's list is therefore the
+ * member's twelve, then six; an admin's is the member's twelve, then eight.
+ *
+ * `holds` RATHER THAN A ROLE, and that is the whole change 0025 asks for here.
+ * The caller owns the question — the component passes store/auth's hooks, the
+ * tests pass a predicate — and this function only decides which rows the answers
+ * admit and in what order. Passing a role would have put a fourth copy of "who
+ * is an admin" in a file that renders a list.
  */
-export function screenCandidates(role: UserRole, navigate: NavigateFn): RankRow<Row>[] {
+export function screenCandidates(
+  holds: (key: PermissionKey) => boolean,
+  navigate: NavigateFn,
+): RankRow<Row>[] {
   // The lenses sit after the plain routes and before the admin block, so the
-  // shared prefix of the member's list and the admin's list is unchanged — the
-  // property the "leaving the shared order alone" case pins.
-  const screens = role === 'admin' ? [...SCREENS, ...LENSES, ...ADMIN_SCREENS] : [...SCREENS, ...LENSES]
+  // shared prefix of every viewer's list is unchanged — the property the
+  // "leaving the shared order alone" case pins.
+  const screens = [...SCREENS, ...LENSES, ...ADMIN_SCREENS.filter((s) => holds(s.permKey))]
   return screens.map((screen) => ({
     item: {
       id: `screen:${screen.to}`,
@@ -612,7 +659,23 @@ export default function CommandPalette(): ReactElement {
   // `null`, never a stand-in: canEditEntry() tests the signed-out case first, so
   // a placeholder id would satisfy the open policy for a session that has none.
   const meId = profile?.id ?? null
+  // STILL THE LEGACY COLUMN, and correctly: `role` below feeds canEditEntry(),
+  // whose rule is `created_by === meId || owner_id === meId || role === 'admin'`
+  // — an ENTRY-level question 0025 did not touch. Only the SCREEN list moved to
+  // permission keys.
   const role: UserRole = profile?.role ?? 'member'
+  // EVERY KEY, AS A TOTAL RECORD, so the compiler is the thing that notices when
+  // api/roles adds one: a new member of `PermissionKey` fails this literal, and
+  // the alternative — a predicate with a `default:` arm — would silently answer
+  // for a key nobody wired up. Five unconditional hook calls; store/auth reads
+  // one Set, so each is a `has()`.
+  const held: Readonly<Record<PermissionKey, boolean>> = {
+    'workspace.admin': useIsAdmin(),
+    'structure.edit': useHasPerm('structure.edit'),
+    'vocab.edit': useHasPerm('vocab.edit'),
+    'members.manage': useHasPerm('members.manage'),
+    'capture.write': useHasPerm('capture.write'),
+  }
 
   /* ---------- the candidate lists ---------- */
 
@@ -636,7 +699,7 @@ export default function CommandPalette(): ReactElement {
   // is a dependency the value does not read and a linter is right to reject it.
   // The labels have to be recomputed on a language switch, and the cheapest
   // honest way to guarantee that is to recompute them always.
-  const screenRows = screenCandidates(role, navigate)
+  const screenRows = screenCandidates((key) => held[key], navigate)
   const actionRows = actionCandidates({
     cycleTheme: () => setTheme(nextThemeAfter(theme)),
     switchLanguage: () => setLocaleSetting(locale === 'en' ? 'ar' : 'en'),

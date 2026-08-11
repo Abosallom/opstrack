@@ -79,7 +79,7 @@ import {
   vocabLabel,
   type VocabSnapshot,
 } from '../../store/vocab'
-import { useAuth } from '../../store/auth'
+import { useHasPerm } from '../../store/auth'
 import type { VocabKind, VocabRow } from '../../types'
 import './vocab.css'
 
@@ -166,23 +166,6 @@ const STALE_FALLBACK: Readonly<Record<string, number | undefined>> = { ...DEFAUL
 /** The composite primary key of vocab_options, flattened for React keys and ids. */
 function idOf(kind: VocabKind, key: string): string {
   return `${kind}:${key}`
-}
-
-/**
- * Cosmetic admin gate — the same one TracksAdmin documents. The real authority
- * is `is_admin()` in 0003's RLS policies: every write on this screen fails with
- * 42501 for a member whatever this returns, and hiding the screen only avoids
- * offering an action that cannot succeed.
- *
- * `?shell` mirrors App.tsx's dev-only preview flag, so the layout and the RTL
- * mirror stay reviewable in a build with no Supabase project.
- * `import.meta.env.DEV` is the literal `false` in a production build, so Vite
- * drops the whole expression and this cannot become a way in.
- */
-function useIsAdmin(): boolean {
-  const { profile } = useAuth()
-  if (profile?.role === 'admin') return true
-  return import.meta.env.DEV && new URLSearchParams(window.location.search).has('shell')
 }
 
 /** One row's edit state. Strings throughout — an empty field is a real value. */
@@ -309,7 +292,19 @@ async function measureHealth(): Promise<HealthCounts | null> {
 
 export default function VocabularyAdmin(): ReactElement {
   const locale = useLocale()
-  const isAdmin = useIsAdmin()
+  // COSMETIC GATE, ASKING THE QUESTION THE DATABASE ASKS. The real authority is
+  // 0003's `vocab_options` RLS policies, which 0025 re-points from `is_admin()`
+  // at `has_perm('vocab.edit')`, along with `reorder_vocab()` and
+  // `reset_vocab()` — the two RPCs this screen calls. Every write here fails
+  // with 42501 for anyone without that key whatever this returns; hiding the
+  // screen only avoids offering an action that cannot succeed.
+  //
+  // A PERMISSION AND NO LONGER A ROLE: `profiles.role` stays derived from the
+  // SYSTEM roles only, so it cannot see a custom role and a Director read as
+  // 'member'. store/auth's `useHasPerm` falls back to that column when 0025 has
+  // not been applied and carries the dev-only `?shell` flag this file used to
+  // repeat. TracksAdmin.tsx has the long form.
+  const canEdit = useHasPerm('vocab.edit')
 
   const [rows, setRows] = useState<VocabRow[] | null>(null)
   const [order, setOrder] = useState<Record<VocabKind, string[]>>(() => ({
@@ -356,8 +351,8 @@ export default function VocabularyAdmin(): ReactElement {
   }, [])
 
   useEffect(() => {
-    if (isAdmin) void load()
-  }, [isAdmin, load])
+    if (canEdit) void load()
+  }, [canEdit, load])
 
   /**
    * Rows by composite key, and the snapshot the label resolvers read.
@@ -763,7 +758,7 @@ export default function VocabularyAdmin(): ReactElement {
   }, [])
   const onSwatchKeyDown = useRadioGroupKeys<HTMLDivElement>(selectSwatch)
 
-  if (!isAdmin) return <Navigate to="/settings" replace />
+  if (!canEdit) return <Navigate to="/settings" replace />
 
   const loading = rows === null
   /**

@@ -85,42 +85,9 @@ import { trackIcon } from '../../lib/trackIcons'
 import { trackVars } from '../../lib/trackStyle'
 import { invalidateConfig } from '../../store/config'
 import { useMembers } from '../../store/members'
-import { useAuth } from '../../store/auth'
+import { useHasPerm } from '../../store/auth'
 import type { MapNode, MapNodeKind, Track } from '../../types'
 import './structure.css'
-
-/**
- * Cosmetic admin gate. The real authority is `is_admin()` in 0023's `map_nodes`
- * RLS policies — every write on this screen fails with 42501 for a member
- * whatever this returns; hiding the screen only avoids offering an action that
- * cannot succeed.
- *
- * THE SEVENTH COPY OF THIS HOOK (TracksAdmin, TrackEditor, VocabularyAdmin,
- * Members, Terminology, GroupsAdmin). Copied rather than shared for the reason
- * GroupsAdmin records: the one place it could live is `store/auth.ts`, since
- * `src/lib/**` may not import a store, and that file is not this worker's to
- * edit. The seven are byte-identical today and a copy is exactly the thing that
- * drifts — flagged in the handoff again, now with a seventh caller behind it.
- *
- * ⚠ AND SINCE 0025 IT ASKS THE WRONG QUESTION OUTRIGHT, not merely by one edge.
- *   `map_nodes` and `map_node_kinds` are gated on `has_perm('structure.edit')`,
- *   which the Director role holds; this hook reads `profiles.role`, which 0025
- *   keeps derived from the SYSTEM role only, so a Director reads as 'member' and
- *   is bounced off a screen the database would let them write. The full account
- *   of the fix — a tri-state permission hook, not a wider boolean — is over
- *   `isAdmin` in src/App.tsx and in docs/PENDING-MIGRATIONS.md.
- *
- * `?shell` mirrors App.tsx's dev-only preview flag, so this screen stays
- * reachable in a build with no Supabase project — which is where the layout and
- * the RTL mirror get reviewed. `import.meta.env.DEV` is the literal `false` in a
- * production build, so Vite tree-shakes the whole expression out and this cannot
- * become a way in.
- */
-function useIsAdmin(): boolean {
-  const { profile } = useAuth()
-  if (profile?.role === 'admin') return true
-  return import.meta.env.DEV && new URLSearchParams(window.location.search).has('shell')
-}
 
 /**
  * The deepest a node may sit below its track — `v_max_depth` in 0023's
@@ -477,7 +444,22 @@ interface MoveUsage {
 
 export default function StructureAdmin(): ReactElement {
   const locale = useLocale()
-  const isAdmin = useIsAdmin()
+  // COSMETIC GATE, ASKING THE QUESTION THE DATABASE ASKS. The real authority is
+  // 0023's `map_nodes` and `map_node_kinds` RLS policies, which 0025 re-points
+  // from `is_admin()` at `has_perm('structure.edit')`, along with the two RPCs
+  // this screen calls — `reorder_map_nodes` and `move_map_node`. Every write
+  // here fails with 42501 for anyone without that key whatever this returns;
+  // hiding the screen only avoids offering an action that cannot succeed.
+  //
+  // WHAT WAS WRONG WITH THE SEVEN `useIsAdmin` COPIES, and it was not only the
+  // duplication this file's old comment complained about: they read
+  // `profiles.role`, which 0025 keeps derived from the SYSTEM roles only, so a
+  // custom role was invisible to every one of them and a Director was bounced
+  // off exactly the screens 0025 had just opened. store/auth's `useHasPerm`
+  // reads `role_permissions` — member-readable by design, precisely so the
+  // client can mirror the policy — falls back to the legacy column when 0025 is
+  // unapplied, and carries the dev-only `?shell` flag that used to live here.
+  const canEdit = useHasPerm('structure.edit')
   const trackLabel = useTrackLabel()
   const members = useMembers()
   // Memoised on locale so passing it into a callback does not invalidate one on
@@ -540,8 +522,8 @@ export default function StructureAdmin(): ReactElement {
   }, [])
 
   useEffect(() => {
-    if (isAdmin) void load()
-  }, [isAdmin, load])
+    if (canEdit) void load()
+  }, [canEdit, load])
 
   const index = useMemo(() => buildIndex(nodes), [nodes])
 
@@ -926,7 +908,7 @@ export default function StructureAdmin(): ReactElement {
     return node ? nodeLabel(node) : null
   }
 
-  if (!isAdmin) return <Navigate to="/settings" replace />
+  if (!canEdit) return <Navigate to="/settings" replace />
 
   const loading = tracks === null
 

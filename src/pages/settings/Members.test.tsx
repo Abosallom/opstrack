@@ -39,6 +39,13 @@
 //     drift apart, because both are the same locale key. That claim spans two
 //     modules with no type connecting them, so it is asserted here against the
 //     real ADMIN_ERROR_KEYS.
+//  5. THE PURE FUNCTIONS THE WRITES REST ON. `normalizePosition` decides both
+//     what reaches `profiles.position` AND what the caller compares the
+//     persisted value against to notice that `guard_profile_role()` silently
+//     reverted it — the two have to be the same answer, and nothing in the type
+//     system says so. The `position` box itself is behind a permission read an
+//     effect performs, so it is as out of reach here as the roster is, and the
+//     browser pass owns it.
 
 import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -89,8 +96,16 @@ const fx = vi.hoisted(() => {
 
 vi.mock('../../api/supabase', () => ({ isConfigured: () => true, supabase: null }))
 
+// `useIsAdmin` moved into store/auth (it is `useHasPerm('workspace.admin')`
+// there), so the factory has to supply it or the screen's import resolves to
+// undefined. Keyed off the same fixture role, which is what `role: 'admin' |
+// 'member'` means in every case below — and it reproduces store/auth's own
+// legacy fallback exactly: an admin holds every key, a member holds none. A
+// Director case would want a key-aware stub.
 vi.mock('../../store/auth', () => ({
   useAuth: () => ({ profile: { id: 'me', role: fx.state.role } }),
+  useHasPerm: () => fx.state.role === 'admin',
+  useIsAdmin: () => fx.state.role === 'admin',
 }))
 
 vi.mock('../../store/members', () => ({ invalidateMembers: () => {} }))
@@ -111,6 +126,7 @@ vi.mock('../../api/members', async (importOriginal) => {
     deleteMember: fx.record('delete'),
     setMemberRole: fx.record('setRole'),
     setMemberRoleId: fx.record('setRoleId'),
+    setMemberPosition: fx.record('setPosition'),
   }
 })
 
@@ -127,7 +143,7 @@ vi.mock('../../api/roles', async (importOriginal) => {
   }
 })
 
-const { ADMIN_ERROR_KEYS, toMemberRoleRef } = await import('../../api/members')
+const { ADMIN_ERROR_KEYS, normalizePosition, toMemberRoleRef } = await import('../../api/members')
 const { setLocale, t } = await import('../../lib/i18n')
 const { default: Members, hasEmailRecoverableAdmin, roleMoveBlockKey } = await import('./Members')
 type MemberAccount = import('../../api/members').MemberAccount
@@ -195,6 +211,9 @@ describe('the first paint', () => {
     // an account, and the fields below are behind the toggle.
     expect(html).not.toContain('mem-form')
     expect(html).not.toContain('id="mem-username"')
+    // The position field lives behind the same toggle AND behind a permission
+    // read that a server render never resolves, so it is doubly out of reach.
+    expect(html).not.toContain('id="mem-position"')
   })
 
   it('stands in for the roster with a skeleton the screen reader ignores', () => {
@@ -237,6 +256,10 @@ const CREATE_FLOW: readonly [string, readonly string[]][] = [
   ['members.displayName', []],
   ['members.displayNameHint', []],
   ['members.displayNamePlaceholder', []],
+  ['members.position', []],
+  ['members.positionPlaceholder', []],
+  ['members.positionHint', []],
+  ['members.errPositionNotSaved', []],
   ['members.create', []],
   ['members.creating', []],
   ['members.errUsernameRequired', []],
@@ -499,6 +522,151 @@ describe('toMemberRoleRef', () => {
     expect(toMemberRoleRef({ id: 'a', role: 'admin', role_id: null, position: '' }).role).toBe(
       'admin',
     )
+  })
+})
+
+/* ──────────────── the position: display only, and normalised once ──────── */
+
+/**
+ * `normalizePosition` — the ONE definition of what a typed title becomes.
+ *
+ * Tested here for `toMemberRoleRef`'s reason above: api/members.test.ts belongs
+ * to another unit this wave (§1.0.4), and this function is not cosmetic. Two
+ * things rest on it and both are silent when it is wrong:
+ *
+ *  1. It is what reaches the column, and `guard_profile_role()` REVERTS rather
+ *     than raising for a writer without `members.manage` (0025:1800) — a 200
+ *     whose row did not move.
+ *  2. It is therefore also what the caller compares the persisted value
+ *     AGAINST, to notice that revert. If the writer and the comparer normalised
+ *     differently, every trailing space would be reported as a refusal and a
+ *     real refusal would be reported as a save.
+ */
+describe('normalizePosition', () => {
+  it('trims, so a title typed with a trailing space is not a change', () => {
+    expect(normalizePosition('  Raqeeb Clinical Expert  ')).toBe('Raqeeb Clinical Expert')
+  })
+
+  it('leaves a real title exactly alone, punctuation and all', () => {
+    // The longest one on the actual roster. An over-eager sanitiser that ate
+    // the ampersand or the parentheses would quietly rewrite somebody's title.
+    const title = 'Business Operations & Product Director (Delegation)'
+    expect(normalizePosition(title)).toBe(title)
+    expect(normalizePosition('PMO (OB related)')).toBe('PMO (OB related)')
+    expect(normalizePosition('Executive Director, UHR')).toBe('Executive Director, UHR')
+  })
+
+  it('empties a value made only of invisible characters', () => {
+    // THE FAILURE THIS EXISTS FOR: a paste out of Outlook or a web page carries
+    // U+200E/U+200B, `String.trim()` does not remove either, and the roster
+    // prints this after a `·` — so the row renders a name, a dot, and nothing.
+    // `stripInvisible` is the wider of lib/bidi's two strippers for exactly
+    // this reason.
+    expect(normalizePosition('‎')).toBe('')
+    expect(normalizePosition('​ ⁦⁩')).toBe('')
+  })
+
+  it('strips the isolate controls, which must never reach the database', () => {
+    // lib/bidi's standing rule. The renderer isolates with `<bdi>`; a U+2066
+    // stored in the column would travel to every other reader of the value.
+    expect(normalizePosition('⁨PMO⁩')).toBe('PMO')
+  })
+
+  it('is idempotent, which is what makes the revert check sound', () => {
+    for (const raw of ['  PMO (OB related) ', '‎Developer', 'Executive Director, UHR']) {
+      expect(normalizePosition(normalizePosition(raw))).toBe(normalizePosition(raw))
+    }
+  })
+
+  it('agrees with the READ side, or the settle reports a save as a refusal', () => {
+    // The round trip the write depends on: what `setMemberPosition` sends is
+    // `normalizePosition(draft)`, what comes back is `toMemberRoleRef(row)
+    // .position`, and the caller calls them equal to mean "it stuck". The two
+    // functions live in different halves of the module and trim independently.
+    for (const raw of ['  PMO (OB related) ', 'Executive Director, UHR', '   ', '‎']) {
+      const sent = normalizePosition(raw)
+      expect(
+        toMemberRoleRef({ id: 'a', role: 'member', role_id: null, position: sent }).position,
+      ).toBe(sent)
+    }
+  })
+})
+
+/** Every sentence the position flow is made of, with the tokens its caller passes. */
+const POSITION_FLOW: readonly [string, readonly string[]][] = [
+  ['members.position', []],
+  ['members.positionPlaceholder', []],
+  ['members.positionHint', []],
+  ['members.editPosition', []],
+  ['members.positionFor', ['name']],
+  ['members.positionSaved', ['name']],
+  ['members.errPositionReverted', []],
+  ['members.errPositionNotSaved', []],
+  ['members.errNoProfileRow', []],
+  ['common.save', []],
+  ['common.cancel', []],
+]
+
+describe('the strings the position flow is made of', () => {
+  it('resolves and fills every one of them in both languages', () => {
+    for (const locale of ['en', 'ar'] as const) {
+      setLocale(locale)
+      for (const [key, tokens] of POSITION_FLOW) {
+        expect(t(key)).not.toBe(key)
+        expect(t(key).trim()).not.toBe('')
+        const out = t(key, Object.fromEntries(tokens.map((token) => [token, 'X'])))
+        expect(out).not.toMatch(/\{[a-zA-Z]+\}/)
+        if (tokens.length > 0) expect(out).toContain('X')
+      }
+    }
+    setLocale('en')
+  })
+
+  it('fences the person in both trees, on both strings that name one', () => {
+    // A display name can begin with a strong character of either direction, and
+    // both of these put it next to Latin words. FSI…PDI immediately around the
+    // token is the shape bidi.test.ts's gate looks for.
+    for (const locale of ['en', 'ar'] as const) {
+      setLocale(locale)
+      expect(t('members.positionFor', { name: 'NN' })).toContain('⁨NN⁩')
+      expect(t('members.positionSaved', { name: 'NN' })).toContain('⁨NN⁩')
+    }
+    setLocale('en')
+  })
+
+  it('says out loud that a position decides nothing', () => {
+    // THE ONE CLAIM THIS UNIT MOST NEEDS THE READER TO BELIEVE. `position` is
+    // free text and the app must never infer seniority by parsing it — that is
+    // what roles are for. The hint beside the field is where an admin is told,
+    // so it has to keep saying it: a hint reduced to "Optional." would leave
+    // "Executive Director, UHR" looking like a setting with consequences.
+    setLocale('en')
+    expect(t('members.positionHint')).toMatch(/display only/i)
+    expect(t('members.positionHint')).toMatch(/role/i)
+    setLocale('ar')
+    // The Arabic has to carry the same claim, not merely the same length.
+    expect(t('members.positionHint')).toContain('للعرض فقط')
+    expect(t('members.positionHint')).toContain('دوره')
+    setLocale('en')
+  })
+
+  it('blames the permission, not the network, when the database keeps the old title', () => {
+    // The revert is a 200 whose row did not move. "Something went wrong" would
+    // send an admin to try the same thing again, forever; the sentence has to
+    // name `members.manage` in words a person can act on.
+    setLocale('en')
+    expect(t('members.errPositionReverted')).toMatch(/manage members/i)
+    setLocale('en')
+  })
+
+  it('tells the create flow that the ACCOUNT survived a failed position', () => {
+    // The position is a second write, after the account and its one-time code
+    // already exist. A failure there must not read as "the member was not
+    // created" — the code is on screen and about to be handed over.
+    setLocale('en')
+    const en = t('members.errPositionNotSaved')
+    expect(en).toMatch(/created/i)
+    expect(en).toMatch(/position/i)
   })
 })
 

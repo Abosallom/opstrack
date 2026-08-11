@@ -76,8 +76,15 @@ const fx = vi.hoisted(() => {
 
 vi.mock('../../api/supabase', () => ({ isConfigured: () => true, supabase: null }))
 
+// `useIsAdmin` moved into store/auth (it is `useHasPerm('workspace.admin')`
+// there), so the factory has to supply it or the screen's import resolves to
+// undefined. Keyed off the same fixture role, which is what `role: 'admin' |
+// 'member'` means in every case below — and it reproduces store/auth's own
+// legacy fallback exactly: an admin holds every key, a member holds none.
 vi.mock('../../store/auth', () => ({
   useAuth: () => ({ profile: { id: 'me', role: fx.state.role } }),
+  useHasPerm: () => fx.state.role === 'admin',
+  useIsAdmin: () => fx.state.role === 'admin',
 }))
 
 const { setLocale, t } = await import('../../lib/i18n')

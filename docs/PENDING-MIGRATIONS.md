@@ -124,30 +124,36 @@ by the audit writer — a 42501 on a legitimate edit, blamed on the wrong thing.
   refuses it. **Probe 5 half A(iii) reads `pg_get_functiondef` and fails on exactly this**, for
   all eight by name. `0023`'s own probe assertion was reworded to *"accepted a NON-ADMIN"* in the
   same pass, since the fixture is a plain member either way.
-* ⚠ **THE ONE THING STILL MISSING, AND IT IS THE BLOCKER: THE CLIENT NEVER OFFERS ANY OF THIS.**
-  Every configuration screen guards on a local `useIsAdmin()` — nine byte-identical copies of
-  `profile?.role === 'admin'` — and `0025` keeps `profiles.role` derived from the **system role
-  only**. A Director's legacy text is `'member'`, so **a Director signing in today is redirected
-  to `/settings` from every screen the database now lets them write.** The database half is
-  complete, probe-backed and **invisible**.
-  The sites: `StructureAdmin.tsx:921`, `TracksAdmin.tsx:63`, `TrackEditor.tsx:193`,
-  `GroupsAdmin.tsx:176`, `CatalogueAdmin.tsx:169`, `VocabularyAdmin.tsx:312`,
-  `Terminology.tsx:315`, plus `RolesAdmin.tsx:154` and `Members.tsx:257` (**those two keep
-  `canAdmin` — they are `members.manage`, and only Admin holds it**), plus the route ternaries in
-  `src/App.tsx:527`, the sections in `src/pages/Settings.tsx:164` and `ADMIN_SCREENS` in
-  `src/components/CommandPalette.tsx:464`.
-  The shape of the fix: a permission-aware hook reading `role_permissions` for the signed-in
-  profile — the two tables are member-readable **by design, precisely so the client can mirror
-  the policy** — seeded from the legacy role so a project without `0025` behaves exactly as it
-  does today, and **tri-state**, because a hook that answers `false` while the read is in flight
-  redirects the Director away before the answer arrives. Then `isAdmin` becomes
-  `canEditStructure` / `canEditVocab` at the sites above.
-  ⚠ **DO NOT PUT ANYBODY IN THE DIRECTOR ROLE UNTIL THAT LANDS.** `scripts/provision-people.mjs`
-  will happily do it (`roleIntent: 'director'`, seven people). Today it would take seven people
-  who are currently admins and leave them with **no configuration screens at all** — the database
-  would accept their writes and the app would offer them nowhere to make one. Provision the
-  roster with `0025` unapplied (everyone lands Admin/Member from the legacy column, which is
-  today's behaviour), or apply `0025` and assign the Directors **after** the client gate ships.
+* ✅ **THE CLIENT GATE — WAS THE BLOCKER, IS NOW SHIPPED AND WAITING.** This entry used to read
+  "the client never offers any of this": nine byte-identical copies of `useIsAdmin()` over
+  `profile?.role === 'admin'`, a column `0025` keeps derived from the **system role only**, so a
+  Director's legacy text is `'member'` and every screen the database had just opened redirected
+  them back to `/settings`. All nine copies are gone. There is one hook — `useHasPerm(key)` /
+  `useIsAdmin()` in `src/store/auth.ts` — reading `role_permissions` for the signed-in profile
+  (both tables are member-readable **by design, precisely so the client can mirror the policy**),
+  and the sites ask for the key the policy asks for:
+  `structure.edit` at `TracksAdmin`, `TrackEditor`, `GroupsAdmin`, `StructureAdmin`;
+  `vocab.edit` at `CatalogueAdmin`, `VocabularyAdmin`, `Terminology`;
+  `workspace.admin` at `RolesAdmin` and `Members` (**those two do not move — they are
+  `members.manage`, and only Admin holds it**). The same three-way split is in `src/App.tsx`'s
+  route table, `src/pages/Settings.tsx`'s cards and `ADMIN_SCREENS` in
+  `src/components/CommandPalette.tsx`, which now carries a permission key **per row**.
+  `CommandPalette.test.tsx` scrapes `App.tsx` and fails if a palette row's key and its route's
+  gate disagree.
+  **The hook falls back to the legacy `profiles.role` column** whenever the roles tables are
+  absent, the read fails, or `role_id` is null — the same coalesce `has_perm()` itself does — and
+  it publishes that fallback **synchronously**, so there is no window in which a signed-in admin
+  is treated as a member. On the live project today, with `0025` unapplied, the app therefore
+  behaves exactly as it did before the split: admin sees every configuration screen, member sees
+  none, nothing throws.
+  ⚠ **THE DIRECTOR ROLE IS INERT UNTIL YOU APPLY `0025`.** The old warning here said *do not put
+  anybody in the Director role* — that is no longer true of the client, and it stops being true
+  of the database the moment `0025` runs. What is true today: `scripts/provision-people.mjs` with
+  `roleIntent: 'director'` writes a `role_id` into a column that does not exist yet, so provision
+  the roster with `0025` unapplied (everyone lands Admin/Member from the legacy column, which is
+  today's behaviour), then apply `0025`, then assign the seven Directors. They gain the six
+  configuration screens on their next sign-in — or immediately, since `refreshProfile()` re-reads
+  the keys.
 * **It seeds no people.** Roles exist; who holds which is a separate step, and every profile is
   backfilled onto Admin or Member from the legacy column so nobody's access changes on apply.
 * **`admin-members/index.ts` still gates on `profiles.role = 'admin'`**, in TypeScript. A custom

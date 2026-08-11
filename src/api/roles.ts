@@ -30,17 +30,14 @@
 //   lie the migration's header exists to prevent, so the UI shows the difference
 //   and this is where it comes from.
 //
-// ⚠ `reach` IS A STATEMENT ABOUT THE DATABASE, NOT ABOUT THIS APP'S SCREENS, and
-//   the two do not agree today. Every configuration screen still guards on
-//   `useIsAdmin()` (`profile.role === 'admin'`), which 0025 keeps derived from
-//   the SYSTEM role only — so a Director holding both live keys is redirected
-//   away from every screen the database now lets them write. "In force" is the
-//   true answer to "what will the server accept"; it is not yet the answer to
-//   "what will this app offer". Closing that is a permission-aware hook in
-//   store/auth and a swap of `isAdmin` for `canEditStructure` / `canEditVocab`
-//   on nine screens, App.tsx, Settings.tsx and CommandPalette.tsx — recorded in
-//   docs/PENDING-MIGRATIONS.md. DO NOT ASSIGN ANYONE THE DIRECTOR ROLE BEFORE
-//   IT LANDS: the seven would lose the admin screens and gain nothing visible.
+// ⚠ `reach` IS A STATEMENT ABOUT THE DATABASE, NOT ABOUT THIS APP'S SCREENS.
+//   The client half of that gap closes through `myPermissions()` below, which
+//   store/auth.ts reads once per sign-in to answer `useHasPerm(key)` — so a
+//   Director holding `structure.edit` is offered exactly the screens 0025 lets
+//   them write, instead of being redirected off all of them. "In force" is still
+//   the answer to "what will the server accept" and nothing here changes that:
+//   the hook decides what RENDERS, RLS decides what is WRITTEN, and the point of
+//   reading the real grants is that the two now give the same answer.
 //
 // ERRORS ARE i18n KEYS, NOT SENTENCES — api/tracks.ts's rule. `roleErrorKey()`
 // below is a LOCAL mapper rather than an addition to lib/pgError.ts because that
@@ -50,10 +47,12 @@
 // maps to the generic "an admin only can do that" — a sentence that is both
 // wrong and unactionable for a revocation that would empty the workspace.
 //
-// NOT IN store/config.ts, deliberately. Roles are read by exactly one screen;
-// every other surface asks `profile.role`, which 0025 keeps derived and correct.
-// Caching three rows app-wide would buy nothing and would put a second, staler
-// answer to "what am I allowed to do" in the tree.
+// NOT IN store/config.ts, deliberately. The ROLE LIST is read by exactly one
+// screen: caching three rows app-wide would buy nothing and would put a second,
+// staler answer to "which roles exist" in the tree. The signed-in member's OWN
+// keys are a different question with a different shape — one set, read once at
+// sign-in, asked by every gate in the app — and store/auth.ts caches those,
+// beside the profile they belong to, through `myPermissions()` below.
 
 import { supabase } from './supabase'
 import { fail, notConfigured, type ApiResult } from './result'
@@ -193,6 +192,27 @@ export const PERMISSIONS: readonly PermissionMeta[] = [
 /** The permission whose loss cannot be repaired from inside the app. */
 export const ADMIN_PERMISSION: PermissionKey = 'workspace.admin'
 
+/**
+ * The catalogue as bare keys, in catalogue order.
+ *
+ * Derived from PERMISSIONS rather than written out a second time: this list is
+ * what "an admin holds everything" MEANS in the pre-0025 fallback
+ * (store/auth.legacyPermissionKeys), and a hand-maintained copy would be the one
+ * place a newly added key is forgotten — silently demoting every admin on a
+ * database where the roles tables do not exist yet.
+ */
+export const ALL_PERMISSION_KEYS: readonly PermissionKey[] = PERMISSIONS.map((p) => p.key)
+
+/**
+ * What a member is allowed to do when nothing else says otherwise.
+ *
+ * `capture.write` is the one key that is DECLARED rather than enforced (see
+ * PERMISSIONS), and filing work is what membership IS — `entries` is gated on
+ * `is_member()`. So this is the honest legacy reading of `role = 'member'`, and
+ * it is the floor the fallback lands on.
+ */
+export const MEMBER_PERMISSION_KEYS: readonly PermissionKey[] = ['capture.write']
+
 /** `roles_name_len_ck` — 1..40 on the trimmed name. Mirrored, not owned. */
 export const ROLE_NAME_MAX = 40
 
@@ -301,6 +321,68 @@ export async function listProfileRoles(): Promise<ApiResult<ProfileRoleRef[]>> {
   const { data, error } = await supabase.from('profiles').select('role, role_id')
   if (error) return fail(roleErrorKey(error))
   return { ok: true, data: (data ?? []) as ProfileRoleRef[] }
+}
+
+/**
+ * What ONE person may do: the role they hold and the keys it grants.
+ *
+ * `roleId: null` is not an error and not "nothing" — it is the answer for a
+ * profile whose `role_id` has not been backfilled, and it means exactly what
+ * `has_perm()`'s coalesce (0025:400) means: fall back to the legacy
+ * `profiles.role` text column. The caller does that, because the caller is the
+ * one that holds the profile; this module refuses to guess.
+ */
+export interface MyPermissions {
+  /** The role actually joined against, or null when the legacy column decides. */
+  roleId: string | null
+  /** Every GRANTED key on that role. An explicit `granted = false` is absent. */
+  keys: string[]
+}
+
+/**
+ * The signed-in member's own permission keys, for the client-side gate.
+ *
+ * TWO READS, NOT AN EMBED. `profiles → roles → role_permissions` is expressible
+ * as one PostgREST embed, but the embed names a foreign key that DOES NOT EXIST
+ * on a database where 0025 has not run, and PostgREST answers that with a 400
+ * whose message is about a relationship rather than about a missing table — the
+ * same failure as a genuinely broken query, and impossible to tell apart. Two
+ * plain selects fail in the ordinary way instead, once per sign-in.
+ *
+ * ⚠ IT MUST BE ABLE TO FAIL, AND THE CALLER MUST BE ABLE TO SURVIVE IT. On the
+ *   live project right now `roles`, `role_permissions` and `profiles.role_id`
+ *   are all absent: the first select answers 42703 (undefined column) and the
+ *   second would answer 404. Both come back here as an ordinary `{ ok: false }`
+ *   with an i18n key, never as a throw, so store/auth can fall back to the
+ *   legacy text column and the app behaves exactly as it does today.
+ *
+ * `granted` is filtered HERE rather than in the query, because an explicit deny
+ * (`granted = false`, 0025:236) has to be readable as a row somebody turned off
+ * — filtering it server-side would make a denied key and an ungranted one the
+ * same wire answer, which is the distinction that row exists to keep.
+ */
+export async function myPermissions(userId: string): Promise<ApiResult<MyPermissions>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role_id')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) return fail(roleErrorKey(error))
+  const roleId = (data as { role_id?: string | null } | null)?.role_id ?? null
+  // No role_id: the database itself would answer from `profiles.role`, so there
+  // is nothing to join and a second round trip would return the same empty set.
+  if (!roleId) return { ok: true, data: { roleId: null, keys: [] } }
+
+  const { data: rows, error: permError } = await supabase
+    .from('role_permissions')
+    .select('permission_key, granted')
+    .eq('role_id', roleId)
+  if (permError) return fail(roleErrorKey(permError))
+  const keys = ((rows ?? []) as RolePermission[])
+    .filter((row) => row.granted)
+    .map((row) => row.permission_key)
+  return { ok: true, data: { roleId, keys } }
 }
 
 /* ───────────────────────── the guard, client-side ──────────────────────── */

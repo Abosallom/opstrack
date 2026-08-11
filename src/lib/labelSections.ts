@@ -1303,7 +1303,11 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'add',
           'create',
           'demote',
+          // A button label and a control's accessible name, which is exactly
+          // what `roleFor` and `actionsFor` beside them already are.
+          'editPosition',
           'inviteDone',
+          'positionFor',
           'promote',
           'reissue',
           'roleFor',
@@ -1324,6 +1328,14 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'inviteWarning',
           'loadFailed',
           'noProfile',
+          // The sentence under the field, which is where `usernameHint` and
+          // `displayNameHint` above already live, and a toast, like
+          // `roleChanged` and `reissued`. `position` and `positionPlaceholder`
+          // are deliberately NOT here: they fall to the namespace default
+          // (`entryFields`) exactly as `username` and `displayName` do, and
+          // `errPosition*` is already caught by the `'err'` prefix.
+          'positionHint',
+          'positionSaved',
           'promoteBody',
           'promoteTitle',
           'reissueBody',

@@ -80,8 +80,15 @@ const fx = vi.hoisted(() => {
 
 vi.mock('../../api/supabase', () => ({ isConfigured: () => true, supabase: null }))
 
+// The screen asks store/auth's `useHasPerm(key)` now, not "is this profile an
+// admin" — 0025 re-points its RLS policies at a permission key and the client
+// mirrors that. The fixture still describes a person by their LEGACY role, so
+// the mock resolves the key exactly the way store/auth's own legacy fallback
+// does: an admin holds every key, a member holds none of these. Every case
+// below therefore keeps meaning what it meant.
 vi.mock('../../store/auth', () => ({
   useAuth: () => ({ profile: { id: 'me', role: fx.state.role } }),
+  useHasPerm: () => fx.state.role === 'admin',
 }))
 
 vi.mock('../../store/config', () => ({ invalidateConfig: () => {} }))

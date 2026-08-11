@@ -45,6 +45,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
+import type { PermissionKey } from '../api/roles'
 import type { Entry, Track } from '../types'
 
 const fx = vi.hoisted(() => {
@@ -88,8 +89,14 @@ const fx = vi.hoisted(() => {
 // for a second reason — openEntry() is the one doer CommandPalette.tsx imports
 // rather than takes as an argument, so this is the seam that proves an entry row
 // hands over the palette's OWN sibling list.
+// `useHasPerm` / `useIsAdmin` are what the palette asks for its screen list now,
+// keyed off the same fixture role: an admin holds every key and a member holds
+// none, which is store/auth's own legacy fallback. The per-row key table is
+// asserted against App.tsx directly rather than through this stub.
 vi.mock('../store/auth', () => ({
   useAuth: () => ({ profile: { id: 'me', role: fx.state.role } }),
+  useHasPerm: () => fx.state.role === 'admin',
+  useIsAdmin: () => fx.state.role === 'admin',
 }))
 vi.mock('../store/config', () => ({
   useActiveTracks: () => fx.state.tracks,
@@ -232,8 +239,13 @@ interface ParsedRoute {
   path: string
   /** The components its `element` renders, `Navigate` excluded. */
   components: string[]
-  /** Does the element sit behind App.tsx's `isAdmin` ternary? */
+  /** Does the element sit behind one of App.tsx's permission ternaries? */
   adminGated: boolean
+  /**
+   * WHICH of them, so the palette's per-row key can be checked against the
+   * route's and not merely against "is it gated at all". Null when ungated.
+   */
+  gate: GateName | null
 }
 
 /**
@@ -247,10 +259,28 @@ interface ParsedRoute {
  * one.
  *
  * JSX comments are stripped BEFORE the split. The route table is heavily
- * commented, a comment sits between two `<Route`s, and a sentence containing the
- * word `isAdmin` would otherwise attach itself to the preceding route and mark a
- * screen admin-gated that is not.
+ * commented, a comment sits between two `<Route`s, and a sentence containing one
+ * of the gate names would otherwise attach itself to the preceding route and
+ * mark a screen gated that is not.
  */
+const GATE_NAMES = ['isAdmin', 'canEditStructure', 'canEditVocab'] as const
+type GateName = (typeof GATE_NAMES)[number]
+
+/**
+ * App.tsx's local name for a gate → the permission key it is asking for.
+ *
+ * The one place the two vocabularies meet. App.tsx spells the question as a
+ * variable (`canEditStructure`) and CommandPalette spells it as the key itself
+ * (`structure.edit`); this table lets the suite assert they mean the same thing
+ * per PATH, which is the assertion that stops a row being offered on a key its
+ * route refuses. Adding a gate to GATE_NAMES without a key here is a type error.
+ */
+const GATE_KEY: Readonly<Record<GateName, PermissionKey>> = {
+  isAdmin: 'workspace.admin',
+  canEditStructure: 'structure.edit',
+  canEditVocab: 'vocab.edit',
+}
+
 function parseSignedInRoutes(source: string): ParsedRoute[] {
   const blocks = source.split('<Routes>').slice(1)
   // Picked by a route only the signed-in block contains. It was '"/capture"'
@@ -273,12 +303,35 @@ function parseSignedInRoutes(source: string): ParsedRoute[] {
       // '/meetings/:id' too and would therefore mark '/meetings' and '/digest'
       // as detail surfaces, quietly excusing both from every assertion below.
       .filter((name) => name !== 'Navigate' && name !== 'ModeFrame')
-    out.push({ path, components, adminGated: segment.includes('isAdmin') })
+    // THREE GATE NAMES, NOT ONE, since 0025 split the client gate the way it
+    // split the policies: `canEditStructure` (tracks, groups, structure),
+    // `canEditVocab` (catalogue, vocabulary, terminology) and `isAdmin` (roles,
+    // members). What this parse asks is unchanged — "is this route withheld from
+    // an ordinary member" — because no member holds any of the three. A route
+    // guarded by a FOURTH name nobody added here would read as ungated and this
+    // suite would say so on the next run, which is the point of scraping the
+    // source rather than restating the table.
+    const gate = GATE_NAMES.find((name) => new RegExp(`\\b${name}\\b`).test(segment)) ?? null
+    out.push({ path, components, adminGated: gate !== null, gate })
   }
   return out
 }
 
 const ROUTES = parseSignedInRoutes(APP_SOURCE)
+
+/**
+ * The two viewers `screenCandidates` is exercised as, spelled as PREDICATES
+ * because that is what the builder takes now — one key per admin row since 0025,
+ * so a role could no longer answer for it.
+ *
+ * "Every key" and "no key" are not arbitrary stand-ins: they are exactly what
+ * store/auth's `legacyPermissionKeys()` derives from the legacy `profiles.role`
+ * column, which is the answer the whole app runs on until 0025 is applied. The
+ * cases below therefore keep meaning what they meant. A Director — two keys of
+ * three — is pinned separately, in the per-row case further down.
+ */
+const asAdmin = (): boolean => true
+const asMember = (): boolean => false
 
 /**
  * The routes that render a screen, as opposed to a redirect or a detail surface.
@@ -367,7 +420,7 @@ describe('the palette registry against App.tsx', () => {
     const record = (to: string): void => {
       seen.push(to)
     }
-    for (const row of screenCandidates('admin', record)) row.item.run([])
+    for (const row of screenCandidates(asAdmin, record)) row.item.run([])
     for (const row of trackCandidates([NETWORK], label, record)) row.item.run([])
     // Guards the filter below from passing because nothing navigated at all.
     expect(seen).toHaveLength(SCREENS.length + LENSES.length + ADMIN_SCREENS.length + 1)
@@ -413,6 +466,44 @@ describe('the palette registry against App.tsx', () => {
     // had export and push preferences been "fixed" into the admin table.
     expect(wrong.map((r) => r.path)).toEqual([])
     expect(adminRegistry.size).toBeGreaterThan(0)
+  })
+
+  it('offers each admin row on the SAME key App.tsx guards that path with', () => {
+    // THE ASSERTION THE ALL-OR-NOTHING TABLE COULD NOT MAKE. Since 0025 the
+    // eight rows are not one gate but three, and the two failure modes are
+    // opposite and both silent: a row keyed WIDER than its route offers a
+    // Director a screen that redirects the moment they pick it, and a row keyed
+    // NARROWER hides a screen they can open. Neither shows up in a typecheck,
+    // and both read as a bug in the palette rather than in a table.
+    const byPath = new Map(ROUTES.map((r) => [r.path, r]))
+    const mismatched = ADMIN_SCREENS.filter((s) => {
+      const gate = byPath.get(s.to)?.gate
+      return gate === undefined || gate === null || GATE_KEY[gate] !== s.permKey
+    })
+    expect(mismatched.map((s) => `${s.to} wants ${s.permKey}`)).toEqual([])
+    // The mapping is only worth asserting if it is actually a mapping: all three
+    // keys have to be in play, or this passes on a table that quietly collapsed
+    // back to one gate.
+    expect(new Set(ADMIN_SCREENS.map((s) => s.permKey)).size).toBe(3)
+  })
+
+  it('gives a Director the six configuration screens and neither of the two people ones', () => {
+    // The role 0025 exists for, and the case that says the client finally
+    // mirrors it: `structure.edit` + `vocab.edit`, no `workspace.admin`. Before
+    // the split this viewer was offered nothing at all — `role === 'admin'` was
+    // false — which is the "correct and invisible" state the wave set out to
+    // end.
+    const director = (key: PermissionKey): boolean =>
+      key === 'structure.edit' || key === 'vocab.edit'
+    const ids = screenCandidates(director, () => {}).map((r) => r.item.id)
+    expect(ids).toContain('screen:/settings/structure')
+    expect(ids).toContain('screen:/settings/terminology')
+    expect(ids).not.toContain('screen:/settings/roles')
+    expect(ids).not.toContain('screen:/settings/members')
+    expect(ids).toHaveLength(SCREENS.length + LENSES.length + 6)
+    // The shared prefix is still the member's list, in the member's order.
+    const member = screenCandidates(asMember, () => {}).map((r) => r.item.id)
+    expect(ids.slice(0, member.length)).toEqual(member)
   })
 
   it('names every screen with a key that resolves in both languages', () => {
@@ -469,14 +560,14 @@ describe('the palette registry against App.tsx', () => {
 
 describe('screenCandidates', () => {
   it('withholds the admin screens from a member', () => {
-    const rows = screenCandidates('member', () => {})
+    const rows = screenCandidates(asMember, () => {})
     expect(rows).toHaveLength(SCREENS.length + LENSES.length)
     expect(rows.map((r) => r.item.id)).not.toContain('screen:/settings/members')
   })
 
   it('appends them for an admin, leaving the shared order alone', () => {
-    const member = screenCandidates('member', () => {}).map((r) => r.item.id)
-    const admin = screenCandidates('admin', () => {}).map((r) => r.item.id)
+    const member = screenCandidates(asMember, () => {}).map((r) => r.item.id)
+    const admin = screenCandidates(asAdmin, () => {}).map((r) => r.item.id)
     expect(admin).toHaveLength(SCREENS.length + LENSES.length + ADMIN_SCREENS.length)
     // Same rows in the same places: a list that reorders itself by role is a
     // list nobody builds muscle memory on.
@@ -486,7 +577,7 @@ describe('screenCandidates', () => {
 
   it('navigates to the route the row names — including the two that were missing', () => {
     const seen: string[] = []
-    const rows = screenCandidates('admin', (to) => seen.push(to))
+    const rows = screenCandidates(asAdmin, (to) => seen.push(to))
     for (const to of ['/settings/export', '/settings/notifications', '/settings/members']) {
       const row = rows.find((r) => r.item.id === `screen:${to}`)
       expect(row).toBeDefined()
@@ -662,7 +753,7 @@ describe('rankPalette', () => {
       sources({
         entries: entryCandidates([entry({ id: 'e1', title: 'One' })], new Map(), label, vocab),
         tracks: trackCandidates([NETWORK], label, () => {}),
-        screens: screenCandidates('member', () => {}),
+        screens: screenCandidates(asMember, () => {}),
         actions: actionCandidates({
           cycleTheme: () => {},
           switchLanguage: () => {},
@@ -678,7 +769,7 @@ describe('rankPalette', () => {
   it('drops a group that matched nothing rather than showing an empty heading', () => {
     // 'privacy' matches exactly one row and nothing else in any group. It was
     // 'capture' until that screen became the composer mounted on the map.
-    const model = rankPalette('privacy', sources({ screens: screenCandidates('member', () => {}) }), 0)
+    const model = rankPalette('privacy', sources({ screens: screenCandidates(asMember, () => {}) }), 0)
     expect(model.groups.map((g) => g.id)).toEqual(['screens'])
     expect(model.count).toBe(1)
   })
@@ -688,7 +779,7 @@ describe('rankPalette', () => {
       '',
       sources({
         tracks: trackCandidates([NETWORK], label, () => {}),
-        screens: screenCandidates('member', () => {}),
+        screens: screenCandidates(asMember, () => {}),
       }),
       0,
     )
@@ -704,7 +795,7 @@ describe('rankPalette', () => {
     // counted SCREENS and ADMIN_SCREENS but not the five LENSES that were
     // inserted between them, so an admin's nineteen rows were cut to fourteen
     // and the five that fell off the end were the entire admin block.
-    const rows = screenCandidates('admin', () => {})
+    const rows = screenCandidates(asAdmin, () => {})
     const model = rankPalette('', sources({ screens: rows }), 0)
     // Counted off the BUILDER rather than off the tables, so a fourth table
     // added to `screenCandidates` is covered by this case the day it lands.
@@ -725,7 +816,7 @@ describe('rankPalette', () => {
           label,
           vocab,
         ),
-        screens: screenCandidates('member', () => {}),
+        screens: screenCandidates(asMember, () => {}),
       }),
       0,
     )
@@ -734,14 +825,14 @@ describe('rankPalette', () => {
   })
 
   it('clamps a highlight that a shrinking list left past the end', () => {
-    const screens = screenCandidates('member', () => {})
+    const screens = screenCandidates(asMember, () => {})
     expect(rankPalette('', sources({ screens }), 99).at).toBe(SCREENS.length + LENSES.length - 1)
     expect(rankPalette('zzzzz', sources({ screens }), 99).at).toBe(-1)
     expect(rankPalette('zzzzz', sources({ screens }), 99).count).toBe(0)
   })
 
   it('finds a screen by a word inside its name, not only by its first letters', () => {
-    const screens = screenCandidates('admin', () => {})
+    const screens = screenCandidates(asAdmin, () => {})
     const ids = rankPalette('export', sources({ screens }), 0).flat.map((r) => r.id)
     expect(ids).toContain('screen:/settings/export')
   })
@@ -766,7 +857,7 @@ const dialog = (query: string, model: ReturnType<typeof rankPalette>): string =>
 
 describe('PaletteDialog', () => {
   const model = (query = '', active = 0) =>
-    rankPalette(query, sources({ screens: screenCandidates('member', () => {}) }), active)
+    rankPalette(query, sources({ screens: screenCandidates(asMember, () => {}) }), active)
 
   it('is a modal dialog with a name of its own', () => {
     const html = dialog('', model())
@@ -845,7 +936,7 @@ describe('PaletteDialog', () => {
   })
 
   it('leaves the hint element off a row that has no second line', () => {
-    const rows = screenCandidates('member', () => {})
+    const rows = screenCandidates(asMember, () => {})
     expect(dialog('', rankPalette('', sources({ screens: rows }), 0))).not.toContain(
       'cmd-option-hint',
     )

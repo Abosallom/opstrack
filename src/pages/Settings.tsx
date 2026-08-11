@@ -58,7 +58,7 @@ import { rovingTabIndex, useRadioGroupKeys } from '../lib/radioGroup'
 import type { ThemePref } from '../lib/theme'
 import { trackIcon } from '../lib/trackIcons'
 import { trackVars } from '../lib/trackStyle'
-import { signOut, useAuth } from '../store/auth'
+import { signOut, useAuth, useHasPerm, useIsAdmin } from '../store/auth'
 import { useActiveTracks } from '../store/config'
 import { setLocaleSetting, setTheme, useSettings } from '../store/settings'
 import './settings.css'
@@ -158,10 +158,39 @@ export default function Settings(): ReactElement {
   }, [])
 
   const email = session?.user.email ?? null
-  // The profiles row is the only admin signal, matching is_admin() in RLS
-  // exactly — see the note in store/auth.ts. This check is still cosmetic (it
-  // decides what renders); the database is what actually refuses the writes.
-  const isAdmin = profile?.role === 'admin'
+  // THREE QUESTIONS, NOT ONE, AND THEY MIRROR APP.TSX'S ROUTE TABLE KEY FOR KEY.
+  // This page is the ONLY entrance to six of the eight configuration screens —
+  // they are in neither nav — so a single `isAdmin` here would leave a Director
+  // able to open /settings/structure by typing the URL and unable to find it any
+  // other way. Migration 0025 puts the structure tables (`tracks`,
+  // `track_groups`, `map_nodes`, `map_node_kinds`) on `structure.edit` and the
+  // word tables (`use_cases`, `vocab_options`, `label_overrides`) on
+  // `vocab.edit`, so the cards below are grouped by exactly those two keys, with
+  // Roles and Members left on `workspace.admin`.
+  //
+  // THE CARD AND THE ROUTE MUST ASK THE SAME QUESTION. A card App.tsx then
+  // bounces is worse than no card, because the redirect lands after the lazy
+  // chunk has loaded and reads as a crash.
+  //
+  // Still cosmetic, all three: they decide what RENDERS. The database is what
+  // actually refuses the writes, and `useHasPerm` falls back to the legacy
+  // `profiles.role` column when 0025 has not been applied — so on the live
+  // project today this page behaves exactly as it did before the split.
+  const canEditStructure = useHasPerm('structure.edit')
+  const canEditVocab = useHasPerm('vocab.edit')
+  const isAdmin = useIsAdmin()
+  // THE PILL STAYS ON THE LEGACY COLUMN, and it is the one place in this file
+  // that should. It answers "what does the workspace call you", not "what may
+  // you do" — and `profiles.role` is the column the Members screen shows, the
+  // one an admin changes, and the one 0025 keeps derived from the two SYSTEM
+  // roles. Reading it from a permission key would make the pill and the roster
+  // disagree about the same person.
+  //
+  // ⚠ A DIRECTOR STILL READS AS "Member" HERE. That is a small lie and it is
+  //   recorded rather than fixed: the honest third state is the role's own NAME,
+  //   which lives in `roles.name` / `name_ar` — workspace data, not a locale key
+  //   — and this page does not read that table. Handed off with the wave.
+  const legacyRoleIsAdmin = profile?.role === 'admin'
   // Fall back to the address when the profile has no display name, so the
   // identity block never renders as an empty line.
   const name = profile?.displayName?.trim() || email || ''
@@ -242,8 +271,8 @@ export default function Settings(): ReactElement {
           <div className="settings-fact">
             <dt>{t('settings.role')}</dt>
             <dd>
-              <span className={`pill${isAdmin ? ' info' : ''}`}>
-                {isAdmin ? t('settings.roleAdmin') : t('settings.roleMember')}
+              <span className={`pill${legacyRoleIsAdmin ? ' info' : ''}`}>
+                {legacyRoleIsAdmin ? t('settings.roleAdmin') : t('settings.roleMember')}
               </span>
             </dd>
           </div>
@@ -356,7 +385,11 @@ export default function Settings(): ReactElement {
         </NavLink>
       </Section>
 
-      {isAdmin ? (
+      {/* THE STRUCTURE HALF: Groups, Structure, Tracks — the three screens that
+          edit the SHAPE of the workspace, and the three tables 0025 puts on
+          `structure.edit`. App.tsx gates the matching five routes on the same
+          key. A Director holds it; a member does not. */}
+      {canEditStructure ? (
         <>
           {/* ABOVE Tracks, because a group contains tracks and the app reads
               coarse-to-fine everywhere else it offers both — the filter bar puts
@@ -455,8 +488,21 @@ export default function Settings(): ReactElement {
               </NavLink>
             </div>
           </Section>
-          {/* The other half of the admin config, and the only entrance to it:
-              /settings/vocabulary is deliberately absent from both navs, so
+        </>
+      ) : null}
+
+      {/* THE WORDS HALF: Vocabulary, Catalogue, Terminology — the three screens
+          that edit what the workspace CALLS things, and the three tables 0025
+          puts on `vocab.edit` (`vocab_options`, `use_cases`, `label_overrides`).
+          App.tsx gates the matching three routes on the same key.
+
+          BELOW the structure block and not interleaved with it, so the page
+          still reads coarse-to-fine for the one person who holds both keys —
+          which today is every Admin and every Director. */}
+      {canEditVocab ? (
+        <>
+          {/* The other half of the configuration block, and the only entrance to
+              it: /settings/vocabulary is deliberately absent from both navs, so
               without this row an admin can only reach the statuses, priorities
               and types by typing the URL. */}
           <Section
@@ -506,6 +552,22 @@ export default function Settings(): ReactElement {
               <IconChevronEnd className="icon-directional" size={16} />
             </NavLink>
           </Section>
+        </>
+      ) : null}
+
+      {/* THE PEOPLE HALF, AND THE STRICTEST GATE ON THE PAGE. It does NOT move
+          to a narrower key: 0025 leaves `roles`, `role_permissions` and the
+          member endpoints on `members.manage` / `workspace.admin`, which only
+          the system Admin role carries. Creating, deleting and re-roling PEOPLE
+          is the power withheld from Director — a Director who could edit the
+          roles table would be one click from Admin.
+
+          The non-admin branch is the page's ONE "you cannot do this" card, and
+          it stays attached to this block rather than the two above: a member
+          should be told who adds members, and told nothing about a structure
+          editor they will never see. */}
+      {isAdmin ? (
+        <>
           {/* THE LAST "COMING SOON" IN THE APP, RETIRED. This card carried a
               `placeholder.comingSoon` pill and a line explaining that member
               management was sequenced after entries CRUD. Both the screen and the
