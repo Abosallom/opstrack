@@ -911,6 +911,15 @@ create trigger map_nodes_block_delete_trg
 -- authorization; RLS is. It is there so a member gets a clean 42501 that
 -- src/lib/pgError.ts maps to a translated sentence instead of a silent zero-row
 -- UPDATE reported to them as success.
+--
+-- ⚠ 0025 RESTATES THIS FUNCTION AND THREE MORE IN THIS FILE — reorder_map_nodes,
+--   move_map_node, reorder_map_node_kinds and delete_track — swapping the guard
+--   to `has_perm('structure.edit')` once that key exists and gates map_nodes.
+--   The guard is NOT written that way here because `has_perm()` does not exist
+--   until 0025 runs, and 0025's own preflight requires this file first. So this
+--   text is correct for the window it owns, and 0025 goes last and owns the
+--   rest. Re-running THIS file after 0025 restores the is_admin() guard and a
+--   Director stops being able to drag a node; re-apply 0025 to fix it.
 create or replace function public.reorder_map_nodes(
   p_parent uuid,
   p_track  uuid,
@@ -1699,12 +1708,12 @@ begin
 
   if v_reordered then
     raise exception
-      'NphiesCore 0023 FAILED: reorder_map_nodes() accepted a plain member. Its is_admin() guard is missing, so a member''s reorder would report success while moving nothing.';
+      'NphiesCore 0023 FAILED: reorder_map_nodes() accepted a NON-ADMIN. Its guard is missing, so their reorder would report success while moving nothing.';
   end if;
 
   if v_moved then
     raise exception
-      'NphiesCore 0023 FAILED: move_map_node() accepted a plain member. A member could re-parent another team''s programme.';
+      'NphiesCore 0023 FAILED: move_map_node() accepted a NON-ADMIN. A plain member could re-parent another team''s programme.';
   end if;
 
   if v_audit < 1 then

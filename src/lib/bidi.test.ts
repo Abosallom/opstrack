@@ -215,6 +215,12 @@ const USER_VALUE_TOKENS: ReadonlySet<string> = new Set([
   'owner',
   'priority',
   'range',
+  // A ROLE NAME IS A LABEL AZIZ RENAMES TO FREE TEXT (0025's `roles.name` /
+  // `name_ar`), which puts it under the membership rule above with `label` and
+  // `column`: "⁨Nawaf Alharbi⁩ is now ⁨Director⁩" needs both halves fenced, not
+  // just the person. `members.roleMoved` is the only string carrying it today
+  // and Members.test.tsx pins it too; this is the home that catches the next one.
+  'role',
   'section',
   'status',
   'tag',

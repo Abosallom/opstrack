@@ -242,6 +242,33 @@
   overflow-wrap: anywhere;
 }
 
+/* The job title beside the name. Same 13px dim vocabulary as `.mem-handle`,
+   which it borrowed until this rule existed — but `.mem-name` is `font-weight:
+   600` and the title inherited it, so "Nawaf Alharbi · PMO Director" printed as
+   two names rather than a name and a description. 400 is the whole difference.
+
+   DISPLAY ONLY. profiles.position gates nothing (0025) and this rule is not a
+   place anybody should start believing otherwise. */
+.mem-position {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+/* The role picker's slot. `.mem-actions` is a wrapping flex row and this is a
+   full-width child of it, so the picker sits on its own line under the buttons
+   at every width instead of being squeezed between two of them at 375px.
+
+   Geometry identical to `.mem-block` below, which it borrowed until this rule
+   existed. Split out because `.mem-block` MEANS "the reason a control is
+   disabled" and it also sets a 12px faint type that a control must not have —
+   a picker is not a footnote. */
+.mem-role {
+  flex: 1 1 100%;
+  min-inline-size: 0;
+}
+
 .mem-tags {
   display: flex;
   flex-wrap: wrap;

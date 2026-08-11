@@ -1296,7 +1296,7 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
     where: 'terminology.where.settingsMembers',
     rules: [
       { prefixes: ['subtitle'], section: 'screenTitles' },
-      { prefixes: ['inviteExpired', 'pending', 'neverSignedIn', 'owner', 'you'], section: 'healthStates' },
+      { prefixes: ['inviteExpired', 'pending', 'neverSignedIn', 'owner', 'roleUnknown', 'you'], section: 'healthStates' },
       {
         prefixes: [
           'actionsFor',
@@ -1306,6 +1306,7 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'inviteDone',
           'promote',
           'reissue',
+          'roleFor',
         ],
         section: 'actions',
       },
@@ -1329,6 +1330,8 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'reissueTitle',
           'reissued',
           'roleChanged',
+          'roleMoved',
+          'rolesUnavailable',
           'usernameHint',
         ],
         section: 'messages',

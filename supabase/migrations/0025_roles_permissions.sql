@@ -1,4 +1,69 @@
--- 0025 — custom roles and permissions, without rewriting 183 policies.
+-- 0025 — custom roles and permissions: two functions redefined, 21 policies moved.
+--
+-- ⚠ AMENDED 11 AUGUST 2026, BEFORE FIRST APPLY ⚠
+--
+--   This file has never been run against any database, so this is an EDIT and
+--   not an 0026. Amending an unapplied migration is free; amending an applied
+--   one costs a new file forever. WHAT CHANGED, and why each half is here:
+--
+--     * AND THE EIGHT ADMIN RPCs THAT WRITE THOSE SAME TABLES ARE RESTATED HERE
+--       with the same swap: `reorder_tracks`, `delete_track`,
+--       `reorder_map_node_kinds`, `reorder_map_nodes` and `move_map_node` on
+--       `structure.edit`; `reorder_vocab`, `reset_vocab` and
+--       `reset_label_overrides` on `vocab.edit`. Re-pointing the POLICIES alone
+--       shipped a Director who could create, rename and delete a map node and
+--       could not DRAG one — a clean 42501 raised by a function that was no
+--       longer echoing the policy but contradicting it. See "THE ADMIN RPCs
+--       ANSWER TO A KEY TOO", which also says why the bodies are restated in
+--       this file rather than edited in 0002/0003/0017/0023.
+--
+--     * THE ADMIN-WRITE POLICIES ON THE SEVEN CONFIGURATION TABLES NOW CHECK A
+--       KEY. `tracks`, `track_groups`, `map_nodes` and `map_node_kinds` are
+--       gated on `has_perm('structure.edit')`; `use_cases`, `vocab_options` and
+--       `label_overrides` on `has_perm('vocab.edit')`. The first cut of this
+--       file seeded five keys and left NO POLICY ANYWHERE READING three of
+--       them — `structure.edit`, `vocab.edit` and `capture.write` — so a
+--       Director could write exactly what a plain member can: nothing. The role
+--       was a label with no power, and a roles screen would have rendered three
+--       of its five switches wired to a light bulb that is not there — the
+--       precise lie the section below spends a page warning about. Two of the
+--       three are now live; `capture.write` is honestly labelled as not. See
+--       "RLS: the CONFIGURATION tables answer to a KEY".
+--
+--     * `profiles`, `roles` and `role_permissions` ARE DELIBERATELY LEFT where
+--       they were, on `workspace.admin` and `members.manage`. That is the
+--       escalation boundary — a role that can edit permissions can grant itself
+--       anything — and there is a comment against each one saying so, plus a
+--       CATALOGUE ASSERTION in probe 5 that fails if anybody ever moves them.
+--
+--     * PROBE 5 IS NEW and is the proof rather than the claim: a Director
+--       fixture inserts a `map_nodes` row and updates a `use_cases` row (both
+--       refused before this amendment — that is what makes the assertion able
+--       to fail), and is refused a `profiles` insert, a `role_id` change on
+--       anybody including themselves, and a `role_permissions` write.
+--
+--     * PROBE 2 — the safety net — GAINED TWO ASSERTIONS, and they matter more
+--       than probe 5's. Every pre-existing admin must now also hold
+--       `structure.edit` and `vocab.edit`, because those keys and not
+--       `is_admin()` are what reaches `tracks` and `use_cases` after this
+--       change. A seed that landed `workspace.admin` and missed the other two
+--       would leave probe 2 green and Settings › Structure closed to the owner
+--       of the workspace, with no error anywhere.
+--
+--     * THE RE-RUN HAZARD WIDENED from 3 functions to 11 functions and 21
+--       policies. Re-running 0001, 0002, 0003, 0009, 0017, 0018, 0023 or 0024
+--       after this file puts its tables and its RPCs back on `is_admin()`. See
+--       the RE-RUN SAFETY section, which now says so at length.
+--
+--     * ⚠ THIS FILE NOW DEPENDS ON 0023 AND 0024. It was independent of both
+--       before the amendment; it now re-points policies on `map_nodes`,
+--       `map_node_kinds` and `use_cases`, which those two files create. The
+--       preflight below refuses with a sentence rather than failing halfway
+--       through with a bare 42P01. Apply order is unchanged — 0023, 0024, 0025
+--       — but it is now enforced rather than merely recommended.
+--
+--   `is_admin()` KEEPS ITS MEANING and every policy NOT listed above is
+--   untouched, byte for byte. Recorded in docs/PENDING-MIGRATIONS.md.
 --
 -- WHAT THIS IS
 -- The workspace stopped being three people and became eighteen, with nine names
@@ -32,6 +97,29 @@
 -- an invisible, unexplained, empty app, which is the failure 0001's header
 -- already calls out.
 --
+-- ⚠ THE AMENDMENT MOVES 21 OF THOSE SITES BY HAND, WHICH THIS SECTION HAS TO
+--   ACCOUNT FOR RATHER THAN QUIETLY CONTRADICT. What was refused above is
+--   re-pointing ALL 183 in one pass — every access decision in the product,
+--   reviewed once, by one pair of eyes. What is done below is 21 WRITE policies
+--   on SEVEN tables, all of the same shape (`is_admin()` -> one key), all
+--   listed by name in one block, all asserted by name in probe 5, and none of
+--   them a READ. Every remaining site keeps calling `is_admin()` or
+--   `is_member()` and is untouched byte for byte.
+--
+--   IT ALSO MOVES EIGHT RPC GUARDS, which are not policy call sites and are not
+--   in the 183 — they are the `if not is_admin() then raise 42501` line at the
+--   top of the eight functions that WRITE those same seven tables. They move for
+--   the reason a mirror moves with the thing it reflects: their own headers say
+--   the check "is not the authorization; RLS is", so once RLS says a key and the
+--   function still says is_admin(), the function has stopped echoing the policy
+--   and started contradicting it.
+--
+--   The alternative was to leave `structure.edit` and `vocab.edit` unread, which
+--   is not the safe option — it is the option where the roles screen shows
+--   switches that do nothing, which is a different and worse kind of lie about
+--   who can do what. A permission key nobody checks is not a small risk; it is a
+--   false statement about access rendered in a UI.
+--
 --
 -- ═══ THE PERMISSION KEYS ARE CODE-DEFINED. THIS IS THE ONE THING THAT IS NOT
 --     CONFIGURABLE, AND IT HAS TO BE SAID PLAINLY ═══
@@ -49,32 +137,52 @@
 -- (`role_permissions_key_ck`). A client that POSTs `billing.manage` gets a 23514
 -- instead of a row that looks like a grant and is not one.
 --
--- THE FIVE KEYS, AND EXACTLY HOW MUCH EACH ONE IS WORTH TODAY — measured, not
--- assumed, because "seed the keys something checks" turns out to have one
--- honest answer and four aspirational ones:
+-- THE FIVE KEYS, AND EXACTLY HOW MUCH EACH ONE IS WORTH TODAY — measured
+-- against the policy list in this file, not assumed. FOUR OF THE FIVE ARE NOW
+-- ENFORCED; the amendment above is what changed that, and the count is stated
+-- here so the next person can check it rather than trust it:
 --
---   workspace.admin  ENFORCED EVERYWHERE, TODAY. is_admin() is this key, and
---                    is_admin() is the write gate on tracks, vocab_options,
---                    track_groups, map_nodes, map_node_kinds, use_cases,
---                    config_audit reads, every admin RPC, and the members edge
---                    function. Granting it grants all of that.
---   structure.edit   DECLARED, NOT YET ENFORCED. Nothing reads it as of this
---   vocab.edit       migration: `tracks`, `track_groups`, `map_nodes`,
---   capture.write    `use_cases` and `vocab_options` are all still gated on
---   members.manage   is_admin(), and `entries` on is_member(). They are seeded
---                    so the Director role is a real, assignable thing the day
---                    the policies are re-pointed at them — and so that
---                    re-pointing is a one-line policy change per table rather
---                    than a schema change.
+--   workspace.admin  ENFORCED EVERYWHERE. is_admin() is this key, and is_admin()
+--                    remains the write gate on `profiles`, `entries` deletion,
+--                    `meetings`, `track_slas`, `config_audit` reads, the RPCs
+--                    whose subject is PEOPLE, and the members edge function.
+--                    Granting it grants all of that. It NO LONGER gates the
+--                    seven configuration tables, or the eight RPCs that write
+--                    them, directly — Admin reaches those by HOLDING the two
+--                    keys below, which it does.
+--   structure.edit   ENFORCED. The write gate on `tracks`, `track_groups`,
+--                    `map_nodes` and `map_node_kinds` — the SHAPE of the
+--                    workspace — and on `reorder_tracks`, `delete_track`,
+--                    `reorder_map_node_kinds`, `reorder_map_nodes` and
+--                    `move_map_node`, which are how that shape is dragged.
+--   vocab.edit       ENFORCED. The write gate on `use_cases`, `vocab_options`
+--                    and `label_overrides` — the WORDS the workspace uses — and
+--                    on `reorder_vocab`, `reset_vocab` and
+--                    `reset_label_overrides`.
+--   members.manage   ENFORCED. This file's own write gate on `roles` and
+--                    `role_permissions`, and the gate in guard_profile_role()
+--                    on moving anybody else between roles.
+--   capture.write    DECLARED, NOT YET ENFORCED — and this one is honest rather
+--                    than aspirational. `entries` is gated on is_member(),
+--                    which is what it should be: filing work is what membership
+--                    IS. The key is seeded so that the day a read-only role is
+--                    wanted, it is a policy change and not a schema change.
 --
---   ⚠ THE HONEST CONSEQUENCE, WHICH THE ADMIN SCREEN MUST SAY OUT LOUD: until
---     those policies move, a Director (structure.edit + vocab.edit, no
---     workspace.admin) can READ everything a member can and WRITE what a member
---     can — no more. The role is correct, assignable and audited; it is not yet
---     load-bearing. A permissions screen that renders four switches as though
---     they were live would be the exact lie this section exists to prevent.
---     `members.manage` IS live here — it is this file's own write gate on
---     `roles` and `role_permissions`.
+--   ⚠ WHAT A DIRECTOR STILL CANNOT DO, AND THE SCREEN MUST SAY SO:
+--     * DELETE, CREATE OR RE-ROLE A PERSON. `profiles` stays on is_admin() and
+--       `roles`/`role_permissions` stay on members.manage. That withholding is
+--       the entire reason this file exists — see "NOT RE-POINTED, AND WHY".
+--     * PROVISION OR DEPROVISION AN ACCOUNT. `admin-members` is the only path
+--       that reaches `auth.users`, and it gates on `profiles.role = 'admin'` in
+--       TypeScript, which this file does not own and does not change.
+--     * BE OFFERED ANY OF IT BY THE APP, YET. Every configuration screen guards
+--       on `useIsAdmin()` (`profile.role === 'admin'`), so a Director signing in
+--       today is redirected away from every screen this file just opened to
+--       them. THE DATABASE HALF IS COMPLETE AND INVISIBLE WITHOUT A CLIENT
+--       CHANGE. That is a TypeScript change in files this migration does not
+--       own, and it is recorded in docs/PENDING-MIGRATIONS.md. Nothing here is
+--       wrong because of it — but nobody should read this file and conclude the
+--       seven can do anything yet.
 --
 --
 -- ═══ THE LEGACY `profiles.role` COLUMN IS KEPT, AND KEPT DERIVED ═══
@@ -131,13 +239,21 @@
 -- The whole file is one transaction (no explicit begin/commit — 0009's header
 -- explains why), and within it:
 --
---   tables -> columns -> SEED -> BACKFILL -> redefine is_admin() -> guards
+--   preflight -> tables -> columns -> SEED -> BACKFILL -> has_perm() +
+--   is_admin() -> POLICIES -> guards -> probes
 --
 -- Redefining `is_admin()` before the backfill would leave a window in which
 -- every admin policy in the product answers false; installing the "an admin must
 -- survive" guard before the seed would make the seed's own first statement — one
 -- with no permissions in the table yet — refuse the migration. Both were hit
 -- writing this and both are the reason the parts are in this order.
+--
+-- The re-pointed configuration policies are AFTER `has_perm()` for the obvious
+-- reason (a policy cannot reference a function that does not exist yet) and
+-- AFTER the SEED for the one that is easy to miss: between the two, `tracks`
+-- would be gated on a key no role grants, and nobody — not even Abdulaziz —
+-- could write a track. Inside one transaction that window is invisible; if this
+-- file is ever split, it is not.
 --
 --
 -- ═══ RE-RUN SAFETY, INCLUDING RE-RUNNING SOMEBODY ELSE'S FILE ═══
@@ -159,8 +275,70 @@
 --   simply stops honouring custom roles. Fix by re-applying 0025.
 --   This is recorded in docs/PENDING-MIGRATIONS.md.
 --
+-- ⚠ THE AMENDMENT WIDENED THAT HAZARD FROM 3 FUNCTIONS TO 21 POLICIES, and this
+--   half is NOT self-evident, which is why it is called out separately. This file
+--   now owns the write policies on `tracks` and `vocab_options` (0001/0009),
+--   `label_overrides` (0017), `track_groups` (0018), `map_nodes` and
+--   `map_node_kinds` (0023) and `use_cases` (0024). Re-running ANY of those six
+--   files after this one restores its `is_admin()` policies, and the Director
+--   role then grants NOTHING on that table — with no error, no failed statement
+--   and no symptom except a Director whose writes affect zero rows. PROBE 5
+--   half A reads `pg_policies` and fails on exactly this, for all 21 by name.
+--   Fix by re-applying 0025. 0025 GOES LAST, ALWAYS.
+--
+-- ⚠ AND IT WIDENED AGAIN, TO EIGHT MORE FUNCTIONS. This file now also owns
+--   `reorder_tracks` (0002), `reorder_vocab` + `reset_vocab` (0003),
+--   `reset_label_overrides` (0017) and `delete_track` +
+--   `reorder_map_node_kinds` + `reorder_map_nodes` + `move_map_node` (0023).
+--   Re-running any of those four files restores an `is_admin()` guard that now
+--   contradicts the policy beside it: RLS would accept the Director's drag and
+--   the RPC refuses it with 42501. Unlike the policy half this one is LOUD —
+--   a clean, translated refusal rather than a write that affects zero rows —
+--   but it is still the role failing to do what its name says. PROBE 5 half A
+--   reads `pg_get_functiondef` and fails on exactly this, for all eight by name.
+--   Fix by re-applying 0025. 0025 GOES LAST, ALWAYS.
+--
 -- Deploy: Supabase Dashboard -> SQL Editor -> paste + Run, twice, reading the
 -- NOTICE lines. Apply AFTER 0023 and 0024.
+
+
+-- ── preflight: 0023 and 0024 first ──────────────────────────────────────────
+-- NEW WITH THE AMENDMENT, and it is the amendment's cost. Before it, this file
+-- created its own tables and redefined its own functions and cared about nothing
+-- else. It now re-points the write policies on `map_nodes`, `map_node_kinds`
+-- (0023) and `use_cases` (0024), and `create policy … on public.map_nodes`
+-- against a database that has not seen 0023 fails with a bare 42P01 from the
+-- middle of the file — after the roles have been seeded and the backfill has
+-- run, which is the worst place to stop.
+--
+-- `drop policy if exists` on a missing table only warns; `create policy` does
+-- not. So the check is here, at the top, before anything has been written.
+-- 0024:99's block, verbatim in shape.
+do $preflight$
+begin
+  if to_regclass('public.map_nodes') is null
+     or to_regclass('public.map_node_kinds') is null then
+    raise exception
+      'NphiesCore 0025 CANNOT APPLY: public.map_nodes / public.map_node_kinds do not exist. Apply 0023_map_nodes.sql first — this file re-points their write policies at has_perm(''structure.edit''), which is what makes the Director role mean anything.';
+  end if;
+
+  if to_regclass('public.use_cases') is null then
+    raise exception
+      'NphiesCore 0025 CANNOT APPLY: public.use_cases does not exist. Apply 0024_map_use_cases.sql first — this file re-points its write policy at has_perm(''vocab.edit'').';
+  end if;
+
+  -- The four tables the amendment assumes were already here. Listed separately
+  -- because their absence means something entirely different: not "apply the
+  -- previous file", but "this is not the NphiesCore database".
+  if to_regclass('public.tracks') is null
+     or to_regclass('public.track_groups') is null
+     or to_regclass('public.vocab_options') is null
+     or to_regclass('public.label_overrides') is null then
+    raise exception
+      'NphiesCore 0025 CANNOT APPLY: one of tracks / track_groups / vocab_options / label_overrides is missing. 0001, 0003, 0017 and 0018 all have to be applied first.';
+  end if;
+end
+$preflight$;
 
 
 -- ── roles ───────────────────────────────────────────────────────────────────
@@ -322,12 +500,20 @@ insert into public.roles (key, name, name_ar, sort_order, is_system) values
 on conflict (key) do nothing;
 
 -- ── seed: what each role grants ─────────────────────────────────────────────
--- Admin: everything in the catalogue, and `workspace.admin` is the one that
---        matters — it is is_admin(), and is_admin() is 183 policy sites.
--- Director: structure.edit + vocab.edit + capture.write. NOT members.manage.
---        That single omission is the whole argument for this file: seven people
---        get to shape the map and the vocabulary without any of them being able
---        to delete a colleague's account.
+-- Admin: EVERY KEY IN THE CATALOGUE, and since the amendment all five of them
+--        are load-bearing rather than one. `workspace.admin` is is_admin() and
+--        therefore every admin policy left in the schema; structure.edit and
+--        vocab.edit are how
+--        an admin reaches the seven configuration tables now that those check a
+--        key instead of is_admin(). A missing grant here does not merely make a
+--        switch look wrong — it CLOSES a table to the workspace owner. Probe 1
+--        refuses the migration if Admin holds fewer than five.
+-- Director: structure.edit + vocab.edit + capture.write. NOT members.manage,
+--        NOT workspace.admin. Those two omissions are the whole argument for
+--        this file: seven people get to shape the map and the vocabulary
+--        without any of them being able to delete a colleague's account or
+--        grant themselves the power to. Probe 1 asserts the three grants are
+--        present and probe 5 proves they mean something.
 -- Member: capture.write. Reading is is_member(), which is not a key.
 insert into public.role_permissions (role_id, permission_key, granted)
 select r.id, v.perm, true
@@ -486,6 +672,730 @@ create policy role_permissions_delete on public.role_permissions
 -- it, matching every other table: the anon key cannot pass is_member() anyway.
 grant select, insert, update, delete on public.roles            to authenticated;
 grant select, insert, update, delete on public.role_permissions to authenticated;
+
+
+-- ═══ RLS: THE CONFIGURATION TABLES ANSWER TO A KEY, NOT TO is_admin() ═══════
+--
+-- ⚠ THIS IS THE AMENDMENT, and it is the difference between a permission system
+--   and a permissions SCREEN. Everything above makes permissions DATA; this
+--   block makes two of them WORTH SOMETHING. Without it `structure.edit` and
+--   `vocab.edit` are strings in a CHECK constraint that no policy reads, the
+--   Director role grants nothing at all, and the roles screen renders switches
+--   attached to nothing — which is the failure this file's own header spends a
+--   section warning about, committed in the same file that warns about it.
+--
+-- ONLY THE WRITE POLICIES MOVE, AND ONLY ON THE SEVEN TABLES WHERE THE THING
+-- BEING WRITTEN IS CONFIGURATION — the SHAPE of the workspace and the WORDS it
+-- uses. Every `select` policy in the schema is untouched: reading is
+-- `is_member()`, which is what workspace membership IS and is not a key. Every
+-- `is_admin()` call site NOT listed below is untouched too, and keeps working
+-- byte for byte, because `is_admin()` keeps its meaning.
+--
+--   structure.edit  tracks · track_groups · map_nodes · map_node_kinds
+--   vocab.edit      use_cases · vocab_options · label_overrides
+--
+-- ═══ THE PREDICATE IS THE KEY ALONE, NOT `key or is_admin()` ═══
+--
+-- Written the other way first. `has_perm('structure.edit') or is_admin()` reads
+-- like belt and braces and is in fact the same defect one level up: it makes
+-- `structure.edit` a switch wired to nothing FOR THE ADMIN ROLE — the role most
+-- likely to be edited first — because turning it off would change nothing. The
+-- key alone is what makes the switch true everywhere.
+--
+-- It is safe because the SEED gives Admin all five keys and PROBE 1 refuses the
+-- migration if it does not: an admin passes every policy here by HOLDING the
+-- key, not by being an admin. And revoking `structure.edit` from Admin is
+-- RECOVERABLE FROM INSIDE THE APP, which is the test that matters — Admin still
+-- holds `members.manage`, `members.manage` is what gates `role_permissions`, so
+-- the grant can be put back on the same screen it was removed from. Compare the
+-- one that is NOT recoverable and therefore IS guarded: revoking
+-- `workspace.admin` from the last role that grants it, which GUARD 1 refuses.
+--
+-- 0009's InitPlan form `(select …)` throughout, unchanged from the policies
+-- being replaced: these are the same policies with a different predicate, and a
+-- bare call would evaluate once per surviving row on tables the map reads on
+-- every screen. `drop policy if exists` before each `create`, so this is
+-- re-runnable and so it does not matter whether 0001/0009/0018/0023/0024 or this
+-- file ran last — whichever did, the policy exists exactly once.
+
+-- ── tracks (structure.edit) ─────────────────────────────────────────────────
+-- 0009:210's policy set. `tracks_select` is NOT restated: it is is_member() and
+-- nothing here changes it.
+drop policy if exists tracks_insert on public.tracks;
+create policy tracks_insert on public.tracks
+  for insert with check ((select public.has_perm('structure.edit')));
+
+drop policy if exists tracks_update on public.tracks;
+create policy tracks_update on public.tracks
+  for update using ((select public.has_perm('structure.edit')))
+  with check ((select public.has_perm('structure.edit')));
+
+drop policy if exists tracks_delete on public.tracks;
+create policy tracks_delete on public.tracks
+  for delete using ((select public.has_perm('structure.edit')));
+
+-- ── track_groups (structure.edit) ───────────────────────────────────────────
+-- 0018:192's set.
+drop policy if exists track_groups_insert on public.track_groups;
+create policy track_groups_insert on public.track_groups
+  for insert with check ((select public.has_perm('structure.edit')));
+
+drop policy if exists track_groups_update on public.track_groups;
+create policy track_groups_update on public.track_groups
+  for update using ((select public.has_perm('structure.edit')))
+  with check ((select public.has_perm('structure.edit')));
+
+drop policy if exists track_groups_delete on public.track_groups;
+create policy track_groups_delete on public.track_groups
+  for delete using ((select public.has_perm('structure.edit')));
+
+-- ── map_nodes (structure.edit) ──────────────────────────────────────────────
+-- 0023:493's set, and the one that matters most in practice: the tree IS the
+-- product now, and "may edit the structure" is a sentence about this table
+-- before it is a sentence about any other.
+--
+-- `reorder_map_nodes()` and `move_map_node()` are re-pointed at the same key
+-- further down, in "THE ADMIN RPCs ANSWER TO A KEY TOO" — otherwise a Director
+-- could create, rename and delete a node and could not DRAG one.
+drop policy if exists map_nodes_insert on public.map_nodes;
+create policy map_nodes_insert on public.map_nodes
+  for insert with check ((select public.has_perm('structure.edit')));
+
+drop policy if exists map_nodes_update on public.map_nodes;
+create policy map_nodes_update on public.map_nodes
+  for update using ((select public.has_perm('structure.edit')))
+  with check ((select public.has_perm('structure.edit')));
+
+drop policy if exists map_nodes_delete on public.map_nodes;
+create policy map_nodes_delete on public.map_nodes
+  for delete using ((select public.has_perm('structure.edit')));
+
+-- ── map_node_kinds (structure.edit) ─────────────────────────────────────────
+-- 0023:187's set. The KINDS are structure in the same sense the nodes are —
+-- "Programme / Phase / Organization" is the vocabulary OF the shape, and a
+-- Director who can add an Org but not invent the level it sits at has half a
+-- power. `reorder_map_node_kinds()` is re-pointed at the same key below.
+drop policy if exists map_node_kinds_insert on public.map_node_kinds;
+create policy map_node_kinds_insert on public.map_node_kinds
+  for insert with check ((select public.has_perm('structure.edit')));
+
+drop policy if exists map_node_kinds_update on public.map_node_kinds;
+create policy map_node_kinds_update on public.map_node_kinds
+  for update using ((select public.has_perm('structure.edit')))
+  with check ((select public.has_perm('structure.edit')));
+
+drop policy if exists map_node_kinds_delete on public.map_node_kinds;
+create policy map_node_kinds_delete on public.map_node_kinds
+  for delete using ((select public.has_perm('structure.edit')));
+
+-- ── use_cases (vocab.edit) ──────────────────────────────────────────────────
+-- 0024:200's set. The capability catalogue — "Medication Prescribe V2" — is
+-- vocabulary, not shape: it names WHAT an Org integrated, and it is renamed and
+-- extended by whoever knows the programme, which is exactly the seven.
+--
+-- `map_node_use_cases` — WHICH Org has WHICH capability — is deliberately NOT
+-- here. It is is_member() write (0024:463) and stays that way: filing what a
+-- node actually does is DATA, the thing every member is for, and re-pointing it
+-- would take a power away from members rather than give one to Directors.
+drop policy if exists use_cases_insert on public.use_cases;
+create policy use_cases_insert on public.use_cases
+  for insert with check ((select public.has_perm('vocab.edit')));
+
+drop policy if exists use_cases_update on public.use_cases;
+create policy use_cases_update on public.use_cases
+  for update using ((select public.has_perm('vocab.edit')))
+  with check ((select public.has_perm('vocab.edit')));
+
+drop policy if exists use_cases_delete on public.use_cases;
+create policy use_cases_delete on public.use_cases
+  for delete using ((select public.has_perm('vocab.edit')));
+
+-- ── vocab_options (vocab.edit) ──────────────────────────────────────────────
+-- 0009:230's set. Statuses, priorities, entry kinds — the closed lists every
+-- screen renders. `reorder_vocab()` and `reset_vocab()` (0003:327, 0003:362)
+-- are re-pointed at the same key below.
+drop policy if exists vocab_options_insert on public.vocab_options;
+create policy vocab_options_insert on public.vocab_options
+  for insert with check ((select public.has_perm('vocab.edit')));
+
+drop policy if exists vocab_options_update on public.vocab_options;
+create policy vocab_options_update on public.vocab_options
+  for update using ((select public.has_perm('vocab.edit')))
+  with check ((select public.has_perm('vocab.edit')));
+
+drop policy if exists vocab_options_delete on public.vocab_options;
+create policy vocab_options_delete on public.vocab_options
+  for delete using ((select public.has_perm('vocab.edit')));
+
+-- ── label_overrides (vocab.edit) ────────────────────────────────────────────
+-- 0017:190's set. Settings › Terminology — the owner's own wording for a shipped
+-- string. If any table in the schema IS `vocab.edit`, it is this one.
+-- `reset_label_overrides()` (0017:454) is re-pointed at the same key below.
+drop policy if exists label_overrides_insert on public.label_overrides;
+create policy label_overrides_insert on public.label_overrides
+  for insert with check ((select public.has_perm('vocab.edit')));
+
+drop policy if exists label_overrides_update on public.label_overrides;
+create policy label_overrides_update on public.label_overrides
+  for update using ((select public.has_perm('vocab.edit')))
+  with check ((select public.has_perm('vocab.edit')));
+
+drop policy if exists label_overrides_delete on public.label_overrides;
+create policy label_overrides_delete on public.label_overrides
+  for delete using ((select public.has_perm('vocab.edit')));
+
+
+-- ═══ NOT RE-POINTED, AND WHY — THE ESCALATION BOUNDARY ══════════════════════
+--
+-- These three tables are NOT restated above and their policies are NOT touched.
+-- That is a decision, not an omission, and PROBE 5 asserts it against
+-- `pg_policies` so that moving one is a migration that FAILS rather than a
+-- migration that quietly makes Director mean Admin.
+--
+--   · `profiles` — profiles_insert / profiles_update / profiles_delete
+--     (0009:160-172) stay on `is_admin()`.
+--     WHY: creating, deleting and re-roling PEOPLE is the power Aziz
+--     deliberately withheld from Directors. It is the whole content of the
+--     split — seven people who shape the map and the vocabulary, two who decide
+--     who is in the workspace. A Director who could delete a profile would be an
+--     admin with a different label. (`profiles_update` also lets a member write
+--     their OWN row, which is how anyone changes their locale;
+--     guard_profile_role() is what stops that being an escalation.)
+--
+--   · `roles` and `role_permissions` — roles_insert/update/delete and
+--     role_permissions_insert/update/delete stay on `has_perm('members.manage')`,
+--     which only Admin holds.
+--     WHY: A ROLE THAT CAN EDIT PERMISSIONS CAN GRANT ITSELF ANYTHING. If
+--     `role_permissions` were gated on `structure.edit`, a Director would open
+--     the roles screen, tick `workspace.admin` on their own role, and be an
+--     admin — one click, no guard in the way, and "Director" would be
+--     decorative. This is the single most important line in the file and it is
+--     enforced by NOT changing something.
+--
+--   · ANYTHING THAT MINTS CREDENTIALS. `admin-members` (the only path that
+--     reaches `auth.users`, creates accounts and issues invitations) gates on
+--     `profiles.role = 'admin'` in TypeScript and is untouched by this file in
+--     either its original or its amended form. A Director cannot provision or
+--     deprovision an account, and could not even if `members.manage` were
+--     granted to the role — see the header's note on the edge function.
+--
+-- The rule that generalises all three: a key may grant power over WHAT THE
+-- WORKSPACE CONTAINS. Power over WHO IS IN IT, and over WHAT THE KEYS THEMSELVES
+-- MEAN, stays with workspace.admin.
+
+
+-- ═══ THE ADMIN RPCs ANSWER TO A KEY TOO ═════════════════════════════════════
+--
+-- ⚠ THIS IS THE SECOND HALF OF THE AMENDMENT, and without it the first half
+--   ships a role that can CREATE, RENAME and DELETE a map node and cannot DRAG
+--   one. Eight functions open with `if not public.is_admin() then raise 42501`.
+--   Their own headers are right that the check "is not the authorization; RLS
+--   is" — it exists so a member gets a clean, translatable error instead of a
+--   silent zero-row UPDATE reported to them as success. But once RLS says
+--   structure.edit and the function still says is_admin(), the function is no
+--   longer echoing the policy; it is CONTRADICTING it, and a Director meets a
+--   42501 on a gesture the database would have accepted.
+--
+-- ⚠ AND THEY ARE RESTATED HERE, IN FULL, FROM FOUR FILES THIS ONE DOES NOT OWN.
+--   Every body below is the owning file's own text, copied byte for byte, with
+--   ONE line changed — the guard — and its message reworded to name the key
+--   rather than a role. src/lib/pgError.ts maps this by SQLSTATE ('42501' ->
+--   admin.errForbidden) and not by message text, so the rewording reaches no
+--   screen; it reaches the person reading a Postgres log.
+--
+--   The same cross-file precedent as log_config_audit() below, and the same
+--   cost: RE-RUNNING 0002, 0003, 0017 OR 0023 AFTER THIS FILE RESTORES ITS
+--   is_admin() GUARD, and the Director then meets a 42501 on a drag the policies
+--   still allow. Fix by re-applying 0025. 0025 GOES LAST, ALWAYS.
+--
+--   WHY NOT AMEND 0023 IN PLACE, given that it is unapplied and free to edit?
+--   Because `has_perm()` does not exist until this file runs, and 0023 runs
+--   first — by this file's own preflight. A 0023 that called has_perm() would
+--   be a file that cannot work on the database it is applied to, for however
+--   long the sitting between 0023 and 0025 lasts. One file owns the
+--   re-pointing, and it is the one that goes last.
+--
+-- WHY NOT `key or is_admin()`: the same reason the policies are the key alone —
+-- see the block above. Admin holds all five keys and PROBE 1 refuses the
+-- migration if it does not.
+--
+-- WHAT IS NOT HERE, and stays is_admin(): nothing in this file. Every RPC in
+-- the schema that gates on is_admin() and is NOT listed below is one whose
+-- subject is PEOPLE or CREDENTIALS, and those stay with workspace.admin by the
+-- rule stated above.
+
+-- ── reorder_tracks (structure.edit) ─────────────────────────────────────
+-- 0002:439. `tracks` writes are structure.edit above, so the RPC that renumbers
+-- them has to be too, or a Director can rename a track and not drag it.
+create or replace function public.reorder_tracks(p_ids uuid[])
+returns int
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_count int;
+begin
+  if not public.has_perm('structure.edit') then
+    raise exception 'structure.edit is required to reorder tracks' using errcode = '42501';
+  end if;
+
+  -- One statement, ordinality as the new sort_order. The `is distinct from`
+  -- filter skips tracks that are already in place so a drag that moves one row
+  -- does not stamp updated_at on all five and write five audit rows.
+  update public.tracks t
+     set sort_order = o.ord::int
+    from unnest(p_ids) with ordinality as o(id, ord)
+   where t.id = o.id
+     and t.sort_order is distinct from o.ord::int;
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.reorder_tracks(uuid[]) from public;
+revoke all on function public.reorder_tracks(uuid[]) from anon;
+grant execute on function public.reorder_tracks(uuid[]) to authenticated;
+
+-- ── delete_track (structure.edit) ─────────────────────────────────────
+-- 0023:1204 — 0023 restated 0002's body to teach it about map_nodes, so THIS is
+-- the definition in force. Deleting a track is `tracks_delete`, which is
+-- structure.edit above; the RPC exists for the reassignment step, not for a
+-- different authorization.
+create or replace function public.delete_track(
+  p_id          uuid,
+  p_reassign_to uuid default null
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_entries   int := 0;
+  v_meetings  int := 0;
+  v_templates int := 0;
+  v_nodes     int := 0;
+  v_before    jsonb;
+begin
+  if not public.has_perm('structure.edit') then
+    raise exception 'structure.edit is required to delete a track' using errcode = '42501';
+  end if;
+
+  -- Every raise below carries a token ('reassign_self:', 'track_missing:',
+  -- 'reassign_archived:') for the same reason the guard triggers do: without one
+  -- src/lib/pgError.ts has nothing to match and falls through to the generic
+  -- common.error, which tells an admin who just lost a destination nothing.
+
+  -- Reassigning a track to itself would move nothing, delete the target, and
+  -- report success — the exact shape of an accident that loses work.
+  if p_reassign_to is not null and p_reassign_to = p_id then
+    raise exception 'reassign_self: a track cannot be reassigned to itself'
+      using errcode = '22023';
+  end if;
+
+  select to_jsonb(t) into v_before from public.tracks t where t.id = p_id;
+  if v_before is null then
+    raise exception 'track_missing: track % not found', p_id using errcode = 'P0002';
+  end if;
+
+  if p_reassign_to is not null then
+    -- `and not archived` is load-bearing, not a tidiness check. An archived
+    -- track is invisible to the whole app: listTracks() filters archived = false
+    -- by default (src/api/tracks.ts), so every reassigned entry and meeting
+    -- lands under a track no picker and no list shows, and
+    -- materialize_due_recurring() skips templates whose track is archived, so
+    -- reassigned templates stop producing entries permanently — while this
+    -- function returns its counts and the UI toasts "moved N entries". Losing
+    -- work quietly is worse than refusing, so this refuses.
+    if not exists (
+      select 1 from public.tracks where id = p_reassign_to and archived = false
+    ) then
+      if exists (select 1 from public.tracks where id = p_reassign_to) then
+        raise exception
+          'reassign_archived: reassignment target % is archived', p_reassign_to
+          using errcode = '22023';
+      end if;
+      raise exception 'track_missing: reassignment target % not found', p_reassign_to
+        using errcode = 'P0002';
+    end if;
+
+    -- entries_touch() is what makes this safe: repointing track_id moves
+    -- updated_at but leaves last_activity_at alone, so a stale item stays
+    -- stale through the move. NOTE: true of the function AS AMENDED BY 0007.
+    update public.entries set track_id = p_reassign_to where track_id = p_id;
+    get diagnostics v_entries = row_count;
+
+    update public.meetings set track_id = p_reassign_to where track_id = p_id;
+    get diagnostics v_meetings = row_count;
+
+    update public.recurring_templates set track_id = p_reassign_to where track_id = p_id;
+    get diagnostics v_templates = row_count;
+
+    -- 0023. Every node of the track in one statement, so the tree spans two
+    -- tracks only between this statement and the commit, which is precisely the
+    -- window map_nodes_tree_ck_trg is deferred across.
+    update public.map_nodes set track_id = p_reassign_to where track_id = p_id;
+    get diagnostics v_nodes = row_count;
+
+    -- Logged as its own row, before the delete row, because "where did 40
+    -- entries go" is a different question from "who deleted the track" and
+    -- the answer to the first is these counts.
+    perform public.log_config_audit(
+      'tracks', p_id, 'move', v_before,
+      jsonb_build_object(
+        'reassign_to', p_reassign_to,
+        'entries',     v_entries,
+        'meetings',    v_meetings,
+        'templates',   v_templates,
+        'nodes',       v_nodes
+      )
+    );
+  end if;
+
+  -- The 'delete' audit row is written by tracks_audit_trg with to_jsonb(old)
+  -- as `before`, so the log still reads "Deleted Network (#06b6d4)" long after
+  -- the row itself is gone.
+  delete from public.tracks where id = p_id;
+
+  return jsonb_build_object(
+    'entries',   v_entries,
+    'meetings',  v_meetings,
+    'templates', v_templates,
+    'nodes',     v_nodes
+  );
+end;
+$$;
+
+revoke all on function public.delete_track(uuid, uuid) from public;
+revoke all on function public.delete_track(uuid, uuid) from anon;
+grant execute on function public.delete_track(uuid, uuid) to authenticated;
+
+-- ── reorder_vocab (vocab.edit) ─────────────────────────────────────
+-- 0003:327. `vocab_options` writes are vocab.edit above.
+create or replace function public.reorder_vocab(p_kind text, p_keys text[])
+returns int
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_count int;
+begin
+  if not public.has_perm('vocab.edit') then
+    raise exception 'vocab.edit is required to reorder vocabulary' using errcode = '42501';
+  end if;
+
+  update public.vocab_options v
+     set sort_order = o.ord::int
+    from unnest(p_keys) with ordinality as o(key, ord)
+   where v.kind = p_kind
+     and v.key = o.key
+     and v.sort_order is distinct from o.ord::int;
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.reorder_vocab(text, text[]) from public;
+revoke all on function public.reorder_vocab(text, text[]) from anon;
+grant execute on function public.reorder_vocab(text, text[]) to authenticated;
+
+-- ── reset_vocab (vocab.edit) ─────────────────────────────────────
+-- 0003:362. Same table, same key. Reset is a write, not a privilege.
+create or replace function public.reset_vocab(p_kind text, p_key text default null)
+returns int
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_count int;
+begin
+  if not public.has_perm('vocab.edit') then
+    raise exception 'vocab.edit is required to reset vocabulary' using errcode = '42501';
+  end if;
+
+  update public.vocab_options v
+     set label            = '',
+         label_ar         = '',
+         color            = null,
+         hidden           = false,
+         sort_order       = s.sort_order,
+         stale_after_days = s.stale_after_days,
+         sla_days         = s.sla_days
+    from public.vocab_seed() s
+   where s.kind = v.kind
+     and s.key  = v.key
+     and v.kind = p_kind
+     and (p_key is null or v.key = p_key)
+     and (v.label, v.label_ar, v.color, v.hidden, v.sort_order, v.stale_after_days, v.sla_days)
+         is distinct from
+         ('', '', null::text, false, s.sort_order, s.stale_after_days, s.sla_days);
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.reset_vocab(text, text) from public;
+revoke all on function public.reset_vocab(text, text) from anon;
+grant execute on function public.reset_vocab(text, text) to authenticated;
+
+-- ── reset_label_overrides (vocab.edit) ─────────────────────────────────────
+-- 0017:454. Settings › Terminology's "reset all", on the one table that IS
+-- vocab.edit if any table is.
+create or replace function public.reset_label_overrides(p_key text default null)
+returns int
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_count int;
+begin
+  if not public.has_perm('vocab.edit') then
+    raise exception 'vocab.edit is required to reset label overrides' using errcode = '42501';
+  end if;
+
+  delete from public.label_overrides o
+   where p_key is null or o.key = p_key;
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.reset_label_overrides(text) from public;
+revoke all on function public.reset_label_overrides(text) from anon;
+grant execute on function public.reset_label_overrides(text) to authenticated;
+
+-- ── reorder_map_node_kinds (structure.edit) ─────────────────────────────────────
+-- 0023:275.
+create or replace function public.reorder_map_node_kinds(p_ids uuid[])
+returns int
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_count int;
+begin
+  if not public.has_perm('structure.edit') then
+    raise exception 'structure.edit is required to reorder map node kinds' using errcode = '42501';
+  end if;
+
+  update public.map_node_kinds k
+     set sort_order = o.ord::int
+    from unnest(p_ids) with ordinality as o(id, ord)
+   where k.id = o.id
+     and k.sort_order is distinct from o.ord::int;
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.reorder_map_node_kinds(uuid[]) from public;
+revoke all on function public.reorder_map_node_kinds(uuid[]) from anon;
+grant execute on function public.reorder_map_node_kinds(uuid[]) to authenticated;
+
+-- ── reorder_map_nodes (structure.edit) ─────────────────────────────────────
+-- 0023:914. THE ONE THAT WAS MOST VISIBLE: without this a Director could create,
+-- rename and delete a node and could not DRAG one.
+create or replace function public.reorder_map_nodes(
+  p_parent uuid,
+  p_track  uuid,
+  p_ids    uuid[]
+) returns int
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_total int;
+  v_match int;
+  v_count int;
+begin
+  if not public.has_perm('structure.edit') then
+    raise exception 'structure.edit is required to reorder map nodes' using errcode = '42501';
+  end if;
+
+  if p_track is null then
+    raise exception 'map_node_reorder_scope: a reorder must name the track it is scoped to'
+      using errcode = '22023';
+  end if;
+
+  v_total := coalesce(array_length(p_ids, 1), 0);
+  if v_total = 0 then
+    return 0;
+  end if;
+
+  -- `is not distinct from` on parent_id, because p_parent is NULL for the root
+  -- ring and `= null` would match nothing and report every root as foreign.
+  select count(*) into v_match
+    from public.map_nodes n
+   where n.id = any (p_ids)
+     and n.track_id = p_track
+     and n.parent_id is not distinct from p_parent;
+
+  if v_match <> v_total then
+    raise exception
+      'map_node_reorder_foreign: % of % ids do not belong to this parent',
+      v_total - v_match, v_total
+      using errcode = '22023';
+  end if;
+
+  -- One statement, ordinality as the new sort_order. The scope predicates are
+  -- repeated here rather than trusted from the check above: the check and the
+  -- write must not be able to disagree if somebody later edits one of them.
+  --
+  -- The `is distinct from` filter skips siblings already in place so a drag that
+  -- moves one row does not stamp updated_at on all of them and write an audit
+  -- row per sibling — 0018's filter, and the reason it is there.
+  update public.map_nodes n
+     set sort_order = o.ord::int
+    from unnest(p_ids) with ordinality as o(id, ord)
+   where n.id = o.id
+     and n.track_id = p_track
+     and n.parent_id is not distinct from p_parent
+     and n.sort_order is distinct from o.ord::int;
+
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.reorder_map_nodes(uuid, uuid, uuid[]) from public;
+revoke all on function public.reorder_map_nodes(uuid, uuid, uuid[]) from anon;
+grant execute on function public.reorder_map_nodes(uuid, uuid, uuid[]) to authenticated;
+
+-- ── move_map_node (structure.edit) ─────────────────────────────────────
+-- 0023:1014. Re-parenting, the other half of the same gesture.
+create or replace function public.move_map_node(
+  p_id     uuid,
+  p_parent uuid default null,
+  p_track  uuid default null
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_track    uuid;
+  v_old      uuid;
+  v_ptrack   uuid;
+  v_sub      uuid[];
+  v_nodes    int := 0;
+  v_entries  int := 0;
+begin
+  if not public.has_perm('structure.edit') then
+    raise exception 'structure.edit is required to move a map node' using errcode = '42501';
+  end if;
+
+  select n.track_id into v_old from public.map_nodes n where n.id = p_id;
+  if not found then
+    raise exception 'map_node_missing: node % not found', p_id using errcode = 'P0002';
+  end if;
+
+  if p_parent is not null then
+    if p_parent = p_id then
+      raise exception 'map_node_move_into_self: a node cannot be its own parent'
+        using errcode = '22023';
+    end if;
+
+    select n.track_id into v_ptrack from public.map_nodes n where n.id = p_parent;
+    if not found then
+      raise exception 'map_node_missing: target parent % not found', p_parent
+        using errcode = 'P0002';
+    end if;
+
+    -- The parent decides the track — the same rule map_nodes_derive_track()
+    -- enforces on insert. A caller that also sent a track is not overridden
+    -- silently: disagreeing about where a subtree is going is worth an error,
+    -- because one of the two values is what the admin saw on screen.
+    if p_track is not null and p_track is distinct from v_ptrack then
+      raise exception
+        'map_node_track_mismatch: target parent % is on track %, not %',
+        p_parent, v_ptrack, p_track
+        using errcode = '22023';
+    end if;
+    v_track := v_ptrack;
+  else
+    -- Moving to the root ring. `coalesce` so "make this a root of the track it
+    -- is already on" is expressible as move_map_node(id) with no arguments.
+    v_track := coalesce(p_track, v_old);
+  end if;
+
+  if not exists (select 1 from public.tracks t where t.id = v_track) then
+    raise exception 'track_missing: track % not found', v_track using errcode = 'P0002';
+  end if;
+
+  -- ── the subtree, computed ONCE, into an array ──
+  -- An array rather than a temp table: this runs on a pooled PostgREST
+  -- connection, and a function that creates a temp table per call needs CREATE
+  -- on the temp schema and leaves the pooler holding per-session objects. The
+  -- depth cap is 6, so the array is small by construction.
+  --
+  -- The walk is bounded by the depth cap only INDIRECTLY — a cycle already in
+  -- the table would make this recursion unbounded. It cannot be: the deferred
+  -- tree check refuses a cycle at the commit that would have created it, so no
+  -- committed state contains one. That is the second thing the check buys.
+  with recursive sub as (
+    select n.id from public.map_nodes n where n.id = p_id
+    union all
+    select c.id from public.map_nodes c join sub s on c.parent_id = s.id
+  )
+  select coalesce(array_agg(sub.id), array[]::uuid[]) into v_sub from sub;
+
+  v_nodes := coalesce(array_length(v_sub, 1), 0);
+
+  if p_parent is not null and p_parent = any (v_sub) then
+    raise exception
+      'map_node_move_into_self: node % is inside the subtree being moved', p_parent
+      using errcode = '22023';
+  end if;
+
+  -- One statement: the root row gets its new parent, every row in the subtree
+  -- gets the new track. The `or n.id = p_id` keeps the root row in scope on a
+  -- same-track move, where the track predicate alone would filter it out.
+  update public.map_nodes n
+     set parent_id = case when n.id = p_id then p_parent else n.parent_id end,
+         track_id  = v_track
+   where n.id = any (v_sub)
+     and (n.track_id is distinct from v_track or n.id = p_id);
+
+  -- ── the entries filed on the subtree ──
+  -- 0024's column; see the header for why this is dynamic. `track_id is
+  -- distinct from` so a same-track move writes no entry rows at all — and
+  -- therefore does not move `last_activity_at` on forty items that nobody
+  -- worked on. (entries_touch() already subtracts track_id from its activity
+  -- diff, so even a write that did land would be safe; not writing at all is
+  -- cheaper and does not depend on that staying true.)
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'entries' and column_name = 'node_id'
+  ) then
+    execute
+      'update public.entries e set track_id = $2
+        where e.node_id = any ($1)
+          and e.track_id is distinct from $2'
+      using v_sub, v_track;
+    get diagnostics v_entries = row_count;
+  end if;
+
+  return jsonb_build_object(
+    'nodes',         v_nodes,
+    'entries',       v_entries,
+    'track_changed', v_track is distinct from v_old
+  );
+end;
+$$;
+
+revoke all on function public.move_map_node(uuid, uuid, uuid) from public;
+revoke all on function public.move_map_node(uuid, uuid, uuid) from anon;
+grant execute on function public.move_map_node(uuid, uuid, uuid) to authenticated;
 
 
 -- ── the legacy column becomes derived ───────────────────────────────────────
@@ -1110,8 +2020,9 @@ create trigger profiles_role_audit_trg
 -- ═══ PROBE 1 ═══ the shape this file promises, checked against live data
 --
 -- Runs as whoever applies the file (the SQL Editor, i.e. no JWT), which is the
--- right role here: this probe tests the SEED and the BACKFILL. RLS and the
--- guards are probes 3 and 4.
+-- right role here: this probe tests the SEED and the BACKFILL. The guards are
+-- probe 3, this file's own RLS is probe 4, and the re-pointed configuration
+-- policies are probe 5.
 --
 -- Written to be TRUE ON A RE-RUN and true on a project where an admin has
 -- already renamed a role or invented three more, which is why it counts grants
@@ -1158,9 +2069,28 @@ begin
       'NphiesCore 0025 FAILED: the member role grants % keys, expected at least capture.write.', v_mem_p;
   end if;
 
-  -- The Director role's DEFINING property, asserted as an absence. If this ever
-  -- becomes true, seven people can delete a colleague's account and the reason
-  -- this file was written has quietly evaporated.
+  -- The Director role's DEFINING property, half one: it HOLDS the two keys the
+  -- amendment made load-bearing. Before the amendment this was cosmetic and the
+  -- probe only counted; now `structure.edit` and `vocab.edit` ARE the write
+  -- gates on seven tables, so a missing grant is not "a seed that did not land"
+  -- — it is seven people who open the map and can change nothing.
+  select string_agg(want, ', ') into v_missing
+    from (values ('structure.edit'), ('vocab.edit'), ('capture.write')) as w(want)
+   where not exists (
+     select 1 from public.role_permissions rp
+       join public.roles r on r.id = rp.role_id
+      where r.key = 'director' and rp.permission_key = w.want and rp.granted
+   );
+
+  if v_missing is not null then
+    raise exception
+      'NphiesCore 0025 FAILED: the director role is missing these grants: %. Since the amendment, structure.edit and vocab.edit are the write gates on tracks, track_groups, map_nodes, map_node_kinds, use_cases, vocab_options and label_overrides — without them the Director role grants nothing at all, which is the exact defect this file was amended to fix.',
+      v_missing;
+  end if;
+
+  -- Half two, asserted as an ABSENCE. If this ever becomes true, seven people
+  -- can delete a colleague's account and the reason this file was written has
+  -- quietly evaporated.
   if exists (
     select 1 from public.role_permissions rp
       join public.roles r on r.id = rp.role_id
@@ -1222,6 +2152,14 @@ $shape$;
 -- so setting the claim is sufficient to ask the question exactly as PostgREST
 -- would. That is what makes this probe unskippable — unlike 0018's RLS probe, it
 -- cannot be dodged by a role that lacks the grant.
+--
+-- ⚠ THE AMENDMENT ADDED A SECOND QUESTION TO THE SAME LOOP, and it is the same
+--   question in a new shape. Before, an admin reached `tracks` and `use_cases`
+--   through is_admin(); now they reach them by HOLDING structure.edit and
+--   vocab.edit. So "is Abdulaziz still an admin" is no longer sufficient — if
+--   the seed landed workspace.admin and missed the other two, is_admin() is
+--   true, this probe was green, and Settings › Structure is closed to the owner
+--   of the workspace. Both keys are asserted, per admin, by name.
 do $netcheck$
 declare
   v_member_id  uuid;
@@ -1246,6 +2184,22 @@ begin
       perform set_config('request.jwt.claims', '', true);
       raise exception
         'NphiesCore 0025 FAILED: is_admin() answers FALSE for profile %, who was an admin before this migration. Every admin policy in the app has silently closed. The backfill did not reach this row, or the admin role lost its workspace.admin grant.',
+        r.id;
+    end if;
+
+    -- The amendment's half of the safety net. Same failure mode, different
+    -- table: writes that affect zero rows and a screen that reports success.
+    if not public.has_perm('structure.edit') then
+      perform set_config('request.jwt.claims', '', true);
+      raise exception
+        'NphiesCore 0025 FAILED: has_perm(''structure.edit'') answers FALSE for profile %, who is an admin. Since the amendment that key IS the write gate on tracks, track_groups, map_nodes and map_node_kinds — an admin without it cannot edit the structure of their own workspace, and nothing would say so.',
+        r.id;
+    end if;
+
+    if not public.has_perm('vocab.edit') then
+      perform set_config('request.jwt.claims', '', true);
+      raise exception
+        'NphiesCore 0025 FAILED: has_perm(''vocab.edit'') answers FALSE for profile %, who is an admin. That key is the write gate on use_cases, vocab_options and label_overrides — Settings › Terminology would silently save nothing.',
         r.id;
     end if;
   end loop;
@@ -1291,7 +2245,7 @@ begin
   perform set_config('request.jwt.claims', '', true);
 
   raise notice
-    'NphiesCore 0025 probe 2: is_admin() answers TRUE for all % pre-existing admin(s) and FALSE for a plain member, who does hold capture.write. The 183 policy call sites are intact.',
+    'NphiesCore 0025 probe 2: is_admin() answers TRUE for all % pre-existing admin(s), each of whom also holds structure.edit and vocab.edit, and FALSE for a non-admin, who does hold capture.write. Every policy call site — the ones still on is_admin() and the seven configuration tables now on a key — is intact.',
     v_checked;
 end
 $netcheck$;
@@ -1601,3 +2555,418 @@ begin
     v_read_r, v_read_p;
 end
 $rls$;
+
+
+-- ═══ PROBE 5 ═══ THE DIRECTOR ROLE DOES WHAT ITS NAME SAYS — AND NOTHING MORE
+--
+-- NEW WITH THE AMENDMENT, and it is the whole reason the amendment is worth
+-- applying rather than describing. Two halves, and both are written so they CAN
+-- FAIL — against the file as it stood before the amendment, EVERY assertion in
+-- half A and both writes in half B would have failed, which is the only
+-- definition of "the gap was real" worth having.
+--
+--   HALF A — THE CATALOGUE, and it cannot be skipped. It reads `pg_policies`
+--   and `pg_get_functiondef` directly, so it runs whether or not this role can
+--   `set role authenticated`, and it asserts THREE things: the seven
+--   configuration tables check a KEY, the eight admin RPCs that write those same
+--   tables check the SAME key, and `profiles` / `roles` / `role_permissions`
+--   still do NOT. The third list is the important one. It is an assertion that something did NOT change, and
+--   it is here because the failure it catches — someone "tidying up" by making
+--   role_permissions consistent with the rest — turns Director into Admin
+--   silently, with no error and no visible symptom until somebody notices they
+--   have been an administrator for a month.
+--
+--   HALF B — THE BEHAVIOUR, over RLS, with a real Director fixture. Skips with a
+--   notice if the applying role cannot `set role authenticated` (0018's pattern,
+--   scoped to the role switch ALONE so a genuinely broken policy reports as a
+--   failure rather than as a skip). Everything it creates — three auth users,
+--   their profiles, a map node, a use-case bump — is rolled back through the
+--   OT025 sentinel, fixtures included.
+do $director$
+declare
+  v_dir        uuid := gen_random_uuid();
+  v_other      uuid := gen_random_uuid();
+  v_ghost      uuid := gen_random_uuid();
+  v_dir_role   uuid;
+  v_admin_role uuid;
+  v_mem_role   uuid;
+  v_track      uuid;
+  v_uc         uuid;
+  v_node       uuid;
+  v_after      uuid;
+  v_def        text;
+  v_node_ok    boolean := false;
+  v_rpc_ok     boolean := false;
+  v_vocab_ok   boolean := false;
+  v_made       boolean := false;
+  v_deleted    boolean := false;
+  v_reroled    boolean := false;
+  v_escalated  boolean := false;
+  v_revoked    boolean := false;
+  v_granted    boolean := false;
+  v_skipped    boolean := false;
+  r            record;
+begin
+  -- ── HALF A(i): the seven configuration tables check a KEY ──
+  for r in
+    select * from (values
+      ('tracks',          'tracks_insert',           'structure.edit'),
+      ('tracks',          'tracks_update',           'structure.edit'),
+      ('tracks',          'tracks_delete',           'structure.edit'),
+      ('track_groups',    'track_groups_insert',     'structure.edit'),
+      ('track_groups',    'track_groups_update',     'structure.edit'),
+      ('track_groups',    'track_groups_delete',     'structure.edit'),
+      ('map_nodes',       'map_nodes_insert',        'structure.edit'),
+      ('map_nodes',       'map_nodes_update',        'structure.edit'),
+      ('map_nodes',       'map_nodes_delete',        'structure.edit'),
+      ('map_node_kinds',  'map_node_kinds_insert',   'structure.edit'),
+      ('map_node_kinds',  'map_node_kinds_update',   'structure.edit'),
+      ('map_node_kinds',  'map_node_kinds_delete',   'structure.edit'),
+      ('use_cases',       'use_cases_insert',        'vocab.edit'),
+      ('use_cases',       'use_cases_update',        'vocab.edit'),
+      ('use_cases',       'use_cases_delete',        'vocab.edit'),
+      ('vocab_options',   'vocab_options_insert',    'vocab.edit'),
+      ('vocab_options',   'vocab_options_update',    'vocab.edit'),
+      ('vocab_options',   'vocab_options_delete',    'vocab.edit'),
+      ('label_overrides', 'label_overrides_insert',  'vocab.edit'),
+      ('label_overrides', 'label_overrides_update',  'vocab.edit'),
+      ('label_overrides', 'label_overrides_delete',  'vocab.edit')
+    ) as w (tbl, pol, want)
+  loop
+    -- `qual` is null on an INSERT policy and `with_check` is null on a DELETE
+    -- one, so both are coalesced and joined rather than tested separately.
+    select coalesce(pp.qual, '') || ' | ' || coalesce(pp.with_check, '')
+      into v_def
+      from pg_policies pp
+     where pp.schemaname = 'public'
+       and pp.tablename  = r.tbl
+       and pp.policyname = r.pol;
+
+    if v_def is null then
+      raise exception
+        'NphiesCore 0025 FAILED: policy %.% does not exist. The re-pointing block did not run, or somebody dropped it — either way that table has no write gate at all under RLS.',
+        r.tbl, r.pol;
+    end if;
+
+    if strpos(v_def, r.want) = 0 then
+      raise exception
+        'NphiesCore 0025 FAILED: policy %.% does not check has_perm(''%''). Its predicate is: %. The Director role grants nothing on this table, which is the exact defect this file was amended to fix.',
+        r.tbl, r.pol, r.want, v_def;
+    end if;
+  end loop;
+
+  -- ── HALF A(ii): THE ESCALATION BOUNDARY, asserted as a NON-change ──
+  -- If any of these ever starts checking structure.edit or vocab.edit, a
+  -- Director can re-role people or grant themselves workspace.admin and the
+  -- split Aziz decided is decorative. This loop is the reason a future "make it
+  -- consistent" edit fails loudly instead of shipping.
+  -- Two acceptable spellings per row, because `is_admin()` and
+  -- `has_perm('workspace.admin')` are THE SAME PREDICATE and a later migration
+  -- writing the second must not be reported as a breach. What is refused is a
+  -- predicate that mentions neither — or that mentions a Director key.
+  for r in
+    select * from (values
+      ('profiles',         'profiles_insert',         'is_admin',       'workspace.admin'),
+      ('profiles',         'profiles_update',         'is_admin',       'workspace.admin'),
+      ('profiles',         'profiles_delete',         'is_admin',       'workspace.admin'),
+      ('roles',            'roles_insert',            'members.manage', 'workspace.admin'),
+      ('roles',            'roles_update',            'members.manage', 'workspace.admin'),
+      ('roles',            'roles_delete',            'members.manage', 'workspace.admin'),
+      ('role_permissions', 'role_permissions_insert', 'members.manage', 'workspace.admin'),
+      ('role_permissions', 'role_permissions_update', 'members.manage', 'workspace.admin'),
+      ('role_permissions', 'role_permissions_delete', 'members.manage', 'workspace.admin')
+    ) as w (tbl, pol, want, alt)
+  loop
+    select coalesce(pp.qual, '') || ' | ' || coalesce(pp.with_check, '')
+      into v_def
+      from pg_policies pp
+     where pp.schemaname = 'public'
+       and pp.tablename  = r.tbl
+       and pp.policyname = r.pol;
+
+    if v_def is null then
+      raise exception
+        'NphiesCore 0025 FAILED: policy %.% does not exist. Deleting people, or editing what a role grants, would be gated by nothing.',
+        r.tbl, r.pol;
+    end if;
+
+    if strpos(v_def, r.want) = 0 and strpos(v_def, r.alt) = 0 then
+      raise exception
+        'NphiesCore 0025 FAILED: policy %.% checks neither % nor %. Its predicate is: %. This is THE escalation boundary: profiles is who is in the workspace, and role_permissions is what the keys themselves mean. Both stay with workspace.admin / members.manage.',
+        r.tbl, r.pol, r.want, r.alt, v_def;
+    end if;
+
+    if v_def like '%structure.edit%' or v_def like '%vocab.edit%' then
+      raise exception
+        'NphiesCore 0025 FAILED: policy %.% checks a Director key (%). A role that can edit permissions can grant itself anything — one click from Director to Admin, with no guard in the way.',
+        r.tbl, r.pol, v_def;
+    end if;
+  end loop;
+
+  -- ── HALF A(iii): THE EIGHT ADMIN RPCs CHECK THE SAME KEY AS THE POLICY ──
+  -- Also unskippable — `pg_get_functiondef` needs no role switch — and it is
+  -- the assertion that catches the ONE re-run that half A(i) cannot see:
+  -- re-running 0002, 0003, 0017 or 0023 restores an `is_admin()` guard while
+  -- leaving this file's policies in place. RLS would then accept a Director's
+  -- drag and the function beside it would refuse with 42501, which reads to the
+  -- person doing the dragging as the app being broken.
+  --
+  -- The `is_admin` test is the important half. `has_perm('workspace.admin')`
+  -- is NOT accepted as an alternative here the way it is in half A(ii): these
+  -- functions are supposed to check a DIRECTOR key, so any mention of is_admin()
+  -- means the owning file was re-run over the top of this one.
+  for r in
+    select * from (values
+      ('reorder_tracks(uuid[])',                        'structure.edit'),
+      ('delete_track(uuid, uuid)',                      'structure.edit'),
+      ('reorder_map_node_kinds(uuid[])',                'structure.edit'),
+      ('reorder_map_nodes(uuid, uuid, uuid[])',         'structure.edit'),
+      ('move_map_node(uuid, uuid, uuid)',               'structure.edit'),
+      ('reorder_vocab(text, text[])',                   'vocab.edit'),
+      ('reset_vocab(text, text)',                       'vocab.edit'),
+      ('reset_label_overrides(text)',                   'vocab.edit')
+    ) as w (sig, want)
+  loop
+    -- to_regprocedure rather than ::regprocedure: the cast RAISES on a missing
+    -- function, and a bare 42883 from inside a probe says nothing about which
+    -- of the eight is gone or why it matters.
+    if to_regprocedure('public.' || r.sig) is null then
+      raise exception
+        'NphiesCore 0025 FAILED: function public.% does not exist. One of 0002 / 0003 / 0017 / 0023 has not been applied, so the RPC this file restates has nothing to replace.',
+        r.sig;
+    end if;
+
+    v_def := pg_get_functiondef(to_regprocedure('public.' || r.sig));
+
+    if strpos(v_def, 'has_perm(''' || r.want || ''')') = 0 then
+      raise exception
+        'NphiesCore 0025 FAILED: public.% does not guard on has_perm(''%''). Its own file was re-run after this one. RLS now accepts a Director''s write on that table and this function refuses it with 42501 — the policy and the RPC disagree, and the person dragging a node is told the app is broken.',
+        r.sig, r.want;
+    end if;
+
+    if strpos(v_def, 'is_admin') > 0 then
+      raise exception
+        'NphiesCore 0025 FAILED: public.% still mentions is_admin(). Re-apply 0025 — it goes last, always.',
+        r.sig;
+    end if;
+  end loop;
+
+  -- ── HALF B: setup ──
+  select id into v_dir_role   from public.roles where key = 'director';
+  select id into v_admin_role from public.roles where key = 'admin';
+  select id into v_mem_role   from public.roles where key = 'member';
+
+  select id into v_track from public.tracks    order by sort_order, name limit 1;
+  select id into v_uc    from public.use_cases order by sort_order, name limit 1;
+
+  if v_track is null or v_uc is null then
+    raise notice
+      'NphiesCore 0025 probe 5 half B SKIPPED: no tracks (%) or no use_cases (%), so there is nothing for a Director to write. Half A passed — the policies ARE re-pointed.',
+      v_track, v_uc;
+    return;
+  end if;
+
+  begin
+    insert into auth.users (id, email, raw_user_meta_data) values
+      (v_dir,   'probe5-dir-'   || v_dir   || '@0025.invalid',
+       jsonb_build_object('display_name', '0025 Probe Director')),
+      (v_other, 'probe5-other-' || v_other || '@0025.invalid',
+       jsonb_build_object('display_name', '0025 Probe Colleague')),
+      (v_ghost, 'probe5-ghost-' || v_ghost || '@0025.invalid',
+       jsonb_build_object('display_name', '0025 Probe Ghost'));
+
+    if (select count(*) from public.profiles where id in (v_dir, v_other, v_ghost)) <> 3 then
+      raise exception 'NphiesCore 0025 PROBE 5 SETUP FAILED: handle_new_user() did not create the fixture profiles.';
+    end if;
+
+    -- No JWT yet, so guard_profile_role() lets this through: the privileged path
+    -- the SQL Editor and the edge function use.
+    update public.profiles set role_id = v_dir_role where id = v_dir;
+
+    -- The ghost's PROFILE is removed while its auth.users row stays. That is
+    -- load-bearing: profiles.id is a foreign key to auth.users, so an insert
+    -- with an invented uuid would be refused by the FK and the probe would pass
+    -- for the wrong reason and could never fail. With the FK satisfied, the only
+    -- thing that can refuse the insert below is profiles_insert's WITH CHECK.
+    delete from public.profiles where id = v_ghost;
+
+    perform set_config('request.jwt.claims',
+                       json_build_object('sub', v_dir, 'role', 'authenticated')::text, true);
+
+    -- The fixture has to actually BE a Director, or every assertion below is
+    -- vacuous — this is the control that stops the probe passing because the
+    -- fixture had no permissions rather than because the boundary held.
+    if not public.has_perm('structure.edit') or not public.has_perm('vocab.edit') then
+      raise exception
+        'NphiesCore 0025 PROBE 5 SETUP FAILED: the fixture Director does not resolve to structure.edit + vocab.edit. has_perm() or the seed is wrong, and nothing below would mean anything.';
+    end if;
+    if public.is_admin() or public.has_perm('members.manage') then
+      raise exception
+        'NphiesCore 0025 PROBE 5 SETUP FAILED: the fixture Director resolves to workspace.admin or members.manage. The Director role has been given the powers it exists to withhold.';
+    end if;
+
+    begin
+      set local role authenticated;
+    exception when insufficient_privilege then
+      v_skipped := true;
+    end;
+
+    if not v_skipped then
+      -- ═══ THE GAP, CLOSED ═══
+      -- Both of these were REFUSED before the amendment, when every write policy
+      -- on these tables said is_admin(). That is what makes them assertions
+      -- rather than decoration.
+      begin
+        insert into public.map_nodes (track_id, name)
+          values (v_track, '0025 Director Probe ' || v_dir)
+          returning id into v_node;
+        v_node_ok := true;
+      exception when insufficient_privilege then
+        null;  -- 42501: the gap is still open, reported below
+      end;
+
+      -- …and the RPC half of the same gap. THE POLICY IS NOT ENOUGH: a Director
+      -- who can INSERT a node and cannot REORDER one has half a power and meets
+      -- a 42501 on the one gesture the tree admin is mostly made of. Only run
+      -- when the insert above actually landed — otherwise this asserts nothing
+      -- and would fail for the previous line's reason under a different name.
+      if v_node_ok then
+        begin
+          perform public.reorder_map_nodes(null::uuid, v_track, array[v_node]);
+          v_rpc_ok := true;
+        exception when insufficient_privilege then
+          null;  -- 42501: the RPC still guards on is_admin(), reported below
+        end;
+      end if;
+
+      -- A blocked UPDATE affects zero rows rather than raising, so this one is
+      -- counted, not caught.
+      begin
+        update public.use_cases set sort_order = sort_order + 1000 where id = v_uc;
+        if found then v_vocab_ok := true; end if;
+      exception when insufficient_privilege then
+        null;
+      end;
+
+      -- ═══ THE ESCALATION BOUNDARY — the one that must never regress ═══
+      -- (1) cannot CREATE a person.
+      begin
+        insert into public.profiles (id, display_name, role)
+          values (v_ghost, '0025 Probe Ghost', 'member');
+        v_made := true;
+      exception when insufficient_privilege then
+        null;
+      end;
+
+      -- (2) cannot DELETE a colleague. This is the sentence the whole role
+      --     exists to make true.
+      begin
+        delete from public.profiles where id = v_other;
+        if found then v_deleted := true; end if;
+      exception when insufficient_privilege then
+        null;
+      end;
+
+      -- (3) cannot move anybody ELSE between roles. Refused by RLS: a Director
+      --     is neither `id = auth.uid()` nor an admin for that row.
+      begin
+        update public.profiles set role_id = v_admin_role where id = v_other;
+      exception when insufficient_privilege then
+        null;
+      end;
+      select role_id into v_after from public.profiles where id = v_other;
+      if v_after is distinct from v_mem_role then v_reroled := true; end if;
+
+      -- (4) cannot move THEMSELVES up. RLS lets this row through — it is their
+      --     own — and guard_profile_role() reverts it, because the new role
+      --     grants keys the old one did not. Two different mechanisms, and this
+      --     is the one that catches a Director editing their own profile.
+      begin
+        update public.profiles set role_id = v_admin_role where id = v_dir;
+      exception when insufficient_privilege then
+        null;
+      end;
+      select role_id into v_after from public.profiles where id = v_dir;
+      if v_after is distinct from v_dir_role then v_escalated := true; end if;
+
+      -- (5) cannot edit what a role grants, in either direction: revoking one
+      --     from somebody else's role, or granting workspace.admin to their own.
+      begin
+        update public.role_permissions set granted = false
+         where role_id = v_dir_role and permission_key = 'vocab.edit';
+        if found then v_revoked := true; end if;
+      exception when insufficient_privilege then
+        null;
+      end;
+
+      begin
+        insert into public.role_permissions (role_id, permission_key, granted)
+          values (v_dir_role, 'workspace.admin', true);
+        v_granted := true;
+      exception when insufficient_privilege then
+        null;  -- 42501, as intended
+      end;
+
+      reset role;
+    end if;
+
+    raise exception using errcode = 'OT025', message = 'probe rollback';
+  exception
+    when sqlstate 'OT025' then
+      null;
+  end;
+
+  perform set_config('request.jwt.claims', '', true);
+
+  -- ── the verdict, after the rollback so no assertion can leave a fixture ──
+  if v_skipped then
+    raise notice
+      'NphiesCore 0025 probe 5 half B SKIPPED: this role cannot `set role authenticated`. HALF A PASSED, so the policies ARE re-pointed and the boundary IS intact — that half reads pg_policies and cannot be skipped. Verify the behaviour by hand: sign in as a Director and POST /rest/v1/map_nodes (must succeed) and DELETE /rest/v1/profiles?id=eq.<someone> (must affect zero rows).';
+    return;
+  end if;
+
+  if not v_node_ok then
+    raise exception
+      'NphiesCore 0025 FAILED: a Director could not insert a map_nodes row. map_nodes_insert is still gated on is_admin(), so the Director role grants nothing it claims to and the roles screen would render switches wired to nothing.';
+  end if;
+
+  if not v_rpc_ok then
+    raise exception
+      'NphiesCore 0025 FAILED: a Director inserted a map node and could not REORDER one. reorder_map_nodes() still opens with is_admin(), so RLS accepts the Director''s writes and the RPC beside it refuses the drag with 42501 — the policy and the function disagree, and the tree admin is mostly made of that gesture.';
+  end if;
+
+  if not v_vocab_ok then
+    raise exception
+      'NphiesCore 0025 FAILED: a Director could not update a use_cases row. use_cases_update is still gated on is_admin() — vocab.edit is a string in a CHECK constraint that nothing reads.';
+  end if;
+
+  if v_made then
+    raise exception
+      'NphiesCore 0025 FAILED: a Director created a profile. profiles_insert is not gated on workspace.admin, and provisioning people is the power the Director role exists to withhold.';
+  end if;
+
+  if v_deleted then
+    raise exception
+      'NphiesCore 0025 FAILED: a Director DELETED a colleague''s profile. That single sentence is the entire reason this file exists: seven people shape the map and the vocabulary, two decide who is in the workspace.';
+  end if;
+
+  if v_reroled then
+    raise exception
+      'NphiesCore 0025 FAILED: a Director changed somebody else''s role_id. Moving anyone between roles is members.manage''s job, and a Director who can do it can appoint an accomplice.';
+  end if;
+
+  if v_escalated then
+    raise exception
+      'NphiesCore 0025 FAILED: a Director moved THEMSELVES to the Admin role and it stuck. guard_profile_role() is not reverting self-escalation and every Director is one PATCH away from workspace.admin.';
+  end if;
+
+  if v_revoked or v_granted then
+    raise exception
+      'NphiesCore 0025 FAILED: a Director wrote role_permissions (revoked=%, granted=%). A role that can edit permissions can grant itself anything, so the Director/Admin split is decorative.',
+      v_revoked, v_granted;
+  end if;
+
+  raise notice
+    'NphiesCore 0025 probe 5: 21 configuration write policies and 8 admin RPCs check a permission key, and 9 people/permission policies still do not; a Director inserted a map node, REORDERED it and updated a use case (all three refused before this amendment), and could not create, delete or re-role a person, could not walk their own row up to Admin, and could neither revoke nor grant a permission. Rolled back.';
+end
+$director$;

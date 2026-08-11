@@ -524,6 +524,30 @@ export default function App(): ReactElement {
   // The preview session has no profiles row at all, so it is admitted
   // explicitly — otherwise `?shell` could never reach these screens, which is
   // the only way to review them without a Supabase project.
+  //
+  // ⚠ THIS IS NOW ONE ROLE NARROWER THAN THE DATABASE, AND IT IS THE ONE OPEN
+  //   GAP IN WAVE B. Migration 0025 (unapplied) re-points the write policies on
+  //   `tracks`, `track_groups`, `map_nodes`, `map_node_kinds`, `use_cases`,
+  //   `vocab_options` and `label_overrides` — and the eight RPCs that write them
+  //   — at `has_perm('structure.edit')` / `has_perm('vocab.edit')`, which the
+  //   Director role holds and `workspace.admin` no longer implies directly.
+  //   `profiles.role` stays derived from the SYSTEM role only, so a Director
+  //   reads as 'member' here and is redirected away from every screen the
+  //   database now lets them write.
+  //
+  //   THE FIX IS NOT TO WIDEN THIS LINE. It is a permission-aware hook reading
+  //   `role_permissions` for the signed-in profile (both tables are
+  //   member-readable by design, precisely so the client can mirror the policy),
+  //   seeded from the legacy role so a project without 0025 behaves exactly as
+  //   it does today, and TRI-STATE — a hook answering `false` while the read is
+  //   in flight would redirect the Director before the answer arrives. Then the
+  //   nine ternaries below split into canEditStructure / canEditVocab, and
+  //   /settings/roles and /settings/members keep `isAdmin`, because their gate
+  //   is `members.manage` and only Admin holds it.
+  //
+  //   Until then: DO NOT PUT ANYBODY IN THE DIRECTOR ROLE. They would lose every
+  //   configuration screen and gain nothing visible. Written up in
+  //   docs/PENDING-MIGRATIONS.md under "What 0025 does NOT do".
   const isAdmin = preview || auth.profile?.role === 'admin'
   // Subscribing at the root re-renders the whole tree on a language switch, so
   // every t() call picks up the new bundle. t() is a plain function; without a

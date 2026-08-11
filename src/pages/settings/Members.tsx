@@ -26,8 +26,40 @@
 // disabled, with the reason attached — and they share the *same locale keys* as
 // the server's refusals (`members.errSelfDemote` and friends), so the sentence
 // on the disabled button and the sentence in the toast can never drift apart.
+//
+// ── WAVE B: THE ROLE IS ASSIGNED HERE, OR IT IS ASSIGNED NOWHERE ───────────
+//
+// Settings › Roles can invent a Director. Until this screen grew a per-row
+// picker there was no way to put a person in it, so the roles screen was a
+// workshop with no door: every switch on it described a role nobody could hold.
+//
+// THE PICKER WRITES `role_id` AND ONLY `role_id`. The legacy `profiles.role`
+// text is DERIVED by 0025's `profiles_role_sync()` trigger inside the same
+// statement, so the database keeps the two together and a client that wrote both
+// would be guessing at a column it does not own — wrongly, for any custom role,
+// since the derivation only knows the two system roles. api/members.ts's header
+// argues this at length. What this file owes the invariant is the OTHER half:
+// `rows[].role` here is a stale copy the edge function handed over, and after a
+// successful move it is re-derived locally by the same rule the trigger uses, so
+// the pill, the admin count and the delete guard on this screen cannot disagree
+// with the row the database now holds.
+//
+// TWO ADMIN COUNTS, AND THEY ARE NOT REDUNDANT. `adminCount` counts
+// `role === 'admin'`, because it guards Delete and Demote, which go to the edge
+// function, which re-derives from that same legacy column. `adminHolders` counts
+// people whose role GRANTS `workspace.admin`, because it guards the role picker,
+// which goes to Postgres, where `assert_admin_survives()` counts exactly that.
+// The day Aziz ticks workspace.admin onto Director the two answers separate, and
+// each guard must keep mirroring its own server rather than the other's.
+//
+// THE PICKER DEGRADES TO THE OLD PAIR OF BUTTONS. Migrations 0023–0025 are
+// unapplied as this ships: there is no `roles` table on the live project yet, so
+// the reads that feed the picker fail, and a screen that answered that with an
+// empty dropdown would have taken away the only working way to make an admin.
+// When the roles read fails the row renders Make admin / Make member exactly as
+// it did before, and one line says why the picker is missing.
 
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { IconArrowStart, IconKey, IconShieldCheck, IconUser, IconUsers } from '../../components/icons'
 import { confirm } from '../../components/Confirm'
@@ -37,13 +69,25 @@ import {
   createUsernameMember,
   deleteMember,
   listMemberAccounts,
+  listMemberRoleRefs,
   reissueInvite,
   setMemberRole,
+  setMemberRoleId,
   type Invite,
   type MemberAccount,
+  type MemberRoleRef,
 } from '../../api/members'
+import {
+  ADMIN_PERMISSION,
+  adminHolderCount,
+  grants,
+  listRolePermissions,
+  listRoles,
+  type Role,
+  type RolePermission,
+} from '../../api/roles'
 import { formatRelativeTime, formatTimestamp } from '../../lib/dates'
-import { t, useLocale } from '../../lib/i18n'
+import { t, useLocale, type Locale } from '../../lib/i18n'
 import { useAuth } from '../../store/auth'
 import { invalidateMembers } from '../../store/members'
 import type { UserRole } from '../../types'
@@ -128,6 +172,86 @@ export function hasEmailRecoverableAdmin(rows: readonly MemberAccount[]): boolea
   return rows.some((row) => row.role === 'admin' && row.username === null)
 }
 
+/**
+ * A role's name in the given locale, with `roleLabelIn`'s rule from RolesAdmin:
+ * `name_ar` is `not null default ''`, so the test is for EMPTY and never for
+ * null, and a role nobody has translated shows its English name rather than a
+ * blank option in a dropdown — which is the one place a blank label is
+ * indistinguishable from a bug.
+ *
+ * The second copy of a three-line function, and deliberately so: §1.0.4 forbids
+ * reaching into RolesAdmin.tsx to export it, and the shared home would be
+ * `src/lib/`, which may not import `api/`. Flagged in the handoff with the
+ * `useIsAdmin` family.
+ */
+function roleLabelIn(role: Role, locale: Locale): string {
+  if (locale === 'ar') return role.name_ar.trim() || role.name
+  return role.name
+}
+
+/**
+ * Everything the role picker's guards need about ONE possible move, and nothing
+ * about how it is rendered.
+ *
+ * Pure, exported, and tested: this is the client's copy of two server rules that
+ * live in different places (the edge function's `bootstrap_admin` floor, and
+ * 0025's `assert_admin_survives()` statement trigger), and a copy is exactly the
+ * thing that drifts.
+ */
+export interface RoleMoveGuardInput {
+  /** The signed-in admin's own row. */
+  readonly isSelf: boolean
+  /** On the function's allow-list: always an admin, whatever `profiles` says. */
+  readonly isBootstrapAdmin: boolean
+  /** False when the `profiles` row is missing — there is nothing to update. */
+  readonly hasProfile: boolean
+  /** Does the role they hold NOW grant `workspace.admin`? */
+  readonly fromGrantsAdmin: boolean
+  /** Would the role they are being moved INTO grant it? */
+  readonly toGrantsAdmin: boolean
+  /** How many people currently resolve to a role granting it. */
+  readonly adminHolders: number
+}
+
+/**
+ * Why this move is refused, as the locale key of the sentence to print — or null
+ * when it is allowed.
+ *
+ * THE ORDER IS THE ORDER OF BLAME, most specific first, because only one
+ * sentence gets printed. Your own row and the workspace owner's are refused for
+ * reasons that stay true no matter how many other admins exist, so they are
+ * decided before the count is consulted.
+ *
+ * Every branch turns on LOSING `workspace.admin`, never on the identity of the
+ * role: moving the owner from Admin to Director is refused, and moving them from
+ * Director to an equally-admin Executive role is not. That is the same shape
+ * `revokeWouldOrphanWorkspace()` has in api/roles.ts, and it is what lets a
+ * workspace reorganise its roles without a screen inventing a rule the database
+ * does not have.
+ */
+export function roleMoveBlockKey(input: RoleMoveGuardInput): string | null {
+  // There is no row to write. The update would match zero rows and answer
+  // `errNotFound`, which reads as "this account is gone" — it is not; it is
+  // half-provisioned, and the pill beside the name already says which.
+  if (!input.hasProfile) return 'members.errNoProfileRow'
+  if (!input.fromGrantsAdmin || input.toGrantsAdmin) return null
+  // 0025 GUARD 2 (a) reverts a self-escalation silently; a self-DEMOTION it
+  // allows outright. The refusal here is this screen's, and it is the same one
+  // the demote button has always carried: an admin who removes their own last
+  // admin screen cannot put it back.
+  if (input.isSelf) return 'members.errSelfDemote'
+  // The edge function pins the bootstrap address as an admin whatever `profiles`
+  // holds, so a role_id that said otherwise would put the two answers in
+  // permanent disagreement — the roster would show Admin and `is_admin()` would
+  // say no.
+  if (input.isBootstrapAdmin) return 'members.errBootstrapAdmin'
+  // 0025 GUARD 1, mirrored: `assert_admin_survives()` refuses the TRANSITION to
+  // zero. `<= 1` and not `=== 1` so a count that is somehow already zero cannot
+  // wrap around into permission.
+  if (input.adminHolders <= 1) return 'members.errLastAdminMove'
+  return null
+}
+
 export default function Members(): ReactElement {
   const locale = useLocale()
   const isAdmin = useIsAdmin()
@@ -146,6 +270,24 @@ export default function Members(): ReactElement {
    * is the same guarantee the server makes.
    */
   const [invite, setInvite] = useState<Invite | null>(null)
+
+  /**
+   * The roles half of the screen. THREE PIECES THAT ARE ONLY MEANINGFUL
+   * TOGETHER, so they land together or not at all: the roles are the options,
+   * the grants say which of them carry `workspace.admin`, and the refs say who
+   * holds what. With any one missing the picker would either render no options
+   * or compute an admin count of zero and refuse every move — a guard that
+   * cannot be satisfied is worse than a control that is not there.
+   */
+  const [roles, setRoles] = useState<Role[]>([])
+  const [perms, setPerms] = useState<RolePermission[]>([])
+  const [refs, setRefs] = useState<ReadonlyMap<string, MemberRoleRef>>(new Map())
+  /** True once all three landed. False on a project with 0025 unapplied. */
+  const [rolesReady, setRolesReady] = useState(false)
+  /** The account whose role_id is in flight, so its picker can go disabled. */
+  const [movingId, setMovingId] = useState<string | null>(null)
+  /** Announced after a role move — see the live region at the foot of the page. */
+  const [liveMessage, setLiveMessage] = useState('')
 
   const alive = useRef(true)
   useEffect(() => {
@@ -166,8 +308,26 @@ export default function Members(): ReactElement {
 
   const load = useCallback(async () => {
     setErrorKey(null)
-    const result = await listMemberAccounts()
+    // Four reads in parallel, none depending on another. The roster is the one
+    // that can fail the screen; the three role reads fail SOFT, because they are
+    // the only ones that need a migration this project has not applied yet.
+    const [result, roleResult, permResult, refResult] = await Promise.all([
+      listMemberAccounts(),
+      listRoles(),
+      listRolePermissions(),
+      listMemberRoleRefs(),
+    ])
     if (!alive.current) return
+
+    // All three or none: see the state declaration. A partial answer would put
+    // a picker on screen whose last-admin guard was computed from half the data,
+    // which is the one failure mode worse than no picker.
+    const ready = roleResult.ok && permResult.ok && refResult.ok
+    setRolesReady(ready && roleResult.data.length > 0)
+    setRoles(roleResult.ok ? roleResult.data : [])
+    setPerms(permResult.ok ? permResult.data : [])
+    setRefs(refResult.ok ? new Map(refResult.data.map((ref) => [ref.id, ref])) : new Map())
+
     if (!result.ok) {
       setErrorKey(result.error)
       setRows([])
@@ -210,6 +370,88 @@ export default function Members(): ReactElement {
     invalidateMembers()
     void load()
   }
+
+  // ---- roles: who holds what, and who can administer ----------------------
+
+  const roleLabel = useCallback((role: Role) => roleLabelIn(role, locale), [locale])
+
+  /**
+   * The system `admin` role's id — the ONE id `profiles_role_sync()` derives the
+   * legacy text against (`role = 'admin' ⟺ role_id = the system admin role`,
+   * 0025:90). Not "a role granting workspace.admin": the migration chose the
+   * narrower reading deliberately, and mirroring the wider one here would make
+   * this screen's pill disagree with the column it is mirroring.
+   */
+  const systemAdminRoleId = useMemo(
+    () => roles.find((role) => role.key === 'admin')?.id ?? null,
+    [roles],
+  )
+  const systemMemberRoleId = useMemo(
+    () => roles.find((role) => role.key === 'member')?.id ?? null,
+    [roles],
+  )
+
+  /** The roles that grant `workspace.admin`. Usually one; never assumed to be. */
+  const adminRoleIds = useMemo(
+    () =>
+      new Set(
+        roles.filter((role) => grants(perms, role.id, ADMIN_PERMISSION)).map((role) => role.id),
+      ),
+    [roles, perms],
+  )
+
+  /**
+   * `has_perm()`'s `coalesce` (0025:400) in TypeScript: the role_id on the row,
+   * or the system role the legacy text names. The two answers disagreeing is the
+   * whole class of bug the guards below exist to prevent.
+   */
+  const effectiveRoleId = useCallback(
+    (row: MemberAccount): string | null => {
+      const ref = refs.get(row.id)
+      if (ref?.roleId) return ref.roleId
+      // The `profiles` copy first, the edge function's second: the edge copy
+      // carries the bootstrap floor and is therefore 'admin' for the owner even
+      // when the profiles row says otherwise, which is right for the DELETE
+      // guard and wrong for a question about role_id.
+      return (ref?.role ?? row.role) === 'admin' ? systemAdminRoleId : systemMemberRoleId
+    },
+    [refs, systemAdminRoleId, systemMemberRoleId],
+  )
+
+  /**
+   * `admin_holder_count()` (0025:609), computed from the `profiles` read rather
+   * than from the roster — because that function counts `profiles` rows, and the
+   * roster is `auth.users` with a bootstrap floor painted on. Counting the
+   * roster would answer 1 for a workspace whose owner has no profiles row, which
+   * is exactly the workspace where the guard has to say no.
+   */
+  const adminHolders = useMemo(
+    () =>
+      adminHolderCount(
+        [...refs.values()].map((ref) => ({ role: ref.role, role_id: ref.roleId })),
+        roles,
+        perms,
+      ),
+    [refs, roles, perms],
+  )
+
+  /**
+   * `profiles_role_sync()`'s derivation, applied locally so the pill, the admin
+   * count and the Delete guard settle on the same answer the trigger just wrote
+   * — without a second round trip to read back a column whose rule is four
+   * words long.
+   *
+   * The bootstrap owner is EXEMPT because the edge function overrides this
+   * column for them on every read: deriving 'member' for the owner would make
+   * the roster contradict its own next refresh.
+   */
+  const derivedLegacyRole = useCallback(
+    (row: MemberAccount, roleId: string | null): UserRole => {
+      if (row.isBootstrapAdmin) return row.role
+      return roleId !== null && roleId === systemAdminRoleId ? 'admin' : 'member'
+    },
+    [systemAdminRoleId],
+  )
 
   // ---- reissue / delete / role -------------------------------------------
 
@@ -280,6 +522,110 @@ export default function Members(): ReactElement {
     setRows((current) => (current ? current.map((r) => (r.id === row.id ? { ...r, role } : r)) : current))
     invalidateMembers()
     toast(t('members.roleChanged'))
+  }
+
+  /**
+   * Put one person in one role — GroupsAdmin's OPTIMISTIC-SELECT-WITH-EXPLICIT-
+   * ROLLBACK idiom, with one addition that idiom did not need.
+   *
+   * THE ADDITION IS THAT SUCCESS IS NOT THE SAME AS "IT MOVED". `setTrackGroup`
+   * either writes or errors; `role_id` has a third outcome, because 0025's GUARD
+   * 2 refuses a self-escalation by REVERTING the value rather than raising
+   * (0025:855, and it reverts by design — RLS is row-level, so a raise would
+   * turn a member's ordinary `locale` save into a hard error). The answer is a
+   * 200 whose row did not move. So the settle below takes the PERSISTED row, and
+   * a persisted role that is not the requested one is reported as the refusal it
+   * is instead of being painted over the picker as a success.
+   *
+   * TWO PIECES OF STATE MOVE TOGETHER, and that is this screen's half of the
+   * "both must move together" rule: `refs` holds role_id, `rows[].role` holds
+   * the legacy text the rest of the screen reads. The database keeps them in
+   * step with a trigger; here they are kept in step by hand, in every one of the
+   * three exits — optimistic, rollback, settle.
+   */
+  async function moveRole(row: MemberAccount, roleId: string): Promise<void> {
+    const previousRef = refs.get(row.id) ?? null
+    const previousLegacy = row.role
+    const from = effectiveRoleId(row)
+    // '' is the placeholder option for a role this screen did not load; picking
+    // the role somebody already holds is not a change.
+    if (roleId === '' || roleId === from) return
+    const target = roles.find((role) => role.id === roleId)
+    if (!target) return
+
+    // The option that would do this is already rendered disabled. This is the
+    // second copy, not the first: `disabled` on an <option> is honoured by every
+    // browser but not by every assistive or automation path, and the counts it
+    // was computed from can go stale between the paint and the tap.
+    const block = roleMoveBlockKey({
+      isSelf: row.isSelf,
+      isBootstrapAdmin: row.isBootstrapAdmin,
+      hasProfile: row.hasProfile,
+      fromGrantsAdmin: from !== null && adminRoleIds.has(from),
+      toGrantsAdmin: adminRoleIds.has(roleId),
+      adminHolders,
+    })
+    if (block) {
+      toast(t(block), { tone: 'error' })
+      setLiveMessage(t(block))
+      return
+    }
+
+    /** Both halves, in one call, so no exit can move one and forget the other. */
+    const apply = (ref: MemberRoleRef | null, legacy: UserRole): void => {
+      setRefs((current) => {
+        const next = new Map(current)
+        if (ref) next.set(row.id, ref)
+        else next.delete(row.id)
+        return next
+      })
+      setRows((current) =>
+        current ? current.map((r) => (r.id === row.id ? { ...r, role: legacy } : r)) : current,
+      )
+    }
+
+    // Optimistic: the select IS the interaction, and a control that waits for a
+    // round trip before showing the value the admin picked reads as broken.
+    apply(
+      previousRef
+        ? { ...previousRef, roleId }
+        : { id: row.id, role: previousLegacy, roleId, position: '' },
+      derivedLegacyRole(row, roleId),
+    )
+    setMovingId(row.id)
+    const result = await setMemberRoleId(row.id, roleId)
+    if (!alive.current) return
+    setMovingId(null)
+
+    if (!result.ok) {
+      // Put this row back rather than re-reading: the previous value is known
+      // exactly, and a re-read would also discard any OTHER row moved while this
+      // request was in flight.
+      apply(previousRef, previousLegacy)
+      toast(t(result.error), { tone: 'error' })
+      return
+    }
+
+    apply(result.data, derivedLegacyRole(row, result.data.roleId))
+    if (result.data.roleId !== roleId) {
+      // The 200 that did nothing. Said out loud, because the picker has already
+      // animated back to where it started and silence would read as a bug.
+      const refused = t('members.errRoleReverted')
+      setLiveMessage(refused)
+      toast(refused, { tone: 'error' })
+      return
+    }
+
+    invalidateMembers()
+    // Announced AND toasted, for GroupsAdmin's reason: the change is one word
+    // inside a dropdown that has already closed, which is invisible to a screen
+    // reader and easy to miss on a phone.
+    const message = t('members.roleMoved', {
+      name: row.displayName,
+      role: roleLabel(target),
+    })
+    setLiveMessage(message)
+    toast(message)
   }
 
   if (!isAdmin) return <Navigate to="/settings" replace />
@@ -587,6 +933,13 @@ export default function Members(): ReactElement {
           <p className="mem-invite-warn">
             {t('admin.recovery.self', { action: t('members.reissue') })}
           </p>
+          {/* Said where the roster is, not as a toast, because it is a standing
+              property of the project rather than a thing that just failed: the
+              roles tables arrive with migration 0025, and until it is applied
+              every row here offers the two words the legacy column knows. An
+              admin who has read the roles screen and comes here looking for
+              Director needs to be told which of the two screens is waiting. */}
+          {!rolesReady && <p className="mem-invite-warn">{t('members.rolesUnavailable')}</p>}
         </div>
       )}
 
@@ -594,8 +947,10 @@ export default function Members(): ReactElement {
         <ul className="mem-list" aria-label={t('route.members')}>
           {rows.map((row) => {
             const busy = busyId === row.id
+            // The LEGACY flag, and it stays legacy on purpose: it is the input
+            // to Demote and Delete, which go to the edge function, which reads
+            // that same text column. `grantsAdmin` below is the other question.
             const isAdminRow = row.role === 'admin'
-            const RoleIcon = isAdminRow ? IconShieldCheck : IconUser
             // A username account that has never run the claim flow. An email
             // account is claimed by definition, so this never lights for the
             // owner's own row.
@@ -608,6 +963,41 @@ export default function Members(): ReactElement {
             // whose code was never issued needs the same nudge as one whose code
             // has died.
             const needsCode = pending && (expired || row.inviteExpiresAt === null)
+
+            // ── the role, as data ────────────────────────────────────────
+            const heldId = effectiveRoleId(row)
+            const held = roles.find((role) => role.id === heldId) ?? null
+            // Permission-derived, unlike `isAdminRow` above it. A Director is
+            // `role === 'member'` in the legacy column by construction, so the
+            // legacy flag is the wrong input for a shield icon that means
+            // "administers this workspace" — and the right input for the two
+            // buttons that go to the edge function. Both are on the row on
+            // purpose; the file header says which is which.
+            const grantsAdmin = heldId !== null && adminRoleIds.has(heldId)
+            // What the row LOOKS like: the shield and the blue pill mean
+            // "administers this workspace", so they follow the permission and
+            // not the text column. On a project with 0025 unapplied
+            // `adminRoleIds` is empty, and the legacy answer is then the only
+            // one there is.
+            const showsAsAdmin = rolesReady ? grantsAdmin : isAdminRow
+            const RoleIcon = showsAsAdmin ? IconShieldCheck : IconUser
+            const position = refs.get(row.id)?.position ?? ''
+            // Every option's refusal, computed once per row rather than twice
+            // per option: the reason list under the row needs them all, and the
+            // <option>s need them one at a time.
+            const roleBlocks = new Map<string, string | null>(
+              roles.map((role) => [
+                role.id,
+                roleMoveBlockKey({
+                  isSelf: row.isSelf,
+                  isBootstrapAdmin: row.isBootstrapAdmin,
+                  hasProfile: row.hasProfile,
+                  fromGrantsAdmin: grantsAdmin,
+                  toGrantsAdmin: adminRoleIds.has(role.id),
+                  adminHolders,
+                }),
+              ]),
+            )
 
             // The three server guards, mirrored. Each holds the KEY of the
             // sentence the server would have answered with, so the disabled
@@ -633,21 +1023,49 @@ export default function Members(): ReactElement {
                 : lastAdmin
                   ? 'members.errLastAdmin'
                   : null
-            // Order matters and it is the reading order of the buttons: the
-            // role control sits before Delete, so its reason does too.
-            const blockReasons = [...new Set([demoteBlock, deleteBlock])].filter(
-              (key): key is string => key !== null,
-            )
+            // Order matters and it is the reading order of the controls: the
+            // role control sits before Delete, so its reason does too. When the
+            // picker is on screen its reasons stand in for the demote button's,
+            // because that button is not rendered — a row must never print a
+            // sentence about a control it does not have.
+            const blockReasons = [
+              ...new Set(
+                rolesReady
+                  ? [...roleBlocks.values(), deleteBlock]
+                  : [demoteBlock, deleteBlock],
+              ),
+            ].filter((key): key is string => key !== null)
 
             return (
               <li key={row.id} className="card card-tight mem-row">
                 <div className="mem-main">
-                  <span className={`mem-icon${isAdminRow ? ' is-admin' : ''}`} aria-hidden="true">
+                  <span className={`mem-icon${showsAsAdmin ? ' is-admin' : ''}`} aria-hidden="true">
                     <RoleIcon size={18} />
                   </span>
                   <div className="mem-text">
                     <p className="mem-name">
                       {row.displayName}
+                      {/* THE POSITION, BESIDE THE NAME. Eighteen people with
+                          seven Associate Directors is not a roster anybody reads
+                          by username, and "Nawaf Alharbi · PMO Director" is how
+                          the person is introduced in the room.
+
+                          DISPLAY ONLY, and 0025:301 is emphatic about it: it
+                          gates nothing, here or anywhere. It is also FREE TEXT
+                          somebody typed, so it is `bdi`-isolated exactly like
+                          the handle below — an Arabic title beside a Latin name
+                          reorders the line otherwise, and the separator ends up
+                          on the wrong side of both.
+
+                          `.mem-position` is 13px dim like `.mem-handle` and
+                          drops the 600 weight `.mem-name` would otherwise pass
+                          down — without it "Nawaf Alharbi · PMO Director" prints
+                          as two names rather than a name and a description. */}
+                      {position && (
+                        <span className="mem-position">
+                          · <bdi>{position}</bdi>
+                        </span>
+                      )}
                       {row.isSelf && <span className="pill mem-you">{t('members.you')}</span>}
                     </p>
                     {/* The handle is DATA — a username or an address — so no
@@ -657,8 +1075,20 @@ export default function Members(): ReactElement {
                       <bdi>{row.username ? `@${row.username}` : row.email}</bdi>
                     </p>
                     <p className="mem-tags">
-                      <span className={`pill${isAdminRow ? ' info' : ''}`}>
-                        {t(isAdminRow ? 'settings.roleAdmin' : 'settings.roleMember')}
+                      {/* THE ROLE'S OWN NAME once there are roles to name.
+                          `settings.roleAdmin` / `roleMember` are the two words
+                          the legacy column knows, and a Director printed as
+                          "Member" would be the same lie the roles screen was
+                          built to stop telling. The name is DATA — Aziz can
+                          rename it on the roles screen and translate it — so it
+                          does not go through t(), and it falls back to the two
+                          fixed words on a project with no roles table. */}
+                      <span className={`pill${showsAsAdmin ? ' info' : ''}`}>
+                        {held ? (
+                          <bdi>{roleLabel(held)}</bdi>
+                        ) : (
+                          t(isAdminRow ? 'settings.roleAdmin' : 'settings.roleMember')
+                        )}
                       </span>
                       {row.isBootstrapAdmin && (
                         <span className="pill">{t('members.owner')}</span>
@@ -703,6 +1133,68 @@ export default function Members(): ReactElement {
                   </div>
                 </div>
 
+                {rolesReady && (
+                  // ── the role picker ────────────────────────────────────
+                  //
+                  // ITS OWN FULL-WIDTH LINE, before the buttons. `.mem-row` is a
+                  // wrapping flex row and `.mem-role` is its `flex: 1 1 100%`
+                  // slot, so this takes a line of its own on a phone and on a
+                  // desk without a media query — and a <select> is
+                  // `inline-size: 100%` in global.css, which inside the
+                  // content-sized `.mem-actions` would have resolved against a
+                  // width that depends on it. `.mem-role` rather than
+                  // `.mem-block`: the geometry is the same, but `.mem-block`
+                  // MEANS "the reason a control is disabled" and prints 12px
+                  // faint, which a control must not be.
+                  <div className="mem-role">
+                    <select
+                      className="select"
+                      // Its own accessible name rather than a visible label:
+                      // eighteen rows of the word "Role" down the page is
+                      // eighteen copies of something the row already says, and
+                      // the name interpolates the person so a screen reader
+                      // hears "Role for Nawaf Alharbi", not the ninth
+                      // unlabelled combobox. GroupsAdmin's rule.
+                      aria-label={t('members.roleFor', { name: row.displayName })}
+                      // A whole row that cannot be written: no `profiles` row
+                      // means the UPDATE matches nothing. The reason prints
+                      // below, beside the pill that says the same thing.
+                      disabled={!row.hasProfile || movingId === row.id || busy}
+                      aria-describedby={
+                        blockReasons.length > 0 ? `mem-block-${row.id}` : undefined
+                      }
+                      value={heldId ?? ''}
+                      onChange={(e) => void moveRole(row, e.target.value)}
+                    >
+                      {/* Only when the held role is not one this screen loaded
+                          — a role deleted between the two reads, or a null
+                          role_id with no system role to fall back on. Disabled,
+                          because it is not a destination. Without it the
+                          browser shows the FIRST role as the selection, which
+                          is a confident answer to a question nobody answered. */}
+                      {heldId === null && (
+                        <option value="" disabled>
+                          {t('members.roleUnknown')}
+                        </option>
+                      )}
+                      {roles.map((role) => (
+                        <option
+                          key={role.id}
+                          value={role.id}
+                          // THE GUARD, VISIBLE BEFORE IT IS ENFORCED. 0025's
+                          // GUARD 1 refuses this in the database with a 42501,
+                          // and a red toast arriving after the dropdown has
+                          // closed teaches nothing. The option will not take,
+                          // and the sentence saying why is under the row.
+                          disabled={roleBlocks.get(role.id) !== null}
+                        >
+                          {roleLabel(role)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div
                   className="mem-actions"
                   role="group"
@@ -723,34 +1215,42 @@ export default function Members(): ReactElement {
                     </button>
                   )}
 
-                  {isAdminRow ? (
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={demoteBlock !== null || busy}
-                      // aria-describedby onto the VISIBLE reason below, and
-                      // deliberately no `title`. A `title` on a button whose
-                      // contents already name it is announced by some screen
-                      // readers INSTEAD of the contents — verified in the
-                      // accessibility tree, where the buttons read "You can't
-                      // delete your own account, button" and the word "Delete"
-                      // had vanished. The sentence is on screen either way, so
-                      // the tooltip bought nothing and cost the label.
-                      aria-describedby={demoteBlock ? `mem-block-${row.id}` : undefined}
-                      onClick={() => void changeRole(row, 'member')}
-                    >
-                      {t('members.demote')}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={busy}
-                      onClick={() => void changeRole(row, 'admin')}
-                    >
-                      {t('members.promote')}
-                    </button>
-                  )}
+                  {/* THE FALLBACK PAIR, and only when the picker is absent. Two
+                      controls writing the same fact by two different paths —
+                      one the legacy text through the edge function, one role_id
+                      through Postgres — is precisely the disagreement 0025's
+                      derived column exists to prevent, so exactly one of them is
+                      ever on screen. These are what a project with 0025
+                      unapplied still has, and they are unchanged. */}
+                  {!rolesReady &&
+                    (isAdminRow ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={demoteBlock !== null || busy}
+                        // aria-describedby onto the VISIBLE reason below, and
+                        // deliberately no `title`. A `title` on a button whose
+                        // contents already name it is announced by some screen
+                        // readers INSTEAD of the contents — verified in the
+                        // accessibility tree, where the buttons read "You can't
+                        // delete your own account, button" and the word "Delete"
+                        // had vanished. The sentence is on screen either way, so
+                        // the tooltip bought nothing and cost the label.
+                        aria-describedby={demoteBlock ? `mem-block-${row.id}` : undefined}
+                        onClick={() => void changeRole(row, 'member')}
+                      >
+                        {t('members.demote')}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={busy}
+                        onClick={() => void changeRole(row, 'admin')}
+                      >
+                        {t('members.promote')}
+                      </button>
+                    ))}
 
                   <button
                     type="button"
@@ -781,6 +1281,15 @@ export default function Members(): ReactElement {
           })}
         </ul>
       )}
+
+      {/* The live region, GroupsAdmin's and RolesAdmin's. A role move changes
+          one word inside a dropdown that has already closed — nothing gains
+          focus, nothing appears, and the toast is not in the accessibility
+          tree's reading order. `polite`, because the admin is the one who just
+          acted and has nothing to interrupt. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {liveMessage}
+      </p>
     </div>
   )
 }

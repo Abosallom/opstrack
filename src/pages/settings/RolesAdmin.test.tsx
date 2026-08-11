@@ -309,12 +309,26 @@ describe('the permission catalogue', () => {
   })
 
   it('says which keys are in force today and which are only declared', () => {
-    // 0025's header measured it: is_admin() IS workspace.admin, members.manage
-    // is this screen's own write gate, and the other three are not read by any
-    // policy yet. Five identical-looking switches would be the lie.
+    // 0025's header measured it, and its amendment moved the count: is_admin()
+    // IS workspace.admin; members.manage is this screen's own write gate; and
+    // structure.edit / vocab.edit became the write gate on seven configuration
+    // tables and eight admin RPCs. Only capture.write is still declared —
+    // `entries` is is_member(), because filing work is what membership IS.
+    //
+    // ⚠ THIS ASSERTS THE DATABASE, NOT THE SCREENS. A Director holding both live
+    //   keys is still redirected away from every configuration screen, because
+    //   they all guard on `useIsAdmin()`. See api/roles.ts's header. If that is
+    //   ever fixed, this test does not change — it was never about the client.
     const live = PERMISSIONS.filter((p) => p.reach === 'live').map((p) => p.key)
-    expect(live.sort()).toEqual(['members.manage', 'workspace.admin'])
-    expect(PERMISSIONS.filter((p) => p.reach === 'declared')).toHaveLength(3)
+    expect(live.sort()).toEqual([
+      'members.manage',
+      'structure.edit',
+      'vocab.edit',
+      'workspace.admin',
+    ])
+    expect(PERMISSIONS.filter((p) => p.reach === 'declared').map((p) => p.key)).toEqual([
+      'capture.write',
+    ])
   })
 
   it('mirrors roles_key_ck, so a bad key is refused before the round trip', () => {

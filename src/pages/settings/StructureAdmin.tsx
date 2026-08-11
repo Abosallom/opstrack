@@ -102,6 +102,14 @@ import './structure.css'
  * edit. The seven are byte-identical today and a copy is exactly the thing that
  * drifts — flagged in the handoff again, now with a seventh caller behind it.
  *
+ * ⚠ AND SINCE 0025 IT ASKS THE WRONG QUESTION OUTRIGHT, not merely by one edge.
+ *   `map_nodes` and `map_node_kinds` are gated on `has_perm('structure.edit')`,
+ *   which the Director role holds; this hook reads `profiles.role`, which 0025
+ *   keeps derived from the SYSTEM role only, so a Director reads as 'member' and
+ *   is bounced off a screen the database would let them write. The full account
+ *   of the fix — a tri-state permission hook, not a wider boolean — is over
+ *   `isAdmin` in src/App.tsx and in docs/PENDING-MIGRATIONS.md.
+ *
  * `?shell` mirrors App.tsx's dev-only preview flag, so this screen stays
  * reachable in a build with no Supabase project — which is where the layout and
  * the RTL mirror get reviewed. `import.meta.env.DEV` is the literal `false` in a

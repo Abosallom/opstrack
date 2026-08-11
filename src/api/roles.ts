@@ -20,13 +20,27 @@
 //   reads it plus this list, in one commit.
 //
 // ⚠ AND EACH ENTRY CARRIES HOW MUCH IT IS WORTH TODAY (`reach`). 0025's header
-//   measured it: `workspace.admin` is enforced everywhere, `members.manage` is
-//   enforced on this very screen's two tables, and `structure.edit`,
-//   `vocab.edit` and `capture.write` are DECLARED but not yet read by any
-//   policy — tracks, map_nodes, use_cases and vocab_options are all still gated
-//   on is_admin(), and entries on is_member(). Rendering five switches as though
-//   they were equally live would be the exact lie the migration's header exists
-//   to prevent, so the UI shows the difference and this is where it comes from.
+//   measured it, and the amendment moved the count: `workspace.admin` is
+//   enforced everywhere, `members.manage` is enforced on this very screen's two
+//   tables, and `structure.edit` and `vocab.edit` became the write gate on seven
+//   configuration tables and eight admin RPCs. FOUR OF THE FIVE ARE LIVE. Only
+//   `capture.write` is still DECLARED — `entries` is gated on is_member(),
+//   which is what it should be, because filing work is what membership IS.
+//   Rendering five switches as though they were equally live would be the exact
+//   lie the migration's header exists to prevent, so the UI shows the difference
+//   and this is where it comes from.
+//
+// ⚠ `reach` IS A STATEMENT ABOUT THE DATABASE, NOT ABOUT THIS APP'S SCREENS, and
+//   the two do not agree today. Every configuration screen still guards on
+//   `useIsAdmin()` (`profile.role === 'admin'`), which 0025 keeps derived from
+//   the SYSTEM role only — so a Director holding both live keys is redirected
+//   away from every screen the database now lets them write. "In force" is the
+//   true answer to "what will the server accept"; it is not yet the answer to
+//   "what will this app offer". Closing that is a permission-aware hook in
+//   store/auth and a swap of `isAdmin` for `canEditStructure` / `canEditVocab`
+//   on nine screens, App.tsx, Settings.tsx and CommandPalette.tsx — recorded in
+//   docs/PENDING-MIGRATIONS.md. DO NOT ASSIGN ANYONE THE DIRECTOR ROLE BEFORE
+//   IT LANDS: the seven would lose the admin screens and gain nothing visible.
 //
 // ERRORS ARE i18n KEYS, NOT SENTENCES — api/tracks.ts's rule. `roleErrorKey()`
 // below is a LOCAL mapper rather than an addition to lib/pgError.ts because that
@@ -135,9 +149,11 @@ export const PERMISSIONS: readonly PermissionMeta[] = [
     key: 'workspace.admin',
     labelKey: 'roles.permWorkspaceAdmin',
     effectKey: 'roles.permWorkspaceAdminEffect',
-    // is_admin() IS this key, and is_admin() is the write gate on tracks,
-    // vocab_options, track_groups, map_nodes, map_node_kinds, use_cases, every
-    // admin RPC, the config_audit reads and the members edge function.
+    // is_admin() IS this key, and is_admin() is the write gate on `profiles`,
+    // entry deletion, `meetings`, `track_slas`, the config_audit reads, the
+    // RPCs whose subject is PEOPLE, and the members edge function. It no longer
+    // gates the seven configuration tables or the eight RPCs that write them —
+    // Admin reaches those by holding the two keys below, which it does.
     reach: 'live',
   },
   {
@@ -152,13 +168,19 @@ export const PERMISSIONS: readonly PermissionMeta[] = [
     key: 'structure.edit',
     labelKey: 'roles.permStructureEdit',
     effectKey: 'roles.permStructureEditEffect',
-    reach: 'declared',
+    // Live since 0025's amendment: the write gate on `tracks`, `track_groups`,
+    // `map_nodes` and `map_node_kinds`, and on the five RPCs that reorder,
+    // re-parent and delete them. Granting it changes what the SERVER accepts.
+    reach: 'live',
   },
   {
     key: 'vocab.edit',
     labelKey: 'roles.permVocabEdit',
     effectKey: 'roles.permVocabEditEffect',
-    reach: 'declared',
+    // Live since 0025's amendment: the write gate on `use_cases`,
+    // `vocab_options` and `label_overrides`, and on reorder_vocab(),
+    // reset_vocab() and reset_label_overrides().
+    reach: 'live',
   },
   {
     key: 'capture.write',

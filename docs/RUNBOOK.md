@@ -54,8 +54,18 @@ cannot.
 **For the eighteen-person roster, use [`scripts/provision-people.mjs`](../scripts/provision-people.mjs), not eighteen curls.**
 It is dry-run by default, idempotent, refuses to reissue a code, and prints every
 derived username before it creates anything. Who is on the roster and what they
-are allowed to do: [`docs/PEOPLE.md`](PEOPLE.md). Apply `0025` FIRST and the seven
-Directors land on their role in one run instead of two — both orders are safe.
+are allowed to do: [`docs/PEOPLE.md`](PEOPLE.md).
+
+⚠ **DO NOT APPLY `0025` BEFORE PROVISIONING — NOT YET.** The script writes the
+Director role for seven people, and `0025`'s Director role is real in the
+*database* and invisible in the *app*: every configuration screen still guards on
+`profile.role === 'admin'`, which `0025` keeps derived from the system role only.
+A Director therefore reads as `'member'` to the client and is redirected away
+from every screen the database just opened to them. Provision with `0025`
+**unapplied** — everyone lands Admin or Member from the legacy column, which is
+exactly today's behaviour — and assign the seven Directors once the
+permission-aware client gate ships. See *"What 0025 does NOT do"* in
+[`docs/PENDING-MIGRATIONS.md`](PENDING-MIGRATIONS.md).
 
 ⚠ **The sixteen invite codes print ONCE and exist nowhere else afterwards.** Be
 present when `--apply` runs, and read the derived-username table on the dry run
@@ -699,6 +709,14 @@ union all select '0024 use cases',   case when to_regclass('public.use_cases')  
 -- those two states need telling apart. If this row says NO but `roles` exists,
 -- re-run the whole file — it is re-runnable by construction.
 union all select '0025 roles/perms', case when to_regprocedure('public.has_perm(text)')  is not null then 'yes' else 'NO' end
+-- …and two rows for the halves of 0025 that a RE-RUN OF SOMEBODY ELSE'S FILE can
+-- silently undo while has_perm() above still says yes. Re-running 0023 restores
+-- its own is_admin() policies and RPC guards; re-running 0001/0002/0003/0009/
+-- 0017/0018/0024 does the same for theirs. The symptom of the first is a
+-- Director whose writes affect ZERO ROWS with no error; of the second, a clean
+-- 42501 on a drag the policy would have allowed. Fix by re-applying 0025 — last.
+union all select '0025 policies',    case when exists (select 1 from pg_policies where schemaname='public' and policyname='map_nodes_insert' and position('structure.edit' in coalesce(with_check,'')) > 0) then 'yes' else 'NO' end
+union all select '0025 rpcs',        case when position('structure.edit' in pg_get_functiondef('public.reorder_map_nodes(uuid, uuid, uuid[])'::regprocedure)) > 0 then 'yes' else 'NO' end
 order by file;
 ```
 
@@ -717,7 +735,12 @@ Verified against the live project on 30 July 2026: the first ten rows returned
 > `yes` means the object that file creates exists; it does not mean the file's probe
 > blocks ever ran. `0023`, `0024` and `0025` are on disk and unapplied as of this
 > commit. Apply order is `0023` → `0024` → `0025`, and `0025` must be last of the
-> three because it redefines `is_admin()`, which every policy in both calls.
+> three because it redefines `is_admin()`, which every policy in both calls —
+> **and because it now re-points 21 write policies and restates 8 admin RPCs that
+> `0023` and four applied files own.** That order is no longer advisory: `0025`
+> carries a preflight block that refuses to apply without `map_nodes`,
+> `map_node_kinds` and `use_cases`. Any note elsewhere calling `0025`
+> "independent of both" predates the amendment and is wrong.
 Both new files were applied twice that day, probes passing on both runs.
 
 `0005` has no fingerprint on purpose: it is a one-time correction that clears the

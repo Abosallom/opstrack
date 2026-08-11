@@ -14,10 +14,18 @@
 // concrete terms — "create and delete accounts and change anyone's role", never
 // "manage members". Those lines live beside their keys in api/roles.ts, so the
 // catalogue and its explanations cannot drift apart, and each key also carries
-// its REACH: `workspace.admin` and `members.manage` are enforced today,
-// `structure.edit`, `vocab.edit` and `capture.write` are declared and not yet
-// read by any policy. Rendering five switches as though they were equally live
-// would be a lie, so the screen prints the difference on the switch itself.
+// its REACH: `workspace.admin`, `members.manage`, `structure.edit` and
+// `vocab.edit` are enforced today — the last two became the write gate on seven
+// configuration tables and eight admin RPCs when 0025 was amended — and only
+// `capture.write` is declared and not yet read by any policy. Rendering five
+// switches as though they were equally live would be a lie, so the screen prints
+// the difference on the switch itself.
+//
+// ⚠ REACH IS A STATEMENT ABOUT THE DATABASE, NOT ABOUT THIS APP. A Director
+//   holding both live keys is still redirected away from Settings › Structure,
+//   Catalogue, Vocabulary and Terminology, because all four guard on
+//   `useIsAdmin()` — see the note over that hook below. "In force" answers what
+//   the SERVER will accept; it does not yet answer what this app will offer.
 //
 // And the screen says, in its own words, that the LIST is fixed by what the app
 // enforces (`roles.fixedTitle` / `roles.fixedBody`). Aziz asked for custom
