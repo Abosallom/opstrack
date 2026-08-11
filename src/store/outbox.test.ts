@@ -799,7 +799,7 @@ function withStorage(seed: Record<string, string> = {}): {
   }
 }
 
-const OUTBOX_KEY = 'opstrack_outbox_v1'
+const OUTBOX_KEY = 'nphiescore_outbox_v1'
 
 describe('durability', () => {
   it('writes the queue to storage on every change, and clears it on reset', async () => {

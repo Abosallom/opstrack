@@ -136,7 +136,7 @@ const OWNER_NAME = ' name'
 const UNASSIGNED_PARAM = 'unassigned'
 
 /** localStorage record of which nodes are folded shut. */
-const PREFS_KEY = 'opstrack_tree_v1'
+const PREFS_KEY = 'nphiescore_tree_v1'
 
 /**
  * store/entries.ts's private QUEUED_KEY, which is not a failure: the write is in

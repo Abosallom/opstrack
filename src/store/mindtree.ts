@@ -113,7 +113,7 @@ export interface MindDrag {
  * The one key. Already in the field on every device that has opened this screen
  * — see the header on why this module absorbs it rather than adding a second.
  */
-const PREFS_KEY = 'opstrack_mindtree_v1'
+const PREFS_KEY = 'nphiescore_mindtree_v1'
 
 /**
  * How many node ids one dimension may remember, and how many dimensions.

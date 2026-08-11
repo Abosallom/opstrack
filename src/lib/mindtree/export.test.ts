@@ -45,8 +45,8 @@ describe('mindtreeFilename', () => {
   it('carries the brand prefix', () => {
     // lib/brand.test.ts is the gate; this is the local copy that fails on the
     // worker's own machine rather than three files away.
-    expect(mindtreeFilename('svg', AT)).toBe('coretrack-mindtree-2026-07-31-1408.svg')
-    expect(mindtreeFilename('png', AT)).toBe('coretrack-mindtree-2026-07-31-1408.png')
+    expect(mindtreeFilename('svg', AT)).toBe('nphiescore-mindtree-2026-07-31-1408.svg')
+    expect(mindtreeFilename('png', AT)).toBe('nphiescore-mindtree-2026-07-31-1408.png')
   })
 
   it('never contains a character that dies on a Windows share', () => {
@@ -58,7 +58,7 @@ describe('mindtreeFilename', () => {
 
   it('pads every field so a Downloads folder sorts chronologically', () => {
     expect(mindtreeFilename('svg', new Date(2026, 0, 2, 3, 4))).toBe(
-      'coretrack-mindtree-2026-01-02-0304.svg',
+      'nphiescore-mindtree-2026-01-02-0304.svg',
     )
   })
 
@@ -68,7 +68,7 @@ describe('mindtreeFilename', () => {
     // clock. Asserting on the local getters is what pins that: a switch to
     // toISOString() would pass every other case in this block.
     const at = new Date(2026, 11, 31, 23, 59)
-    expect(mindtreeFilename('png', at)).toBe('coretrack-mindtree-2026-12-31-2359.png')
+    expect(mindtreeFilename('png', at)).toBe('nphiescore-mindtree-2026-12-31-2359.png')
   })
 })
 

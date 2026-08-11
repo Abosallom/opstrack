@@ -243,7 +243,7 @@ const NO_VALUE = ''
 const NAME_PREFIX = 'name:'
 
 /** localStorage record of the three choices that should outlive a reload. */
-const PREFS_KEY = 'opstrack_board_v1'
+const PREFS_KEY = 'nphiescore_board_v1'
 
 /** Which dimension the columns are cut along. */
 type BoardDim = 'status' | 'track' | 'owner' | 'priority'

@@ -7,10 +7,29 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<!-- CoreTrack for the team-testing period (docs/WAVE5-NOTES.md §1). The
-	     bundle id stays app.opstrack deliberately — identity is swapped once,
-	     cleanly, at the NphiesCore launch cut. Do NOT put NphiesCore here yet. -->
-	<string>CoreTrack</string>
+	<!-- NphiesCore. This IS the launch cut docs/WAVE5-NOTES.md §1 deferred, and
+	     the deferral note that used to sit here is gone with it: the bundle id
+	     moved in the same change, app.opstrack -> app.nphiescore, in BOTH build
+	     configurations of project.pbxproj and in the root capacitor.config.json
+	     (appId). Those three must agree or the build is wrong.
+
+	     WHY THE ID MOVED NOW, having been held back through two waves: a bundle
+	     id is free to change until the first upload to App Store Connect and
+	     impossible afterwards — it is the primary key of the app record, and
+	     Apple will not re-point one. Nothing has been uploaded yet, so this is
+	     the last moment it costs nothing.
+
+	     WHAT DID NOT MOVE, and must not be swept in later by something matching
+	     on "opstrack": the Pages base path /opstrack/ (moving it needs a
+	     Supabase redirect-allow-list change or sign-in breaks), the
+	     @opstrack.internal synthetic email domain (real rows in auth.users —
+	     renaming it locks members out of their own accounts), the
+	     'opstrack-export' and 'coretrack-terminology' file-format tags that
+	     importers match on, the opstrack_* storage keys and the applied
+	     migrations. src/lib/brand.test.ts is the gate that keeps the two live
+	     spellings legible; its header still describes the bundle id as
+	     deferred, which is now the only stale sentence in it. -->
+	<string>NphiesCore</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -31,6 +50,27 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- THE VERSION RULE, stated once, in the file both numbers land in.
+
+	     CFBundleShortVersionString <- MARKETING_VERSION. It MIRRORS package.json
+	     "version" exactly, character for character. package.json is the single
+	     source of truth: Vite already inlines it as __APP_VERSION__, Settings ›
+	     About renders it, and every export is stamped with it. If the two ever
+	     disagree, the number a tester reads in the app and the number TestFlight
+	     shows next to the same binary are different, and no one can say which
+	     build a bug came from. Currently 1.1.0 in both configurations of
+	     project.pbxproj. This is the pair that drifted at v1.0.1 (package.json
+	     moved, project.pbxproj did not, and it went unnoticed) — see
+	     docs/APP-STORE.md § Versioning.
+
+	     CFBundleVersion <- CURRENT_PROJECT_VERSION. A build counter, not a
+	     version. An integer, strictly increasing, incremented once per UPLOAD to
+	     App Store Connect and NEVER reset when MARKETING_VERSION changes. App
+	     Store Connect refuses a (CFBundleShortVersionString, CFBundleVersion)
+	     pair it has already seen, so a re-upload after a fix needs this number
+	     bumped even when nothing else changed. It reads 1 because the bundle id
+	     moved to app.nphiescore, which makes this a fresh app record with no
+	     upload history — the counter genuinely starts here. -->
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>

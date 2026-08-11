@@ -251,12 +251,12 @@ const render = (path = '/board'): string =>
 
 /** Seed the persisted board preference the way a previous session would have. */
 const withPrefs = (prefs: Record<string, unknown>, path = '/board'): string => {
-  fx.mem.set('opstrack_board_v1', JSON.stringify(prefs))
+  fx.mem.set('nphiescore_board_v1', JSON.stringify(prefs))
   return render(path)
 }
 
 afterEach(() => {
-  fx.mem.delete('opstrack_board_v1')
+  fx.mem.delete('nphiescore_board_v1')
   fx.state.entries = fx.entries
   fx.state.health = new Map(fx.entries.map((e) => [e.id, fx.health(e.id)]))
   fx.state.loading = false
@@ -427,7 +427,7 @@ describe('Board — column intelligence', () => {
     expect(withPrefs({ dimension: 'status', density: 'compact', collapsed: {} })).toContain(
       'data-density="compact"',
     )
-    fx.mem.delete('opstrack_board_v1')
+    fx.mem.delete('nphiescore_board_v1')
     expect(render()).toContain('data-density="comfortable"')
   })
 

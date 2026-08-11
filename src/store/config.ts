@@ -26,7 +26,7 @@ import { listGroups, listTracks } from '../api/tracks'
 import { hasSession } from './auth'
 import type { Track, TrackGroup } from '../types'
 
-const CACHE_KEY = 'opstrack_tracks_v1'
+const CACHE_KEY = 'nphiescore_tracks_v1'
 
 /**
  * Groups (0018) get their OWN key rather than joining the tracks payload.
@@ -35,7 +35,7 @@ const CACHE_KEY = 'opstrack_tracks_v1'
  * away, and the two are written at different moments — a failed groups read
  * must leave a good tracks cache exactly as it was.
  */
-const GROUPS_CACHE_KEY = 'opstrack_track_groups_v1'
+const GROUPS_CACHE_KEY = 'nphiescore_track_groups_v1'
 
 /** How long a load stays fresh enough to skip the focus refetch. */
 const STALE_AFTER_MS = 30_000

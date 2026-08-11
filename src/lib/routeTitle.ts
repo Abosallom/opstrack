@@ -57,6 +57,11 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   // languages and a route.mindtree twin would only ever hold the same word.
   // Above the '/settings' test for the reason the whole file exists.
   if (pathname.startsWith('/mindtree')) return 'mindtree.title'
+  // Same precedent as digest/notifications/mindtree: `privacy.title` already
+  // ships in both languages and a route.privacy twin would only ever hold the
+  // same word. The screen is in neither nav, so this header is the only chrome
+  // that names it.
+  if (pathname.startsWith('/privacy')) return 'privacy.title'
   if (pathname === '/settings/tracks/new') return 'admin.tracks.add'
   if (pathname.startsWith('/settings/tracks/')) return 'admin.tracks.edit'
   if (pathname.startsWith('/settings/tracks')) return 'admin.tracks.title'

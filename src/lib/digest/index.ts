@@ -70,7 +70,7 @@ export function digestMimeType(f: DigestFormat): string {
 }
 
 /**
- * `coretrack-2026-07-22_2026-07-29.md`.
+ * `nphiescore-2026-07-22_2026-07-29.md`.
  *
  * ISO dates and nothing else: the filename sorts correctly in a folder listing,
  * and it carries no localised text, because a filename travels to people who do
@@ -80,12 +80,13 @@ export function digestMimeType(f: DigestFormat): string {
  *
  * THE PREFIX IS THE BRAND, not an identifier. It is the one part of this module
  * a person actually reads — it lands in their Downloads folder and travels
- * onward in an email attachment — so it moved with the CoreTrack rename. The
- * reserved-identifier list in WAVE5-NOTES §1 covers storage keys, channels and
- * envelope tags, none of which anyone reads; a filename is not one of those, and
- * nothing keys off it. brand.test.ts pins this, so the launch cut cannot strand
- * it the way the first rename stranded the sign-in heading.
+ * onward in an email attachment — so it has moved with every rename: `opstrack-`
+ * to `coretrack-` to `nphiescore-`. The reserved-identifier list in WAVE5-NOTES
+ * §1 covers storage keys, channels and envelope tags, none of which anyone
+ * reads and every one of which a reader matches on; a filename is not one of
+ * those, and nothing keys off it. brand.test.ts pins this, so a rename cannot
+ * strand it the way the first one stranded the sign-in heading.
  */
 export function digestFilename(m: DigestModel, f: DigestFormat): string {
-  return `coretrack-${m.from}_${m.to}.${EXTENSIONS[f]}`
+  return `nphiescore-${m.from}_${m.to}.${EXTENSIONS[f]}`
 }

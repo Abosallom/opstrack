@@ -114,6 +114,10 @@ const NotificationPrefs = lazy(() => import('./pages/settings/NotificationPrefs'
 // person's capture lines leave the browser, which is nobody else's setting to
 // hold.
 const AiSettings = lazy(() => import('./pages/settings/AiSettings'))
+// The privacy policy. Mounted on BOTH sides of the auth gate below: App Store
+// Connect needs a URL a reviewer with no credentials can open, and Settings
+// needs the same page for a member who is already signed in.
+const Privacy = lazy(() => import('./pages/Privacy'))
 
 /* ---------- navigation model ---------- */
 
@@ -585,6 +589,14 @@ export default function App(): ReactElement {
                   below and this route ceases to exist mid-submit. That is why
                   the screen has no success panel. */}
               <Route path="/claim" element={<Claim />} />
+              {/* The public half of the privacy policy, and the URL App Store
+                  Connect is given — a reviewer opens it with no credentials.
+                  ABOVE the catch-all deliberately: below `path="*"` it would
+                  redirect to sign-in and the reviewer would see a login wall
+                  where the policy was promised. `standalone` makes the page
+                  draw its own frame, heading, language toggle and way back,
+                  because out here there is no shell to supply them. */}
+              <Route path="/privacy" element={<Privacy standalone />} />
               {/* Anything else while signed out lands on sign-in. `replace` so
                   the back button does not bounce between the two. */}
               <Route path="*" element={<Navigate to="/signin" replace />} />
@@ -641,6 +653,10 @@ export default function App(): ReactElement {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/digest" element={<Digest />} />
               <Route path="/notifications" element={<Notifications />} />
+              {/* The same page inside the shell: no `standalone`, so it draws
+                  no <h1> of its own — the app header already renders one from
+                  titleKeyFor(). */}
+              <Route path="/privacy" element={<Privacy />} />
               <Route path="/settings" element={<Settings />} />
               {/* Admin config hangs off /settings rather than taking a top-level
                   route: NAV is capped at five tab-bar slots, and these screens

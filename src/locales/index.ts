@@ -74,6 +74,7 @@ import enNudge from './en/nudge.json'
 import enNotif from './en/notif.json'
 import enOffline from './en/offline.json'
 import enPriority from './en/priority.json'
+import enPrivacy from './en/privacy.json'
 import enPush from './en/push.json'
 import enPwa from './en/pwa.json'
 import enRecurring from './en/recurring.json'
@@ -113,6 +114,7 @@ import arNudge from './ar/nudge.json'
 import arNotif from './ar/notif.json'
 import arOffline from './ar/offline.json'
 import arPriority from './ar/priority.json'
+import arPrivacy from './ar/privacy.json'
 import arPush from './ar/push.json'
 import arPwa from './ar/pwa.json'
 import arRecurring from './ar/recurring.json'
@@ -166,6 +168,7 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   nudge: enNudge,
   offline: enOffline,
   priority: enPriority,
+  privacy: enPrivacy,
   push: enPush,
   pwa: enPwa,
   recurring: enRecurring,
@@ -207,6 +210,7 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   nudge: arNudge,
   offline: arOffline,
   priority: arPriority,
+  privacy: arPrivacy,
   push: arPush,
   pwa: arPwa,
   recurring: arRecurring,
@@ -257,6 +261,7 @@ export const en: LocaleTree = {
   ...enNudge,
   ...enOffline,
   ...enPriority,
+  ...enPrivacy,
   ...enPush,
   ...enPwa,
   ...enRecurring,
@@ -298,6 +303,7 @@ export const ar: LocaleTree = {
   ...arNudge,
   ...arOffline,
   ...arPriority,
+  ...arPrivacy,
   ...arPush,
   ...arPwa,
   ...arRecurring,

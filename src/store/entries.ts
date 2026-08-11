@@ -86,7 +86,7 @@ import type { FilterContext, FilterState } from '../lib/entryFilter'
 import type { IsoDate } from '../lib/dates'
 import type { Entry, EntryHealth, EntryStatus, EntryUpdate } from '../types'
 
-const CACHE_KEY = 'opstrack_entries_v1'
+const CACHE_KEY = 'nphiescore_entries_v1'
 /** How long a load stays fresh enough to skip the focus refetch. */
 const STALE_AFTER_MS = 45_000
 /** Flash TTL, swept by ONE module-level interval — not a timer per row. */

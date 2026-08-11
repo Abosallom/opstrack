@@ -129,8 +129,13 @@ describe('SignIn — the credentials form', () => {
       expect(html).toContain('id="signin-identifier"')
       expect(html).toContain('id="signin-password"')
     }
-    expect(en).toContain('Sign in to CoreTrack')
-    expect(ar).toContain('تسجيل الدخول إلى CoreTrack')
+    expect(en).toContain('Sign in to NphiesCore')
+    // The Arabic heading fences the Latin name in an isolate pair (U+2066 LRI …
+    // U+2069 PDI), written as escapes because the characters are invisible and a
+    // reader of this file would otherwise have no way to see that the assertion
+    // depends on them. Without the fence the bidi algorithm resolves the name
+    // against the neighbouring Arabic and the sentence's punctuation moves.
+    expect(ar).toContain('تسجيل الدخول إلى ⁦NphiesCore⁩')
   })
 
   it('keeps the free-tier promise — the front door never offers a code (WAVE2-NOTES §1)', () => {

@@ -351,6 +351,13 @@
 
   /* THE RELAYOUT TWEEN, declared once here and spent by the three rules below.
 
+     THESE TWO NUMBERS EXIST TWICE. src/pages/map/mapMotion.ts holds the same
+     duration and the same control points, because the JS camera (panning and
+     zooming the viewBox) and this CSS relayout have to be ONE motion — two
+     curves of different shapes over the same 240ms is a defect nobody can name
+     and everybody can feel. mapMotion.test.ts reads this file and fails if the
+     pair drifts, so retune both ends or neither.
+
      240ms is the shortest duration at which a card crossing half the canvas is
      followable rather than teleporting, and the longest at which the map is
      never in the reader's way — a regroup has to be over before the hand gets

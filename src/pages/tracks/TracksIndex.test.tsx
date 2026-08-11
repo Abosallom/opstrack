@@ -242,7 +242,7 @@ const render = (path = '/tracks'): string =>
 
 /** Seed the persisted fold state the way a previous session would have. */
 const withPrefs = (prefs: Record<string, unknown>, path = '/tracks'): string => {
-  fx.mem.set('opstrack_tree_v1', JSON.stringify(prefs))
+  fx.mem.set('nphiescore_tree_v1', JSON.stringify(prefs))
   return render(path)
 }
 
@@ -258,7 +258,7 @@ const esc = (s: string): string =>
 const countOf = (haystack: string, needle: string): number => haystack.split(needle).length - 1
 
 afterEach(() => {
-  fx.mem.delete('opstrack_tree_v1')
+  fx.mem.delete('nphiescore_tree_v1')
   fx.state.entries = fx.entries
   fx.state.health = new Map(fx.entries.map((e) => [e.id, fx.health(e.id)]))
   fx.state.loading = false

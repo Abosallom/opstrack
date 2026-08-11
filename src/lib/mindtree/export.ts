@@ -56,7 +56,7 @@ function pad(n: number): string {
 }
 
 /**
- * `coretrack-mindtree-2026-07-31-1408.svg`.
+ * `nphiescore-mindtree-2026-07-31-1408.svg`.
  *
  * THE PREFIX IS THE BRAND, and `lib/brand.test.ts` is where that is enforced —
  * see its header for the rename that shipped in two halves and the reason a
@@ -74,7 +74,7 @@ export function mindtreeFilename(kind: MindtreeExportKind, at: Date): string {
   const stamp =
     `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}` +
     `-${pad(at.getHours())}${pad(at.getMinutes())}`
-  return `coretrack-mindtree-${stamp}.${kind}`
+  return `nphiescore-mindtree-${stamp}.${kind}`
 }
 
 /**

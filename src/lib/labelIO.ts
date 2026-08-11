@@ -8,7 +8,7 @@
 // the app writes out, and what it is willing to read back.
 //
 // IT IS ALSO HOW THIS WORKSPACE'S VOCABULARY REACHES THE NEXT ONE. The same
-// product is going to stand up a second workspace (NphiesCore), and the wording
+// product is going to stand up a second workspace, and the wording
 // the owner settles on here is most of the work. A file that is portable and
 // self-describing carries it across; a screen-only editor makes somebody retype
 // four hundred strings. That is the whole reason the envelope names its own
@@ -78,10 +78,23 @@ import type { Locale } from './i18n'
 /**
  * The magic string a reader matches on.
  *
- * NOT the same value as lib/export.ts's `format: 'opstrack-export'`, and
- * deliberately spelled with the current brand: that tag is frozen because files
- * carrying it already exist in people's folders, and this format has no history
- * to keep faith with. brand.test.ts pins the distinction from the other side.
+ * NOT the same value as lib/export.ts's `format: 'opstrack-export'` — the two
+ * tags name two different documents and were coined under two different brands,
+ * which is the whole reason they are spelled differently.
+ *
+ * FROZEN AT `coretrack-terminology`, WHICH IS NO LONGER THE BRAND, and that is
+ * not an oversight. `readLabels()` REFUSES any file whose `format` is not this
+ * exact value, so the moment this string moves, every wording pass anyone has
+ * already exported — the drafts that sat in a Downloads folder for a week, the
+ * one attached to a mail thread, the one carried to the second workspace —
+ * stops loading, with `errImportShape` and no way to tell why. A tag is a
+ * handshake with files that already exist; it moves only behind a reader that
+ * accepts both spellings, never with a rename.
+ *
+ * The FILENAME below is the opposite kind of string and has already moved to
+ * `nphiescore-`: nothing matches on it, and it is read by people. brand.test.ts
+ * pins both — the filename to the live brand, this tag to the retired one — so
+ * the inconsistency is a gate rather than a loose end.
  */
 export const LABEL_FILE_FORMAT = 'coretrack-terminology'
 
@@ -235,7 +248,11 @@ function pad(n: number): string {
 }
 
 /**
- * `coretrack-terminology-2026-07-31-2045.json`.
+ * `nphiescore-terminology-2026-07-31-2045.json`.
+ *
+ * THE PREFIX IS THE BRAND AND THE `format` TAG IS NOT — see LABEL_FILE_FORMAT
+ * above. The file this names still declares `"format": "coretrack-terminology"`
+ * inside, because a reader matches on that and nothing matches on this.
  *
  * LOCAL time, sortable-first, no colons and no spaces — the same three rules
  * lib/export.ts's `exportFilename()` states, for the same three reasons: the
@@ -249,7 +266,7 @@ export function labelFileName(at: Date): string {
   const stamp = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}-${pad(
     at.getHours(),
   )}${pad(at.getMinutes())}`
-  return `coretrack-terminology-${stamp}.json`
+  return `nphiescore-terminology-${stamp}.json`
 }
 
 /** The download's Content-Type, encoding stated rather than guessed. */

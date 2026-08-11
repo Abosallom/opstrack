@@ -185,7 +185,7 @@ describe('labelFileName', () => {
   const at = new Date(2026, 6, 31, 20, 45)
 
   it('stamps local time, sortable first', () => {
-    expect(labelFileName(at)).toBe('coretrack-terminology-2026-07-31-2045.json')
+    expect(labelFileName(at)).toBe('nphiescore-terminology-2026-07-31-2045.json')
   })
 
   it('carries nothing a Windows share or a foreign keyboard would mangle', () => {
@@ -193,7 +193,7 @@ describe('labelFileName', () => {
     // and the three separators, in either UI language.
     expect(labelFileName(at)).toMatch(/^[a-z0-9.-]+$/)
     expect(labelFileName(new Date(2026, 0, 5, 9, 7))).toBe(
-      'coretrack-terminology-2026-01-05-0907.json',
+      'nphiescore-terminology-2026-01-05-0907.json',
     )
   })
 

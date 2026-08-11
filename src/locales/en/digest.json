@@ -125,6 +125,6 @@
     "emptyWindow": "No items fell inside this window.",
     "notePrefix": "Note:",
     "truncatedNote": "This report covers the newest 1000 items only — anything older was not read.",
-    "footer": "Sent from CoreTrack"
+    "footer": "Sent from NphiesCore"
   }
 }

@@ -1,6 +1,6 @@
 {
   "signin": {
-    "heading": "Sign in to CoreTrack",
+    "heading": "Sign in to NphiesCore",
     "subtitle": "Accounts are created by your admin. Sign in with the username you were given, or with your email address.",
     "identifierLabel": "Username or email",
     "identifierPlaceholder": "ahmed.otaibi",

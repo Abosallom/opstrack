@@ -188,6 +188,12 @@ export const SCREENS: readonly PaletteScreen[] = [
   // states what leaves the browser is exactly the screen someone goes looking
   // for by typing its name rather than by scrolling a settings list.
   { to: '/settings/ai', labelKey: 'ai.title' },
+  // The privacy policy. Named out of its own namespace on the same rule as
+  // digest/notif/mindtree above — `privacy.title` already ships in both
+  // languages. It is in no nav (its designed entries are Settings › About and
+  // the App Store listing), which is exactly the kind of screen this table
+  // exists for.
+  { to: '/privacy', labelKey: 'privacy.title' },
 ]
 
 /**

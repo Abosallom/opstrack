@@ -513,6 +513,14 @@ export default function Settings(): ReactElement {
           without this call site knowing anything about direction. */}
       <Section icon={IconCompass} title={t('settings.about')}>
         <p className="muted">{t('settings.version', { version: __APP_VERSION__ })}</p>
+        {/* Apple requires the policy to be reachable from inside the app, and
+            About is where somebody goes looking for "what is this thing".
+            Labelled out of the privacy namespace rather than settings.*: the
+            title already ships in both languages and a settings.privacy twin
+            would only ever hold the same word. */}
+        <NavLink to="/privacy" className="btn btn-ghost">
+          {t('privacy.title')}
+        </NavLink>
       </Section>
     </div>
   )

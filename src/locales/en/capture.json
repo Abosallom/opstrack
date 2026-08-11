@@ -7,6 +7,7 @@
     "submit": "Capture",
     "submitting": "Saving…",
     "submitHint": "Press Enter to capture — the box clears straight away.",
+    "mapHint": "One line in. Tokens become fields, and the item lands on the map.",
     "captured": "Captured “⁨{title}⁩”.",
     "capturedQueued": "Saved on this device: “⁨{title}⁩”. It syncs when you're back online.",
     "capturedIssues": "Captured “⁨{title}⁩”, but not everything was understood.",
@@ -56,7 +57,10 @@
     "cadenceBiweekly": "Every two weeks",
     "cadenceMonthly": "Monthly",
     "cadenceQuarterly": "Quarterly",
-    "cadenceCustom": { "one": "Every day", "other": "Every {count} days" },
+    "cadenceCustom": {
+      "one": "Every day",
+      "other": "Every {count} days"
+    },
     "preview": "Preview",
     "previewEmpty": "Start typing to see what gets created.",
     "willCreate": "Creates one item in ⁨{track}⁩.",
@@ -75,7 +79,10 @@
     "problemCount": "{count} to check",
     "pickTrack": "Which track?",
     "pickTrackHint": "Pick one, or keep typing to narrow it down.",
-    "parsedAnnounce": { "one": "{count} token read", "other": "{count} tokens read" },
+    "parsedAnnounce": {
+      "one": "{count} token read",
+      "other": "{count} tokens read"
+    },
     "errEmpty": "Type something first.",
     "errTrackUnknown": "No track matches “⁨{value}⁩”.",
     "errTrackAmbiguous": "“⁨{value}⁩” matches more than one track.",

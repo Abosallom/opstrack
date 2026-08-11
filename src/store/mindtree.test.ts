@@ -34,7 +34,7 @@ function fakeStorage(seed: Record<string, string> = {}): Storage {
   }
 }
 
-const KEY = 'opstrack_mindtree_v1'
+const KEY = 'nphiescore_mindtree_v1'
 
 function install(seed: Record<string, string> = {}): Storage {
   const store = fakeStorage(seed)

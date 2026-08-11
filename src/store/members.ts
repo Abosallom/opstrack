@@ -21,7 +21,7 @@ import { listMembers, type Member } from '../api/members'
 import { t } from '../lib/i18n'
 import { hasSession } from './auth'
 
-const CACHE_KEY = 'opstrack_members_v1'
+const CACHE_KEY = 'nphiescore_members_v1'
 
 /** How long a load stays fresh enough to skip the focus refetch. */
 const STALE_AFTER_MS = 60_000

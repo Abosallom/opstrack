@@ -97,7 +97,7 @@ vi.mock('../api/tracks', () => ({
   },
 }))
 
-const CACHE_KEY = 'opstrack_entries_v1'
+const CACHE_KEY = 'nphiescore_entries_v1'
 
 type EntriesModule = typeof import('./entries')
 let store: EntriesModule

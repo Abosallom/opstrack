@@ -1073,6 +1073,41 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       },
     ],
   },
+  // The privacy policy. Almost all of it is BODY PROSE, which is why the home
+  // section is `messages` rather than a screen section: an admin renaming
+  // "Blocked" is not looking for a paragraph about data retention, and these 68
+  // keys would bury the words they came for. The handful that ARE chrome — the
+  // headings, the way back, the stamp — are lifted out by the rules below.
+  //
+  // WORTH KNOWING BEFORE EDITING ANY OF IT: this is the one screen whose words
+  // Apple reads. An override that makes the policy inaccurate is not a wording
+  // preference, it is a false statement in a document a reviewer was given.
+  privacy: {
+    section: 'messages',
+    where: 'terminology.where.privacy',
+    rules: [
+      { prefixes: ['title', 'standfirst', 'updated'], section: 'screenTitles' },
+      { prefixes: ['backToSignIn'], section: 'navigation' },
+      // The section headings, as distinct from the paragraphs beneath them.
+      {
+        prefixes: [
+          'aiTitle',
+          'askTitle',
+          'changesTitle',
+          'deleteTitle',
+          'keepTitle',
+          'notTitle',
+          'pushTitle',
+          'scopeTitle',
+          'storedTitle',
+          'whereTitle',
+          'whoPrivateTitle',
+          'whoTitle',
+        ],
+        section: 'screenTitles',
+      },
+    ],
+  },
   push: {
     section: 'entryFields',
     where: 'terminology.where.settingsPush',
