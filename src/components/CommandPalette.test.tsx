@@ -119,6 +119,13 @@ vi.mock('../store/vocab', () => ({
 
 const { getLocale, setLocale, t } = await import('../lib/i18n')
 const { trackLabel } = await import('../lib/labels')
+// The two pure modules the palette now builds a map link out of. `viewFromParams`
+// is the function that will actually read that link back off the address bar and
+// `buildMindtree` is the thing that decides what a track's node is called, so
+// both are asserted against rather than described.
+const { EMPTY_FILTER } = await import('../lib/entryFilter')
+const { viewFromParams } = await import('../lib/mindtree/focus')
+const { buildMindtree } = await import('../lib/mindtree/model')
 const {
   ADMIN_SCREENS,
   LENSES,
@@ -127,11 +134,13 @@ const {
   actionCandidates,
   default: CommandPalette,
   entryCandidates,
+  mapHref,
   nextThemeAfter,
   rankPalette,
   screenCandidates,
   shouldRestoreFocus,
   trackCandidates,
+  trackFocusId,
 } = await import('./CommandPalette')
 
 /* ─────────────────────────────── fixtures ──────────────────────────────── */
@@ -202,12 +211,21 @@ const asHtml = (s: string): string =>
 // Eager + ?raw: App.tsx as text. It is the integrator's file and exports no
 // route table, so parsing the source is the only way to derive the expectation
 // from the thing that is actually true at runtime.
-const SOURCES: Record<string, string> = import.meta.glob('../App.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-})
+//
+// useMapUrl.ts is read the same way and for a narrower reason: its `P_LENS` is
+// module-private, and importing that file would pull store/mindtree and two
+// react-router hooks into a suite with no DOM. CommandPalette's `LENS_PARAM` is
+// therefore a copy, and this is where the copy is checked against the original.
+const SOURCES: Record<string, string> = import.meta.glob(
+  ['../App.tsx', '../pages/map/useMapUrl.ts'],
+  {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  },
+)
 const APP_SOURCE = SOURCES['../App.tsx'] ?? ''
+const MAP_URL_SOURCE = SOURCES['../pages/map/useMapUrl.ts'] ?? ''
 
 interface ParsedRoute {
   path: string
@@ -279,6 +297,29 @@ function screenRoutes(routes: readonly ParsedRoute[]): ParsedRoute[] {
   return rendering.filter((r) => !r.components.some((c) => detail.has(c)))
 }
 
+/**
+ * Does App.tsx route this destination?
+ *
+ * PATTERN-AWARE rather than set membership, because a row is allowed to point at
+ * a parameterised route: `/entry/:id` routes `/entry/abc`, and a `Set.has()`
+ * would call a working link dangling. The query string is dropped first — a lens
+ * row is `/mindtree?lens=numbers`, and what has to be routed is the path.
+ *
+ * THE CATCH-ALL IS EXCLUDED, and that exclusion is the entire point of the case
+ * below. `path="*"` matches everything, so a check that honoured it would agree
+ * that every possible destination is fine — which is precisely the swallow that
+ * hid a palette row pointing at a deleted route for a whole release.
+ */
+function routedBy(routes: readonly ParsedRoute[], target: string): boolean {
+  const want = (target.split('?')[0] ?? '').split('/')
+  return routes.some((route) => {
+    if (route.path === '*') return false
+    const pattern = route.path.split('/')
+    if (pattern.length !== want.length) return false
+    return pattern.every((seg, i) => seg.startsWith(':') || seg === want[i])
+  })
+}
+
 describe('the palette registry against App.tsx', () => {
   it('parsed a route table worth asserting against', () => {
     // Guards every assertion below from going vacuous if the parse breaks or
@@ -304,6 +345,62 @@ describe('the palette registry against App.tsx', () => {
     const routed = new Set(ROUTES.map((r) => r.path))
     const dangling = [...SCREENS, ...ADMIN_SCREENS].map((s) => s.to).filter((to) => !routed.has(to))
     expect(dangling).toEqual([])
+  })
+
+  it('never NAVIGATES anywhere App.tsx does not route, whatever built the row', () => {
+    // THE DIRECTION THAT WAS MISSING, AND THE BUG IT LET SHIP.
+    //
+    // The case above walks a TABLE. The track rows never appear in one: their
+    // destination is assembled from a uuid at call time, so `/tracks/<id>`
+    // survived the collapse deleting `/tracks/:id` with nothing anywhere going
+    // red. And it did not even look broken — App.tsx has no 404, so the
+    // catch-all redirected the reader to `/mindtree` and a track name typed into
+    // the palette landed on the map they were already looking at.
+    //
+    // So this case does not read a table. It RUNS every builder that takes a
+    // `navigate` and checks where the reader is actually sent, with `path="*"`
+    // excluded from the routes — see `routedBy`. Any future row that points at a
+    // route nobody defined fails here, whether it was written down or built.
+    expect(ROUTES.some((r) => r.path === '*')).toBe(true)
+    const seen: string[] = []
+    const record = (to: string): void => {
+      seen.push(to)
+    }
+    for (const row of screenCandidates('admin', record)) row.item.run([])
+    for (const row of trackCandidates([NETWORK], label, record)) row.item.run([])
+    // Guards the filter below from passing because nothing navigated at all.
+    expect(seen).toHaveLength(SCREENS.length + LENSES.length + ADMIN_SCREENS.length + 1)
+    expect(seen.filter((to) => !routedBy(ROUTES, to))).toEqual([])
+  })
+
+  it('would catch the dead row: the catch-all is not allowed to answer', () => {
+    // The negative control for the case above. `/tracks/t-net` is the exact
+    // destination that shipped; App.tsx routes it only through `path="*"`, so a
+    // `routedBy` that honoured the catch-all would return true here and the
+    // guarantee above would be worth nothing. Both halves are asserted so the
+    // exclusion cannot be "tidied" away.
+    expect(routedBy(ROUTES, '/tracks/t-net')).toBe(false)
+    expect(routedBy(ROUTES, '/mindtree?lens=shape&focus=root%2Ftrack%3At-net')).toBe(true)
+    // Parameterised routes must still count — a row pointing at `/entry/<id>`
+    // is reaching a route that exists, and a set-membership check would call it
+    // dangling.
+    expect(routedBy(ROUTES, '/entry/abc')).toBe(true)
+  })
+
+  it('spells the lens param the way pages/map/useMapUrl.ts reads it', () => {
+    // CommandPalette's `LENS_PARAM` is a COPY of that file's private `P_LENS`.
+    // The copy is deliberate (importing useMapUrl would drag store/mindtree and
+    // two router hooks into a suite with no DOM), so it is derived from the
+    // original here rather than typed twice and hoped about: rename the param on
+    // one side and every lens row and every track row becomes a link the map
+    // reads as "no opinion".
+    const param = /const P_LENS = '([^']+)'/.exec(MAP_URL_SOURCE)?.[1]
+    expect(param).toBe('lens')
+    for (const lens of LENSES) expect(lens.to).toContain(`?${param ?? ''}=`)
+    expect(mapHref('shape', 'root/track:x')).toContain(`?${param ?? ''}=shape`)
+    // `?stage=` is never written: every lens implies its stage and
+    // `mapParamsForLens` omits the param whenever the two agree.
+    for (const lens of LENSES) expect(lens.to).not.toContain('stage=')
   })
 
   it('puts a screen in the admin table if and only if App.tsx gates it', () => {
@@ -399,11 +496,55 @@ describe('screenCandidates', () => {
 })
 
 describe('trackCandidates', () => {
-  it('opens the track timeline, not a filtered list', () => {
+  it("opens that track's branch on the map, under the shape lens", () => {
     const seen: string[] = []
     const rows = trackCandidates([NETWORK], label, (to) => seen.push(to))
     rows[0]?.item.run([])
-    expect(seen).toEqual(['/tracks/t-net'])
+    expect(seen).toHaveLength(1)
+    const to = seen[0] ?? ''
+    expect(to.startsWith('/mindtree?')).toBe(true)
+    // READ BACK THROUGH THE CODEC THAT WILL ACTUALLY READ IT, not compared to a
+    // string typed twice. `viewFromParams` is what the map calls on whatever is
+    // in the address bar and it DROPS a focus id whose grammar it does not
+    // recognise, so a row that built a plausible-looking id the parser rejects
+    // would sail past a string compare and land the reader on an unfocused map.
+    const params = new URLSearchParams(to.split('?')[1] ?? '')
+    expect(params.get('lens')).toBe('shape')
+    expect(viewFromParams(params).focusId).toBe('root/track:t-net')
+  })
+
+  it('focuses the node lib/mindtree/model.ts actually builds for that track', () => {
+    // THE PIN UNDER `trackFocusId`. model.ts's `nodeId()` is private, so the
+    // palette restates its rule; this builds a real tree and asserts the two
+    // agree. If they ever stop agreeing, `resolveFocus` matches nothing and
+    // falls back to the whole map — a dead link that looks exactly like a
+    // working one, which is the failure mode this whole unit is about.
+    const root = buildMindtree({
+      entries: [],
+      health: new Map(),
+      // An ACTIVE track with no work is still ring 1, which is what lets this
+      // fixture stay this small.
+      tracks: [
+        {
+          id: NETWORK.id,
+          label: 'Network ops',
+          color: '#000000',
+          colorLight: null,
+          sortOrder: 0,
+          archived: false,
+        },
+      ],
+      vocab: [],
+      members: [],
+      dimension: 'status',
+      filter: EMPTY_FILTER,
+      ctx: { meId: null, today: '2026-01-01' },
+      collapsedIds: new Set(),
+      leafThreshold: 5,
+    })
+    const node = root.children.find((child) => child.bucketKey === NETWORK.id)
+    expect(node).toBeDefined()
+    expect(node?.id).toBe(trackFocusId(NETWORK.id))
   })
 
   it('indexes both names whichever language the UI is in', () => {
@@ -557,10 +698,19 @@ describe('rankPalette', () => {
   it('offers every screen on a blank query — the cap must not bite a fixed set', () => {
     // The browser-pass finding recorded on GROUP_CAP: at 8 the blank-query list
     // stopped at Notifications and neither Settings nor Recurring was ever
-    // offered. With two more screens added this wave, a re-introduced cap would
-    // silently hide the ones at the end again.
-    const model = rankPalette('', sources({ screens: screenCandidates('admin', () => {}) }), 0)
-    expect(model.count).toBe(SCREENS.length + ADMIN_SCREENS.length)
+    // offered. It then happened a second time, to the same arithmetic: the sum
+    // counted SCREENS and ADMIN_SCREENS but not the five LENSES that were
+    // inserted between them, so an admin's nineteen rows were cut to fourteen
+    // and the five that fell off the end were the entire admin block.
+    const rows = screenCandidates('admin', () => {})
+    const model = rankPalette('', sources({ screens: rows }), 0)
+    // Counted off the BUILDER rather than off the tables, so a fourth table
+    // added to `screenCandidates` is covered by this case the day it lands.
+    expect(model.count).toBe(rows.length)
+    // The claim behind the number: the rows at the END of the list are the ones
+    // a cap eats, and they are exactly the ones only an admin can see.
+    const ids = model.flat.map((r) => r.id)
+    for (const screen of ADMIN_SCREENS) expect(ids).toContain(`screen:${screen.to}`)
   })
 
   it('collects the entry ids in display order and nothing else', () => {

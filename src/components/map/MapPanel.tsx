@@ -51,6 +51,17 @@
 // grabber cycles on click, and the arrow keys step it. A sheet whose only
 // resize is a gesture is a sheet a keyboard cannot resize.
 //
+// `full` IS NOT FULL SCREEN, and this component is where a reader will look for
+// that. The CSS caps every detent at `100dvh` minus the composer at the block
+// end and minus `--map-shell-chrome-block-size` at the block start, so the sheet
+// stops below the sticky app header with one lens row of live page showing.
+// `peek` and `half` are far under that cap and are untouched by it; only `full`
+// is bound. The panel is NON-MODAL, and a non-modal surface that leaves no live
+// pixel is a modal one with extra steps — it took away every way to change what
+// you were looking at except this component's own three detent buttons.
+// map-panel.css's `max-block-size` rule holds the arithmetic and the rejected
+// alternatives; nothing in this file needs to know the numbers.
+//
 // The drag reads `clientY` and that is not a physical-direction bug: the block
 // axis is vertical under every writing mode this app ships (`horizontal-tb` in
 // both `en` and `ar`), so there is no `clientBlock` to want. RTL never mirrors a

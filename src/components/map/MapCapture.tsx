@@ -1072,9 +1072,17 @@ export default function MapCapture({ initialLine = '' }: MapCaptureProps = {}): 
       {/* EVERYTHING BELOW IS DRAWN ONLY WHILE THERE IS A LINE. At rest this bar
           is one input, one button and one line of hint — the map keeps the
           screen. It grows as the reader types and collapses again on Enter,
-          which is the whole of the "dynamic" this surface needs. */}
+          which is the whole of the "dynamic" this surface needs.
+
+          `role="group"` ON THE STRIP IS WHAT MAKES ITS NAME EXIST. A bare <div>
+          is `role="generic"`, and ARIA forbids an accessible name on generic —
+          every browser drops the `aria-label` on the floor, so this strip has
+          been shipping unnamed. A group is also what it honestly is: a set of
+          related controls (each chip carries a remove button) that is not a
+          landmark and must not trap focus. FilterBar's `.chip-row` and
+          QuickAdd's panel name themselves exactly this way. */}
       {!parsed.isEmpty ? (
-        <div className="mcap-read" aria-label={t('capture.chips')}>
+        <div className="mcap-read" role="group" aria-label={t('capture.chips')}>
           {parsed.title !== '' ? <span className="mcap-read-plain">{parsed.title}</span> : null}
           {parsed.tokens.map((token) => (
             <TokenChip

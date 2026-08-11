@@ -732,6 +732,10 @@ export default function MapBranch({
         </section>
       )}
 
+      {/* `.mbr-work` carries no rule and must not be swept away for that: like
+          `.mbr-history` in MapBranchHistory.tsx (see its header) it is an
+          IDENTITY, the twin that names this band apart from the history band
+          the test slices the document at. An empty rule would be a lie. */}
       <section className="mbr-band mbr-work" aria-label={t('tree.openWork')}>
         <div className="mbr-band-head">
           <h3 className="section-title">{t('tree.openWork')}</h3>
@@ -741,7 +745,7 @@ export default function MapBranch({
         <div className="mbr-tools">
           <button
             type="button"
-            className="chip mbr-unassigned tap-44"
+            className="chip tap-44"
             aria-pressed={unassignedOnly}
             onClick={toggleUnassigned}
           >

@@ -97,3 +97,14 @@
   text-transform: uppercase;
   color: var(--text-dim);
 }
+
+/* A SCRIPT exemption, not a direction rule — the mirroring above is still
+   byte-identical in LTR and RTL. Arabic has no case, so `uppercase` is a no-op
+   there, but the tracking is not: Arabic letters JOIN, and 0.02em prises those
+   joins apart into something that reads as broken type. The heading this panel
+   inherited from the deleted /notifications page carried exactly this pair of
+   resets; it must not be lost with the page. */
+[lang='ar'] .mchg-group-head {
+  letter-spacing: 0;
+  text-transform: none;
+}

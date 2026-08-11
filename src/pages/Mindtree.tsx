@@ -36,6 +36,9 @@
 // is the one thing none of them can state for itself:
 //
 //   useMapViewport   is the screen small, and how big is the canvas
+//   useMapUrlFilter  the FACETS, read straight off the address bar — FIRST,
+//                    because the tree is built from them. It holds no effect,
+//                    so it reorders none of the eleven below it
 //   useMapModel      every store read, the one buildMindtree, the counts, the
 //                    labels, the three summary sentences
 //   useMapFocus      the drill-in, its reconciler, and the two collapse writes
@@ -56,7 +59,9 @@
 //                    resolved drill-in (useMapFocus) and the pulses need the
 //                    stage it derives
 //   useMapUrl        ?focus=, ?dim=, ?lens= and ?stage=, called late so its two
-//                    effects keep the position they had in the undivided file
+//                    effects keep the position they had in the undivided file.
+//                    The pair with useMapUrlFilter above is what makes the whole
+//                    view — facets, drill-in, lens and stage — one link
 //
 // THE THREE READINGS, each a module this file mounts:
 //
@@ -118,7 +123,7 @@ import { useMapKeyboard } from './map/useMapKeyboard'
 import { useMapModel } from './map/useMapModel'
 import { useMapOverlays } from './map/useMapOverlays'
 import { useMapToolbarActions } from './map/useMapToolbar'
-import { useMapUrl } from './map/useMapUrl'
+import { useMapUrl, useMapUrlFilter } from './map/useMapUrl'
 import { useIsCompact } from './map/useMapViewport'
 import { useMapWrites } from './map/useMapWrites'
 import './mindtree.css'
@@ -186,7 +191,23 @@ export default function Mindtree(): ReactElement {
     setLiveState((prev) => ({ text, seq: prev.seq + 1 }))
   }, [])
 
-  const model = useMapModel(compact, locale)
+  /**
+   * THE FILTER, AND IT IS THE ADDRESS BAR'S — not this component's.
+   *
+   * Called FIRST, before `useMapModel`, because the tree is built FROM it. It
+   * holds no effect (see its header), so calling it here reorders none of the
+   * eleven hooks below.
+   *
+   * The map is the screen App.tsx lands admins on, and it was the only filtering
+   * screen in the app whose filter did not survive a reload or a paste. That was
+   * a regression rather than an omission: /followups put its filter in the URL
+   * deliberately, and the collapse dropped it on the floor when this screen
+   * absorbed that one. `useMapUrlFilter` was written for this and called by
+   * nobody.
+   */
+  const { filter, setFilter } = useMapUrlFilter()
+
+  const model = useMapModel(compact, locale, filter)
 
   const focus = useMapFocus({
     tree: model.tree,
@@ -298,7 +319,7 @@ export default function Mindtree(): ReactElement {
     tree: model.tree,
     focusPref: model.focusPref,
     density: model.density,
-    filter: model.filter,
+    filter,
     rtl,
     locale,
     svgRef,
@@ -334,7 +355,7 @@ export default function Mindtree(): ReactElement {
    * "needs me 12" is the sentence that stops a reader opening the list to find
    * out there is nothing in it.
    */
-  const attentionCount = useAttentionCount(model.filter)
+  const attentionCount = useAttentionCount(filter)
   const changesCount = useChangesCount()
 
   /**
@@ -380,7 +401,7 @@ export default function Mindtree(): ReactElement {
    * `noTracks` branch above, which is what the second half was reaching for.
    */
   const nothing = model.tree.count === 0
-  const filtered = !isFilterEmpty(model.filter)
+  const filtered = !isFilterEmpty(filter)
 
   /**
    * Destructured for the JSX below, and not merely for brevity: TypeScript
@@ -394,13 +415,20 @@ export default function Mindtree(): ReactElement {
    * A number on the numbers stage, and the list that acts on it — ONE
    * interaction, and a URL you can paste. The tile was a real `<Link>` on the
    * dashboard; this is what keeps its cost.
+   *
+   * TWO WRITES, ONE URL, AND THE ORDER IS LOAD BEARING. `setLens` writes the
+   * store synchronously and `setFilter` reads the store back — through
+   * `getMindtreeState()`, not off this render — so the single `?…` this pair
+   * produces carries the NEW lens beside the new facets. Written the other way
+   * round, or read off the render, the address bar would carry the lens the
+   * reader just left and the inbound effect would hand it straight back.
    */
   const onJump = useCallback(
     (next: MapLens, patch: Partial<FilterState>) => {
       lens.setLens(next)
-      model.setFilter({ ...model.filter, ...patch })
+      setFilter({ ...filter, ...patch })
     },
-    [lens, model],
+    [lens, filter, setFilter],
   )
 
   /**
@@ -427,7 +455,7 @@ export default function Mindtree(): ReactElement {
           title: t('mindtree.panelNeedsMe'),
           body: (
             <MapList
-              filter={model.filter}
+              filter={filter}
               scope={focus.drawnRoot}
               textOf={model.textOf}
               onFocus={focus.focusBranch}
@@ -438,7 +466,7 @@ export default function Mindtree(): ReactElement {
               // it can never hold a second, private copy of `mine` that would
               // disagree with the FilterBar above it the first time either was
               // touched alone. The shell owns the filter; the panel writes to it.
-              onFilter={model.setFilter}
+              onFilter={setFilter}
             />
           ),
         }
@@ -449,7 +477,7 @@ export default function Mindtree(): ReactElement {
             <MapBranch
               node={focus.drawnRoot}
               path={focus.focusView.trail}
-              filter={model.filter}
+              filter={filter}
               dimension={model.dimension}
               textOf={model.textOf}
               onFocus={focus.focusBranch}
@@ -466,7 +494,7 @@ export default function Mindtree(): ReactElement {
       case 'numbers':
         return {
           title: t('mindtree.panelNumbers'),
-          body: <NumbersPanel filter={model.filter} compact={compact} onJump={onJump} />,
+          body: <NumbersPanel filter={filter} compact={compact} onJump={onJump} />,
         }
     }
   })()
@@ -487,8 +515,8 @@ export default function Mindtree(): ReactElement {
       </header>
 
       <FilterBar
-        value={model.filter}
-        onChange={model.setFilter}
+        value={filter}
+        onChange={setFilter}
         facets={lens.lens === 'numbers' ? NUMBERS_FACETS : FACETS}
         tags={model.tags}
         count={model.tree.count}
@@ -578,9 +606,9 @@ export default function Mindtree(): ReactElement {
       <div className="mpan-split">
         <div className="mpan-stage">
           {lens.stage === 'board' ? (
-            <BoardStage filter={model.filter} compact={compact} rtl={rtl} announce={setLive} />
+            <BoardStage filter={filter} compact={compact} rtl={rtl} announce={setLive} />
           ) : lens.stage === 'numbers' ? (
-            <NumbersStage filter={model.filter} compact={compact} rtl={rtl} announce={setLive} />
+            <NumbersStage filter={filter} compact={compact} rtl={rtl} announce={setLive} />
           ) : showSkeleton ? (
             <div className="mtree-canvas">
               <Skeleton height={320} />
@@ -605,7 +633,7 @@ export default function Mindtree(): ReactElement {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => model.setFilter({ ...EMPTY_FILTER })}
+                  onClick={() => setFilter({ ...EMPTY_FILTER })}
                 >
                   {t('mindtree.clearFilters')}
                 </button>
@@ -620,7 +648,7 @@ export default function Mindtree(): ReactElement {
               entryById={model.entryById}
               today={model.ctx.today}
               onFilterCell={(row: MindtreeTableRow) =>
-                model.setFilter(filterForCell(model.filter, model.dimension, row))
+                setFilter(filterForCell(filter, model.dimension, row))
               }
             />
           ) : (

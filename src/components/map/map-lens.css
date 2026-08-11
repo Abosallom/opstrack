@@ -69,8 +69,17 @@
   overscroll-behavior-inline: contain;
   scroll-snap-type: inline mandatory;
   scroll-padding-inline: 8px;
-  /* Room for the focus ring, which an `overflow` container clips. */
-  padding-block: 4px;
+  /* 8px, NOT 4px, AND THE DIFFERENCE IS THE PHONE'S TAP TARGET.
+     `overflow-x: auto` makes this a scroll container, which CLIPS its children
+     at its PADDING edge — and clipped area is not hit-tested. `.tap-44`'s
+     overlay reaches 7px past the chip's padding box, which on a 1px-bordered
+     chip is 6px past its border box, so 4px of padding here cut 2px off each
+     end of every chip's target: 4 + 32 + 4 = 40px of the 44 the chip carries.
+     (At the 30px the chip was before, the same clipping measured 38px.)
+     8px clears both the 6px overlay and the 4px focus ring (a 2px outline at a
+     2px offset), and is on the 4px grid. global.css's `.chip-row` pads 7px for
+     exactly this reason and states it. */
+  padding-block: 8px;
 }
 
 .mlens[data-compact] .mlens-chip {
@@ -78,11 +87,16 @@
   scroll-snap-align: start;
 }
 
+/* 32px, NOT 30 — the same number `.btn-sm` and `.chip` carry in global.css, and
+   for the same measured reason. `.tap-44`'s overlay is positioned against the
+   PADDING box, so a 1px border eats 2px of it: 30px of border box is a 28px
+   padding box and 28 + 14 = 42, two short. 32 - 2 = 30 and 30 + 14 = 44 exactly.
+   The chip still LOOKS 32px; only the invisible overlay grows. */
 .mlens-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-block-size: 30px;
+  min-block-size: 32px;
   padding-inline: 12px;
   font-size: 13px;
   color: var(--text-dim);
@@ -119,11 +133,14 @@
   flex: 0 0 auto;
 }
 
+/* 32px for the reason `.mlens-chip` above states in full: this box also carries
+   a 1px border (transparent until it is pressed, but a border is a border to the
+   box model), so 30px would have made it a 42px target too. */
 .mlens-stage {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-block-size: 30px;
+  min-block-size: 32px;
   padding-inline: 10px;
   font-size: 12.5px;
   color: var(--text-dim);
@@ -140,8 +157,21 @@
   font-weight: 700;
 }
 
-/* 30px + `.tap-44`'s ±7px pseudo-element = 44px of hit area on every one of
-   these, at every width. Nothing here is compacted for a fine pointer: the row
-   is already the cheapest thing on the screen to hit, and the unconditional
-   version of that compaction shipped the smallest targets to the smallest
-   screens once already. */
+/* THE 44px CLAIM, WITH THE ARITHMETIC THAT MAKES IT TRUE.
+   This footer used to read "30px + `.tap-44`'s ±7px = 44" and it was wrong by
+   two pixels in one place and by six in another, because it counted the border
+   box where the overlay counts the padding box:
+
+     box    border   padding box   overlay (±7)   clipped by the scroller
+     32px    1px       30px          44px          no (8px pad ≥ 6px)   ← now
+     30px    1px       28px          42px          no                   ← was
+     30px    1px       28px          42px          YES → 38px           ← was,
+                                                     in the compact chip row
+
+   Every control in this file is now 32px of border box, 30px of padding box and
+   44px of hit area, at every width, and the one `overflow` container has the
+   8px of block padding that keeps the overlay out of the clip.
+
+   Nothing here is compacted for a fine pointer: the row is already the cheapest
+   thing on the screen to hit, and the unconditional version of that compaction
+   shipped the smallest targets to the smallest screens once already. */

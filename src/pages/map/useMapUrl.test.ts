@@ -16,6 +16,12 @@
 //           against an empty store, which `drive()` below establishes by
 //           replaying the hook's two effects in the order and with the STALENESS
 //           React gives them.
+//           Since the filter was wired to the address bar it also proves the
+//           three things that came with it: one write carries every param, a
+//           link that spells out no stage does not take the reader's ledger
+//           away, and an ARRIVING lens opens its panel exactly once — `drive()`
+//           models the `arrived` ref and lets a reader act mid-run, which is the
+//           only way to tell an inbound link from this session's own mirror.
 //   NOT     that React schedules those effects the way `drive()` models. That is
 //           React's contract, not this repo's: effects of one component run in
 //           declaration order after commit, and each closes over the values of
@@ -35,7 +41,7 @@ import type { FilterState } from '../../lib/entryFilter'
 import type { MindtreeUrlView } from '../../lib/mindtree/focus'
 import { stageWithTable, type MapLens, type MapStage } from '../../lib/mindtree/lens'
 import type { MindDimension } from '../../lib/mindtree/model'
-import type { MapUrlLens } from './useMapUrl'
+import type { MapLensClaim } from './useMapUrl'
 
 vi.hoisted(() => {
   // store/mindtree reads localStorage at module scope (its store is created
@@ -62,12 +68,16 @@ vi.hoisted(() => {
 const { EMPTY_FILTER } = await import('../../lib/entryFilter')
 const {
   mapFilterFromParams,
+  mapFilterKey,
   mapLensFromParams,
   mapLensMirror,
+  mapLensOpensPanel,
   mapMirrorParams,
   mapParamsFor,
+  mapParamsForAll,
   mapParamsForLens,
   mapUrlInbound,
+  mapUrlStage,
 } = await import('./useMapUrl')
 
 /* ─────────────────────────────── fixtures ────────────────────────────────── */
@@ -185,6 +195,74 @@ describe('mapParamsFor', () => {
   })
 })
 
+describe('mapFilterKey', () => {
+  // The key is what `useMapUrlFilter` memoises the FilterState on, and the memo
+  // is what stops `buildMindtree` — the most expensive thing on this screen —
+  // re-running on a write that touched no facet. Every param the two effects
+  // write is such a write, and they write on every drill-in and every chip.
+  it('IGNORES EVERY PARAM THAT IS NOT A FACET', () => {
+    const a = mapFilterKey(params(`q=vpn&focus=${BRANCH}&dim=owner&lens=needs-me`))
+    const b = mapFilterKey(params(`q=vpn&focus=${TRACK}&dim=status&lens=numbers&stage=numbers`))
+    expect(a).toBe(b)
+  })
+
+  it('is the same for two URLs that mean the same filter', () => {
+    // A hostile or inherited param means nothing, and `?scope=` is normalised
+    // away — so neither may mint a second FilterState object.
+    expect(mapFilterKey(params('q=vpn&scope=closed'))).toBe(mapFilterKey(params('q=vpn')))
+    expect(mapFilterKey(params('status=toString'))).toBe(mapFilterKey(params('')))
+  })
+
+  it('changes the moment a facet does', () => {
+    expect(mapFilterKey(params('q=vpn'))).not.toBe(mapFilterKey(params('q=vp')))
+    expect(mapFilterKey(params(''))).not.toBe(mapFilterKey(params('mine=1')))
+  })
+
+  it('is a lossless round trip, which is what the second parse rests on', () => {
+    // useMapUrlFilter parses the params, encodes the key, and parses THAT. The
+    // filter a reader sees is therefore the key's reading, and it has to be the
+    // same reading.
+    const rich = params('track=t1,t2&status=blocked&tag=vpn&tag=q3&owner=me&mine=1&q=firewall&sort=due')
+    expect(mapFilterFromParams(new URLSearchParams(mapFilterKey(rich)))).toEqual(
+      mapFilterFromParams(rich),
+    )
+  })
+})
+
+describe('mapParamsForAll', () => {
+  it('KEEPS THE LENS WHEN THE FILTER CHANGES', () => {
+    // The regression the composition exists to prevent, and it is worse than a
+    // wrong link: `filterToParams` builds a FRESH params object, so a keystroke
+    // that wrote the facets alone would strip `?lens=` — and the inbound effect
+    // would then read the lens-less URL it had just written.
+    const out = mapParamsForAll(
+      filter({ search: 'vpn' }),
+      { focusId: BRANCH, dimension: 'owner' },
+      { lens: 'numbers', stage: 'numbers' },
+    )
+    expect(out.get('q')).toBe('vpn')
+    expect(out.get('focus')).toBe(BRANCH)
+    expect(out.get('dim')).toBe('owner')
+    expect(out.get('lens')).toBe('numbers')
+  })
+
+  it('spells out the ledger, and drops a stage the lens implies', () => {
+    expect(
+      mapParamsForAll(filter(), NO_VIEW, { lens: 'shape', stage: 'table' }).get('stage'),
+    ).toBe('table')
+    expect(
+      mapParamsForAll(filter(), NO_VIEW, { lens: 'shape', stage: 'map' }).has('stage'),
+    ).toBe(false)
+  })
+
+  it('still drops an inherited scope', () => {
+    const read = mapFilterFromParams(params('scope=closed&q=vpn'))
+    const out = mapParamsForAll(read, NO_VIEW, { lens: 'needs-me', stage: 'map' })
+    expect(out.has('scope')).toBe(false)
+    expect(out.get('lens')).toBe('needs-me')
+  })
+})
+
 /* ──────────────────────────── the two decisions ──────────────────────────── */
 
 describe('mapUrlInbound', () => {
@@ -298,6 +376,55 @@ describe('mapLensFromParams', () => {
   })
 })
 
+describe('mapUrlStage', () => {
+  // The narrower question, and the only one `setMindView` may be asked. A stage
+  // RESOLVED from a lens is an inference; obeying it turned the ledger back into
+  // the map for every reader who followed a bare `?lens=` link.
+  it('IS NULL WHEN THE LINK SPELLED OUT NO STAGE', () => {
+    expect(mapUrlStage(params('lens=needs-me'))).toBeNull()
+    expect(mapUrlStage(params('lens=shape'))).toBeNull()
+    expect(mapUrlStage(params('lens=by-status'))).toBeNull()
+    // …even though `mapLensFromParams` resolves one for each of them, because
+    // the pair is written as a pair and a chip has to light.
+    expect(mapLensFromParams(params('lens=needs-me'))?.stage).toBe('map')
+  })
+
+  it('is null when there is no lens to normalise the stage against', () => {
+    expect(mapUrlStage(params('stage=table'))).toBeNull()
+    expect(mapUrlStage(params('lens=nonsense&stage=table'))).toBeNull()
+  })
+
+  it('is null for a stage this lens cannot show', () => {
+    // Hand-edited, or inherited from a link written under another lens.
+    expect(mapUrlStage(params('lens=shape&stage=numbers'))).toBeNull()
+    expect(mapUrlStage(params('lens=by-status&stage=table'))).toBeNull()
+  })
+
+  it('carries a stage the link really did spell out', () => {
+    expect(mapUrlStage(params('lens=shape&stage=table'))).toBe('table')
+    expect(mapUrlStage(params('lens=needs-me&stage=map'))).toBe('map')
+    expect(mapUrlStage(params('lens=by-status&stage=board'))).toBe('board')
+  })
+})
+
+describe('mapLensOpensPanel', () => {
+  it('is true for the three lenses whose panel is the point of them', () => {
+    expect(mapLensOpensPanel('needs-me', null)).toBe(true)
+    expect(mapLensOpensPanel('what-changed', null)).toBe(true)
+    expect(mapLensOpensPanel('numbers', null)).toBe(true)
+  })
+
+  it('is false where there would be no panel to show', () => {
+    // The board has no panel at all, and `shape` has one only once something is
+    // focused — forcing `panelOpen` for either would flip a persisted preference
+    // to describe a dock the shell does not render.
+    expect(mapLensOpensPanel('by-status', null)).toBe(false)
+    expect(mapLensOpensPanel('by-status', BRANCH)).toBe(false)
+    expect(mapLensOpensPanel('shape', null)).toBe(false)
+    expect(mapLensOpensPanel('shape', BRANCH)).toBe(true)
+  })
+})
+
 describe('mapParamsForLens', () => {
   it('writes the lens beside whatever else the link carries', () => {
     const out = mapParamsForLens(params(`q=vpn&focus=${BRANCH}`), {
@@ -368,6 +495,21 @@ describe('mapLensMirror', () => {
       mapLensMirror(params('q=vpn'), { lens: 'what-changed', stage: 'map' }, claim)?.get('lens'),
     ).toBe('what-changed')
   })
+
+  it('DOES NOT HOLD THE MIRROR SHUT OVER A STAGE THE LINK NEVER CLAIMED', () => {
+    // `?lens=needs-me` says nothing about the stage, so the reader keeps the
+    // ledger they were on — and the URL has to say so in the SAME pass, or the
+    // address bar describes a map while a table is on the screen. `absorbed()`'s
+    // rule (compare only what was claimed), for the other pair.
+    const claim = { lens: 'needs-me', stage: null } as const
+    const next = mapLensMirror(params('lens=needs-me'), { lens: 'needs-me', stage: 'table' }, claim)
+    expect(next?.get('stage')).toBe('table')
+  })
+
+  it('still holds it shut over a lens the store has not absorbed', () => {
+    const claim = { lens: 'needs-me', stage: null } as const
+    expect(mapLensMirror(params('lens=needs-me'), { lens: 'shape', stage: 'map' }, claim)).toBeNull()
+  })
 })
 
 /* ────────────────────── the cold load, which is the point ─────────────────── */
@@ -384,6 +526,12 @@ interface Store {
   lens?: MapLens
   /** The reader's map⇄table preference — the other half of the derived stage. */
   table?: boolean
+  /**
+   * The dock. ABSENT means "this case predates the panel rule and does not
+   * assert it"; `drive()` still records what the rule WOULD have done, so a case
+   * that opts in reads the same field.
+   */
+  panelOpen?: boolean
 }
 
 interface Run {
@@ -418,18 +566,34 @@ interface Run {
  * id straight into the store, which quietly made the settles-differently case
  * untestable — the store always agreed, so the one scenario the claim exists to
  * survive never actually occurred.
+ *
+ * `acts` models THE READER, once the screen is quiet: each one is applied when
+ * the pair has settled, may edit the store (closing the dock) and may put new
+ * params in the address bar (a keystroke in the search box, which now writes the
+ * URL). It exists because a second `drive()` cannot express this — a second
+ * drive re-arms the inbound effect, and that is a REMOUNT rather than a reader
+ * doing something on a screen that is already up. Half of the panel rule is
+ * about exactly that difference.
  */
 function drive(
   start: URLSearchParams,
   store: Store,
-  opts: { claims?: boolean; limit?: number; settle?: (id: string) => string } = {},
+  opts: {
+    claims?: boolean
+    limit?: number
+    settle?: (id: string) => string
+    acts?: readonly ((store: Store) => URLSearchParams | null)[]
+  } = {},
 ): Run {
   const claims = opts.claims ?? true
   const limit = opts.limit ?? 24
   const settle = opts.settle ?? ((id: string): string => id)
+  const acts = [...(opts.acts ?? [])]
   let current = start
   let claim: MindtreeUrlView | null = null
-  let lensClaim: MapUrlLens | null = null
+  let lensClaim: MapLensClaim | null = null
+  /** The hook's `arrived` ref: has the inbound effect run at all yet? */
+  let arrived = false
   let ranInboundOn: URLSearchParams | null = null
   let ranOutboundOn: { params: URLSearchParams; store: Store } | null = null
   const urls = [current.toString()]
@@ -444,6 +608,7 @@ function drive(
       dimension: store.dimension,
       lens: store.lens,
       table: store.table,
+      panelOpen: store.panelOpen,
     }
 
     const inboundDue = ranInboundOn !== current
@@ -455,19 +620,44 @@ function drive(
       ranOutboundOn.store.lens !== rendered.lens ||
       ranOutboundOn.store.table !== rendered.table
 
-    if (!inboundDue && !outboundDue) return { urls, store, params: current, settled: true }
+    if (!inboundDue && !outboundDue) {
+      // Quiet. If the reader has something left to do, they do it here — and
+      // the loop carries on with whatever they left behind.
+      const act = acts.shift()
+      if (act === undefined) return { urls, store, params: current, settled: true }
+      const next = act(store)
+      if (next !== null && next.toString() !== current.toString()) {
+        current = next
+        urls.push(current.toString())
+      }
+      continue
+    }
 
     if (inboundDue) {
       ranInboundOn = current
+      const url = mapUrlInbound(current)
       // The lens half runs FIRST in the hook, and it runs even when the view
       // half has nothing to say — the two are independent opinions.
       const wanted = store.lens === undefined ? null : mapLensFromParams(current)
       if (wanted !== null) {
         store.lens = wanted.lens
-        if (wanted.stage === 'table' || wanted.stage === 'map') store.table = wanted.stage === 'table'
-        lensClaim = wanted
+        // THE STAGE ONLY MOVES WHEN THE LINK SPELLED ONE OUT — `mapUrlStage`,
+        // not `wanted.stage`, which is an inference.
+        const spelled = mapUrlStage(current)
+        if (spelled === 'table' || spelled === 'map') store.table = spelled === 'table'
+        // THE PANEL OPENS FOR AN ARRIVING LENS, and `rendered.lens` is the
+        // staleness that makes "arriving" mean anything: it is the lens as of
+        // the render that scheduled this pass, so the session's own mirror
+        // coming back around is not an arrival.
+        if (
+          (!arrived || wanted.lens !== rendered.lens) &&
+          mapLensOpensPanel(wanted.lens, url?.focusId ?? rendered.focusId)
+        ) {
+          store.panelOpen = true
+        }
+        lensClaim = { lens: wanted.lens, stage: spelled }
       }
-      const url = mapUrlInbound(current)
+      arrived = true
       if (url !== null) {
         if (url.dimension !== null) store.dimension = url.dimension
         if (url.focusId !== null) store.focusId = settle(url.focusId)
@@ -629,6 +819,198 @@ describe('a pasted deep link, on a cold load', () => {
     expect(run.store.lens).toBe('shape')
     expect(run.params.get('lens')).toBe('shape')
     expect(run.params.has('stage')).toBe(false)
+  })
+
+  it('A BARE ?lens= DOES NOT TAKE THE LEDGER AWAY', () => {
+    // The reader is on the table — the accessible, drag-free, low-motion reading
+    // of the same tree — and follows an attention link. The link says nothing
+    // about how the tree is drawn, so it does not get to decide: `?lens=` sets
+    // the lens and the ledger survives. It used to be silently overwritten,
+    // because `mapLensFromParams` RESOLVES `stage: 'map'` for a lens that
+    // spelled out nothing.
+    const run = drive(params('lens=needs-me'), {
+      focusId: null,
+      dimension: 'status',
+      lens: 'shape',
+      table: true,
+    })
+    expect(run.settled).toBe(true)
+    expect(run.store.lens).toBe('needs-me')
+    expect(run.store.table).toBe(true)
+    // …and the URL then SAYS the stage it did not arrive with, because the
+    // address bar has to describe what is on the screen.
+    expect(run.params.get('lens')).toBe('needs-me')
+    expect(run.params.get('stage')).toBe('table')
+  })
+
+  it('a link that DOES spell out a stage still moves the reader to it', () => {
+    // The other half of the same rule: an inference is refused, an instruction
+    // is obeyed.
+    const run = drive(params('lens=needs-me&stage=map'), {
+      focusId: null,
+      dimension: 'status',
+      lens: 'shape',
+      table: true,
+    })
+    expect(run.settled).toBe(true)
+    expect(run.store.table).toBe(false)
+    expect(run.params.has('stage')).toBe(false)
+  })
+
+  it('AN ARRIVING LENS OPENS ITS PANEL', () => {
+    // "See all" on the bell, the Settings › Notifications row, and all five
+    // palette rows are this URL. They used to set the lens and leave the dock
+    // shut, so the link named a destination that never appeared.
+    const run = drive(params('lens=what-changed'), {
+      focusId: null,
+      dimension: 'status',
+      lens: 'shape',
+      panelOpen: false,
+    })
+    expect(run.settled).toBe(true)
+    expect(run.store.lens).toBe('what-changed')
+    expect(run.store.panelOpen).toBe(true)
+  })
+
+  it('opens it even when the recipient was already on that lens', () => {
+    // The commonest case of all — the reader lives on `needs-me`, closed the
+    // dock to look at the picture, and now follows a link to the list. A rule
+    // that only opened on a CHANGE of lens would do nothing here.
+    const run = drive(params('lens=needs-me'), {
+      focusId: null,
+      dimension: 'status',
+      lens: 'needs-me',
+      panelOpen: false,
+    })
+    expect(run.store.panelOpen).toBe(true)
+  })
+
+  it('DOES NOT OPEN A DOCK THE READER CLOSED, ON A LATER RENDER', () => {
+    // The hazard the whole `arrived` ref exists for, and it is not theoretical:
+    // the filter is in the URL now, so EVERY KEYSTROKE rewrites the params with
+    // the same `?lens=` still on them. Re-reading that as an arrival would
+    // re-open the dock on every letter typed.
+    const run = drive(
+      params('lens=needs-me'),
+      { focusId: null, dimension: 'status', lens: 'needs-me', panelOpen: false },
+      {
+        acts: [
+          (s) => {
+            // The reader closes the dock, then types into the search box —
+            // which is a URL write now.
+            s.panelOpen = false
+            return params('lens=needs-me&q=vpn')
+          },
+        ],
+      },
+    )
+    expect(run.settled).toBe(true)
+    expect(run.store.panelOpen).toBe(false)
+    expect(mapFilterFromParams(run.params).search).toBe('vpn')
+  })
+
+  it('does not open a dock for a URL THIS SESSION seeded', () => {
+    // Arriving from the nav bar with no `?lens=` at all: the mirror writes the
+    // persisted lens into the address bar on the first paint, and that write
+    // must not read back as somebody asking for the list.
+    const run = drive(params(''), {
+      focusId: null,
+      dimension: 'status',
+      lens: 'needs-me',
+      panelOpen: false,
+    })
+    expect(run.settled).toBe(true)
+    expect(run.params.get('lens')).toBe('needs-me')
+    expect(run.store.panelOpen).toBe(false)
+  })
+
+  it('does not open a dock for a lens that has no panel', () => {
+    // The board has none, and `shape` has none until something is focused.
+    expect(
+      drive(params('lens=by-status'), {
+        focusId: null,
+        dimension: 'status',
+        lens: 'needs-me',
+        panelOpen: false,
+      }).store.panelOpen,
+    ).toBe(false)
+    expect(
+      drive(params('lens=shape'), {
+        focusId: null,
+        dimension: 'status',
+        lens: 'needs-me',
+        panelOpen: false,
+      }).store.panelOpen,
+    ).toBe(false)
+    // …but `?lens=shape&focus=` arrives with a branch to show.
+    expect(
+      drive(params(`lens=shape&focus=${BRANCH}`), {
+        focusId: null,
+        dimension: 'status',
+        lens: 'needs-me',
+        panelOpen: false,
+      }).store.panelOpen,
+    ).toBe(true)
+  })
+
+  /** `useMapUrlFilter`'s writer, as a reader action: the whole view, one write. */
+  const types = (search: string) => (s: Store): URLSearchParams =>
+    mapParamsForAll(
+      filter({ search }),
+      { focusId: s.focusId, dimension: s.dimension },
+      {
+        lens: s.lens ?? 'shape',
+        stage: stageWithTable(s.lens ?? 'shape', s.table === true),
+      },
+    )
+
+  it('A FILTER KEYSTROKE LEAVES THE WHOLE VIEW ON THE LINK, IN THE SAME WRITE', () => {
+    // Not "the mirror puts it back a pass later" — `run.urls[1]` is the address
+    // bar the instant the reader stops typing, and a copy taken then has to be
+    // the view they are looking at. `filterToParams` builds a FRESH params
+    // object, so the composition is the only thing standing between this and a
+    // link with the facets and nothing else.
+    const run = drive(
+      params(`lens=shape&stage=table&focus=${TRACK}&dim=owner`),
+      { focusId: null, dimension: 'status', lens: 'needs-me', table: false, panelOpen: false },
+      { acts: [types('vpn')] },
+    )
+    expect(run.settled).toBe(true)
+    const typed = new URLSearchParams(run.urls[1])
+    expect(typed.get('q')).toBe('vpn')
+    expect(typed.get('lens')).toBe('shape')
+    expect(typed.get('stage')).toBe('table')
+    expect(typed.get('focus')).toBe(TRACK)
+    expect(typed.get('dim')).toBe('owner')
+    // …and nothing the pair does afterwards changes any of it.
+    expect(run.params.toString()).toBe(typed.toString())
+    expect(run.store.lens).toBe('shape')
+    expect(run.store.table).toBe(true)
+    expect(run.store.focusId).toBe(TRACK)
+  })
+
+  it('A JUMP FROM A NUMBER TO THE LIST SURVIVES ITS OWN URL WRITE', () => {
+    // `onJump` is two writes in one event — `setLens` into the store, then
+    // `setFilter` into the URL — and it is the reason the filter writer reads
+    // the store through `getMindtreeState()` instead of off the render. Read off
+    // the render, the URL would carry the lens the reader JUST LEFT, and the
+    // inbound effect would read it back and undo the jump: the "1 interaction"
+    // the contract prices this at would land where it started.
+    const run = drive(
+      params('lens=numbers'),
+      { focusId: null, dimension: 'status', lens: 'numbers', panelOpen: false },
+      {
+        acts: [
+          (s) => {
+            s.lens = 'needs-me'
+            return types('')(s)
+          },
+        ],
+      },
+    )
+    expect(run.settled).toBe(true)
+    expect(run.store.lens).toBe('needs-me')
+    expect(run.params.get('lens')).toBe('needs-me')
   })
 
   it('a claim the store settles differently costs one pass and no more', () => {

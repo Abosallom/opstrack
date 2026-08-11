@@ -21,10 +21,10 @@
 // inheritance and the truncation notice is the store's own flag. It picks no
 // colour: every hue arrives as the `--track-c-*` pair the model stapled on.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import type { MindNodeView } from '../../components/mindtree/MindNode'
 import { isolate } from '../../lib/bidi'
-import { EMPTY_FILTER, type FilterState } from '../../lib/entryFilter'
+import type { FilterState } from '../../lib/entryFilter'
 import { t } from '../../lib/i18n'
 import { useTrackLabel } from '../../lib/labels'
 import {
@@ -138,7 +138,7 @@ const OPEN_DEPTH = 1
  */
 export type MapModel = ReturnType<typeof useMapModel>
 
-export function useMapModel(compact: boolean, locale: string) {
+export function useMapModel(compact: boolean, locale: string, filter: FilterState) {
   /* ── the persisted half, from the store ───────────────────────────────── */
 
   const dimension = useMindDimension()
@@ -148,9 +148,13 @@ export function useMapModel(compact: boolean, locale: string) {
   const collapsedPref = useMindCollapsedIds()
   const expandedIds = useMindExpandedIds()
 
-  /* ── the session half, which is this screen's alone ───────────────────── */
-
-  const [filter, setFilter] = useState<FilterState>(EMPTY_FILTER)
+  /* ── the session half, which is the ADDRESS BAR's ─────────────────────── */
+  //
+  // THE FILTER IS A PARAMETER, NOT STATE. It is read from the URL by
+  // `useMapUrlFilter`, which the shell calls before this hook for exactly this
+  // reason: a `useState` copy here is a second writer of one value, and while
+  // it held one the map was the only filtering screen in the app whose filter
+  // did not survive a reload or a paste.
 
   const entries = useEntryList()
   const health = useHealthMap()
@@ -510,8 +514,6 @@ export function useMapModel(compact: boolean, locale: string) {
     selection,
     selectionCount,
     dragging,
-    filter,
-    setFilter,
     tree,
     stats,
     views,

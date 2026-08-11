@@ -5,6 +5,15 @@
 // every one of these needs something the chrome cannot see: the whole tree (the
 // two id walks), the persisted focus (the dimension trim), or the LIVE <svg>
 // element (the export serialises it, it does not re-render it).
+//
+// THE MAP⇄TABLE SWITCH IS NOT HERE ANY MORE and must not come back. The collapse
+// moved it onto MapLensBar's stage group, so `useMapLens.setStage` is now the
+// single writer of `view` from the chrome — and it announces the swap on the
+// page's polite region exactly as the toolbar's `chooseView` used to, which is
+// why deleting that function cost a screen reader nothing. MapToolbar still
+// READS `view` (it hides the shape controls the table has no use for) and has no
+// `onView` beside it; a second writer here would let the chip bar and the canvas
+// disagree about what the screen is.
 
 import { useCallback, useMemo, useState } from 'react'
 import type { RefObject } from 'react'
@@ -33,8 +42,6 @@ import {
   setMindDensity,
   setMindDimension,
   setMindFocus,
-  setMindView,
-  type MindtreeView,
 } from '../../store/mindtree'
 
 export interface MapToolbarActionsOptions {
@@ -131,21 +138,6 @@ export function useMapToolbarActions({
     [focusPref, setLive],
   )
 
-  const chooseView = useCallback(
-    (next: MindtreeView) => {
-      setMindView(next)
-      // The whole content region is swapped — a role="tree" for a <table> — and
-      // every other state change on this screen announces. The toggle's own label
-      // flips while it holds focus, which screen readers do not reliably re-read.
-      setLive(
-        t('mindtree.viewChanged', {
-          label: next === 'table' ? t('mindtree.tableLabel') : t('mindtree.title'),
-        }),
-      )
-    },
-    [setLive],
-  )
-
   const chooseDensity = useCallback(() => {
     const next = density === 'compact' ? 'comfortable' : 'compact'
     setMindDensity(next)
@@ -238,7 +230,6 @@ export function useMapToolbarActions({
     expandAll,
     collapseAll,
     chooseDimension,
-    chooseView,
     chooseDensity,
     exporting,
     runExport,

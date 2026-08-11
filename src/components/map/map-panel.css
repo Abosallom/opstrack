@@ -156,16 +156,46 @@
   border-block-end: none;
   box-shadow: var(--shadow);
   transition: block-size 180ms ease;
-  /* THE CAP THE DETENTS CANNOT SEE. Each detent below is a fraction of the
-     VIEWPORT, but this sheet is inset from the block end by the composer's
-     measured height — so `full` at 92dvh on a 812px phone whose composer has
-     grown a chip strip and a problems panel (99px measured) puts the sheet's
-     block-start 34px ABOVE the viewport and takes its own rounded corner, its
-     grabber and part of its heading off the top of the screen with it. Observed
-     in a browser at 375×812, not reasoned about. Capping here rather than
-     changing 92dvh keeps the detents readable as what they are and makes the
-     bound exact at every composer height. */
-  max-block-size: calc(100dvh - var(--map-composer-block-size, 0px));
+  /* THE CAP THE DETENTS CANNOT SEE, and it now subtracts at BOTH ends.
+     Each detent below is a fraction of the VIEWPORT; this sheet is inset from
+     the block end by the composer's measured height and must stop short of the
+     shell's own chrome at the block start.
+
+     BLOCK END — the composer. `full` at 92dvh on an 812px phone whose composer
+     has grown a chip strip and a problems panel (99px measured) puts the
+     sheet's block-start 34px ABOVE the viewport and takes its own rounded
+     corner, its grabber and part of its heading off the top of the screen with
+     it. Observed in a browser at 375×812, not reasoned about.
+
+     BLOCK START — the app header and a live strip of the page under it. This
+     surface is `position: fixed` at z-index 70 and the sticky app header is 60,
+     so before this term `full` painted straight over the header and over every
+     control below it: the five lens chips, the stage switch and the two mode
+     entrances. A non-modal sheet that leaves no live pixel is a modal sheet
+     with extra steps — opening the attention list took away every way to change
+     what you were looking at except the sheet's own three detent buttons.
+     `--map-shell-chrome-block-size` is published by `pages/mindtree.css` (the
+     sheet's own host, the same route `--map-composer-block-size` travels) and
+     is the header's measured height plus one 48px lens row of page.
+
+     THE TWO WAYS OUT OF THIS, AND WHY THIS ONE. Capping is chosen; carrying the
+     lens chips into the sheet at `full` is the alternative and is worse three
+     ways. It needs the chips passed into this component by `pages/Mindtree.tsx`,
+     so the fix stops being local to the sheet. It puts a SECOND `MapLensBar` in
+     the DOM — two `role="group"`s with one accessible name and two pressed
+     states for one fact, which is a defect for a screen reader even when it
+     looks right. And it fixes only the chips: the header, the mode entrances
+     and the stage switch stay covered, so the sheet still owns the whole screen.
+     LOWERING z-index BELOW 60 is the third option and is the one the original
+     comment already refused: the header would then paint over the sheet's
+     block-start and slice its corner, grabber and heading off — the same defect
+     as the uncapped composer, arrived at from the other side.
+
+     `0px` fallbacks, not `0`: `calc()` needs the unit, and a missing variable
+     then costs nothing rather than breaking the whole declaration. */
+  max-block-size: calc(
+    100dvh - var(--map-composer-block-size, 0px) - var(--map-shell-chrome-block-size, 0px)
+  );
 }
 
 /* dvh, not vh: on iOS Safari `vh` is the tallest viewport, so a `full` sheet
@@ -181,6 +211,13 @@
   block-size: 55dvh;
 }
 
+/* `full` ASKS FOR 92dvh AND THE CAP ABOVE IS WHAT IT ACTUALLY GETS, which is
+   deliberate and is why the number is left at 92: it says what this detent
+   MEANS — as much of the screen as the reader can have — and one place
+   (`max-block-size`) says what the screen can spare. Worked at 375×812 with the
+   composer at its 64px floor and a 65px header: 100dvh 812 − 64 composer − 129
+   chrome = 619px used, ≈76dvh. `peek` (203px) and `half` (447px) are far under
+   the cap and are unchanged by it. */
 .mpan[data-sheet][data-detent='full'] {
   block-size: 88vh;
   block-size: 92dvh;
@@ -192,6 +229,10 @@
 
 /* ---------- the grabber ---------- */
 
+/* 30px HERE AND 32px ON `.mpan-detent`, which is not an inconsistency: this
+   button has `border: none`, so its border box IS its padding box and
+   `.tap-44`'s ±7px lands on 30 + 14 = 44 with nothing to subtract. Give this one
+   a border and it becomes a 42px target; that is the whole difference. */
 .mpan-grab {
   flex: 0 0 100%;
   display: flex;
@@ -229,14 +270,23 @@
   flex: 0 0 auto;
 }
 
-/* 30px + `.tap-44`'s ±7px pseudo-element = a 44px hit area, which is the
+/* 32px + `.tap-44`'s ±7px pseudo-element = a 44px hit area, which is the
    pattern global.css established rather than a min-block-size of 44 that would
-   make a row of three chips taller than the panel's own header. */
+   make a row of three chips taller than the panel's own header.
+
+   32 AND NOT 30, which is what this rule said first and what the audit measured
+   at 42px. `.tap-44::after` is absolutely positioned, so it is laid out against
+   this box's PADDING box, and this box carries a 1px border (transparent until
+   pressed — the box model does not care). 30px of border box is a 28px padding
+   box and 28 + 14 = 42. 32 - 2 = 30 and 30 + 14 = 44 exactly, which is why
+   `.btn-sm` and `.chip` are 32px in global.css and why its own comment spells
+   the same arithmetic out. The chip's visual height is unchanged in any way a
+   reader can see; only the invisible overlay grew. */
 .mpan-detent {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-block-size: 30px;
+  min-block-size: 32px;
   padding-inline: 10px;
   font-size: 12.5px;
   color: var(--text-dim);
@@ -253,7 +303,17 @@
   font-weight: 700;
 }
 
-/* NOTHING HERE IS COMPACTED BELOW 44px, at any width. The three detent chips and
-   the grabber exist only in the phone presentation, so a `@media (hover: hover)`
-   compaction would apply to nothing — and the unconditional version of that rule
-   shipped the smallest targets to the smallest screens once already. */
+/* NOTHING HERE IS COMPACTED BELOW 44px, at any width — and the claim is now
+   arithmetic rather than assertion:
+
+     control        border box   border   padding box   + `.tap-44` ±7px
+     .mpan-detent      32px       1px        30px           44px
+     .mpan-grab        30px       none       30px           44px
+     .mpan-close       32px       1px        30px           44px  (`.btn-sm`)
+
+   The three detent chips and the grabber exist only in the phone presentation,
+   so a `@media (hover: hover)` compaction would apply to nothing — and the
+   unconditional version of that rule shipped the smallest targets to the
+   smallest screens once already. Neither row is an `overflow` container, so
+   nothing clips these overlays; `.mpan-head`'s 16px row-gap is what keeps two
+   wrapped lines of them from eating each other. */

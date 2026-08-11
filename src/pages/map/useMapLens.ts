@@ -30,7 +30,7 @@
 // region (MapSummary's, keyed on a counter so the same sentence twice is still
 // two announcements).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { t } from '../../lib/i18n'
 import {
   DETENT_KEY,
@@ -104,13 +104,22 @@ export function useMapLens(options: {
    *
    * Guarded on the kind rather than the object because `subject` is a fresh
    * object every time the focused node changes.
+   *
+   * DURING THE RENDER, NOT IN AN EFFECT, and a link is what made the difference
+   * visible. `?lens=what-changed` now opens the dock (useMapUrl's inbound
+   * effect), and the lens it sets arrives as a STORE write — so the render that
+   * first paints the open sheet is not one this hook's setters were called from.
+   * In an effect the height lands one paint later, and a phone reader following
+   * "See all" watches the sheet open at `peek` and then jump to `full`. React
+   * re-runs the component immediately on a render-phase adjustment and discards
+   * this pass, so the sheet's FIRST paint is at the right height. The ref is
+   * written before the setter, so the adjusted pass sees no change and stops.
    */
   const kindRef = useRef<PanelSubject['kind']>(subject.kind)
-  useEffect(() => {
-    if (kindRef.current === subject.kind) return
+  if (kindRef.current !== subject.kind) {
     kindRef.current = subject.kind
     setDetentState(phoneDetentFor(subject))
-  }, [subject])
+  }
 
   const setLens = useCallback(
     (next: MapLens) => {
@@ -122,9 +131,10 @@ export function useMapLens(options: {
        * put the day's most common act behind a disclosure.
        */
       setMindPanelOpen(true)
-      // Set here as well as in the effect above so the sheet opens at the right
-      // height in the SAME frame as the tap — an effect one paint later is a
-      // visible jump on the phone this rule exists for.
+      // Set here as well as in the adjustment above, and it is not redundant:
+      // this one runs inside the TAP, so the sheet opens at the right height
+      // even for a chip whose subject kind does not change (branch → branch on
+      // another node), where the adjustment has nothing to react to.
       setDetentState(phoneDetentFor(subjectForLens(next, focusNodeId)))
       announce(t('mindtree.lensChanged', { label: t(LENS_KEY[next]) }))
     },

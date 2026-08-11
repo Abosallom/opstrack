@@ -180,6 +180,45 @@
      and must overwrite this variable when the bar grows a chip strip or a
      problems panel, or the sheet will sit on top of both. */
   --map-composer-block-size: calc(64px + env(safe-area-inset-bottom, 0px));
+
+  /* HOW MUCH OF THE SCREEN'S BLOCK START THE PHONE SHEET MAY NOT HAVE, published
+     the same way and travelling the same route. `components/map/map-panel.css`
+     subtracts this from `.mpan[data-sheet]`'s `max-block-size`, so a sheet at
+     the `full` detent stops below it instead of painting over it. Its header
+     argues the choice; this is the number.
+
+       var(--app-header-block-size)  the sticky app header, which is fixed to the
+                                     screen at z-index 60 and holds the way into
+                                     Settings, the account and the theme. A TOKEN
+                                     and not a copy — `app-shell.css` computes it
+                                     as max(56px, 44 + pad + pad + 1) and it grows
+                                     on a notched phone, so this grows with it.
+                                     65px on a 375×812 phone with no cutout.
+                    +           8px  clearance, so the sheet's rounded corner and
+                                     its shadow do not sit on the header's border
+                    +          48px  ONE LENS ROW of live page: an 8px scroller
+                                     pad, a 32px chip, an 8px pad (map-lens.css).
+                                     The row is what the reader is reaching for,
+                                     so the strip is sized to hold it whole,
+                                     44px target and all.
+                    +           8px  clearance under it
+       = the header + 64px
+
+     WHAT THIS BUYS AND WHAT IT DOES NOT. It guarantees the header is never
+     covered and that a live, scrollable, tappable window onto the page survives
+     at every detent. It does NOT put the lens chips in that window on its own:
+     `.mtree-shellbar` is the THIRD block in this page's flow — the title and the
+     FilterBar come first — so the chips are only in the strip at the scroll
+     positions where they are. Pinning the shellbar under the header would fix
+     that and was rejected: `.offline-region` is already sticky at exactly this
+     offset at z-index 65, so a sticky shellbar is a shellbar that hides behind
+     the offline banner, and it would cost ~110px of every phone map screen when
+     no sheet is open at all.
+
+     A FLOOR, like the composer's, not a measurement — and the failure is soft
+     at both ends: too small and the sheet's corner overlaps the strip, never the
+     header; too large and `full` is shorter than it could be. */
+  --map-shell-chrome-block-size: calc(var(--app-header-block-size, 65px) + 64px);
 }
 
 /* ---------- the shell's own row: lenses, then modes ---------- */
@@ -292,6 +331,9 @@
   display: none;
 }
 
+/* ANCHORED TO THE SUMMARY'S INLINE-END at rail widths, where there is always
+   room for 15rem of menu inside the viewport. Below 768px there is not, and the
+   phone block at the foot of this sheet re-anchors it — see the note there. */
 .mtree-export-menu {
   position: absolute;
   inset-inline-end: 0;
@@ -988,8 +1030,49 @@
     block-size: clamp(18rem, 52vh, 30rem);
   }
 
+  /* THE EXPORT MENU'S CONTAINING BLOCK BECOMES THE TOOLBAR ROW, and that one
+     swap is the whole fix for a menu that hung half off the screen.
+
+     The measurement. `.mtree-export-menu` is 15rem = 240px wide and anchored at
+     `inset-inline-end: 0` of the 4rem-ish `<summary>` that opens it, so it grows
+     240px toward the inline START from wherever that button happens to sit. At
+     375px the toolbar's content box is 375 − 2×18 (`.main-content`'s
+     `padding-inline`) = 339px, and the export button sits roughly 120px along
+     it — the menu therefore started at about −120px and put half of each of its
+     three buttons off the edge of the screen. In Arabic the same arithmetic runs
+     the other way and the same half goes off the other edge, which is why the
+     fix has to be positional and logical rather than a nudge.
+
+     `position: static` on the `<details>` hands the menu up to `.mtree-bar`,
+     which is a flex ITEM of `.mtree`'s column and is stretched to the full
+     inline size by that container's default `align-items: stretch` — so it is
+     exactly the page's content box, inside both gutters by construction. `inset-inline: 0` then makes the menu span that box: it
+     CANNOT overflow either edge at any width, in either direction, because both
+     of its inline edges are pinned to a box that is already on screen.
+     `min-inline-size: 0` is required with it — a min- beats a max- in CSS
+     sizing, so 15rem left standing would win over the pinned edges on a viewport
+     narrower than 240px + gutters.
+
+     THE ONE COST, stated rather than discovered later: `inset-block-start:
+     calc(100% + 6px)` now measures 100% of the TOOLBAR, not of the summary. The
+     export control is the last child of the last group, so on a phone — where
+     the groups each take their own line — that is the same place it already
+     appeared. Between roughly 600px and 767px the two groups can share a line
+     and the group beside this one can be two rows tall, and there the menu hangs
+     up to ~30px lower than the button rather than directly under it. Cosmetic,
+     adjacent, on screen, and the price of a menu that is never half off it. */
   .mtree-bar {
     justify-content: flex-start;
+    position: relative;
+  }
+
+  .mtree-export {
+    position: static;
+  }
+
+  .mtree-export-menu {
+    inset-inline: 0;
+    min-inline-size: 0;
   }
 }
 

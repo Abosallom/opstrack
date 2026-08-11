@@ -1326,7 +1326,7 @@ export default function BoardStage({
 
         <button
           type="button"
-          className="btn btn-sm btn-ghost mbd-refresh"
+          className="btn btn-sm btn-ghost"
           onClick={handleRefresh}
           disabled={refreshing}
           aria-busy={refreshing}

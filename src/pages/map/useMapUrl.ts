@@ -93,11 +93,46 @@
 // and a hand-edited `?stage=board` under `?lens=shape` is normalised rather than
 // obeyed: obeying it draws a board with no chip lit to explain it.
 //
-// A NOTE FOR WHOEVER WIRES `useMapUrlFilter`: it is exported and called by
-// nobody — `useMapModel` still holds the filter in `useState`, so the map's
-// FACETS do not round-trip through the URL today. When that is fixed,
-// `mapParamsFor` must be composed with `mapParamsForLens` at the call site, or
-// the first keystroke strips `?lens=` off the link until the mirror restores it.
+// A LINK THAT SAYS NOTHING ABOUT THE STAGE DOES NOT DECIDE THE STAGE.
+// `mapLensFromParams` RESOLVES a stage for every lens it accepts — it has to,
+// because the pair is written as a pair — but a resolved stage is an INFERENCE,
+// and writing an inference into `view` destroyed the ledger of every reader who
+// followed a bare `?lens=` link. `table` is the accessible, drag-free, low-motion
+// reading mode and it is a PREFERENCE, not a view state. `mapUrlStage` answers
+// the narrower question the store actually needs — what did the link SPELL OUT —
+// and the claim carries `stage: null` for a link that spelled out nothing, so the
+// mirror is held over the lens alone. That is `absorbed()`'s own rule (only the
+// fields the URL claimed are compared) applied to the other pair.
+//
+// ── THE FILTER IS WIRED NOW, AND THREE RULES CAME WITH IT ──────────────────
+//
+// `useMapUrlFilter` was exported and called by nobody, so a filtered map could
+// not be pasted as a link at all — a regression against /followups, which put
+// its filter in the URL deliberately. The shell now calls it, and three things
+// follow that a filter held in `useState` never had to answer:
+//
+//  1. ONE WRITE CARRIES EVERY PARAM. `filterToParams` builds a FRESH params
+//     object, so a filter change written on its own deletes `?lens=`, `?stage=`,
+//     `?focus=` and `?dim=` and the mirror below has to put them back a render
+//     later — a window in which a copied address bar is the wrong view, and, for
+//     the lens, a window in which the INBOUND effect reads the params the
+//     keystroke just wrote and hands the store back the lens it just left.
+//     `mapParamsForAll` composes all three codecs, and the writer reads the
+//     store through `getMindtreeState()` AT THE MOMENT OF THE WRITE rather than
+//     off the render — `onJump` sets the lens and the filter in one event, and a
+//     lens read from the render that scheduled the handler is the lens BEFORE
+//     that tap.
+//
+//  2. ONE OBJECT PER SET OF FACETS. `filter` is memoised on a CANONICAL
+//     ENCODING of the facets, not on `params`: every drill-in, lens or stage
+//     write mints a new `params` object, and a `FilterState` minted with it
+//     would re-run `buildMindtree` — the most expensive thing on this screen —
+//     on a change that touched no facet at all.
+//
+//  3. THE INBOUND EFFECT NOW RUNS ON EVERY KEYSTROKE, because the search box
+//     writes the URL. Everything it does to the store is idempotent
+//     (`updatePrefs` returns the same state when nothing moved), with one
+//     exception that is NOT: opening the panel. See `arrived` below.
 //
 // THE DECISIONS ARE PURE AND EXPORTED, because vitest.config.ts is
 // `environment: 'node'` and effects do not run in a server render — the same
@@ -124,16 +159,17 @@ import {
   isMapStage,
   stageForLens,
   stageWithTable,
+  subjectForLens,
   type MapLens,
   type MapStage,
 } from '../../lib/mindtree/lens'
 import type { MindDimension } from '../../lib/mindtree/model'
 import {
+  getMindtreeState,
   setMindDimension,
   setMindLens,
+  setMindPanelOpen,
   setMindView,
-  useMindDimension,
-  useMindFocus,
   useMindLens,
   useMindView,
 } from '../../store/mindtree'
@@ -174,6 +210,26 @@ export function mapFilterFromParams(p: URLSearchParams): FilterState {
 }
 
 /**
+ * THE FACETS OF THIS URL, AND NOTHING ELSE — a canonical string, so that "did
+ * the filter change?" is a question about the FILTER rather than about the
+ * address bar.
+ *
+ * Every drill-in, lens and stage write mints a new `params` object. Memoising
+ * the `FilterState` on `params` would therefore mint a new filter for each of
+ * them, and `useMapModel`'s `applied` → `buildMindtree` chain is keyed on that
+ * object: drilling into a branch would rebuild the entire tree to produce a
+ * byte-identical one. Keyed on this string instead, the filter object survives
+ * every write that touched no facet.
+ *
+ * It is `filterToParams` of the PARSED filter rather than a slice of the raw
+ * search string, so two URLs that mean the same filter — `?scope=closed&q=vpn`
+ * and `?q=vpn`, `?status=toString` and nothing — produce the same key.
+ */
+export function mapFilterKey(p: URLSearchParams): string {
+  return filterToParams(mapFilterFromParams(p)).toString()
+}
+
+/**
  * The params for a filter the reader just changed, WITH the drill-in still on
  * them.
  *
@@ -191,6 +247,26 @@ export function mapFilterFromParams(p: URLSearchParams): FilterState {
  */
 export function mapParamsFor(filter: FilterState, view: MindtreeUrlView): URLSearchParams {
   return viewToParams(filterToParams(filter), view)
+}
+
+/**
+ * THE WHOLE ADDRESS BAR, FROM THE WHOLE STATE — the three codecs composed in the
+ * one order that lets each own its own names.
+ *
+ * The filter writer is the only caller, and it is the only writer that starts
+ * from a FRESH params object rather than from the live one: `filterToParams`
+ * builds its own, which is what drops an inherited `?scope=`, and what would
+ * otherwise drop `?lens=`, `?stage=`, `?focus=` and `?dim=` with it. A keystroke
+ * that dropped `?lens=` would not merely leave the link wrong for a render — the
+ * inbound effect would read the lens-less params it just wrote and, one pass
+ * later, the mirror would put back the lens the reader had ALREADY left.
+ */
+export function mapParamsForAll(
+  filter: FilterState,
+  view: MindtreeUrlView,
+  lens: MapUrlLens,
+): URLSearchParams {
+  return mapParamsForLens(mapParamsFor(filter, view), lens)
 }
 
 /**
@@ -274,6 +350,47 @@ export function mapLensFromParams(p: URLSearchParams): MapUrlLens | null {
 }
 
 /**
+ * The stage this URL actually SPELLED OUT, or null when it spelled out nothing
+ * this lens can show.
+ *
+ * The narrower half of `mapLensFromParams`, and the whole difference between the
+ * two is what a reader's persisted ledger is worth. That function must resolve a
+ * stage for every lens, because the pair is written as a pair and a chip has to
+ * light; this one refuses to INFER, because the only consumer that follows is
+ * `setMindView`, and a bare `?lens=needs-me` inferring `stage: 'map'` silently
+ * turned the ledger back into the map for a reader who chose it.
+ *
+ * Null for all three "said nothing" cases, which are one case to the store: no
+ * lens, no stage, or a stage this lens cannot show (hand-edited, or inherited
+ * from a link written under another lens — normalised, never obeyed).
+ */
+export function mapUrlStage(p: URLSearchParams): MapStage | null {
+  const rawLens = p.get(P_LENS)
+  if (!isMapLens(rawLens)) return null
+  const rawStage = p.get(P_STAGE)
+  if (!isMapStage(rawStage) || !allowedStages(rawLens).includes(rawStage)) return null
+  return rawStage
+}
+
+/**
+ * Does a lens ARRIVING in the URL have anything to put in the panel?
+ *
+ * `?lens=` set the lens and left the dock shut, so "See all" on the bell, the
+ * Settings › Notifications row and all five palette rows landed on a map with
+ * nothing visibly different about it — the link named a destination and the
+ * destination did not appear. An arriving lens must therefore open its panel.
+ *
+ * Asked through `subjectForLens` rather than by listing the lenses, so the
+ * closed union stays the one place a panel kind is decided: `by-status` has no
+ * panel at all and `shape` has one only when something is focused, and forcing
+ * `panelOpen` for either would flip a persisted preference to describe a dock
+ * this shell does not render.
+ */
+export function mapLensOpensPanel(lens: MapLens, focusId: string | null): boolean {
+  return subjectForLens(lens, focusId).kind !== 'none'
+}
+
+/**
  * Write the lens into an existing params object — `viewToParams`'s shape, so the
  * two compose without either owning the other's names.
  *
@@ -291,17 +408,36 @@ export function mapParamsForLens(p: URLSearchParams, v: MapUrlLens): URLSearchPa
 }
 
 /**
+ * What the inbound effect handed the store about the lens pair, until the mirror
+ * has seen the store catch up.
+ *
+ * `stage: null` IS THE POINT, and it is `absorbed()`'s rule for the other pair:
+ * a claim may hold the mirror shut only over a field the URL actually claimed. A
+ * bare `?lens=needs-me` says nothing about the stage, the store keeps the ledger
+ * it was already showing, and a claim asserting the lens's inferred `map` would
+ * be a claim the store is never going to satisfy.
+ */
+export interface MapLensClaim {
+  lens: MapLens
+  stage: MapStage | null
+}
+
+/**
  * The params for the lens the store currently holds, or null for "leave the URL
- * alone" — `mapMirrorParams`'s two refusals, for the other concern. The claim is
- * compared on BOTH fields because the pair is written as a pair:
- * `mapLensFromParams` resolves a stage for every lens it accepts.
+ * alone" — `mapMirrorParams`'s two refusals, for the other concern.
+ *
+ * The stage is compared only when the claim carries one. When it does not, the
+ * mirror is free to write the stage the reader is ACTUALLY on in the same pass,
+ * which is how `?lens=needs-me` arriving at a ledger ends up spelled out as
+ * `?lens=needs-me&stage=table` rather than quietly disagreeing with the screen.
  */
 export function mapLensMirror(
   current: URLSearchParams,
   live: MapUrlLens,
-  claim: MapUrlLens | null,
+  claim: MapLensClaim | null,
 ): URLSearchParams | null {
-  if (claim !== null && (claim.lens !== live.lens || claim.stage !== live.stage)) return null
+  if (claim !== null && claim.lens !== live.lens) return null
+  if (claim !== null && claim.stage !== null && claim.stage !== live.stage) return null
   const next = mapParamsForLens(current, live)
   return next.toString() === current.toString() ? null : next
 }
@@ -317,28 +453,53 @@ export interface MapUrlFilter {
  * THE FILTER, IN THE URL. No effect, so it is safe to call first — which it
  * must be, since useMapModel takes the filter and builds the tree from it.
  *
- * The view is read from the STORE rather than from the params, and that is the
- * ordering fix in miniature: on the first paint the URL has not been seeded yet,
- * so composing with `viewFromParams(params)` would write a filter change with no
- * `?focus=` on it and leave the link wrong for exactly as long as it takes the
- * mirror below to put it back. A reader who types into the search box and
- * immediately copies the address bar gets the drill-in they are looking at.
+ * The rest of the view is read from the STORE rather than from the params, and
+ * that is the ordering fix in miniature: on the first paint the URL has not been
+ * seeded yet, so composing with `viewFromParams(params)` would write a filter
+ * change with no `?focus=` on it and leave the link wrong for exactly as long as
+ * it takes the mirror below to put it back. A reader who types into the search
+ * box and immediately copies the address bar gets the drill-in they are looking
+ * at.
+ *
+ * READ AT THE MOMENT OF THE WRITE, through `getMindtreeState()` and not through
+ * the four hooks this used to subscribe to. A handler that changes two things at
+ * once is the reason: `onJump` — a number on the numbers stage, and the list
+ * that acts on it — sets the LENS and then the FILTER in one event, and a lens
+ * read off the render that scheduled the handler is the lens BEFORE the tap. The
+ * URL would then carry the old lens, the inbound effect would read it back, and
+ * the one-tap jump the contract costs at "1 interaction" would land on the stage
+ * it started from. The store is already the source of truth here; this reads it
+ * late enough to be true.
  *
  * `replace`, not push: FilterBar's search is not debounced (its header says
  * why), so a history entry per keystroke would make Back unusable.
  */
 export function useMapUrlFilter(): MapUrlFilter {
   const [params, setParams] = useSearchParams()
-  const dimension = useMindDimension()
-  const focusId = useMindFocus()
 
-  const filter = useMemo(() => mapFilterFromParams(params), [params])
+  /**
+   * TWO PARSES, ONE OBJECT PER FILTER. The key is a canonical encoding of the
+   * facets (see `mapFilterKey`), so this memo — and therefore `buildMindtree`
+   * downstream of it — survives every `?focus=`, `?dim=`, `?lens=` and `?stage=`
+   * write the two effects below make. The second parse is over that canonical
+   * string, which `mapParamsFor`'s round-trip test proves is lossless.
+   */
+  const key = useMemo(() => mapFilterKey(params), [params])
+  const filter = useMemo(() => mapFilterFromParams(new URLSearchParams(key)), [key])
 
   const setFilter = useCallback(
     (next: FilterState) => {
-      setParams(mapParamsFor(next, { focusId, dimension }), { replace: true })
+      const live = getMindtreeState()
+      setParams(
+        mapParamsForAll(
+          next,
+          { focusId: live.focus, dimension: live.dimension },
+          { lens: live.lens, stage: stageWithTable(live.lens, live.view === 'table') },
+        ),
+        { replace: true },
+      )
     },
-    [setParams, focusId, dimension],
+    [setParams],
   )
 
   return { filter, setFilter }
@@ -371,19 +532,48 @@ export function useMapUrl(
    * mirror shut for a pass on every lens chip.
    */
   const claim = useRef<MindtreeUrlView | null>(null)
-  const lensClaim = useRef<MapUrlLens | null>(null)
+  const lensClaim = useRef<MapLensClaim | null>(null)
+  /**
+   * Has this effect run at all yet? The one thing the panel rule needs that no
+   * pure function can answer.
+   *
+   * A LENS IN THE ADDRESS BAR IS NOT PROOF THAT SOMEBODY JUST ASKED FOR IT. The
+   * mirror below seeds `?lens=` from the store on the first paint, and every
+   * filter keystroke rewrites the params with the same lens on them — so
+   * "params carry a lens" is true almost all the time, and opening the dock on
+   * it would re-open a panel the reader closed, on the next keystroke, forever.
+   *
+   * The arrival is the FIRST pass (whatever the pasted URL says, said by
+   * somebody else) or a pass where the lens DISAGREES with the store as of the
+   * render that scheduled it (a palette row, "See all", a `?lens=` typed in).
+   * Everything else is this session's own mirror coming back around.
+   */
+  const arrived = useRef(false)
 
   useEffect(() => {
+    const url = mapUrlInbound(params)
     const wanted = mapLensFromParams(params)
     if (wanted !== null) {
       setMindLens(wanted.lens)
       // Only the open tree has two ways to be drawn, so only those two stages
       // say anything about `view`. `board` and `numbers` follow from the lens
-      // and must leave a reader's ledger preference where it was.
-      if (wanted.stage === 'table' || wanted.stage === 'map') setMindView(wanted.stage)
-      lensClaim.current = wanted
+      // and must leave a reader's ledger preference where it was — and so must a
+      // link that SPELLED OUT no stage at all, which is why this asks
+      // `mapUrlStage` rather than reading `wanted.stage`.
+      const spelled = mapUrlStage(params)
+      if (spelled === 'table' || spelled === 'map') setMindView(spelled)
+      // The focus the LINK carries wins over the persisted one for this
+      // question too: `?lens=shape&focus=X` arrives with a branch panel to show,
+      // where `?lens=shape` alone may have nothing.
+      if (
+        (!arrived.current || wanted.lens !== lens) &&
+        mapLensOpensPanel(wanted.lens, url?.focusId ?? focusPref)
+      ) {
+        setMindPanelOpen(true)
+      }
+      lensClaim.current = { lens: wanted.lens, stage: spelled }
     }
-    const url = mapUrlInbound(params)
+    arrived.current = true
     if (url === null) return
     if (url.dimension !== null) setMindDimension(url.dimension)
     // `focusBranch`, not `setMindFocus`: a pasted link to a branch must show

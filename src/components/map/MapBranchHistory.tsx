@@ -7,6 +7,21 @@
 // costs one prop and no shared state. It owns no prefix of its own: every class
 // here is `.mbr-*`, styled by `map-branch.css`, which MapBranch.tsx imports.
 //
+// AND EVERY `.mbr-*` NAME HERE MUST HAVE A RULE IN THAT SHEET. Six did not —
+// they were authored against rules that were never written, so the elements
+// silently took shared-kit defaults and the names read as styling that did not
+// exist. Five are gone: `.chip-row` already lays out both chip rails, Skeleton
+// spaces its own bars inside `.mbr-band`'s 8px column gap, `.entry-title` is the
+// parent link's type, and the closed tally is meant to sit at `.mbr-tag-n`'s dim
+// tone — which is exactly what it does with no class of its own. The sixth,
+// `.mbr-history`, is kept ON PURPOSE and is the one name here that is an
+// IDENTITY rather than a style: MapBranch.test.tsx slices the rendered document
+// at the literal `mbr-band mbr-history` to test this band apart from the work
+// band above it. Adding an empty rule for it would be a lie about what it does.
+// MapCapture.test.tsx's `renders no .mcap- name the sheet was not written
+// against` is the gate that keeps this class of drift out of that component; a
+// band this size deserves the same one.
+//
 // THIS HALF READS THE CHOSEN WINDOW. The band above it (`track.now`) reads the
 // LIVE store and says "as it stands today". Keeping the two apart is the point:
 // merging them produces a header that silently changes meaning the moment
@@ -389,7 +404,7 @@ export default function MapBranchHistory({ trackId }: MapBranchHistoryProps): Re
       ) : (
         <>
           <div className="mbr-range" role="group" aria-label={t('track.range')}>
-            <div className="chip-row mbr-presets">
+            <div className="chip-row">
               {PRESETS.map((n) => (
                 <button
                   key={n}
@@ -441,7 +456,7 @@ export default function MapBranchHistory({ trackId }: MapBranchHistoryProps): Re
               aria-label={t('track.search')}
               onChange={(e) => patchParams({ [P_FIND]: e.target.value })}
             />
-            <div className="chip-row mbr-kinds" role="group" aria-label={t('track.kind')}>
+            <div className="chip-row" role="group" aria-label={t('track.kind')}>
               <button
                 type="button"
                 className="chip tap-44"
@@ -516,7 +531,7 @@ export default function MapBranchHistory({ trackId }: MapBranchHistoryProps): Re
               }
             />
           ) : showSkeleton ? (
-            <div className="mbr-skel" role="status" aria-label={t('common.loading')}>
+            <div role="status" aria-label={t('common.loading')}>
               <Skeleton count={4} height={62} />
             </div>
           ) : shown.length === 0 ? (
@@ -642,7 +657,11 @@ function TagBreakdown({ rows }: { rows: BreakdownRow[] }): ReactElement {
             <span className="mbr-tag-n tabular" aria-hidden="true">
               <span className="mbr-tag-open">{row.open}</span>
               <span className="mbr-tag-sep">{t('track.tagsOpen')}</span>
-              <span className="mbr-tag-closed">{row.closed}</span>
+              {/* No class beside `.mbr-tag-open`'s: the closed tally is meant to
+                  be the quieter of the two, and `.mbr-tag-n`'s `--text-dim` is
+                  already that. A `.mbr-tag-closed` name with no rule behind it
+                  claimed a distinction the sheet never drew. */}
+              <span>{row.closed}</span>
               <span className="mbr-tag-sep">{t('track.tagsClosed')}</span>
             </span>
           </li>
@@ -735,7 +754,7 @@ export function UpdateItem({
           onClick={() => onOpen(entry.id)}
           aria-label={t('track.openItem', { title: entry.title })}
         >
-          <span className="mbr-upd-parent-title entry-title">{entry.title}</span>
+          <span className="entry-title">{entry.title}</span>
         </button>
       ) : (
         // The API guarantees an update's parent is in the same window, so this
