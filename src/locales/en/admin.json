@@ -2,6 +2,14 @@
   "admin": {
     "title": "Administration",
     "errForbidden": "You don't have permission to change this. Only an admin can.",
+    "recovery": {
+      "title": "Someone forgot their password",
+      "username": "A username account can't be sent a reset — its address is on a reserved domain that receives no mail. Press ⁨{action}⁩ on their row instead, hand the code over the way you handed over the first one, and they choose a new password when they redeem it.",
+      "usernameKeepsWorking": "Their old password keeps working until that new code is redeemed. Issuing one is a spare key, not a lock change — if a password has to stop working right now, remove the account and create it again.",
+      "email": "An account that signs in with a real email address never needs you for this. It can have a sign-in code mailed to it from the sign-in screen.",
+      "self": "Your own password works the same way, while you are still signed in: ⁨{action}⁩ on your own row, then redeem the code yourself. Once you are signed out there is no self-service left — RUNBOOK §3.1 is the way back.",
+      "noEmailAdmin": "No admin here can get back in without another admin. Every admin in this workspace signs in with a username, and a username account has no mailbox anything can be sent to — so if the last one forgets their password, nothing inside the app can restore access. Give at least one admin a real email address. The way back from here is the Supabase dashboard: RUNBOOK §3.1."
+    },
     "tracks": {
       "title": "Tracks",
       "subtitle": "Add, rename, recolour and reorder the tracks that work is filed under.",

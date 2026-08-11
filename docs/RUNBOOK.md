@@ -146,9 +146,20 @@ curl -s -X POST "$URL" \
 You get a fresh code with a fresh 14 days, and two side effects that are both
 deliberate:
 
-- **The account is un-claimed.** Until the new code is redeemed, the old password
-  does not work. A reissue is a *reset*, not a spare key — if it left the old
-  password working, "I forgot my password" would have no answer.
+- **The account is un-claimed**, which is what lets `/claim` accept a code for it
+  a second time. Redeeming the new code sets the password the member types there,
+  and that is the reset.
+
+  **Their old password keeps working until they redeem it.** This page said the
+  opposite until 11 August 2026 and the opposite was wrong: `issueCode()` in
+  `supabase/functions/admin-members/index.ts` writes `user_metadata` only — a new
+  invite digest and `claimed: false` — and never touches the password. Nothing in
+  the sign-in path reads `claimed`; `signInPassword()` hands the address and
+  password straight to `signInWithPassword`. Existing sessions are not ended
+  either. So a reissue is a **spare key, not a lock change**: it is the right
+  remedy for "I forgot my password", and the wrong one for "someone else knows my
+  password". For that, delete the account (§1.6) and create it again (§1.2) —
+  their entries survive the delete.
 - **That username's failed-guess counter is cleared**, so the member can use the
   new code immediately. Your remedy is "here is a new code, try again", and it has
   to work the moment you say it. The caller's *address* counter is untouched: a
@@ -316,6 +327,133 @@ saying which of "promoted", "already an admin" or "no profile yet" happened.
 User*, set a password you choose, then run the insert above with the new UUID.
 Adding the user fires a trigger that writes `role = 'member'`, so the
 `on conflict … do update` branch is what actually makes you an admin.
+
+### 3.1 The admin who forgot their password, and there is nobody to ask
+
+**Symptom:** an admin cannot sign in, and their account is a **username**
+account. Not "the admin screens are missing" (that is §3) — they cannot get past
+the sign-in form at all.
+
+**Why this one is different from every other lockout in this document.** The
+`admin-members` function has three guards that keep the admin set from emptying:
+it refuses to demote you (`self_demote`), refuses to demote or delete the last
+remaining admin (`last_admin`), and refuses to touch the bootstrap address
+(`bootstrap_admin`). Read them in `supabase/functions/admin-members/index.ts` —
+they are all on `set-role` and `delete`.
+
+**They guard deletion. They do not guard forgetting.** An account that is still
+there, still an admin, and whose password nobody remembers passes every one of
+those checks. And a username account has no self-service way back: it signs in as
+`<username>@opstrack.internal`, a domain RFC 6761 reserves so that it can never
+resolve, so there is no mailbox for a reset or a sign-in code to arrive at. Its
+only reset is **another admin** pressing **New code** on its row (§1.4). When
+every admin in the workspace is a username account, that other admin is the
+person who is locked out, and the app has no move left.
+
+#### Can this workspace reach that state?
+
+**Not today, and it rests on one hardcoded line.**
+
+```
+const ADMIN_EMAILS = ['az.alsaloom@gmail.com']   // admin-members/index.ts
+```
+
+That is a **floor**, not the gate: the address is an admin whatever
+`profiles.role` says, the function refuses to demote or delete it, and it is a
+real address that Supabase can mail. So there is always at least one admin who
+can recover without help — *as long as that auth user exists with that exact
+address*.
+
+It stops being true if any of these happen, and none of them is something the
+app can do or prevent:
+
+- the user is deleted, or its email changed, from **Authentication › Users** in
+  the dashboard;
+- `ADMIN_EMAILS` is edited to an address that has no account, and the function
+  redeployed (§4);
+- this codebase is deployed to a **second Supabase project** where that account
+  was never created.
+
+After any of those the roster can be all-username, and the next forgotten
+password is terminal inside the app.
+
+**The app tells you when you are in that state.** Settings › Team members shows a
+red note above the roster — *"No admin here can get back in without another
+admin"* — whenever no admin on the list signs in with a real email address. It is
+computed from the same list the rows are drawn from, so it cannot disagree with
+what you are looking at.
+
+#### Break glass
+
+You need the **Supabase dashboard** and nothing else. It needs no app session,
+which is the whole point — it is reachable precisely when the app is not.
+
+1. Open <https://supabase.com/dashboard/project/lrysgpbkmuqgzsjesfkr> and sign in
+   with your Supabase account (that login is separate from the app's, and is not
+   affected by any of this).
+2. **Authentication › Users.** In the search box type the locked-out person's
+   username. The address you are looking for is
+   `<username>@opstrack.internal` — for example `nasser@opstrack.internal`.
+3. Open that row → **Edit user** → set a password. Type it yourself. Do not
+   dictate it into a chat, an email or a note; hand it over by voice, in person
+   or on a call, the same way an invite code is handed over.
+4. Tell them to sign in with **the username** — `nasser`, not the
+   `@opstrack.internal` address — and that password. (The address works too: the
+   sign-in form branches on whether what you typed contains an `@`, and passes a
+   real address through verbatim. The username is what they know.)
+5. **Check the role actually landed.** SQL Editor:
+
+   ```sql
+   select u.email, p.role, u.last_sign_in_at
+     from public.profiles p
+     join auth.users u on u.id = p.id
+    order by p.role, u.email;
+   ```
+
+   If their `role` is not `admin`, run the promote statement from §3 with their
+   address in place of the bootstrap one, then have them **sign out and back
+   in** — the role is read once per sign-in.
+6. Once they are back in, have them replace the password you chose with one only
+   they know. There is no change-password screen in the app, but there is a way,
+   and it is the same button as everything else in this section: on **Settings ›
+   Team members** they press **New code** on **their own row**, then redeem that
+   code at `/claim` with a password they pick. `reissue-code` has no self-check
+   — only `set-role` and `delete` refuse to act on the caller — so an admin with
+   a username account can reset themselves this way whenever they are already
+   signed in. That is worth knowing outside this procedure too: it is the answer
+   to "I want to change my password", which otherwise has none.
+
+Step 3 does not disturb anything else. It writes the password and nothing more:
+`claimed` and the outstanding invite digest live in `user_metadata` and are not
+touched, so a code you had already issued stays valid, and any session they still
+have open stays open. The failed-guess counters are in the `claim_counters` table
+(migration 0010), not in the account, and are likewise unaffected.
+
+#### Stop it happening again
+
+Give the workspace **at least one admin with a real email address**. That account
+can always mail itself a sign-in code, so it is the anchor every other recovery
+hangs off.
+
+The Members screen only creates username accounts, deliberately. To create an
+email one, use the `create` action's other branch — no `username`, an `email` and
+a `displayName` instead:
+
+```bash
+curl -s -X POST "$URL" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"create","email":"someone@example.com","displayName":"Their Name","role":"admin"}'
+```
+
+That account has **no password**: it signs in with a six-digit code (in practice
+a magic link — §8.3) mailed on demand. Two caveats, both real:
+
+- the project's built-in mailer is capped at **two emails per hour,
+  project-wide** (§8.2), so this is an anchor, not a daily door;
+- it must be an address whose mailbox will still exist in a year. A personal
+  address that follows the person out of the organisation is a slower version of
+  the same lockout.
 
 ---
 
@@ -767,12 +905,26 @@ own address correctly, and the address was never the secret.
 They are almost certainly typing a username that doesn't exist, or the wrong
 password — the app deliberately gives the same message for both, so that the form
 cannot be used to discover who has an account. Reissue their invite code (§1.4);
-that is the reset, and there is no other one.
+for a **username** account that is the reset, and there is no other one.
 
-Warn them of the one sharp edge before you send the code: **reissuing un-claims
-the account**, so their old password stops working the moment you do it. If they
-turn out to have remembered it after all, they still have to redeem the new code
-before they can get in.
+If they sign in with a **real email address**, they do not need you: the sign-in
+screen's **"Forgot your password?"** link mails them a recovery link, and the
+`/reset` screen it lands on sets a new password. That door is offered to both
+kinds of account, and `/reset` branches on the `@` — a username typed there is
+told, in so many words, that no mailbox exists and that you are the way back.
+The same mail cap applies (§8.2): recovery mails come out of the same handful
+per hour as sign-in codes.
+
+The sharp edge is the opposite of what this page used to say: **their old
+password is still live.** Reissuing un-claims the account so that `/claim` will
+take a code for it again, and it does not change the password — see §1.4. If they
+remember the old one halfway through, it still signs them in and the new code
+just sits there until it expires. If the reason you are reissuing is that someone
+*else* knows their password, reissuing fixes nothing; delete and re-create the
+account instead.
+
+In the app the same operation is **Settings › Team members → New code** on their
+row, and that screen now says all of this above the roster.
 
 ---
 

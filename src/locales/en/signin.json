@@ -64,6 +64,27 @@
     "errInviteRequired": "Enter the invite code your admin gave you.",
     "errInviteInvalid": "That invite code is wrong or has already been used. Ask your admin to reissue one.",
     "errAlreadyClaimed": "This account has already been claimed. Sign in with your password, or ask your admin to reset it.",
-    "errCredentials": "Wrong username or password."
+    "errCredentials": "Wrong username or password.",
+    "forgotPassword": "Forgot your password?",
+    "linkDead": "That emailed link no longer works — a link can be opened once, and then it expires. Ask for a new one below.",
+    "forgotTitle": "Reset your password",
+    "forgotSub": "Enter the username or email you sign in with. What happens next depends on which one it is.",
+    "sendReset": "Continue",
+    "resetSent": "If ⁨{email}⁩ has an account here, a password-reset link is on its way.",
+    "resetSentHint": "It can be opened once. If it hasn't arrived after a minute, check your spam folder.",
+    "noMailboxHeading": "That account has no inbox",
+    "noMailboxBody": "⁨{username}⁩ signs in with a username, not an email address. Accounts your admin creates have no mailbox behind them, so there is no reset link anyone can send you.",
+    "noMailboxStep1": "Ask your admin to reissue your invite code.",
+    "noMailboxStep2": "They hand you a fresh one-time code, the same way you got the first one.",
+    "noMailboxStep3": "Claim your account again with that code and the password you choose. Your work stays exactly where it is.",
+    "resetTitle": "Choose a new password",
+    "resetSub": "Reveal it and read it before you save — this is the last screen that can check it for you.",
+    "resetSubmit": "Save new password",
+    "resetSubmitting": "Saving…",
+    "resetDone": "Your password has been changed.",
+    "errIdentifierRequired": "Enter the username or email you sign in with.",
+    "errResetSentAlready": "A reset link has already been sent. Only a few emails can go out each hour, so check your inbox and your spam folder before asking for another.",
+    "errResetLinkDead": "That reset link has expired or has already been used. Ask for a new one.",
+    "errSamePassword": "That is the password you already have. Choose a different one."
   }
 }

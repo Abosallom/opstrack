@@ -62,9 +62,9 @@ const fx = vi.hoisted(() => {
     documentElement: { lang: '', dir: '' },
   } as Document
 
-  // Flipped per test rather than re-mocked: the unconfigured notice is a state
-  // of this screen, not a different screen.
-  return { configured: true }
+  // Flipped per test rather than re-mocked: the unconfigured notice and the
+  // recovery landing are STATES of this screen, not different screens.
+  return { configured: true, recovery: null as 'active' | 'expired' | null }
 })
 
 vi.mock('../api/supabase', () => ({
@@ -79,6 +79,11 @@ vi.mock('../store/auth', () => ({
   sendOtp: () => Promise.resolve(null),
   signInPassword: () => Promise.resolve(null),
   verifyOtp: () => Promise.resolve(null),
+  // The one piece of store STATE this screen reads. A recovery link lands on the
+  // app's base URL, so after supabase-js strips its tokens the catch-all route
+  // puts the reader here and this screen forwards them to /reset — see the
+  // recovery block at the foot of this file.
+  useAuth: () => ({ loading: false, session: null, profile: null, recovery: fx.recovery }),
 }))
 
 vi.mock('../store/settings', () => ({
@@ -339,5 +344,95 @@ describe('SignIn — the one-time-code field is focused inside the gesture', () 
     // If this ever becomes a CSS-hidden panel, the flushSync can go — but a
     // hidden input is unfocusable, so the focus move would have to change too.
     expect(SIGNIN_CODE).toContain('{codeOpen ? (')
+  })
+})
+
+/* ═══════════════ the recovery door, and the landing it catches ══════════════ */
+//
+// WHAT WAS MISSING. There was no password reset in this product at all — no
+// resetPasswordForEmail anywhere in src/, no /reset route, and nothing on this
+// screen offering either. The owner is an ADMIN, so a forgotten password had
+// nobody above it to fix it, and two interns were about to be handed accounts
+// with the same property.
+//
+// WHY THE LINK IS OFFERED TO BOTH KINDS OF ACCOUNT. Half the accounts here have
+// no mailbox — a username authenticates against `@opstrack.internal`, which RFC
+// 6761 guarantees can never receive mail — so the branch cannot be made on this
+// screen without either hiding the door from the people most likely to need it
+// or promising them an email that will never arrive. /reset owns the branch and
+// tells each kind the truth; this screen owns only the door.
+//
+// THE FREE-TIER PROMISE IS UNTOUCHED, and deliberately re-run over this markup
+// rather than re-litigated: "keeps the free-tier promise" above renders the same
+// component and still asserts no code offer, because a password-RECOVERY link is
+// not an OTP code. Nothing below weakens it.
+
+describe('SignIn — "Forgot your password?"', () => {
+  it('is on the front door, in both languages, pointing at /reset', () => {
+    const { en, ar } = bilingual()
+    for (const html of [en, ar]) {
+      expect(untranslated(html)).toEqual([])
+      expect(html).toContain('href="/reset"')
+    }
+    expect(en).toContain('Forgot your password?')
+    expect(ar).toContain('نسيت كلمة المرور؟')
+  })
+
+  it('is a real target, not a footnote', () => {
+    // .signin-link is the 44px text-link rule (min-block-size: 44px) and an <a>
+    // with an href is in the tab order and takes global.css's focus ring. The
+    // alternative that was considered — a bare <button> — would have needed a
+    // rule in signin.css, which this unit does not own.
+    const html = render()
+    expect(html).toMatch(/<a[^>]*class="signin-link"[^>]*href="\/reset"/)
+  })
+})
+
+describe('SignIn — a recovery link that has just landed', () => {
+  it('forwards to /reset instead of showing a form the reader cannot use', () => {
+    // Supabase mails the link to this deployment's BASE url (a redirect with a
+    // `#/reset` of its own would arrive as `#/reset#access_token=…`, which
+    // supabase-js parses with URLSearchParams and never finds a token in), so
+    // the tokens are stripped, the hash is empty and the catch-all sends the
+    // reader here. The store withholds the recovery session on purpose — App.tsx
+    // gates its two route trees on `session` — so this screen is what has to
+    // forward. <Navigate> renders nothing at all, which is the assertion.
+    fx.recovery = 'active'
+    try {
+      const html = render()
+      expect(html).not.toContain('signin-form')
+      expect(html).not.toContain('id="signin-password"')
+    } finally {
+      fx.recovery = null
+    }
+  })
+
+  it('says so when the link arrived dead, and keeps the form underneath it', () => {
+    // A reused or timed-out link redirects with `error_code` in the fragment
+    // instead of tokens; HashRouter would throw that fragment away on the first
+    // render, so store/auth.ts reads it at module scope and this is the sentence
+    // it buys. The form stays: the next thing this reader does is ask again.
+    fx.recovery = 'expired'
+    try {
+      const { en, ar } = bilingual()
+      for (const html of [en, ar]) {
+        expect(untranslated(html)).toEqual([])
+        expect(html).toContain('signin-form')
+        expect(html).toContain('href="/reset"')
+      }
+      expect(en).toContain('That emailed link no longer works')
+      expect(ar).toContain('لم يعد الرابط المُرسل إلى بريدك صالحًا')
+    } finally {
+      fx.recovery = null
+    }
+  })
+
+  it('says nothing about links when none was opened', () => {
+    // The ordinary case, and the one that must stay silent: a notice about a
+    // dead link on a screen nobody arrived at from one is noise that reads as
+    // an error the reader has to account for.
+    const { en, ar } = bilingual()
+    expect(en).not.toContain('That emailed link no longer works')
+    expect(ar).not.toContain('لم يعد الرابط المُرسل')
   })
 })

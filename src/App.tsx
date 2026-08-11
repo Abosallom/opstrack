@@ -54,6 +54,13 @@ const SignIn = lazy(() => import('./pages/SignIn'))
 // account. `store/auth.claimAccount()` signs the member in on success, so this
 // route unmounts itself — see the note on the signed-out branch below.
 const Claim = lazy(() => import('./pages/Claim'))
+// Password recovery, and it is signed-OUT on purpose. store/auth.ts withholds
+// the session a recovery link creates (see adopt()), so a reader redeeming one
+// is on this branch holding a credential the UI deliberately refuses to publish
+// until the new password lands. Not mounted on the signed-in side: a signed-in
+// reader has no recovery to redeem, and that branch's catch-all already sends
+// /reset to /mindtree.
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 // THE ONE DESTINATION. Capture, follow-ups, the board, the tracks index, the
 // track timeline, the dashboard and the notification history were seven routes
 // and are now five lenses and a panel on this one — see docs/MAP-CONTRACT.md §1.
@@ -534,6 +541,17 @@ export default function App(): ReactElement {
                   below and this route ceases to exist mid-submit. That is why
                   the screen has no success panel. */}
               <Route path="/claim" element={<Claim />} />
+              {/* Both halves of password recovery: asking for a link, and
+                  setting the password one arrived with. ABOVE the catch-all for
+                  the same reason /privacy is — below `path="*"` it would
+                  redirect to sign-in and every recovery link this workspace ever
+                  emails would be dead on arrival.
+
+                  Required, not optional: SignIn.tsx renders
+                  <Navigate to="/reset" /> for a live recovery, so without this
+                  line the catch-all sends it straight back and the two routes
+                  loop. */}
+              <Route path="/reset" element={<ResetPassword />} />
               {/* The public half of the privacy policy, and the URL App Store
                   Connect is given — a reviewer opens it with no credentials.
                   ABOVE the catch-all deliberately: below `path="*"` it would

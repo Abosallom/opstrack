@@ -264,7 +264,7 @@ every support question is really a question about which kind you are holding.
 | Auth address | that address | `<username>@opstrack.internal` |
 | Ways in | password, or a magic link mailed to you | password only |
 | Got the password how | you set it in the dashboard | chose it themselves, redeeming a one-time invite code |
-| Password reset | set a new one in the dashboard | **the admin reissues a code** |
+| Password reset | **"Forgot your password?" on the sign-in screen** mails a recovery link; the dashboard is the fallback | **the admin reissues a code** — there is no mailbox to send a link to |
 
 `@opstrack.internal` is reserved by RFC 6761 and can never receive mail. That is
 the point: it makes it structurally impossible for any feature to quietly grow a
@@ -306,9 +306,14 @@ credential and the code is dead.
 there is nothing else. It mints a fresh code with a fresh 14 days, clears the
 account's `claimed` flag so the claim screen accepts it again, and resets that
 username's throttle bucket so the member is not made to wait out someone else's
-failed guesses. A **reissued code un-claims the account**: until it is redeemed,
-the old password no longer works. That is deliberate — it is a reset, not a
-second key.
+failed guesses. A **reissued code un-claims the account**, which is what lets the
+claim screen accept a code for it a second time; redeeming it sets the password
+the member types there, and that is the reset. **Their old password keeps working
+until they redeem it.** `issueCode()` writes `user_metadata` only and never
+touches the password, and nothing in the sign-in path reads `claimed` — so a
+reissue is a spare key, not a lock change. It is the right remedy for a forgotten
+password and the wrong one for a leaked password; for that, delete the account
+and create it again.
 
 Codes expire after **14 days** and work **once**.
 

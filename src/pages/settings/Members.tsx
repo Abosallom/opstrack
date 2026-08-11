@@ -103,6 +103,31 @@ async function copyCode(code: string): Promise<void> {
   }
 }
 
+/**
+ * Is there an admin on this roster who can get back in WITHOUT another admin?
+ *
+ * `username === null` is exactly "signs in with a real address": the function
+ * derives `username` from the sign-in address and answers null when it is not on
+ * the synthetic `@opstrack.internal` domain (api/members.ts), so this is the same
+ * distinction the "Signs in by email code" pill draws rather than a second guess
+ * at it. Such an account can always have a sign-in code mailed to it; a username
+ * account provably cannot, because the domain is RFC 6761 reserved.
+ *
+ * `role === 'admin'` ALREADY CARRIES THE BOOTSTRAP FLOOR. The list endpoint
+ * writes 'admin' for a bootstrap address whatever its `profiles` row says, for
+ * the same reason the function's own gate trusts the allow-list — so an owner
+ * whose profile row is missing or wrong still counts here, and the warning
+ * cannot fire on a workspace that is in fact fine. Re-deriving the floor in this
+ * file would be a fourth copy of a list only the server holds.
+ *
+ * Exported for its test, the `toMemberAccount` convention: the claim it encodes
+ * is a security property of the workspace, and it is one `&&` away from being
+ * silently inverted.
+ */
+export function hasEmailRecoverableAdmin(rows: readonly MemberAccount[]): boolean {
+  return rows.some((row) => row.role === 'admin' && row.username === null)
+}
+
 export default function Members(): ReactElement {
   const locale = useLocale()
   const isAdmin = useIsAdmin()
@@ -265,6 +290,13 @@ export default function Members(): ReactElement {
   // another tab re-locks its own controls on the next load instead of offering
   // an action the server will refuse.
   const adminCount = (rows ?? []).filter((row) => row.role === 'admin').length
+  // Computed from the RENDERED list rather than from a separate probe, exactly
+  // like adminCount above: one read, one truth, and a screen left open while the
+  // last email-recoverable admin was removed elsewhere re-answers on its next
+  // load. Guarded on a loaded, non-empty, non-failed list so that "we have not
+  // looked yet" and "the look failed" never render as "you are locked out".
+  const noEmailRecoverableAdmin =
+    rows !== null && errorKey === null && rows.length > 0 && !hasEmailRecoverableAdmin(rows)
   const now = new Date()
 
   return (
@@ -344,6 +376,39 @@ export default function Members(): ReactElement {
               {t('members.inviteDone')}
             </button>
           </div>
+        </div>
+      )}
+
+      {noEmailRecoverableAdmin && (
+        // ── the lockout with no route out ───────────────────────────────────
+        //
+        // Every guard on this screen protects the ADMIN SET from shrinking to
+        // zero: no self-demote, no demoting or deleting the last admin, no
+        // touching the bootstrap owner. None of them protects against
+        // FORGETTING, and that is a different failure with a different shape.
+        //
+        // An admin who signs in with a real address always has a way back
+        // without anyone's help — a sign-in code goes to a mailbox that exists.
+        // An admin who signs in with a USERNAME does not: the account's address
+        // is `@opstrack.internal`, RFC 6761 reserved and unable to receive mail
+        // by construction, so the only reset is another admin pressing "New
+        // code" on their row. When every admin in the workspace is a username
+        // account, that "another admin" is the person who is locked out, and
+        // there is no move left inside the app.
+        //
+        // This does NOT fire today on the live project: the function's
+        // bootstrap floor pins az.alsaloom@gmail.com as an admin whatever the
+        // profiles row says, and that is a real address, so the row is here and
+        // the count is 1. It fires on a workspace where that account was
+        // removed from outside the app, or on any deployment whose bootstrap
+        // address was never created. Both are reachable; neither is reversible
+        // from this screen. RUNBOOK §3.1 is the break-glass.
+        //
+        // role="status", not "alert": the condition is a standing property of
+        // the workspace that arrives with an async read, not something that
+        // just went wrong in response to a press.
+        <div className="card mem-error" role="status">
+          <p>{t('admin.recovery.noEmailAdmin')}</p>
         </div>
       )}
 
@@ -476,6 +541,53 @@ export default function Members(): ReactElement {
 
       {!loading && !errorKey && rows.length === 0 && (
         <EmptyState icon={<IconUsers size={30} />} title={t('settings.membersEmpty')} />
+      )}
+
+      {!loading && !errorKey && rows.length > 0 && (
+        // ── where the reset lives ───────────────────────────────────────────
+        //
+        // The reissue path has existed since Wave 4 and was findable only by
+        // pressing a button labelled "New code" and reading the confirm dialog
+        // that came back. Nobody helping a colleague who has forgotten a
+        // password scans a roster for "New code" — so the one recovery route
+        // three of this workspace's four accounts have was, in practice,
+        // invisible. This says it at rest, directly above the rows it is about,
+        // rather than after a press.
+        //
+        // ABOVE THE LIST, NOT ABOVE "Add member": the sentence is about a row,
+        // so it sits with the rows, and the screen's primary action keeps the
+        // top of the page.
+        //
+        // The button's label is INTERPOLATED, never quoted. Settings ›
+        // Terminology can rename any label at runtime (lib/i18n's override
+        // layer), so a copy of the word here would be wrong for exactly the
+        // workspace that had renamed it — and the override is free text, which
+        // is why the token is fenced in both trees.
+        //
+        // THE CLASSES ARE BORROWED FROM THIS SHEET'S OWN VOCABULARY, not minted:
+        // `.mem-form` is a plain 12px column stack and `.mem-invite-warn` is
+        // 13px body text at full contrast, and neither carries anything specific
+        // to the form or the code panel. members.css sits outside this unit's
+        // file ownership, so a `.mem-note*` of its own is a follow-up rather
+        // than a thing to reach across for — see the handoff note.
+        <div className="card card-tight mem-form">
+          <h2 className="mem-form-title">{t('admin.recovery.title')}</h2>
+          <p className="mem-invite-warn">
+            {t('admin.recovery.username', { action: t('members.reissue') })}
+          </p>
+          <p className="mem-invite-warn">{t('admin.recovery.usernameKeepsWorking')}</p>
+          <p className="mem-invite-warn">{t('admin.recovery.email')}</p>
+          {/* The one thing on this screen that is about the reader rather than
+              about a row, and it is here because there is nowhere else: there is
+              no change-password screen in this app, and `reissue-code` is the
+              only endpoint with no self-check (only set-role and delete refuse
+              to act on the caller). So an admin CAN reset themselves from their
+              own row — while they are still signed in, which is the whole
+              qualifier and why it is said in the same breath. */}
+          <p className="mem-invite-warn">
+            {t('admin.recovery.self', { action: t('members.reissue') })}
+          </p>
+        </div>
       )}
 
       {!loading && !errorKey && rows.length > 0 && (

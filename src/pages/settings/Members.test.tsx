@@ -108,7 +108,8 @@ vi.mock('../../api/members', async (importOriginal) => {
 
 const { ADMIN_ERROR_KEYS } = await import('../../api/members')
 const { setLocale, t } = await import('../../lib/i18n')
-const Members = (await import('./Members')).default
+const { default: Members, hasEmailRecoverableAdmin } = await import('./Members')
+type MemberAccount = import('../../api/members').MemberAccount
 
 /** A locale string as it appears in the MARKUP — react-dom escapes five chars. */
 const asHtml = (s: string): string =>
@@ -263,6 +264,130 @@ describe('the strings the create flow is made of', () => {
         expect(out).not.toMatch(/\{[a-zA-Z]+\}/)
         if (tokens.length > 0) expect(out).toContain('X')
       }
+    }
+    setLocale('en')
+  })
+})
+
+/* ──────────────────── recovery: the lockout with no route out ──────────── */
+
+/**
+ * A roster row, with only the fields the predicate reads made interesting.
+ *
+ * `role` and `username` ARE the predicate's whole input; everything else is
+ * filler so the shape type-checks. Written as a factory rather than a fixture
+ * array so each case below states the one thing it is about.
+ */
+function row(part: Partial<MemberAccount>): MemberAccount {
+  return {
+    id: 'x',
+    displayName: 'X',
+    role: 'member',
+    email: 'x@opstrack.internal',
+    username: 'x',
+    claimed: true,
+    createdAt: '2026-01-01T00:00:00Z',
+    lastSignInAt: null,
+    hasProfile: true,
+    inviteExpiresAt: null,
+    isBootstrapAdmin: false,
+    isSelf: false,
+    ...part,
+  }
+}
+
+const OWNER = row({ role: 'admin', username: null, email: 'aziz@example.com', isBootstrapAdmin: true })
+const USERNAME_ADMIN = row({ role: 'admin', username: 'nasser', displayName: 'Nasser' })
+const INTERN = row({ username: 'intern.one', displayName: 'Intern' })
+
+describe('hasEmailRecoverableAdmin', () => {
+  it('is true when an admin signs in with a real address', () => {
+    // The live workspace: the bootstrap owner plus username accounts. He can
+    // always have a sign-in code mailed to him, so nobody is stranded.
+    expect(hasEmailRecoverableAdmin([OWNER, USERNAME_ADMIN, INTERN])).toBe(true)
+  })
+
+  it('is FALSE when every admin signs in with a username', () => {
+    // The state the warning exists for. `last_admin` and `bootstrap_admin` do
+    // not prevent it: they guard demotion and deletion, and this workspace is
+    // one forgotten password — not one deletion — from having no administrator
+    // who can get back in.
+    expect(hasEmailRecoverableAdmin([USERNAME_ADMIN, INTERN])).toBe(false)
+  })
+
+  it('does not count an email account that is only a member', () => {
+    // A real address is necessary and not sufficient: a member holding one
+    // cannot reissue anybody a code, so it rescues nothing.
+    expect(hasEmailRecoverableAdmin([USERNAME_ADMIN, row({ username: null, email: 'm@x.io' })])).toBe(
+      false,
+    )
+  })
+
+  it('trusts the role the server sent, which already carries the bootstrap floor', () => {
+    // The list endpoint writes role 'admin' for a bootstrap address whatever
+    // the profiles row says. A `hasProfile: false` owner is therefore still an
+    // admin here, and the warning must not fire at a workspace that is fine.
+    expect(hasEmailRecoverableAdmin([row({ ...OWNER, hasProfile: false })])).toBe(true)
+  })
+
+  it('is false for an empty roster rather than throwing', () => {
+    // Not a state the screen renders the warning in — it guards on length — but
+    // the predicate is total either way.
+    expect(hasEmailRecoverableAdmin([])).toBe(false)
+  })
+})
+
+/**
+ * Every sentence the recovery copy is made of, with the tokens its caller passes.
+ *
+ * Same reachability story as CREATE_FLOW above: these render behind a loaded
+ * roster, which a server render never produces, so the STRINGS are what is
+ * assertable here and a browser pass owns the pixels.
+ */
+const RECOVERY: readonly [string, readonly string[]][] = [
+  ['admin.recovery.title', []],
+  ['admin.recovery.username', ['action']],
+  ['admin.recovery.usernameKeepsWorking', []],
+  ['admin.recovery.email', []],
+  ['admin.recovery.self', ['action']],
+  ['admin.recovery.noEmailAdmin', []],
+]
+
+describe('the recovery copy', () => {
+  it('resolves and fills in both languages', () => {
+    for (const locale of ['en', 'ar'] as const) {
+      setLocale(locale)
+      for (const [key, tokens] of RECOVERY) {
+        expect(t(key)).not.toBe(key)
+        expect(t(key).trim()).not.toBe('')
+        const out = t(key, Object.fromEntries(tokens.map((token) => [token, 'X'])))
+        expect(out).not.toMatch(/\{[a-zA-Z]+\}/)
+        if (tokens.length > 0) expect(out).toContain('X')
+      }
+    }
+    setLocale('en')
+  })
+
+  it('names the button by asking for its label, so the two cannot drift', () => {
+    // Members.tsx interpolates t('members.reissue') rather than quoting the
+    // word. Settings › Terminology can rename any label at runtime, and a copy
+    // of it here would be wrong for exactly the workspace that had renamed it.
+    for (const locale of ['en', 'ar'] as const) {
+      setLocale(locale)
+      const label = t('members.reissue')
+      expect(t('admin.recovery.username', { action: label })).toContain(label)
+    }
+    setLocale('en')
+  })
+
+  it('fences the interpolated label in both trees', () => {
+    // The value is free text once an admin has overridden it, so it can begin
+    // with a strong character of either direction. FSI…PDI immediately around
+    // the token is the shape bidi.test.ts's gate checks for the tokens it
+    // knows; `action` is not on that list, so this is where it gets pinned.
+    for (const locale of ['en', 'ar'] as const) {
+      setLocale(locale)
+      expect(t('admin.recovery.username', { action: 'ZZ' })).toContain('⁨ZZ⁩')
     }
     setLocale('en')
   })

@@ -32,10 +32,23 @@ export interface Profile {
   locale: string
 }
 
+/**
+ * What an emailed recovery link left this tab in.
+ *
+ * `'active'` — the link was opened, supabase-js adopted the session it carried
+ * and reported `PASSWORD_RECOVERY`. The session is deliberately NOT published to
+ * `session` while this is set: see adopt().
+ * `'expired'` — the link landed with `error_code` in the URL instead of tokens,
+ * which is what a reused or timed-out link looks like. Nothing is signed in;
+ * the sentence the reader needs is the only thing left of the attempt.
+ */
+export type Recovery = 'active' | 'expired' | null
+
 export interface AuthState {
   loading: boolean
   session: Session | null
   profile: Profile | null
+  recovery: Recovery
 }
 
 /** Shape of the columns we select from `profiles`. */
@@ -46,12 +59,67 @@ interface ProfileRow {
   locale: string | null
 }
 
+/**
+ * The document URL, or '' where there is not one.
+ *
+ * `window.location` is non-optional in the DOM typings, but the node tests that
+ * exercise this store stub `window` with only the members they need (see
+ * store/auth.test.ts, which gives it four functions and no location). Reading it
+ * through a widened shape keeps a module-scope read from throwing there, and the
+ * empty string is exactly what recoveryFromUrl() already treats as "no link".
+ */
+function currentHref(): string {
+  const loc = (globalThis as { window?: { location?: { href?: unknown } } }).window?.location
+  return typeof loc?.href === 'string' ? loc.href : ''
+}
+
+/**
+ * What the URL a recovery link opened says happened — read from the FRAGMENT.
+ *
+ * WHY THIS IS READ AT MODULE SCOPE AND NOT FROM AN EVENT. Both answers are
+ * erased within a tick of the page loading, by two different mechanisms:
+ *
+ *  - On success supabase-js parses the fragment, saves the session, and sets
+ *    `window.location.hash = ''` before it notifies anyone. Its
+ *    `PASSWORD_RECOVERY` notification then arrives on a `setTimeout(0)` — a
+ *    MACROTASK — while `getSession()` resolves on a microtask, so the store
+ *    would publish a live session and App would paint the whole signed-in shell
+ *    for a frame before the recovery state arrived to take it back.
+ *  - On failure supabase-js throws before it clears anything, so the fragment
+ *    survives — straight into HashRouter, which reads `#error=access_denied&…`
+ *    as a route, matches nothing, and replaces it with a redirect to /signin.
+ *    The only record that a link was even opened is gone before React commits.
+ *
+ * Module evaluation happens before both: it is synchronous, so it precedes
+ * every microtask, every timer and the first render. This function is pure and
+ * takes the href so the reasoning above can be tested rather than described.
+ *
+ * The error branch requires `error_code` AND `error_description` — the pair
+ * GoTrue always sends — rather than a bare `error`, so an ordinary in-app hash
+ * route that happens to carry `?error=…` cannot be mistaken for a dead link.
+ * Nothing here reads a token, and nothing here logs the URL.
+ */
+export function recoveryFromUrl(href: string): Recovery {
+  let hash: string
+  try {
+    hash = new URL(href).hash
+  } catch {
+    return null
+  }
+  if (!hash.startsWith('#')) return null
+  const params = new URLSearchParams(hash.slice(1))
+  if (params.get('type') === 'recovery' && params.get('access_token')) return 'active'
+  if (params.get('error_code') && params.get('error_description')) return 'expired'
+  return null
+}
+
 // loading starts true so the shell renders a spinner rather than bouncing the
 // user to /signin during the moment before the stored session is restored.
 const useAuthStore = create<AuthState>(() => ({
   loading: true,
   session: null,
   profile: null,
+  recovery: recoveryFromUrl(currentHref()),
 }))
 
 export function useAuth(): AuthState {
@@ -101,10 +169,18 @@ function notConfigured(): string {
  * code, the token/expired family only ever comes back from verification, and
  * "invalid login credentials" only from a password grant.
  */
-type AuthStep = 'request' | 'verify' | 'password'
+type AuthStep = 'request' | 'verify' | 'password' | 'update'
 
 function authErrorMessage(message: string, step: AuthStep): string {
   const m = message.toLowerCase()
+  // Setting a new password is the one step whose credential is a LINK, so every
+  // shape that means "no usable session" has to read as "that link is dead"
+  // rather than as anything about the password just typed. It comes first
+  // because auth-js words the missing-session case "Auth session missing!",
+  // which the password branch below would otherwise have to guess at.
+  if (step === 'update' && /session|jwt|token|expired|not authenticated/.test(m)) {
+    return t('signin.errResetLinkDead')
+  }
   // With shouldCreateUser:false this is also what an UNKNOWN address produces,
   // so it is the real "no such account" message for this project.
   if (step !== 'password' && /signups? not allowed|user not found|does not exist/.test(m)) {
@@ -335,6 +411,139 @@ export async function claimAccount(input: ClaimInput): Promise<string | null> {
   return signInPassword(username, password)
 }
 
+// ── password recovery ──────────────────────────────────────────────────────
+//
+// THE CONSTRAINT THAT SHAPES ALL OF IT: half the accounts in this workspace have
+// no mailbox. A predefined username authenticates against
+// `<name>@opstrack.internal`, which RFC 6761 guarantees can never resolve —
+// USERNAME_EMAIL_DOMAIN's comment above says so, and says it is deliberate. So
+// there are two recoveries here, not one implementation with two error paths:
+//
+//   identifier contains '@' → resetPasswordForEmail(). A real inbox, a real
+//     link, self-serve.
+//   identifier has no '@'   → NOTHING IS SENT. requestPasswordReset() answers
+//     `noMailbox` before it touches the network, and the screen says who to ask
+//     and what happens next. Calling resetPasswordForEmail() for one of these
+//     would return `{ error: null }`, show a "check your email" panel, and
+//     strand the member on an inbox that cannot exist — a lie the client has
+//     every fact it needs to avoid telling.
+//
+// The username half of the recovery already exists and needs nothing built:
+// `admin-members`' reissue-code action (api/members.reissueInvite) mints a fresh
+// invite, and the member re-claims at /claim with a password they choose.
+
+/** The three answers a reset request can have. There is no fourth. */
+export type ResetRequest =
+  | { kind: 'sent'; email: string }
+  /** A username account: no mail was sent, and none could be. */
+  | { kind: 'noMailbox'; username: string }
+  | { kind: 'error'; message: string }
+
+/**
+ * Ask Supabase to email a password-recovery link — or refuse, honestly.
+ *
+ * `redirectTo` goes through appBaseUrl(), the same helper `emailRedirectTo`
+ * uses, and that is not tidiness: a hand-built URL here is exactly how the
+ * emailed sign-in link twice ended up on the account's Pages ROOT with the
+ * user's tokens in the hash (see appBaseUrl and lib/appBase.ts). It carries NO
+ * fragment of its own, deliberately — GoTrue appends `#access_token=…` to
+ * whatever it is given, so a `…/#/reset` redirect would arrive as
+ * `…/#/reset#access_token=…`, and supabase-js parses the fragment with
+ * `URLSearchParams`, which reads that as one key named `/reset#access_token`.
+ * The session would never be detected. The landing is routed to /reset by the
+ * sign-in screen instead, off the `recovery` state below.
+ *
+ * Nothing here reveals whether an address has an account: Supabase answers
+ * success either way, and this returns `sent` either way.
+ */
+export async function requestPasswordReset(identifier: string): Promise<ResetRequest> {
+  if (!supabase) return { kind: 'error', message: notConfigured() }
+  const id = identifier.trim()
+  if (!id) return { kind: 'error', message: t('signin.errIdentifierRequired') }
+  // A new request supersedes whatever the last link did, including the notice
+  // that it had expired.
+  if (useAuthStore.getState().recovery === 'expired') useAuthStore.setState({ recovery: null })
+
+  // The one character the whole feature turns on, read the same way
+  // signInPassword() reads it.
+  if (!id.includes('@')) return { kind: 'noMailbox', username: id.toLowerCase() }
+
+  const email = id.toLowerCase()
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: appBaseUrl(),
+  })
+  if (!error) return { kind: 'sent', email }
+
+  // BY NAME WHERE THERE IS A NAME. Supabase's built-in SMTP allows a handful of
+  // mails an hour PROJECT-WIDE, so a second tap is the ordinary case rather than
+  // the exotic one, and "something went wrong" would send the reader looking for
+  // a fault that is not there. auth-js gives these two machine-readable codes;
+  // the 429 is the belt-and-braces for a gateway that returns the status without
+  // one. The message still goes through authErrorMessage() below, so an unknown
+  // failure is still a translated sentence rather than English from Supabase.
+  const code = (error as { code?: string }).code ?? ''
+  const status = (error as { status?: number }).status
+  console.warn('[auth] reset request failed:', code || error.message)
+  if (code === 'over_email_send_rate_limit' || code === 'over_request_rate_limit' || status === 429) {
+    return { kind: 'error', message: t('signin.errResetSentAlready') }
+  }
+  return { kind: 'error', message: authErrorMessage(error.message, 'request') }
+}
+
+/**
+ * Set a new password on the session a recovery link created, then hand the tab
+ * over to the app as a normal signed-in session.
+ *
+ * The length floor is MIN_PASSWORD_LENGTH — imported by the screen, restated
+ * nowhere — and it is checked here as well as in the form so that the rule has
+ * one owner even if a second caller ever appears.
+ *
+ * Nothing about the password is logged, toasted or rendered; the console line
+ * carries the failure CODE only, exactly as the claim path does with its invite.
+ */
+export async function updatePassword(password: string): Promise<string | null> {
+  if (!supabase) return notConfigured()
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return t('signin.errPasswordShort', { min: MIN_PASSWORD_LENGTH })
+  }
+
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) {
+    const code = (error as { code?: string }).code ?? ''
+    console.warn('[auth] password update failed:', code || 'unknown')
+    if (code === 'same_password') return t('signin.errSamePassword')
+    if (code === 'weak_password') return t('signin.errPasswordShort', { min: MIN_PASSWORD_LENGTH })
+    if (code === 'session_not_found' || code === 'session_expired') {
+      return t('signin.errResetLinkDead')
+    }
+    return toFormError(error, 'update')
+  }
+
+  // The recovery is over, so the session stops being withheld: clear the flag
+  // FIRST, then adopt the session auth-js has been holding all along. The user
+  // lands inside the app, signed in, rather than on a sign-in form asking for
+  // the password they typed a second ago.
+  useAuthStore.setState({ recovery: null })
+  const { data } = await supabase.auth.getSession()
+  await adopt(data.session)
+  return null
+}
+
+/**
+ * Abandon a recovery in progress.
+ *
+ * Without this the tab is stuck: /signin redirects to /reset for as long as
+ * `recovery` is 'active', so a reader who opened the link by accident, or who
+ * remembered their password on the way to the form, would have no way back to
+ * it. Signing out is the right half of "never mind" — the link's session is a
+ * standing key to this account and there is no reason to leave it lying in
+ * localStorage once its one job has been declined.
+ */
+export async function cancelRecovery(): Promise<void> {
+  useAuthStore.setState({ recovery: null })
+  await signOut()
+}
+
 export async function signOut(): Promise<void> {
   if (!supabase) return
   // FIRST, AND THAT IS THE POINT. Handing the push registration back is an
@@ -438,6 +647,18 @@ function materializeOnce(session: Session): void {
 }
 
 async function adopt(session: Session | null) {
+  // A RECOVERY SESSION IS WITHHELD FROM THE UI, and this is the line that does
+  // it. The link Supabase mails carries a full session — publishing it would
+  // render the whole signed-in shell for someone who has just proved they do not
+  // know their password, and would swap the reset screen out from under them
+  // mid-type, because App.tsx gates the two route trees on `session`. So the
+  // credential stays where auth-js keeps it (updateUser() below still uses it)
+  // and the store keeps answering "signed out" until the new password lands.
+  // `loading` is settled either way: something has to be rendered.
+  if (session && useAuthStore.getState().recovery === 'active') {
+    useAuthStore.setState({ session: null, profile: null, loading: false })
+    return
+  }
   if (!session) {
     localeAppliedFor = null
     recurrenceRunFor = null
@@ -564,7 +785,17 @@ export function initAuth(): void {
     void adopt(restored)
   })
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
+    // The recovery landing, as an EVENT rather than as a URL. The module-scope
+    // read above has almost always already set this — it runs before every timer
+    // and before the first render, and this notification arrives on a
+    // setTimeout(0) — but the two disagree in one real case: a link opened in a
+    // tab that already had the app loaded, where nothing re-evaluates a module.
+    // Both paths set the same flag, and setting it twice costs nothing.
+    if (event === 'PASSWORD_RECOVERY') {
+      useAuthStore.setState({ recovery: 'active', session: null, profile: null, loading: false })
+      return
+    }
     // Do NOT await Supabase calls inside this callback. supabase-js serializes
     // auth work behind a lock, and calling back into the client from the
     // handler deadlocks it — the profile query never resolves and the app
