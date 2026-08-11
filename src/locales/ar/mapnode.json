@@ -1,0 +1,22 @@
+{
+  "mapnode": {
+    "detail": "التفاصيل",
+    "accountManager": "مسؤول الحساب",
+    "managerGone": "لم يعد ضمن مساحة العمل",
+    "vendor": "المورّد",
+    "notRecorded": "غير مسجَّل",
+    "useCases": "القدرات",
+    "useCasesFor": "قدرات ⁨{name}⁩",
+    "progress": "⁨{done}⁩ من {total} ⁨{status}⁩",
+    "progressLong": "قدرات ⁨{name}⁩ — ⁨{done}⁩ من {total} ⁨{status}⁩",
+    "statusPlanned": "مخطَّطة",
+    "statusTesting": "قيد الاختبار",
+    "statusLive": "مفعّلة",
+    "statusNone": "غير مسجَّلة",
+    "wordPlanned": "مخطَّطة",
+    "wordTesting": "قيد الاختبار",
+    "wordLive": "مفعّلة",
+    "retired": "مخفية",
+    "retiredHint": "أُخفيت هذه القدرة من الفهرس، وتبقى محسوبة هنا لأن هذه الجهة مسجّلة عليها."
+  }
+}

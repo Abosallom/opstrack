@@ -621,3 +621,93 @@
     max-inline-size: 100%;
   }
 }
+
+/* ---------- what a node IS: the detail band ---------- */
+
+/* MapBranchDetail.tsx — the band that opens on an organization: its account
+   manager, its vendor, and how far it has got with each capability. It owns no
+   prefix of its own, exactly as MapBranchHistory.tsx does not, and every class
+   below is styled here rather than in a sheet of its own.
+
+   `.mbr-detail` deliberately carries NO RULE. It is an IDENTITY, the twin of
+   `.mbr-history`, so a test can slice the rendered panel at this band; `.mbr-band`
+   above already gives it its column and its gap, and an empty rule would be a lie
+   about what the class does. */
+
+.mbr-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+
+/* The <div> wrapping each dt/dd pair is a grouping the grid must not see: with
+   `contents` the term and its value land in the two columns themselves, which is
+   what keeps the values aligned down the band instead of each pair laying itself
+   out. */
+.mbr-field {
+  display: contents;
+}
+
+.mbr-field-k {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.mbr-field-v {
+  font-size: 14px;
+  color: var(--text);
+  /* A vendor is free text somebody pasted. It wraps rather than pushing the
+     panel wider than the dock that holds it. */
+  overflow-wrap: anywhere;
+}
+
+/* ---------- the capability matrix ---------- */
+
+.mbr-uc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* "6 of 9 live" — a HEADING, never a tile. The stats band's `.mbr-stat*` is the
+   shape of an item count, and the two must not look alike: they are different
+   units and the only thing telling them apart is where they sit. */
+.mbr-uc-head {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mbr-uc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+}
+
+.mbr-uc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 6px;
+  padding-inline: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.mbr-uc-name {
+  font-size: 14px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* At the far edge whichever way the page runs. The dim tone is the NEUTRAL
+   status and the em-dash; `.pill.ok` and `.pill.info` are two classes and win
+   over this one, so a live row keeps its green. */
+.mbr-uc-status {
+  margin-inline-start: auto;
+  white-space: nowrap;
+  color: var(--text-dim);
+}

@@ -149,6 +149,12 @@ const FACETS: readonly FilterFacet[] = [
   // where the header explains one ring has to fit a 375px viewport.
   'group',
   'track',
+  // Below `track` and continuing the same coarse-to-fine reading: a branch is
+  // the tree BENEATH a track (0023), and a vendor is who is doing the work on
+  // it. `branch` reaches every descendant through `FilterContext.ancestryOfNode`,
+  // so picking OB includes every organization under it.
+  'branch',
+  'vendor',
   'status',
   'priority',
   'type',

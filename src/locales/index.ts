@@ -50,6 +50,7 @@ import enAi from './en/ai.json'
 import enApp from './en/app.json'
 import enBoard from './en/board.json'
 import enCapture from './en/capture.json'
+import enCatalogue from './en/catalogue.json'
 import enClaim from './en/claim.json'
 import enCmd from './en/cmd.json'
 import enCommon from './en/common.json'
@@ -67,6 +68,7 @@ import enGroups from './en/groups.json'
 import enHealth from './en/health.json'
 import enMap from './en/map.json'
 import enMapadmin from './en/mapadmin.json'
+import enMapnode from './en/mapnode.json'
 import enMeeting from './en/meeting.json'
 import enMembers from './en/members.json'
 import enMindtree from './en/mindtree.json'
@@ -80,10 +82,12 @@ import enPrivacy from './en/privacy.json'
 import enPush from './en/push.json'
 import enPwa from './en/pwa.json'
 import enRecurring from './en/recurring.json'
+import enRoles from './en/roles.json'
 import enRoute from './en/route.json'
 import enSettings from './en/settings.json'
 import enSignin from './en/signin.json'
 import enStatus from './en/status.json'
+import enStructure from './en/structure.json'
 import enTerminology from './en/terminology.json'
 import enTrack from './en/track.json'
 import enTree from './en/tree.json'
@@ -95,6 +99,7 @@ import arAi from './ar/ai.json'
 import arApp from './ar/app.json'
 import arBoard from './ar/board.json'
 import arCapture from './ar/capture.json'
+import arCatalogue from './ar/catalogue.json'
 import arClaim from './ar/claim.json'
 import arCmd from './ar/cmd.json'
 import arCommon from './ar/common.json'
@@ -109,6 +114,7 @@ import arGroups from './ar/groups.json'
 import arHealth from './ar/health.json'
 import arMap from './ar/map.json'
 import arMapadmin from './ar/mapadmin.json'
+import arMapnode from './ar/mapnode.json'
 import arMeeting from './ar/meeting.json'
 import arMembers from './ar/members.json'
 import arMindtree from './ar/mindtree.json'
@@ -122,10 +128,12 @@ import arPrivacy from './ar/privacy.json'
 import arPush from './ar/push.json'
 import arPwa from './ar/pwa.json'
 import arRecurring from './ar/recurring.json'
+import arRoles from './ar/roles.json'
 import arRoute from './ar/route.json'
 import arSettings from './ar/settings.json'
 import arSignin from './ar/signin.json'
 import arStatus from './ar/status.json'
+import arStructure from './ar/structure.json'
 import arTerminology from './ar/terminology.json'
 import arTrack from './ar/track.json'
 import arTree from './ar/tree.json'
@@ -151,6 +159,7 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   app: enApp,
   board: enBoard,
   capture: enCapture,
+  catalogue: enCatalogue,
   claim: enClaim,
   cmd: enCmd,
   common: enCommon,
@@ -165,6 +174,7 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   health: enHealth,
   map: enMap,
   mapadmin: enMapadmin,
+  mapnode: enMapnode,
   meeting: enMeeting,
   members: enMembers,
   mindtree: enMindtree,
@@ -178,10 +188,12 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   push: enPush,
   pwa: enPwa,
   recurring: enRecurring,
+  roles: enRoles,
   route: enRoute,
   settings: enSettings,
   signin: enSignin,
   status: enStatus,
+  structure: enStructure,
   terminology: enTerminology,
   track: enTrack,
   tree: enTree,
@@ -195,6 +207,7 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   app: arApp,
   board: arBoard,
   capture: arCapture,
+  catalogue: arCatalogue,
   claim: arClaim,
   cmd: arCmd,
   common: arCommon,
@@ -209,6 +222,7 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   health: arHealth,
   map: arMap,
   mapadmin: arMapadmin,
+  mapnode: arMapnode,
   meeting: arMeeting,
   members: arMembers,
   mindtree: arMindtree,
@@ -222,10 +236,12 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   push: arPush,
   pwa: arPwa,
   recurring: arRecurring,
+  roles: arRoles,
   route: arRoute,
   settings: arSettings,
   signin: arSignin,
   status: arStatus,
+  structure: arStructure,
   terminology: arTerminology,
   track: arTrack,
   tree: arTree,
@@ -248,6 +264,7 @@ export const en: LocaleTree = {
   ...enApp,
   ...enBoard,
   ...enCapture,
+  ...enCatalogue,
   ...enClaim,
   ...enCmd,
   ...enCommon,
@@ -262,6 +279,7 @@ export const en: LocaleTree = {
   ...enHealth,
   ...enMap,
   ...enMapadmin,
+  ...enMapnode,
   ...enMeeting,
   ...enMembers,
   ...enMindtree,
@@ -275,10 +293,12 @@ export const en: LocaleTree = {
   ...enPush,
   ...enPwa,
   ...enRecurring,
+  ...enRoles,
   ...enRoute,
   ...enSettings,
   ...enSignin,
   ...enStatus,
+  ...enStructure,
   ...enTerminology,
   ...enTrack,
   ...enTree,
@@ -292,6 +312,7 @@ export const ar: LocaleTree = {
   ...arApp,
   ...arBoard,
   ...arCapture,
+  ...arCatalogue,
   ...arClaim,
   ...arCmd,
   ...arCommon,
@@ -306,6 +327,7 @@ export const ar: LocaleTree = {
   ...arHealth,
   ...arMap,
   ...arMapadmin,
+  ...arMapnode,
   ...arMeeting,
   ...arMembers,
   ...arMindtree,
@@ -319,10 +341,12 @@ export const ar: LocaleTree = {
   ...arPush,
   ...arPwa,
   ...arRecurring,
+  ...arRoles,
   ...arRoute,
   ...arSettings,
   ...arSignin,
   ...arStatus,
+  ...arStructure,
   ...arTerminology,
   ...arTrack,
   ...arTree,

@@ -26,6 +26,7 @@ import { useCallback, useEffect, useState, type ReactElement, type ReactNode } f
 import { NavLink } from 'react-router-dom'
 import {
   IconBolt,
+  IconChecklist,
   IconChevronEnd,
   IconClipboardList,
   IconClock,
@@ -35,6 +36,7 @@ import {
   IconGlobe,
   IconLayers,
   IconLogOut,
+  IconNetwork,
   IconMonitor,
   IconMoon,
   IconShieldCheck,
@@ -378,6 +380,25 @@ export default function Settings(): ReactElement {
               <IconChevronEnd className="icon-directional" size={16} />
             </NavLink>
           </Section>
+          {/* The tree BELOW a track, between the level above tracks and tracks
+              themselves — the app reads coarse-to-fine, and Structure is finer
+              than a group and coarser than the work inside a track. This is the
+              only entrance to /settings/structure, which is in neither nav.
+
+              IconNetwork rather than the IconLayers on the row beneath: a tree
+              of linked nodes is what the screen is, and two adjacent rows
+              wearing the same glyph is what the Groups card's comment above
+              warns about. */}
+          <Section
+            icon={IconNetwork}
+            title={t('structure.title')}
+            description={t('structure.settingsHint')}
+          >
+            <NavLink to="/settings/structure" className="btn btn-ghost">
+              {t('structure.manage')}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
+          </Section>
           <Section
             icon={IconLayers}
             title={t('admin.tracks.title')}
@@ -450,6 +471,23 @@ export default function Settings(): ReactElement {
               <IconChevronEnd className="icon-directional" size={16} />
             </NavLink>
           </Section>
+          {/* Beside Vocabulary because the two are the same kind of screen — a
+              list of words the workspace owns — and different in what they list:
+              Vocabulary holds the statuses an item moves through, this holds the
+              HL7/FHIR capabilities an organization is onboarded onto and the
+              kinds an item on the tree can be. /settings/catalogue is in neither
+              nav, so without this row an admin can only reach the capability
+              list by typing the URL. */}
+          <Section
+            icon={IconChecklist}
+            title={t('catalogue.title')}
+            description={t('catalogue.settingsHint')}
+          >
+            <NavLink to="/settings/catalogue" className="btn btn-ghost">
+              {t('catalogue.manage')}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
+          </Section>
           {/* The third admin config card, and the widest in reach: Tracks and
               Vocabulary rename the workspace's own VALUES, this renames the
               app's own WORDS. Absent from both navs like its two neighbours, so
@@ -480,6 +518,21 @@ export default function Settings(): ReactElement {
               creating a member mints a one-time invite code, and App.tsx
               route-gates /settings/members to match. The non-admin branch below
               still says who can. */}
+          {/* Directly above Members, because a role is what a member HOLDS and
+              the two are read in that order. 0025 makes what is ticked here the
+              answer is_admin() gives at 183 policy call sites, so this is the
+              widest-reaching card on the page — and the one whose own write gate
+              (has_perm('members.manage')) only the system Admin role carries. */}
+          <Section
+            icon={IconShieldCheck}
+            title={t('roles.title')}
+            description={t('roles.settingsHint')}
+          >
+            <NavLink to="/settings/roles" className="btn btn-ghost">
+              {t('roles.manage')}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
+          </Section>
           <Section
             icon={IconUsers}
             title={t('settings.members')}

@@ -58,7 +58,32 @@ export interface Profile {
   id: string
   /** `not null default ''` — may be empty, never null. */
   display_name: string
+  /**
+   * STILL HERE, AND STILL THE ONLY ADMIN SIGNAL THE CLIENT READS.
+   *
+   * 0025 does NOT drop this column — it DERIVES it. `profiles_role_sync()` keeps
+   * it equal to `'admin'` exactly when `role_id` is the system Admin role, in
+   * both directions, because `admin-members`' `set-role` still PATCHes the text
+   * with the service role and a one-way derivation would report success and move
+   * nobody. Dropping it needs three things first, and they are a later
+   * migration's job: no policy reading it, the edge function gating on
+   * `has_perm()`, and `src/lib/permissions.ts` no longer branching on it.
+   */
   role: UserRole
+  /**
+   * 0025 — the role this person holds, null until `profiles_role_sync()` or a
+   * backfill fills it. `has_perm()` COALESCEs through `role` when it is null, so
+   * a profile written by `handle_new_user()` before the trigger ran still
+   * resolves; anything counting admins client-side has to reproduce that
+   * coalesce or it under-counts. See `admin_holder_count()` in 0025.
+   */
+  role_id: string | null
+  /**
+   * 0025 — free text, display only, and deliberately grants nothing. Pinned by
+   * `guard_profile_role()` against anyone without `members.manage`. Wave C's
+   * altitude must be derived from the ROLE, never by parsing this string.
+   */
+  position: string
   locale: string
   created_at: string
 }

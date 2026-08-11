@@ -82,6 +82,7 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import MapBranchHistory from './MapBranchHistory'
+import MapBranchDetail from './MapBranchDetail'
 import Breadcrumb from '../mindtree/Breadcrumb'
 import { EntryRow, TrackDot, type EntryRowShow } from '../entry'
 import { IconChevronDown } from '../fields/glyphs'
@@ -90,6 +91,7 @@ import { EmptyState } from '../shared'
 import { confirm } from '../Confirm'
 import { toast } from '../toast'
 import { EMPTY_FILTER, isFilterEmpty, type FilterState } from '../../lib/entryFilter'
+import { entityIdOf } from '../../lib/mapNodes'
 import { t, useLocale } from '../../lib/i18n'
 import { useTrackLabel } from '../../lib/labels'
 import type { MindDimension, MindLabel, MindNode } from '../../lib/mindtree/model'
@@ -652,9 +654,20 @@ export default function MapBranch({
    * band answers "how does this track stand right now", a different question
    * from every other number on the panel, and it has to stay one.
    */
+  const entityId = useMemo(() => entityIdOf(node), [node])
   const bandFilter = useMemo<FilterState>(
-    () => ({ ...EMPTY_FILTER, scope: 'open', trackIds: trackId === null ? [] : [trackId] }),
-    [trackId],
+    () => ({
+      ...EMPTY_FILTER,
+      scope: 'open',
+      trackIds: trackId === null ? [] : [trackId],
+      // "Outstanding issues" is a question about the ORGANIZATION the reader
+      // clicked, not about the whole track it sits under. `mapNodeIds` reaches
+      // every descendant through FilterContext.ancestryOfNode, which
+      // store/entries.ts builds over the whole tree — so this is the Org and
+      // everything filed beneath it, and nothing else on the track.
+      mapNodeIds: entityId === null ? [] : [entityId],
+    }),
+    [trackId, entityId],
   )
   const counts = useEntryCounts(bandFilter)
   const bandEntries = useFilteredEntries(bandFilter)
@@ -696,7 +709,10 @@ export default function MapBranch({
   const selectedCount = selected.size
   // The band's scope, named so "As it stands today" cannot be read against the
   // wrong thing: the whole workspace at the root, otherwise the track.
-  const bandScope = node.kind === 'root' ? node : (path.find((s) => s.kind === 'track') ?? node)
+  const bandScope =
+    node.kind === 'root' || node.kind === 'entity'
+      ? node
+      : (path.find((s) => s.kind === 'track') ?? node)
 
   return (
     <div
@@ -716,6 +732,11 @@ export default function MapBranch({
           disagree about where the reader is. Breadcrumb draws nothing for a
           trail of one, which is the unfocused map. */}
       <Breadcrumb trail={path} onFocus={onFocus} />
+
+      {/* Renders nothing unless the focused branch is an entity — a fourth
+          empty band above the stats teaches nothing. `entityIdOf` reads
+          `bucketKey` WITH `kind`, which is the only safe way to read it. */}
+      <MapBranchDetail nodeId={entityId} kindName={node.entityType} />
 
       {(trackId !== null || node.kind === 'root') && (
         <section className="mbr-band mbr-stats" aria-label={t('track.now')}>

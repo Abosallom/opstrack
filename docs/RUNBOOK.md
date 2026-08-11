@@ -51,6 +51,17 @@ when you want to see exactly what the screen is sending. Everything below and th
 Team members screen are the same endpoint; neither can do anything the other
 cannot.
 
+**For the eighteen-person roster, use [`scripts/provision-people.mjs`](../scripts/provision-people.mjs), not eighteen curls.**
+It is dry-run by default, idempotent, refuses to reissue a code, and prints every
+derived username before it creates anything. Who is on the roster and what they
+are allowed to do: [`docs/PEOPLE.md`](PEOPLE.md). Apply `0025` FIRST and the seven
+Directors land on their role in one run instead of two — both orders are safe.
+
+⚠ **The sixteen invite codes print ONCE and exist nowhere else afterwards.** Be
+present when `--apply` runs, and read the derived-username table on the dry run
+first: these are permanent logins and a transliteration cannot be corrected later
+without locking somebody out.
+
 ### 1.1 Get your access token
 
 Sign in to the live app in Chrome, open DevTools (⌥⌘I) → **Console**, paste:
@@ -672,6 +683,22 @@ union all select '0010 claim ctrs',  case when to_regclass('public.claim_counter
 union all select '0011 web push',    case when to_regclass('public.push_outbox')        is not null then 'yes' else 'NO' end
 union all select '0012 owner name',  case when exists (select 1 from pg_trigger where tgname = 'profiles_preserve_owner_name') then 'yes' else 'NO' end
 union all select '0013 usernames',   case when to_regprocedure('public.member_directory()') is not null then 'yes' else 'NO' end
+union all select '0014 tmpl author', case when exists (select 1 from pg_trigger where tgname = 'recurring_templates_guard_write_trg') then 'yes' else 'NO' end
+union all select '0015 write guard', case when exists (select 1 from information_schema.columns where table_schema='public' and table_name='entries' and column_name='updated_by') then 'yes' else 'NO' end
+union all select '0016 name pin',    case when position('display_name' in pg_get_functiondef('public.guard_profile_role()'::regprocedure)) > 0 then 'yes' else 'NO' end
+union all select '0017 labels',      case when to_regclass('public.label_overrides')     is not null then 'yes' else 'NO' end
+union all select '0018 groups',      case when to_regclass('public.track_groups')        is not null then 'yes' else 'NO' end
+union all select '0019 nudges',      case when to_regprocedure('public.nudge_entry(uuid)') is not null then 'yes' else 'NO' end
+union all select '0020 ai usage',    case when to_regclass('public.ai_usage')            is not null then 'yes' else 'NO' end
+union all select '0021 ai prefs',    case when exists (select 1 from information_schema.columns where table_schema='public' and table_name='notification_prefs' and column_name='ai_enabled') then 'yes' else 'NO' end
+union all select '0022 nudge insert', case when position('nudged_at' in pg_get_functiondef('public.entries_guard_insert()'::regprocedure)) > 0 then 'yes' else 'NO' end
+union all select '0023 map nodes',   case when to_regclass('public.map_nodes')           is not null then 'yes' else 'NO' end
+union all select '0024 use cases',   case when to_regclass('public.use_cases')           is not null then 'yes' else 'NO' end
+-- 0025 is fingerprinted on has_perm() rather than on the `roles` TABLE: the
+-- table can exist from a half-applied run while is_admin() is still 0001's, and
+-- those two states need telling apart. If this row says NO but `roles` exists,
+-- re-run the whole file — it is re-runnable by construction.
+union all select '0025 roles/perms', case when to_regprocedure('public.has_perm(text)')  is not null then 'yes' else 'NO' end
 order by file;
 ```
 
@@ -683,6 +710,14 @@ Verified against the live project on 30 July 2026: the first ten rows returned
 > `0014`–`0017` sit unapplied — which was true for four migrations on 31 July 2026 and
 > is the reason [`docs/PENDING-MIGRATIONS.md`](PENDING-MIGRATIONS.md) exists. Read that
 > file first; extend the query below whenever you add a migration.
+>
+> **EXTENDED at the Wave-B integration to cover `0014`–`0025`, and NOT re-verified
+> against the live project — no Postgres exists in the environment that wrote these
+> rows.** Each fingerprint was derived by reading the migration file, so a row saying
+> `yes` means the object that file creates exists; it does not mean the file's probe
+> blocks ever ran. `0023`, `0024` and `0025` are on disk and unapplied as of this
+> commit. Apply order is `0023` → `0024` → `0025`, and `0025` must be last of the
+> three because it redefines `is_admin()`, which every policy in both calls.
 Both new files were applied twice that day, probes passing on both runs.
 
 `0005` has no fingerprint on purpose: it is a one-time correction that clears the

@@ -1,0 +1,464 @@
+// Render proof for the detail band — the thing that opens when Aziz clicks an
+// organization.
+//
+// WHY renderToStaticMarkup AND NOT A DOM: `vitest.config.ts` is
+// `environment: 'node'` and jsdom is not in the dependency budget.
+// MapBranch.test.tsx, Board.test and the entry kit's own test all open with this
+// paragraph.
+//
+// WHAT THAT COSTS HERE, and how the component is shaped to pay it: effects do
+// not run on the server, so the connected `MapBranchDetail` can only ever be
+// caught mid-fetch. That is why the markup lives in an exported `DetailBand`
+// taking plain props — rendered directly, it exercises the real
+// `useCaseProgress`, the real bidi isolates and the real `t()` with the real
+// bundles, and the connected component is left with exactly two decisions worth
+// asserting: whether a band exists at all, and what it shows before the links
+// land.
+//
+// ⚠ TWO CASES BELOW ARE RED UNTIL THE INTEGRATOR WIRES THIS UNIT, AND THAT IS
+// WHAT THEY ARE FOR — the locale namespace and the stylesheet. Both are files
+// this unit does not own, both are invisible to every standing gate until they
+// are wired, and both fail SILENTLY in the browser rather than loudly: an
+// unregistered namespace renders `mapnode.detail` at a user in both languages
+// with every other test green, and a class with no rule takes the shared kit's
+// defaults and reads as styling that was never written. See MapBranch.test.tsx's
+// own namespace gate, which is this paragraph one file over.
+
+import { describe, expect, it, vi } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
+import type { MapNode, MapNodeUseCase, UseCase, UseCaseStatus } from '../../types'
+
+const fx = vi.hoisted(() => {
+  // lib/i18n reads localStorage and store/config adds a window listener, both at
+  // IMPORT time, so the shims cannot wait for a beforeAll().
+  const mem = new Map<string, string>()
+  const g = globalThis as unknown as Record<string, unknown>
+  g.localStorage = {
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
+    clear: () => mem.clear(),
+    key: (i: number) => [...mem.keys()][i] ?? null,
+    get length() {
+      return mem.size
+    },
+  }
+  g.addEventListener = () => {}
+  g.removeEventListener = () => {}
+  g.window = globalThis
+  g.matchMedia = () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })
+  g.document = { documentElement: { dir: 'ltr', lang: 'en' } }
+
+  const members = [
+    { id: 'u1', displayName: 'Sara Alsaab', role: 'member' as const },
+    { id: 'u2', displayName: 'ريما السعيري', role: 'member' as const },
+  ]
+
+  const state: { nodes: MapNode[] } = { nodes: [] }
+  return { members, state, mem }
+})
+
+/**
+ * api/map is mocked ONLY to keep api/supabase — and therefore createClient — out
+ * of the module graph. Nothing resolves during a static render, so the value it
+ * returns is never read.
+ */
+vi.mock('../../api/map', () => ({
+  listNodeUseCases: () => new Promise<never>(() => {}),
+}))
+
+vi.mock('../../store/config', () => ({
+  useMapNodeMap: () => new Map(fx.state.nodes.map((n) => [n.id, n])),
+  useAllUseCases: () => [],
+}))
+
+vi.mock('../../store/members', () => ({
+  useMemberMap: () => new Map(fx.members.map((m) => [m.id, m])),
+}))
+
+const MapBranchDetail = (await import('./MapBranchDetail')).default
+const { DetailBand, localName, managerLabel } = await import('./MapBranchDetail')
+const { useCaseProgress: progressOf } = await import('../../lib/mapNodes')
+const { setLocale, t } = await import('../../lib/i18n')
+
+/* ────────────────────────────── fixtures ────────────────────────────── */
+
+let seq = 0
+
+function capability(over: Partial<UseCase> & Pick<UseCase, 'id' | 'name'>): UseCase {
+  seq += 1
+  return {
+    name_ar: '',
+    sort_order: seq,
+    hidden: false,
+    created_by: null,
+    updated_by: null,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    ...over,
+  }
+}
+
+function catalogue(): UseCase[] {
+  seq = 0
+  return [
+    capability({ id: 'adt', name: 'ADT', name_ar: 'القبول والخروج' }),
+    capability({ id: 'rx1', name: 'Medication Prescribe V1' }),
+    capability({ id: 'rad', name: 'Radiology Order' }),
+  ]
+}
+
+function link(useCaseId: string, status: UseCaseStatus): MapNodeUseCase {
+  return { node_id: 'org-1', use_case_id: useCaseId, status }
+}
+
+function mapNode(over: Partial<MapNode> & Pick<MapNode, 'id' | 'name'>): MapNode {
+  return {
+    parent_id: 'phase-1',
+    track_id: 't-uhr',
+    kind_id: 'k-org',
+    name_ar: '',
+    description: '',
+    description_ar: '',
+    account_manager_id: null,
+    vendor: '',
+    sort_order: 0,
+    archived: false,
+    archived_at: null,
+    source: 'local',
+    external_ref: null,
+    external_url: null,
+    synced_at: null,
+    overrides: [],
+    created_by: null,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    ...over,
+  }
+}
+
+interface BandOptions {
+  name?: string
+  kindName?: string | null
+  manager?: string | null
+  vendor?: string
+  rows?: UseCase[]
+  links?: MapNodeUseCase[]
+  terminal?: string
+  loading?: boolean
+  error?: string | null
+}
+
+function band({
+  name = 'King Fahad Medical City',
+  kindName = 'Organization',
+  manager = 'Sara Alsaab',
+  vendor = 'Acme Health',
+  rows = catalogue(),
+  links = [link('adt', 'live'), link('rx1', 'testing')],
+  terminal = 'live',
+  loading = false,
+  error = null,
+}: BandOptions = {}): string {
+  return renderToStaticMarkup(
+    <DetailBand
+      name={name}
+      kindName={kindName}
+      manager={manager}
+      vendor={vendor}
+      progress={progressOf(rows, links, terminal)}
+      labelOf={(useCase) => localName(useCase, getLocale())}
+      loading={loading}
+      error={error}
+    />,
+  )
+}
+
+const { getLocale } = await import('../../lib/i18n')
+
+// The sheet as text. Eager + `?raw`, the mechanism MapCapture.test.tsx and
+// localeReach.test.ts both use to read a file in a node test — `node:fs` is not
+// an option here, because `tsconfig.app.json` carries no `node` in its `types`
+// and importing it reds `tsc -b` for the whole solution.
+const SHEET_SRC: Record<string, string> = import.meta.glob('./map-branch.css', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+const SHEET = SHEET_SRC['./map-branch.css'] ?? ''
+
+/**
+ * Just the field list.
+ *
+ * The fields and the matrix both render an em-dash for "nothing recorded", so an
+ * unqualified count of them is true of the band whatever either half is doing.
+ * MapBranch.test.tsx slices the history band off for the same reason.
+ */
+const fieldsOf = (html: string): string =>
+  html.slice(html.indexOf('mbr-fields'), html.indexOf('mbr-uc"'))
+
+/** React's own escaping, so an assertion can be written against a real t(). */
+const esc = (s: string): string =>
+  s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+
+/* ──────────────────── the gates on files this unit does not own ──────── */
+
+describe('the namespace this band reads', () => {
+  it('is registered in src/locales/index.ts', () => {
+    // ⚠ RED UNTIL THE INTEGRATOR ADDS `mapnode` TO EN_NAMESPACES/AR_NAMESPACES.
+    // An unregistered namespace is invisible to BOTH standing locale gates —
+    // localeParity walks EN_NAMESPACES and localeReach skips a key whose root is
+    // not already a root — so the band would render `mapnode.accountManager` at
+    // a user, in both languages, with everything else green.
+    expect(t('mapnode.detail')).not.toBe('mapnode.detail')
+    expect(t('mapnode.progress', { done: 6, total: 9, status: 'live' })).not.toBe('mapnode.progress')
+  })
+})
+
+describe('every class this band renders has a rule in map-branch.css', () => {
+  it('names nothing the sheet was not written against', () => {
+    // ⚠ RED UNTIL THE INTEGRATOR APPLIES THE `.mbr-detail` BLOCK. This band owns
+    // no prefix of its own — MapBranchHistory.tsx's bargain, and the reason the
+    // CSS registry needs no new entry — so a name with no rule silently takes
+    // the shared kit's defaults and reads as styling that does not exist. Six
+    // such names shipped in the history band and had to be found by hand;
+    // MapCapture.test.tsx's equivalent gate is what keeps them out of that one.
+    // A glob that resolved to nothing would make every name below "unstyled"
+    // rather than passing vacuously, which is the failure direction to want.
+    expect(SHEET.length).toBeGreaterThan(500)
+    const rendered = new Set(band().match(/mbr-[a-z-]+/g) ?? [])
+    // `.mbr-detail` is an IDENTITY, not a style — the twin of `.mbr-history`,
+    // which is there so a test can slice the panel at this band. An empty rule
+    // for it would be a lie about what it does.
+    rendered.delete('mbr-detail')
+    const unstyled = [...rendered]
+      .filter((name) => !new RegExp(`\\.${name}(?![a-z-])`).test(SHEET))
+      .sort()
+    expect(unstyled).toEqual([])
+  })
+})
+
+/* ──────────────────────────── the fields ─────────────────────────────── */
+
+describe('the fields', () => {
+  it('names the account manager through the roster, never as stored text', () => {
+    // A REFERENCE, not a name: renaming a person must propagate to every
+    // organization they carry rather than leaving forty stale strings.
+    const byId = new Map(fx.members.map((m) => [m.id, m]))
+    expect(managerLabel(byId, 'u1')).toBe('Sara Alsaab')
+    expect(managerLabel(byId, null)).toBeNull()
+  })
+
+  it('says a manager who left the workspace is gone, rather than showing a dash', () => {
+    // An id the roster does not know is a person who left, not an organization
+    // with nobody on it, and only one of those needs a phone call.
+    const byId = new Map(fx.members.map((m) => [m.id, m]))
+    expect(managerLabel(byId, 'u-gone')).toBe(t('mapnode.managerGone'))
+  })
+
+  it('renders the names with an em-dash when the values are empty', () => {
+    // "Account manager: —" is a FACT. The band that renders nothing at all is
+    // the one whose kind declares no fields; a node with fields and no values
+    // says so, because the two are different questions.
+    const html = band({ manager: null, vendor: '' })
+    expect(html).toContain(esc(t('mapnode.accountManager')))
+    expect(html).toContain(esc(t('mapnode.vendor')))
+    // Scoped to the field list: the matrix below it renders a dash of its own on
+    // every capability with nothing recorded, and an unscoped count would pass
+    // whatever the fields did.
+    expect(fieldsOf(html).match(/—/g)).toHaveLength(2)
+    // The dash is for the eye; the word is for a screen reader, because ARIA 1.2
+    // prohibits naming a generic <span> and AT is free to drop an aria-label.
+    expect(html).toContain(esc(t('mapnode.notRecorded')))
+  })
+
+  it('isolates the values, so a Latin vendor beside Arabic keeps its punctuation', () => {
+    const html = band({ manager: 'ريما السعيري', vendor: 'Acme Health' })
+    expect(html).toContain('⁨Acme Health⁩')
+    expect(html).toContain('⁨ريما السعيري⁩')
+  })
+
+  it('renders the kind as a caption and never as a condition', () => {
+    // Nothing in the component may branch on this: what a Phase shows and what
+    // an Organization shows is configuration. Renaming a kind in the admin
+    // screen must change a caption and nothing else.
+    expect(band({ kindName: 'Organization' })).toContain('⁨Organization⁩')
+    const renamed = band({ kindName: 'Hospital' })
+    expect(renamed).toContain('⁨Hospital⁩')
+    expect(renamed).toContain(esc(t('mapnode.useCases')))
+    expect(renamed).toContain('mbr-uc-row')
+  })
+
+  it('drops the caption for a node whose kind row was deleted', () => {
+    // `map_nodes.kind_id` is `on delete set null` — retiring a kind un-kinds its
+    // nodes rather than deleting the organizations filed under them.
+    expect(band({ kindName: null })).not.toContain('mbr-band-count')
+  })
+})
+
+/* ──────────────────────────── the matrix ─────────────────────────────── */
+
+describe('the use-case matrix', () => {
+  it('heads itself with the progress, and the progress is not a stat tile', () => {
+    const html = band({
+      links: [link('adt', 'live'), link('rx1', 'live'), link('rad', 'testing')],
+    })
+    expect(html).toContain(
+      esc(t('mapnode.progress', { done: 2, total: 3, status: t('mapnode.wordLive') })),
+    )
+    // `6 of 9` beside `12 open` would be two units in one row of numbers. The
+    // heading is the only place the unit is written directly above the figure,
+    // and the stats band's tile classes must not appear in this band.
+    expect(html).not.toContain('mbr-stat')
+  })
+
+  it('names its scope and its unit for a reader who cannot see the heading', () => {
+    // A live region announces its CONTENT, not its label, so the scope has to be
+    // in the text. The visible half is aria-hidden and the announced half is the
+    // long form.
+    const html = band({ name: 'KFMC' })
+    expect(html).toContain('role="status"')
+    expect(html).toContain(
+      esc(
+        t('mapnode.progressLong', {
+          done: 1,
+          total: 3,
+          status: t('mapnode.wordLive'),
+          name: 'KFMC',
+        }),
+      ),
+    )
+  })
+
+  it('renders a row per capability, including the ones with nothing recorded', () => {
+    const html = band({ links: [link('adt', 'live')] })
+    expect(html.match(/mbr-uc-row/g)).toHaveLength(3)
+    expect(html).toContain('⁨Radiology Order⁩')
+    expect(html).toContain(esc(t('mapnode.statusNone')))
+  })
+
+  it('marks a retired capability rather than dropping it', () => {
+    const rows = catalogue().map((u) => (u.id === 'rx1' ? { ...u, hidden: true } : u))
+    const html = band({ rows, links: [link('adt', 'live'), link('rx1', 'live')] })
+    expect(html).toContain(esc(t('mapnode.retired')))
+    expect(html).toContain('data-retired="true"')
+    // And it still counts: 2 of 3, not 2 of 2.
+    expect(html).toContain(
+      esc(t('mapnode.progress', { done: 2, total: 3, status: t('mapnode.wordLive') })),
+    )
+  })
+
+  it('renders an em-dash instead of 0 of 3 when nothing is recorded at all', () => {
+    // "This organization is at zero" and "nobody has recorded anything about
+    // this organization" are different facts, and the second one is what an
+    // empty join says.
+    const html = band({ links: [] })
+    expect(html).toContain(esc(t('mapnode.notRecorded')))
+    expect(html).not.toContain(
+      esc(t('mapnode.progress', { done: 0, total: 3, status: t('mapnode.wordLive') })),
+    )
+  })
+
+  it('shows the loading state before the links land, and no rows', () => {
+    const html = band({ loading: true })
+    expect(html).toContain(esc(t('common.loading')))
+    expect(html).not.toContain('mbr-uc-row')
+  })
+
+  it('renders a failed read as a note, not as an empty matrix', () => {
+    // The error is an i18n KEY from api/map.ts, rendered through t(), never a
+    // Postgres sentence printed left-to-right at an Arabic reader.
+    const html = band({ error: 'common.error' })
+    expect(html).toContain(esc(t('common.error')))
+    expect(html).toContain('mbr-note')
+    expect(html).not.toContain('mbr-uc-row')
+  })
+})
+
+/* ─────────────────────── the band that is not drawn ──────────────────── */
+
+describe('a node whose kind declares no fields', () => {
+  it('renders no band at all for a branch that is not an entity', () => {
+    // A fourth empty section above the stats teaches nothing and costs a
+    // screenful on a phone. `entityIdOf` answers null for a track, a status
+    // bucket and the root, and null is what this asserts against.
+    expect(renderToStaticMarkup(<MapBranchDetail nodeId={null} kindName={null} />)).toBe('')
+  })
+
+  it('renders no band for an entity whose row has not arrived yet', () => {
+    fx.state.nodes = []
+    expect(renderToStaticMarkup(<MapBranchDetail nodeId="org-1" kindName="Organization" />)).toBe('')
+  })
+
+  it('renders the band once the row is in the store', () => {
+    fx.state.nodes = [mapNode({ id: 'org-1', name: 'KFMC', vendor: 'Acme Health' })]
+    const html = renderToStaticMarkup(<MapBranchDetail nodeId="org-1" kindName="Organization" />)
+    expect(html).toContain('mbr-detail')
+    expect(html).toContain(esc(t('mapnode.accountManager')))
+    // Mid-fetch, which is all a static render can ever catch: no effects run.
+    expect(html).toContain(esc(t('common.loading')))
+  })
+})
+
+/* ──────────────────────────── Arabic ─────────────────────────────────── */
+
+describe('Arabic', () => {
+  it('renders the same structure, not a reduced one', () => {
+    setLocale('ar')
+    try {
+      const html = band()
+      expect(html).toContain(esc(t('mapnode.accountManager')))
+      expect(html).toContain(esc(t('mapnode.useCases')))
+      expect(html.match(/mbr-uc-row/g)).toHaveLength(3)
+      expect(html).toContain(
+        esc(t('mapnode.progress', { done: 1, total: 3, status: t('mapnode.wordLive') })),
+      )
+    } finally {
+      setLocale('en')
+    }
+  })
+
+  it('falls back to the English name when the Arabic one is EMPTY, not null', () => {
+    // Both columns are `not null default ''`, and the ten seeded capabilities
+    // ship with the Arabic name blank on purpose — everybody in the room says
+    // "ADT".
+    setLocale('ar')
+    try {
+      const rows = catalogue()
+      expect(localName(rows[0], 'ar')).toBe('القبول والخروج')
+      expect(localName(rows[1], 'ar')).toBe('Medication Prescribe V1')
+      const html = band()
+      expect(html).toContain('⁨Medication Prescribe V1⁩')
+    } finally {
+      setLocale('en')
+    }
+  })
+})
+
+/* ────────────────────────────── a11y ─────────────────────────────────── */
+
+describe('a11y', () => {
+  it('labels the band and the matrix, and puts the async result in one live region', () => {
+    const html = band({ name: 'KFMC' })
+    expect(html).toContain(`aria-label="${esc(t('mapnode.detail'))}"`)
+    expect(html).toContain(`aria-label="${esc(t('mapnode.useCasesFor', { name: 'KFMC' }))}"`)
+    // ONE region, so a reader hears one sentence per load rather than three.
+    expect(html.match(/role="status"/g)).toHaveLength(1)
+  })
+
+  it('renders no interactive control, so there is no 44px target to miss', () => {
+    // v1 is read-only by design: `map_node_use_cases` is member-writable and the
+    // catalogue screen owns the writing. A second place to tick the same cell is
+    // a second place for the two to disagree about what was saved.
+    const html = band()
+    expect(html).not.toContain('<button')
+    expect(html).not.toContain('<input')
+    expect(html).not.toContain('<select')
+    expect(html).not.toContain('<a ')
+  })
+})

@@ -93,6 +93,16 @@ const TrackEditor = lazy(() => import('./pages/settings/TrackEditor'))
 // TracksAdmin: the two screens write two tables, and an admin who only wants to
 // rename a track should not pay for the group editor's palette to find out.
 const GroupsAdmin = lazy(() => import('./pages/settings/GroupsAdmin'))
+// The tree BELOW tracks (0023) and the catalogue that tree is measured against
+// (0023/0024). Two chunks rather than one for the reason GroupsAdmin is its own:
+// an admin renaming a phase should not pay for the capability list to load.
+const StructureAdmin = lazy(() => import('./pages/settings/StructureAdmin'))
+const CatalogueAdmin = lazy(() => import('./pages/settings/CatalogueAdmin'))
+// Roles & permissions (0025). Admin-gated below for the reason the groups
+// screen is: what is ticked here is what is_admin() answers at 183 policy
+// call sites. The RLS gate is has_perm('members.manage'); this only avoids
+// offering an editor to someone every write refuses.
+const RolesAdmin = lazy(() => import('./pages/settings/RolesAdmin'))
 const VocabularyAdmin = lazy(() => import('./pages/settings/VocabularyAdmin'))
 const Terminology = lazy(() => import('./pages/settings/Terminology'))
 // NOT route-gated on admin, unlike the three above: the screen renders the
@@ -690,6 +700,26 @@ export default function App(): ReactElement {
               <Route
                 path="/settings/groups"
                 element={isAdmin ? <GroupsAdmin /> : <Navigate to="/settings" replace />}
+              />
+              {/* The tree BELOW tracks, gated exactly as the tree above them is.
+                  0023's RLS is the real authority (`map_nodes` writes are
+                  is_admin()); this only avoids offering an editor to someone
+                  every write refuses. */}
+              <Route
+                path="/settings/structure"
+                element={isAdmin ? <StructureAdmin /> : <Navigate to="/settings" replace />}
+              />
+              <Route
+                path="/settings/catalogue"
+                element={isAdmin ? <CatalogueAdmin /> : <Navigate to="/settings" replace />}
+              />
+              {/* Roles decide what every OTHER gate answers, so this one is the
+                  strictest of them. 0025 gates the two tables on
+                  has_perm('members.manage'), which today only the system Admin
+                  role carries — so `isAdmin` and the policy agree exactly. */}
+              <Route
+                path="/settings/roles"
+                element={isAdmin ? <RolesAdmin /> : <Navigate to="/settings" replace />}
               />
               <Route
                 path="/settings/vocabulary"

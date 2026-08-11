@@ -35,6 +35,19 @@ export default defineConfig({
       'src/**/*.test.tsx',
       'supabase/functions/**/*.test.ts',
     ],
+    // A `?raw` IMPORT OF A .css FILE RESOLVES TO THE EMPTY STRING WITHOUT THIS,
+    // and that is a false-green generator rather than an inconvenience. Vitest's
+    // default (`css: false`) stubs every CSS module, and the interception
+    // matches the EXTENSION before the query — so `import './x.css?raw'` and
+    // `import.meta.glob('./x.css', { query: '?raw' })` both yield `''`, and every
+    // assertion written against that string passes against nothing, forever.
+    // Two Wave-B agents wrote sheet assertions that were vacuously green until
+    // they measured it. `true` makes the same import return the real file.
+    //
+    // The alternative the repo already uses — reading the file through a
+    // VARIABLE `node:fs` specifier, as styles/contrast.test.ts does — still
+    // works and is still correct; this only stops the other spelling lying.
+    css: true,
   },
   // Deno spells its dependencies `npm:pkg@2`; Node does not. This one rewrite
   // is what lets a test import the DEPLOYED file rather than a copy of it —

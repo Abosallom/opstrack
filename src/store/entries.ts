@@ -77,7 +77,7 @@ import { t } from '../lib/i18n'
 import { toast } from '../components/toast'
 // The group half of useFilterContext(). A store may read another store — the
 // layering rule this repo enforces is that `src/lib/**` imports neither.
-import { useTrackMap } from './config'
+import { useMapNodeMap, useTrackMap } from './config'
 import type { MutOp } from './outbox'
 import type { ApiResult } from '../api/result'
 import type { EntryPatch, NewEntry, NewEntryUpdate } from '../api/entries'
@@ -899,9 +899,36 @@ export function useFilterContext(): FilterContext {
     for (const [id, track] of tracks) map.set(id, track.group_id ?? null)
     return map
   }, [tracks])
+  const mapNodeById = useMapNodeMap()
+  // ONE WALK, TWO ANSWERS, and both are facts lib/entryFilter cannot know: which
+  // node sits under which, and which integrator is behind a node. Built here
+  // because this is where the tree is, and built over EVERY node — archived ones
+  // included — so a link to an organization somebody put away still resolves.
+  const { ancestryOfNode, vendorOfNode } = useMemo(() => {
+    const ancestry = new Map<string, readonly string[]>()
+    const vendor = new Map<string, string>()
+    for (const id of mapNodeById.keys()) {
+      const chain: string[] = []
+      let effective = ''
+      let cursor = mapNodeById.get(id)
+      // Bounded: 0023's deferred trigger makes a cycle impossible in the
+      // database, but this also runs over a localStorage cache, and an unbounded
+      // parent walk over corrupt rows is a frozen tab rather than a wrong list.
+      for (let step = 0; cursor !== undefined && step < 16; step += 1) {
+        chain.push(cursor.id)
+        // The NEAREST self-or-ancestor with a vendor wins: work filed one level
+        // inside an organization is still that integrator's work.
+        if (effective === '') effective = cursor.vendor.trim()
+        cursor = cursor.parent_id === null ? undefined : mapNodeById.get(cursor.parent_id)
+      }
+      ancestry.set(id, chain)
+      vendor.set(id, effective)
+    }
+    return { ancestryOfNode: ancestry, vendorOfNode: vendor }
+  }, [mapNodeById])
   return useMemo(
-    () => ({ meId, today, groupOfTrack }),
-    [meId, today, groupOfTrack],
+    () => ({ meId, today, groupOfTrack, ancestryOfNode, vendorOfNode }),
+    [meId, today, groupOfTrack, ancestryOfNode, vendorOfNode],
   )
 }
 

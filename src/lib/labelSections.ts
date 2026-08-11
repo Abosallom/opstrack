@@ -538,6 +538,11 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       { prefixes: ['title'], section: 'screenTitles' },
       { prefixes: ['apply', 'clear', 'open'], section: 'actions' },
       { prefixes: ['noResults'], section: 'emptyStates' },
+      // The branch facet's two SENTENCES, refined out of the field labels the
+      // rest of this namespace is: `branch` is the heading on the control,
+      // `branchHint` explains that everything filed underneath is included, and
+      // `branchGone` is what a stale link resolves to.
+      { prefixes: ['branchHint', 'branchGone'], section: 'messages' },
     ],
   },
   dashboard: {
@@ -938,6 +943,191 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
     where: 'terminology.where.settingsStructure',
     rules: [{ prefixes: ['err'], section: 'messages' }],
   },
+  // Settings › Structure (0023) — the tree beneath each track. Placed beside
+  // `mapadmin`, which holds the Postgres refusals this screen renders: the two
+  // are one screen's vocabulary split across an error path and a UI path.
+  structure: {
+    section: 'entryFields',
+    where: 'terminology.where.settingsStructureTree',
+    rules: [
+      { prefixes: ['subtitle', 'title'], section: 'screenTitles' },
+      { prefixes: ['settingsHint'], section: 'messages' },
+      // What a row IS, not what a control says — `admin.tracks.archived`'s reading.
+      {
+        prefixes: ['archived', 'kindNone', 'managerNone', 'trackArchived', 'unsaved'],
+        section: 'healthStates',
+      },
+      {
+        prefixes: [
+          'add',
+          'addChild',
+          'addClose',
+          'addRoot',
+          'archive',
+          'discard',
+          'edit',
+          'editDone',
+          'manage',
+          'restore',
+          'save',
+        ],
+        section: 'actions',
+      },
+      // The two panels this screen opens over itself. Their buttons say
+      // "Close", "Cancel" and one verb each — words the row actions above
+      // already spend — so only the where-note can tell an owner which
+      // "Close" he is renaming. That is this file's stated job.
+      {
+        prefixes: ['moveClose', 'moveConfirm', 'moveUnder'],
+        section: 'actions',
+        where: 'terminology.where.settingsStructureMove',
+      },
+      {
+        prefixes: ['archiveConfirm', 'cancel'],
+        section: 'actions',
+        where: 'terminology.where.settingsStructureArchive',
+      },
+      {
+        prefixes: ['archiveBody', 'archiveTitle'],
+        section: 'messages',
+        where: 'terminology.where.settingsStructureArchive',
+      },
+      { prefixes: ['empty', 'emptyHint', 'emptyTrack', 'moveNowhere'], section: 'emptyStates' },
+      // Longest-prefix refinements of the buttons above: the sentences that
+      // FOLLOW an action are messages, not the action itself. `archived` is a
+      // state and stays a state; `archivedToast` is what we said afterwards.
+      {
+        prefixes: [
+          'archivedHint',
+          'archivedToast',
+          'created',
+          'depthCap',
+          'loadFailed',
+          'managerCleared',
+          'managerSet',
+          'moveCount',
+          'moveCounting',
+          'moveCrossTrack',
+          'moveNoEntries',
+          'moveSameTrack',
+          'moved',
+          'nameArHint',
+          'nameRequired',
+          'reordered',
+          'restoredHidden',
+          'restoredToast',
+          'saved',
+          'trackArchivedHint',
+          'vendorHint',
+        ],
+        section: 'messages',
+      },
+    ],
+  },
+  // Settings › Catalogue (0023/0024) — the HL7/FHIR capability list and the
+  // kinds a map node can be. Beside `mapadmin` because Structure and Catalogue
+  // are one screen family; `where` reuses the note that already names both.
+  catalogue: {
+    section: 'entryFields',
+    where: 'terminology.where.settingsCatalogue',
+    rules: [
+      { prefixes: ['subtitle', 'title'], section: 'screenTitles' },
+      { prefixes: ['settingsHint'], section: 'messages' },
+      // What a row IS, not what it says — `admin.tracks.archived`'s reading.
+      { prefixes: ['hidden', 'needsArabic', 'unsaved'], section: 'healthStates' },
+      {
+        // `moveUp`/`moveDown` and not `move`: the `moved*` family below is a
+        // sentence, and one four-letter prefix would file them together.
+        prefixes: [
+          'addKind',
+          'addSubmit',
+          'addUseCase',
+          'cancelAdd',
+          'closeRow',
+          'delete',
+          'discard',
+          'editRow',
+          'hide',
+          'manage',
+          'moveDown',
+          'moveUp',
+          'save',
+          'show',
+        ],
+        section: 'actions',
+      },
+      { prefixes: ['useCasesEmpty', 'kindsEmpty'], section: 'emptyStates' },
+      // TWO LISTS ON ONE SCREEN, and their two delete dialogs are word for word
+      // identical — "Delete {name}?" in both languages. The where-note is the
+      // only thing that can say which list an owner is renaming.
+      {
+        prefixes: ['deleteUseCase'],
+        section: 'messages',
+        where: 'terminology.where.settingsCatalogueUseCases',
+      },
+      {
+        prefixes: ['deleteKind'],
+        section: 'messages',
+        where: 'terminology.where.settingsCatalogueKinds',
+      },
+      {
+        prefixes: ['deleteConfirm'],
+        section: 'actions',
+        where: 'terminology.where.settingsCatalogueDelete',
+      },
+      {
+        // Longest prefix wins, which is how `saved`/`added`/`deleted` sit in
+        // Messages while `save`/`delete` stay in Actions.
+        prefixes: [
+          'adding',
+          'added',
+          'arabicPending',
+          'deleted',
+          'errNameLong',
+          'errNameRequired',
+          'errSave',
+          'hideVsDelete',
+          'inUse',
+          'kindUsage',
+          'kindsHint',
+          'kindsNoHide',
+          'loadFailed',
+          'moved',
+          'nameArHint',
+          'needsArabicHint',
+          'notInstalled',
+          'reordered',
+          'saved',
+          'saving',
+          'usageUnknown',
+          'useCasesHint',
+          'useCasesOrderNote',
+          'whyEditable',
+        ],
+        section: 'messages',
+      },
+    ],
+  },
+  // The Org panel's detail band (components/map/MapBranchDetail.tsx) — the
+  // fields a node carries and the capability matrix under them. `entryFields`
+  // because these ARE field names on the thing a reader clicked, and the
+  // account-manager label is the one an owner renames first.
+  mapnode: {
+    section: 'entryFields',
+    where: 'terminology.where.mindtree',
+    rules: [
+      { prefixes: ['status', 'retired'], section: 'healthStates' },
+      // `wordLive` is "live" inside the "6 of 9 live" heading; `statusLive` is
+      // the pill on a capability row. Same word, two places, and only the
+      // where-note distinguishes them on the Terminology screen.
+      {
+        prefixes: ['word'],
+        section: 'healthStates',
+        where: 'terminology.where.mindtreeProgress',
+      },
+      { prefixes: ['managerGone', 'notRecorded', 'progress', 'retiredHint'], section: 'messages' },
+    ],
+  },
   // Settings › Groups (0018) — the level above tracks, and the screen that says
   // which half of the org a track belongs to. Placed beside `admin` because the
   // two are one family: an owner renaming "Track" here will want to rename
@@ -1039,6 +1229,65 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'colorHint',
         ],
         section: 'messages',
+      },
+    ],
+  },
+  // Settings › Roles and permissions (0025) — placed directly above `members`
+  // because a role is what a member HOLDS, and the two screens are read in that
+  // order. Its own where-note rather than `settingsMembers`: an owner looking
+  // for "Director" must not be sent to the wrong screen.
+  roles: {
+    section: 'messages',
+    where: 'terminology.where.settingsRoles',
+    rules: [
+      { prefixes: ['subtitle', 'title'], section: 'screenTitles' },
+      { prefixes: ['settingsHint'], section: 'messages' },
+      // What a role IS, not what a control says.
+      { prefixes: ['system', 'unsaved'], section: 'healthStates' },
+      {
+        prefixes: ['delete', 'discard', 'manage', 'rename', 'save'],
+        section: 'actions',
+      },
+      // The create form is its own surface, and it spends the word "Key" that
+      // the role card above already spends. Only the where-note separates them.
+      {
+        prefixes: ['create'],
+        section: 'actions',
+        where: 'terminology.where.settingsRolesCreate',
+      },
+      // Longest-prefix refinements of the two buttons above: the sentences that
+      // FOLLOW the action belong with the other messages.
+      {
+        prefixes: ['deleteBody', 'deleteInUseReason', 'deleteSystemReason', 'deleteTitle', 'deleted'],
+        section: 'messages',
+      },
+      {
+        prefixes: ['createHint', 'created'],
+        section: 'messages',
+        where: 'terminology.where.settingsRolesCreate',
+      },
+      { prefixes: ['saved'], section: 'messages' },
+      // `empty` covers emptyHint too — one entry, and a later emptyXyz needs no edit.
+      { prefixes: ['empty'], section: 'emptyStates' },
+      // The words ON the switches and the fields beside them.
+      {
+        prefixes: ['adminSummary', 'keyLabel', 'memberCount', 'nameAr', 'nameEn', 'perm', 'reach'],
+        section: 'entryFields',
+      },
+      {
+        prefixes: ['createKey', 'createTitle'],
+        section: 'entryFields',
+        where: 'terminology.where.settingsRolesCreate',
+      },
+      // …and the prose among them, refined back out by a longer prefix.
+      {
+        prefixes: ['nameArHint', 'permHint', 'reachDeclaredNote'],
+        section: 'messages',
+      },
+      {
+        prefixes: ['createKeyHint'],
+        section: 'messages',
+        where: 'terminology.where.settingsRolesCreate',
       },
     ],
   },

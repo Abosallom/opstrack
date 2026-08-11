@@ -46,6 +46,47 @@ export interface FilterState {
   groupIds: string[]
   /** [] = all tracks. */
   trackIds: string[]
+  /**
+   * [] = the whole map — `map_nodes` (0023), the hierarchy BELOW tracks.
+   *
+   * ITS OWN DIMENSION, NOT A SHORTHAND FOR A SET OF TRACK IDS, and every word of
+   * `groupIds`' paragraph above applies one level down. Resolving the chosen
+   * node to its track at the control would have needed no model change at all,
+   * and it is wrong in the same three ways: a shared link would read `track=UHR`
+   * and could never say "Org1"; picking a track after an organization would
+   * silently clear the organization, because one field cannot hold two
+   * questions; and — the one this level adds — a link saved while OB held four
+   * organizations would still be filtering to those four after the fifth was
+   * onboarded.
+   *
+   * IT NAMES WHAT THE READER PICKED, NEVER THE EXPANSION OF IT. `node=OB` means
+   * "OB and everything filed underneath it", resolved against the tree AS IT IS
+   * WHEN THE LINK IS OPENED. Writing the descendants into this array instead
+   * would freeze that membership into the URL, which is the third failure above
+   * wearing a different hat. Which node sits under which is a fact this module
+   * cannot know — see `FilterContext.ancestryOfNode`.
+   */
+  mapNodeIds: string[]
+  /**
+   * [] = every integrator. The company delivering an organization's work —
+   * `map_nodes.vendor` (0023), free text, `not null default ''`.
+   *
+   * ITS OWN DIMENSION FOR THE THIRD TIME, and here the temptation was sharper
+   * than at the two levels above: a vendor IS a set of organizations, so the
+   * vendor control could have written their ids into `mapNodeIds` and this
+   * field need not exist. That version cannot survive a week. The URL would read
+   * `node=<uuid>,<uuid>,<uuid>` and could never say "Acme"; the organization
+   * facet and the vendor facet would be one field holding two questions, so
+   * picking a branch would silently drop the vendor; and the day Acme takes on a
+   * twelfth hospital, every link anybody saved would still be reporting on
+   * eleven. Aziz asked to filter the map by vendor — a link that cannot say
+   * which vendor is not that feature.
+   *
+   * MATCHED FOLDED, like `tags`: 'Acme' and 'acme ' are one integrator, and the
+   * column is free text a person types. Which vendor is behind an entry is a
+   * fact this module cannot know — see `FilterContext.vendorOfNode`.
+   */
+  vendors: string[]
   statuses: EntryStatus[]
   priorities: EntryPriority[]
   types: EntryType[]
@@ -89,6 +130,53 @@ export interface FilterContext {
    * and looks like it worked.
    */
   groupOfTrack?: ReadonlyMap<string, string | null>
+  /**
+   * node id → that node and every node ABOVE it, nearest first —
+   * `[self, parent, …, depth-0]`. `store/entries.useFilterContext()` builds it
+   * from the config store's `mapNodeById`, so every screen gets it without
+   * knowing it exists.
+   *
+   * THIS IS WHERE THE DESCENDANT EXPANSION LIVES, and it lives in the caller
+   * because this module holds no tree and must not grow one — `matchesFilter`
+   * is called once per row per keystroke and a tree walk per row is a different
+   * function with a different cost. Expressed as ANCESTRY rather than as "the
+   * ids under the chosen node" for one reason that matters: a descendant set
+   * would have to be keyed on the current selection, so every click on the
+   * filter would rebuild it, and every memo downstream of `FilterContext` with
+   * it. Ancestry depends on the tree alone, so it is built once when the config
+   * lands and survives every change to the filter.
+   *
+   * SELF IS INCLUDED, and it is not a convenience: `node=Org1` has to keep the
+   * work filed directly ON Org1, which is most of it.
+   *
+   * WHEN IT IS ABSENT AND `mapNodeIds` IS NOT EMPTY, NOTHING MATCHES — the
+   * strict reading `groupOfTrack` takes, for its reason. A partial answer is
+   * available here and is the worse failure: without this map a filter on Org1
+   * could still match rows whose `node_id` IS Org1, so the list would look
+   * right, be wrong for every branch above a leaf, and nobody would find out
+   * until an executive asked why OB was empty.
+   */
+  ancestryOfNode?: ReadonlyMap<string, readonly string[]>
+  /**
+   * node id → the integrator delivering it, `''` when nobody has recorded one.
+   *
+   * THE EFFECTIVE VENDOR, INHERITED DOWNWARD by the caller: an entry filed on a
+   * node beneath an organization answers that organization's vendor, because
+   * "Acme's work" means everything inside Acme's organizations and a reader
+   * filing an issue one level deeper did not mean to leave the vendor behind.
+   * Resolving the nearest self-or-ancestor with a non-empty vendor needs the
+   * tree, so it happens where the tree is — beside `ancestryOfNode`, from the
+   * same walk.
+   *
+   * `''` ANSWERS NO VENDOR FILTER, exactly as an ungrouped track answers no
+   * group filter: "not recorded" is the absence of an answer, not a twelfth
+   * integrator, and passing it through would put every phase's work into
+   * whichever vendor was asked about first.
+   *
+   * Absent map, non-empty `vendors` ⇒ nothing matches, for `groupOfTrack`'s
+   * reason.
+   */
+  vendorOfNode?: ReadonlyMap<string, string>
 }
 
 /**
@@ -98,6 +186,8 @@ export interface FilterContext {
 export const EMPTY_FILTER: Readonly<FilterState> = Object.freeze({
   groupIds: [],
   trackIds: [],
+  mapNodeIds: [],
+  vendors: [],
   statuses: [],
   priorities: [],
   types: [],
@@ -254,6 +344,35 @@ export function matchesFilter(
 
   if (f.trackIds.length > 0 && (e.track_id === null || !f.trackIds.includes(e.track_id)))
     return false
+
+  // Then the finer grain INSIDE the track. An entry with no `node_id` is filed
+  // on its track and nowhere else — it is not "at the root of the hierarchy",
+  // so it answers no question about a place in it, which is the group facet's
+  // "unfiled is not a third group" one level down.
+  //
+  // ANDed with the track facet rather than replacing it, and the pair is never
+  // contradictory by accident: `entries_map_sync` derives `track_id` from the
+  // node, so a filter naming a track and a node under a different one returns
+  // nothing because that is the truth, not because the two facets fought.
+  if (f.mapNodeIds.length > 0) {
+    if (e.node_id === null) return false
+    const ancestry = c.ancestryOfNode?.get(e.node_id)
+    if (ancestry === undefined || !ancestry.some((id) => f.mapNodeIds.includes(id))) return false
+  }
+
+  // Vendor is an attribute of a place, so it is asked of the entry's place —
+  // which is why it sits here and not beside `owner`. `owner_name` free text
+  // naming the same company is a DIFFERENT question ("who is chasing this")
+  // and deliberately does not answer this one.
+  if (f.vendors.length > 0) {
+    const vendor = e.node_id === null ? '' : (c.vendorOfNode?.get(e.node_id) ?? '')
+    // Folded on both sides, like tags: the column is free text a person types,
+    // and 'Acme' typed on one organization and 'acme ' on the next is one
+    // integrator to everybody except a string comparison.
+    const carried = normalizeSearch(vendor)
+    if (carried === '' || !f.vendors.some((v) => normalizeSearch(v) === carried)) return false
+  }
+
   if (f.statuses.length > 0 && !f.statuses.includes(e.status)) return false
   if (f.priorities.length > 0 && !f.priorities.includes(e.priority)) return false
   if (f.types.length > 0 && !f.types.includes(e.type)) return false
@@ -371,6 +490,14 @@ export function countActiveFacets(f: FilterState): number {
   // Clear removes both.
   if (f.groupIds.length > 0) n += 1
   if (f.trackIds.length > 0) n += 1
+  // Three counters for three questions, and the badge is the only thing that
+  // tells a reader their list is narrowed before they open the panel. A facet
+  // wired into `matchesFilter` and left out of here is worse than one that does
+  // not exist: the list is short, the badge says nothing is filtering it, and
+  // Clear all — which is defined through this function — is offered or withheld
+  // on the strength of that same lie.
+  if (f.mapNodeIds.length > 0) n += 1
+  if (f.vendors.length > 0) n += 1
   if (f.statuses.length > 0) n += 1
   if (f.priorities.length > 0) n += 1
   if (f.types.length > 0) n += 1
@@ -406,6 +533,12 @@ export function filterKey(f: FilterState): string {
   return [
     [...f.groupIds].sort().join(','),
     [...f.trackIds].sort().join(','),
+    [...f.mapNodeIds].sort().join(','),
+    // FOLDED before sorting, because matching folds too: `vendor=Acme` and
+    // `vendor=acme` select the same rows, so they must key the same memo. A raw
+    // join would re-run selectEntries over the whole working set for a filter
+    // that cannot return a different answer.
+    [...f.vendors].map(normalizeSearch).sort().join(','),
     [...f.statuses].sort().join(','),
     [...f.priorities].sort().join(','),
     [...f.types].sort().join(','),
@@ -445,6 +578,12 @@ function ownerKey(owner: OwnerFilter): string {
 const P = {
   group: 'group',
   track: 'track',
+  // `node` and `vendor` are free: focus.ts owns `focus` and `dim`, and
+  // pages/map/useMapUrl.ts owns `lens` and `stage`. A collision would not be a
+  // compile error — it would be a drill-in and a filter overwriting each other
+  // in the address bar.
+  node: 'node',
+  vendor: 'vendor',
   status: 'status',
   priority: 'priority',
   type: 'type',
@@ -475,6 +614,15 @@ export function filterToParams(f: FilterState): URLSearchParams {
   // the property that makes `tag` a repeated param and this one not.
   if (f.groupIds.length > 0) p.set(P.group, f.groupIds.join(','))
   if (f.trackIds.length > 0) p.set(P.track, f.trackIds.join(','))
+  // Comma-joined for the group facet's reason — these are uuids and a uuid
+  // cannot contain a comma.
+  if (f.mapNodeIds.length > 0) p.set(P.node, f.mapNodeIds.join(','))
+  // A REPEATED PARAM, like `tag` and unlike every id list above it, and the
+  // rule is the same one: a vendor is free-form text somebody typed into an
+  // admin form, so the day a company is filed as "Acme, Inc." a comma list
+  // becomes two integrators that match nothing and a link that silently reports
+  // on neither.
+  for (const vendor of f.vendors) p.append(P.vendor, vendor)
   if (f.statuses.length > 0) p.set(P.status, f.statuses.join(','))
   if (f.priorities.length > 0) p.set(P.priority, f.priorities.join(','))
   if (f.types.length > 0) p.set(P.type, f.types.join(','))
@@ -515,6 +663,16 @@ export function filterFromParams(p: URLSearchParams): FilterState {
     // rendering of a link to a group somebody deleted.
     groupIds: splitList(p.get(P.group)),
     trackIds: splitList(p.get(P.track)),
+    // Not validated against the workspace's nodes either, for the same reason
+    // and with a sharper payoff: a link to an organization somebody archived
+    // this morning matches nothing and says so in the facet, rather than being
+    // silently dropped into "the whole map" — which would show a reader a full
+    // list under a link that promised one branch.
+    mapNodeIds: splitList(p.get(P.node)),
+    // Blank-only values are dropped rather than kept: `vendor=%20` is not an
+    // integrator, and it would fold to '' and match nothing while lighting the
+    // badge — an active facet nobody can see or explain.
+    vendors: p.getAll(P.vendor).filter((vendor) => vendor.trim() !== ''),
     statuses: splitList(p.get(P.status)).filter(isStatus),
     priorities: splitList(p.get(P.priority)).filter(isPriority),
     types: splitList(p.get(P.type)).filter(isType),

@@ -295,8 +295,14 @@ export const ADMIN_SCREENS: readonly PaletteScreen[] = [
   // order the filter bar's facets and the Settings page's two cards use.
   { to: '/settings/groups', labelKey: 'groups.title' },
   { to: '/settings/tracks', labelKey: 'admin.tracks.title' },
+  // Below tracks: the tree (0023), then the catalogue that tree is measured
+  // against (0024). Same coarse-to-fine order, continued one level down.
+  { to: '/settings/structure', labelKey: 'structure.title' },
+  { to: '/settings/catalogue', labelKey: 'catalogue.title' },
   { to: '/settings/vocabulary', labelKey: 'vocabadmin.title' },
   { to: '/settings/terminology', labelKey: 'terminology.title' },
+  // A role is what a member holds, so it sits directly above them (0025).
+  { to: '/settings/roles', labelKey: 'roles.title' },
   { to: '/settings/members', labelKey: 'route.members' },
 ]
 

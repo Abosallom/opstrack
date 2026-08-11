@@ -101,6 +101,14 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   // '/settings/tracks/:id/groups' should find this rule already in the right
   // place rather than discover the ordering by shipping a mistitled header.
   if (pathname.startsWith('/settings/groups')) return 'groups.title'
+  // The three screens 0023/0024/0025 added, on exactly the groups precedent:
+  // each names itself out of its own namespace, because `structure.title`,
+  // `catalogue.title` and `roles.title` already ship in both languages and a
+  // `route.*` twin would only ever hold the same words — and would be a second
+  // row an admin cannot tell apart on the Terminology screen.
+  if (pathname.startsWith('/settings/structure')) return 'structure.title'
+  if (pathname.startsWith('/settings/catalogue')) return 'catalogue.title'
+  if (pathname.startsWith('/settings/roles')) return 'roles.title'
   // Settings › AI assist. Same precedent as vocabulary/recurring/terminology/
   // groups: it names itself out of its own namespace, because 'ai.title' already
   // ships in both languages and a route.ai twin would only ever hold the same

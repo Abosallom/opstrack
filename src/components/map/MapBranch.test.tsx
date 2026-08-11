@@ -254,6 +254,13 @@ vi.mock('../../store/config', () => ({
   useActiveTracks: () => fx.state.tracks,
   useConfigLoading: () => false,
   useGroups: () => [],
+  // MapBranchDetail mounts inside this panel now (0023) and reads the node rows
+  // and the capability catalogue from the same store. Empty rather than absent:
+  // every fixture below focuses a track or the root, never an `entity`, so the
+  // band renders null and these are the reads that must not throw on the way to
+  // that decision. A case that focuses an Org has to fill them in.
+  useMapNodeMap: () => new Map(),
+  useAllUseCases: () => [],
 }))
 
 vi.mock('../../store/auth', () => ({

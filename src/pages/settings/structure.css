@@ -1,0 +1,375 @@
+/* Settings › Structure — the `.str-*` prefix, per the class registry
+   (docs/EXECUTION-PLAN.md §1.0.7).
+
+   A SEPARATE SHEET FROM groups.css AND admin.css, and the reason is the one
+   thing this screen has that neither of them does: DEPTH. `.grp-*` styles a
+   container and the flat list inside it; `.admin-*` styles a flat list of
+   tracks. This sheet styles a tree that can be six levels deep, which is a
+   different layout (an indent bound to a custom property, a guide rule down the
+   inline start of every row, three disclosures that have to sit INSIDE an
+   indented row without inheriting its indent again) and a different set of
+   states (archived, at the depth cap, counting a move). Reaching into `.grp-*`
+   for the half that happens to match would make every future change to Settings
+   › Groups a change to this screen too.
+
+   Almost everything visible here is a global.css primitive and is deliberately
+   NOT restyled: `.card`, `.btn`, `.btn-sm`, `.btn-icon`, `.pill`, `.field`,
+   `.field-label`, `.input`, `.select`, `.track-bar`, `.track-glyph`,
+   `.row-actions`, `.sr-only` and `.tabular`. This file owns four layouts that
+   have no primitive — the track card's head, the indented row, the disclosure
+   panel, and the counts block a move shows before it happens.
+
+   ── LOGICAL PROPERTIES ONLY, AND HERE IT IS LOAD-BEARING RATHER THAN TIDY ──
+
+   Every other sheet in this repo follows the rule so the Arabic mirror comes
+   free. This one would VISIBLY COLLAPSE without it: the indent that carries the
+   whole meaning of the screen is `padding-inline-start`, and a `padding-left`
+   would push every row away from the right-hand reading start in Arabic — so
+   the tree would appear to have no hierarchy at all, with six levels of nodes
+   flush against the same edge. Same for the guide rule (`border-inline-start`)
+   and the panels' offset. There is no physical property anywhere below. */
+
+.str {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-inline-size: 860px;
+}
+
+.str-bar {
+  display: flex;
+  align-items: center;
+}
+
+/* The route's h1 lives in the app header, so the page opens on its standfirst
+   rather than repeating the title. */
+.str-intro {
+  font-size: 13px;
+  line-height: 1.55;
+  /* --text-dim, not --text-faint: this sits directly on --bg, and dim is the
+     token that clears AA at every elevation. */
+  color: var(--text-dim);
+}
+
+.str-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The second list — archived tracks that still have a branch filed under them.
+   Amber, not red: nothing is broken, the branch is simply drawn by nothing and
+   counted by nothing until it is moved. Same reading `.grp-loose` carries for a
+   track with no group. */
+.str-stranded > .str-track {
+  border-color: color-mix(in srgb, var(--yellow) 45%, transparent);
+}
+
+/* ---------- one track ---------- */
+
+.str-track {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* TOP-ALIGNED, not centred, for the reason `.grp-head` records: the text block
+   is two lines and the action cluster is one, so centring parks "Add at the top
+   level" level with the count and the track's name floats above it unattached. */
+.str-track-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* The track's own colour, resolved the one sanctioned way: the caller sets the
+   two hexes inline (lib/trackStyle.trackVars) and CSS picks between them, so the
+   bar stays correct when the `auto` theme flips at sunset under a mounted page.
+   Composed with the global `.track-bar`, which supplies the 3px
+   border-inline-start and its padding. */
+.str-track-text {
+  --track-color: var(--track-c-dark);
+  display: flex;
+  flex: 1 1 220px;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+:root[data-theme='light'] .str-track-text {
+  --track-color: var(--track-c-light);
+}
+
+.str-track-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.str-track-mark {
+  flex: 0 0 auto;
+}
+
+.str-track-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ---------- the tree ---------- */
+
+.str-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* THE INDENT. `--depth` is 0 for a node hanging off the track and rises by one
+   per level, to a maximum of 5 (0023 caps the tree at six levels). 1.25rem per
+   level is the smallest step that still reads as nesting at 13px type; the
+   media query at the foot of this file halves it on a phone, where 5 × 1.25rem
+   would be a quarter of a 375px screen spent on white space.
+
+   `padding-inline-start`, NEVER `padding-left` — see this file's header. The
+   guide rule uses `border-inline-start` for the same reason: in Arabic both
+   have to move to the right-hand edge together, or the rule ends up on the far
+   side of the text it is supposed to be indenting. */
+.str-row {
+  padding-inline-start: calc(var(--depth, 0) * 1.25rem);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 6px;
+  border-inline-start: 2px solid transparent;
+}
+
+/* A row at depth 0 has no rule to draw — it is not inside anything. Everything
+   deeper gets a faint one, so a reader scanning the column can see where a
+   branch begins without counting indents.
+
+   A CLASS, NOT `:not([style*='--depth: 0'])`. Measured rather than assumed:
+   `renderToStaticMarkup(<li style={{'--depth': 3}} />)` emits
+   `style="--depth:3"` — no space after the colon — so a selector written with
+   one would silently never match, and a selector written without one would be
+   depending on a serialiser detail nothing pins. The component states the fact
+   it already knows (`level > 1`) instead of encoding it in a string match. */
+.str-row-nested {
+  border-inline-start-color: var(--border);
+}
+
+/* Archived rows stay legible rather than being greyed into unreadability: this
+   is the only screen that can bring one back, so it has to be readable enough
+   to find. The dashed rule and the amber pill carry the state instead. */
+.str-row-archived {
+  border-inline-start-style: dashed;
+  border-inline-start-color: color-mix(in srgb, var(--yellow) 55%, transparent);
+}
+
+.str-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  /* 16px in the block axis because this row WRAPS at every width below about
+     900px, and global.css's `.btn-sm` reaches 7px past its box on each side to
+     make its 44px target. Two wrapped lines closer than 14px have overlapping
+     overlays and the later line silently eats the earlier line's target —
+     global.css §.btn-sm states the rule and names the four clusters that
+     learned it the hard way. */
+  row-gap: 16px;
+}
+
+.str-names {
+  display: flex;
+  flex: 1 1 200px;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.str-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* The other language, always — an admin naming forty organizations needs both
+   halves of the pair on screen at once. */
+.str-alt {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.str-marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+}
+
+/* The kind is a chip and NOT a colour: 0023's `map_node_kinds` has no colour
+   column on purpose, because colour on this map means TRACK at every depth and
+   a second colour axis would make two different things look like one. */
+.str-kind {
+  white-space: nowrap;
+}
+
+.str-vendor {
+  max-inline-size: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The account manager carries the row's most frequent edit, so it gets a real
+   measure rather than shrinking to its longest name: display names differ in
+   length by a factor of three and an auto-sized control would jump between
+   every row of a forty-row tree. */
+.str-manager {
+  flex: 0 0 auto;
+  inline-size: 190px;
+  max-inline-size: 100%;
+}
+
+.str-actions {
+  flex: 0 0 auto;
+}
+
+/* Reorder is up/down buttons, not drag: a drag handle is unreachable by
+   keyboard and unusable one-handed, which is this app's primary posture. */
+/* 44, not 40 — `.btn-icon`'s floor is min-inline-size and the block-axis
+   `.tap-44` overlay cannot cover for a narrowed box. Same correction
+   `groups.css .grp-move`, `admin.css .admin-move` and `vocab.css .vocab-move`
+   carry. */
+.str-move {
+  min-inline-size: 44px;
+  padding-inline: 8px;
+}
+
+/* One chevron glyph serves both directions. Up and down are axis-neutral, so
+   these must NOT carry `.icon-directional` — mirroring them in Arabic would
+   point them sideways. */
+.str-move-icon {
+  transition: transform 0.15s ease;
+}
+
+.str-move-up {
+  transform: rotate(-90deg);
+}
+
+.str-move-down {
+  transform: rotate(90deg);
+}
+
+/* ---------- hints and warnings ---------- */
+
+.str-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* Amber text for the three sentences that change what a click will do: the
+   depth cap, the cross-track warning and the stranded-track note. --yellow is
+   the token, not a literal, so it re-resolves per theme. */
+.str-warn {
+  color: var(--yellow);
+}
+
+.str-cap {
+  font-style: italic;
+}
+
+/* ---------- the disclosures ---------- */
+
+/* Inline disclosure rather than a dialog, for the reason `groups.css .grp-edit`
+   gives: Confirm.tsx owns the only focus trap in the app, and a second modal
+   with its own trap and Esc handling is a lot of machinery for four fields.
+   Dashed, because this is a form over the row above it, not another card.
+
+   NOTE THAT IT TAKES NO INDENT OF ITS OWN. The panel is a child of an already
+   indented `.str-row`, so it inherits the row's `padding-inline-start` through
+   the box it sits in; giving it its own would double the indent and walk a
+   level-5 form off the side of a phone. */
+.str-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+.str-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.str-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.str-fields .field {
+  flex: 1 1 200px;
+  min-inline-size: 0;
+}
+
+/* WHAT A MOVE WOULD TOUCH, BEFORE IT HAPPENS. Bordered on the inline start
+   rather than boxed, so it reads as a consequence of the destination above it
+   rather than as a second form. It is an aria-live region — see the component —
+   and it is the reason "Move" stays disabled until the counts land. */
+.str-counts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--border);
+}
+
+/* ---------- states ---------- */
+
+.str-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
+  color: var(--text);
+}
+
+@media (max-width: 599px) {
+  /* Half the indent on a phone. Five levels at 1.25rem is 100px of a 375px
+     screen given over to white space, which leaves a 40-character organization
+     name wrapping four times; 0.625rem still reads as nesting because the guide
+     rule carries most of the signal. */
+  .str-row {
+    padding-inline-start: calc(var(--depth, 0) * 0.625rem);
+  }
+
+  /* At this width the head's action button cannot share a line with the track
+     name and its count. Dropping the text to full width puts the action on its
+     own row at full tap size instead of shrinking either. */
+  .str-track-text {
+    flex-basis: 100%;
+  }
+
+  /* Full-width select on a phone: 190px next to a wrapped node name leaves a
+     dead column, and the control is one of the two things on the row worth
+     touching. */
+  .str-manager {
+    inline-size: 100%;
+  }
+}

@@ -40,6 +40,32 @@
 // group is an admin state that Settings › Groups surfaces and fixes; offering it
 // as a filter here would put a permanent third choice in front of every user for
 // a condition that should never last more than a minute.
+//
+// ── BRANCH AND VENDOR (0023) ───────────────────────────────────────────────
+//
+// Two more first-class dimensions, for the group facet's three reasons one
+// level down the tree — lib/entryFilter's `mapNodeIds` and `vendors` carry the
+// argument in full. What is decided HERE is what each control looks like, and
+// the two answers are deliberately different:
+//
+//   VENDOR is a picker. The integrators are a short flat list read off the
+//   nodes, they are exactly what Aziz asked to filter by, and choosing one is
+//   the whole interaction. There is no "no vendor" option, for the reason the
+//   group facet gives one paragraph up and one more besides: most of the tree —
+//   every programme and every phase — legitimately has no integrator, so the
+//   option would return the work filed on structure rather than on an
+//   organization, which is not a question anybody has.
+//
+//   BRANCH IS A READOUT, and it renders ONLY when something is already
+//   selected. The map is the branch picker — a reader points at UHR › OB › Org1
+//   by drilling into it, and reproducing forty organizations as a flat chip row
+//   inside a disclosure panel would be a worse version of the surface behind it.
+//   What this facet owes the reader is the other half: a filter that arrived in
+//   a pasted link has to be VISIBLE and REMOVABLE, or the badge says "1 filter"
+//   over a list nobody can explain. That is `owner`'s orphan-option precedent
+//   two facets down, and it is why the chips are toggles rather than a
+//   radiogroup: a link may carry several branches and a single-select control
+//   would show one of them and silently keep filtering on the rest.
 
 import { useId, useMemo, useState, type ReactElement } from 'react'
 import {
@@ -52,8 +78,9 @@ import {
 import { IconChevronDown } from './fields/glyphs'
 import { t, useLocale, type Locale } from '../lib/i18n'
 import { trackVars } from '../lib/trackStyle'
+import { normalizeSearch } from '../lib/text'
 import { countActiveFacets, EMPTY_FILTER, type FilterState } from '../lib/entryFilter'
-import { useGroups } from '../store/config'
+import { useGroups, useMapNodeMap, useMapNodes } from '../store/config'
 import { useMembers } from '../store/members'
 import { useVocab } from '../store/vocab'
 import type {
@@ -61,6 +88,7 @@ import type {
   EntryStatus,
   EntryType,
   HealthLevel,
+  MapNode,
   TrackGroup,
 } from '../types'
 import './filters.css'
@@ -81,12 +109,28 @@ function groupLabelIn(group: TrackGroup, locale: Locale): string {
   return group.name
 }
 
+/**
+ * A node's name in the given locale — `groupLabelIn`'s rule for the hierarchy
+ * below tracks, and the same fallback for the same reason: `map_nodes.name_ar`
+ * is `not null default ''`, so an untranslated organization shows its English
+ * name rather than an empty chip.
+ *
+ * LOCAL FOR NOW, and it belongs in src/lib/labels.ts beside `trackLabel` with
+ * `groupLabelIn` above it — the handoff carries that consolidation.
+ */
+function nodeLabelIn(node: MapNode, locale: Locale): string {
+  if (locale === 'ar') return node.name_ar.trim() || node.name
+  return node.name
+}
+
 export type FilterFacet =
   | 'search'
   | 'scope'
   | 'mine'
   | 'group'
   | 'track'
+  | 'branch'
+  | 'vendor'
   | 'status'
   | 'priority'
   | 'type'
@@ -103,6 +147,11 @@ const DEFAULT_FACETS: readonly FilterFacet[] = [
   // bottom in the order it narrows.
   'group',
   'track',
+  // Below `track` and above everything else, because the panel reads in the
+  // order it narrows and these two are the next cut down the same tree: group →
+  // track → branch, then vendor, which is a question about the branches.
+  'branch',
+  'vendor',
   'status',
   'priority',
   'type',
@@ -162,6 +211,8 @@ export default function FilterBar({
   const [open, setOpen] = useState(false)
   const panelId = useId()
   const groups = useGroups()
+  const mapNodes = useMapNodes()
+  const mapNodeById = useMapNodeMap()
   const members = useMembers()
   const statuses = useVocab('status')
   const priorities = useVocab('priority')
@@ -196,6 +247,55 @@ export default function FilterBar({
       })),
     [groups, locale],
   )
+
+  /**
+   * The integrators the workspace actually has, one option each.
+   *
+   * DEDUPED BY THE FOLDED SPELLING, KEYED BY A REAL ONE. lib/entryFilter matches
+   * vendors folded, so 'Acme' on one organization and 'acme ' on the next are
+   * one integrator and must not be two chips that select identical rows; the
+   * label and the stored key are the first spelling seen, because that is what
+   * somebody typed and what a shared URL should read.
+   *
+   * ARCHIVED NODES ARE SKIPPED. A vendor that survives only on organizations
+   * somebody put away is not a choice the workspace still has, and offering it
+   * would put a chip in front of every reader that selects nothing they can see.
+   * The filter itself is unaffected — `vendorOfNode` is built over every node,
+   * so a link naming that vendor still resolves.
+   */
+  const vendorOptions = useMemo<PickerOption[]>(() => {
+    const byFold = new Map<string, string>()
+    for (const node of mapNodes) {
+      if (node.archived) continue
+      const vendor = node.vendor.trim()
+      if (vendor === '') continue
+      const fold = normalizeSearch(vendor)
+      // A vendor that folds to nothing — punctuation alone — would be a chip
+      // with no label that matches every other such row.
+      if (fold === '' || byFold.has(fold)) continue
+      byFold.set(fold, vendor)
+    }
+    // Sorted on the FOLDED key and compared by code point, never through
+    // localeCompare: lib/entryFilter's `title` sort gives the reason — the order
+    // has to be identical in the test runner and in the browser, and folding is
+    // what makes code-point order sane in both languages.
+    return [...byFold.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([, vendor]) => ({ key: vendor, label: vendor }))
+  }, [mapNodes])
+
+  // The chosen vendor as this control can address it. A filter restored from a
+  // URL carries a SPELLING, not an id, so it is matched against the options the
+  // way lib/entryFilter matches it against the data — folded. When nothing
+  // matches, the value is still shown, as its own quiet option: a vendor whose
+  // last organization was archived is exactly the filter a reader needs to see
+  // in order to switch it off.
+  const chosenVendor = value.vendors[0] ?? null
+  const chosenVendorFold = chosenVendor === null ? '' : normalizeSearch(chosenVendor)
+  const knownVendor =
+    chosenVendorFold === ''
+      ? undefined
+      : vendorOptions.find((option) => normalizeSearch(option.key) === chosenVendorFold)
 
   // RESOLVED OUTSIDE THE MEMO, and that is a fix rather than a style choice.
   //
@@ -359,6 +459,68 @@ export default function FilterBar({
               // differently. The array shape is what makes adding it later a
               // component change and not a model change.
               onChange={(id) => set('trackIds', id === null ? [] : [id])}
+            />
+          </section>
+        )}
+
+        {/* Rendered only when a branch is already selected — the map is the
+            picker, and this is the readout that makes a pasted link's branch
+            visible and removable. See the header. */}
+        {has('branch') && value.mapNodeIds.length > 0 && (
+          <section className="flt-facet">
+            <h3 className="flt-facet-title">{t('filter.branch')}</h3>
+            <ChipToggles
+              label={t('filter.branch')}
+              options={value.mapNodeIds.map((id) => {
+                const node = mapNodeById.get(id)
+                return {
+                  key: id,
+                  // `mapNodeById` holds ARCHIVED nodes too, so an organization
+                  // somebody put away still reads as itself. Only an id the
+                  // workspace has never heard of — a link to something deleted —
+                  // falls back, and it falls back to a sentence rather than to a
+                  // raw uuid, which tells the reader nothing and cannot be read
+                  // aloud.
+                  label: node ? nodeLabelIn(node, locale) : t('filter.branchGone'),
+                  retired: node === undefined || node.archived,
+                }
+              })}
+              // Every selected branch is pressed, and pressing one removes it.
+              // A radiogroup here would show the first of several and keep
+              // filtering on the rest invisibly.
+              value={value.mapNodeIds}
+              onChange={(next) => set('mapNodeIds', next)}
+            />
+            {/* Descendants surprise people the way AND-ed tags do: choosing OB
+                keeps everything filed under every organization inside it. */}
+            <p className="flt-hint">{t('filter.branchHint')}</p>
+          </section>
+        )}
+
+        {/* Rendered only when the workspace records vendors at all — the group
+            facet's rule two sections up, for its reason: a heading over a lone
+            "Any vendor" chip is a control that looks broken, and before 0023 is
+            applied there are no nodes to read them off. */}
+        {has('vendor') && vendorOptions.length > 0 && (
+          <section className="flt-facet">
+            <h3 className="flt-facet-title">{t('filter.vendor')}</h3>
+            <OptionGroup
+              label={t('filter.vendor')}
+              options={
+                chosenVendor !== null && knownVendor === undefined
+                  ? [...vendorOptions, { key: chosenVendor, label: chosenVendor, retired: true }]
+                  : vendorOptions
+              }
+              // The option's own spelling when one matched, so the control
+              // checks the chip it is showing; the filter's spelling otherwise,
+              // which is the orphan option just appended.
+              value={knownVendor?.key ?? chosenVendor}
+              clearLabel={t('filter.anyVendor')}
+              // Single-select over an array, exactly like `group` and `track`:
+              // one integrator is the question Aziz asked, and the array shape
+              // is what makes a multi-vendor chip row a component change rather
+              // than a model change.
+              onChange={(vendor) => set('vendors', vendor === null ? [] : [vendor])}
             />
           </section>
         )}

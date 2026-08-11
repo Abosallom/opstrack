@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "seed": "node scripts/seed.mjs",
+    "provision": "node scripts/provision-people.mjs",
     "preview": "vite preview",
     "icons": "node assets/generate-icons.mjs && capacitor-assets generate --ios",
     "ios:sync": "npm run build && cap sync ios",

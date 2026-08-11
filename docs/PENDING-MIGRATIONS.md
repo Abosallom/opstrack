@@ -9,16 +9,83 @@ A verification that cannot fail is worse than none.
 
 ## Status — 11 August 2026
 
-**`0023_map_nodes.sql` and `0024_map_use_cases.sql` are PENDING. Neither has ever been run
-against any database.** They must be applied **in order** — `0024` references `map_nodes` and
-carries a preflight block that refuses to apply without it; `0023` in turn probes
-`information_schema` for `entries.node_id` so it applies standalone and starts counting entries
-the moment `0024` lands, with no re-apply.
+**`0023_map_nodes.sql`, `0024_map_use_cases.sql` and `0025_roles_permissions.sql` are PENDING.
+None has ever been run against any database.** They must be applied **in order** — `0024`
+references `map_nodes` and carries a preflight block that refuses to apply without it; `0023` in
+turn probes `information_schema` for `entries.node_id` so it applies standalone and starts
+counting entries the moment `0024` lands, with no re-apply. `0025` is independent of both and
+must still go last, because it **redefines `is_admin()`**, which every policy in `0023` and
+`0024` calls.
 
 | # | File | What it does | Verify live by |
 |---|---|---|---|
 | 0023 | `map_nodes.sql` | The hierarchy below tracks: `map_nodes`, `map_node_kinds`, the deferred tree check, `reorder_map_nodes` / `move_map_node`, and a redefinition of two 0002 objects | `map_nodes` + `map_node_kinds` tables present; 3 rows in `map_node_kinds`; `map_nodes.vendor` column present; `map_nodes_tree_ck_trg` is `tgdeferrable`; `map_nodes_sibling_name_uidx` definition contains `NULLS NOT DISTINCT` |
 | 0024 | `map_use_cases.sql` | The capability catalogue and the entry's finer grain: `use_cases`, `map_node_use_cases`, `entries.node_id`, and the `entries_map_sync` trigger that DERIVES `track_id` from the node | 10 rows in `use_cases`; `map_node_use_cases` table present; `entries.node_id` column present; `entries_map_sync` BEFORE INSERT OR UPDATE trigger on `entries` |
+| 0025 | `roles_permissions.sql` | Custom roles: `roles`, `role_permissions`, `profiles.role_id`, `profiles.position` — and the redefinition of `is_admin()` into `has_perm('workspace.admin')` that makes permissions data without editing 183 policies | 3 rows in `roles`; 9 rows in `role_permissions`; 0 profiles with a null `role_id`; `pg_get_functiondef('public.is_admin()')` contains `has_perm`; `role_permissions_key_ck` lists all five keys |
+
+### ⚠ 0025 redefines four functions this repo already owns elsewhere
+
+`is_admin()` and `guard_profile_role()` are **0001**'s (the guard last rewritten by **0016**), and
+`log_config_audit()` is **0002**'s. All three are restated in full inside `0025`, so
+**re-running 0001, 0002 or 0016 after 0025 silently reverts part of it** and the fix is to
+re-apply `0025`. `0025`'s own PROBE 1 detects exactly this and names it: it reads
+`pg_get_functiondef('public.is_admin()')` and fails if the body no longer calls `has_perm`.
+
+The damage from that reversion is bounded ON PURPOSE. `profiles.role` is **kept and kept
+derived** — `role = 'admin'` ⟺ `role_id` is the system Admin role — so a restored 0001
+`is_admin()` reading the text column still answers correctly for every holder of a system role.
+The workspace does not lock itself out; it stops honouring custom roles until 0025 is re-applied.
+
+`log_config_audit()`'s guard is **widened** from `is_admin()` to "holds any configuration
+permission". Without that, the first custom role carrying `members.manage` without
+`workspace.admin` would pass the RLS policy on `roles`, reach the audit trigger, and be refused
+by the audit writer — a 42501 on a legitimate edit, blamed on the wrong thing.
+
+### What 0025 does NOT do, and must be said before Aziz sees a permissions screen
+
+* **Four of the five permission keys are DECLARED, NOT YET ENFORCED.** Only `workspace.admin`
+  (via `is_admin()`) and `members.manage` (this file's own write gate) are read by anything
+  today. `structure.edit`, `vocab.edit` and `capture.write` are seeded so the Director role is a
+  real, assignable, audited thing the day the `tracks` / `track_groups` / `map_nodes` /
+  `use_cases` / `vocab_options` policies are re-pointed at them — a one-line policy change per
+  table. **Until then a Director can write exactly what a member can.** A screen that renders
+  those switches as though they were live would be a lie; the migration header says so at length.
+* **It seeds no people.** Roles exist; who holds which is a separate step, and every profile is
+  backfilled onto Admin or Member from the legacy column so nobody's access changes on apply.
+* **`admin-members/index.ts` still gates on `profiles.role = 'admin'`**, in TypeScript. A custom
+  role carrying `members.manage` can therefore edit roles but still cannot create or delete a
+  member. That is a deliberate floor — provisioning is the one power that reaches `auth.users` —
+  but the Members screen has to say it.
+* **`profiles.role` is NOT dropped.** Dropping the old column in the same migration that adds its
+  replacement is how a rollback becomes impossible. It goes when (a) no policy reads it,
+  (b) the edge function gates on `has_perm`, and (c) `src/types.ts`'s `UserRole` and
+  `src/lib/permissions.ts` no longer branch on it.
+
+**Read 0025's four probe blocks' notices.** Written without a Postgres to run against, like
+0023/0024 — nothing in the file has executed:
+
+* **probe 1** — the seed landed, Director does NOT carry `members.manage`, no profile has a null
+  `role_id`, the key catalogue CHECK exists, and `is_admin()` really is the alias.
+* **probe 2** — **the whole migration's safety net.** It impersonates every profile that was an
+  admin before the migration and asserts `is_admin()` still answers TRUE, plus a negative
+  control. If this one fails, every admin policy in the app has *silently closed*: no error, no
+  failed statement, just an admin whose writes affect zero rows and whose screens report success.
+  It needs no `set role authenticated` — `auth.uid()` reads the claims GUC — so unlike an RLS
+  probe it **cannot be skipped**.
+* **probe 3** — the guards, each exercised until it refuses: a new profile lands on Member
+  unasked; the legacy column and `role_id` stay in step in both directions; a member cannot
+  escalate themselves, move anyone else, or write their own `position`; a `members.manage` holder
+  can do all three; a no-op write emits no audit row and a real revocation does; revoking the last
+  `workspace.admin`, deleting a system role and deleting a held role are all refused.
+* **probe 4** — member read, `members.manage` write, over RLS. Skips (with a notice) if the
+  applying role cannot `set role authenticated`, 0018's pattern.
+
+The last-admin guard refuses the **transition** from at least one admin to none, not the *state*
+of zero — a `before` count stashed by a BEFORE STATEMENT trigger, compared by an AFTER STATEMENT
+one. The absolute version was written first and probe 3 refuted it on paper: on a workspace with
+no members yet the probe's own fixtures take the count 0 → 0 and an absolute guard would fail the
+migration — and so would the first real member anybody provisions. An absent stash is read as
+"somebody had access", never as "carry on", so the guard cannot fail open.
 
 ⚠ **`0024` decides an entry's `track_id` for it.** `entries_map_sync` is `SECURITY DEFINER` with
 a `found` guard, so a client that sends a `node_id` and a contradicting `track_id` has the
@@ -161,17 +228,30 @@ select
   (select count(*) from information_schema.columns
      where table_schema='public' and table_name='entries' and column_name='node_id')      as c_0024,
   (select count(*) from pg_trigger
-     where tgrelid='public.entries'::regclass and tgname='entries_map_sync')              as g_0024;
+     where tgrelid='public.entries'::regclass and tgname='entries_map_sync')              as g_0024,
+  (select count(*) from public.roles)                                                     as r_0025,
+  (select count(*) from public.role_permissions where granted)                            as p_0025,
+  (select count(*) from public.profiles where role_id is null)                            as n_0025,
+  (pg_get_functiondef('public.is_admin()'::regprocedure) like '%has_perm%')                as f_0025,
+  (select count(*) from information_schema.columns
+     where table_schema='public' and table_name='profiles' and column_name='position')    as c_0025;
 ```
 
 Expected: `2, 1, 1, 1, 1, true`, `scopes` listing all four of `username`, `ip`, `ai_user`,
-`ai_ip`, then `3, 1, true`, then `10, 1, 1, 1`. A narrowed `scopes` means someone re-ran a
+`ai_ip`, then `3, 1, true`, then `10, 1, 1, 1`, then `3, 9, 0, true, 1`. A narrowed `scopes` means someone re-ran a
 pre-fix `0010`; re-apply `0022`. `d_0023 = 0` means the tree check is installed but **not
 deferred**, which does not fail any probe in this file's own terms and does break the first
 cross-track subtree move somebody tries. `n_0023 = false` means two roots named "OB" under one
 track are both legal. `g_0024 = 0` with `c_0024 = 1` is the dangerous half-state: the column
 exists and nothing derives `track_id` from it, so the two filing axes the design forbids become
 representable again.
+
+`f_0025 = false` is the one to act on immediately: `is_admin()` no longer calls `has_perm`, so
+0001 or 0002 was re-run after 0025 and every custom role has quietly stopped being honoured —
+re-apply 0025. `n_0025 > 0` means somebody has a profile with no `role_id`; they are not locked
+out (`has_perm()` falls back to the legacy `role` text) but `profiles_role_sync()` is not firing
+and the legacy column cannot be dropped until it is. `r_0025`/`p_0025` above 3/9 is normal and
+expected — those are Aziz's own roles.
 
 ### Probes must be able to fail
 

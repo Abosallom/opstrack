@@ -1,0 +1,22 @@
+{
+  "mapnode": {
+    "detail": "Details",
+    "accountManager": "Account manager",
+    "managerGone": "No longer in the workspace",
+    "vendor": "Vendor",
+    "notRecorded": "Not recorded",
+    "useCases": "Use cases",
+    "useCasesFor": "Use cases at ⁨{name}⁩",
+    "progress": "⁨{done}⁩ of {total} ⁨{status}⁩",
+    "progressLong": "Use cases at ⁨{name}⁩ — ⁨{done}⁩ of {total} ⁨{status}⁩",
+    "statusPlanned": "Planned",
+    "statusTesting": "Testing",
+    "statusLive": "Live",
+    "statusNone": "Nothing recorded",
+    "wordPlanned": "planned",
+    "wordTesting": "in testing",
+    "wordLive": "live",
+    "retired": "Retired",
+    "retiredHint": "This capability was hidden in the catalogue. It still counts here, because this organization is recorded against it."
+  }
+}
