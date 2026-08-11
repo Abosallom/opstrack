@@ -41,7 +41,7 @@
 
 import { type ReactElement, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { IconArrowStart, IconBolt, IconShieldCheck } from '../components/icons'
+import { IconArrowStart, IconRing, IconShieldCheck } from '../components/icons'
 import { t, useLocale } from '../lib/i18n'
 import { setLocaleSetting } from '../store/settings'
 import './privacy.css'
@@ -225,7 +225,7 @@ export default function Privacy({ standalone = false }: { standalone?: boolean }
       <div className="pv-page">
         <div className="pv-brand">
           <span className="pv-mark" aria-hidden="true">
-            <IconBolt size={16} />
+            <IconRing size={16} />
           </span>
           <span className="pv-brand-name">{t('app.name')}</span>
           {/* The pre-auth language control, for the reason SignIn.tsx states:

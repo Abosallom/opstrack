@@ -62,7 +62,7 @@ import {
 import { flushSync } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { isConfigured } from '../api/supabase'
-import { IconArrowStart, IconBolt, IconKey, IconMail, IconUser } from '../components/icons'
+import { IconArrowStart, IconKey, IconMail, IconRing, IconUser } from '../components/icons'
 import { toast } from '../components/toast'
 import { t, useLocale } from '../lib/i18n'
 import { sendOtp, signInPassword, verifyOtp } from '../store/auth'
@@ -304,7 +304,7 @@ export default function SignIn(): ReactElement {
       <div className="card signin-card">
         <div className="signin-brand">
           <span className="signin-mark" aria-hidden="true">
-            <IconBolt size={16} />
+            <IconRing size={16} />
           </span>
           <span className="signin-brand-name">{t('app.name')}</span>
           {/* The ONLY language control that exists before sign-in. The header's
