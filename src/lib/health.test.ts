@@ -35,6 +35,7 @@ function entry(partial: Partial<Entry> = {}): Entry {
   return {
     id: 'e1',
     track_id: 'tr1',
+    node_id: null,
     title: 'Migrate the payment gateway',
     description: '',
     type: 'action',

@@ -65,6 +65,7 @@ function entry(over: Partial<Entry> = {}): Entry {
   return {
     id: 'e1',
     track_id: 't1',
+    node_id: null,
     title: 'Renew the core switch certificate',
     description: '',
     type: 'action',

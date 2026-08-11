@@ -455,6 +455,12 @@ export default function TracksAdmin(): ReactElement {
                         templates: t('admin.tracks.usageTemplates', {
                           count: pendingDelete.usage.templates,
                         }),
+                        // 0023's fourth dependant. Omitting it would tell an
+                        // admin the track holds three kinds of thing while the
+                        // RPC refuses over a fourth they were never shown.
+                        nodes: t('admin.tracks.usageNodes', {
+                          count: pendingDelete.usage.nodes,
+                        }),
                       })}
                     </p>
                     {/* Only ACTIVE tracks are offered, and there is deliberately

@@ -89,6 +89,7 @@ const TODAY = '2026-07-29'
 const base: Entry = {
   id: 'e-gone',
   track_id: null,
+  node_id: null,
   title: 'Renew the vendor support contract',
   description: '',
   type: 'action',

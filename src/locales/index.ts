@@ -66,6 +66,7 @@ import enFollowups from './en/followups.json'
 import enGroups from './en/groups.json'
 import enHealth from './en/health.json'
 import enMap from './en/map.json'
+import enMapadmin from './en/mapadmin.json'
 import enMeeting from './en/meeting.json'
 import enMembers from './en/members.json'
 import enMindtree from './en/mindtree.json'
@@ -107,6 +108,7 @@ import arFollowups from './ar/followups.json'
 import arGroups from './ar/groups.json'
 import arHealth from './ar/health.json'
 import arMap from './ar/map.json'
+import arMapadmin from './ar/mapadmin.json'
 import arMeeting from './ar/meeting.json'
 import arMembers from './ar/members.json'
 import arMindtree from './ar/mindtree.json'
@@ -162,6 +164,7 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   groups: enGroups,
   health: enHealth,
   map: enMap,
+  mapadmin: enMapadmin,
   meeting: enMeeting,
   members: enMembers,
   mindtree: enMindtree,
@@ -205,6 +208,7 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   groups: arGroups,
   health: arHealth,
   map: arMap,
+  mapadmin: arMapadmin,
   meeting: arMeeting,
   members: arMembers,
   mindtree: arMindtree,
@@ -257,6 +261,7 @@ export const en: LocaleTree = {
   ...enGroups,
   ...enHealth,
   ...enMap,
+  ...enMapadmin,
   ...enMeeting,
   ...enMembers,
   ...enMindtree,
@@ -300,6 +305,7 @@ export const ar: LocaleTree = {
   ...arGroups,
   ...arHealth,
   ...arMap,
+  ...arMapadmin,
   ...arMeeting,
   ...arMembers,
   ...arMindtree,

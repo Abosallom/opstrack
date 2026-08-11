@@ -71,6 +71,7 @@ function node(
     depth: 0,
     entryId: kind === 'entry' ? key : null,
     bucketKey: kind === 'track' || kind === 'group' ? key : null,
+    entityType: null,
     retired: false,
     ...over,
   }

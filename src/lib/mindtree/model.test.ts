@@ -22,6 +22,7 @@ import {
   groupTotals,
   isMindDimension,
   visibleChildren,
+  type MindEntity,
   type MindMember,
   type MindNode,
   type MindTrack,
@@ -38,6 +39,10 @@ function at(date: string): string {
 
 function entry(over: Partial<Entry> & Pick<Entry, 'id'>): Entry {
   return {
+    // `entries.node_id` (0024) — the finer grain inside a track. Defaulted to
+    // null so every case that predates the hierarchy still describes a row filed
+    // at track level, which is exactly what those cases were written about.
+    node_id: null,
     track_id: null,
     title: over.id,
     description: '',
@@ -108,6 +113,9 @@ function build(over: Partial<MindtreeInput> = {}): MindNode {
     entries: [],
     health: new Map(),
     tracks: [],
+    // The default is NO HIERARCHY, which is what makes every case below a
+    // regression test for the four-ring tree rather than a test of the new one.
+    entities: [],
     vocab: statusVocab(),
     members: [],
     dimension: 'status',
@@ -168,6 +176,164 @@ function child(node: MindNode, index: number): MindNode {
 function labels(node: MindNode): string[] {
   return node.children.map((c) => (c.label.kind === 'key' ? c.label.key : c.label.text))
 }
+
+// ── the regression golden ──────────────────────────────────────────────────
+//
+// ONE LINE PER NODE, CARRYING EVERY FIELD OF `MindNode` EXCEPT `children`
+// (which the pre-order walk covers by position, plus its length on each line).
+// So a line-for-line match IS a byte-for-byte match of the tree, expressed in
+// something a reviewer can read in a diff instead of a 6 kB JSON blob.
+//
+// The expected value below was CAPTURED FROM THE PREVIOUS BUILD of model.ts —
+// the four-ring one, before the hierarchy existed — and not hand-written from
+// the new code. That is the whole point: it is evidence about the old tree, not
+// a restatement of the new one.
+
+function digest(root: MindNode): string[] {
+  const out: string[] = []
+  walk(root, (n) => {
+    const levels = n.health.levels
+    out.push(
+      [
+        n.depth,
+        n.kind,
+        n.id,
+        JSON.stringify(n.label),
+        `n=${n.count}`,
+        `[${levels.ok},${levels.stale},${levels.overdue},${levels.critical}]`,
+        n.health.slaBreached ? 'sla' : '-',
+        n.collapsed ? 'closed' : 'open',
+        n.retired ? 'retired' : '-',
+        `entry=${JSON.stringify(n.entryId)}`,
+        `bucket=${JSON.stringify(n.bucketKey)}`,
+        JSON.stringify(n.colourVars),
+        `kids=${n.children.length}`,
+      ].join(' '),
+    )
+  })
+  return out
+}
+
+/**
+ * A workspace that touches every branch of the old builder at once: two live
+ * tracks, an archived one that still holds work, the untracked pile, a track id
+ * nothing explains, a fold, a collapsed branch, an SLA breach behind that fold,
+ * and three of the four health levels.
+ */
+const GOLDEN_TRACKS: MindTrack[] = [
+  track({ id: 'tr-a', label: 'Network', sortOrder: 0 }),
+  track({ id: 'tr-b', label: 'PMO', sortOrder: 1, color: '#f0f', colorLight: '#a0a' }),
+  track({ id: 'tr-z', label: 'Legacy', sortOrder: 9, archived: true }),
+]
+
+const GOLDEN_ENTRIES: Entry[] = [
+  entry({ id: 'e1', track_id: 'tr-a', status: 'new', title: 'Alpha' }),
+  entry({ id: 'e2', track_id: 'tr-a', status: 'new', title: 'Bravo' }),
+  entry({ id: 'e3', track_id: 'tr-a', status: 'new', title: 'Charlie' }),
+  entry({ id: 'e4', track_id: 'tr-a', status: 'new', title: 'Delta' }),
+  entry({ id: 'e5', track_id: 'tr-a', status: 'blocked', title: 'Echo' }),
+  entry({ id: 'e6', track_id: 'tr-b', status: 'in_progress', title: 'Foxtrot' }),
+  entry({ id: 'e7', track_id: 'tr-z', status: 'new', title: 'Golf' }),
+  entry({ id: 'e8', track_id: null, status: 'new', title: 'Hotel' }),
+  entry({ id: 'e9', track_id: 'tr-gone', status: 'new', title: 'India' }),
+]
+
+const GOLDEN_HEALTH = healthMap(
+  health('e1', 'stale'),
+  health('e4', 'overdue', true),
+  health('e5', 'critical'),
+  health('e6', 'overdue'),
+)
+
+function goldenTree(over: Partial<MindtreeInput> = {}): MindNode {
+  return build({
+    tracks: GOLDEN_TRACKS,
+    entries: GOLDEN_ENTRIES,
+    health: GOLDEN_HEALTH,
+    leafThreshold: 2,
+    collapsedIds: new Set(['root/track:tr-b']),
+    ...over,
+  })
+}
+
+const GOLDEN: string[] = [
+  '0 root root {"kind":"key","key":"app.name"} n=9 [5,1,2,1] sla open - entry=null bucket=null {} kids=5',
+  '1 track root/track:tr-a {"kind":"text","text":"Network"} n=5 [2,1,1,1] sla open - entry=null bucket="tr-a" {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=2',
+  '2 group root/track:tr-a/group:new {"kind":"text","text":"NEW"} n=4 [2,1,1,0] sla open - entry=null bucket="new" {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=3',
+  '3 entry root/track:tr-a/group:new/entry:e1 {"kind":"text","text":"Alpha"} n=1 [0,1,0,0] - open - entry="e1" bucket=null {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=0',
+  '3 entry root/track:tr-a/group:new/entry:e2 {"kind":"text","text":"Bravo"} n=1 [1,0,0,0] - open - entry="e2" bucket=null {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=0',
+  '3 more root/track:tr-a/group:new/more {"kind":"key","key":"mindtree.more","vars":{"count":2}} n=2 [1,0,1,0] sla closed - entry=null bucket=null {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=2',
+  '4 entry root/track:tr-a/group:new/more/entry:e3 {"kind":"text","text":"Charlie"} n=1 [1,0,0,0] - open - entry="e3" bucket=null {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=0',
+  '4 entry root/track:tr-a/group:new/more/entry:e4 {"kind":"text","text":"Delta"} n=1 [0,0,1,0] sla open - entry="e4" bucket=null {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=0',
+  '2 group root/track:tr-a/group:blocked {"kind":"text","text":"BLOCKED"} n=1 [0,0,0,1] - open - entry=null bucket="blocked" {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=1',
+  '3 entry root/track:tr-a/group:blocked/entry:e5 {"kind":"text","text":"Echo"} n=1 [0,0,0,1] - open - entry="e5" bucket=null {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=0',
+  '1 track root/track:tr-b {"kind":"text","text":"PMO"} n=1 [0,0,1,0] - closed - entry=null bucket="tr-b" {"--track-c-dark":"#f0f","--track-c-light":"#a0a"} kids=1',
+  '2 group root/track:tr-b/group:in_progress {"kind":"text","text":"IN_PROGRESS"} n=1 [0,0,1,0] - open - entry=null bucket="in_progress" {"--track-c-dark":"#f0f","--track-c-light":"#a0a"} kids=1',
+  '3 entry root/track:tr-b/group:in_progress/entry:e6 {"kind":"text","text":"Foxtrot"} n=1 [0,0,1,0] - open - entry="e6" bucket=null {"--track-c-dark":"#f0f","--track-c-light":"#a0a"} kids=0',
+  '1 track root/track: {"kind":"key","key":"entry.noTrack"} n=1 [1,0,0,0] - open - entry=null bucket="" {} kids=1',
+  '2 group root/track:/group:new {"kind":"text","text":"NEW"} n=1 [1,0,0,0] - open - entry=null bucket="new" {} kids=1',
+  '3 entry root/track:/group:new/entry:e8 {"kind":"text","text":"Hotel"} n=1 [1,0,0,0] - open - entry="e8" bucket=null {} kids=0',
+  '1 track root/track:tr-z {"kind":"text","text":"Legacy"} n=1 [1,0,0,0] - open retired entry=null bucket="tr-z" {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=1',
+  '2 group root/track:tr-z/group:new {"kind":"text","text":"NEW"} n=1 [1,0,0,0] - open - entry=null bucket="new" {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=1',
+  '3 entry root/track:tr-z/group:new/entry:e7 {"kind":"text","text":"Golf"} n=1 [1,0,0,0] - open - entry="e7" bucket=null {"--track-c-dark":"#22d3ee","--track-c-light":"#0e7490"} kids=0',
+  '1 track root/track:tr-gone {"kind":"key","key":"mindtree.unknownTrack"} n=1 [1,0,0,0] - open retired entry=null bucket="tr-gone" {} kids=1',
+  '2 group root/track:tr-gone/group:new {"kind":"text","text":"NEW"} n=1 [1,0,0,0] - open - entry=null bucket="new" {} kids=1',
+  '3 entry root/track:tr-gone/group:new/entry:e9 {"kind":"text","text":"India"} n=1 [1,0,0,0] - open - entry="e9" bucket=null {} kids=0',
+]
+
+// ── the hierarchy's own fixtures ───────────────────────────────────────────
+
+function entityOf(over: Partial<MindEntity> & Pick<MindEntity, 'id' | 'trackId'>): MindEntity {
+  return {
+    parentId: null,
+    label: over.id,
+    sortOrder: 0,
+    archived: false,
+    typeKey: null,
+    ...over,
+  }
+}
+
+/** Every node of the tree, in the pre-order the picture and the table both read. */
+function ids(root: MindNode): string[] {
+  return nodes(root).map((n) => n.id)
+}
+
+function find(root: MindNode, id: string): MindNode {
+  const found = nodes(root).find((n) => n.id === id)
+  if (!found) throw new Error(`no node ${id} in [${ids(root).join(', ')}]`)
+  return found
+}
+
+// ── the gate ───────────────────────────────────────────────────────────────
+
+describe('with no hierarchy, the tree is the one that shipped', () => {
+  it('is byte-identical to the four-ring builder, node for node', () => {
+    // THE FIRST TEST WRITTEN AND THE ONE THAT MATTERS MOST. Everything below it
+    // is a case about a tree with no entities in it, so if this passes, the map
+    // that Aziz has been using is the map he still has — and the 3,477-test
+    // suite around it is testing the same thing it was testing yesterday.
+    //
+    // If a future change reds this, that change altered the OLD tree, whatever
+    // else it meant to do. Re-capture the expectation only after deciding, on
+    // purpose, that the old tree should be different.
+    expect(digest(goldenTree({ entities: [] }))).toEqual(GOLDEN)
+  })
+
+  it('draws no entity node and leaves entityType null everywhere', () => {
+    for (const node of nodes(goldenTree({ entities: [] }))) {
+      expect(node.kind, node.id).not.toBe('entity')
+      expect(node.entityType, node.id).toBeNull()
+    }
+  })
+
+  it('is unmoved by nodes belonging to tracks that are not in the workspace', () => {
+    // A `map_nodes` row whose track was deleted is reachable from a cache one
+    // deploy stale. It must not add a ring to a track that is drawn.
+    const stray = entityOf({ id: 'n-stray', trackId: 'tr-nowhere' })
+    expect(digest(goldenTree({ entities: [stray] }))).toEqual(GOLDEN)
+  })
+})
 
 // ── ring 1 ─────────────────────────────────────────────────────────────────
 
@@ -936,6 +1102,457 @@ describe('groupTotals — ring 2 summed across ring 1', () => {
 
   it('is empty for a workspace with nothing open', () => {
     expect(groupTotals(build({ tracks }))).toEqual([])
+  })
+})
+
+// ── the hierarchy ──────────────────────────────────────────────────────────
+
+describe('the hierarchy — UHR > OB > Org', () => {
+  const tracks = [track({ id: 'uhr', label: 'UHR' })]
+  const entities = [
+    entityOf({ id: 'ob', trackId: 'uhr', label: 'Onboarding', typeKey: 'Phase' }),
+    entityOf({ id: 'org1', trackId: 'uhr', parentId: 'ob', label: 'Org One', typeKey: 'Organization' }),
+    entityOf({ id: 'org2', trackId: 'uhr', parentId: 'ob', label: 'Org Two', sortOrder: 1, typeKey: 'Organization' }),
+  ]
+
+  it('nests to arbitrary depth, one ring per level, buckets below', () => {
+    const root = build({
+      tracks,
+      entities,
+      entries: [entry({ id: 'e1', track_id: 'uhr', node_id: 'org1', status: 'blocked' })],
+    })
+
+    expect(ids(root)).toEqual([
+      'root',
+      'root/track:uhr',
+      'root/track:uhr/entity:ob',
+      'root/track:uhr/entity:ob/entity:org1',
+      'root/track:uhr/entity:ob/entity:org1/group:blocked',
+      'root/track:uhr/entity:ob/entity:org1/group:blocked/entry:e1',
+      'root/track:uhr/entity:ob/entity:org2',
+    ])
+    // depth is parent.depth + 1 all the way down, and the bucket ring moved with
+    // it — a status group under an Org under a phase is at 4, not the literal 2
+    // three hand-written builders used to write.
+    expect(nodes(root).map((n) => n.depth)).toEqual([0, 1, 2, 3, 4, 5, 3])
+    assertSound(root)
+  })
+
+  it('is an entity, never a track — bucketKey is a node id and kind says so', () => {
+    const root = build({ tracks, entities })
+    const org = find(root, 'root/track:uhr/entity:ob/entity:org1')
+
+    // The forty lines across five files that read `kind === 'track'` as
+    // "bucketKey is a TRACK id" must not see this node. `foldPath` writing
+    // `patch.trackId = 'org1'` is an FK violation on a good day.
+    expect(org.kind).toBe('entity')
+    expect(org.bucketKey).toBe('org1')
+    expect(find(root, 'root/track:uhr').kind).toBe('track')
+    expect(find(root, 'root/track:uhr').bucketKey).toBe('uhr')
+  })
+
+  it('carries the node kind through untouched, and null when there is none', () => {
+    const root = build({
+      tracks,
+      entities: [...entities, entityOf({ id: 'loose', trackId: 'uhr', sortOrder: 5 })],
+    })
+    expect(find(root, 'root/track:uhr/entity:ob').entityType).toBe('Phase')
+    expect(find(root, 'root/track:uhr/entity:ob/entity:org1').entityType).toBe('Organization')
+    // `map_nodes.kind_id` is `on delete set null`: retiring a kind un-kinds its
+    // nodes rather than deleting the organizations filed under them.
+    expect(find(root, 'root/track:uhr/entity:loose').entityType).toBeNull()
+  })
+
+  it('inherits the track colour at every depth and never picks one', () => {
+    const root = build({
+      tracks: [track({ id: 'uhr', label: 'UHR', color: '#f0f', colorLight: '#a0a' })],
+      entities,
+      entries: [entry({ id: 'e1', track_id: 'uhr', node_id: 'org1' })],
+    })
+    const vars = { '--track-c-dark': '#f0f', '--track-c-light': '#a0a' }
+    for (const node of nodes(root)) {
+      if (node.id === ROOT_ID) continue
+      expect(node.colourVars, node.id).toEqual(vars)
+    }
+  })
+
+  it('orders siblings by sort_order, tied on the id so the order is TOTAL', () => {
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'b', trackId: 'uhr', label: 'Beta', sortOrder: 0 }),
+        entityOf({ id: 'a', trackId: 'uhr', label: 'Alpha', sortOrder: 0 }),
+        entityOf({ id: 'z', trackId: 'uhr', label: 'Zulu', sortOrder: -1 }),
+      ],
+    })
+    // sort_order defaults to 0 and a reorder rewrites only the branch it was
+    // handed, so ties are ordinary — and two Orgs swapping places between
+    // renders reads as the map rearranging itself for no reason.
+    expect(labels(find(root, 'root/track:uhr'))).toEqual(['Zulu', 'Alpha', 'Beta'])
+  })
+})
+
+describe('the hierarchy — structure is drawn, buckets are earned', () => {
+  const tracks = [track({ id: 'uhr', label: 'UHR' })]
+
+  it('draws an Org with no open work at all — that is the question the map answers', () => {
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'org1', trackId: 'uhr', label: 'Org One' })],
+    })
+    const org = find(root, 'root/track:uhr/entity:org1')
+    expect(org.count).toBe(0)
+    expect(org.children).toEqual([])
+    // Never collapsed with nothing under it: aria-expanded on a leaf is a lie a
+    // screen reader reads out loud. focus.ts still lets it be focused.
+    expect(org.collapsed).toBe(false)
+    assertSound(root)
+  })
+
+  it('draws no empty status bucket beneath it — a grid is not a shape', () => {
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'org1', trackId: 'uhr' })],
+      entries: [entry({ id: 'e1', track_id: 'uhr', node_id: 'org1', status: 'blocked' })],
+    })
+    expect(labels(find(root, 'root/track:uhr/entity:org1'))).toEqual(['BLOCKED'])
+  })
+
+  it('puts child entities FIRST, then the buckets for work filed on the node itself', () => {
+    // Programme-level work filed on OB rather than on any one Org is ordinary,
+    // and it goes in a bucket ring BESIDE the Org ring — not inside a synthetic
+    // "items filed here" node, which would cost a ring and a tap on the
+    // commonest path.
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'ob', trackId: 'uhr', label: 'Onboarding' }),
+        entityOf({ id: 'org1', trackId: 'uhr', parentId: 'ob', label: 'Org One' }),
+      ],
+      entries: [
+        entry({ id: 'e1', track_id: 'uhr', node_id: 'ob', status: 'new' }),
+        entry({ id: 'e2', track_id: 'uhr', node_id: 'org1', status: 'new' }),
+      ],
+    })
+    const ob = find(root, 'root/track:uhr/entity:ob')
+    expect(ob.children.map((c) => c.kind)).toEqual(['entity', 'group'])
+    expect(labels(ob)).toEqual(['Org One', 'NEW'])
+    assertSound(root)
+  })
+
+  it('counts direct work plus the subtree, and the buckets sum to the direct half', () => {
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'ob', trackId: 'uhr' }),
+        entityOf({ id: 'org1', trackId: 'uhr', parentId: 'ob' }),
+        entityOf({ id: 'org2', trackId: 'uhr', parentId: 'ob', sortOrder: 1 }),
+      ],
+      entries: [
+        entry({ id: 'e1', track_id: 'uhr', node_id: 'ob', status: 'new' }),
+        entry({ id: 'e2', track_id: 'uhr', node_id: 'ob', status: 'blocked' }),
+        entry({ id: 'e3', track_id: 'uhr', node_id: 'org1' }),
+        entry({ id: 'e4', track_id: 'uhr', node_id: 'org2' }),
+        entry({ id: 'e5', track_id: 'uhr', node_id: 'org2' }),
+        entry({ id: 'e6', track_id: 'uhr' }),
+      ],
+    })
+
+    const ob = find(root, 'root/track:uhr/entity:ob')
+    expect(ob.count).toBe(5)
+    // 2 direct + org1's 1 + org2's 2, and the two status buckets sum to the 2.
+    const buckets = ob.children.filter((c) => c.kind === 'group')
+    expect(buckets.reduce((n, b) => n + b.count, 0)).toBe(2)
+    expect(find(root, 'root/track:uhr').count).toBe(6)
+    expect(root.count).toBe(6)
+    assertSound(root)
+  })
+
+  it('rolls the health split and the SLA breach up through every entity ring', () => {
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'ob', trackId: 'uhr' }),
+        entityOf({ id: 'org1', trackId: 'uhr', parentId: 'ob' }),
+        entityOf({ id: 'org2', trackId: 'uhr', parentId: 'ob', sortOrder: 1 }),
+      ],
+      entries: [
+        entry({ id: 'e1', track_id: 'uhr', node_id: 'org1' }),
+        entry({ id: 'e2', track_id: 'uhr', node_id: 'org2' }),
+      ],
+      health: healthMap(health('e1', 'critical', true), health('e2', 'ok')),
+    })
+
+    expect(find(root, 'root/track:uhr/entity:ob/entity:org1').health.slaBreached).toBe(true)
+    expect(find(root, 'root/track:uhr/entity:ob').health.slaBreached).toBe(true)
+    expect(find(root, 'root/track:uhr').health.slaBreached).toBe(true)
+    expect(root.health.slaBreached).toBe(true)
+    // …and nowhere else. An alarm pointing at the wrong Org is worse than none.
+    expect(find(root, 'root/track:uhr/entity:ob/entity:org2').health.slaBreached).toBe(false)
+    expect(root.health.levels).toEqual({ ok: 1, stale: 0, overdue: 0, critical: 1 })
+    assertSound(root)
+  })
+
+  it('closes an entity ring at openDepth, with the subtree intact behind it', () => {
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'ob', trackId: 'uhr' }),
+        entityOf({ id: 'org1', trackId: 'uhr', parentId: 'ob' }),
+      ],
+      entries: [entry({ id: 'e1', track_id: 'uhr', node_id: 'org1' })],
+      openDepth: 2,
+    })
+    const track1 = find(root, 'root/track:uhr')
+    const ob = find(root, 'root/track:uhr/entity:ob')
+    expect(track1.collapsed).toBe(false)
+    expect(ob.collapsed).toBe(true)
+    expect(visibleChildren(ob)).toEqual([])
+    expect(ob.children).toHaveLength(1)
+    expect(ob.count).toBe(1)
+    assertSound(root)
+  })
+
+  it('builds entity ids that are safe as DOM ids and cannot forge a path', () => {
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'a/b c', trackId: 'uhr', label: 'Odd' })],
+    })
+    expect(ids(root)).toContain('root/track:uhr/entity:a%2Fb%20c')
+    assertSound(root)
+  })
+})
+
+describe('the hierarchy — archived nodes', () => {
+  const tracks = [track({ id: 'uhr', label: 'UHR' })]
+
+  it('keeps an archived Org that still holds work, marked retired', () => {
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'org1', trackId: 'uhr', label: 'Org One', archived: true })],
+      entries: [entry({ id: 'e1', track_id: 'uhr', node_id: 'org1' })],
+    })
+    const org = find(root, 'root/track:uhr/entity:org1')
+    expect(org.retired).toBe(true)
+    expect(org.count).toBe(1)
+    // Dropping it would have made the track total 1 while showing nothing.
+    expect(find(root, 'root/track:uhr').count).toBe(1)
+    assertSound(root)
+  })
+
+  it('drops an archived Org that holds nothing and scaffolds nothing', () => {
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'org1', trackId: 'uhr', archived: true })],
+    })
+    expect(ids(root)).toEqual(['root', 'root/track:uhr'])
+  })
+
+  it('keeps an archived phase as scaffolding above a live Org', () => {
+    // `count` alone as the test would have stranded org1: the phase holds no
+    // work of its own, and deleting it deletes a live organization from the map.
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'ob', trackId: 'uhr', label: 'Old phase', archived: true }),
+        entityOf({ id: 'org1', trackId: 'uhr', parentId: 'ob', label: 'Org One' }),
+      ],
+    })
+    expect(ids(root)).toEqual([
+      'root',
+      'root/track:uhr',
+      'root/track:uhr/entity:ob',
+      'root/track:uhr/entity:ob/entity:org1',
+    ])
+    expect(find(root, 'root/track:uhr/entity:ob').retired).toBe(true)
+  })
+
+  it('collapses a whole branch of archived empties in one pass', () => {
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'ob', trackId: 'uhr', archived: true }),
+        entityOf({ id: 'org1', trackId: 'uhr', parentId: 'ob', archived: true }),
+      ],
+    })
+    expect(ids(root)).toEqual(['root', 'root/track:uhr'])
+  })
+})
+
+describe('the hierarchy — data the server forbids and a stale cache produces', () => {
+  const tracks = [track({ id: 'uhr', label: 'UHR' }), track({ id: 'tr-b', label: 'PMO', sortOrder: 1 })]
+
+  it('re-roots a node whose parent is not in the list, keeping its work', () => {
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'org1', trackId: 'uhr', parentId: 'ob-gone', label: 'Org One' })],
+      entries: [entry({ id: 'e1', track_id: 'uhr', node_id: 'org1' })],
+    })
+    expect(ids(root)).toContain('root/track:uhr/entity:org1')
+    expect(root.count).toBe(1)
+    assertSound(root)
+  })
+
+  it('re-roots a node whose parent lives under a different track', () => {
+    // Drawing it under its parent would put its entries in one branch's count
+    // and its colour in another's.
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'ob', trackId: 'tr-b', label: 'Phase' }),
+        entityOf({ id: 'org1', trackId: 'uhr', parentId: 'ob', label: 'Org One' }),
+      ],
+    })
+    expect(ids(root)).toEqual([
+      'root',
+      'root/track:uhr',
+      'root/track:uhr/entity:org1',
+      'root/track:tr-b',
+      'root/track:tr-b/entity:ob',
+    ])
+  })
+
+  it('survives a parent cycle instead of recursing forever', () => {
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'a', trackId: 'uhr', parentId: 'b', label: 'A' }),
+        entityOf({ id: 'b', trackId: 'uhr', parentId: 'a', label: 'B', sortOrder: 1 }),
+      ],
+      entries: [entry({ id: 'e1', track_id: 'uhr', node_id: 'b' })],
+    })
+    // Neither is reachable from a root, so the sweep enters the ring at its
+    // first member in reading order and the brake cuts the edge that closes it.
+    // Wrong about which of the two is the parent; right about every count.
+    expect(ids(root)).toEqual([
+      'root',
+      'root/track:uhr',
+      'root/track:uhr/entity:a',
+      'root/track:uhr/entity:a/entity:b',
+      'root/track:uhr/entity:a/entity:b/group:new',
+      'root/track:uhr/entity:a/entity:b/group:new/entry:e1',
+      'root/track:tr-b',
+    ])
+    expect(root.count).toBe(1)
+    assertSound(root)
+  })
+
+  it('survives a node that is its own parent', () => {
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'a', trackId: 'uhr', parentId: 'a', label: 'A' })],
+    })
+    expect(ids(root)).toEqual([
+      'root',
+      'root/track:uhr',
+      'root/track:uhr/entity:a',
+      'root/track:tr-b',
+    ])
+  })
+
+  it('draws one node for a duplicated id rather than two that share an id', () => {
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'org1', trackId: 'uhr', label: 'First' }),
+        entityOf({ id: 'org1', trackId: 'uhr', label: 'Second', sortOrder: 1 }),
+      ],
+    })
+    expect(labels(find(root, 'root/track:uhr'))).toEqual(['First'])
+    // Two nodes with one id would address one `collapsedIds` entry and one DOM
+    // id from two places.
+    assertSound(root)
+  })
+
+  it('files an entry whose node_id names nothing at track level, never nowhere', () => {
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'org1', trackId: 'uhr' })],
+      entries: [entry({ id: 'e1', track_id: 'uhr', node_id: 'n-gone', status: 'new' })],
+    })
+    expect(labels(find(root, 'root/track:uhr'))).toEqual(['org1', 'NEW'])
+    expect(find(root, 'root/track:uhr').count).toBe(1)
+    expect(find(root, 'root/track:uhr/entity:org1').count).toBe(0)
+    assertSound(root)
+  })
+
+  it('refuses to sink a row into a node belonging to another track', () => {
+    // 0024's `entries_map_sync` derives `track_id` FROM the node before the row
+    // is written, so this pair cannot exist on the server. It can exist in a
+    // first-paint cache, and counting it under one track while drawing it under
+    // another is exactly the "labelled 12, showing 3" failure.
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'org1', trackId: 'tr-b' })],
+      entries: [entry({ id: 'e1', track_id: 'uhr', node_id: 'org1', status: 'new' })],
+    })
+    expect(find(root, 'root/track:uhr').count).toBe(1)
+    expect(labels(find(root, 'root/track:uhr'))).toEqual(['NEW'])
+    expect(find(root, 'root/track:tr-b/entity:org1').count).toBe(0)
+    assertSound(root)
+  })
+
+  it('never sinks an untracked row into a node', () => {
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'org1', trackId: 'uhr' })],
+      entries: [entry({ id: 'e1', track_id: null, node_id: 'org1', status: 'new' })],
+    })
+    expect(find(root, 'root/track:').count).toBe(1)
+    expect(find(root, 'root/track:uhr/entity:org1').count).toBe(0)
+    assertSound(root)
+  })
+
+  it('hangs a hierarchy off an archived track that still holds work', () => {
+    const root = build({
+      tracks: [track({ id: 'tr-z', label: 'Legacy', archived: true })],
+      entities: [entityOf({ id: 'org1', trackId: 'tr-z', label: 'Org One' })],
+      entries: [entry({ id: 'e1', track_id: 'tr-z', node_id: 'org1' })],
+    })
+    expect(ids(root)).toContain('root/track:tr-z/entity:org1')
+    expect(find(root, 'root/track:tr-z').retired).toBe(true)
+    assertSound(root)
+  })
+})
+
+describe('groupTotals — the DFS the hierarchy forced', () => {
+  const tracks = [track({ id: 'uhr', label: 'UHR' })]
+
+  it('finds buckets at every depth, not just the ones under a track', () => {
+    // The old two nested loops read `root.children → track.children` and would
+    // have summed only the work filed at track level, producing a table that
+    // disagrees with the map above it.
+    const root = build({
+      tracks,
+      entities: [
+        entityOf({ id: 'ob', trackId: 'uhr' }),
+        entityOf({ id: 'org1', trackId: 'uhr', parentId: 'ob' }),
+      ],
+      entries: [
+        entry({ id: 'e1', track_id: 'uhr', status: 'new' }),
+        entry({ id: 'e2', track_id: 'uhr', node_id: 'ob', status: 'new' }),
+        entry({ id: 'e3', track_id: 'uhr', node_id: 'org1', status: 'new' }),
+        entry({ id: 'e4', track_id: 'uhr', node_id: 'org1', status: 'blocked' }),
+      ],
+    })
+
+    const totals = groupTotals(root)
+    expect(totals.map((g) => [g.key, g.count])).toEqual([
+      ['new', 3],
+      ['blocked', 1],
+    ])
+    // The footer must reconcile against the root, at any depth.
+    expect(totals.reduce((n, g) => n + g.count, 0)).toBe(root.count)
+  })
+
+  it('counts a folded group once, not once per entry behind the fold', () => {
+    const root = build({
+      tracks,
+      entities: [entityOf({ id: 'org1', trackId: 'uhr' })],
+      entries: [1, 2, 3, 4].map((n) => entry({ id: `e${n}`, track_id: 'uhr', node_id: 'org1' })),
+      leafThreshold: 1,
+    })
+    expect(groupTotals(root).map((g) => [g.key, g.count])).toEqual([['new', 4]])
   })
 })
 

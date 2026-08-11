@@ -64,6 +64,7 @@ function node(id: string, label: MindLabel, kind: MindNode['kind'] = 'track'): M
     depth: 0,
     entryId: null,
     bucketKey: null,
+    entityType: null,
     retired: false,
   }
 }

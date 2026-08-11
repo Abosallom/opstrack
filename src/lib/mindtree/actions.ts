@@ -238,12 +238,18 @@ export const WHY_GONE = 'entry.errNotFound'
  * or null when this branch cannot hold new work.
  *
  * THE WHOLE PATH, and this is the one place in the feature where that is right.
- * Ring 2 is drawn INSIDE ring 1, so the "Blocked" node under Network means
- * "blocked AND on Network" — and an item created from that node with only its
- * status set would be filed untracked and appear somewhere else entirely, which
- * is the reader watching their own click land in the wrong place. A MOVE is a
- * different question (`dropRules.evaluateDrop`, one field, with the row's
- * current bucket to compare against); a DRAFT has no current bucket at all.
+ * Every ring is drawn INSIDE the one above it, so "Blocked" under Org1 under
+ * UHR means "blocked AND on Org1 AND on UHR" — and an item created from that
+ * node with only its status set would be filed untracked, under no
+ * organization, and appear somewhere else entirely, which is the reader watching
+ * their own click land in the wrong place. A MOVE is a different question
+ * (`dropRules.evaluateDrop`, with the row's current bucket to compare against);
+ * a DRAFT has no current bucket at all.
+ *
+ * AND THAT IS WHY THE `track` ARM SENDS `mapNodeId: null` OUT LOUD. Every key a
+ * draft omits is a key the capture form is free to default, so "omit it" and
+ * "clear it" are not the same statement here — the lesson `dropRules.ownerPatch`
+ * paid for on the owner XOR, one ring further in.
  *
  * NULL HAS THREE CAUSES, each with its own sentence from `draftRefusal`: a node
  * that stands for no bucket, a retired bucket, and the `health` axis — whose
@@ -253,7 +259,7 @@ export const WHY_GONE = 'entry.errNotFound'
 export function draftAt(path: readonly MindNode[], dimension: MindDimension): EntryPatch | null {
   const node = path[path.length - 1]
   if (node === undefined) return null
-  if (node.kind !== 'track' && node.kind !== 'group') return null
+  if (node.kind !== 'track' && node.kind !== 'entity' && node.kind !== 'group') return null
 
   const patch: EntryPatch = {}
   for (const step of path) {
@@ -264,6 +270,27 @@ export function draftAt(path: readonly MindNode[], dimension: MindDimension): En
       if (step.retired) return null
       if (step.bucketKey === null) return null
       patch.trackId = step.bucketKey === NO_VALUE ? null : step.bucketKey
+      // EXPLICITLY, and for `ownerPatch`'s reason rather than `foldPath`'s. A
+      // draft has no row to compare against, so every key it omits is a key the
+      // capture form gets to default — and a form that remembers the last
+      // organization would file "add an item here" on a TRACK's own bucket
+      // straight back under Org3. Sending the null is how a create says "under
+      // this track and no organization" instead of saying nothing. Root-first,
+      // so an `entity` step further down the path overwrites it.
+      patch.mapNodeId = null
+      continue
+    }
+    if (step.kind === 'entity') {
+      // An archived Org, or a node id nothing explains. Same rule as the track
+      // above: `map_nodes.archived` is a filing decision, and new work filed
+      // under an archived Organization is how it quietly comes back to life.
+      if (step.retired) return null
+      if (step.bucketKey === null) return null
+      // NO `NO_VALUE` ARM — see dropRules.foldPath. There is no "no
+      // organization" node; a row under none is drawn on the track's group ring,
+      // and an empty key here is a malformed node, not a bucket.
+      if (step.bucketKey === NO_VALUE) return null
+      patch.mapNodeId = step.bucketKey
       continue
     }
     if (step.kind !== 'group') continue
@@ -324,7 +351,12 @@ function seedGroup(patch: EntryPatch, dimension: MindDimension, key: string): bo
 export function draftRefusal(path: readonly MindNode[], dimension: MindDimension): string {
   const node = path[path.length - 1]
   if (node === undefined) return WHY_EMPTY_BRANCH
-  if (path.some((step) => (step.kind === 'track' || step.kind === 'group') && step.retired)) {
+  if (
+    path.some(
+      (step) =>
+        (step.kind === 'track' || step.kind === 'entity' || step.kind === 'group') && step.retired,
+    )
+  ) {
     return WHY_RETIRED
   }
   if (dimension === 'health' && node.kind === 'group') return WHY_DERIVED
@@ -421,7 +453,12 @@ function branchActions(
   // wrapper in 0009), so any signed-in member may create — the only refusal is
   // being signed out, and the only PRODUCT refusal is a branch that cannot hold
   // new work.
-  if (node.kind === 'track' || node.kind === 'group' || node.kind === 'root') {
+  if (
+    node.kind === 'track' ||
+    node.kind === 'entity' ||
+    node.kind === 'group' ||
+    node.kind === 'root'
+  ) {
     const draft = node.kind === 'root' ? EMPTY_PATCH : draftAt(path, ctx.dimension)
     const why =
       ctx.meId === null
@@ -449,7 +486,9 @@ function branchActions(
   // on the root and on a "+N more" fold, because "apply the selection to a fold"
   // is not a refusal, it is a category error — the same three kinds
   // `dropRules.isDropZoneKind` declines to build a zone for.
-  if (node.kind === 'track' || node.kind === 'group') out.push(selectionAction(path, node, ctx))
+  if (node.kind === 'track' || node.kind === 'entity' || node.kind === 'group') {
+    out.push(selectionAction(path, node, ctx))
+  }
 
   // Focus. `focusedId ?? ROOT_ID` normalises "no drill-in" to the root node, so
   // the root's own entry in the list reads as "show every track" and correctly
@@ -489,9 +528,17 @@ const EMPTY_PATCH: EntryPatch = Object.freeze({})
 /**
  * The verb that names what this branch does to the selection. A LABEL, not a
  * rule — `evaluateDrop` decides what actually lands.
+ *
+ * AN ENTITY REUSES `actMoveHere` RATHER THAN MINTING A KEY. "Move here" is
+ * exactly what filing items under an Organization is, and the repo has a gate
+ * that objects to the alternative: lib/labelSections.test.ts fails on two keys
+ * carrying one string. A separate `actFileHere` would be a second English
+ * sentence and a second Arabic one to keep in step for no difference the reader
+ * can perceive — and the entity ring is the same kind of re-filing the track
+ * ring is, one grain finer.
  */
 function selectionLabel(node: MindNode, dimension: MindDimension): string {
-  if (node.kind === 'track') return 'mindtree.actMoveHere'
+  if (node.kind === 'track' || node.kind === 'entity') return 'mindtree.actMoveHere'
   if (dimension === 'owner') return 'mindtree.actAssignHere'
   if (dimension === 'priority') return 'mindtree.actPriorityHere'
   if (dimension === 'status') return 'mindtree.actStatusHere'

@@ -923,6 +923,21 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       },
     ],
   },
+  // Settings › Structure and Settings › Catalogue (0023/0024) — the hierarchy
+  // BELOW a track (programme ▸ phase ▸ organization) and the HL7/FHIR capability
+  // list those organizations are onboarded onto. Placed beside `groups` because
+  // the three screens are one family: `groups` sits above tracks, `mapadmin`
+  // sits below them.
+  //
+  // EVERY KEY HERE IS AN ERROR, and every one of them comes from Postgres by way
+  // of `src/lib/pgError.ts` rather than from a form validator — a duplicate name,
+  // a cycle, a depth cap, a delete the database refused. So there is one rule and
+  // it covers the whole namespace; a future title or button needs its own.
+  mapadmin: {
+    section: 'messages',
+    where: 'terminology.where.settingsStructure',
+    rules: [{ prefixes: ['err'], section: 'messages' }],
+  },
   // Settings › Groups (0018) — the level above tracks, and the screen that says
   // which half of the org a track belongs to. Placed beside `admin` because the
   // two are one family: an owner renaming "Track" here will want to rename

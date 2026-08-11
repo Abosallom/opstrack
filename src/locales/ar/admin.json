@@ -65,7 +65,7 @@
       "delete": "حذف",
       "deleteTitle": "حذف هذا المسار؟",
       "deleteBody": "سيُحذف «⁨{name}⁩» نهائيًا، ولا يمكن التراجع عن ذلك.",
-      "deleteBodyInUse": "ما زال «⁨{name}⁩» مستخدَمًا — {entries}، {meetings}، {templates}. اختر أولًا إلى أين تُنقل.",
+      "deleteBodyInUse": "ما زال «⁨{name}⁩» مستخدَمًا — {entries}، {meetings}، {templates}، {nodes}. اختر أولًا إلى أين تُنقل.",
       "archiveTitle": "أرشفة هذا المسار؟",
       "archiveBody": "سيختفي «⁨{name}⁩» من قوائم الاختيار. تحتفظ البنود الحالية به ولا يُحذف شيء.",
       "discardTitle": "تجاهل التغييرات؟",
@@ -97,6 +97,14 @@
         "few": "{count} قوالب",
         "many": "{count} قالبًا",
         "other": "{count} قالب"
+      },
+      "usageNodes": {
+        "zero": "لا مواضع على الخريطة",
+        "one": "موضع واحد على الخريطة",
+        "two": "موضعان على الخريطة",
+        "few": "{count} مواضع على الخريطة",
+        "many": "{count} موضعًا على الخريطة",
+        "other": "{count} موضع على الخريطة"
       },
       "usageNone": "غير مستخدم بعد",
       "empty": "لا توجد مسارات بعد",

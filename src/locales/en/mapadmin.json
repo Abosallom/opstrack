@@ -1,0 +1,17 @@
+{
+  "mapadmin": {
+    "errNameTaken": "Something under the same parent already goes by this name. Names only have to differ between the items that sit side by side, so the same name elsewhere on the map is fine.",
+    "errNameArTaken": "Something under the same parent already goes by this Arabic name. Names only have to differ between the items that sit side by side.",
+    "errKindNameTaken": "A kind with this name already exists.",
+    "errKindNameArTaken": "A kind with this Arabic name already exists.",
+    "errUseCaseNameTaken": "A capability with this name is already in the catalogue.",
+    "errUseCaseNameArTaken": "A capability with this Arabic name is already in the catalogue.",
+    "errInUse": "This still has work or organizations underneath it. Empty it first, then delete it.",
+    "errUseCaseInUse": "Organizations are recorded against this capability, so deleting it would lose what they integrated. Hide it instead.",
+    "errCycle": "Nothing can sit underneath itself, or underneath anything already beneath it.",
+    "errTooDeep": "The map goes 6 levels below a track and no further. Put this higher up, or shorten the branch first.",
+    "errCrossTrack": "Everything in one branch belongs to one track. Choose a parent on the same track, or move the whole branch across.",
+    "errScope": "The branch changed while this was open, so the order could not be saved as shown. Reload and repeat it.",
+    "errNotFound": "Somebody else deleted this while you had it open."
+  }
+}

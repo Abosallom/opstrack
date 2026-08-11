@@ -195,35 +195,46 @@ const SOURCE: Record<string, string> = import.meta.glob('../pages/settings/Track
 })
 
 describe('"this track is still in use"', () => {
-  const compose = (entries: number, meetings: number, templates: number): string =>
+  const compose = (entries: number, meetings: number, templates: number, nodes = 0): string =>
     t('admin.tracks.deleteBodyInUse', {
       name: 'Network',
       entries: t('admin.tracks.usageEntries', { count: entries }),
       meetings: t('admin.tracks.usageMeetings', { count: meetings }),
       templates: t('admin.tracks.usageTemplates', { count: templates }),
+      nodes: t('admin.tracks.usageNodes', { count: nodes }),
     })
 
-  it('inflects all three nouns independently', () => {
+  it('inflects all four nouns independently', () => {
     setLocale('en')
-    // One number cannot inflect three nouns, which is why the sentence stopped
+    // One number cannot inflect four nouns, which is why the sentence stopped
     // carrying them. Before the fix this read "1 entries, 1 meetings and 1
     // templates" — beside a usage line reading "1 entry".
-    expect(compose(1, 1, 1)).toContain('still holds 1 entry, 1 meeting and 1 template.')
-    expect(compose(3, 1, 0)).toContain('still holds 3 entries, 1 meeting and 0 templates.')
+    //
+    // The FOURTH clause arrived with 0023: delete_track() now reassigns the
+    // hierarchy too, and tracks_block_delete_when_referenced() counts it. A
+    // sentence naming three dependants while the RPC refuses over a fourth is
+    // the same defect one noun to the right.
+    expect(compose(1, 1, 1, 1)).toContain(
+      'still holds 1 entry, 1 meeting, 1 template and 1 place on the map.',
+    )
+    expect(compose(3, 1, 0, 5)).toContain(
+      'still holds 3 entries, 1 meeting, 0 templates and 5 places on the map.',
+    )
   })
 
   it('picks the right Arabic form for each noun', () => {
     setLocale('ar')
-    // Arabic has six, and the three counts land in three different categories
+    // Arabic has six, and the four counts land in four different categories
     // here — which is the case the composed form exists to make possible.
-    const body = compose(1, 2, 5)
+    const body = compose(1, 2, 5, 40)
     expect(body).toContain('بند واحد')
     expect(body).toContain('اجتماعان')
     expect(body).toContain('{count} قوالب'.replace('{count}', '5'))
+    expect(body).toContain('{count} موضعًا على الخريطة'.replace('{count}', '40'))
     setLocale('en')
   })
 
-  it('is composed at the call site, not handed three bare numbers', () => {
+  it('is composed at the call site, not handed four bare numbers', () => {
     // The regression the tree cannot see. Passing the raw counts again would
     // render "still holds 1, 1 and 1" — grammatical, and useless. The locale
     // gate would stay green, because the nouns are gone from the string.
@@ -232,5 +243,6 @@ describe('"this track is still in use"', () => {
     expect(src).toMatch(/entries:\s*t\('admin\.tracks\.usageEntries'/)
     expect(src).toMatch(/meetings:\s*t\('admin\.tracks\.usageMeetings'/)
     expect(src).toMatch(/templates:\s*t\('admin\.tracks\.usageTemplates'/)
+    expect(src).toMatch(/nodes:\s*t\('admin\.tracks\.usageNodes'/)
   })
 })

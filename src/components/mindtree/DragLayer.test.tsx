@@ -80,6 +80,7 @@ const TODAY = '2026-07-31'
 function entry(over: Partial<Entry> & Pick<Entry, 'id' | 'title'>): Entry {
   return {
     track_id: 't-net',
+    node_id: null,
     description: '',
     type: 'action',
     status: 'new',
@@ -131,6 +132,7 @@ function tree(): MindNode {
     entries: ENTRIES,
     health: HEALTH,
     tracks: TRACKS,
+    entities: [],
     vocab: STATUS_VOCAB,
     members: [],
     dimension: 'status',
@@ -407,6 +409,7 @@ describe('an armed keyboard target survives a rebuild by ID, not by slot', () =>
       entries: [...entries],
       health: HEALTH,
       tracks: [t1, t2],
+      entities: [],
       vocab: STATUS_VOCAB,
       members: [],
       dimension: 'status',

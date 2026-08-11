@@ -270,6 +270,12 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
         entries,
         health,
         tracks: mindTracks,
+        // ⚠ WAVE A INTERIM, AND THE ONE PRODUCTION CALL SITE. An empty list
+        // reproduces today's four-ring tree exactly — which is the invariant this
+        // wave is gated on — but it also means the hierarchy never renders. The
+        // map-node store is Wave B; when it lands, this becomes its list, or
+        // every Org Aziz enters stays invisible with nothing complaining.
+        entities: [],
         vocab,
         members,
         dimension,

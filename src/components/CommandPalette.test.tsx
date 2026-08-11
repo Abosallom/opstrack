@@ -163,6 +163,7 @@ const track = (over: Partial<Track> & Pick<Track, 'id' | 'name' | 'name_ar'>): T
 
 const entry = (over: Partial<Entry> & Pick<Entry, 'id' | 'title'>): Entry => ({
   track_id: null,
+  node_id: null,
   description: '',
   type: 'action',
   status: 'new',
@@ -534,6 +535,7 @@ describe('trackCandidates', () => {
           archived: false,
         },
       ],
+      entities: [],
       vocab: [],
       members: [],
       dimension: 'status',

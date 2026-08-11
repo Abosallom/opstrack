@@ -84,6 +84,7 @@ function node(id: string, over: Partial<MindNode> = {}): MindNode {
     depth: 1,
     entryId: null,
     bucketKey: null,
+    entityType: null,
     retired: false,
     ...over,
   }

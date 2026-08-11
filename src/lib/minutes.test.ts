@@ -125,6 +125,7 @@ function line(seq: number, over: Partial<MeetingLine> = {}): MeetingLine {
 function entry(over: Partial<Entry> & { id: string }): Entry {
   return {
     track_id: 't-net',
+    node_id: null,
     title: 'An entry',
     description: '',
     type: 'action',

@@ -403,6 +403,10 @@ export function toEntryRow(input: NewEntry, createdBy: string | null): Record<st
   return {
     title: input.title.trim(),
     track_id: input.trackId ?? null,
+    // Sent alongside track_id, never instead of it. 0023's entries_map_sync
+    // trigger refuses a mismatched pair (map_node_track_mismatch), and both
+    // values come from one branch of one tree, so they always agree.
+    node_id: input.mapNodeId ?? null,
     description: input.description ?? '',
     type: input.type ?? 'action',
     status: input.status ?? 'new',
@@ -443,6 +447,7 @@ export function toEntryPatchRow(patch: EntryPatch): Record<string, unknown> {
   if (patch.tags !== undefined) row.tags = patch.tags
   if (patch.links !== undefined) row.links = patch.links
   if (patch.trackId !== undefined) row.track_id = patch.trackId
+  if (patch.mapNodeId !== undefined) row.node_id = patch.mapNodeId
 
   if (patch.ownerId !== undefined) {
     row.owner_id = patch.ownerId

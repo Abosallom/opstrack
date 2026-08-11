@@ -20,7 +20,7 @@
 // The only React in the import graph is `CSSProperties`, a TYPE, erased under
 // verbatimModuleSyntax — `lib/trackStyle.ts` does the same. Nothing here renders.
 //
-// TWO RULES THAT DRIVE EVERY DECISION BELOW:
+// THREE RULES THAT DRIVE EVERY DECISION BELOW:
 //
 //  1. THE FILTER IS APPLIED BEFORE GROUPING. `buildMindtree` filters the working
 //     set itself (through the shared `selectEntries`, so leaf order follows the
@@ -35,6 +35,20 @@
 //     `slaBreached` when ANY descendant entry is. A breach hidden behind a
 //     "+5 more" still marks the branch — an escalation that only becomes visible
 //     once you expand the right node is an escalation nobody sees.
+//
+//  3. STRUCTURAL NODES ARE ALWAYS DRAWN; BUCKET NODES ARE DRAWN ONLY WHEN
+//     POPULATED. That is rule 1 of ring 1 and ring 2 restated for a tree of
+//     arbitrary depth. A track and an organization are STRUCTURE — "which Org
+//     has nothing on it" is one of the questions this map exists to answer, and
+//     an Org that vanished when its last item closed would answer it by looking
+//     identical to an Org nobody ever configured. A status bucket is not
+//     structure: six statuses under every one of forty organizations is a grid,
+//     not a shape.
+//
+//     WHICH OF THE TWO A NODE IS IS NOT ADMIN-CONFIGURABLE and must never
+//     become so. "Draw this entity only when populated" would let a parent's
+//     `count` exceed the sum of its children's, and there is no version of that
+//     which is not a lie.
 //
 // COLOUR IS INHERITED, NEVER PICKED. A node carries `colourVars` — the custom
 // property pair from `trackVars()` — and every descendant of a track carries the
@@ -89,7 +103,17 @@ export function isMindDimension(v: unknown): v is MindDimension {
 
 // ── the node ───────────────────────────────────────────────────────────────
 
-export type MindNodeKind = 'root' | 'track' | 'group' | 'entry' | 'more'
+/**
+ * `entity` IS ITS OWN KIND AND MUST NOT BE FOLDED INTO `track`.
+ *
+ * About forty lines across five files read `kind === 'track'` as "`bucketKey` is
+ * a TRACK id" — dropRules' `foldPath` writes `patch.trackId = node.bucketKey`,
+ * MapBranch's section filter, the drop zones, the quick-add. Reusing `'track'`
+ * for an organization would make the commonest drag on the new hierarchy write
+ * `track_id = <org uuid>`: an FK violation on a good day, and a row filed under
+ * the wrong track on a bad one.
+ */
+export type MindNodeKind = 'root' | 'track' | 'group' | 'entry' | 'more' | 'entity'
 
 /**
  * A node's label is EITHER an i18n key the renderer passes through `t()`, OR a
@@ -128,7 +152,8 @@ export interface MindHealth {
 
 export interface MindNode {
   /**
-   * A path — `root/track:<id>/group:<key>/entry:<id>`. Stable across rebuilds
+   * A path — `root/track:<id>/entity:<id>/…/group:<key>/entry:<id>`, with the
+   * `entity:` run repeating once per level of the hierarchy. Stable across rebuilds
    * for the same data, which is what lets it key React children, address a
    * `collapsedIds` entry that outlives a reload, and serve as a DOM id for
    * `aria-activedescendant`.
@@ -155,14 +180,39 @@ export interface MindNode {
   children: MindNode[]
   /** False whenever `children` is empty — a leaf must not claim to be collapsed. */
   collapsed: boolean
-  /** 0 root · 1 track · 2 group · 3 entry or "+N more" · 4 an entry under it. */
+  /**
+   * `parent.depth + 1`, unbounded — 0 root, 1 track, then one per level of the
+   * hierarchy, then the group, then the entry (or a "+N more" and its entries a
+   * ring deeper still).
+   *
+   * NOT AN INDEX INTO A FIXED LIST OF RINGS any more, which is what it was when
+   * the tree was four deep and every builder wrote its number as a literal. The
+   * only thing in this module that reads it is `startsCollapsed`; `aria-level`
+   * comes from layout.ts's own counter, which walks the tree it was handed.
+   */
   depth: number
   /** `kind: 'entry'` only — the id `openEntry()` wants. Null everywhere else. */
   entryId: string | null
-  /** The raw bucket value behind a track or group node (a track id, a status
-   *  key, an owner key). Null for root, entry and more. Lets a caller turn a
-   *  clicked branch into a filter facet without parsing the id back apart. */
+  /** The raw bucket value behind a track, entity or group node (a track id, a
+   *  map-node id, a status key, an owner key). Null for root, entry and more.
+   *  Lets a caller turn a clicked branch into a filter facet without parsing the
+   *  id back apart. WHICH of those it is comes from `kind`, never from the shape
+   *  of the string — two uuids are indistinguishable. */
   bucketKey: string | null
+  /**
+   * `kind: 'entity'` only — which KIND of thing this node is (Programme, Phase,
+   * Organization), already resolved for the locale. Null everywhere else, and
+   * null on an entity whose kind row was deleted (`map_nodes.kind_id` is `on
+   * delete set null`, so retiring a kind un-kinds its nodes rather than deleting
+   * the organizations filed under it).
+   *
+   * A PURE PASSTHROUGH. Nothing in this file branches on it and nothing ever
+   * should: what a Phase shows and what an Org shows is configuration, not code.
+   * It is carried here for `colourVars`' exact reason — the renderer needs it,
+   * `lib/**` may not import a store to go and find it, and a second lookup keyed
+   * on `bucketKey` in the component is a second chance to disagree with the tree.
+   */
+  entityType: string | null
   /**
    * A bucket the workspace has retired — a hidden vocabulary option, an archived
    * track, an owner id no longer in the roster — that STILL HOLDS WORK.
@@ -235,6 +285,44 @@ export interface MindVocabOption {
 }
 
 /**
+ * One node of the hierarchy that hangs BELOW a track — a programme phase, an
+ * onboarding phase, an organization being onboarded. A `map_nodes` row (0023)
+ * with its name and its kind ALREADY RESOLVED for the locale, exactly like
+ * `MindTrack`.
+ *
+ * TRACKS STAY, and this is the whole reason `trackId` is here and required. A
+ * node is a FINER GRAIN INSIDE a track, never a replacement for one:
+ * `entries.track_id` still colours the row, still keys the track × priority SLA
+ * matrix and still drives the track timeline. The database derives `track_id`
+ * from the parent rather than trusting a writer to assert it, so two filing axes
+ * are unrepresentable rather than merely detected — and this module honours the
+ * same rule from the other side: an entity is placed under ITS OWN `trackId` and
+ * nowhere else, whatever its `parentId` claims (see `planEntities`).
+ */
+export interface MindEntity {
+  id: string
+  /** The track this node lives under. Denormalised on every row, at every depth. */
+  trackId: string
+  /**
+   * The node above this one, or null for one hanging directly off its track.
+   *
+   * NOT TRUSTED BLINDLY. A parent that is absent, in another track, or part of a
+   * cycle re-roots this node at its own track rather than dropping it — the
+   * server forbids all three, and a first-paint cache one deploy stale does not.
+   */
+  parentId: string | null
+  /** `lib/labels` against `name`/`name_ar` — never the raw column. */
+  label: string
+  sortOrder: number
+  archived: boolean
+  /**
+   * The node kind's name, resolved for the locale — "Organization", "Phase".
+   * Null when no kind is set. Rides straight through to `MindNode.entityType`.
+   */
+  typeKey: string | null
+}
+
+/**
  * One member of the roster. `api/members.Member` is assignable as-is.
  *
  * Only the id and the name: this module decides which BUCKET an entry lands in
@@ -252,6 +340,19 @@ export interface MindtreeInput {
   health: ReadonlyMap<string, EntryHealth>
   /** EVERY track, archived included — `useTracks()`. */
   tracks: readonly MindTrack[]
+  /**
+   * EVERY node of the hierarchy, archived included, in any order.
+   *
+   * REQUIRED RATHER THAN OPTIONAL, unlike `expandedIds` and `openDepth` below,
+   * and the difference is deliberate: those two are preferences a caller may
+   * genuinely not hold, and this is the feature. An optional `entities` would
+   * let the one production call site forget it and ship a map that silently
+   * renders the old four rings — the failure mode of "nothing appeared and
+   * nothing complained", which is the one this codebase spends its comments
+   * avoiding. Pass `[]` to mean "no hierarchy"; the compiler then makes that a
+   * decision somebody took rather than a line nobody wrote.
+   */
+  entities: readonly MindEntity[]
   /** The active dimension's options, or `[]` for owner and health. */
   vocab: readonly MindVocabOption[]
   /** The roster, in display order — `useMembers()`. */
@@ -356,6 +457,20 @@ function nodeId(parent: string, kind: string, key: string): string {
  */
 function levelOf(health: ReadonlyMap<string, EntryHealth>, id: string): HealthLevel {
   return health.get(id)?.health ?? 'ok'
+}
+
+/**
+ * Which hierarchy node an entry is filed on — `entries.node_id` (0024), or null
+ * for a row filed at track level.
+ *
+ * Still a function rather than a field read at the call sites: the empty string
+ * is folded to null on the way through for `''`-means-nothing's sake. A uuid
+ * column cannot hold one, but a cached row that somehow does must not mint a
+ * node id nobody can address.
+ */
+function nodeIdOf(entry: Entry): string | null {
+  const filed = entry.node_id
+  return typeof filed === 'string' && filed !== '' ? filed : null
 }
 
 function emptyLevels(): Record<HealthLevel, number> {
@@ -493,6 +608,107 @@ function trackDefs(tracks: readonly MindTrack[], byTrack: ReadonlyMap<string, En
   }
 
   return defs
+}
+
+// ── the hierarchy: a forest per track ──────────────────────────────────────
+
+/** One placed entity and the entities placed beneath it, in reading order. */
+interface EntityPlan {
+  entity: MindEntity
+  children: EntityPlan[]
+}
+
+interface EntityForest {
+  /** Track id → the entities hanging DIRECTLY off that track, in reading order. */
+  roots: ReadonlyMap<string, EntityPlan[]>
+  /**
+   * Every entity that made it into the forest, by id — which is every entity
+   * handed in, minus duplicate ids. An entry whose `node_id` is absent from this
+   * map falls back to its track's own bucket, so nothing is ever lost by a node
+   * failing to place.
+   */
+  placed: ReadonlyMap<string, MindEntity>
+}
+
+function byEntityOrder(a: MindEntity, b: MindEntity): number {
+  // The id tiebreak for `bySortOrder`'s reason: `sort_order` ties are real (it
+  // defaults to 0 and a reorder rewrites only the branch it was handed), and
+  // without a second key two siblings swap places between renders.
+  return a.sortOrder - b.sortOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+}
+
+/**
+ * Turn a flat list of nodes into one forest per track — the ONLY place in this
+ * module that interprets `parentId`.
+ *
+ * IT IS TOTAL OVER ITS INPUT, and that is the requirement rather than a courtesy.
+ * The server forbids a cycle, a cross-track parent and a dangling parent — 0023
+ * has a deferred constraint trigger for exactly those — but this function is fed
+ * from a client cache that can be a deploy behind the schema, and the two ways a
+ * tree walker fails on bad data are both unacceptable here: infinite recursion
+ * white-screens the app, and silently dropping a node takes its entries out of a
+ * total that the root still claims.
+ *
+ * So every node handed in is placed EXACTLY ONCE, and the three repairs are:
+ *
+ *  · A PARENT THAT IS ABSENT, IS THE NODE ITSELF, OR IS IN ANOTHER TRACK — the
+ *    node hangs off its own `trackId` instead. Its own track, never its parent's:
+ *    `entries.track_id` is derived from the node, so a node drawn under a track
+ *    it does not belong to would make its entries' counts land in one branch and
+ *    their colour come from another.
+ *  · A CYCLE — no member of it is reachable from any root, so the sweep at the
+ *    end enters the ring at its first member in reading order and the brake in
+ *    `expand` cuts the one edge that closes it. The ring renders as a chain
+ *    hanging off its track: wrong about which of them is the parent, and right
+ *    about every count, which is the half that has to be right.
+ *  · A DUPLICATE ID — first in reading order wins, the rest are dropped. Two
+ *    nodes with one id would mint one node id twice, and `collapsedIds` and the
+ *    DOM would then address both at once.
+ */
+function planEntities(entities: readonly MindEntity[]): EntityForest {
+  const sorted = [...entities].sort(byEntityOrder)
+
+  const byId = new Map<string, MindEntity>()
+  for (const entity of sorted) if (!byId.has(entity.id)) byId.set(entity.id, entity)
+
+  const kids = new Map<string, MindEntity[]>()
+  const rooted: MindEntity[] = []
+  for (const entity of sorted) {
+    // Identity, not `.has()`: this is the duplicate-id drop.
+    if (byId.get(entity.id) !== entity) continue
+    const parent = entity.parentId === null ? undefined : byId.get(entity.parentId)
+    if (parent !== undefined && parent !== entity && parent.trackId === entity.trackId) {
+      push(kids, parent.id, entity)
+    } else {
+      rooted.push(entity)
+    }
+  }
+
+  const placed = new Map<string, MindEntity>()
+  const expand = (entity: MindEntity): EntityPlan => {
+    placed.set(entity.id, entity)
+    const children: EntityPlan[] = []
+    for (const kid of kids.get(entity.id) ?? []) {
+      // The cycle brake. A node already on the walk cannot be entered twice, so
+      // the recursion is bounded by the number of entities however tangled the
+      // parent links are.
+      if (placed.has(kid.id)) continue
+      children.push(expand(kid))
+    }
+    return { entity, children }
+  }
+
+  const roots = new Map<string, EntityPlan[]>()
+  for (const entity of rooted) push(roots, entity.trackId, expand(entity))
+
+  // The sweep: anything a root could not reach is inside a cycle. It goes last
+  // within its track, which is where every other rescue in this file goes.
+  for (const entity of sorted) {
+    if (placed.has(entity.id) || byId.get(entity.id) !== entity) continue
+    push(roots, entity.trackId, expand(entity))
+  }
+
+  return { roots, placed }
 }
 
 // ── ring 2: the dimension ──────────────────────────────────────────────────
@@ -681,17 +897,43 @@ function healthGroups(entries: Entry[], health: ReadonlyMap<string, EntryHealth>
  * between renders and the export reproducible between machines.
  */
 export function buildMindtree(input: MindtreeInput): MindNode {
-  // Rule 1: filter FIRST. `selectEntries` also sorts, so ring 3 reads in the
+  // Rule 1: filter FIRST. `selectEntries` also sorts, so the leaves read in the
   // order the FilterBar's sort chose — and a "+N more" therefore hides the tail
   // of that order rather than an arbitrary slice.
   const entries = selectEntries(input.entries, input.filter, input.health, input.ctx)
+  const forest = planEntities(input.entities)
 
+  // THREE MAPS, NOT ONE, and the first is the one that must not change meaning.
+  // `byTrack` is EVERY entry of a track including the ones filed on nodes deep
+  // beneath it, because that is what `trackDefs` asks it: whether the untracked
+  // pile exists, whether an archived track still holds work, which `track_id`
+  // values nothing explains. `direct` is the strictly smaller set that belongs in
+  // a track's OWN dimension buckets, and `byNode` splits the rest out by node.
   const byTrack = new Map<string, Entry[]>()
-  for (const entry of entries) push(byTrack, entry.track_id ?? NO_VALUE, entry)
+  const byNode = new Map<string, Entry[]>()
+  const direct = new Map<string, Entry[]>()
+  for (const entry of entries) {
+    const trackKey = entry.track_id ?? NO_VALUE
+    push(byTrack, trackKey, entry)
+    const filed = nodeIdOf(entry)
+    const owner = filed === null ? undefined : forest.placed.get(filed)
+    // THE TRACK CHECK IS THE COUNT INVARIANT. A row may only sink into a node
+    // that sits inside its own track's subtree; a `node_id` naming a node that
+    // did not place, or one placed under a different track, files at track level
+    // instead. Both are unreachable from the server (0024's `entries_map_sync`
+    // derives `track_id` from the node before the row is written) and both are
+    // reachable from a stale cache — and without this test the entry would count
+    // under one track and be drawn under another, which is precisely the
+    // "labelled 12, showing 3" failure rule 1 exists to prevent.
+    if (filed !== null && owner !== undefined && owner.trackId === trackKey) {
+      push(byNode, filed, entry)
+    } else {
+      push(direct, trackKey, entry)
+    }
+  }
 
-  const children = trackDefs(input.tracks, byTrack).map((def) =>
-    trackNode(def, byTrack.get(def.key) ?? [], input),
-  )
+  const ctx: BuildContext = { input, forest, byNode, direct }
+  const children = trackDefs(input.tracks, byTrack).map((def) => trackNode(def, ctx))
 
   return {
     id: ROOT_ID,
@@ -709,8 +951,27 @@ export function buildMindtree(input: MindtreeInput): MindNode {
     depth: 0,
     entryId: null,
     bucketKey: null,
+    entityType: null,
     retired: false,
   }
+}
+
+/**
+ * Everything the recursion carries down that is the same at every level.
+ *
+ * One object rather than five parameters because `structuralNode` and
+ * `entityNode` call each other: a sixth thing to thread would have to be added
+ * to both signatures and every call in both bodies, and a mutual recursion where
+ * that is fiddly is a mutual recursion where somebody eventually threads the
+ * wrong one.
+ */
+interface BuildContext {
+  input: MindtreeInput
+  forest: EntityForest
+  /** Node id → the entries filed DIRECTLY on that node. */
+  byNode: ReadonlyMap<string, Entry[]>
+  /** Track key → the entries filed at track level, on no node at all. */
+  direct: ReadonlyMap<string, Entry[]>
 }
 
 /**
@@ -753,54 +1014,207 @@ export interface MindGroupTotal {
 export function groupTotals(root: MindNode): MindGroupTotal[] {
   const held = new Map<string, MindGroupTotal>()
   let order = 0
-  for (const track of root.children) {
-    for (const group of track.children) {
-      const key = group.bucketKey ?? NO_VALUE
+
+  // A DEPTH-FIRST WALK, NOT TWO NESTED LOOPS. It used to read
+  // `root.children → track.children` and take everything it found, which was
+  // exact while the tree was four rings deep and every group sat under a track.
+  // With organizations between them, a group can be at any depth — and the old
+  // shape would have summed the buckets of the work filed at track level while
+  // silently omitting every bucket under every Org, producing a table that
+  // disagrees with the map it sits beneath.
+  //
+  // IT DOES NOT DESCEND INTO A GROUP. A group's children are entries and folds,
+  // never groups, and stopping there is what keeps the walk O(branches) instead
+  // of O(every entry in the workspace).
+  const collect = (node: MindNode): void => {
+    for (const child of node.children) {
+      if (child.kind !== 'group') {
+        collect(child)
+        continue
+      }
+      const key = child.bucketKey ?? NO_VALUE
       const seen = held.get(key)
       if (seen === undefined) {
         held.set(key, {
           key,
-          label: group.label,
-          count: group.count,
-          retired: group.retired,
+          label: child.label,
+          count: child.count,
+          retired: child.retired,
           order: order++,
         })
         continue
       }
-      seen.count += group.count
+      seen.count += child.count
       // Retired only if NOBODY has it live: a status hidden in one workspace-wide
       // vocabulary is hidden everywhere, but an owner absent from the roster can
       // still be a legitimate free-text owner under another track.
-      seen.retired = seen.retired && group.retired
+      seen.retired = seen.retired && child.retired
     }
   }
+  collect(root)
+
   return [...held.values()].sort((a, b) => b.count - a.count || a.order - b.order)
 }
 
-function trackNode(def: TrackDef, held: Entry[], input: MindtreeInput): MindNode {
-  const id = nodeId(ROOT_ID, 'track', def.key)
-  const children = held.length === 0 ? [] : groupsFor(held, input).map((g) => groupNode(g, id, def.vars, input))
+/**
+ * What `structuralNode` needs that differs between a track and an organization.
+ *
+ * There are only six such things, which is the argument for one builder: a track
+ * and an Org are the same node with a different label, a different colour source
+ * and a different id segment. Everything that makes this tree hard — the child
+ * order, the direct bucket, the roll-up, the collapse rule — is identical, and
+ * three hand-written builders carrying literal depths was three places for those
+ * four to drift.
+ */
+interface StructuralDef {
+  id: string
+  kind: 'track' | 'entity'
+  label: MindLabel
+  vars: CSSProperties
+  retired: boolean
+  entityType: string | null
+  bucketKey: string
+  depth: number
+  /** The entities placed beneath this node, in reading order. */
+  plans: readonly EntityPlan[]
+  /** The entries filed DIRECTLY here, which the dimension buckets. */
+  direct: Entry[]
+}
+
+/**
+ * ONE BUILDER FOR EVERY STRUCTURAL NODE, at every depth.
+ *
+ * ITS CHILDREN ARE ITS CHILD ENTITIES FIRST, THEN ITS OWN DIMENSION BUCKETS.
+ * Programme-level work filed on OB rather than on any one Org is ordinary and has
+ * to go somewhere, and the somewhere is a group ring beside the Org ring rather
+ * than inside a synthetic "items filed here" node. A wrapper would cost a ring
+ * and a tap on the commonest path, and it would make `depth` mean something
+ * different on two sibling branches of the same tree.
+ *
+ * `count` IS COMPUTED OFF THE ENTRIES AND THE SUBTREE, NEVER OFF THE CHILD LIST.
+ * The two must agree — the bucket children sum to `direct.length` and the entity
+ * children carry their own subtrees — and a grouping pass that dropped a row
+ * would make them disagree, which is the failure the invariant test exists to
+ * catch. Reading the number off the children instead would make that test
+ * tautological.
+ */
+function structuralNode(def: StructuralDef, ctx: BuildContext): MindNode {
+  const children: MindNode[] = []
+  let nested = 0
+  for (const plan of def.plans) {
+    const node = entityNode(plan, def.id, def.depth + 1, def.vars, ctx)
+    if (node === null) continue
+    children.push(node)
+    nested += node.count
+  }
+  if (def.direct.length > 0) {
+    for (const group of groupsFor(def.direct, ctx.input)) {
+      children.push(groupNode(group, def.id, def.depth + 1, def.vars, ctx.input))
+    }
+  }
+
   return {
-    id,
-    kind: 'track',
+    id: def.id,
+    kind: def.kind,
     label: def.label,
-    // Off the entries, not off the children — they must agree, and the test that
-    // says so is the one that would catch a grouping pass dropping a row.
-    count: held.length,
+    count: def.direct.length + nested,
     colourVars: def.vars,
     health: children.length === 0 ? emptyHealth() : rollUp(children),
     children,
-    collapsed: startsCollapsed(input, id, 1, children.length > 0),
-    depth: 1,
+    collapsed: startsCollapsed(ctx.input, def.id, def.depth, children.length > 0),
+    depth: def.depth,
     entryId: null,
-    bucketKey: def.key,
+    bucketKey: def.bucketKey,
+    entityType: def.entityType,
     retired: def.retired,
   }
 }
 
+function trackNode(def: TrackDef, ctx: BuildContext): MindNode {
+  return structuralNode(
+    {
+      id: nodeId(ROOT_ID, 'track', def.key),
+      kind: 'track',
+      label: def.label,
+      vars: def.vars,
+      retired: def.retired,
+      // A track has no kind. `map_node_kinds` describes what hangs BELOW one.
+      entityType: null,
+      bucketKey: def.key,
+      depth: 1,
+      plans: ctx.forest.roots.get(def.key) ?? [],
+      direct: ctx.direct.get(def.key) ?? [],
+    },
+    ctx,
+  )
+}
+
+/**
+ * One node of the hierarchy — an OB phase, an organization — or null when it is
+ * not drawn.
+ *
+ * AN ACTIVE ENTITY IS ALWAYS DRAWN, whether or not it holds work, whether or not
+ * it has children. That is rule 3 of the header and it is the feature: "which Org
+ * has nothing on it" is the question, and an Org that vanished with its last item
+ * would answer it by looking exactly like an Org nobody configured. `focus.ts`
+ * depends on the same fact from the other side — a childless entity is still a
+ * PLACE and still focusable, which is why `canFocus` carries an exception for it.
+ *
+ * AN ARCHIVED ENTITY IS DRAWN ONLY IF IT STILL MATTERS — it holds work somewhere
+ * beneath it, or it is scaffolding above something that does. This is exactly the
+ * rule `trackDefs` applies to an archived track, for the same two reasons: hiding
+ * a thing must never hide DATA, and a parent labelled 12 whose children sum to 9
+ * is worse than a greyed-out branch. Retiring an empty phase should make it go
+ * away; retiring one with forty items under it must not delete forty items from
+ * the total.
+ *
+ * The test is `count === 0 && children.length === 0`, and both halves are load
+ * bearing. `count` alone would strand a live Org under a retired phase. The
+ * children have already applied this rule to themselves, so an archived branch of
+ * archived empties collapses bottom-up in one pass.
+ */
+function entityNode(
+  plan: EntityPlan,
+  parentId: string,
+  depth: number,
+  vars: CSSProperties,
+  ctx: BuildContext,
+): MindNode | null {
+  const entity = plan.entity
+  const node = structuralNode(
+    {
+      id: nodeId(parentId, 'entity', entity.id),
+      kind: 'entity',
+      // The name is database text. It goes through a bidi isolate at render and
+      // never through t().
+      label: textLabel(entity.label),
+      // COLOUR IS INHERITED, at every depth: the whole branch beneath a track
+      // reads as one colour family, and there is no per-node colour to pick —
+      // `map_node_kinds` deliberately has no colour column.
+      vars,
+      retired: entity.archived,
+      entityType: entity.typeKey,
+      bucketKey: entity.id,
+      depth,
+      plans: plan.children,
+      direct: ctx.byNode.get(entity.id) ?? [],
+    },
+    ctx,
+  )
+  if (entity.archived && node.count === 0 && node.children.length === 0) return null
+  return node
+}
+
+/**
+ * One dimension bucket. THE ONLY THING THAT CHANGED HERE IS `depth`, which used
+ * to be the literal 2 and is now whatever ring its structural parent sits on
+ * plus one — a status bucket under an Org under a phase under a track is at 4,
+ * and its entries at 5.
+ */
 function groupNode(
   def: GroupDef,
   parentId: string,
+  depth: number,
   vars: CSSProperties,
   input: MindtreeInput,
 ): MindNode {
@@ -815,8 +1229,8 @@ function groupNode(
   const shown = folds ? def.entries.slice(0, threshold) : def.entries
   const tail = folds ? def.entries.slice(threshold) : []
 
-  const children = shown.map((entry) => entryNode(entry, id, 3, vars, input.health))
-  if (tail.length > 0) children.push(moreNode(id, tail, vars, input))
+  const children = shown.map((entry) => entryNode(entry, id, depth + 1, vars, input.health))
+  if (tail.length > 0) children.push(moreNode(id, depth + 1, tail, vars, input))
 
   return {
     id,
@@ -826,10 +1240,11 @@ function groupNode(
     colourVars: vars,
     health: rollUp(children),
     children,
-    collapsed: startsCollapsed(input, id, 2, children.length > 0),
-    depth: 2,
+    collapsed: startsCollapsed(input, id, depth, children.length > 0),
+    depth,
     entryId: null,
     bucketKey: def.key,
+    entityType: null,
     retired: def.retired,
   }
 }
@@ -858,12 +1273,13 @@ function groupNode(
  */
 function moreNode(
   parentId: string,
+  depth: number,
   tail: Entry[],
   vars: CSSProperties,
   input: MindtreeInput,
 ): MindNode {
   const id = `${parentId}/more`
-  const children = tail.map((entry) => entryNode(entry, id, 4, vars, input.health))
+  const children = tail.map((entry) => entryNode(entry, id, depth + 1, vars, input.health))
   return {
     id,
     kind: 'more',
@@ -873,9 +1289,10 @@ function moreNode(
     health: rollUp(children),
     children,
     collapsed: !(input.expandedIds?.has(id) ?? false),
-    depth: 3,
+    depth,
     entryId: null,
     bucketKey: null,
+    entityType: null,
     retired: false,
   }
 }
@@ -903,6 +1320,7 @@ function entryNode(
     depth,
     entryId: entry.id,
     bucketKey: null,
+    entityType: null,
     retired: false,
   }
 }

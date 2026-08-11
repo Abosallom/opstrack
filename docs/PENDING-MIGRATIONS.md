@@ -7,9 +7,66 @@ It exists because the critic caught the failure it prevents: `README`, `ADMIN.md
 things ending at `0013` and reported **"all twelve yes"** — while four migrations sat unapplied.
 A verification that cannot fail is worse than none.
 
-## Status — 1 August 2026
+## Status — 11 August 2026
 
-**Nothing is pending.** `0014`–`0022` are applied to the live project (`lrysgpbkmuqgzsjesfkr`),
+**`0023_map_nodes.sql` and `0024_map_use_cases.sql` are PENDING. Neither has ever been run
+against any database.** They must be applied **in order** — `0024` references `map_nodes` and
+carries a preflight block that refuses to apply without it; `0023` in turn probes
+`information_schema` for `entries.node_id` so it applies standalone and starts counting entries
+the moment `0024` lands, with no re-apply.
+
+| # | File | What it does | Verify live by |
+|---|---|---|---|
+| 0023 | `map_nodes.sql` | The hierarchy below tracks: `map_nodes`, `map_node_kinds`, the deferred tree check, `reorder_map_nodes` / `move_map_node`, and a redefinition of two 0002 objects | `map_nodes` + `map_node_kinds` tables present; 3 rows in `map_node_kinds`; `map_nodes.vendor` column present; `map_nodes_tree_ck_trg` is `tgdeferrable`; `map_nodes_sibling_name_uidx` definition contains `NULLS NOT DISTINCT` |
+| 0024 | `map_use_cases.sql` | The capability catalogue and the entry's finer grain: `use_cases`, `map_node_use_cases`, `entries.node_id`, and the `entries_map_sync` trigger that DERIVES `track_id` from the node | 10 rows in `use_cases`; `map_node_use_cases` table present; `entries.node_id` column present; `entries_map_sync` BEFORE INSERT OR UPDATE trigger on `entries` |
+
+⚠ **`0024` decides an entry's `track_id` for it.** `entries_map_sync` is `SECURITY DEFINER` with
+a `found` guard, so a client that sends a `node_id` and a contradicting `track_id` has the
+`track_id` overwritten rather than being trusted — that is the whole point, and it means the
+first apply changes what an existing INSERT does. Nothing writes `node_id` yet (the map-node
+store is Wave B), so today the trigger is inert on every real row.
+
+**Read all four probe blocks' notices.** They are the only evidence this file works —
+it was written without a Postgres to run it against, so nothing in it has executed:
+
+* **probe 1** — the seed landed, `map_node_kinds` has no colour column, the sibling index is
+  `NULLS NOT DISTINCT`, and the tree trigger is `DEFERRABLE INITIALLY DEFERRED`.
+* **probe 2** — six levels are legal, a 7th is refused, a cycle is refused, a cross-track parent
+  is refused **at a forced commit point**, `org1`/`ORG1` collide, and a node with a child cannot
+  be deleted. This one leans on `set constraints all immediate` to drain the deferred queue
+  inside a `DO` block; **if it errors rather than passing or failing cleanly, that mechanism is
+  the first suspect**, not the rules it tests.
+* **probe 3** — member read, admin write, and a child inserted with **no `track_id`** comes back
+  on its parent's track. That last assertion is the whole design in one line.
+* **probe 4** — the reorder scope predicate matches only ids whose parent matches. Labelled in
+  the file as the weak version: it exercises the predicate, not the RPC, because the applying
+  role has no JWT and cannot pass `is_admin()`.
+
+`map_nodes.vendor` was added at integration, not by the unit that wrote 0023. Three separate
+units reported its absence as an open hole in a named requirement — *"Each Org has a vendor doing
+the integration, and he must be able to filter by vendor"* — and 0023 had never run, so adding
+the column to an unapplied file was strictly cheaper than a `0025` against live rows. It is
+`text not null default ''`, free text and not a foreign key, because a vendor is a company
+outside the workspace with no profile to point at. Nothing reads it yet; `FilterState.mapNodeIds`
+is Wave B.
+
+Two things to check by hand after applying, because no probe can see them:
+
+1. `delete_track(id, other)` on a track that has map nodes — the reassign must move the nodes
+   too, and the returned jsonb must now carry a `"nodes"` key.
+2. Deleting a track that has map nodes with **no** reassignment target must raise
+   `track_in_use:` and name the node count.
+
+`0023` ships probe 1's **RPC signature check** for a failure no type gate can see: PostgREST
+resolves a function by the *names* of the arguments in the JSON body, so a client calling
+`move_map_node({p_id, p_parent_id, p_track_id})` against a function declared
+`(p_id, p_parent, p_track)` gets a 404 the first time an admin drags a node — months after both
+halves were reviewed and found correct on their own. The migration is the authority on the
+three signatures; probe 1 fails if any of them is absent or spelled differently.
+
+### 0014–0022 are applied
+
+`0014`–`0022` are applied to the live project (`lrysgpbkmuqgzsjesfkr`),
 each twice, and verified by querying the catalog rather than by trusting the apply:
 
 | # | File | Verified live by |
@@ -90,11 +147,31 @@ select
   (pg_get_functiondef('public.entries_guard_insert()'::regprocedure)
      like '%nudged_by        := null%')                                                   as f_0022,
   (select pg_get_constraintdef(oid) from pg_constraint
-     where conname='claim_counters_scope_ck')                                             as scopes;
+     where conname='claim_counters_scope_ck')                                             as scopes,
+  (select count(*) from public.map_node_kinds)                                            as k_0023,
+  (select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid
+     where c.relname='map_nodes' and t.tgname='map_nodes_tree_ck_trg'
+       and t.tgdeferrable and t.tginitdeferred)                                           as d_0023,
+  (select pg_get_indexdef(i.indexrelid) ilike '%nulls not distinct%'
+     from pg_index i join pg_class c on c.oid=i.indexrelid
+    where c.relname='map_nodes_sibling_name_uidx')                                        as n_0023,
+  (select count(*) from public.use_cases)                                                 as u_0024,
+  (select count(*) from information_schema.tables
+     where table_schema='public' and table_name='map_node_use_cases')                     as t_0024,
+  (select count(*) from information_schema.columns
+     where table_schema='public' and table_name='entries' and column_name='node_id')      as c_0024,
+  (select count(*) from pg_trigger
+     where tgrelid='public.entries'::regclass and tgname='entries_map_sync')              as g_0024;
 ```
 
-Expected: `2, 1, 1, 1, 1, true`, and `scopes` listing all four of `username`, `ip`, `ai_user`,
-`ai_ip`. A narrowed `scopes` means someone re-ran a pre-fix `0010`; re-apply `0022`.
+Expected: `2, 1, 1, 1, 1, true`, `scopes` listing all four of `username`, `ip`, `ai_user`,
+`ai_ip`, then `3, 1, true`, then `10, 1, 1, 1`. A narrowed `scopes` means someone re-ran a
+pre-fix `0010`; re-apply `0022`. `d_0023 = 0` means the tree check is installed but **not
+deferred**, which does not fail any probe in this file's own terms and does break the first
+cross-track subtree move somebody tries. `n_0023 = false` means two roots named "OB" under one
+track are both legal. `g_0024 = 0` with `c_0024 = 1` is the dangerous half-state: the column
+exists and nothing derives `track_id` from it, so the two filing axes the design forbids become
+representable again.
 
 ### Probes must be able to fail
 

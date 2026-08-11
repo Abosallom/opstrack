@@ -133,6 +133,7 @@ function entry(id: string, title: string): Entry {
   return {
     id,
     track_id: 't1',
+    node_id: null,
     title,
     description: '',
     type: 'action',

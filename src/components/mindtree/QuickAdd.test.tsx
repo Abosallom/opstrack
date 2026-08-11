@@ -66,6 +66,7 @@ function node(over: Partial<MindNode> & Pick<MindNode, 'id' | 'kind'>): MindNode
     depth: 1,
     entryId: null,
     bucketKey: null,
+    entityType: null,
     retired: false,
     ...over,
   }
@@ -92,11 +93,15 @@ describe('draftToNewEntry', () => {
     // Network means "blocked AND on Network". An item created there carrying
     // only its status would be filed untracked and appear somewhere else — the
     // reader watching their own click land in the wrong place.
+    // `mapNodeId: null` is EXPLICIT, not absent: a track step means "on this
+    // track, under none of its organizations", and an absent key would leave a
+    // dragged row filed under whatever Org it came from.
     const draft = draftAt([ROOT, TRACK, group('blocked')], 'status')
-    expect(draft).toEqual({ trackId: 't-net', status: 'blocked' })
+    expect(draft).toEqual({ trackId: 't-net', mapNodeId: null, status: 'blocked' })
     expect(draftToNewEntry(draft ?? {}, '  Patch the edge switch  ')).toEqual({
       title: '  Patch the edge switch  ',
       trackId: 't-net',
+      mapNodeId: null,
       status: 'blocked',
     })
   })
@@ -106,7 +111,7 @@ describe('draftToNewEntry', () => {
     // the pair as two independent optional fields is what preserves the fix
     // dropRules.ownerPatch exists for.
     const draft = draftAt([ROOT, TRACK, group(NO_VALUE)], 'owner')
-    expect(draft).toEqual({ trackId: 't-net', ownerId: null, ownerName: null })
+    expect(draft).toEqual({ trackId: 't-net', mapNodeId: null, ownerId: null, ownerName: null })
     const input = draftToNewEntry(draft ?? {}, 'x')
     expect(input.ownerId).toBeNull()
     expect(input.ownerName).toBeNull()
@@ -124,6 +129,7 @@ describe('draftToNewEntry', () => {
     expect(draftToNewEntry(draftAt([ROOT, TRACK], 'status') ?? {}, 'x')).toEqual({
       title: 'x',
       trackId: 't-net',
+      mapNodeId: null,
     })
   })
 

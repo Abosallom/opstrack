@@ -10,10 +10,11 @@
 // has to stay debuggable, it just must not be rendered.
 //
 // The identifiers matched below are the contract with
-// supabase/migrations/0002_config_foundation.sql and 0003_vocab_options.sql.
-// Renaming an index or a trigger's error token there silently demotes a precise
-// message to 'common.error', so keep the files in step. 0003 says so in a
-// comment above the raise, which is the other half of this handshake.
+// supabase/migrations/0002_config_foundation.sql, 0003_vocab_options.sql,
+// 0018_track_groups.sql, and 0023/0024 for the map hierarchy. Renaming an index
+// or a trigger's error token there silently demotes a precise message to
+// 'common.error', so keep the files in step. 0003 says so in a comment above the
+// raise, which is the other half of this handshake.
 
 /** The subset of a PostgrestError / PostgREST body this module reads. */
 interface PgLike {
@@ -43,22 +44,134 @@ function codeOf(e: PgLike): string {
   return typeof e.code === 'string' ? e.code : ''
 }
 
+/**
+ * The four invariants the map hierarchy owns (0023), matched by TOKEN ALONE.
+ *
+ * THE ONE MAPPING IN THIS FILE THAT IGNORES THE SQLSTATE, and the exception is
+ * argued rather than assumed. Everything else here is raised at one place with one
+ * `using errcode`, so keying on the code is free and is what stops a short token
+ * matching a sentence that merely contains it. These four are raised from six places
+ * between them — the insert trigger, the deferred tree check, the reorder RPC and
+ * three arms of the move RPC — about the same four facts, refused at whichever
+ * moment catches them first. Across this wave 0023 has spelled them `23514`, `22023`
+ * and `23502` at different times, which is exactly the churn that turns a precise
+ * sentence into the generic one with nothing failing to say so. The reader's next
+ * action does not depend on which statement objected, so neither does the mapping.
+ *
+ * EACH ARM MATCHES TWO TOKEN VOCABULARIES, and that is observation rather than
+ * defensiveness: 0023 was rewritten mid-wave and has raised BOTH
+ * `map_node_too_deep` and `map_node_depth` for the identical fact, both
+ * `map_node_cross_track` and `map_node_track_mismatch`, both `map_node_scope` and
+ * the `no_track`/`reorder_*` trio. Matching the pair costs one `||` and is checkable
+ * against the migration in either state; matching one of them is a coin flip whose
+ * losing side is silent. When the migration settles, deleting the spellings it does
+ * not use is a two-minute edit with a grep behind it.
+ *
+ * The tokens are long, underscored, and unique to this schema: nothing else in
+ * Postgres or in these migrations says `map_node_cycle`. None of the pairs is a
+ * substring of another, so the order of the tests carries no meaning.
+ *
+ * Returns null when the text belongs to something else, so the caller falls through
+ * to the code-keyed switch.
+ */
+function mapNodeInvariantKey(text: string): string | null {
+  // A node under one of its own descendants — the deferred check sees the whole
+  // statement, so a subtree move that would close a loop is rejected as one thing
+  // rather than half-applied and then noticed. `move_into_self` is the degenerate
+  // case, refused up front; one key, because it is one mistake.
+  if (text.includes('map_node_cycle') || text.includes('map_node_move_into_self')) {
+    return 'mapadmin.errCycle'
+  }
+  // The depth cap. Mandatory rather than a preference: radial area grows
+  // quadratically with depth, so an uncapped tree is a map that cannot be drawn.
+  if (text.includes('map_node_too_deep') || text.includes('map_node_depth')) {
+    return 'mapadmin.errTooDeep'
+  }
+  // `track_id` disagreeing with an ancestor's, in either direction. Derived, never
+  // asserted — this fires when a writer asserted it anyway, or when a move would
+  // split a subtree across two tracks.
+  if (text.includes('map_node_cross_track') || text.includes('map_node_track_mismatch')) {
+    return 'mapadmin.errCrossTrack'
+  }
+  // "You did not say WHERE." A root node naming no track, a reorder naming no
+  // track, and a reorder holding an id from another branch are one mistake to the
+  // reader: the operation was aimed at a scope it does not describe, and the fix is
+  // to reload the screen and repeat it against what is actually there.
+  if (
+    text.includes('map_node_scope') ||
+    text.includes('map_node_no_track') ||
+    text.includes('map_node_reorder_scope') ||
+    text.includes('map_node_reorder_foreign')
+  ) {
+    return 'mapadmin.errScope'
+  }
+  return null
+}
+
 export function pgErrorKey(error: unknown): string {
   if (typeof error !== 'object' || error === null) return 'common.error'
   const e = error as PgLike
   const code = codeOf(e)
   const text = haystack(e)
 
+  // Before the switch, because these four are the only failures here whose SQLSTATE
+  // is an implementation detail rather than a contract — see mapNodeInvariantKey().
+  const mapInvariant = mapNodeInvariantKey(text)
+  if (mapInvariant) return mapInvariant
+
   switch (code) {
     case '23505':
+      // Each pair reads `_ar_` first, matching the tracks pair that was here
+      // already. Neither name contains the other, so this is house order rather
+      // than a correctness requirement — but keeping all three pairs written the
+      // same way is what makes a fourth pair obviously right or obviously wrong.
       if (text.includes('tracks_name_ar_uidx')) return 'admin.tracks.errNameArTaken'
       if (text.includes('tracks_name_uidx')) return 'admin.tracks.errNameTaken'
+      // track_groups (0018). These two were UNMAPPED until now, and a duplicate
+      // group name fell through to the generic key — recorded as debt in the header
+      // of api/tracks.ts's groups section, which could not fix it because it does
+      // not own this file. Both sentences already exist in both locale trees.
+      if (text.includes('track_groups_name_ar_uidx')) return 'groups.errNameArTaken'
+      if (text.includes('track_groups_name_uidx')) return 'groups.errNameTaken'
+      // map_nodes (0023). SIBLING-scoped, not global: two organizations called
+      // "Emergency" under two different phases are two real things, and a
+      // workspace-wide unique name would be a rule about the tree that the tree
+      // does not have. The sentence has to say "under the same parent" or the admin
+      // goes looking for a duplicate that is three rings away.
+      //
+      // The base index also fires on a path that has nothing to do with typing a
+      // name: 0023's delete_track() reassigns a deleted track's nodes, so
+      // reassigning a track whose root ring holds "OB" onto a track that already has
+      // an "OB" lands here. The sentence must therefore not assume the admin was
+      // renaming something.
+      if (text.includes('map_nodes_sibling_name_ar_uidx')) return 'mapadmin.errNameArTaken'
+      if (text.includes('map_nodes_sibling_name_uidx')) return 'mapadmin.errNameTaken'
+      // map_node_kinds (0023) — Programme, Phase, Organization.
+      if (text.includes('map_node_kinds_name_ar_uidx')) return 'mapadmin.errKindNameArTaken'
+      if (text.includes('map_node_kinds_name_uidx')) return 'mapadmin.errKindNameTaken'
+      // use_cases (0024). GLOBAL, unlike the node names above: the catalogue is one
+      // flat list every organization is scored against, so two rows called "ADT"
+      // would make "6 of 9 live" a number nobody can reconcile.
+      if (text.includes('use_cases_name_ar_uidx')) return 'mapadmin.errUseCaseNameArTaken'
+      if (text.includes('use_cases_name_uidx')) return 'mapadmin.errUseCaseNameTaken'
       break
     case '23503':
       // Raised by tracks_block_delete_when_referenced(), which counts the
       // entries/meetings/templates still pointing at the track. The UI answers
       // this by offering the reassign step rather than repeating the counts.
       if (text.includes('track_in_use')) return 'admin.tracks.errInUse'
+      // The same guard one level down (0023): a node still has children or entries.
+      // getMapNodeUsage() is what the screen shows BEFORE the click, so this key is
+      // the backstop for the delete that raced another session, not the ordinary
+      // path.
+      if (text.includes('map_node_in_use')) return 'mapadmin.errInUse'
+      // Deleting a use case that organizations are recorded against. There is no
+      // token to match because there is no guard trigger to raise one: 0024 makes
+      // `map_node_use_cases.use_case_id` `on delete restrict`, so the FK itself
+      // refuses and names its own constraint. Matching the constraint name is the
+      // only handle there is, and it is a better one than a trigger would be — the
+      // rule cannot be dropped without dropping the reference it protects.
+      if (text.includes('map_node_use_cases_use_case_id_fkey')) return 'mapadmin.errUseCaseInUse'
       break
     case '23514':
       // tracks_keep_one_active() — fires on archive as well as delete, so the
@@ -102,6 +215,9 @@ export function pgErrorKey(error: unknown): string {
       // The track (or the destination) was deleted by another session while
       // this screen sat open.
       if (text.includes('track_missing')) return 'admin.tracks.errNotFound'
+      // The node (or the destination of a move) was deleted by another session
+      // while this screen sat open — the tree admin's version of the same race.
+      if (text.includes('map_node_missing')) return 'mapadmin.errNotFound'
       break
     case '42501':
       // RLS rejected the write. In practice: the UI thinks this user is an

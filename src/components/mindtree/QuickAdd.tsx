@@ -137,6 +137,10 @@ const FOCUS_FALLBACK_ID = 'main'
 export function draftToNewEntry(draft: EntryPatch, title: string): NewEntry {
   const input: NewEntry = { title }
   if (draft.trackId !== undefined) input.trackId = draft.trackId
+  // Carried with trackId, never without it. `draftAt` seeds both from one branch
+  // of the tree; dropping this one files "Add an item here" on an Org at track
+  // level with no node, and the item appears OUTSIDE the Org the reader clicked.
+  if (draft.mapNodeId !== undefined) input.mapNodeId = draft.mapNodeId
   if (draft.status !== undefined) input.status = draft.status
   if (draft.priority !== undefined) input.priority = draft.priority
   if (draft.ownerId !== undefined) input.ownerId = draft.ownerId

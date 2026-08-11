@@ -76,6 +76,7 @@ const { mindActionsFor } = await import('../../lib/mindtree/actions')
 function entry(over: Partial<Entry> & Pick<Entry, 'id' | 'title'>): Entry {
   return {
     track_id: 't-net',
+    node_id: null,
     description: '',
     type: 'action',
     status: 'new',
@@ -112,6 +113,7 @@ function node(over: Partial<MindNode> & Pick<MindNode, 'id' | 'kind'>): MindNode
     depth: 1,
     entryId: null,
     bucketKey: null,
+    entityType: null,
     retired: false,
     ...over,
   }
@@ -419,7 +421,9 @@ describe('menuRunFor', () => {
     if (apply === undefined) return
     const run = menuRunFor(bulk, null, apply)
     expect(run?.targetIds).toEqual(['e1', 'e2'])
-    expect(run?.patch).toEqual({ trackId: 't-other' })
+    // `mapNodeId: null` rides along on every track patch: the track ring sits
+    // above the organizations, so landing on it means "under none of them".
+    expect(run?.patch).toEqual({ trackId: 't-other', mapNodeId: null })
   })
 
   it('refuses to build a run for a disabled row, a sub-menu row or Back', () => {

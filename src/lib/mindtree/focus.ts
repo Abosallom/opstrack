@@ -14,9 +14,10 @@
 //
 // ── THE ONE IDEA THIS FILE IS BUILT ON ─────────────────────────────────────
 //
-// A MindNode id IS ITS PATH: `root/track:<id>/group:<key>/entry:<id>`, with
-// every dynamic segment percent-encoded (model.ts's `nodeId`). Two consequences,
-// and the whole module falls out of them:
+// A MindNode id IS ITS PATH: `root/track:<id>/entity:<id>/group:<key>/entry:<id>`,
+// with every dynamic segment percent-encoded (model.ts's `nodeId`) and the
+// `entity:` run repeating for as many levels of the hierarchy as the branch has.
+// Two consequences, and the whole module falls out of them:
 //
 //  1. THE ANCESTOR CHAIN OF AN ID IS COMPUTABLE FROM THE STRING, with no tree in
 //     hand. `encodeURIComponent` escapes `/` as %2F, so a segment can never
@@ -25,12 +26,13 @@
 //
 //  2. WHICH IS WHY A FOCUS SURVIVES A REGROUP. Switch the dimension from status
 //     to owner and every `group:` segment in the tree is replaced — the focused
-//     id `root/track:X/group:blocked` now names nothing. But its PREFIX
-//     `root/track:X` still names the same track, because ring 1 does not depend
-//     on the dimension. So the fallback is not a guess or a heuristic: it is the
-//     longest prefix of the requested id that still exists. The reader lands on
-//     the track they were inside, one ring out, rather than on a blank screen or
-//     back at the top of the map.
+//     id `root/track:X/entity:Org1/group:blocked` now names nothing. But its
+//     PREFIX `root/track:X/entity:Org1` still names the same organization,
+//     because the STRUCTURAL rings — the track and everything hanging off it —
+//     do not depend on the dimension. So the fallback is not a guess or a
+//     heuristic: it is the longest prefix of the requested id that still exists.
+//     The reader lands in the branch they were inside, one ring out, rather than
+//     on a blank screen or back at the top of the map.
 //
 // THE FALLBACK IS THE FEATURE, not the error path. A focus id reaches this
 // module from three places that can all go stale under the reader: a URL somebody
@@ -44,6 +46,14 @@
 // request to draw one card, which is not a view of anything. Such a request
 // falls back to the parent, so `?focus=<some entry leaf>` degrades to the group
 // that holds it rather than to a single node floating in an empty canvas.
+//
+// WITH ONE EXCEPTION, AND IT IS AN EXCEPTION OF KIND RATHER THAN OF DEGREE. An
+// `entity` node is a PLACE — an organization being onboarded — and focusing it
+// opens a panel of facts about that place (its account manager, its use-case
+// matrix, its vendor) which exist whether or not any work is filed under it. The
+// canvas stopped being the whole view when the panel arrived; "an empty canvas"
+// is now half a screen beside a full one, and an Org with zero open issues is
+// precisely the Org somebody wants to inspect. See `canFocus`.
 
 import {
   isMindDimension,
@@ -51,6 +61,7 @@ import {
   visibleChildren,
   type MindDimension,
   type MindNode,
+  type MindNodeKind,
 } from './model'
 
 // ── the view ───────────────────────────────────────────────────────────────
@@ -148,18 +159,44 @@ export function resolveFocus(root: MindNode, requested: string | null): FocusVie
 /**
  * Is this node worth making the whole screen?
  *
- * Only the childless rule, deliberately — NOT a check on `kind`. A `more` fold
- * has children and focusing it ("show me the tail") is a legitimate view; an
- * `entry` leaf has none and focusing it would draw a single card on an empty
- * canvas. Keying on the shape rather than the kind means a fifth node kind
- * inherits the right behaviour without editing this function.
+ * THE SHAPE RULE FIRST, and it is still the default. A `more` fold has children
+ * and focusing it ("show me the tail") is a legitimate view; an `entry` leaf has
+ * none and focusing it would draw a single card on an empty canvas. An empty
+ * active track lands there too, and correctly: model.ts draws it because "which
+ * track has nothing on it" is worth seeing ON the map, but a screen containing
+ * only that node answers nothing. Keying on shape rather than kind is what lets
+ * a new node kind inherit the right behaviour without editing this function.
  *
- * An empty active track lands here too, and correctly: model.ts draws it as a
- * node because "which track has nothing on it" is worth seeing on the map, but
- * a screen containing only that node answers nothing.
+ * THEN THE ONE KIND THAT OVERRIDES IT. An `entity` node — an organization, a
+ * phase, a programme in the hierarchy below the track — is a PLACE, not a
+ * bucket, and the difference is what its focus DRAWS. A group with nothing in it
+ * has nothing to say; an Org with nothing in it has an account manager, a
+ * vendor, and a use-case matrix reading "6 of 9 live", none of which depend on
+ * any work being filed there. That is the whole shape of the question "which Org
+ * is behind?" — and an Org with zero open issues is one of the answers.
+ *
+ * THIS FUNCTION'S HEADER USED TO ARGUE THE OPPOSITE, and the argument was sound
+ * when the canvas was the entire view. It is not any more: the panel is half the
+ * screen, so "a single card on an empty canvas" is no longer a description of
+ * what a childless entity focus produces. The shape rule was never about
+ * childlessness for its own sake — it was about landing the reader somewhere
+ * that answers nothing. An entity always answers something.
+ *
+ * A childless entity is still reachable by fallback in the other direction: a
+ * stale `entity:` id that names nothing at all fails `trailTo` and climbs, so
+ * this exception widens what may be focused, never what may be invented.
  */
 export function canFocus(node: MindNode): boolean {
-  return node.children.length > 0
+  return node.children.length > 0 || isPlaceKind(node.kind)
+}
+
+/**
+ * Node kinds that are PLACES — see `canFocus`. Narrowed to `MindNodeKind` so a
+ * rename of the kind reds this function rather than silently switching the
+ * exception off.
+ */
+function isPlaceKind(kind: MindNodeKind): boolean {
+  return kind === 'entity'
 }
 
 // ── the tree walks ─────────────────────────────────────────────────────────
@@ -227,10 +264,22 @@ export function ancestorIdsOf(id: string): string[] {
 /**
  * The part of a focus id that SURVIVES A CHANGE OF DIMENSION.
  *
- * Ring 1 is tracks and does not depend on the axis; every ring below it is cut
- * on the axis, so a `group:` segment spelled under `status` names nothing under
- * `owner`. This trims to the deepest prefix that is still meaningful — normally
- * `root/track:X` — and returns null when nothing above the axis is left.
+ * THE STRUCTURAL RINGS ARE AXIS-INDEPENDENT; the axis rings are not. `track:` is
+ * ring 1 and `entity:` is every ring the hierarchy hangs below it — both are
+ * spelled by the SHAPE of the workspace, which a dimension chip does not touch.
+ * Everything from the first `group:` outward is cut on the axis, so a `group:`
+ * segment spelled under `status` names nothing under `owner`. This trims to the
+ * deepest prefix that is still meaningful — `root/track:X/entity:OB/entity:Org1`
+ * where there is a hierarchy, `root/track:X` where there is not — and returns
+ * null when nothing above the axis is left.
+ *
+ * KEEPING `entity:` IS NOT A REFINEMENT, IT IS THE SAME BUG AS THE ORIGINAL ONE.
+ * A reader standing in `…/entity:Org1/group:blocked` who flips the chip would
+ * otherwise be trimmed all the way back to the TRACK — three rings out, past the
+ * OB phase and past the Org — which is precisely the teleport the paragraph
+ * below was written to stop, just at a larger radius. It would also fail
+ * SILENTLY: `resolveFocus` finds the track, draws it, and reports no fallback,
+ * so nothing on screen says the reader was moved.
  *
  * WHY IT EXISTS AT ALL, when `resolveFocus` already recovers: because the call
  * site that drops a focus on regroup was clearing it to NULL, and null is not
@@ -250,10 +299,10 @@ export function dimensionStableId(id: string | null): string | null {
   const parts = id.split('/')
   const kept: string[] = []
   for (const part of parts) {
-    // `root` and `track:` are axis-independent. `group:`, `more` and `entry:`
-    // are not — a group is the axis itself, and both of the others are drawn
-    // inside one.
-    if (part !== ROOT_ID && !part.startsWith('track:')) break
+    // `root`, `track:` and `entity:` are axis-independent — they are the tree's
+    // SHAPE. `group:`, `more` and `entry:` are not: a group IS the axis, and
+    // both of the others are drawn inside one.
+    if (part !== ROOT_ID && !part.startsWith('track:') && !part.startsWith('entity:')) break
     kept.push(part)
   }
   if (kept.length <= 1) return null
@@ -411,25 +460,51 @@ export function viewFromParams(p: URLSearchParams): MindtreeUrlView {
 
 /**
  * A node id's grammar, per model.ts's `nodeId`: `root` followed by
- * `track:`/`group:`/`entry:` segments carrying percent-encoded values, plus the
- * bare `more` fold.
+ * `track:`/`entity:`/`group:`/`entry:` segments carrying percent-encoded values,
+ * plus the bare `more` fold.
  *
  * THE VALUE MAY BE EMPTY, which is not sloppiness — `NO_VALUE` is the empty
  * string, so the untracked pile is literally `root/track:` and the unassigned
  * bucket is `.../group:`. A stricter pattern would drop a focus on the two
  * buckets an ops lead cares most about.
  *
+ * `more` KEEPS ITS BARE FORM. It is the one segment with no value to carry — a
+ * fold is identified by its position, not by a key — and `.../more` is the id
+ * model.ts actually mints. Nothing about the hierarchy changes that.
+ *
  * The character class is exactly what `encodeURIComponent` can emit.
  */
-const SEGMENT = /^(?:(?:track|group|entry):[A-Za-z0-9\-_.!~*'()%]*|more)$/
+const SEGMENT = /^(?:(?:track|entity|group|entry):[A-Za-z0-9\-_.!~*'()%]*|more)$/
 
 /**
- * Long enough for the deepest real id many times over, short enough that a
- * pathological query string cannot make the walk above interesting. Depth is
- * five segments at most (root/track/group/more/entry).
+ * THE TWO BOUNDS ARE ONE DECISION, and the decision is the database's.
+ *
+ * 0023's `map_node_depth` trigger caps the hierarchy at SIX levels below the
+ * track, so the deepest id this app can mint is
+ *
+ *     root · track: · entity: ×6 · group: · more · entry:
+ *     ─┬──   ──┬───   ───┬────     ──┬───   ─┬──   ──┬───
+ *      1   +   1    +    6      +    1    +  1   +   1     = 11 segments
+ *
+ * `MAX_SEGMENTS = 12` is that plus one, so the parser rejects only ids the
+ * schema could not have produced. THE OLD VALUE OF 6 WAS A SHIPPING BUG, not a
+ * conservative margin: Aziz's own example path,
+ * `root/track:UHR/entity:OB/entity:Org1/group:blocked/entry:X`, is EXACTLY six,
+ * so one further level of nesting made `parseFocusId` return null — and a
+ * rejected id never reaches `resolveFocus`, so `missingId` is never set and the
+ * shared link opens the whole map with nothing on screen saying why.
+ *
+ * The length follows from the same arithmetic. The widest segment is a `group:`
+ * carrying a percent-encoded owner name (`group:` + up to ~3× a display name);
+ * twelve segments of a uuid-bearing worst case is ~520 characters, so 1 024
+ * leaves a clear factor of two while still being short enough that a
+ * pathological query string cannot make the ancestor walk interesting.
+ *
+ * `store/mindtree.ts`'s `MAX_NODE_ID` is the same number for the same reason —
+ * it bounds persisted collapse ids, which are these ids. Move them together.
  */
-const MAX_FOCUS_LEN = 512
-const MAX_SEGMENTS = 6
+const MAX_FOCUS_LEN = 1024
+const MAX_SEGMENTS = 12
 
 function parseFocusId(raw: string | null): string | null {
   if (raw === null || raw === '' || raw.length > MAX_FOCUS_LEN) return null

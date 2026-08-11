@@ -171,6 +171,28 @@ describe('readMindtreePrefs — every field validated', () => {
     expect((await load()).readMindtreePrefs().collapsed.status).toEqual(['root/track:a'])
   })
 
+  it('remembers a collapse id from deep in the hierarchy', async () => {
+    // REGRESSION, and the only test that pins the number. `MAX_NODE_ID` was 512
+    // under a comment claiming "a path is bounded by the tree's four rings",
+    // which stopped being true the moment the hierarchy landed: 0023 caps the
+    // map at six levels BELOW the track, so the deepest id the schema can mint
+    // is eleven segments, not four. A reader who collapses a branch six levels
+    // down inside an Org had that preference silently dropped on reload — no
+    // error, no signal, just a branch that would not stay shut.
+    //
+    // It is the same number as `lib/mindtree/focus.MAX_FOCUS_LEN` because it
+    // bounds the same ids arriving by a different door, so both assertions here
+    // are on one constant: the id must survive as a COLLAPSE entry and as the
+    // FOCUS, which are validated by two different functions.
+    const deep = `root/track:UHR/${Array.from({ length: 6 }, (_, i) => `entity:${'L'.repeat(80)}${i}`).join('/')}/group:blocked`
+    expect(deep.length).toBeGreaterThan(512)
+    expect(deep.length).toBeLessThan(1024)
+    install({ [KEY]: JSON.stringify({ collapsed: { status: [deep] }, focus: deep }) })
+    const prefs = (await load()).readMindtreePrefs()
+    expect(prefs.collapsed.status).toEqual([deep])
+    expect(prefs.focus).toBe(deep)
+  })
+
   it('keeps a dimension key it does not recognise', async () => {
     // ASYMMETRIC WITH `dimension` ITSELF, on purpose. A stale axis NAME decides
     // what is drawn right now and must degrade; a stale axis's collapse RECORD

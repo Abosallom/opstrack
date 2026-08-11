@@ -77,6 +77,7 @@ const TODAY = '2026-07-31'
 function entry(over: Partial<Entry> & Pick<Entry, 'id' | 'title'>): Entry {
   return {
     track_id: 't-net',
+    node_id: null,
     description: '',
     type: 'action',
     status: 'new',
@@ -144,6 +145,11 @@ function tree(over: Partial<Parameters<typeof buildMindtree>[0]> = {}): MindNode
     entries,
     health: new Map([['e4', health('e4', { sla_breached: true, status: 'blocked' })]]),
     tracks: TRACKS,
+    // No hierarchy: this fixture is the FLAT tree, and every assertion built on
+    // it is the regression suite for the walk that used to be two levels deep.
+    // model.ts requires the field rather than defaulting it precisely so that
+    // "there is no hierarchy here" is a decision somebody wrote down.
+    entities: [],
     vocab: STATUS_VOCAB,
     members: [{ id: 'm-1', displayName: 'Layla' }],
     dimension: 'status',
@@ -172,7 +178,7 @@ function rowsOf(root: MindNode = tree()) {
 describe('buildTableRows', () => {
   it('emits one row per track × group, in the tree order', () => {
     const rows = rowsOf()
-    expect(rows.map((r) => [r.trackLabel, r.groupLabel])).toEqual([
+    expect(rows.map((r) => [r.pathLabel, r.groupLabel])).toEqual([
       ['Network', 'New'],
       ['Network', 'Blocked'],
       ['PMO', 'New'],
@@ -221,7 +227,11 @@ describe('buildTableRows', () => {
     const rows = buildTableRows(root, new Map(), TODAY)
     expect(rows).toHaveLength(2)
     expect(rows.every((r) => r.empty && r.count === 0 && r.oldestDays === null)).toBe(true)
-    expect(rows.map((r) => r.trackLabel)).toEqual(['Network', 'PMO'])
+    expect(rows.map((r) => r.pathLabel)).toEqual(['Network', 'PMO'])
+    // One step, so the path IS the track — which is what keeps the column
+    // heading honest for a workspace that has no hierarchy in it.
+    expect(rows.map((r) => r.pathParts)).toEqual([['Network'], ['PMO']])
+    expect(rows.every((r) => r.nodeKey === null)).toBe(true)
   })
 
   it('carries the retired flags rather than dropping the buckets', () => {
@@ -231,10 +241,285 @@ describe('buildTableRows', () => {
     })
     const rows = buildTableRows(root, ENTRY_MAP, TODAY)
     const blocked = rows.find((r) => r.groupLabel === 'Blocked')
-    expect(blocked?.trackRetired).toBe(true)
+    expect(blocked?.pathRetired).toBe(true)
     expect(blocked?.groupRetired).toBe(true)
     // Retired or not, the work is still counted.
     expect(rows.reduce((n, r) => n + r.count, 0)).toBe(5)
+  })
+
+  it('marks an archived Org inside a live programme, not just an archived track', () => {
+    // model.ts marks an archived entity that still holds work `retired` for the
+    // reason it marks an archived track: hiding an option must never hide data.
+    // A table that pilled one and not the other would under-report the second,
+    // and the pill is the only thing on the row that says "this is not live".
+    const root = deepTree()
+    const net = root.children[0]!
+    const ob = net.children[0]!
+    const org1 = { ...ob.children[0]!, retired: true }
+    const deep = {
+      ...root,
+      children: [{ ...net, children: [{ ...ob, children: [org1, ob.children[1]!] }, net.children[1]!] }],
+    }
+    const rows = buildTableRows(deep, ENTRY_MAP, TODAY)
+    expect(rows.filter((r) => r.pathRetired).map((r) => r.pathLabel)).toEqual([
+      'UHR, OB, Org1',
+      'UHR, OB, Org1',
+    ])
+    // The live track above it is untouched — the flag accumulates DOWN a path,
+    // it does not leak sideways.
+    expect(rows.find((r) => r.pathLabel === 'UHR')?.pathRetired).toBe(false)
+  })
+})
+
+// ── the hierarchy ──────────────────────────────────────────────────────────
+//
+// BUILT BY HAND RATHER THAN THROUGH buildMindtree, and that is the deliberate
+// half of this block. What is under test is THIS FILE'S WALK — "one row per
+// `group` node, at any depth, with the trail to it in the first column" — which
+// is a property of the SHAPE of a MindNode tree, not of the builder that
+// produced it. Driving it through model.ts would test model.ts's placement
+// rules a second time, in a suite that cannot fix them, and would red this file
+// every time the hierarchy's own inputs changed shape. The flat fixture above
+// still goes through the real builder, so the two are cross-checked: the walk is
+// proved against a real tree AND against the deep one the real tree is growing
+// into.
+
+const TRACK_VARS = { '--track-c-dark': '#22b8d6' } as MindNode['colourVars']
+
+function levels(over: Partial<Record<HealthLevel, number>> = {}): Record<HealthLevel, number> {
+  return { ok: 0, stale: 0, overdue: 0, critical: 0, ...over }
+}
+
+/** A MindNode with every required field defaulted — so the day model.ts adds
+ *  one, this file reds at compile time rather than inventing a value. */
+function node(over: Partial<MindNode> & Pick<MindNode, 'id' | 'kind'>): MindNode {
+  return {
+    label: { kind: 'text', text: '' },
+    count: 0,
+    colourVars: TRACK_VARS,
+    health: { levels: levels(), slaBreached: false },
+    children: [],
+    collapsed: false,
+    depth: 0,
+    entryId: null,
+    bucketKey: null,
+    entityType: null,
+    retired: false,
+    ...over,
+  }
+}
+
+function leafNode(id: string, breached = false): MindNode {
+  return node({
+    id: `x/entry:${id}`,
+    kind: 'entry',
+    label: { kind: 'text', text: id },
+    count: 1,
+    entryId: id,
+    health: { levels: levels({ ok: 1 }), slaBreached: breached },
+  })
+}
+
+function groupNode(id: string, key: string, label: string, kids: MindNode[]): MindNode {
+  return node({
+    id,
+    kind: 'group',
+    label: { kind: 'text', text: label },
+    bucketKey: key,
+    count: kids.length,
+    children: kids,
+  })
+}
+
+function entityNode(id: string, key: string, label: string, kids: MindNode[]): MindNode {
+  return node({
+    id,
+    kind: 'entity',
+    label: { kind: 'text', text: label },
+    bucketKey: key,
+    entityType: 'Organization',
+    count: kids.reduce((n, k) => n + k.count, 0),
+    children: kids,
+  })
+}
+
+/**
+ * UHR › OB › {Org1 with two buckets, Org2 with nothing}, plus one bucket filed
+ * at the track itself and a second, empty track.
+ *
+ * The track holds an entity AND a group, in that order, because a track can
+ * hold both — items filed at the track and organizations beneath it — and the
+ * table has to read in the order the picture is drawn in rather than in
+ * "branches first, buckets after".
+ */
+function deepTree(): MindNode {
+  const org1 = entityNode('root/track:t-net/entity:n-org1', 'n-org1', 'Org1', [
+    groupNode('root/track:t-net/entity:n-org1/group:new', 'new', 'New', [
+      leafNode('e1'),
+      leafNode('e2'),
+    ]),
+    groupNode('root/track:t-net/entity:n-org1/group:blocked', 'blocked', 'Blocked', [
+      leafNode('e4', true),
+    ]),
+  ])
+  const org2 = entityNode('root/track:t-net/entity:n-org2', 'n-org2', 'Org2', [])
+  const ob = entityNode('root/track:t-net/entity:n-ob', 'n-ob', 'OB', [org1, org2])
+  // TWO items, so this cell offers the same drill-down the deep one does and the
+  // uniqueness assertion below compares two FILTER names rather than one filter
+  // and one "open the only item".
+  const trackLevel = groupNode('root/track:t-net/group:new', 'new', 'New', [
+    leafNode('e3'),
+    leafNode('e5'),
+  ])
+
+  const net = node({
+    id: 'root/track:t-net',
+    kind: 'track',
+    label: { kind: 'text', text: 'UHR' },
+    bucketKey: 't-net',
+    count: 5,
+    children: [ob, trackLevel],
+  })
+  const pmo = node({
+    id: 'root/track:t-pmo',
+    kind: 'track',
+    label: { kind: 'text', text: 'PMO' },
+    bucketKey: 't-pmo',
+    colourVars: {},
+    count: 0,
+  })
+
+  return node({
+    id: 'root',
+    kind: 'root',
+    label: { kind: 'key', key: 'app.name' },
+    colourVars: {},
+    count: 5,
+    children: [net, pmo],
+  })
+}
+
+describe('buildTableRows at arbitrary depth', () => {
+  it('gives every group node a row, however deep it sits', () => {
+    // The two-level walk this replaced found no groups under an Org and dropped
+    // BOTH of Org1's buckets — three of the four items — while the picture next
+    // to it kept drawing them. That is the "labelled 12, showing 9" failure the
+    // file header calls the worst thing this screen can do.
+    const rows = buildTableRows(deepTree(), ENTRY_MAP, TODAY)
+    expect(rows.map((r) => [r.pathLabel, r.groupLabel, r.count])).toEqual([
+      ['UHR, OB, Org1', 'New', 2],
+      ['UHR, OB, Org1', 'Blocked', 1],
+      ['UHR, OB, Org2', 'All clear', 0],
+      ['UHR', 'New', 2],
+      ['PMO', 'All clear', 0],
+    ])
+    expect(rows.map((r) => r.order)).toEqual([0, 1, 2, 3, 4])
+  })
+
+  it('reconciles against the root, which is what the footer prints', () => {
+    const root = deepTree()
+    const rows = buildTableRows(root, ENTRY_MAP, TODAY)
+    expect(rows.reduce((n, r) => n + r.count, 0)).toBe(root.count)
+  })
+
+  it('reads in the tree order, not branches-then-buckets', () => {
+    // The track's own `New` bucket is written AFTER the OB subtree in the
+    // fixture and must be read after it: `order` and the third click on a sort
+    // header both promise the order the map is drawn in.
+    const labels = buildTableRows(deepTree(), ENTRY_MAP, TODAY).map((r) => r.pathLabel)
+    expect(labels.indexOf('UHR')).toBeGreaterThan(labels.indexOf('UHR, OB, Org1'))
+  })
+
+  it('keeps an Org with nothing on it, exactly as it keeps a clear track', () => {
+    // "Which Org has nothing on it" is the question the onboarding hierarchy
+    // exists to answer, and an Org that vanished when its last item closed
+    // would answer it by looking like an Org nobody ever created.
+    const org2 = buildTableRows(deepTree(), ENTRY_MAP, TODAY).find(
+      (r) => r.pathLabel === 'UHR, OB, Org2',
+    )
+    expect(org2?.empty).toBe(true)
+    expect(org2?.count).toBe(0)
+    expect(org2?.oldestDays).toBeNull()
+    expect(org2?.soleEntryId).toBeNull()
+  })
+
+  it('carries the deepest node key, for the facet that does not exist yet', () => {
+    const rows = buildTableRows(deepTree(), ENTRY_MAP, TODAY)
+    expect(rows.map((r) => r.nodeKey)).toEqual(['n-org1', 'n-org1', 'n-org2', null, null])
+    // …and the TRACK key stays the track at every depth, because `track_id` is
+    // derived from the node rather than asserted beside it. That is what leaves
+    // `filterForCell` something it can express today.
+    expect(rows.map((r) => r.trackKey)).toEqual(['t-net', 't-net', 't-net', 't-net', 't-pmo'])
+  })
+
+  it('totals the ownership and breach facts off the leaves under an Org', () => {
+    const rows = buildTableRows(deepTree(), ENTRY_MAP, TODAY)
+    // e1 is unassigned and was raised 30 days before TODAY; e2 has an owner.
+    expect(rows[0]?.unassigned).toBe(1)
+    expect(rows[0]?.oldestDays).toBe(30)
+    // e4 is past its SLA and is the only item in its cell, so the cell opens it.
+    expect(rows[1]?.breached).toBe(1)
+    expect(rows[1]?.soleEntryId).toBe('e4')
+  })
+
+  it('sorts on the whole path, so two Orgs of one programme do not interleave', () => {
+    const rows = buildTableRows(deepTree(), ENTRY_MAP, TODAY)
+    const sorted = sortTableRows(rows, { column: 'track', dir: 'asc' })
+    expect(sorted.map((r) => r.pathLabel)).toEqual([
+      'PMO',
+      'UHR',
+      'UHR, OB, Org1',
+      'UHR, OB, Org1',
+      'UHR, OB, Org2',
+    ])
+  })
+
+  it('narrows a deep cell to its TRACK, and says so rather than pretending', () => {
+    // FilterState has no `mapNodeIds` facet yet, so the finest thing the
+    // drill-down can express about a row under Org1 is "the UHR track,
+    // blocked" — a SUPERSET of what the cell counted. Asserted so the gap stays
+    // deliberate and so the day the facet lands, this test is the one that
+    // changes. The untracked pile's identical gap is pinned two describes down.
+    const deep = buildTableRows(deepTree(), ENTRY_MAP, TODAY)[1]!
+    const next = filterForCell(EMPTY_FILTER, 'status', deep)
+    expect(next.trackIds).toEqual(['t-net'])
+    expect(next.statuses).toEqual(['blocked'])
+    expect(deep.nodeKey).toBe('n-org1')
+  })
+})
+
+describe('the rendered table at depth', () => {
+  const html = renderToStaticMarkup(
+    <MindtreeTable
+      root={deepTree()}
+      dimension="status"
+      entryById={ENTRY_MAP}
+      today={TODAY}
+      onFilterCell={() => {}}
+    />,
+  )
+
+  it('isolates every step of the path separately, not the joined string once', () => {
+    // The separator is the locale's own comma and it belongs to the ROW's
+    // direction, not to either label — useMapModel's `trail()` makes the same
+    // call for the same reason. Isolate the whole path instead and an Arabic Org
+    // under a Latin programme drags the comma to the wrong side of itself.
+    expect(html).toContain('⁨UHR⁩, ⁨OB⁩, ⁨Org1⁩')
+    expect(html).not.toContain('⁨UHR, OB, Org1⁩<')
+  })
+
+  it('names two identically-labelled cells differently, by their paths', () => {
+    // There are two `New` buckets in this tree — one under Org1, one at the
+    // track. With the track alone in the name they would have been the same
+    // button twice in the elements list a screen-reader user navigates by.
+    expect(html).toContain('aria-label="Show only ⁨UHR, OB, Org1⁩, ⁨New⁩"')
+    expect(html).toContain('aria-label="Show only ⁨UHR⁩, ⁨New⁩"')
+    const names = [...html.matchAll(/aria-label="([^"]*)"/g)].map((m) => m[1])
+    expect(new Set(names).size).toBe(names.length)
+  })
+
+  it('still totals off the root, five rows deep', () => {
+    expect(html).toMatch(/mtree-tbl-total[\s\S]*>5<\/td>/)
   })
 })
 

@@ -53,6 +53,7 @@ export function entry(p: Partial<Entry> & { id: string; title: string }): Entry 
     // case half the grouping tests are about, and `??` would silently default it
     // back to a real track.
     track_id: p.track_id === undefined ? 'trk-net' : p.track_id,
+    node_id: p.node_id ?? null,
     title: p.title,
     description: p.description ?? '',
     type: p.type ?? 'action',

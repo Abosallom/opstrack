@@ -65,6 +65,7 @@ const fx = vi.hoisted(() => {
 
   const entry = (over: Partial<Entry> & Pick<Entry, 'id' | 'title'>): Entry => ({
     track_id: 't-net',
+    node_id: null,
     description: '',
     type: 'action',
     status: 'new',

@@ -17,6 +17,7 @@ const CTX: SectionContext = { meId: 'me', today: TODAY, staleDays: (p) => STALE[
 function entry(partial: Partial<Entry> & Pick<Entry, 'id'>): Entry {
   return {
     track_id: 'tr1',
+    node_id: null,
     title: 'Migrate the payment gateway',
     description: '',
     type: 'action',

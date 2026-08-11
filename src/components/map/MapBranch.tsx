@@ -391,9 +391,17 @@ export default function MapBranch({
    * `/tracks`' node list exactly, one ring deeper. A branch whose children are
    * entries (a ring-2 bucket, or a leaf) is its own single section, so the panel
    * has one shape at every depth of the map.
+   *
+   * A BRANCH CHILD IS ANYTHING THAT IS NOT AN ITEM OR A FOLD. It used to read
+   * `kind === 'track' || kind === 'group'`, which was every branch kind the tree
+   * had; with organizations in it, a positive list finds ZERO branch children
+   * under a phase, falls through to the single section below, and renders one
+   * flattened list of every descendant's entries beside a picture showing five
+   * Orgs. The negative degrades the other way — a structural kind nobody has
+   * invented yet is still a section.
    */
   const sections = useMemo<BranchSection[]>(() => {
-    const branches = node.children.filter((c) => c.kind === 'track' || c.kind === 'group')
+    const branches = node.children.filter((c) => c.kind !== 'entry' && c.kind !== 'more')
     const defs: { node: MindNode; foldable: boolean }[] =
       branches.length > 0
         ? branches.map((c) => ({ node: c, foldable: true }))
@@ -813,14 +821,15 @@ export default function MapBranch({
                             second time in front of the name. */}
                         <span className="mbr-node-mark" aria-hidden="true">
                           <TrackDot
-                            // `''` is the untracked pile's bucket key and not a
-                            // track id: TrackDot must be told "no track", not
-                            // asked to look one up under the empty string.
-                            trackId={
-                              section.node.kind === 'track' && section.node.bucketKey !== ''
-                                ? section.node.bucketKey
-                                : null
-                            }
+                            // `trackIdOf`, not the section's own bucket key: an
+                            // Org has no track id of its own, it INHERITS one —
+                            // the payoff of "tracks stay". Reading the key
+                            // directly gave every non-track section the neutral
+                            // mark, whose tooltip says "No track" about a branch
+                            // that plainly has one. The helper still answers
+                            // null for the untracked pile, whose `''` is not a
+                            // track id and must not be looked up as one.
+                            trackId={trackIdOf(section.node, path)}
                             variant="glyph"
                           />
                         </span>

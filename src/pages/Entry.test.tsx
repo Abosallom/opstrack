@@ -62,6 +62,7 @@ const fx = vi.hoisted(() => {
   const entry: Entry = {
     id: 'e1',
     track_id: 'trk-net',
+    node_id: null,
     title: 'Core switch firmware upgrade',
     description: 'Vendor confirmed the window.',
     type: 'change',

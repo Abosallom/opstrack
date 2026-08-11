@@ -34,6 +34,7 @@ import {
 const entry = (over: Partial<Entry> & Pick<Entry, 'id'>): Entry => ({
   title: over.id,
   track_id: 't-net',
+  node_id: null,
   description: '',
   type: 'action',
   status: 'new',

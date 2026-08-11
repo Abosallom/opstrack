@@ -129,8 +129,25 @@ const PREFS_KEY = 'nphiescore_mindtree_v1'
 const MAX_IDS_PER_DIM = 2000
 const MAX_DIMS = 16
 
-/** Node ids are paths, and a path is bounded by the tree's four rings. */
-const MAX_NODE_ID = 512
+/**
+ * Node ids are paths, so this bounds a PATH — and the tree stopped being four
+ * rings when the hierarchy landed beneath the tracks.
+ *
+ * `root/track:UHR/entity:OB/entity:Org1/group:blocked/entry:X` is a real id, and
+ * 0023 caps the hierarchy at six levels below the track, so eleven segments is
+ * the deepest the schema can produce. THE SAME NUMBER AS
+ * `lib/mindtree/focus.MAX_FOCUS_LEN`, deliberately and not by coincidence: that
+ * constant bounds the id arriving from the URL and this one bounds the id
+ * arriving from `localStorage`, and they are the same ids. A device that
+ * remembers a deep branch as collapsed and then loads the map from a link would
+ * otherwise disagree with itself about which ids exist — silently, because both
+ * failure modes are a DROPPED preference and neither says anything. Move them
+ * together.
+ *
+ * Still a cap rather than no cap: `localStorage` is user-writable and this value
+ * is read synchronously before the first frame.
+ */
+const MAX_NODE_ID = 1024
 
 export interface MindtreePrefs {
   dimension: MindDimension

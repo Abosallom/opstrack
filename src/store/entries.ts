@@ -296,6 +296,7 @@ export function applyPatchLocal(entry: Entry, patch: EntryPatch, nowIso: string)
   if (patch.tags !== undefined) next.tags = patch.tags
   if (patch.links !== undefined) next.links = patch.links
   if (patch.trackId !== undefined) next.track_id = patch.trackId
+  if (patch.mapNodeId !== undefined) next.node_id = patch.mapNodeId
   if (patch.ownerId !== undefined) {
     next.owner_id = patch.ownerId
     if (patch.ownerId) next.owner_name = null
@@ -1629,6 +1630,7 @@ function optimisticRow(input: NewEntry, id: string, meId: string | null, ts: str
   return {
     id,
     track_id: input.trackId ?? null,
+    node_id: input.mapNodeId ?? null,
     title: input.title.trim(),
     description: input.description ?? '',
     type: input.type ?? 'action',
