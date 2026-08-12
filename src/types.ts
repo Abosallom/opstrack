@@ -1076,3 +1076,152 @@ export interface MapNodeUsage {
   /** Rows in `map_node_use_cases` for this node. */
   useCases: number
 }
+
+/**
+ * map_node_stages — the onboarding ladder a node climbs (0026). Not started →
+ * Kickoff → Integrating → Testing/UAT → Go-live ready → Live → Paused.
+ *
+ * THE COLUMN LIST IS 0026's, NOT A DESIGN'S. Every field below is one the
+ * migration creates, spelled the way it spells it, and there is no `updated_by` —
+ * `map_node_kinds` carries none either and this table copies it.
+ *
+ * NO COLOUR COLUMN, and 0026's probe 1 fails the migration if one ever appears:
+ * colour on this map means TRACK at every depth, the map's two visual variables
+ * are already spent, and an ORDERED list draws as position rather than hue.
+ *
+ * Member-read, `structure.edit`-write, AUDITED — renaming a rung restates what
+ * every portfolio count MEANS, which is exactly the change one person makes with
+ * nobody watching.
+ */
+export interface MapNodeStage {
+  id: string
+  name: string
+  /**
+   * `not null default ''`, and SEEDED BLANK for all seven rungs on purpose —
+   * those words are the programme's own vocabulary and Aziz translates them
+   * himself. Fall back to `name` when EMPTY, not when null (`stageLabel`).
+   */
+  name_ar: string
+  sort_order: number
+  /**
+   * `use_cases.hidden`'s contract: the rung leaves the pickers and never
+   * un-stages the organizations already standing on it.
+   */
+  hidden: boolean
+  /**
+   * An organization at this stage HAS ARRIVED. The portfolio's live count is
+   * `count(*) where terminal` and NEVER a comparison against the word "Live" —
+   * lib/mapNodes.ts's "the terminal status is a parameter, never the literal"
+   * promoted from a TS constant to a column the admin owns. Deliberately not
+   * derived from the highest `sort_order`, because that is draggable.
+   */
+  terminal: boolean
+  /**
+   * The clock is deliberately stopped here. lib/lifecycle.ts's `isAtRisk` counts
+   * a node only when NOT terminal and NOT paused, so "blocked on the customer
+   * since March" is a fact somebody recorded rather than an alarm the app raises
+   * every morning.
+   */
+  paused: boolean
+  /**
+   * How long a node is expected to sit on this rung before it counts as stalled,
+   * bounded 1..3650 by `map_node_stages_expected_days_chk`.
+   *
+   * NULL IS THE ORDINARY STATE AND THE SEEDED STATE — 0026 sets it on no row,
+   * which is 0003's SLA-off reasoning: a threshold nobody chose is a number the
+   * app would then chase people with. `resolveStallDays` reads it.
+   */
+  expected_days: number | null
+  created_at: string
+  updated_at: string
+  created_by: string | null
+}
+
+/**
+ * The editable half of a stage — a form's view-model, camelCase, hand-mapped to
+ * 0026's snake_case columns by api/map.ts exactly as `MapNodeKindInput` is.
+ *
+ * `sortOrder` is absent for `MapNodeKindInput`'s reason: ordering is
+ * `reorderMapNodeStages`' job, and on this table it is a heavier operation than
+ * it looks — reordering the ladder restates every count-form goal.
+ *
+ * The last four are OPTIONAL and permanently so, for `UseCaseInput.hidden`'s
+ * reason: `updateMapNodeStage` patches only the keys it is handed, so
+ * `undefined` carries its own meaning — "leave that flag alone" — which is what
+ * the rename form wants and what the flag toggles do not. `expectedDays: null`
+ * is a real instruction ("no expectation on this rung") and is NOT the same as
+ * leaving the key off.
+ */
+export interface MapNodeStageInput {
+  name: string
+  nameAr: string
+  hidden?: boolean
+  terminal?: boolean
+  paused?: boolean
+  expectedDays?: number | null
+}
+
+/**
+ * map_node_progress — which rung of the ladder one node is standing on, and
+ * since when (0026).
+ *
+ * NO ID: `node_id` IS the primary key, at most one row per node, exactly as
+ * `MapNodeUseCase` is keyed by its pair. That is also why every write is an
+ * upsert on `node_id` — see `setNodeStage` in api/map.ts.
+ *
+ * ⚠ THE ABSENCE OF A ROW IS MEANINGFUL, AND IT IS NOT THE SAME FACT AS
+ *   `stage_id: null`. No row means NOBODY HAS SAID ANYTHING YET — the state all
+ *   400 imported organizations are in, because 0026 ships no backfill on
+ *   purpose. `stage_id: null` means somebody looked and cleared it. Returning a
+ *   node to "nobody has said" is a DELETE, not a null.
+ *
+ * MEMBER-WRITABLE, unlike `map_node_stages`: the owner owns the ladder, the
+ * three account managers own where each organization got to.
+ */
+export interface MapNodeProgress {
+  node_id: string
+  /** The rung, or null. `on delete set null`, so retiring a rung un-stages its nodes. */
+  stage_id: string | null
+  /**
+   * When this node arrived on its current rung — NULL exactly when `stage_id` is
+   * null, which `map_node_progress_stage_chk` enforces as a backstop.
+   *
+   * WRITTEN ONLY BY `map_node_progress_stage_stamp()`. A value sent by a client
+   * is OVERRULED, not rejected, so a write that carries one reads as working and
+   * is not. Never send it.
+   */
+  stage_changed_at: string | null
+  /** Server-owned, diffed by `map_node_progress_touch()`. Never send it. */
+  updated_at: string
+  /**
+   * Who last recorded this node's position — resolved through `profiles` from
+   * `auth.uid()`, never a field a screen offers. Null when the write had no JWT
+   * (the SQL editor, the importer).
+   */
+  updated_by: string | null
+}
+
+/**
+ * What retiring a rung would cost, for the delete confirmation — `MapNodeUsage`'s
+ * job one table over.
+ *
+ * BOTH NUMBERS ARE NEEDED BEFORE THE CLICK, and neither of them blocks the
+ * delete: `map_node_progress.stage_id` and `map_node_goals.stage_id` are both
+ * `on delete set null`, so deleting a rung un-stages the organizations standing
+ * on it and blanks the rung out of the goals that named it. Nothing is refused
+ * and nothing raises — which is exactly why the sentence has to be said in
+ * advance rather than discovered afterwards. `hidden` is the operation an admin
+ * almost always wants instead.
+ */
+export interface MapNodeStageUsage {
+  /** Nodes currently recorded at this stage (`map_node_progress.stage_id`). */
+  progress: number
+  /**
+   * Goals whose target names this stage (`map_node_goals.stage_id`, 0027).
+   *
+   * 0 on a database where 0027 has not been applied, and that is the honest
+   * answer rather than a swallowed error: a table that does not exist holds no
+   * goals. api/map.ts's `countReferencing` warns to the console and answers 0.
+   */
+  goals: number
+}

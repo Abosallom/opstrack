@@ -16,7 +16,7 @@
 
 import { useCallback } from 'react'
 import { useLocale, type Locale } from './i18n'
-import type { MapNode, MapNodeKind, Track } from '../types'
+import type { MapNode, MapNodeKind, MapNodeStage, Track } from '../types'
 
 /**
  * A track's name in the given locale.
@@ -75,4 +75,39 @@ export function kindLabel(kind: Pick<MapNodeKind, 'name' | 'name_ar'>, locale: L
 export function useKindLabel(): (kind: Pick<MapNodeKind, 'name' | 'name_ar'>) => string {
   const locale = useLocale()
   return useCallback((kind: Pick<MapNodeKind, 'name' | 'name_ar'>) => kindLabel(kind, locale), [locale])
+}
+
+/**
+ * A STAGE's name — "Integrating", "Go-live ready" (0026).
+ *
+ * `nodeLabel`'s exact rule, fallback and all: `name_ar` is `not null default ''`
+ * and 0026 seeds ALL SEVEN RUNGS with it blank on purpose, so on the day the
+ * migration applies every stage falls back to its English name. That is the
+ * designed state, not a gap — those seven words are the programme's vocabulary
+ * and Aziz translates them himself in the admin screen, one rung at a time. A
+ * label that tested for `null` instead of EMPTY would render blank chips across
+ * the whole portfolio until he did.
+ *
+ * A CAPTION AND NEVER A CONDITION, for `kindLabel`'s reason and with more at stake
+ * here: "is this organization finished?" is `stage.terminal`, never
+ * `stageLabel(stage) === 'Live'`. Renaming a rung is a thing the admin is EXPECTED
+ * to do, and a comparison against this string would make that rename silently
+ * change which organizations count as done — in one language only, since this
+ * function resolves for the reader's locale.
+ *
+ * It takes a `Pick` for `nodeLabel`'s reason: the picker labels a stored row and
+ * the admin form labels a draft that has no id yet.
+ */
+export function stageLabel(stage: Pick<MapNodeStage, 'name' | 'name_ar'>, locale: Locale): string {
+  if (locale === 'ar') return stage.name_ar.trim() || stage.name
+  return stage.name
+}
+
+/** The supported way for a component to label a stage. Re-renders on language change. */
+export function useStageLabel(): (stage: Pick<MapNodeStage, 'name' | 'name_ar'>) => string {
+  const locale = useLocale()
+  return useCallback(
+    (stage: Pick<MapNodeStage, 'name' | 'name_ar'>) => stageLabel(stage, locale),
+    [locale],
+  )
 }

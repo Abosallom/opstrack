@@ -270,6 +270,74 @@
   gap: 8px;
 }
 
+/* ---------- the stage rung's three extra columns ---------- */
+
+/* `terminal` and `paused` (0026). Stacked rather than laid out beside the two
+   name fields: each one carries a sentence saying what it MEANS — "counts as
+   arrived", "the stalled clock stops" — and a sentence that has to wrap to two
+   words per line is a sentence nobody reads. 14px row gap, not 8: every row
+   below is a 44px control, and `.tap-44` (global.css) extends a shorter one by
+   ±7px, so two rows closer than 14px have overlapping targets. */
+.cat-flags {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* A `role="switch"` button over global.css's `.switch`, exactly as
+   `digest.css .dg-toggle` does it and for the same reason: this sheet owns
+   `.cat-*` and may not restyle a form primitive, and a real checkbox would need
+   an appearance reset to be visible at all. The whole row is the control, so
+   the label and its sentence are tap targets too. */
+.cat-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+}
+
+.cat-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.cat-toggle-label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.cat-toggle:hover .switch {
+  border-color: var(--accent);
+}
+
+/* The ring goes round the whole row and not round the 26px switch: the row is
+   the control, and a ring on the thumb alone reads as a separate widget. */
+.cat-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* `expected_days`. Capped rather than full width because the value is at most
+   four digits — a box the width of the panel invites a sentence into a field
+   the database will refuse. 7ch, not 4: the placeholder says the empty state in
+   words and has to be legible before it is truncated. */
+.cat-days {
+  inline-size: 7ch;
+  min-inline-size: 7ch;
+}
+
 /* ---------- states ---------- */
 
 .cat-error {

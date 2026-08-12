@@ -114,6 +114,18 @@ vi.mock('../../api/map', () => {
     updateMapNodeKind: record('updateMapNodeKind'),
     deleteMapNodeKind: record('deleteMapNodeKind'),
     reorderMapNodeKinds: record('reorderMapNodeKinds'),
+    // The ladder (0026). Every one of these has to be on the mock even though
+    // no test calls it: a factory mock replaces the whole module, and an import
+    // of a name the factory does not define throws when the component module is
+    // evaluated — so a missing line here is a failure of the whole file, not a
+    // gap in one case.
+    listMapNodeStages: record('listMapNodeStages'),
+    createMapNodeStage: record('createMapNodeStage'),
+    updateMapNodeStage: record('updateMapNodeStage'),
+    setMapNodeStageHidden: record('setMapNodeStageHidden'),
+    deleteMapNodeStage: record('deleteMapNodeStage'),
+    reorderMapNodeStages: record('reorderMapNodeStages'),
+    getMapNodeStageUsage: record('getMapNodeStageUsage'),
   }
 })
 
@@ -457,7 +469,7 @@ describe('reach', () => {
 
 /* ────────────────── the decisions this screen encodes ──────────────────── */
 
-describe('the two lists are asymmetrical, and deliberately so', () => {
+describe('the three lists are asymmetrical, and deliberately so', () => {
   it('offers no reorder on use cases, because 0024 ships no RPC for it', () => {
     // api/map.ts's own header records the gap and names
     // `reorder_use_cases(p_ids uuid[])` in the handoff. Up/down here would have
@@ -489,6 +501,167 @@ describe('the two lists are asymmetrical, and deliberately so', () => {
     expect(SOURCE).toContain('catalogue.usageUnknown')
     expect(SOURCE).toContain('setUseCaseUsage(null)')
     expect(SOURCE).toContain('setKindUsage(null)')
+  })
+})
+
+/* ──────────────────────── the stage ladder (0026) ──────────────────────── */
+
+/** One string out of a bundle, by dot path. Throws rather than returning ''. */
+const en = (key: string): string => (FLAT_EN.get(key) as Leaf).forms.other
+const ar = (key: string): string => (FLAT_AR.get(key) as Leaf).forms.other
+
+/**
+ * Does a sentence say the thing `reorder_map_node_stages`' comment requires —
+ * that reordering restates goals written as COUNTS — rather than merely that
+ * the list can be dragged?
+ *
+ * A predicate rather than an inline `toContain`, because it is applied to a
+ * decoy below: a check nobody has watched reject anything is a check that
+ * passes on any prose at all.
+ */
+const restatesGoals = (text: string): boolean => /goal/i.test(text) && /count/i.test(text)
+
+describe('the stage ladder is the third section, and it carries 0026 verbatim', () => {
+  it('renders as its own section with its own heading', () => {
+    expect(SOURCE).toContain('cat-h-stage')
+    expect(SOURCE).toContain('catalogue.stagesTitle')
+  })
+
+  it('shows none of it before the reads answer — a skeleton, not an empty ladder', () => {
+    // "No stages configured yet" while the request is in flight tells an admin
+    // their migration did not run. `stages` is in the loading test for that
+    // reason, and load() settles it first so the error path still clears it.
+    const html = render()
+    expect(html).not.toContain('cat-h-stage')
+    expect(html).toContain('skeleton')
+    expect(SOURCE).toContain('useCases === null || kinds === null || stages === null')
+  })
+
+  it('reads the ladder with hidden rungs included, because Hide must be undoable', () => {
+    // api/map.ts deliberately gives listMapNodeStages no includeHidden
+    // parameter: the admin cannot restore a rung it cannot see.
+    expect(SOURCE).toContain('listMapNodeStages()')
+    expect(SOURCE).toContain('setMapNodeStageHidden(row.id, !row.hidden)')
+  })
+
+  it('labels terminal and paused, and each one says what it MEANS', () => {
+    // The requirement in one line: a toggle called "Terminal" is a word; the
+    // sentence beside it is the only thing that says a live count is
+    // count(*) where terminal and never the rung named "Live".
+    expect(SOURCE).toContain('catalogue.terminalLabel')
+    expect(SOURCE).toContain('catalogue.terminalHint')
+    expect(SOURCE).toContain('catalogue.pausedLabel')
+    expect(SOURCE).toContain('catalogue.pausedHint')
+    expect(en('catalogue.terminalLabel').toLowerCase()).toContain('arrived')
+    expect(en('catalogue.pausedLabel').toLowerCase()).toContain('clock')
+    // …and the hint says WHY the flag is a column rather than a name match.
+    expect(en('catalogue.terminalHint').toLowerCase()).toContain('never a rung that happens')
+  })
+
+  it('enforces nothing about how many rungs carry either flag', () => {
+    // 0026 does not either: two terminal rungs ("Live" and "Live with caveats")
+    // is a legal ladder. Asserted through the BUNDLES rather than the source,
+    // because the shape a client-side rule would take is a refusal sentence —
+    // and there is no key for one. A `catalogue.errTooManyTerminal` appearing
+    // here fails this.
+    const terminalKeys = [...FLAT_EN.keys()].filter((k) => /terminal/i.test(k)).sort()
+    expect(terminalKeys).toEqual([
+      'catalogue.stageTerminal',
+      'catalogue.terminalHint',
+      'catalogue.terminalLabel',
+    ])
+  })
+
+  it('names the state a blank threshold puts the rung in, rather than leaving it blank', () => {
+    // The name-the-state discipline: an empty box is a VALUE here ("no
+    // expectation"), and 0026 ships all seven rungs that way on purpose. Both
+    // halves are said — the field's own hint, and the section note that says
+    // what it means for the whole app while no rung has one.
+    const hint = en('catalogue.expectedDaysHint').toLowerCase()
+    expect(hint).toContain('empty')
+    expect(hint).toContain('no threshold')
+    expect(en('catalogue.stagesNoThresholds').toLowerCase()).toContain('stalled')
+    expect(SOURCE).toContain('catalogue.stagesNoThresholds')
+    // The bound is the CHECK's, mirrored rather than invented.
+    expect(SOURCE).toContain('const EXPECTED_DAYS_MAX = 3650')
+  })
+
+  it('treats an unparseable threshold as an error and never as a clearing', () => {
+    // parseDays' third answer. Collapsing 'bad' to null would silently erase a
+    // threshold somebody had set, on a typo.
+    expect(SOURCE).toContain("catalogue.errExpectedDays")
+    expect(SOURCE).toContain("if (days !== 'bad' && days !== (stage.expected_days ?? null))")
+  })
+
+  it('says, before the first drag, that reordering restates every count-form goal', () => {
+    // reorder_map_node_stages' own comment requires this sentence BEFORE the
+    // drag is committed, and the screen says it twice: a standing note under
+    // the section head, and a confirmation the first time a rung moves.
+    expect(SOURCE).toContain('catalogue.stagesOrderNote')
+    expect(SOURCE).toContain('catalogue.reorderStagesTitle')
+    expect(SOURCE).toContain('reorderWarned')
+    expect(restatesGoals(en('catalogue.stagesOrderNote'))).toBe(true)
+    expect(restatesGoals(en('catalogue.reorderStagesBody'))).toBe(true)
+    // The Arabic pair carries the same claim, checked in Arabic words: a
+    // translated sentence that dropped the consequence would pass every
+    // token-parity gate above.
+    expect(ar('catalogue.stagesOrderNote')).toContain('هدف')
+    expect(ar('catalogue.reorderStagesBody')).toContain('هدف')
+  })
+
+  it('…and that check rejects copy that only says the list can be dragged', () => {
+    // THE NEGATIVE CONTROL. Without it the assertion above passes on any prose
+    // containing two common words, which is exactly how a sentence that lost
+    // its consequence in a rewrite would ship green.
+    expect(restatesGoals('Drag a rung to put the ladder in the order you prefer.')).toBe(false)
+    expect(restatesGoals('Every goal written as a count is measured by position.')).toBe(true)
+  })
+
+  it('counts what the delete touches BEFORE the dialog, never after the click', () => {
+    // Both columns pointing at a rung are `on delete set null`, so nothing
+    // refuses this delete and there is no error to render afterwards: the
+    // sentence IS the guard. Asserted as an ORDER, because a count read after
+    // the confirm would still contain all three names.
+    const counted = SOURCE.indexOf('await getMapNodeStageUsage(row.id)')
+    const asked = SOURCE.indexOf("title: t('catalogue.deleteStageTitle'")
+    const deleted = SOURCE.indexOf('await deleteMapNodeStage(row.id)')
+    expect(counted).toBeGreaterThan(-1)
+    expect(asked).toBeGreaterThan(counted)
+    expect(deleted).toBeGreaterThan(asked)
+    // Both numbers, and both in the dialog's body.
+    expect(SOURCE).toContain('catalogue.stageUsageNodes')
+    expect(SOURCE).toContain('catalogue.stageUsageGoals')
+    // Hide is offered as the better verb in the same sentence.
+    expect(en('catalogue.deleteStageBody').toLowerCase()).toContain('hiding it')
+  })
+
+  it('says nothing rather than saying zero when the count failed', () => {
+    // "0 organizations sit at this stage" on a rung twelve are standing on is
+    // the one sentence worse than saying nothing.
+    expect(SOURCE).toContain('catalogue.stageUsageUnknown')
+    expect(SOURCE).toContain('usage.ok')
+  })
+
+  it('renders a missing table exactly as it renders an empty one', () => {
+    // 0026 is applied by hand AFTER this ships. Until it is, every read comes
+    // back as `common.errMissingTable` — a SUPPORTED state, not a fault, and
+    // store/auth's loadPermissions is the house pattern.
+    expect(SOURCE).toContain(
+      "if (stageResult.error !== 'common.errMissingTable') setStagesErrorKey(stageResult.error)",
+    )
+    expect(SOURCE).toContain('catalogue.stagesEmpty')
+    // The empty state names the state AND the way out, in both directions.
+    const hint = en('catalogue.stagesEmptyHint')
+    expect(hint).toContain('0026')
+    expect(hint.toLowerCase()).toContain('add the first one')
+  })
+
+  it('never sends a column 0026 owns', () => {
+    // The stamp OVERRULES a client value rather than rejecting it, so a write
+    // that carries one reads as working and is not. The screen sends names and
+    // flags; nothing else appears in this file.
+    expect(SOURCE).not.toContain('stage_changed_at')
+    expect(SOURCE).not.toContain('updated_by')
   })
 })
 

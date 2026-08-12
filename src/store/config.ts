@@ -15,6 +15,22 @@
 // heard of. `mapRoots` is keyed by track id and is built from BOTH lists at once,
 // which is the same reason `activeByGroup` could not live in a groups store.
 //
+// THE STAGE LADDER AND THE PROGRESS ROWS (0026) are here for the same argument a
+// third time, and the second of the two is the one that could have gone either way.
+// `map_node_stages` is plainly configuration — seven rows, edited by one person,
+// read by every picker. `map_node_progress` is fieldwork, like the use-case links
+// that are deliberately NOT here; what puts it on this side of the line is size and
+// reach: at most ONE row per organization (~400, against ~4,000 links), and it is
+// what the canvas itself draws — where each organization got to is the answer the
+// map exists to show, not something a panel opens to find out.
+//
+// ⚠ NEITHER TABLE EXISTS YET. 0026 is applied by hand after this wave ships, so
+//   both reads fail on every load until then and both lists are empty. That is the
+//   SHIPPING state, not a degraded one: settle() keeps the empty rows, nothing
+//   latches, no error surfaces, and every consumer renders "no stages configured
+//   yet". store/auth.ts's loadPermissions is the house pattern for a table that
+//   does not exist yet, and this is it applied twice.
+//
 // WHAT IS DELIBERATELY NOT HERE: `map_node_use_cases`, the per-node record of which
 // capability an organization has reached which state on. That is DATA, not
 // configuration — forty organizations times ten capabilities is four hundred rows
@@ -37,7 +53,13 @@
 // re-render loop, and in dev a "getSnapshot should be cached" warning.
 
 import { create } from 'zustand'
-import { listMapNodeKinds, listMapNodes, listUseCases } from '../api/map'
+import {
+  listMapNodeKinds,
+  listMapNodeProgress,
+  listMapNodeStages,
+  listMapNodes,
+  listUseCases,
+} from '../api/map'
 import {
   loadJiraSettings,
   saveJiraSettings,
@@ -48,7 +70,15 @@ import type { Loaded } from '../api/entries'
 import type { ApiResult } from '../api/result'
 import { listGroups, listTracks } from '../api/tracks'
 import { hasSession } from './auth'
-import type { MapNode, MapNodeKind, Track, TrackGroup, UseCase } from '../types'
+import type {
+  MapNode,
+  MapNodeKind,
+  MapNodeProgress,
+  MapNodeStage,
+  Track,
+  TrackGroup,
+  UseCase,
+} from '../types'
 
 const CACHE_KEY = 'nphiescore_tracks_v1'
 
@@ -74,6 +104,23 @@ const GROUPS_CACHE_KEY = 'nphiescore_track_groups_v1'
 const MAP_NODES_CACHE_KEY = 'nphiescore_map_nodes_v1'
 const MAP_NODE_KINDS_CACHE_KEY = 'nphiescore_map_node_kinds_v1'
 const USE_CASES_CACHE_KEY = 'nphiescore_use_cases_v1'
+
+/**
+ * Two more (0026), and their own keys for the reason above — with one extra edge
+ * that makes the separation load-bearing rather than tidy.
+ *
+ * NEITHER TABLE EXISTS IN THE LIVE DATABASE AS THIS SHIPS. 0026 is applied by
+ * hand, after this wave lands, so both reads answer 42P01/PGRST205 on every load
+ * for as long as that takes — and both keys are simply absent from localStorage,
+ * which reads as "no stages configured yet" and is exactly right. A shared blob
+ * would have let two tables that do not exist yet throw away the five that do.
+ *
+ * The progress key is spelled `_v1` like the rest even though its rows are keyed
+ * by `node_id` rather than `id`: the version suffix tracks the SHAPE of the cache
+ * (an array of rows), and that has not changed.
+ */
+const MAP_NODE_STAGES_CACHE_KEY = 'nphiescore_map_node_stages_v1'
+const MAP_NODE_PROGRESS_CACHE_KEY = 'nphiescore_map_node_progress_v1'
 
 /** How long a load stays fresh enough to skip the focus refetch. */
 const STALE_AFTER_MS = 30_000
@@ -145,6 +192,50 @@ interface ConfigState {
    * it back.
    */
   visibleUseCases: UseCase[]
+  /**
+   * The onboarding ladder (0026), hidden rungs included — the stage admin needs
+   * them all, because a rung that cannot be seen cannot be restored.
+   *
+   * EMPTY IS THE SHIPPING STATE. 0026 has not been applied, so this is `[]` on
+   * every load until it is, and every consumer must render that as "no stages
+   * configured yet" rather than as an error or an empty screen. That is
+   * `useGroups()`' pre-0018 contract one wave on, and store/auth.ts's
+   * `loadPermissions` reasoning for a table that does not exist yet.
+   */
+  mapNodeStages: MapNodeStage[]
+  /**
+   * Precomputed id → stage lookup over EVERY rung, hidden ones included, stable
+   * by reference.
+   *
+   * Hidden rungs resolve here on purpose, `mapNodeById`'s reason: hiding a rung
+   * removes it from the pickers and never un-stages the organizations standing on
+   * it, so a progress row can name one and a lookup that came back undefined
+   * would render that organization as being nowhere rather than on a rung that
+   * has been retired.
+   */
+  stageById: Map<string, MapNodeStage>
+  /**
+   * Where each node has got to (0026) — at most one row per node, and FAR FEWER
+   * ROWS THAN NODES IS THE ORDINARY STATE.
+   *
+   * ⚠ THE ABSENCE OF A ROW IS THE DATA. 0026 ships no backfill on purpose, so all
+   *   400 imported organizations start with nothing here: "nobody has said
+   *   anything yet", which is a different fact from the "Not started" rung an
+   *   account manager looked at an organization and chose. The first number the
+   *   directors want is how many nobody has looked at, and it exists only while
+   *   those two states stay distinct — a consumer that defaults a missing row to
+   *   a stage destroys it.
+   */
+  mapNodeProgress: MapNodeProgress[]
+  /**
+   * Precomputed node id → its progress row, stable by reference.
+   *
+   * UNDEFINED IS A MEANINGFUL ANSWER HERE, unlike `mapChildren` where an empty
+   * bucket is given to every active node: there is no bucket to give, because
+   * "no row" is the fact itself. `.get(id) === undefined` means nobody has said;
+   * a row with `stage_id: null` means somebody looked and cleared it.
+   */
+  progressByNodeId: Map<string, MapNodeProgress>
   /**
    * The map-nodes read stopped at its page cap, so `mapNodes` is a WINDOW onto the
    * hierarchy and every count derived from it is low.
@@ -309,6 +400,40 @@ function deriveMap(
 }
 
 /**
+ * The stage half (0026): the two lookups, built in ONE PASS each.
+ *
+ * `new Map(rows.map(…))` on both, which is one traversal per list and no
+ * intermediate filtering — the ladder is seven rows and the progress list is one
+ * row per organization at most, but this function runs on every load and on every
+ * 30-second focus refetch, beside four other derivations over the same data.
+ *
+ * NEITHER MAP IS FILTERED, and both omissions are the same decision made twice: a
+ * HIDDEN rung still has to resolve (organizations keep standing on it) and a
+ * progress row whose node is archived still has to resolve (a breadcrumb or a
+ * deep link can name it). Filtering here would make a lookup that came back
+ * undefined mean two different things.
+ *
+ * THERE IS NO `visibleStages` SLICE, unlike `visibleUseCases` one field over, and
+ * that is a judgement rather than an oversight: the picker's answer is not "the
+ * unhidden rungs" but "the unhidden rungs PLUS whichever rung this organization
+ * is already standing on", because a node parked on a retired rung must not have
+ * its stage silently rewritten by opening its picker. That slice depends on the
+ * node, so it belongs at the call site; a store-level `visibleStages` would be
+ * the almost-right list sitting where the right one should be.
+ */
+function deriveStages(
+  stages: MapNodeStage[],
+  progress: MapNodeProgress[],
+): Pick<ConfigState, 'mapNodeStages' | 'stageById' | 'mapNodeProgress' | 'progressByNodeId'> {
+  return {
+    mapNodeStages: stages,
+    stageById: new Map(stages.map((s) => [s.id, s])),
+    mapNodeProgress: progress,
+    progressByNodeId: new Map(progress.map((p) => [p.node_id, p])),
+  }
+}
+
+/**
  * Every derived view, from all four lists at once.
  *
  * THE SINGLE ENTRY POINT FOR A STATE WRITE, and the reason has grown rather than
@@ -337,6 +462,8 @@ function deriveAll(
   nodes: MapNode[],
   kinds: MapNodeKind[],
   useCases: UseCase[],
+  stages: MapNodeStage[],
+  progress: MapNodeProgress[],
 ): Omit<
   ConfigState,
   'loading' | 'loadedAt' | 'mapNodesTruncated' | 'jiraSettings' | 'jiraStatusesDropped'
@@ -345,6 +472,13 @@ function deriveAll(
     ...derive(tracks, groups),
     ...deriveGroups(groups),
     ...deriveMap(tracks, nodes),
+    // The stage half derives nothing that depends on the four lists above it —
+    // `stageById` is keyed by stage and `progressByNodeId` by node, and neither
+    // is filtered against the tree — but it comes through here for the reason the
+    // kinds do: one function that takes the whole world and returns the whole
+    // world is what makes "did I rebuild everything that depends on this?" a
+    // question nobody has to ask.
+    ...deriveStages(stages, progress),
     mapNodeKinds: kinds,
     useCases,
     visibleUseCases: useCases.filter((u) => !u.hidden),
@@ -356,15 +490,22 @@ function deriveAll(
  * a screen of skeleton colour bars on every cold load even though the answer changes
  * about once a month. It is trusted only until the network replies.
  *
- * ONE GENERIC FUNCTION RATHER THAN FIVE COPIES. It was two — tracks and groups —
- * and the map hierarchy would have made it five, at which point the fifth is where
- * somebody forgets the try/catch. Every one of the five caches is a JSON array of
- * rows keyed by a string `id`, so there is exactly one thing to write.
+ * ONE GENERIC FUNCTION RATHER THAN SEVEN COPIES. It was two — tracks and groups —
+ * and the map hierarchy made it five, at which point the sixth is where somebody
+ * forgets the try/catch. Every one of the seven caches is a JSON array of rows
+ * keyed by ONE string column, so there is exactly one thing to write.
+ *
+ * `idField` IS A PARAMETER BECAUSE `map_node_progress` HAS NO `id` (0026): its
+ * primary key is `node_id`, which is the whole reason at most one row can exist
+ * per node. Hard-coding 'id' would have made every cached progress row fail the
+ * shape check below and be silently dropped — a cache that is written, read back
+ * empty, and reports no error. The default keeps the other six call sites
+ * unchanged.
  *
  * Shape-check one field rather than validating fully: the only realistic corruption
- * is a cache written by an older column set, and every consumer keys off id.
+ * is a cache written by an older column set, and every consumer keys off that field.
  */
-function readRowCache<T extends { id: string }>(key: string): T[] {
+function readRowCache<T>(key: string, idField = 'id'): T[] {
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return []
@@ -372,7 +513,9 @@ function readRowCache<T extends { id: string }>(key: string): T[] {
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
       (row): row is T =>
-        typeof row === 'object' && row !== null && typeof (row as T).id === 'string',
+        typeof row === 'object' &&
+        row !== null &&
+        typeof (row as Record<string, unknown>)[idField] === 'string',
     )
   } catch {
     // Quota errors, private-mode restrictions, a hand-edited value — none of
@@ -419,6 +562,10 @@ const useConfigStore = create<ConfigState>(() => ({
     readRowCache<MapNode>(MAP_NODES_CACHE_KEY),
     readRowCache<MapNodeKind>(MAP_NODE_KINDS_CACHE_KEY),
     readRowCache<UseCase>(USE_CASES_CACHE_KEY),
+    readRowCache<MapNodeStage>(MAP_NODE_STAGES_CACHE_KEY),
+    // `node_id`, not `id` — 0026 gives this table no surrogate key. See
+    // readRowCache's own note: the default would drop every cached row.
+    readRowCache<MapNodeProgress>(MAP_NODE_PROGRESS_CACHE_KEY, 'node_id'),
   ),
   // See the field's own note: the cache cannot hold a clipped read, so the honest
   // opening answer is "not truncated" rather than "unknown".
@@ -562,6 +709,58 @@ export function useAllUseCases(): UseCase[] {
   return useConfigStore((s) => s.useCases)
 }
 
+// ── the stage ladder and where each node got to (0026) ─────────────────────
+//
+// ALL THREE RETURN STORED REFERENCES, like every selector above them, and the two
+// Maps are the ones to watch: `useNodeProgress().get(id)` is a lookup in a Map
+// that already exists, while `useMapNodeStages().find(s => s.id === …)` per node
+// would be O(rungs) on every render of every organization on the canvas.
+//
+// EMPTY IS THE SHIPPING ANSWER FROM ALL THREE until Aziz applies 0026, and every
+// consumer has to render that as "no stages configured yet" — not as an error,
+// not as a spinner, and not as a blank where a picker should be.
+
+/**
+ * Every rung, hidden ones included, ordered by sort_order.
+ *
+ * THE WHOLE LADDER RATHER THAN A VISIBLE SLICE, which is the opposite way round
+ * from `useUseCases()` one section up. Two reasons, and the second is the real
+ * one: the stage admin has to see a hidden rung in order to restore it, and a
+ * picker's correct list is "the unhidden rungs plus whichever rung this node is
+ * already on" — which depends on the node, so it cannot be precomputed here
+ * without being subtly wrong for exactly the organizations parked on a retired
+ * rung.
+ */
+export function useMapNodeStages(): MapNodeStage[] {
+  return useConfigStore((s) => s.mapNodeStages)
+}
+
+/**
+ * id → rung, over every rung including hidden ones.
+ *
+ * The second half of every stage lookup on the canvas: `useNodeProgress().get(
+ * nodeId)?.stage_id` names a rung, and this resolves it. Hidden rungs resolve on
+ * purpose — hiding removes a rung from the pickers and never un-stages the
+ * organizations standing on it.
+ */
+export function useStageMap(): Map<string, MapNodeStage> {
+  return useConfigStore((s) => s.stageById)
+}
+
+/**
+ * node id → its progress row, or `undefined` when nobody has said anything yet.
+ *
+ * ⚠ `undefined` IS THE ANSWER, NOT A MISS. It is the state all 400 imported
+ *   organizations are in the day 0026 applies, because the migration ships no
+ *   backfill on purpose, and it is a DIFFERENT fact from a row whose `stage_id`
+ *   is null (somebody looked and cleared it). A caller that coalesces the two —
+ *   or that fills a missing row in with the first rung — throws away the number
+ *   the directors ask for first: how many has nobody even looked at.
+ */
+export function useNodeProgress(): Map<string, MapNodeProgress> {
+  return useConfigStore((s) => s.progressByNodeId)
+}
+
 export function useConfigLoading(): boolean {
   return useConfigStore((s) => s.loading)
 }
@@ -659,7 +858,13 @@ function isLoaded<T>(data: T[] | Loaded<T>): data is Loaded<T> {
   return !Array.isArray(data)
 }
 
-function settle<T extends { id: string }>(
+// The constraint used to be `T extends { id: string }`, and it was dropped when
+// `map_node_progress` joined the load: that table's key is `node_id` (0026), and
+// nothing in this function ever reads a row's identity — it counts rows, checks
+// the session and hands the list to writeRowCache, which takes `unknown[]`. A
+// constraint that no line depends on is a constraint that only excludes correct
+// callers.
+function settle<T>(
   label: string,
   result: ApiResult<T[] | Loaded<T>>,
   previous: T[],
@@ -723,10 +928,18 @@ function settleOne<T>(
  * and logs, because the tracks list is chrome on most screens and blowing up a
  * route's render for it would be a worse outcome than a slightly stale colour.
  *
- * THE SIX READS ARE INDEPENDENT, and that asymmetry is deliberate. The sixth is
- * the Jira configuration (0028) — one row, joining the load rather than taking a
- * store of its own for the reason the hierarchy did: `useJiraEnabled()` decides
- * whether a link EXISTS on surfaces already rendering from here.
+ * THE EIGHT READS ARE INDEPENDENT, and that asymmetry is deliberate. The last
+ * three are the newest: the stage ladder and the progress rows (0026), and the
+ * Jira configuration (0028) — one row, joining the load rather than taking a store
+ * of its own for the reason the hierarchy did: `useJiraEnabled()` decides whether
+ * a link EXISTS on surfaces already rendering from here.
+ *
+ *   * TWO OF THE EIGHT FAIL ON EVERY LOAD TODAY, and shipping that way is the
+ *     plan rather than a risk taken: 0026 is applied by hand AFTER this wave
+ *     lands, so `map_node_stages` and `map_node_progress` answer 42P01 until it
+ *     is. Both go through settle() like everything else — a warn, the previous
+ *     rows, no stamp — which is why the app has to be correct on both sides of
+ *     that moment without a flag, a version check or a second code path.
  *
  *   * `loadedAt` is stamped on the TRACKS read ALONE, exactly as it always has
  *     been, and the three new reads change nothing about that. Groups are a lens
@@ -739,7 +952,7 @@ function settleOne<T>(
  *     workspace runs 0022 and the migration is applied by hand.
  *   * A failed read of any of the other four leaves its previous data in place
  *     rather than writing `[]` over it — see settle() above.
- *   * `Promise.all`, not five awaits: one round trip's latency, not five, on the
+ *   * `Promise.all`, not eight awaits: one round trip's latency, not eight, on the
  *     load that gates first paint.
  *   * Use cases are read WITH the hidden ones (`listUseCases(true)`), because this
  *     store is the Catalogue admin's list as well as every picker's, and the
@@ -762,16 +975,51 @@ export function loadConfig(force = false): Promise<void> {
     listMapNodes(true),
     listMapNodeKinds(),
     listUseCases(true),
+    listMapNodeStages(),
+    listMapNodeProgress(),
     loadJiraSettings(),
   ])
-    .then(([trackResult, groupResult, nodeResult, kindResult, useCaseResult, jiraResult]) => {
+    // Destructured in the BODY rather than in the parameter list: at eight reads
+    // the tuple no longer fits on the arrow's line, and a wrapped parameter list
+    // would re-indent every line of a function whose diff should stay readable.
+    // `Promise.all` gives this a tuple type, so each name below is still checked
+    // against the read it comes from and a reordered array is a compile error.
+    .then((results) => {
+      const [
+        trackResult,
+        groupResult,
+        nodeResult,
+        kindResult,
+        useCaseResult,
+        stageResult,
+        progressResult,
+        jiraResult,
+      ] = results
       const prev = useConfigStore.getState()
       const tracks = settle('tracks', trackResult, prev.tracks, CACHE_KEY)
       const groups = settle('groups', groupResult, prev.groups, GROUPS_CACHE_KEY)
       const nodes = settle('map nodes', nodeResult, prev.mapNodes, MAP_NODES_CACHE_KEY)
       const kinds = settle('node kinds', kindResult, prev.mapNodeKinds, MAP_NODE_KINDS_CACHE_KEY)
       const useCases = settle('use cases', useCaseResult, prev.useCases, USE_CASES_CACHE_KEY)
-      // THE SIXTH READ. One row, no cache, and its failure is as harmless as it
+      // ⚠ THE TWO READS THAT ARE EXPECTED TO FAIL TODAY. 0026 has not been applied
+      //   to the live database, so both answer 42P01 (PostgREST: PGRST205) on
+      //   every load until Aziz runs it. settle() is already the right shape for
+      //   that and needs no special case: it warns to the console, keeps the
+      //   previous rows — `[]` here, because there has never been anything else —
+      //   and does NOT stamp anything, so nothing latches and the focus refetch
+      //   picks the tables up the moment they exist. This is store/auth.ts's
+      //   loadPermissions reasoning for a pre-0025 workspace, with one difference
+      //   that makes it simpler: there is no legacy answer to fall back to, and
+      //   "no stages configured yet" is the honest sentence for both the
+      //   pre-migration state and a genuinely empty ladder.
+      const stages = settle('stages', stageResult, prev.mapNodeStages, MAP_NODE_STAGES_CACHE_KEY)
+      const progress = settle(
+        'node progress',
+        progressResult,
+        prev.mapNodeProgress,
+        MAP_NODE_PROGRESS_CACHE_KEY,
+      )
+      // THE ONE-ROW READ. No cache, and its failure is as harmless as it
       // is loud: everything below keeps the previous value and `useJiraEnabled()`
       // stays false. On a project without 0028 it fails on every load, which is
       // exactly the state the Settings card renders as "not set up yet".
@@ -787,7 +1035,15 @@ export function loadConfig(force = false): Promise<void> {
       // lists that changed is how a bucket ends up keyed off data that is one pass
       // out of date.
       useConfigStore.setState({
-        ...deriveAll(tracks.rows, groups.rows, nodes.rows, kinds.rows, useCases.rows),
+        ...deriveAll(
+          tracks.rows,
+          groups.rows,
+          nodes.rows,
+          kinds.rows,
+          useCases.rows,
+          stages.rows,
+          progress.rows,
+        ),
         // The verdict travels with the rows it describes. A read that was NOT
         // accepted leaves the previous verdict alone for settle()'s own reason: the
         // rows on screen are still the previous rows, so a flag reset to false would
@@ -812,12 +1068,24 @@ export function loadConfig(force = false): Promise<void> {
 }
 
 /**
- * Mark the cache stale and refetch. Call after any track, GROUP, NODE, KIND or USE
- * CASE mutation — creating a group, renaming one, reordering them, moving a track
- * between them, creating an organization, moving a subtree or retiring a capability
- * all change what this store holds, and the admin screens write through the api
- * layer, not through this store, so nothing else would tell the rest of the app that
- * a track was renamed.
+ * Mark the cache stale and refetch. Call after any track, GROUP, NODE, KIND, USE
+ * CASE, STAGE or NODE-PROGRESS mutation — creating a group, renaming one,
+ * reordering them, moving a track between them, creating an organization, moving a
+ * subtree, retiring a capability, adding or reordering a rung of the ladder, and
+ * recording where an organization got to all change what this store holds, and the
+ * screens write through the api layer, not through this store, so nothing else
+ * would tell the rest of the app that a track was renamed.
+ *
+ * ⚠ A PROGRESS WRITE IS THE ONE HIGH-FREQUENCY CALLER, and it is the one to watch:
+ *   `setNodeStage` is an account manager's ordinary daily action, and routing every
+ *   one of them through here refetches all eight reads — up to 400 map nodes and a
+ *   ~250KB cache write — to publish one row the caller already has in hand. It is
+ *   CORRECT, which is why it ships this way at one stage change per minute, and it
+ *   is the wrong shape for a screen that saves in a loop. `saveJiraConfig` below is
+ *   the precedent for the alternative — publish what the write returned and rebuild
+ *   nothing else — and nothing derived here spans the progress list, so a targeted
+ *   publisher is a small addition when a caller needs one. Named so that the wave
+ *   which builds that screen finds the note instead of the symptom.
  *
  * NOT for `map_node_use_cases`: that join is not in this store (see the header), and
  * the panel that edits it refetches its own rows.

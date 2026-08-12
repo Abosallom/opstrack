@@ -1112,12 +1112,26 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       { prefixes: ['subtitle', 'title'], section: 'screenTitles' },
       { prefixes: ['settingsHint'], section: 'messages' },
       // What a row IS, not what it says — `admin.tracks.archived`'s reading.
-      { prefixes: ['hidden', 'needsArabic', 'unsaved'], section: 'healthStates' },
+      // The three stage badges join it for the same reason: "Counts as arrived"
+      // is a condition of the rung, and the owner renaming it is renaming a
+      // state. Their EDITOR twins (`terminalLabel`, `pausedLabel`,
+      // `expectedDaysLabel`) deliberately stay on the namespace default,
+      // `entryFields` — those name fields on a form, which is the other
+      // question this file asks.
+      {
+        prefixes: ['hidden', 'needsArabic', 'stageExpected', 'stagePaused', 'stageTerminal', 'unsaved'],
+        section: 'healthStates',
+      },
       {
         // `moveUp`/`moveDown` and not `move`: the `moved*` family below is a
         // sentence, and one four-letter prefix would file them together.
+        //
+        // `reorderStagesConfirm` is listed while `reorderStages*` sits in
+        // Messages below: longest prefix wins, so the button's word comes here
+        // and the two sentences that explain it stay there.
         prefixes: [
           'addKind',
+          'addStage',
           'addSubmit',
           'addUseCase',
           'cancelAdd',
@@ -1129,12 +1143,13 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'manage',
           'moveDown',
           'moveUp',
+          'reorderStagesConfirm',
           'save',
           'show',
         ],
         section: 'actions',
       },
-      { prefixes: ['useCasesEmpty', 'kindsEmpty'], section: 'emptyStates' },
+      { prefixes: ['useCasesEmpty', 'kindsEmpty', 'stagesEmpty'], section: 'emptyStates' },
       // TWO LISTS ON ONE SCREEN, and their two delete dialogs are word for word
       // identical — "Delete {name}?" in both languages. The where-note is the
       // only thing that can say which list an owner is renaming.
@@ -1147,6 +1162,18 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
         prefixes: ['deleteKind'],
         section: 'messages',
         where: 'terminology.where.settingsCatalogueKinds',
+      },
+      // The third list's dialog. It reuses the SCREEN-WIDE note rather than a
+      // list-specific one, unlike its two neighbours above: there is no
+      // `settingsCatalogueStages` where-note in `terminology.json`, which this
+      // file may not add, and naming a key that does not exist would fail
+      // localeReach rather than mislabel a row. The handoff asks for that note
+      // (and for `settingsCatalogueKinds`, whose text says "at the bottom of
+      // the screen" and stopped being true when this list landed under it).
+      {
+        prefixes: ['deleteStage'],
+        section: 'messages',
+        where: 'terminology.where.settingsCatalogue',
       },
       {
         prefixes: ['deleteConfirm'],
@@ -1161,9 +1188,11 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'added',
           'arabicPending',
           'deleted',
+          'errExpectedDays',
           'errNameLong',
           'errNameRequired',
           'errSave',
+          'expectedDaysHint',
           'hideVsDelete',
           'inUse',
           'kindUsage',
@@ -1174,9 +1203,18 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'nameArHint',
           'needsArabicHint',
           'notInstalled',
+          'pausedHint',
           'reordered',
+          'reorderStages',
           'saved',
           'saving',
+          'stageUsage',
+          'stagesArabicPending',
+          'stagesHint',
+          'stagesLoadFailed',
+          'stagesNoThresholds',
+          'stagesOrderNote',
+          'terminalHint',
           'usageUnknown',
           'useCasesHint',
           'useCasesOrderNote',

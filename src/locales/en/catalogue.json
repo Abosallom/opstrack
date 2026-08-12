@@ -81,6 +81,48 @@
     "addKindTitle": "New kind",
     "addKindHint": "A colour is not asked for: colour on this map means track, at every depth.",
 
+    "stagesTitle": "Stage ladder",
+    "stagesHint": "How far an organization has got — the rungs an account manager moves it up, from the first conversation to live. Position is the meaning here: a goal written as “at Testing/UAT or beyond” counts every rung from Testing/UAT downwards in this list.",
+    "stagesOrderNote": "Reordering this ladder restates every goal written as a count. “40 organizations at Go-live ready or beyond” is measured by a rung's position, so moving one changes which organizations count towards commitments nobody edited — and no goal records that it changed.",
+    "stagesEmpty": "No stages configured yet",
+    "stagesEmptyHint": "Nobody can record where an organization got to until this ladder has rungs. Add the first one above — or, if migration 0026 has not been applied to this project yet, apply it and reload.",
+    "stagesLoadFailed": "Couldn't load the stage ladder. The two lists above are unaffected.",
+    "stagesArabicPending": {
+      "one": "1 rung still has no Arabic name. This screen is where you add it.",
+      "other": "{count} rungs still have no Arabic name. This screen is where you add them."
+    },
+    "stagesNoThresholds": "No rung has an expected length, so nothing anywhere in the app is counted as stalled. Open a rung and set one to turn that on.",
+    "stageTerminal": "Counts as arrived",
+    "stagePaused": "Clock stopped",
+    "stageExpected": {
+      "one": "Stalled after 1 day",
+      "other": "Stalled after {count} days"
+    },
+    "terminalLabel": "This rung counts as arrived",
+    "terminalHint": "An organization on this rung has finished. Every live count in the app is the number of organizations on a rung marked this way, never a rung that happens to be named Live — so more than one rung may carry it, and nothing here asks how many do.",
+    "pausedLabel": "The stalled clock stops here",
+    "pausedHint": "Time spent on this rung counts against no threshold, so “blocked on the customer since March” stays a fact somebody recorded rather than an alarm the app raises every morning.",
+    "expectedDaysLabel": "Expected length",
+    "expectedDaysHint": "How long an organization may sit on this rung before it counts as stalled. Leave it empty and this rung has no threshold — nothing standing here is ever flagged. A whole number from 1 to {max}.",
+    "errExpectedDays": "The expected length has to be a whole number from 1 to {max}, or empty for no threshold.",
+    "reorderStagesTitle": "Reorder the ladder?",
+    "reorderStagesBody": "Every goal written as a count is measured by a rung's position in this list: “40 organizations at Go-live ready or beyond by 31 December” counts everything from that rung downwards. Moving a rung changes which organizations meet commitments nobody edited, retroactively, and no goal records that it happened. Asked once a visit.",
+    "reorderStagesConfirm": "Reorder",
+    "deleteStageTitle": "Delete ⁨{name}⁩?",
+    "deleteStageBody": "The rung goes and nothing filed under it is deleted: the organizations standing on it stop showing a stage, and every goal that named it falls back to meaning “a terminal stage”, which is a different promise. Hiding it takes it out of the pickers and leaves everyone where they are.",
+    "stageUsageNodes": {
+      "one": "1 organization sits at this stage.",
+      "other": "{count} organizations sit at this stage."
+    },
+    "stageUsageGoals": {
+      "one": "1 goal names this stage.",
+      "other": "{count} goals name this stage."
+    },
+    "stageUsageUnknown": "Couldn't count what sits at this stage or what refers to it, so this box can't say what the delete touches.",
+    "addStage": "Add a rung",
+    "addStageTitle": "New rung",
+    "addStageHint": "It joins the end of the ladder. Move it into place afterwards — and read the note above the list before you do.",
+
     "addSubmit": "Add",
     "adding": "Adding…",
     "added": "Added ⁨{name}⁩.",

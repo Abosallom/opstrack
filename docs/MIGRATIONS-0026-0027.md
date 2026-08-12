@@ -1,6 +1,14 @@
 # 0026 and 0027 — the stage ladder, the progress row, goals, and the first aggregate
 
-**This is the runbook for the two migration files that ship with map-revamp waves 2 and 3.**
+> ⚠ **SUPERSEDED AS A RUNBOOK by [`RUN-0026-0027-0028.md`](RUN-0026-0027-0028.md).** That page is
+> what the owner follows: it covers all three files including `0028`, its checklists are verified
+> against the client as merged rather than as promised, and it carries the post-apply checks and
+> the runnable verification queries. **This page is kept as the DESIGN handoff** — the contract the
+> SQL and the client halves were built from, and the record of why each name is matched by string.
+> Where the two disagree, the run page is right. One deviation is already known and is corrected
+> in §5 below.
+
+**This was the runbook for the two migration files that ship with map-revamp waves 2 and 3.**
 It is written for the one reader who matters here: the owner, alone at the Supabase SQL Editor,
 pasting a file and reading what comes back.
 
@@ -233,6 +241,16 @@ exactly `p_ids`.
   instruction, and a truthiness test turns every clearing into a silent no-op.
 
 ### Locale
+
+⚠ **CORRECTED AS BUILT.** This section asked for `src/locales/{en,ar}/stages.json`. The sentences
+landed in **`src/locales/{en,ar}/mapadmin.json`** instead, and had to: the key names `pgError.ts`
+matches are `mapadmin.*`, so a `stages.json` would have had to be rooted at `mapadmin` and would
+then collide with the existing file at `src/locales/index.ts`'s flat spread. The screen's own
+strings are in `catalogue.json` beside the two lists they sit under. Ten `errStage*` / `errNodeGone`
+keys and three wave-3 `errGoal*` keys are in both bundles; the reorder confirmation
+(`catalogue.reorderStagesBody`) states the count-form-goal consequence, as required below.
+
+The original text, for the record:
 
 `src/locales/{en,ar}/stages.json` with LITERAL key tables, carrying the six `mapadmin.errStage*`
 sentences plus the reorder confirmation — **whose copy must state that reordering the ladder

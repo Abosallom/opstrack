@@ -11,10 +11,18 @@
 //
 // The identifiers matched below are the contract with
 // supabase/migrations/0002_config_foundation.sql, 0003_vocab_options.sql,
-// 0018_track_groups.sql, and 0023/0024 for the map hierarchy. Renaming an index
-// or a trigger's error token there silently demotes a precise message to
-// 'common.error', so keep the files in step. 0003 says so in a comment above the
-// raise, which is the other half of this handshake.
+// 0018_track_groups.sql, 0023/0024 for the map hierarchy, and 0026/0027 for the
+// stage ladder, the progress row and the goals. Renaming an index or a trigger's
+// error token there silently demotes a precise message to 'common.error', so keep
+// the files in step. 0003 says so in a comment above the raise, which is the
+// other half of this handshake; 0026's and 0027's headers carry the same list and
+// docs/MIGRATIONS-0026-0027.md §5–6 is the checklist both sides were built from.
+//
+// ⚠ THE 0026/0027 ARMS ARE LIVE BEFORE THE TABLES ARE. Neither migration has been
+//   applied, so every one of those names is currently unreachable — which is
+//   deliberate and is the order the runbook requires: the client arms land FIRST,
+//   because a rename discovered after the SQL is running is a precise sentence
+//   silently demoted, with nothing failing to say so.
 
 /** The subset of a PostgrestError / PostgREST body this module reads. */
 interface PgLike {
@@ -154,6 +162,29 @@ export function pgErrorKey(error: unknown): string {
       // would make "6 of 9 live" a number nobody can reconcile.
       if (text.includes('use_cases_name_ar_uidx')) return 'mapadmin.errUseCaseNameArTaken'
       if (text.includes('use_cases_name_uidx')) return 'mapadmin.errUseCaseNameTaken'
+      // map_node_stages (0026) — the onboarding ladder. GLOBAL like the catalogue
+      // above and unlike the sibling-scoped node names: there is exactly ONE
+      // ladder, and two rungs called "Live" would make every portfolio count
+      // unreconcilable. Case-insensitive and btrim'd on the SQL side, so the
+      // sentence must not promise that a different capitalisation would work.
+      //
+      // ⚠ THE ARABIC ARM MUST STAY FIRST even though neither name contains the
+      //   other, because `map_node_stages_name_ar_uidx` is PARTIAL (0026 seeds
+      //   name_ar blank on all seven rungs, so a non-partial index would reject
+      //   the second untranslated rung) — which means it fires only for rungs
+      //   that HAVE Arabic names, and pointing that reader at the English field
+      //   would send them to a box that is fine.
+      if (text.includes('map_node_stages_name_ar_uidx')) return 'mapadmin.errStageNameArTaken'
+      if (text.includes('map_node_stages_name_uidx')) return 'mapadmin.errStageNameTaken'
+      // map_node_progress (0026), and THE ONE AN ACCOUNT MANAGER IS LIKELIEST TO
+      // MEET. `node_id` is the primary key, so a plain INSERT against an
+      // organization that already has a progress row raises 23505 naming this —
+      // two AMs on the portfolio at once, the second one's 30-second refetch not
+      // yet landed. api/map.ts's setNodeStage upserts on `node_id`, which makes
+      // this unreachable through the app; the arm exists for the tab that got
+      // there some other way, because the stage picker's optimistic write with an
+      // undo toast degrades to an unexplained failure otherwise.
+      if (text.includes('map_node_progress_pkey')) return 'mapadmin.errStageAlreadyRecorded'
       // jira_settings (0028) holds ONE row, and the primary key is one of the two
       // things that says so. Unreachable through the app — api/jiraSettings.ts
       // upserts on the singleton id — so this is the sentence for a second row
@@ -180,6 +211,14 @@ export function pgErrorKey(error: unknown): string {
       // only handle there is, and it is a better one than a trigger would be — the
       // rule cannot be dropped without dropping the reference it protects.
       if (text.includes('map_node_use_cases_use_case_id_fkey')) return 'mapadmin.errUseCaseInUse'
+      // map_node_progress (0026). TWO RACES, TWO SENTENCES, and the split is
+      // worth the second key: a stale tab recording a stage against a branch a
+      // colleague just deleted has lost the ORGANIZATION, while the same tab
+      // naming a rung that was retired a minute ago has lost the STAGE. The
+      // first means "reload, that node is gone"; the second means "reload, pick
+      // a different rung" — and the node is still there.
+      if (text.includes('map_node_progress_node_id_fkey')) return 'mapadmin.errNodeGone'
+      if (text.includes('map_node_progress_stage_id_fkey')) return 'mapadmin.errStageGone'
       break
     case '23514':
       // tracks_keep_one_active() — fires on archive as well as delete, so the
@@ -225,6 +264,46 @@ export function pgErrorKey(error: unknown): string {
       // only refuse and would make the fix unreachable. This arm therefore fires
       // only for a status_map that is not an object at all.
       if (text.includes('jira_settings_status_map_chk')) return 'jiraconfig.errStatusMapShape'
+      // map_node_stages (0026) — THREE CONSTRAINTS, THREE SENTENCES, 0017's
+      // argument one table over: "that number is out of range", "that name is too
+      // long" and "that ARABIC name is too long" send the reader to three
+      // different boxes on one form, and a generic key makes the screen guess
+      // which. The Arabic one matters most: an RTL form with two name fields and
+      // nothing saying which one was refused is where a person starts deleting
+      // characters at random.
+      //
+      // The client enforces both bounds itself (STAGE_NAME_MAX = 40 as a
+      // maxlength on both fields, 1..3650 on the threshold), so these are the
+      // backstop for a paste that outran the maxlength or a value that arrived
+      // some other way — not the ordinary path.
+      if (text.includes('map_node_stages_expected_days_chk')) return 'mapadmin.errStageExpectedDays'
+      if (text.includes('map_node_stages_name_ar_len_chk')) return 'mapadmin.errStageNameArLength'
+      if (text.includes('map_node_stages_name_len_chk')) return 'mapadmin.errStageNameLength'
+      // UNREACHABLE THROUGH THE APP, and mapped anyway. 0026's stamp trigger is
+      // the only writer of `stage_changed_at` and keeps it in step with
+      // `stage_id` on every path a client can take, so this CHECK is the backstop
+      // for a direct SQL write with the trigger disabled. It is here because a
+      // constraint that fires must still say something — an unmapped 23514 naming
+      // an identifier nobody has heard of is the exact failure this file exists
+      // to prevent, and "unreachable" is a claim about today's write paths.
+      if (text.includes('map_node_progress_stage_chk')) return 'mapadmin.errStageStampMismatch'
+      // map_node_goals (0027) — the token and its backstop, both to one key. The
+      // guard trigger raises the token with errcode 23514 and the CHECK catches
+      // the same fact if the trigger is ever dropped, so the two are one sentence
+      // for the reader: a goal has to name a positive number of organizations.
+      //
+      // The order matters and the two names are NOT substrings of each other —
+      // `map_node_goal_target` (token) vs `map_node_goals_target_chk`
+      // (constraint), which differ at the 's'. Both arms are required.
+      if (text.includes('map_node_goal_target')) return 'mapadmin.errGoalTarget'
+      if (text.includes('map_node_goals_target_chk')) return 'mapadmin.errGoalTarget'
+      // REQUIRED, NOT OPTIONAL, and 0027's header says so: these two constraints
+      // have NO token behind them, so a label pasted out of a planning deck
+      // arrives as a raw `violates check constraint
+      // "map_node_goals_label_ar_len_chk"` on a form with two label fields, in an
+      // RTL layout, with nothing saying which field is wrong.
+      if (text.includes('map_node_goals_label_ar_len_chk')) return 'mapadmin.errGoalLabelArLength'
+      if (text.includes('map_node_goals_label_len_chk')) return 'mapadmin.errGoalLabelLength'
       break
     case '23502':
       // NOT NULL violated. This should now be UNREACHABLE: the one column that
@@ -250,8 +329,23 @@ export function pgErrorKey(error: unknown): string {
       // The node (or the destination of a move) was deleted by another session
       // while this screen sat open — the tree admin's version of the same race.
       if (text.includes('map_node_missing')) return 'mapadmin.errNotFound'
+      // 0027's guard, and it needs its own arm rather than riding the one above:
+      // `map_node_goal_node_missing` does NOT contain the substring
+      // `map_node_missing` (the word `goal` sits between them), so the 0023 arm
+      // would let it fall through to the generic key. Adjacent on purpose —
+      // whoever edits one has to see the other. Same fact, same sentence: the
+      // branch this goal is pinned to was deleted by another session.
+      if (text.includes('map_node_goal_node_missing')) return 'mapadmin.errNotFound'
       break
     case '42501':
+      // BEFORE the generic arm below, which returns unconditionally: 0026's
+      // reorder RPC raises 42501 with this token when a caller without
+      // structure.edit drags a rung, and the generic "you do not have permission"
+      // is not wrong so much as unactionable next to a ladder that visibly did
+      // not move. Without the token the alternative is worse than a vague
+      // sentence — the RPC's own `update` would have affected zero rows and the
+      // screen would have reported a successful drag.
+      if (text.includes('map_node_stage_reorder_denied')) return 'mapadmin.errStageReorderDenied'
       // RLS rejected the write. In practice: the UI thinks this user is an
       // admin and profiles.role disagrees.
       return 'admin.errForbidden'

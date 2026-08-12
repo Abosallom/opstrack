@@ -43,6 +43,10 @@ import type {
   MapNodeKind,
   MapNodeKindInput,
   MapNodeMoveResult,
+  MapNodeProgress,
+  MapNodeStage,
+  MapNodeStageInput,
+  MapNodeStageUsage,
   MapNodeUsage,
   MapNodeUseCase,
   UseCase,
@@ -871,4 +875,340 @@ export async function setNodeUseCase(
     .single()
   if (error) return fail(pgErrorKey(error))
   return { ok: true, data: data as unknown as MapNodeUseCase }
+}
+
+// ── the stage ladder, and where each node got to (0026) ─────────────────────
+//
+// TWO TABLES WITH OPPOSITE PERMISSIONS, and the split is the whole reason 0026
+// put the stage in a side table instead of a column on `map_nodes`:
+//
+//   `map_node_stages`   — the LADDER. structure.edit-write, audited. Renaming a
+//                         rung restates what every portfolio count MEANS.
+//   `map_node_progress` — where ONE node got to. MEMBER-write, not audited. The
+//                         three account managers record it, and gating it on
+//                         structure.edit would make the two senior experts the
+//                         data-entry bottleneck for the data their team collects.
+//
+// ⚠ EVERY READ HERE MUST FAIL CLOSED AND QUIET UNTIL 0026 IS APPLIED. Both
+//   tables are absent from the live database as this ships, so both reads answer
+//   42P01/PGRST205 on every load. That is a SUPPORTED state, not a fault:
+//   store/config.ts's settle() keeps the previous (empty) rows and logs, exactly
+//   as store/auth.ts's loadPermissions does for a workspace that predates 0025,
+//   and every screen renders "no stages configured yet" rather than an error.
+//   Nothing in this section may throw, toast, or latch.
+//
+// SERVER-OWNED COLUMNS ARE NEVER SENT. On progress that is `stage_changed_at`,
+// `updated_at` and `updated_by`; on stages it is `updated_at`, `created_at` and
+// `created_by` on the update path. 0026's stamp trigger OVERRULES a client value
+// rather than rejecting it, so sending one reads as working and is not — which
+// is the failure mode this rule exists for.
+
+/**
+ * The columns every progress read asks for, by name.
+ *
+ * NAMED RATHER THAN `*`, LINK_COLUMNS' precedent one table over: `MapNodeProgress`
+ * cannot then drift from the query when the table gains a column, and a rename on
+ * the SQL side surfaces as a failed read rather than as a field that is silently
+ * `undefined` in a panel.
+ */
+const PROGRESS_COLUMNS = 'node_id, stage_id, stage_changed_at, updated_at, updated_by'
+
+/**
+ * Every rung of the ladder, ordered for display. HIDDEN ONES INCLUDED, ALWAYS.
+ *
+ * NO `includeHidden` PARAMETER, and that is the difference from `listUseCases`
+ * rather than an omission. This list is read ONCE on boot into store/config.ts and
+ * serves two readers with opposite needs — the admin screen, which has to see a
+ * hidden rung in order to restore it, and every picker, which must not offer one.
+ * A parameter would make the store choose for both; the store instead holds the
+ * whole ladder and derives the visible slice, which is `useCases` /
+ * `visibleUseCases`' shape and its reason: one read, two answers, no way for them
+ * to disagree.
+ *
+ * PAGED for listMapNodeKinds' reason, on a table that holds seven rows: "small
+ * enough that there is no paging question" is a judgement about today's data
+ * written into a function that outlives it. `id` joins the sort keys because
+ * `.range()` needs a total order — `(sort_order, name)` is not unique here either,
+ * since `sort_order` defaults to 0 and the reorder RPC only rewrites the ids it
+ * was handed.
+ */
+export async function listMapNodeStages(): Promise<ApiResult<Loaded<MapNodeStage>>> {
+  if (!supabase) return notConfigured()
+  const client = supabase
+  return await fetchAllPages<MapNodeStage>(
+    (from, to) =>
+      client
+        .from('map_node_stages')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    MAX_PAGES,
+  )
+}
+
+/**
+ * Add a rung to the ladder.
+ *
+ * The three flags and the threshold are sent EXPLICITLY rather than left to the
+ * column defaults, for createTrack's reason: this function sends the whole row it
+ * means, and a default is the same answer silently, only for as long as the
+ * default stays put. `expected_days` defaults to null — the seed sets it on no
+ * row, and a threshold nobody chose is a number the app would then chase people
+ * with (0003's SLA-off reasoning).
+ */
+export async function createMapNodeStage(
+  input: MapNodeStageInput,
+): Promise<ApiResult<MapNodeStage>> {
+  if (!supabase) return notConfigured()
+  const name = input.name.trim()
+  if (!name) return fail('common.error')
+
+  const userId = await currentUserId()
+  if (!userId) return fail('common.notSignedIn')
+
+  const { data, error } = await supabase
+    .from('map_node_stages')
+    .insert({
+      name,
+      name_ar: input.nameAr.trim(),
+      hidden: input.hidden ?? false,
+      terminal: input.terminal ?? false,
+      paused: input.paused ?? false,
+      expected_days: input.expectedDays ?? null,
+      sort_order: await nextSortOrder('map_node_stages'),
+      created_by: userId,
+    })
+    .select('*')
+    .single()
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: data as MapNodeStage }
+}
+
+/**
+ * Patch a rung. Undefined keys are left untouched, exactly like updateTrack.
+ *
+ * `expectedDays: null` IS A REAL INSTRUCTION — "this rung has no expectation" —
+ * and it is not the same as leaving the key off, which means "do not touch it".
+ * The `!== undefined` test is what keeps those two apart; a truthiness test would
+ * silently turn every clearing into a no-op AND would swallow the two legitimate
+ * `false`s beside it. That is updateMapNode's `kind_id` lesson word for word, with
+ * one more way to get it wrong because three of these four fields are booleans.
+ *
+ * `updated_at`, `created_at` and `created_by` are NEVER in the row: they are
+ * server-owned, and 0026's touch trigger pins `updated_at` back on a no-op
+ * precisely so a store that PATCHes the whole row it read cannot corrupt it.
+ * Sending them anyway would be a write nobody made showing up in the audit trail.
+ */
+export async function updateMapNodeStage(
+  id: string,
+  input: Partial<MapNodeStageInput>,
+): Promise<ApiResult<MapNodeStage>> {
+  if (!supabase) return notConfigured()
+
+  const row: Record<string, unknown> = {}
+  if (input.name !== undefined) row.name = input.name.trim()
+  if (input.nameAr !== undefined) row.name_ar = input.nameAr.trim()
+  if (input.hidden !== undefined) row.hidden = input.hidden
+  if (input.terminal !== undefined) row.terminal = input.terminal
+  if (input.paused !== undefined) row.paused = input.paused
+  if (input.expectedDays !== undefined) row.expected_days = input.expectedDays
+
+  // A no-op PATCH returns zero rows and .single() errors on a request that did
+  // nothing wrong — updateTrack's reasoning, verbatim.
+  if (Object.keys(row).length === 0) {
+    const { data, error } = await supabase.from('map_node_stages').select('*').eq('id', id).single()
+    if (error) return fail(pgErrorKey(error))
+    return { ok: true, data: data as MapNodeStage }
+  }
+
+  const { data, error } = await supabase
+    .from('map_node_stages')
+    .update(row)
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: data as MapNodeStage }
+}
+
+/**
+ * Retire a rung from the pickers, or bring it back.
+ *
+ * ITS OWN FUNCTION even though `hidden` is patchable through
+ * `updateMapNodeStage`, for setMapNodeArchived's reason one table over: hiding is
+ * an operation with its own confirmation and its own sentence ("the organizations
+ * standing on this rung keep standing on it"), and routing it through the rename
+ * form's patch would make the two indistinguishable at the call site.
+ *
+ * IT TAKES A BOOLEAN BECAUSE IT IS A TOGGLE. The restore direction is the reason
+ * `listMapNodeStages` has no `includeHidden` parameter — the admin cannot bring a
+ * rung back it cannot see.
+ */
+export async function setMapNodeStageHidden(
+  id: string,
+  hidden: boolean,
+): Promise<ApiResult<MapNodeStage>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase
+    .from('map_node_stages')
+    .update({ hidden })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: data as MapNodeStage }
+}
+
+/**
+ * Rewrite `sort_order` across the ladder, in array order, returning how many rungs
+ * moved.
+ *
+ * THE ARGUMENT NAME IS THE CONTRACT. PostgREST resolves a function from the JSON
+ * body's KEYS, so `p_ids` is not a label — a drifted name is a 404 the first time
+ * somebody drags a rung, months after both halves were reviewed and found correct
+ * on their own. 0026's probe 1 reads `proargnames` and fails the migration if it
+ * is not exactly this.
+ *
+ * ⚠ REORDERING THE LADDER RESTATES EVERY COUNT-FORM GOAL, and the screen has to
+ *   say so BEFORE the drag is committed. A goal reading "40 organizations at
+ *   Go-live ready or beyond by 31 December" is evaluated as `sort_order >= that
+ *   rung's sort_order`, so dragging one rung past another changes which
+ *   organizations count towards commitments nobody edited, retroactively, with no
+ *   audit row against any goal. This function cannot detect that afterwards and
+ *   must not be the place it is discovered.
+ *
+ * An empty list makes NO request, `reorderMapNodeKinds`' rule: a drag that moved
+ * nothing is not a round trip.
+ */
+export async function reorderMapNodeStages(ids: string[]): Promise<ApiResult<number>> {
+  if (!supabase) return notConfigured()
+  if (ids.length === 0) return { ok: true, data: 0 }
+  const { data, error } = await supabase.rpc('reorder_map_node_stages', { p_ids: ids })
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: typeof data === 'number' ? data : ids.length }
+}
+
+/**
+ * What deleting a rung would cost — BOTH NUMBERS, BEFORE THE CLICK.
+ *
+ * getMapNodeUsage's shape and its reasoning: head-only counts the UI can read
+ * while the confirmation is still open, reusing the existing select policies
+ * rather than adding a function.
+ *
+ * ⚠ NEITHER COUNT BLOCKS THE DELETE, WHICH IS WHY BOTH HAVE TO BE SAID IN
+ *   ADVANCE. `map_node_progress.stage_id` and `map_node_goals.stage_id` are both
+ *   `on delete set null`: deleting "Testing/UAT" un-stages the twelve
+ *   organizations standing on it and blanks the rung out of the goals that named
+ *   it, and nothing raises. That is the opposite of `deleteUseCase`, where an
+ *   `on delete restrict` refuses on the admin's behalf. Here the only guard is
+ *   the sentence, and `hidden` is the operation almost always wanted instead.
+ *
+ * `goals` reads a table 0027 creates. On a database with 0026 but not 0027 the
+ * request fails, `countReferencing` warns to the console and answers 0 — which is
+ * the true answer (no goals exist) rather than a swallowed error.
+ */
+export async function getMapNodeStageUsage(id: string): Promise<ApiResult<MapNodeStageUsage>> {
+  if (!supabase) return notConfigured()
+  const [progress, goals] = await Promise.all([
+    countReferencing('map_node_progress', 'stage_id', id),
+    countReferencing('map_node_goals', 'stage_id', id),
+  ])
+  return { ok: true, data: { progress, goals } }
+}
+
+/**
+ * Delete a rung. Resolves with what was pointing at it a moment BEFORE the delete,
+ * because that is what the caller wants to report and it does not exist afterwards
+ * — deleteMapNode's contract.
+ *
+ * There is no guard trigger to refuse this and no reassignment parameter to offer:
+ * both referencing columns are `on delete set null`, so the organizations survive
+ * un-staged, which is the state every un-started organization is in anyway.
+ */
+export async function deleteMapNodeStage(id: string): Promise<ApiResult<MapNodeStageUsage>> {
+  if (!supabase) return notConfigured()
+
+  const before = await getMapNodeStageUsage(id)
+  const usage: MapNodeStageUsage = before.ok ? before.data : { progress: 0, goals: 0 }
+
+  const { error } = await supabase.from('map_node_stages').delete().eq('id', id)
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: usage }
+}
+
+/**
+ * Where every node has got to — one row per node AT MOST, and far fewer than
+ * there are nodes.
+ *
+ * ON THE BOOT PATH, unlike `map_node_use_cases`, and the asymmetry is a fact about
+ * the data rather than a preference. The links are one row per (organization ×
+ * capability) — 4,000 rows at 400 organizations — and nobody looks at them until a
+ * panel opens. This is one row per organization at most, it is what draws the
+ * portfolio and every stage roll-up on the map itself, and 400 rows of five
+ * columns is smaller than the node list that is already fetched beside it.
+ *
+ * PAGED, and ordered by `node_id` alone because `node_id` IS the primary key: the
+ * order is already total, so `.range()` cannot drop or duplicate a row.
+ *
+ * ⚠ FEWER ROWS THAN NODES IS THE ORDINARY STATE, not a partial read. 0026 ships no
+ *   backfill on purpose, so on the day it applies this answers with ZERO rows
+ *   against 400 organizations — "nobody has said anything yet", which is the first
+ *   number the directors ask for and a number that only exists while "no row" and
+ *   "the Not started rung" stay distinct. A reader that treats a missing row as an
+ *   error, or fills it in with a default, destroys it.
+ */
+export async function listMapNodeProgress(): Promise<ApiResult<Loaded<MapNodeProgress>>> {
+  if (!supabase) return notConfigured()
+  const client = supabase
+  return await fetchAllPages<MapNodeProgress>(
+    (from, to) =>
+      client
+        .from('map_node_progress')
+        .select(PROGRESS_COLUMNS)
+        .order('node_id', { ascending: true })
+        .range(from, to),
+    MAX_PAGES,
+  )
+}
+
+/**
+ * Record where one node has got to.
+ *
+ * ⚠ AN UPSERT ON `node_id`, NEVER AN INSERT, AND THIS IS THE ONE LINE IN THE UNIT
+ *   THAT HAS TO BE RIGHT. `node_id` is the primary key, so a plain insert against
+ *   an organization that already has a progress row raises 23505 naming
+ *   `map_node_progress_pkey` — and the case is not exotic, it is TWO ACCOUNT
+ *   MANAGERS ON THE PORTFOLIO AT ONCE with the second one's 30-second refetch not
+ *   yet landed. The upsert path is a complete no-op when nothing changed
+ *   (PostgREST's `do update set` fires the BEFORE UPDATE arm, where the stamp's
+ *   `is distinct from` guard and the touch's else arm both hold, and 0026's probe
+ *   4 asserts the row comes back byte-identical). pgError.ts still carries an arm
+ *   for the 23505, for the tab that got here some other way.
+ *
+ * `stageId: null` STILL UPSERTS THE ROW — it does not delete it, and the two are
+ * different facts the whole feature rests on: no row means "nobody has said
+ * anything yet", `stage_id null` means "somebody looked and cleared it". The
+ * stamp trigger nulls `stage_changed_at` on the same statement, which is what
+ * keeps `map_node_progress_stage_chk` true. Returning a node to "nobody has said"
+ * is a DELETE, and it is deliberately not this function.
+ *
+ * `stage_changed_at`, `updated_at` and `updated_by` ARE NOT SENT. All three are
+ * server-written and a client value is OVERRULED rather than rejected — the
+ * failure that reads as working — so the row this hands back is the row a reload
+ * would show, including the stamp this call never named.
+ */
+export async function setNodeStage(
+  nodeId: string,
+  stageId: string | null,
+): Promise<ApiResult<MapNodeProgress>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase
+    .from('map_node_progress')
+    .upsert({ node_id: nodeId, stage_id: stageId }, { onConflict: 'node_id' })
+    .select(PROGRESS_COLUMNS)
+    .single()
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: data as unknown as MapNodeProgress }
 }

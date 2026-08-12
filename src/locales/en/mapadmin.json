@@ -12,6 +12,19 @@
     "errTooDeep": "The map goes 6 levels below a track and no further. Put this higher up, or shorten the branch first.",
     "errCrossTrack": "Everything in one branch belongs to one track. Choose a parent on the same track, or move the whole branch across.",
     "errScope": "The branch changed while this was open, so the order could not be saved as shown. Reload and repeat it.",
-    "errNotFound": "Somebody else deleted this while you had it open."
+    "errNotFound": "Somebody else deleted this while you had it open.",
+    "errStageNameTaken": "A stage with this name is already on the ladder.",
+    "errStageNameArTaken": "A stage with this Arabic name is already on the ladder.",
+    "errStageAlreadyRecorded": "Somebody else recorded a stage for this organization while you had it open. Reload and set it again — your entry was not saved.",
+    "errStageExpectedDays": "The expected length has to be a whole number of days between 1 and 3650, or empty for no threshold.",
+    "errStageNameLength": "A stage name has to be between 1 and 40 characters.",
+    "errStageNameArLength": "An Arabic stage name can be at most 40 characters.",
+    "errStageStampMismatch": "The stage and the date it changed disagree, so the database refused the write. Reload and set the stage again.",
+    "errStageGone": "That stage was deleted while this was open. Pick another one.",
+    "errNodeGone": "That organization was deleted while this was open, so there is nothing to record a stage against.",
+    "errStageReorderDenied": "Reordering the stage ladder needs the structure permission, which this account doesn't have.",
+    "errGoalTarget": "A goal has to name a positive number of organizations, or no number at all.",
+    "errGoalLabelLength": "A goal's name has to be between 1 and 60 characters.",
+    "errGoalLabelArLength": "A goal's Arabic name can be at most 60 characters."
   }
 }

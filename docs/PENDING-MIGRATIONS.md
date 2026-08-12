@@ -313,6 +313,11 @@ since `delete_track` now has real rows to destroy:
 
 ## Pending — 0026, 0027 and 0028: WRITTEN, and NOT YET RUN ANYWHERE
 
+> **The step-by-step apply for these three lives in [`RUN-0026-0027-0028.md`](RUN-0026-0027-0028.md)**
+> — the paste order, the NOTICEs to read, what each failure means, and the post-apply checks
+> including the canary below. This section stays the register: what each file contains, when it may
+> be run, and the "verify live by" query that goes false if it is ever reverted.
+
 All three files now exist in `supabase/migrations/`. **None of them has been applied to any
 database.** They are pending in the strict sense this page means it — written, reviewed, probed on
 paper, and not yet run — which is a different state from the one this section described while they
