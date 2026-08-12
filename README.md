@@ -409,6 +409,7 @@ assets/        source icon + splash art and the generator that fans them out
 docs/          the build record: execution plan, wave notes, fix backlog, runbook
 docs/parked/   modules written but not wired in, with a note saying what adoption owes
 docs/EVIDENCE/ live-proof ledgers — claims about the running project, with artifacts
+docs/templates/ the spreadsheets the admin fills in, and the guide beside them
 ```
 
 Two conventions that are load-bearing rather than stylistic. **Every string goes

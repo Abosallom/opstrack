@@ -34,6 +34,20 @@ export default defineConfig({
       'src/**/*.test.ts',
       'src/**/*.test.tsx',
       'supabase/functions/**/*.test.ts',
+      // THE FOURTH LINE IS THE IMPORTER, AND IT IS THE SAME ARGUMENT AS THE
+      // THIRD. `scripts/lib/structurePlan.mjs` decides what
+      // `import-structure.mjs --apply` writes into `map_nodes` — the SHAPE of
+      // the workspace, whose sibling names are unique by index, so a wrong
+      // decision is a second organization nobody can tell from the first. It
+      // is pure by construction for exactly that reason, and its tests cover
+      // the failures that have no error to see: a `split(',')` that shifts
+      // every column right of a comma, a BOM that turns the first header into
+      // `﻿path`, a no-break space that makes `UHR ` not match `UHR`, a
+      // blank cell silently written as a fourth status. Without this line that
+      // suite exists and never runs, which is the same hole the edge functions
+      // were in. `.mjs` rather than `.ts` because the house rule is ESM
+      // scripts on Node built-ins; vitest transforms it either way.
+      'scripts/**/*.test.mjs',
     ],
     // A `?raw` IMPORT OF A .css FILE RESOLVES TO THE EMPTY STRING WITHOUT THIS,
     // and that is a false-green generator rather than an inconvenience. Vitest's
