@@ -1701,9 +1701,35 @@ export function resolveMember(raw, members) {
     }
   }
 
+  // THE SUGGESTION IS COMPUTED FROM THIS WORKSPACE, NEVER WRITTEN DOWN HERE.
+  //
+  // It used to name a fixed example username, lifted out of the test fixtures.
+  // Two things were wrong with that and the second is the reason this comment is
+  // long. The first is a loop: the sentence reads as a suggestion, so a person
+  // who typed that very name was told `X` is not a member — try `X`, with no
+  // move left. The second is that the example was a REAL COLLEAGUE, so every
+  // unknown-member refusal in the workspace printed one particular person's
+  // sign-in handle to whoever ran the import, forever, for no reason.
+  //
+  // A suggestion drawn from the live roster cannot do either: it can only name
+  // somebody who is actually there, and it cannot name them unless the value
+  // being refused already looks like their handle.
+  //
+  // `nearestName` signals "nothing close enough" with an EMPTY STRING, not null
+  // — so the test is for truthiness. Reading it as null-or-value produces the
+  // memorable failure `Did you mean ``?`, which is worse than saying nothing.
+  const handles = members.flatMap((m) => [m.username, clean(m.display_name)].filter(Boolean))
+  const near = handles.length > 0 ? nearestName(value, handles) : ''
+  const hint =
+    near
+      ? ` Did you mean \`${near}\`?`
+      : members.length === 0
+        ? ' This workspace has no members yet — provision the team first (scripts/provision-people.mjs), or leave the cell blank.'
+        : ` The ${members.length} member(s) here are: ${members.map((m) => m.username ?? clean(m.display_name)).filter(Boolean).sort().join(', ')}.`
+
   return {
     code: 'member_unknown',
-    error: `\`${value}\`${describeOddCharacters(raw)} is not a member of this workspace. Try the username (\`sara.alsaab\`), the email, or the display name exactly as it appears in Settings › Team members. An account manager is left BLANK for unassigned — it is never guessed.`,
+    error: `\`${value}\`${describeOddCharacters(raw)} is not a member of this workspace.${hint} Match on the username, the email, or the display name exactly as it appears in Settings › Team members. An account manager is left BLANK for unassigned — it is never guessed.`,
   }
 }
 
