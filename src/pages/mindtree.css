@@ -355,6 +355,80 @@
   --map-shell-chrome-block-size: calc(var(--app-header-block-size, 65px) + 8px);
 }
 
+/* ═══ THE FOURTH CONSUMER OF THE RAIL TOKEN — THE FALLBACK COLUMN ═══════════
+   ↑ the three declarations above publish; this is the one that was never
+   written, and until it was, the last 148px of this screen could not be reached
+   by any gesture at all.
+
+   THE PREDICATE, AND WHY IT IS THE WIDTH ALONE. `--map-lens-rail-block-size` is
+   declared unconditionally above, and its comment says exactly why: the rail is
+   pinned by `map-lens.css`'s `.mlens[data-compact]`, and `data-compact` follows
+   `useIsCompact`, which reads WIDTH. `.mcap[data-compact]` (the composer) is
+   gated on the same boolean. So at EVERY viewport under 768px both bars are
+   `position: fixed` over the block end of the screen — including the ones where
+   `min-height: 480px` fails and the two guarded layouts below do not apply. The
+   reservation has to be written on the same predicate the bars are, which is
+   this block; `(max-width: 767px)` is the same breakpoint `.mtree-ladder` uses
+   further down, and for the same stated reason.
+
+   MEASURED AT 375×420, Chrome, `?shell`, WITH THE DOCUMENT AT ITS SCROLL
+   MAXIMUM (scrollTop 195 of 195) — the fallback column, because 420 < 480:
+
+     .mlens   fixed   272 → 321      .mcap   fixed   321 → 420
+     .mtree   padding-block-end: 0px                      ← THE DEFECT
+
+     three .mtree-legend-item   258 → 328   under the chip scroller
+     .mtree-hint                328 → 382   under the composer's ghost button
+                                            — and it is the ONLY place the
+                                            pan-and-pinch gesture is named
+     .mtree-note                382 → 400   under `input.mcap-input`
+
+   `document.elementFromPoint` at each of those rects returned `.mlens-chips`,
+   `.mlens-chip`, `.mcap` and `input.mcap-input` — they are not clipped, they are
+   COVERED, by opaque bars at z-index 71 and 75. And the page was already at
+   `scrollTop === max`: a column reserves nothing for something that left the
+   flow, so there is no scroll position, and no gesture, that brings those five
+   lines out from under the chrome. The phone grid at `(max-width: 767px) and
+   (min-height: 480px)` had this fix from the start — it is the `padding-block-end`
+   on `.mtree` there, in the identical expression — and this block is that same
+   declaration written on the predicate that actually matches the bars.
+
+   THE SAME EXPRESSION, DELIBERATELY, AND NOT A TUNED ONE. The grid below states
+   `calc(rail + composer)` and so does this; two spellings of one reservation is
+   a number to keep in step, which is the failure mode this whole family of
+   tokens exists to prevent. Re-measured after the fix at 375×420: the note lands
+   at 235 → 253 against a rail top of 272, 19px clear, and `elementFromPoint`
+   returns `.mtree-note`.
+
+   NO `env(safe-area-inset-bottom)` TERM HERE, and that is a decision rather than
+   an omission. The composer is the BOTTOM-most bar — the rail is pinned above it
+   at `inset-block-end: var(--map-composer-block-size)` — so the inset is inside
+   the composer's own height twice over: its floor above is
+   `calc(64px + env(safe-area-inset-bottom, 0px))`, and the height MapCapture
+   measures and publishes includes the padding it draws over the home indicator.
+   Adding the inset again here would reserve the notch a second time. The 19px of
+   visible clearance measured above is `.main-content`'s own block-end padding,
+   which in THIS layout is not cancelled — the phone grid's `margin-block`
+   cancels it, this column does not — plus the 1px the rail's `border-block-start`
+   adds on top of the 48px the token names.
+
+   WHAT THIS BLOCK IS NOT. It is not a `.mtree-foot` padding. A rect dump taken
+   in the phone GRID looks like this same bug — `.mtree-hint` at 641→695 and
+   `.mtree-note` at 695→713 against a rail at 664→713 — and it is not one: there
+   the strip is `max-block-size: 7rem; overflow: auto`, those rects are its
+   CLIPPED content read at `scrollTop: 0`, and at its own scroll maximum (51px)
+   the note sits at 645→663, above the rail's 664, hit-testing to `.mtree-note`.
+   Padding the strip to "clear the rail" a second time would spend 48 of its 112
+   visible pixels reserving a band the grid already reserved. Measure the
+   SCROLLER at its maximum before you believe a rect. */
+@media (max-width: 767px) {
+  .mtree {
+    padding-block-end: calc(
+      var(--map-lens-rail-block-size, 48px) + var(--map-composer-block-size, 0px)
+    );
+  }
+}
+
 /* ---------- the island layer ---------- */
 
 /* THE FOUR ISLANDS, AND THE ONE LAYER THEY FLOAT ON.
@@ -1835,7 +1909,31 @@
 
      THE DESKTOP RULE STATES 12px FOR THE SAME REASON at its own width, and the
      two differ because the phone's rail does: this is the gutter of the row
-     beside it, not a constant. */
+     beside it, not a constant.
+
+     AND IT RESERVES NOTHING FOR THE LENS RAIL, ON PURPOSE. `.mtree`'s
+     `padding-block-end` above already holds the whole grid off both pinned bars,
+     so this strip's box ENDS at the rail's block start: measured at 375×812,
+     `.mtree-foot` is 553 → 665 against a rail pinned at 664 → 713, and the 1px
+     is the rail's own `border-block-start`, which is 49px of screen where the
+     token names 48 of content.
+
+     A RECT DUMP OF ITS CHILDREN SAYS OTHERWISE AND IS WRONG. At `scrollTop: 0`
+     `.mtree-hint` reads 641 → 695 and `.mtree-note` reads 695 → 713, which looks
+     exactly like two lines buried under the rail. They are CLIPPED, not covered:
+     this is a scroll container (163px of content in 112px), `getBoundingClientRect`
+     reports where the content would be if it were not clipped, and at its scroll
+     maximum — 51px — the note sits at 645 → 663 and `elementFromPoint` returns
+     `.mtree-note`. Every line is reachable by the gesture the scrollbar already
+     advertises. A `padding-block-end: var(--map-lens-rail-block-size)` added here
+     would reserve that band a SECOND time and spend 48 of the 112 pixels this
+     strip has left, to fix nothing. The reservation that matters is `.mtree`'s,
+     in the two blocks that state it, and `mindtreeRailReach.test.ts` holds both.
+
+     7rem IS COUPLED TO `--map-caption-block-size`, which is declared 7rem on
+     `.mtree` as the dive rail's floor for exactly this cap — see its essay at the
+     head of this sheet. The two move together or the plate lands on the legend
+     again; the same test asserts they are equal. */
   .mtree-foot {
     max-block-size: 7rem;
     overflow: auto;

@@ -2,43 +2,18 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "brand-dev",
+      "//": "5201, NOT 5200. The sibling checkout ~/Claude/coretrack-mindtree runs its own vite on 5200, and because both configs used --strictPort the loser silently failed to bind while the browser happily served the OTHER repo's app. It looked exactly like a stale bundle: the page said CoreTrack while this repo's index.html and locale bundles said NphiesCore. Keep this port unique to nphiescore.",
+      "name": "nphiescore-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
         "dev",
         "--",
         "--port",
-        "5199",
+        "5201",
         "--strictPort"
       ],
-      "port": 5199
-    },
-    {
-      "name": "mindtree-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev",
-        "--",
-        "--port",
-        "5200",
-        "--strictPort"
-      ],
-      "port": 5200
-    },
-    {
-      "name": "opstrack-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev",
-        "--",
-        "--port",
-        "5197",
-        "--strictPort"
-      ],
-      "port": 5197
+      "port": 5201
     }
   ]
 }

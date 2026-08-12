@@ -119,12 +119,59 @@
   --mlens-modes-reserve: 136px;
 
   padding-inline-end: var(--mlens-modes-reserve);
+
+  /* HOW WIDE THE SCROLL FADE IS, stated once because THREE declarations have to
+     land on the same line: the fade's own `inline-size` below, and the chip
+     scroller's `scroll-padding-inline` end term, which is what keeps a chip the
+     browser scrolls into view — a Tab, a `scrollIntoView`, a snap — from coming
+     to rest underneath it. A focus ring under a fade is a focus ring nobody can
+     see, and the two numbers drifting apart is exactly how that happens.
+
+     32px AND NOT THE 24 IT WAS, and the difference is measured. At 375×812 the
+     chips get 231px of scroll port against 469px of content, and the row rests
+     mid-word: the browser showed "By status" cut to "By stat". 24px of gradient
+     under a 13px `--text-dim` label spends its whole run inside ONE glyph, so
+     what it produces is a letter that looks badly anti-aliased rather than a row
+     that looks like it continues — the fade was doing its job on too small a
+     canvas to read as an edge. 32px is a whole word-end, it is the chip's own
+     block size, and it is on the 4px grid. It costs nothing when there is
+     nothing to hide (see the gradient below) and it takes no target: the fade is
+     `pointer-events: none` and every chip keeps its full 44px. */
+  --mlens-fade-inline-size: 32px;
 }
 
 /* THE CHIP ROW SAYS THAT IT CONTINUES. Five destinations do not fit 375px — that
    is the deliberate trade above, not a defect — but what the browser showed was
    "By statu" sheared flat against the reserve, with nothing to say the row pans.
-   A word cut in half reads as a broken render; a 24px fade reads as an edge.
+   A word cut in half reads as a broken render; a fade reads as an edge.
+
+   THIS RULE PAINTS. IT WAS AUDITED AS "not working" AND IT IS NOT BROKEN, and
+   the difference matters because the answer to a fade that does not paint is a
+   second overlay, which is how a sheet ends up with two. Measured in Chrome at
+   375×812 on the running app: `getComputedStyle(el, '::after')` resolves to
+   `content: ""`, 24×48 at `left: 215px`, `background-image: linear-gradient(to
+   right, rgba(0,0,0,0), rgb(23,29,35))` — and painting was confirmed rather than
+   inferred, by overriding this one declaration to `background: red` and reading
+   the screenshot: a solid red band appeared at 215→239, over the chips, exactly
+   where the gradient is. No stacking problem exists to fix. It cannot: this
+   pseudo-element is a POSITIONED descendant of the rail's own stacking context
+   (`position: fixed`, z-index 71) and the chips are inline-level flex items
+   inside it, so CSS paint order puts this above them by construction, and
+   `--mlens-modes-reserve` reaches it because a custom property declared on the
+   originating element inherits into its pseudo-elements.
+
+   WHAT WAS ACTUALLY WRONG WAS THE RUN LENGTH, fixed at the token above: 24px of
+   gradient across a 13px dim label reads as a smeared letter, not as an edge.
+   The row is NOT given more of the 375px instead, and that is the other half of
+   the decision: the width it would take is `--mlens-modes-reserve`, which is
+   sized for the worst case (44 Meetings + 34 live pill + 4 + 44 export + 8) and
+   measured 100px of actual cluster with no meeting running — 36px the chips
+   already inherit as scroll room. Taking it permanently means shrinking the
+   reserve, the reserve is stated in map-mode.css as well as here BY NECESSITY
+   (`.mlens` and `.mmode` are siblings and neither owns an ancestor to declare it
+   on), and a Meetings link that scrolls off the rail the moment a meeting starts
+   is the one outcome MAP-CONTRACT §2 prices as unacceptable. So: the affordance
+   gets the fix, the reserve keeps the width.
 
    IT IS DRAWN IN THE RAIL'S OWN COLOUR, so it costs nothing when there is
    nothing to hide: with four short chips in a wide compact window the gradient
@@ -146,7 +193,7 @@
   position: absolute;
   inset-block: 0;
   inset-inline-end: var(--mlens-modes-reserve);
-  inline-size: 24px;
+  inline-size: var(--mlens-fade-inline-size);
   /* The row scrolls under it and the modes sit beside it; a press here belongs
      to whichever chip is passing beneath. */
   pointer-events: none;
@@ -179,7 +226,17 @@
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   scroll-snap-type: inline mandatory;
-  scroll-padding-inline: 8px;
+  /* 8px AT THE START, THE FADE'S OWN WIDTH AT THE END, and the second value is
+     the half that is about focus rather than taste. Every scroll this row does
+     for the reader instead of by the reader — Tab into a chip, `scrollIntoView`,
+     a snap after a fling — aligns the chip against the port's edge, and the
+     inline END of this port is under the fade above. Without this term the chip
+     that just took focus can come to rest in the one 32px band of the row that
+     is deliberately painted over, ring and all. `scroll-padding` is the property
+     that tells the scroller that band is not usable landing space; it moves with
+     the fade because both read the same custom property. The START term is still
+     8px, which is `.tap-44`'s clearance and unrelated. */
+  scroll-padding-inline: 8px var(--mlens-fade-inline-size);
   /* 8px, NOT 4px, AND THE DIFFERENCE IS THE PHONE'S TAP TARGET.
      `overflow-x: auto` makes this a scroll container, which CLIPS its children
      at its PADDING edge — and clipped area is not hit-tested. `.tap-44`'s
