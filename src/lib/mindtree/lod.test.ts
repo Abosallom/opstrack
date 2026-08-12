@@ -28,12 +28,15 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   apparentOf,
   bandBlend,
+  bandFloorPx,
   bandFor,
   BAND_BLEND,
   BAND_EDGES,
   DOM_HORIZON_PX,
+  FLOOR,
   type Band,
 } from './lod'
+import { D_LEAF, HOLE_FRACTION } from './worlds'
 import type { PositionedNode } from './layout'
 import type { MindNode as MindNodeModel } from './model'
 
@@ -198,9 +201,97 @@ describe('bandBlend', () => {
   })
 
   it('keeps the published constants', () => {
-    expect(BAND_EDGES).toEqual({ grain: 7, state: 26, chip: 52, card: 140, opening: 380, frame: 0.85 })
+    expect(BAND_EDGES).toEqual({ grain: 7, state: 26, chip: 52, card: 157, opening: 380, frame: 0.85 })
     expect(BAND_BLEND).toBe(0.18)
     expect(DOM_HORIZON_PX).toBe(4)
+    expect(FLOOR).toEqual({ TEXT_PX: 9, STROKE_PX: 0.75 })
+  })
+})
+
+describe('the floor, and the edge it cut', () => {
+  /**
+   * `authored x apparent / D_LEAF` — the ink a card puts on the glass once
+   * MindNode authors its type in WORLD units. The whole of this wave's decision
+   * is that this expression, evaluated at a band's own bottom edge, must clear
+   * `FLOOR` for every mark the band draws.
+   */
+  const ink = (authored: number, apparent: number): number => (authored * apparent) / D_LEAF
+
+  it('cuts the card edge on the SMALLEST type the card carries, not the label', () => {
+    // mindtree.css authors the label at 12.5 and the count at 11.5, and the
+    // count is what binds: 9 x 200 / 11.5 = 156.52, against 9 x 200 / 12.5 = 144
+    // for the label alone. An edge cut on the label would have shipped a count
+    // at 8.28 px.
+    expect((FLOOR.TEXT_PX * D_LEAF) / 11.5).toBeCloseTo(156.52, 2)
+    expect(BAND_EDGES.card).toBe(Math.ceil((FLOOR.TEXT_PX * D_LEAF) / 11.5))
+    expect(ink(11.5, 144)).toBeLessThan(FLOOR.TEXT_PX)
+  })
+
+  it('pays for every mark a card draws, at the card band’s own floor', () => {
+    const floor = bandFloorPx('card')
+    expect(ink(12.5, floor)).toBeGreaterThanOrEqual(FLOOR.TEXT_PX) //  label 9.81
+    expect(ink(11.5, floor)).toBeGreaterThanOrEqual(FLOOR.TEXT_PX) //  count 9.03
+    expect(ink(1, floor)).toBeGreaterThanOrEqual(FLOOR.STROKE_PX) //   box   0.785
+    expect(ink(2, floor)).toBeGreaterThanOrEqual(FLOOR.STROKE_PX) //   dash  1.57
+  })
+
+  it('would have failed at the edge it replaced — the assertion is not vacuous', () => {
+    expect(ink(12.5, 140)).toBeCloseTo(8.75, 9)
+    expect(ink(11.5, 140)).toBeCloseTo(8.05, 9)
+    expect(ink(1, 140)).toBeCloseTo(0.7, 9)
+    expect(ink(12.5, 140)).toBeLessThan(FLOOR.TEXT_PX)
+    expect(ink(1, 140)).toBeLessThan(FLOOR.STROKE_PX)
+  })
+
+  it('cannot pay for a word at the CHIP band’s own floor, which is the test', () => {
+    // A BAND IS JUDGED AT ITS FLOOR, not at its top, and that is the rule this
+    // whole wave turns on: a band that draws a mark promises it everywhere in
+    // the band, so the promise is only honest if the SMALLEST world in the band
+    // can pay for it. A chip at its floor pays 3.25 px for a name and 2.99 px
+    // for a count. (Near its top it could pay 9.81 — which is exactly why the
+    // decision has to be taken at the floor, or the same mark is legible at one
+    // end of a band and a smudge at the other.)
+    expect(ink(12.5, BAND_EDGES.chip)).toBeCloseTo(3.25, 9)
+    expect(ink(11.5, BAND_EDGES.chip)).toBeCloseTo(2.99, 2)
+    expect(ink(12.5, bandFloorPx('chip'))).toBeLessThan(FLOOR.TEXT_PX)
+    expect(ink(11.5, bandFloorPx('chip'))).toBeLessThan(FLOOR.TEXT_PX)
+  })
+
+  it('states the same floor for a card inscribed in its children’s ring', () => {
+    // The identity MindNode's `--mtree-world` buys: a HOLE_FRACTION parent draws
+    // at `0.34 x worldD / leafDiag`, which without the world factor is
+    // `12.5 x apparent / 510.8` — 3.84 px at the card edge, and NO edge under
+    // the 185.8 px ceiling the opening picture imposes could have lifted it.
+    const leafDiag = Math.hypot(168, 44)
+    const parentCardScalePerWorld = HOLE_FRACTION / leafDiag
+    expect(1 / parentCardScalePerWorld).toBeCloseTo(510.78, 2)
+    expect(12.5 * parentCardScalePerWorld * BAND_EDGES.card).toBeCloseTo(3.84, 2)
+    // …and with it, the parent's ink is a leaf's ink, exactly.
+    const worldFactor = leafDiag / (HOLE_FRACTION * D_LEAF)
+    expect(worldFactor).toBeCloseTo(2.5539, 4)
+    expect(12.5 * worldFactor * parentCardScalePerWorld * BAND_EDGES.card).toBeCloseTo(
+      ink(12.5, BAND_EDGES.card),
+      9,
+    )
+  })
+})
+
+describe('bandFloorPx', () => {
+  it('returns the edge bandFor cuts at, for every band', () => {
+    for (const band of BANDS) {
+      const floor = bandFloorPx(band, V)
+      expect([band, bandFor(floor, V)]).toEqual([band, band])
+      if (band !== 'absent') expect([band, bandFor(floor - 0.001, V)]).not.toEqual([band, band])
+    }
+  })
+
+  it('answers a caller with no window with the frame band’s LOWER bound', () => {
+    // A component inside the drawing has no viewport. 380 is `frame`'s floor on
+    // every viewport (lod floors the frame edge at `opening`), so the answer is
+    // sound rather than wrong — MindNode gates a glyph on it.
+    expect(bandFloorPx('frame')).toBe(BAND_EDGES.opening)
+    expect(bandFloorPx('frame', 900)).toBe(0.85 * 900)
+    expect(bandFloorPx('frame', 100)).toBe(BAND_EDGES.opening)
   })
 })
 
@@ -229,10 +320,22 @@ function model(overrides: Partial<MindNodeModel> = {}): MindNodeModel {
   }
 }
 
+/**
+ * A card that FILLS ITS OWN WORLD — `worldD = D_LEAF x cardScale` — which is the
+ * leaf rule in `worlds.ts` and the case where `--mtree-world` is exactly 1, so
+ * every assertion below is about the drawing and not about the world factor.
+ * `yielded()` is the other rule.
+ *
+ * `worldD` IS 200 AND NOT AN ARBITRARY NUMBER. It used to be 538 beside an
+ * absent `cardScale`, a pair `layoutWorlds` cannot produce: a 538-unit world
+ * around a card drawn at 1x is a card at 0.37 of its own world, which is neither
+ * of the two rules. Wave 5 reads that ratio, so the fixture has to state it.
+ */
 function positioned(node: MindNodeModel, hasChildren: boolean): PositionedNode<MindNodeModel> & {
   readonly worldX: number
   readonly worldY: number
   readonly worldD: number
+  readonly cardScale: number
 } {
   return {
     id: node.id,
@@ -253,7 +356,27 @@ function positioned(node: MindNodeModel, hasChildren: boolean): PositionedNode<M
     outward: { x: 186, y: 22 },
     worldX: 184,
     worldY: 222,
-    worldD: 538,
+    worldD: D_LEAF,
+    cardScale: 1,
+  }
+}
+
+/**
+ * A card INSCRIBED IN ITS CHILDREN'S RING — `worlds.ts`'s second rule,
+ * `cardScale = HOLE_FRACTION x worldD / leafDiag`. Its card is 168 x 44 LEAF
+ * units and 65.8 x 17.2 WORLD units, which is the whole of why it draws the
+ * chip's picture: 65.8 is under `LABEL_INSIDE_MIN = 96`.
+ */
+function yielded(node: MindNodeModel, worldD = 1000): ReturnType<typeof positioned> {
+  const cardScale = (HOLE_FRACTION * worldD) / Math.hypot(168, 44)
+  const base = positioned(node, true)
+  return {
+    ...base,
+    width: 168 * cardScale,
+    height: 44 * cardScale,
+    outward: { x: 186 * cardScale, y: 22 * cardScale },
+    worldD,
+    cardScale,
   }
 }
 
@@ -328,10 +451,13 @@ describe('the five renderings', () => {
     }
   })
 
-  it('draws NO TEXT at grain or state', () => {
-    // A numeral inside a 30px disc renders at 3px and is a lie about legibility.
+  it('draws NO TEXT at grain, state or chip', () => {
+    // A numeral inside a 30px disc renders at 3px and is a lie about legibility;
+    // wave 5 found the same sentence true one band up, where a chip's count is
+    // 2.99 px and its name 3.25 px at the band's own floor.
     expect(render(props('grain'))).not.toContain('<text')
     expect(render(props('state'))).not.toContain('<text')
+    expect(render(props('chip'))).not.toContain('<text')
   })
 
   it('keeps grain and state out of the role="tree" DOM entirely', () => {
@@ -390,18 +516,74 @@ describe('the five renderings', () => {
   })
 })
 
-describe('the chip', () => {
-  it('puts the name outside the box and the count in the middle', () => {
+describe('the chip has lost its words', () => {
+  /**
+   * WAVE 5. The chip used to be "the 44x44 box, count centred inside, name
+   * outside along the ray", and every one of those three promises was made in
+   * CSS PIXELS while the marks were drawn in card units: at the band's own floor
+   * the box is 44 x 11 px, the count is 3.0 px and the name is 3.25 px. So the
+   * band keeps the one thing it can deliver — a shape you can tap — and the
+   * words move up to `card`, whose edge was cut to pay for them.
+   */
+  it('draws a box and nothing else', () => {
     const markup = render(props('chip'))
+    expect(markup).not.toContain('<text')
+    expect(marks(markup)).toBe('mtree-node | mtree-node-box')
+  })
+
+  it('is still a control, and still the same box', () => {
+    // It is the ONLY difference from `absent`, which is the same two elements
+    // with `visibility: hidden` on them: a chip takes a tap and a pointer, and
+    // is in the role="tree" walk.
+    const markup = render(props('chip'))
+    expect(markup).toContain('role="treeitem"')
+    expect(markup).toContain('<rect')
+    expect(markup).not.toContain('mring-absent')
+  })
+})
+
+describe('a card that yields to its ring', () => {
+  it('draws the chip’s picture — name outside, count in the middle', () => {
+    const markup = render(props('card', { pos: yielded(model()) }))
     expect(markup).toContain('text-anchor="middle"')
     expect(markup).toContain('pointer-events="none"')
+  })
+
+  it('publishes the world factor and the hair floor for the sheet to read', () => {
+    const markup = render(props('card', { pos: yielded(model()) }))
+    // 173.666 / (0.34 x 200) = 2.5539. Every font size and every stroke width in
+    // mindtree.css is multiplied by one of these two.
+    expect(markup).toMatch(/--mtree-world:2\.553[0-9]*/)
+    // At `card` the hair floor is already met (0.75 x 200 / 157 = 0.955 < 1), so
+    // the stroke factor IS the world factor.
+    expect(markup).toMatch(/--mtree-hair:2\.553[0-9]*/)
+  })
+
+  it('raises the hair at CHIP, where the outline is the whole mark', () => {
+    const markup = render(props('chip', { pos: yielded(model()) }))
+    // 0.75 x 200 / 52 = 2.8846 times the world factor: 2.5539 x 2.8846 = 7.367
+    // leaf units, which is exactly 0.75 CSS px at the band's bottom edge.
+    const hair = Number(/--mtree-hair:([\d.]+)/.exec(markup)?.[1] ?? Number.NaN)
+    expect(hair).toBeCloseTo(7.367, 3)
+    const cardScale = (HOLE_FRACTION * 1000) / Math.hypot(168, 44)
+    expect((hair * cardScale * BAND_EDGES.chip) / 1000).toBeCloseTo(FLOOR.STROKE_PX, 9)
+  })
+
+  it('leaves a leaf that fills its world at exactly 1, both factors', () => {
+    const markup = render(props('card'))
+    expect(markup).toContain('--mtree-world:1')
+    expect(markup).toContain('--mtree-hair:1')
+  })
+
+  it('spends its ray on the word rather than on a chevron', () => {
+    expect(render(props('card', { pos: yielded(model()) }))).not.toContain('mtree-chevron')
   })
 
   it('anchors the outside label correctly in all four side x direction cases', () => {
     const anchorOf = (markup: string): string =>
       /class="mtree-node-label"[^>]*text-anchor="(start|end)"/.exec(markup)?.[1] ?? ''
     const at = (outwardX: number, rtl: boolean): string => {
-      const base = props('chip')
+      const base = props('card', { pos: yielded(model()) })
       return anchorOf(
         render({
           ...base,
@@ -419,9 +601,37 @@ describe('the chip', () => {
     expect(at(-40, true)).toBe('start') //  rtl, left of the hub
   })
 
-  it('spends the ray on the word rather than on a chevron', () => {
-    expect(render(props('chip'))).not.toContain('mtree-chevron')
+  it('keeps the chevron on a card that holds its own name', () => {
     expect(render(props('card'))).toContain('mtree-chevron')
+  })
+})
+
+describe('a glyph its card cannot pay for is not drawn', () => {
+  /** A branch whose children are folded away — the only source of a "+N". */
+  function folded(worlds: boolean): MindNodeProps {
+    const base = props('card')
+    const pos = { ...base.pos, childIds: [], hasChildren: true, hiddenChildCount: 3 }
+    return { ...base, pos: worlds ? pos : { ...pos, worldD: undefined, cardScale: undefined } }
+  }
+
+  it('drops the chevron’s "+N" on the canvas — 9.5 units is 7.46 px at the floor', () => {
+    // `.mtree-chevron-count` is the one type on this card smaller than the count
+    // the card edge was cut on, so it is the one glyph the gate actually turns
+    // away: `9.5 x 157 / 200 = 7.46`, under `FLOOR.TEXT_PX`. (It is unreachable
+    // through `layoutWorlds`, which passes `expandAll: true` and no depth limit,
+    // so nothing on screen loses a mark today — this is the guard that keeps the
+    // floor true when wave 6's folds start producing one.)
+    expect((9.5 * BAND_EDGES.card) / D_LEAF).toBeCloseTo(7.46, 2)
+    const markup = render(folded(true))
+    expect(markup).toContain('mtree-chevron')
+    expect(markup).not.toContain('mtree-chevron-count')
+  })
+
+  it('keeps it on a layout that has no worlds, where there is no camera to ask', () => {
+    // The tidy tree and the phone's ring are fitted to a viewBox by their page,
+    // so the apparent-size relationship this arithmetic rests on does not exist
+    // and the honest answer is to draw what was authored. Unchanged by wave 5.
+    expect(render(folded(false))).toContain('mtree-chevron-count')
   })
 })
 

@@ -524,6 +524,45 @@ describe('layoutWorlds — a parent yields the room inside to its children', () 
     }
   })
 
+  it('publishes exactly two world factors, and MindNode’s whole floor rests on it', () => {
+    // THE SECOND SEAM WITH THE RENDERER, and it is the one wave 5 added. The
+    // ink a mark puts on the glass is `authored x cardScale x scale`, so the
+    // ratio `worldD / (D_LEAF x cardScale)` — `--mtree-world` — is what turns
+    // that into `authored x apparent / D_LEAF`, ONE identity for every node in
+    // every role, which is the line `lod.ts` cuts `BAND_EDGES.card = 157` on.
+    //
+    // The two rules in this file's header produce exactly two values for it and
+    // NEITHER depends on depth or fan-out, which is the property that makes a
+    // band edge a legibility guarantee rather than an average:
+    //
+    //   a leaf FILLS its world      -> 1               (or ownD / D_LEAF, once
+    //                                                   an encoding grows it)
+    //   a parent YIELDS to its ring -> leafDiag / (HOLE_FRACTION x D_LEAF)
+    //                               =  173.666 / 68 = 2.5539
+    const parentFactor = Math.hypot(168, 44) / (HOLE_FRACTION * D_LEAF)
+    expect(parentFactor).toBeCloseTo(2.5539, 4)
+    for (const tree of [uniform(3, 4), workspace(), fan(24)]) {
+      for (const n of layoutWorlds(tree).nodes) {
+        const factor = n.worldD / (D_LEAF * n.cardScale)
+        expect([n.id, factor]).toEqual([
+          n.id,
+          expect.closeTo(n.childIds.length === 0 ? 1 : parentFactor, 9),
+        ])
+      }
+    }
+    // A card an encoding GREW keeps the identity too — its world grew with it,
+    // so `ownD / D_LEAF` is the factor and `authored x apparent / D_LEAF` still
+    // names the ink. This is the case that would silently break the floor if the
+    // factor were hard-coded rather than derived.
+    const sized = layoutWorlds(uniform(2, 4), {
+      sizeOf: (_n, depth) => (depth === 2 ? { width: 252, height: 66 } : undefined),
+    })
+    for (const n of sized.nodes) {
+      if (n.depth !== 2 || n.childIds.length > 0) continue
+      expect(n.worldD / (D_LEAF * n.cardScale)).toBeCloseTo(1.5, 9)
+    }
+  })
+
   it('holds the hole even when an encoding authors a branch card at twice the leaf', () => {
     // The one word past the design's formula, earning its place: with a plain
     // `/ leafDiagonal` a branch card an encoding doubled would carry a

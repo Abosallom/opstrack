@@ -27,7 +27,17 @@ import { isolate } from '../../lib/bidi'
 import type { FilterState } from '../../lib/entryFilter'
 import { t } from '../../lib/i18n'
 import { useKindLabel, useNodeLabel, useTrackLabel } from '../../lib/labels'
-import { entityIdOf } from '../../lib/mapNodes'
+// ALIASED, for the reason MapBranchDetail.tsx and lib/mapNodes.test.ts both
+// state at their own imports: `useCaseProgress` is a PURE FUNCTION whose name
+// matches oxlint's Hook heuristic (`use` + a capital), so calling it from the
+// plain recursive walk below is a `react-hooks/rules-of-hooks` error under its
+// own name.
+import {
+  entityIdOf,
+  useCaseProgress as computeUseCaseProgress,
+  type UseCaseProgress,
+} from '../../lib/mapNodes'
+import { DEFAULT_NODE_SIZE, sizeForCount, type NodeSize } from '../../lib/mindtree/layout'
 import {
   MIND_DIMENSIONS,
   ROOT_ID,
@@ -63,11 +73,17 @@ import {
   useMindSelectionCount,
   useMindView,
 } from '../../store/mindtree'
-import { useMapNodeKinds, useMapNodeMap, useMapNodes, useTracks } from '../../store/config'
+import {
+  useAllUseCases,
+  useMapNodeKinds,
+  useMapNodeMap,
+  useMapNodes,
+  useTracks,
+} from '../../store/config'
 import { useMemberMap, useMembers, memberLabel } from '../../store/members'
 import { useVocabAll, useVocabLabel } from '../../store/vocab'
 import { useAuth } from '../../store/auth'
-import type { UserRole } from '../../types'
+import type { MapNodeUseCase, UseCase, UseCaseStatus, UserRole } from '../../types'
 
 /* ───────────────────────────────── the tree ──────────────────────────────── */
 
@@ -119,6 +135,179 @@ export function collectStats(
   return stats
 }
 
+/* ──────────────────────────── the size encoding ───────────────────────────── */
+
+/**
+ * The size the count encoding stops growing at — 1.5x `DEFAULT_NODE_SIZE` on
+ * BOTH axes, which is 2.25x the area (1.5²), and that is the whole dynamic
+ * range the map spends on "amount of work".
+ *
+ * WHY 1.5 AND NOT MORE — and the price even 1.5 turned out to carry. `worlds.ts`
+ * makes a card's world proportional to its DIAGONAL, so every extra percent of
+ * card is an extra percent of the ring its siblings pack into and an extra
+ * percent the camera has to pull back to frame it. 168x44 -> 252x66 grows a
+ * leaf's diagonal from 173.7 to 260.5 units, exactly 1.5x; measured end to end
+ * through `npm run lookat`, a whole tree sized this way costs 26% of the camera
+ * scale on the 19-org fixture (3.250e-1 -> 2.389e-1) and 25% on the 400-org one
+ * (8.772e-2 -> 6.612e-2). Past 1.5 the busiest branch starts pushing its own
+ * siblings out of the `card` band, which trades a magnitude nobody asked to read
+ * for six names the reader came for.
+ */
+const MAX_NODE_SIZE: Readonly<NodeSize> = Object.freeze({
+  width: DEFAULT_NODE_SIZE.width * 1.5,
+  height: DEFAULT_NODE_SIZE.height * 1.5,
+})
+
+/**
+ * Give every node a card size from its count, RELATIVE TO ITS OWN SIBLINGS.
+ *
+ * `sizeForCount`'s `fullAt` has been a dead default of 50 since it was written,
+ * and its own doc block says what it should be: "Pass the busiest count in the
+ * current picture." At 400 organizations a fixed 50 makes nearly every branch
+ * clamp to `max` and the channel encodes NOTHING — which is the state this map
+ * shipped in.
+ *
+ * PER-RING, NOT PER-TREE, and that is forced by the drawing rather than chosen.
+ * A containment map nests a child INSIDE its parent, so a card is only ever seen
+ * beside its siblings; comparing a 40-item Organization against a 300-item track
+ * is a comparison the picture never puts in front of anyone's eye. Siblings are
+ * the comparison set, so siblings set the scale.
+ *
+ * NOTHING IS WRITTEN WHEN THE BUSIEST SIBLING HOLDS 1 OR 0. `fullAt <= 1`
+ * collapses `sizeForCount`'s span to zero and it answers `max` for every count,
+ * so a ring where everyone holds one item would draw every card at 252x66 — a
+ * whole ring inflated 2.25x to say that nothing differs. Leaving the entry out
+ * lets `layoutWorlds` fall back to `nodeSize`, which IS the floor, so the ring
+ * draws at 168x44 and says the same true thing in less ink.
+ *
+ * The tree ROOT never gets an entry (it is nobody's child). The DRAWN root also
+ * has to be excluded, and it cannot be excluded here because which node that is
+ * depends on the drill-in — the caller's `sizeOf` drops `depth === 0`.
+ *
+ * ⚠ NOT WIRED, 2026-08-13, and the reason is measured rather than pending.
+ * Handing this to `layoutWorlds` as `sizeOf` turns the permanent render gate red
+ * on two assertions: `MindNode` authors every mark in the units of a 168-wide
+ * leaf, so a card resized to 252 draws its 12.5px label at 168/252 = 0.667x the
+ * fraction of its own card the contract owes — and, because a card's world is
+ * proportional to its diagonal, the camera pulls back and the smallest text on
+ * the glass falls 3.738px → 2.748px (19-org fixture) and 4.184px → 2.807px
+ * (400-org) — and at 375px the phone's framed ring drops from `card=3` to
+ * `card=2 chip=1`, which is one organization in three losing its NAME. The
+ * encoding has to grow the node's WORLD and let `cardScale = worldD / ownD`
+ * carry the marks with it — `worlds.ts`'s two card rules, wave 1's frozen
+ * contract. Mindtree.tsx's `layout` memo carries the same note and the one line
+ * that activates this; the arithmetic is pinned in `useMapModel.test.ts` so it
+ * cannot rot while it waits.
+ */
+export function collectSizes(node: MindNodeModel, out: Map<string, NodeSize>): void {
+  const children = node.children
+  if (children.length > 0) {
+    let fullAt = 0
+    for (const child of children) if (child.count > fullAt) fullAt = child.count
+    if (fullAt > 1) {
+      for (const child of children) {
+        const size = sizeForCount(child.count, {
+          min: DEFAULT_NODE_SIZE,
+          max: MAX_NODE_SIZE,
+          fullAt,
+        })
+        out.set(child.id, size)
+      }
+    }
+  }
+  for (const child of children) collectSizes(child, out)
+}
+
+/* ─────────────────────────── the progress encoding ────────────────────────── */
+
+/**
+ * Where the capability links come from, and the word that counts as finished.
+ *
+ * A PARAMETER RATHER THAN A STORE READ, because there is no store to read.
+ * `map_node_use_cases` is deliberately absent from store/config (its header:
+ * "That is DATA, not configuration") and `api/map.ts`'s `listNodeUseCasesFor`
+ * says in as many words "NOT ON BOOT ... The portfolio surface opens it
+ * deliberately (`src/store/portfolio.ts`, wave 3) and pays for it". The map is
+ * the app's landing screen, so a read fired from this hook IS boot.
+ *
+ * So the derivation below is complete and the SOURCE is injected. `null` means
+ * "nobody has read the links", which is not the same fact as "there are no
+ * links": with `null` every node's `progress` is absent and the underscore is
+ * not drawn, where an empty array would draw `0 of 90 live` on every card and
+ * state as fact something nobody has looked up. That is the same
+ * absence-is-a-value rule `map_node_progress` is built on.
+ *
+ * `terminalKey` and `terminalWordKey` travel WITH the links rather than being
+ * restated here: lib/mapNodes.ts's header is explicit that the literal `'live'`
+ * lives at one call site (MapBranchDetail.tsx's `TERMINAL_STATUS`), and a second
+ * copy in this file is the exact failure that header exists to prevent.
+ */
+export interface MapProgressSource {
+  readonly links: readonly MapNodeUseCase[]
+  /** MapBranchDetail.tsx's `TERMINAL_STATUS`. */
+  readonly terminalKey: UseCaseStatus
+  /** The locale key for that status as a WORD — `mapnode.wordLive`. */
+  readonly terminalWordKey: string
+}
+
+/**
+ * Roll `useCaseProgress` up the tree, in ONE post-order pass.
+ *
+ * The alternative — asking each node for the links beneath it — is O(n²) at the
+ * 3,200 nodes a 400-organization workspace builds, because every link is walked
+ * once per ancestor per node. This walks each link once per ANCESTOR (at most
+ * six, the frozen depth cap) and calls the fold once per node that can carry the
+ * mark.
+ *
+ * `links.push(...below.links)` IS NOT USED and the reason is a measurement: the
+ * root of a 400-org workspace holds ~4,000 links, and spread-as-arguments puts
+ * every one of them on the call stack at once. A loop has no such ceiling.
+ *
+ * WHO GETS A `progress` AND WHO DOES NOT. Entries are ISSUES, not
+ * organizations — "3 of 9 live" under one bug report is a category error — and a
+ * "+N more" fold is a control. Both are skipped, and so is any branch with no
+ * Organization beneath it at all: a track holding only entries would otherwise
+ * announce `0 of 0`, and `useCaseProgress` floors `nodes` at 1 precisely so that
+ * one panel's zero reads as `0 of 9`. That floor is right for a panel and wrong
+ * for a track that has no organizations to be at zero.
+ *
+ * ⚠ SEAM, 2026-08-13 — THE THIRD ARGUMENT, NOT THE FOURTH. `useCaseProgress`'s
+ * header names its one limit: `nodes` is counted off the LINKS, so an
+ * Organization with no links at all shrinks the denominator instead of adding a
+ * column of zeroes to it. The fix is the required 4th argument, and the plan
+ * assigns it to WAVE 3 together with the store that feeds this source — one
+ * change, one commit, one call-site edit in MapBranchDetail.tsx. `nodeIds` below
+ * is already the argument that wave will pass; it is computed here today because
+ * it is also the guard above, and computing it twice is how the two would drift.
+ */
+export function collectProgress(
+  node: MindNodeModel,
+  catalogue: readonly UseCase[],
+  terminalKey: string,
+  linksByNode: ReadonlyMap<string, readonly MapNodeUseCase[]>,
+  out: Map<string, UseCaseProgress>,
+): { links: MapNodeUseCase[]; nodeIds: string[] } {
+  const links: MapNodeUseCase[] = []
+  const nodeIds: string[] = []
+
+  const own = entityIdOf(node)
+  if (own !== null) {
+    nodeIds.push(own)
+    const rows = linksByNode.get(own)
+    if (rows !== undefined) for (const row of rows) links.push(row)
+  }
+  for (const child of node.children) {
+    const below = collectProgress(child, catalogue, terminalKey, linksByNode, out)
+    for (const row of below.links) links.push(row)
+    for (const id of below.nodeIds) nodeIds.push(id)
+  }
+
+  if (nodeIds.length > 0 && node.kind !== 'entry' && node.kind !== 'more') {
+    out.set(node.id, computeUseCaseProgress(catalogue, links, terminalKey))
+  }
+  return { links, nodeIds }
+}
+
 /** One frozen empty set, so the memo below has a stable reference to return. */
 const EMPTY_IDS: ReadonlySet<string> = new Set<string>()
 
@@ -140,7 +329,17 @@ const OPEN_DEPTH = 1
  */
 export type MapModel = ReturnType<typeof useMapModel>
 
-export function useMapModel(compact: boolean, locale: string, filter: FilterState) {
+export function useMapModel(
+  compact: boolean,
+  locale: string,
+  filter: FilterState,
+  /**
+   * The capability links behind the progress underscore, or `null` while
+   * nobody has read them. See `MapProgressSource` for why this arrives as an
+   * argument instead of being fetched here.
+   */
+  progressSource: MapProgressSource | null,
+) {
   /* ── the persisted half, from the store ───────────────────────────────── */
 
   const dimension = useMindDimension()
@@ -179,6 +378,20 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
    */
   const mapNodes = useMapNodes()
   const nodeKinds = useMapNodeKinds()
+  /**
+   * The capability catalogue behind the progress underscore's DENOMINATOR.
+   *
+   * `useAllUseCases`, hidden rows included, which is the same call the Org panel
+   * makes and for the same reason lib/mapNodes.ts's header argues at length: a
+   * capability retired from the pickers must keep counting for the
+   * organizations already recorded against it, or an admin tidying the
+   * catalogue would move every number on the map without anything changing.
+   *
+   * Read from the store rather than travelling in `progressSource` because the
+   * catalogue IS configuration — store/config loads it on boot for every screen
+   * — and only the LINKS are the read that has to be paid for.
+   */
+  const catalogue = useAllUseCases()
   const members = useMembers()
   const memberById = useMemberMap()
   const ctx = useFilterContext()
@@ -371,6 +584,28 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
     return out
   }, [tree, entryById])
 
+  /**
+   * The progress underscore's numbers, per node. Empty — not zeroed — while
+   * `progressSource` is null, so the mark and its spoken clause are both absent
+   * rather than both lying.
+   *
+   * `linksByNode` is built once here rather than inside the walk: the walk sees
+   * every organization exactly once, so a per-node `filter()` over 4,000 links
+   * would be the O(n²) the post-order pass exists to avoid.
+   */
+  const progress = useMemo(() => {
+    const out = new Map<string, UseCaseProgress>()
+    if (progressSource === null) return out
+    const linksByNode = new Map<string, MapNodeUseCase[]>()
+    for (const link of progressSource.links) {
+      const held = linksByNode.get(link.node_id)
+      if (held === undefined) linksByNode.set(link.node_id, [link])
+      else held.push(link)
+    }
+    collectProgress(tree, catalogue, progressSource.terminalKey, linksByNode, out)
+    return out
+  }, [tree, catalogue, progressSource])
+
   /* ── labels ───────────────────────────────────────────────────────────── */
 
   /**
@@ -438,9 +673,26 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
       return parts.length === 0 ? null : parts.join(sep)
     }
 
+    /**
+     * The terminal status as a WORD, resolved once for the whole walk.
+     *
+     * From `progressSource`, so it is the same status `useCaseProgress` counted
+     * against. Renaming what "finished" means stays the one edit lib/mapNodes.ts
+     * promises, and the map's sentence follows the panel's automatically.
+     */
+    const terminalWord = progressSource === null ? '' : t(progressSource.terminalWordKey)
+
     const visit = (node: MindNodeModel, ancestry: readonly string[]): void => {
       const raw = textOf(node.label)
       const stat = stats.get(node.id) ?? NO_STATS
+      /**
+       * ZERO IS A NUMBER AND `total === 0` IS NOT ONE. A node the roll-up does
+       * not cover has no row here at all; a node it covers with an empty
+       * catalogue has a total of 0, which `MindNode` refuses to divide by and
+       * which would say "0 of 0 live" out loud. Both collapse to null.
+       */
+      const held = progress.get(node.id)
+      const share = held === undefined || held.total === 0 ? null : held
 
       let name: string
       if (node.kind === 'entry') {
@@ -476,6 +728,31 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
         if (stat.unassigned > 0) {
           detail.push(t('mindtree.countUnassigned', { count: stat.unassigned }))
         }
+        /**
+         * THE UNDERSCORE, IN WORDS, AND IT IS NOT DECORATION.
+         *
+         * The mark `MindNode` draws for `view.progress` encodes LENGTH AND
+         * COLOUR ALONE (MindNode.tsx:203-208 states it). WCAG 1.4.1 forbids
+         * colour as the sole carrier of information, and length alone is not a
+         * value anybody can read off a 2-unit bar. This clause is the only place
+         * the same fact exists as text, which is what makes the mark legal —
+         * and it comes off the SAME `UseCaseProgress` the bar is drawn from, so
+         * the picture and the sentence cannot disagree.
+         *
+         * Appended after the counts because it is the slowest-moving of them:
+         * "12 open, 3 past deadline, 6 of 9 live" puts today's noise first and
+         * the quarter's arithmetic last, which is the order a screen-reader user
+         * can stop listening at.
+         */
+        if (share !== null) {
+          detail.push(
+            t('mindtree.countLive', {
+              done: share.done,
+              total: share.total,
+              status: terminalWord,
+            }),
+          )
+        }
         // Nothing about expansion is appended: `aria-expanded` on the treeitem
         // already announces it, and a name that repeated it would say it twice.
         name = t('mindtree.nodeName', { label: raw, detail: detail.join(sep) })
@@ -496,6 +773,16 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
               ? t('mindtree.expandNode', { label: raw })
               : t('mindtree.collapseNode', { label: raw }),
         breachHint: node.health.slaBreached ? t('mindtree.breachHint') : null,
+        /**
+         * THE PROGRESS UNDERSCORE'S TWO NUMBERS — organizations-worth of
+         * capability that reached the terminal status, out of all of them.
+         *
+         * The whole `UseCaseProgress` is not handed over: `MindNode` needs a
+         * length, `rows` is ten objects per node and 32,000 across a 400-org
+         * workspace, and a view model that carried them would keep the entire
+         * matrix alive for a 2-unit bar.
+         */
+        progress: share === null ? null : { done: share.done, total: share.total },
         /**
          * THE ORGANIZATION'S SECOND LINE — account manager, then vendor.
          *
@@ -528,7 +815,18 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
     // an argument, so without it here a language switch would re-render the map
     // around a memo still holding English labels.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [tree, stats, entryById, memberById, mapNodeById, vocabLabelOf, textOf, locale])
+  }, [
+    tree,
+    stats,
+    progress,
+    progressSource,
+    entryById,
+    memberById,
+    mapNodeById,
+    vocabLabelOf,
+    textOf,
+    locale,
+  ])
 
   /* ── the summary, which is also the export's description ──────────────── */
 

@@ -1,15 +1,15 @@
-small      opening      scale=1.477e-1  marks=  102  minText=  2.281px  minStroke=  0.198px  framed=root                    children[1]: card=1
-small      dived-two    scale=3.250e-1  marks=  169  minText=  3.738px  minStroke=  0.325px  framed=track:ob                children[3]: card=3
-small      phone        scale=9.533e-2  marks=   82  minText=  1.472px  minStroke=  0.128px  framed=root                    children[1]: card=1
-small      zoomed-out   scale=6.792e-2  marks=   88  minText=  1.297px  minStroke=  0.113px  framed=root                    children[1]: card=1
+small      opening      scale=3.250e-1  marks=  116  minText= 12.815px  minStroke=  0.938px  framed=track:ob                children[3]: card=3
+small      dived-two    scale=3.250e-1  marks=  116  minText= 12.815px  minStroke=  0.938px  framed=track:ob                children[3]: card=3
+small      phone        scale=2.097e-1  marks=   90  minText= 10.227px  minStroke=  0.889px  framed=track:ob                children[3]: card=2 chip=1
+small      zoomed-out   scale=6.792e-2  marks=   67  minText= 19.205px  minStroke=  0.831px  framed=root                    children[1]: chip=1
 small      zoomed-in    scale=2.589e+0  marks=  129  minText= 29.768px  minStroke=  2.589px  framed=type:0:org:1            children[0]: 
-large      opening      scale=6.630e-3  marks=  104  minText=  1.236px  minStroke=  0.107px  framed=root                    children[1]: card=1
-large      dived-two    scale=3.530e-2  marks= 1023  minText=  1.683px  minStroke=  0.146px  framed=ad:0                    children[2]: card=2
-large      phone        scale=4.278e-3  marks=   89  minText=  1.755px  minStroke=  0.153px  framed=root                    children[1]: card=1
-large      zoomed-out   scale=3.048e-3  marks=   90  minText=  1.250px  minStroke=  0.109px  framed=root                    children[1]: card=1
+large      opening      scale=8.772e-2  marks= 1029  minText= 10.685px  minStroke=  0.929px  framed=am:1                    children[6]: card=6
+large      dived-two    scale=3.530e-2  marks=  921  minText= 13.000px  minStroke=  1.078px  framed=ad:0                    children[2]: card=2
+large      phone        scale=5.660e-2  marks=  916  minText= 13.000px  minStroke=  1.729px  framed=am:1                    children[6]: chip=6
+large      zoomed-out   scale=3.048e-3  marks=   66  minText= 19.205px  minStroke=  0.801px  framed=root                    children[1]: chip=1
 large      zoomed-in    scale=2.589e+0  marks= 2953  minText= 28.474px  minStroke=  2.589px  framed=am:1:type:0:org:134     children[0]: 
-large-rtl  opening      scale=6.630e-3  marks=  104  minText=  1.236px  minStroke=  0.107px  framed=root                    children[1]: card=1
-large-rtl  dived-two    scale=3.530e-2  marks= 1023  minText=  1.683px  minStroke=  0.146px  framed=ad:0                    children[2]: card=2
-large-rtl  phone        scale=4.278e-3  marks=   89  minText=  1.755px  minStroke=  0.153px  framed=root                    children[1]: card=1
-large-rtl  zoomed-out   scale=3.048e-3  marks=   90  minText=  1.250px  minStroke=  0.109px  framed=root                    children[1]: card=1
+large-rtl  opening      scale=8.772e-2  marks= 1029  minText= 10.685px  minStroke=  0.929px  framed=am:1                    children[6]: card=6
+large-rtl  dived-two    scale=3.530e-2  marks=  921  minText= 13.000px  minStroke=  1.078px  framed=ad:0                    children[2]: card=2
+large-rtl  phone        scale=5.660e-2  marks=  916  minText= 13.000px  minStroke=  1.729px  framed=am:1                    children[6]: chip=6
+large-rtl  zoomed-out   scale=3.048e-3  marks=   66  minText= 19.205px  minStroke=  0.801px  framed=root                    children[1]: chip=1
 large-rtl  zoomed-in    scale=2.589e+0  marks= 2953  minText= 28.474px  minStroke=  2.589px  framed=am:1:type:0:org:134     children[0]: 

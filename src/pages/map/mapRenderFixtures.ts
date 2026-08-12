@@ -273,12 +273,18 @@ export function emptyOrgIds(tree: MindNode): readonly string[] {
 /**
  * The four worlds every camera is aimed at, per fixture.
  *
- * `reader` IS THE WAVE-5 SEAM. `focus.defaultFocusFor(meId, role, tree)` does not
- * exist at this commit; when it does, an account manager opening the map must
- * land on their own book, and this is the id it has to return for
- * `MAP_READER`. The gate resolves the opening camera through that function when
- * it is exported and falls back to the drawn root — which is what the app does
- * today — so the opening histogram is red until wave 5 and green after it.
+ * `reader` WAS THE WAVE-5 SEAM AND IS NOW THE CLAIM. `focus.defaultFocusFor(meId,
+ * role, tree)` exists, and the gate asserts that the OPENING camera — resolved
+ * through it — frames exactly this world for `MAP_READER`. It is still named
+ * separately because the two answer different questions: `reader` proves the
+ * GEOMETRY can deliver six cards, `opening` proves the CAMERA chooses that
+ * world, and a wave that broke only the second would otherwise look like a wave
+ * that broke the packing.
+ *
+ * `small` HAS NO ACCOUNT MANAGERS IN IT — it is the 19-organization workspace
+ * Aziz has today — so `defaultFocusFor` falls back to the workspace opening
+ * there and the gate asserts the fallback rather than this anchor. `type:0` is
+ * still the world its six-card claim is measured on.
  */
 export interface FixtureAnchors {
   /** The world an account manager's map must open on. */
@@ -339,12 +345,10 @@ export function fixtures(): readonly Fixture[] {
 /**
  * Which world a camera is aimed at.
  *
- * `opening` is resolved by the caller through wave 5's `defaultFocusFor` and
- * falls back to the drawn root, which is what the app does today. `reader` names
- * the same world DIRECTLY — it is the world an account manager must land in, and
- * the two differ by exactly the thing wave 5 fixes. The gate uses both: `reader`
- * proves the geometry can deliver the histogram at this commit; `opening` proves
- * the camera chooses that world, and cannot until wave 5.
+ * `opening` is resolved by the caller through `defaultFocusFor` and falls back to
+ * the drawn root only where the reader owns nothing. `reader` names the same
+ * world DIRECTLY. The gate uses both: `reader` proves the geometry can deliver
+ * the histogram, `opening` proves the camera chooses that world.
  */
 export type CameraAim = 'opening' | 'reader' | 'dived' | 'org' | 'root'
 

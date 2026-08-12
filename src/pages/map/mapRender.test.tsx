@@ -137,8 +137,10 @@ import type { MindNode as MindNodeModel } from '../../lib/mindtree/model'
 import type { CameraSpec, Fixture } from './mapRenderFixtures'
 
 const { default: MapCanvas } = await import('../../components/map/MapCanvas')
-const { layoutWorlds } = await import('../../lib/mindtree/worlds')
-const { apparentOf, bandFor, BAND_EDGES, DOM_HORIZON_PX } = await import('../../lib/mindtree/lod')
+const { D_LEAF, layoutWorlds } = await import('../../lib/mindtree/worlds')
+const { apparentOf, bandFor, bandFloorPx, BAND_EDGES, FLOOR: INK } = await import(
+  '../../lib/mindtree/lod'
+)
 const { DEFAULT_NODE_SIZE } = await import('../../lib/mindtree/layout')
 const { frameCamera, viewBoxOf } = await import('./mapMotion')
 const { CAMERAS, MAP_READER, breachedCounts, emptyOrgIds, fixtures, viewsFor } = await import(
@@ -272,28 +274,37 @@ const CSS = Object.freeze({
  * still hit-tests — which means the dash IS the mark. At the shipped card scale
  * the 2-unit ink lands at 0.008 CSS px and the organization renders as nothing
  * at all, indistinguishable from one that does not exist. That is defect 5.
+ *
+ * READ OFF `--mtree-dash-on` RATHER THAN OUT OF THE SHORTHAND, because wave 5
+ * floors the dash with the stroke that draws it and a shorthand carrying two
+ * `calc()`s is a list this file has no business parsing. The sheet publishes the
+ * two halves as custom properties for exactly that reason, and `resolveLength`
+ * — which already reads `calc(N px * var(...))` — does the rest.
  */
-const EMPTY_DASH_ON = (() => {
-  const value = declaration(MINDTREE_CSS, '.mtree-node[data-empty] .mtree-node-box', 'stroke-dasharray')
-  const on = /^([0-9.]+)/.exec(value)
-  if (on === null) throw new Error(`unreadable stroke-dasharray: ${value}`)
-  return Number(on[1])
-})()
+const EMPTY_DASH_ON = declaration(
+  MINDTREE_CSS,
+  '.mtree-node[data-empty] .mtree-node-box',
+  '--mtree-dash-on',
+)
 
 /* ═════════════════════════════ 1. the floors ══════════════════════════════ */
 
 /**
- * THE DESIGN'S TABLE, absolute. Owed by CHROME — the rim — which is pinned to
- * the camera and therefore has no excuse.
+ * THE DESIGN'S TABLE, absolute, and owed by EVERY MARK ON THE CANVAS — chrome
+ * and card alike. Until wave 5 the card half of it was a proportion and a note
+ * at the foot of this file; `lib/mindtree/lod.ts` now owns the two numbers, cuts
+ * `BAND_EDGES.card` on them (157, from `9 x 200 / 11.5`) and hands `MindNode`
+ * the same `bandFloorPx` this file measures against, so a glyph a card cannot
+ * pay for is not drawn at all rather than drawn small.
  *
- * 9.0 px because below it a name is a smudge with the shape of a word. 0.75 px
- * because a hairline thinner than three quarters of a device pixel is dropped or
- * gamma-smeared to nothing by every rasteriser this app runs on. 0.02 is the
- * corner radius as a share of the card's own width: `rx: 10` on a 168-unit card
- * is 0.06 and reads as a rounded box; the same `rx: 10` on a 1,564-unit card is
- * 0.0064 and reads as a rectangle, which is defect 1 seen from the side.
+ * IMPORTED, NOT RESTATED: `INK` is `lod.FLOOR`. A second copy of 9.0 in the
+ * gate is how a renderer and its gate come to disagree about what legible means.
+ * 0.02 is this file's own — the corner radius as a share of the card's width:
+ * `rx: 10` on a 168-unit card is 0.06 and reads as a rounded box; the same
+ * `rx: 10` on a 1,564-unit card is 0.0064 and reads as a rectangle, which is
+ * defect 1 seen from the side.
  */
-const FLOOR = Object.freeze({ TEXT_PX: 9, STROKE_PX: 0.75, RADIUS_SHARE: 0.02 })
+const FLOOR = Object.freeze({ ...INK, RADIUS_SHARE: 0.02 })
 
 /**
  * WHAT A MARK INSIDE A CARD MUST MEASURE, given how wide that card actually
@@ -330,33 +341,14 @@ function shareFloorPx(authored: number, cardWidthPx: number): number {
   return (authored * cardWidthPx) / LEAF_WIDTH
 }
 
-/**
+/*
  * The bottom edge of each band, in apparent CSS px — the smallest a world can be
- * while still rendering that drawing. Used to say WHERE the absolute floor is
- * owed, never to derive it.
- *
- * `frame`'s edge is viewport-relative (`lod.ts` floors it at `opening`), so it
- * takes a viewport; every other is absolute, which is `lod.ts`'s own header
- * paragraph: legibility is absolute, "is this the frame" is not.
+ * while still rendering that drawing — is `bandFloorPx`, and it is IMPORTED from
+ * `lod.ts` above rather than restated here. It used to be a private copy in this
+ * file. `MindNode` now decides whether to draw a glyph by asking that same
+ * function the same question, so the copy became the one thing it could not be
+ * allowed to remain: a second opinion about which drawing is on screen.
  */
-function bandFloorPx(band: Band, viewportMinPx: number): number {
-  switch (band) {
-    case 'absent':
-      return DOM_HORIZON_PX
-    case 'grain':
-      return BAND_EDGES.grain
-    case 'state':
-      return BAND_EDGES.state
-    case 'chip':
-      return BAND_EDGES.chip
-    case 'card':
-      return BAND_EDGES.card
-    case 'opening':
-      return BAND_EDGES.opening
-    case 'frame':
-      return Math.max(BAND_EDGES.opening, BAND_EDGES.frame * viewportMinPx)
-  }
-}
 
 /* ════════════════════════ 2. the render harness ═══════════════════════════ */
 
@@ -973,12 +965,23 @@ describe('a card is drawn at its own world’s scale', () => {
   })
 })
 
-describe('the rim is chrome, and owes the absolute floor', () => {
-  it('draws the world’s name at 9 CSS px or more, at every camera', () => {
+describe('every mark on the canvas owes the absolute floor', () => {
+  /**
+   * NO `authored` FILTER — and its removal is the whole of wave 5 seen from this
+   * file. Until then these two loops skipped `'card'` and measured the rim
+   * alone, because a card's marks could not clear 9.0 px at their own band's
+   * bottom edge and a floor set to what the code did would be a gate that can
+   * only ever be green. `BAND_EDGES.card = 157` and `MindNode`'s per-glyph
+   * `pays()` closed that; the loops now see every glyph and every stroke the
+   * renderer emits, at every camera, and the note that carried the gap is gone
+   * from the foot of this file.
+   */
+  it('draws every glyph at 9 CSS px or more, at every camera', () => {
     const failures: string[] = []
+    let seen = 0
     for (const m of ALL) {
       for (const text of m.texts) {
-        if (text.authored !== 'chrome') continue
+        seen += 1
         if (text.css + 1e-9 < FLOOR.TEXT_PX) {
           failures.push(
             `${m.render.fixture.id}@${m.render.camera.id} ${text.label} = ${text.css.toFixed(3)}px`,
@@ -986,14 +989,18 @@ describe('the rim is chrome, and owes the absolute floor', () => {
         }
       }
     }
+    // The loop is only as good as what it walked: at HEAD~1 it saw 1,268 card
+    // glyphs and the smallest was 1.250 px.
+    expect(seen).toBeGreaterThan(100)
     expect(report(failures)).toBe('')
   })
 
-  it('draws the rim and its match arcs at 0.75 CSS px or more', () => {
+  it('draws every stroke at 0.75 CSS px or more, at every camera', () => {
     const failures: string[] = []
+    let seen = 0
     for (const m of ALL) {
       for (const stroke of m.strokes) {
-        if (stroke.authored !== 'chrome') continue
+        seen += 1
         if (stroke.css + 1e-9 < FLOOR.STROKE_PX) {
           failures.push(
             `${m.render.fixture.id}@${m.render.camera.id} ${stroke.label} = ${stroke.css.toFixed(4)}px`,
@@ -1001,7 +1008,34 @@ describe('the rim is chrome, and owes the absolute floor', () => {
         }
       }
     }
+    expect(seen).toBeGreaterThan(100)
     expect(report(failures)).toBe('')
+  })
+
+  it('has a floor that the drawing this wave replaced would have failed', () => {
+    // THE PROOF THAT THE TWO LOOPS ABOVE CAN GO RED, stated as the arithmetic
+    // rather than as a mutation: at the edge `BAND_EDGES.card` carried until
+    // this wave, a card paid 8.75 px for its label, 8.05 px for its count and
+    // 0.70 px for its outline. Three marks under the floor at the band's own
+    // bottom edge — measured, not estimated, and the reason the edge moved.
+    // `authored x apparent / D_LEAF` — the identity `MindNode`'s
+    // `--mtree-world` makes true for every node in every role, and the one
+    // `lod.ts` cuts the band edges on. D_LEAF, not LEAF_WIDTH: 200 is the
+    // world a leaf card fills, 168 is the card inside it.
+    const at = (edge: number, authored: number): number => (authored * edge) / D_LEAF
+    expect(at(140, 12.5)).toBeCloseTo(8.75, 6)
+    expect(at(140, 11.5)).toBeCloseTo(8.05, 6)
+    expect(at(140, 1)).toBeCloseTo(0.7, 6)
+    expect(at(140, 12.5)).toBeLessThan(FLOOR.TEXT_PX)
+    expect(at(140, 11.5)).toBeLessThan(FLOOR.TEXT_PX)
+    expect(at(140, 1)).toBeLessThan(FLOOR.STROKE_PX)
+    // …and that the edge it moved to is the SMALLEST one that clears it, which
+    // is what makes 157 derived rather than padded: one pixel lower and the
+    // count is under the floor again.
+    expect(at(BAND_EDGES.card, 11.5)).toBeGreaterThanOrEqual(FLOOR.TEXT_PX)
+    expect(at(BAND_EDGES.card - 1, 11.5)).toBeLessThan(FLOOR.TEXT_PX)
+    expect(at(BAND_EDGES.card, 12.5)).toBeGreaterThanOrEqual(FLOOR.TEXT_PX)
+    expect(at(BAND_EDGES.card, 1)).toBeGreaterThanOrEqual(FLOOR.STROKE_PX)
   })
 
   it('points at the trouble — a breached subtree draws arcs that exist', () => {
@@ -1042,7 +1076,7 @@ describe('an organization nobody has filed anything under is still a mark', () =
         if (bandFloorPx(mark.band, m.render.viewportMinPx) < BAND_EDGES.card) continue
         seen += 1
         const stroke = resolveLength(CSS.nodeBoxStroke, mark.vars) * mark.chain * m.render.cameraScale
-        const dash = EMPTY_DASH_ON * mark.chain * m.render.cameraScale
+        const dash = resolveLength(EMPTY_DASH_ON, mark.vars) * mark.chain * m.render.cameraScale
         if (dash + 1e-9 < FLOOR.STROKE_PX) {
           failures.push(
             `${m.render.fixture.id}@${m.render.camera.id} ${mark.owner ?? '?'} [${mark.band}] ` +
@@ -1110,12 +1144,15 @@ describe('a name is drawn once', () => {
 
 describe('the opening camera lands the reader somewhere legible', () => {
   it('shows an account manager’s own world as six named cards', () => {
-    // THE GEOMETRY HALF, LIVE AT THIS COMMIT. Framing `am:1` directly — the world
-    // wave 5's `defaultFocusFor` must resolve to — its six type children come up
-    // as cards with nothing culled. That is the histogram the design promises,
-    // and it proves the packing can deliver it. The camera half is the `todo`
-    // below: today the app frames the ROOT, and the same six worlds are four
-    // tiers down and invisible.
+    // THE GEOMETRY HALF, AIMED DIRECTLY. Framing `am:1` by name — the world
+    // `defaultFocusFor` resolves to — its six type children come up as cards
+    // with nothing culled. That is the histogram the design promises, and it
+    // proves THE PACKING can deliver it.
+    //
+    // KEPT SEPARATE FROM THE CAMERA HALF BELOW now that both are green, because
+    // the two answer different questions and a wave that broke only the second
+    // would otherwise read as a wave that broke the packing. This one is aimed
+    // by id and cannot move when the resolver does.
     const m = measure(
       render(
         fixtures().filter((f) => f.id === 'large')[0] as Fixture,
@@ -1128,17 +1165,46 @@ describe('the opening camera lands the reader somewhere legible', () => {
   })
 
   /**
-   * WAVE 5 — `focus.defaultFocusFor(meId, role, tree)`.
+   * WAVE 5, LANDED — `focus.defaultFocusFor(meId, role, tree)`.
    *
-   * MEASURED AT THIS COMMIT, so the number in the promotion is not a guess:
-   * with the opening camera falling back to the drawn root, the 400-organization
-   * fixture shows `children[1]: card=1` and the account manager's six type cards
-   * are four tiers below the frame at 0.086 px of text. The assertion this
-   * becomes is the two lines above with `aim: 'opening'`, and NOTHING ELSE
-   * CHANGES — which is the point: the geometry already works, the camera is
-   * pointed at the wrong world.
+   * THE ASSERTION IS THE ONE ABOVE WITH `aim: 'opening'`, and nothing else
+   * changed, which was always the point: the geometry already worked and the
+   * camera was pointed at the wrong world. `aim: 'opening'` resolves through
+   * `openingWorldOf` — i.e. through the real `defaultFocusFor` — so this fails
+   * the moment that resolver stops returning an account manager's own book.
+   *
+   * MEASURED BEFORE AND AFTER, so the promotion is not a guess. Before: the
+   * opening camera fell back to the drawn root, `children[1]: card=1`, and the
+   * six type cards were four tiers below the frame at 0.086 px of text. After:
+   * `framed=am:1`, `children[6]: card=6`, the six type worlds landing at
+   * 185.8-193.3 px — which is also the measurement that caps `BAND_EDGES.card`
+   * (see `lod.ts`'s header: any edge above 185.8 turns this picture into six
+   * unnamed chips, and this test is what would say so).
    */
-  it.todo('opens on the reader’s own world, not on the workspace (wave 5)')
+  it('points the OPENING camera at that world, through defaultFocusFor', () => {
+    for (const fixture of fixtures()) {
+      const m = at(fixture.id, 'opening')
+      // NEVER THE DRAWN ROOT, in any workspace. That is the whole of defect 3:
+      // a camera that shows the workspace cannot show an organization, because
+      // five tiers span eleven octaves.
+      expect(m.render.framedId, `${fixture.id}: the opening camera's world`).not.toBe(
+        fixture.tree.id,
+      )
+      // AND THE READER'S OWN BOOK WHERE THE READER HAS ONE. `small` is the
+      // 19-organization workspace Aziz has today and has no account managers in
+      // it at all, so `defaultFocusFor` falls back to the workspace opening —
+      // which is the documented fallback and not a miss, and asserting the
+      // anchor there would be asserting a book that does not exist.
+      if (!m.render.layout.byId.has(MAP_READER.meId)) continue
+      expect(m.render.framedId, `${fixture.id}: the reader's own world`).toBe(
+        fixture.anchors.reader,
+      )
+    }
+    const large = at('large', 'opening')
+    expect(large.childCount).toBe(6)
+    expect(large.childBands.get('card') ?? 0).toBeGreaterThanOrEqual(6)
+    expect(large.childBands.get('absent') ?? 0).toBe(0)
+  })
 })
 
 describe('Arabic is the exact mirror of English', () => {
@@ -1230,9 +1296,28 @@ describe('the gate itself', () => {
     // If the sheets ever stop declaring what this gate measures, `declaration`
     // throws at import and the suite fails to collect. These four are the ones a
     // reviewer should see the value of when that happens.
-    expect(CSS.nodeLabel).toBe('12.5px')
-    expect(CSS.nodeBoxStroke).toBe('1')
-    expect(EMPTY_DASH_ON).toBe(2)
+    // THE SHEET'S SIDE OF WAVE 5, pinned as the literal AND as what it resolves
+    // to. The literal proves the mechanism is still the two custom properties
+    // `MindNode` writes; the resolved value proves the authored number under
+    // them is unchanged (12.5 / 1 / 2, exactly what this gate pinned before) and
+    // that BOTH default to 1 for a caller that sets neither — the tidy tree, the
+    // phone's ring, `export.ts`'s serialiser.
+    expect(CSS.nodeLabel).toBe('calc(12.5px * var(--mtree-world, 1))')
+    expect(CSS.nodeBoxStroke).toBe('calc(1px * var(--mtree-hair, 1))')
+    expect(EMPTY_DASH_ON).toBe('calc(2px * var(--mtree-hair, 1))')
+    expect(resolveLength(CSS.nodeLabel, new Map())).toBe(12.5)
+    expect(resolveLength(CSS.nodeBoxStroke, new Map())).toBe(1)
+    expect(resolveLength(EMPTY_DASH_ON, new Map())).toBe(2)
+    // …and that the factor is READ when it is set. 2.5539 is
+    // `leafDiag / (HOLE_FRACTION x D_LEAF)`, the one a card inscribed in its
+    // children's ring carries.
+    expect(resolveLength(CSS.nodeLabel, new Map([['--mtree-world', '2.5539']]))).toBeCloseTo(31.92, 2)
+    // THE SECOND COPY OF FOUR NUMBERS, PINNED EQUAL. `MindNode` decides whether
+    // to draw a glyph by arithmetic on the type sizes this sheet authors, so the
+    // two copies must agree or the renderer gates on a size it is not drawing.
+    expect(resolveLength(CSS.nodeCount, new Map())).toBe(11.5)
+    expect(resolveLength(CSS.chevronCount, new Map())).toBe(9.5)
+    expect(resolveLength(CSS.secondary, new Map())).toBe(11)
     // THE RIM'S PIN. WAVE 1 CHOSE: `calc(13px * var(--mring-px, 1))` is what
     // mind-ring.css:372 ships, and `--mring-rim-font` appears nowhere in the
     // sheet — MindWorldRim.tsx:92 records the hatch as gone. The bare-`var()`
@@ -1278,24 +1363,6 @@ describe('the gate itself', () => {
    Listed rather than stubbed with a weaker number, because a floor set to what
    the code currently does is a gate that can only ever be green.
 
-   · THE 9.0 px TEXT FLOOR INSIDE A CARD — the one number from the design's table
-     this file measures as a proportion instead of as pixels, and the arithmetic
-     is why. With a card drawn at `worldD / D_LEAF`, a label measures
-     `12.5 × apparent / 200`: 8.75 px at the CARD band's bottom edge (140 px) and
-     3.25 px at the CHIP band's (52 px), against a design that asks for 9.0. And
-     `lod.ts` derives that 52 as "where a 14-glyph outside label (87px at
-     CHAR_PX = 6.2) has daylight on both sides" — 87 px of ink is a 12.5 CSS px
-     label, seven times what its own band can deliver. The two constants
-     contradict each other, and defect 6 makes it worse rather than better: a
-     parent's card is a third of that size, so its label is 2.9 px at the card
-     band's floor. The fix is one of: pin the outside label to the camera as the
-     rim is pinned, or move `BAND_EDGES.card` to 144 and `BAND_EDGES.chip` with
-     it, or accept that a card below ~144 px of world is a texture and stop
-     drawing its name. Wave 1 or wave 5 owns the choice; whichever takes it turns
-     the proportion floor here into `FLOOR.TEXT_PX` and this note goes away.
-   · THE 0.75 px STROKE FLOOR INSIDE A CARD, for the identical reason: the box's
-     1-unit stroke lands at 0.70 px at the card band's bottom edge, and at 0.23 px
-     on a parent card inscribed in its children's hole.
    · THE `<g>` BUDGET AT 400 ORGANIZATIONS. `zoomed-in` on the large fixture
      currently emits marks for every organization in the workspace, because
      `MapCanvas`'s only cull

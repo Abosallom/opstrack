@@ -96,6 +96,7 @@
       "many": "{count} بندًا تجاوز المهلة",
       "other": "{count} بند تجاوز المهلة"
     },
+    "countLive": "⁨{done}⁩ من {total} ⁨{status}⁩",
     "countOpen": {
       "zero": "لا شيء مفتوح",
       "one": "بند مفتوح",

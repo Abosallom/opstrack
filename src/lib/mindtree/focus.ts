@@ -199,6 +199,196 @@ function isPlaceKind(kind: MindNodeKind): boolean {
   return kind === 'entity'
 }
 
+// ── where the map opens ────────────────────────────────────────────────────
+//
+// THE ROOT IS NOT A LEGIBLE OPENING FRAME AND CANNOT BE MADE ONE, and that is
+// arithmetic rather than a bug. worlds.ts's own table gives a six-wide tier a
+// parent/child diameter ratio of 3.83 — 1.94 octaves — so a five-tier workspace
+// spans eleven octaves and a camera that shows the whole of it cannot show an
+// organization. Measured on the 400-organization fixture at the shipped opening
+// camera: `children[1]: card=1`, and the account manager's six type cards are
+// four tiers below the frame at 0.086 px of text.
+//
+// So the map opens on THE READER'S OWN WORLD. Everything below is the pure half
+// of that: which node id the opening camera should be struck around, given the
+// tree and who is looking at it. `useMapFocus` calls it where the persisted
+// focus default currently resolves, and the precedence there is the whole of the
+// feature's politeness:
+//
+//     ?focus= in the URL   beats   the persisted focus
+//     the persisted focus  beats   this resolver          ← yesterday's dive wins
+//     this resolver        beats   ROOT_ID                ← and this is new
+//
+// NEVER PERSISTED. A default that wrote itself into the store would stop being a
+// default after one paint and would then travel into `?focus=` on the next
+// mirror pass — so a link somebody shared would carry the SENDER's book to the
+// recipient. `useMapFocus` only writes back on `missingId !== null`, and this
+// resolver returns ids that resolve, which is asserted in focus.test.ts.
+
+/**
+ * Node kinds the dive may enter — worlds.ts's `STRUCTURAL_KINDS`, restated.
+ *
+ * RESTATED RATHER THAN IMPORTED because worlds.ts declares it privately and
+ * because the two are answering different questions off the same list: worlds.ts
+ * asks "may the camera stop here", this asks "is this a ring of the workspace or
+ * content drawn inside one". They agree today and a divergence would be a
+ * defect, which is why the set is spelled the same way and why `MindNodeKind`
+ * narrows it — a new kind is a compile error here rather than a silent `false`.
+ */
+function isStructuralKind(kind: MindNodeKind): boolean {
+  return kind === 'root' || kind === 'track' || kind === 'entity'
+}
+
+/**
+ * Roles that open on the WORKSPACE rather than on a book of their own.
+ *
+ * An admin or an owner reading this map is running the programme, not working a
+ * cohort; framing them on the two organizations that happen to name them is
+ * worse than framing them on the whole of Onboarding. That is the design's own
+ * table — *admin / owner → the Onboarding track world* — and it is the only
+ * thing `role` decides here.
+ *
+ * `'owner'` is not a `UserRole` at this commit (`types.ts:44` is
+ * `'admin' | 'member'`) and is listed anyway: 0025 moved authority onto
+ * `role_id`/`has_perm`, the role NAME is what a surface will hand this, and a
+ * set that has to be edited to keep working when the workspace names its top
+ * role is a set that will be edited late.
+ */
+const WORKSPACE_ROLES: ReadonlySet<string> = new Set(['admin', 'owner'])
+
+/**
+ * WHERE THE MAP OPENS FOR THIS READER — a node id, or null for "the drawn root",
+ * which is the caller's own fallback and the answer when the reader owns nothing
+ * and the workspace has nothing narrower to offer.
+ *
+ * PURE, TOTAL, and no store: it takes the tree the surface already built and the
+ * two facts about the reader that `useMapModel` already returns.
+ *
+ * ── TWO WAYS A NODE CAN BE YOURS, and they are the two the workspace spells ──
+ *
+ *  1. IT IS YOU. `MindNode.bucketKey` carries "a track id, a map-node id, a
+ *     status key, AN OWNER KEY" (model.ts:196) — so a bucket cut on a PERSON
+ *     carries that person's member id, and `bucketKey === meId` is "this ring is
+ *     my book" with no lookup at all. That is exactly what wave 6's
+ *     `?by=manager` cohort node will be, and it is what the render gate's `am:`
+ *     tier stands in for.
+ *  2. IT NAMES YOU. `managerOf(bucketKey)` is `map_nodes.account_manager_id` for
+ *     a real hierarchy node. It is an ARGUMENT and not a field on the tree
+ *     because `useMapModel.ts:250` deliberately drops that column on the way in
+ *     — "a node's integrator is a fact the PANEL shows, and a model that carried
+ *     it would invalidate the whole tree every time somebody typed a character
+ *     into that field" — and this module may not reach a store to go and find
+ *     it. Omitted, the resolver simply finds fewer nodes. It never guesses.
+ *
+ * ── THE RULE ────────────────────────────────────────────────────────────────
+ *
+ * Mark every structural node that is yours by either test, WITHOUT descending
+ * past a mark (a mark's whole subtree is one book, not a book per organization).
+ * Then walk down from the root for as long as ONE child still holds every mark.
+ * That lands on:
+ *
+ *   · your own node, when you have one — an account manager on their cohort;
+ *   · the smallest world containing your whole book, when it is spread — an
+ *     associate director on their span;
+ *   · the workspace opening (below) when nothing is yours.
+ *
+ * The descent stops OUTSIDE a childless node, because a camera framed on one
+ * card is not an opening. An account manager whose entire book is one
+ * organization therefore opens on the ring that organization sits in, which is
+ * their cohort by another road.
+ *
+ * ── WHAT THIS CANNOT DO YET, NAMED RATHER THAN FUDGED ───────────────────────
+ *
+ * An ASSOCIATE DIRECTOR has no column. `map_nodes` carries `account_manager_id`
+ * and nothing else about people, so an AD is found only when the AD tier is
+ * itself a node they own (test 1) or when a future `managerOf` answers for them.
+ * Until then an AD lands on the workspace opening, which is the whole of
+ * Onboarding — one ring wider than their span and never wrong.
+ */
+export function defaultFocusFor(
+  meId: string | null,
+  role: string,
+  tree: MindNode,
+  managerOf?: (bucketKey: string) => string | null,
+): string | null {
+  const workspace = workspaceOpeningId(tree)
+  if (meId === null || meId === '' || WORKSPACE_ROLES.has(role)) return workspace
+
+  const owns = (node: MindNode): boolean => {
+    const key = node.bucketKey
+    if (key === null || key === '' || !isStructuralKind(node.kind)) return false
+    if (key === meId) return true
+    return managerOf !== undefined && managerOf(key) === meId
+  }
+  const marks = (node: MindNode): number => {
+    if (owns(node)) return 1
+    let total = 0
+    for (const child of node.children) total += marks(child)
+    return total
+  }
+
+  const total = marks(tree)
+  if (total === 0) return workspace
+
+  let at = tree
+  for (;;) {
+    let next: MindNode | null = null
+    for (const child of at.children) {
+      if (marks(child) === total) {
+        next = child
+        break
+      }
+    }
+    // A childless node is a card, not a picture — stop one ring out. `at` is
+    // reached only through a child that held every mark, so it always has
+    // children and `canFocus` is satisfied by shape.
+    if (next === null || next.children.length === 0) break
+    at = next
+  }
+  return at === tree ? workspace : at.id
+}
+
+/**
+ * THE WORKSPACE'S OWN OPENING WORLD — the deepest ring that still shows
+ * everything, which is the design's *"admin / owner → the Onboarding track
+ * world"* row written so that it does not have to know the word "Onboarding".
+ *
+ * A CHAIN OF SINGLE CHILDREN IS NOT A PICTURE. `root` draws a pill and one
+ * track; framing it spends the entire screen saying "there is one track", and
+ * the reader has to dive once before the map has told them anything. So the
+ * opening descends while there is EXACTLY ONE structural child, and stops at the
+ * first ring that branches — which on this workspace is the Onboarding track
+ * world holding its two directorates, and on a two-track workspace is the root,
+ * unchanged.
+ *
+ * ⚠ AN EMPTY TRACK COUNTS AS A BRANCH. model.ts draws a track with nothing on it
+ * because "which track has nothing on it" is worth seeing ON the map, and a
+ * descent that skipped past it because it holds no children would delete that
+ * answer from the opening frame. The `children.length` test below is on the node
+ * being descended INTO — a lone child with nothing under it is one card, and one
+ * card is not an opening — never on its siblings.
+ *
+ * Null when it never moved: null is "the drawn root", so an unfocused map keeps
+ * its clean URL and its existing behaviour rather than gaining a `?focus=` that
+ * says the same thing.
+ */
+function workspaceOpeningId(tree: MindNode): string | null {
+  let at = tree
+  for (;;) {
+    let only: MindNode | null = null
+    let count = 0
+    for (const child of at.children) {
+      if (!isStructuralKind(child.kind)) continue
+      count += 1
+      if (count > 1) break
+      only = child
+    }
+    if (count !== 1 || only === null || only.children.length === 0) break
+    at = only
+  }
+  return at === tree ? null : at.id
+}
+
 // ── the tree walks ─────────────────────────────────────────────────────────
 
 /**

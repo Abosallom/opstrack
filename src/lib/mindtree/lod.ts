@@ -34,6 +34,78 @@
 // "IS THIS THING THE FRAME" IS NOT ABSOLUTE. It is a question about the window,
 // so `frame` alone is a fraction of the viewport's smaller dimension.
 //
+// ── THE FLOOR, AND THE EDGE IT MOVED (wave 5) ──────────────────────────────
+//
+// Wave 1 put every in-card mark inside `scale(cardScale)`, which made the ink a
+// card puts on the glass a pure function of its world's APPARENT SIZE:
+//
+//     css px of an authored `u` = u x apparent / D_LEAF          (D_LEAF = 200)
+//
+// (`MindNode` authors its type and its strokes in WORLD units — `--mtree-world`
+// — so the identity above holds for a leaf whose card fills its world AND for a
+// parent whose card is inscribed in its children's ring at `HOLE_FRACTION`. That
+// is the whole of that file's half of this decision; see its header.)
+//
+// Read the table off that one line, at the edge this module used to declare:
+//
+//     mark                  authored   at 140 px   at 157 px   floor
+//     label                    12.5      8.75        9.81       9.0
+//     count                    11.5      8.05        9.03       9.0
+//     box outline               1.0      0.70        0.785      0.75
+//     empty organization's dash 2.0      1.40        1.57       0.75
+//
+// THREE OF THE FOUR WERE UNDER THE FLOOR AT `card`'s OWN BOTTOM EDGE. A band
+// promised text at a size it could not deliver, and the render gate carried the
+// contradiction as a note for two waves. `card` therefore moves to the smallest
+// edge at which a card pays for EVERY mark it draws, which is set by the count —
+// the smallest type on the card — and not by the label:
+//
+//     9.0 x D_LEAF / 11.5 = 156.52  ->  157
+//
+// The label clears it at 9.81, the outline at 0.785, the dash at 1.57. Nothing a
+// card draws is below the floor at any camera, so `FLOOR` below is asserted on
+// EVERY emitted glyph and every box stroke by `pages/map/mapRender.test.tsx`,
+// absolutely, rather than as the proportion that note stood in for.
+//
+// WHY NOT HIGHER, since more margin is free: it is not free. Measured on the
+// 400-organization fixture at the opening camera, an account manager's six type
+// worlds land at 185.8 px, and the gate's oldest green assertion is that they
+// are SIX CARDS. Any edge above 185.8 turns the opening picture into six
+// unnamed chips. 157 is the derived number and it keeps 18% of headroom under
+// the measured one; a padded 185 would keep 0.4%.
+//
+// WHY THE CHIP BAND KEPT ITS 52 AND LOST ITS WORDS. The old derivation — "where
+// a 14-glyph outside label (87px at CHAR_PX = 6.2) has daylight on both sides"
+// — is an assertion about 87 CSS PIXELS of ink, and it is only true of a label
+// pinned to the camera the way the rim is. A card-scaled label is `87 x a / 200`,
+// which is 22.6 px at a = 52, and the daylight condition it actually states is
+// met from a ~ 16 px, deep inside `grain`. So 52 never described its own
+// drawing. It describes the OTHER thing that happens there, which is real and
+// which the packing test already leans on: 52 px of world is a 44 x 11 px box —
+// the smallest apparent size at which a 168x44 card is a SHAPE rather than a
+// smudge. The words are gone from that band: `12.5 x 52 / 200 = 3.25 px` is the
+// same lie about legibility the `state` band already refuses to tell about a
+// numeral in a 30 px disc. A chip is a boundary you can tap; its name arrives
+// with its card at 157, and — for a world with children — on its rim at 380.
+//
+// ── THE BLEND'S WORST POINT, WHICH IS NOT THE BLEND ────────────────────────
+//
+// `BAND_BLEND = 0.18` opens a window BELOW every band's top edge, and it is fair
+// to ask whether a floor asserted at a band's bottom edge holds inside it.
+// It does, and the reason is structural rather than lucky: `bandFor` is a HARD
+// CUT, and `bandBlend`'s `out` is read by exactly two drawings — `opening`'s
+// dissolve and `frame`'s border — both of which live ABOVE this band. No card
+// ink is emitted below `BAND_EDGES.card`, so the worst point at which a card
+// mark can be on the glass IS 157 px and the table above is measured there.
+//
+// The number that window would produce if a later wave ever cross-faded a
+// band's marks IN across it, stated so the next author does not have to derive
+// it: `blendFrom(52, 157) = 128.7 px`, 18% under the edge (the `FADE_OCTAVES`
+// cap binds, so it is `157 / 2^0.3` for any span wider than 1.67 octaves), where
+// the label would be 8.04 px. `bandFloorPx` below is the ONE place both the
+// renderer and the gate ask "how small can this drawing be", so a wave that
+// wants the fade also gets one line to change.
+//
 // ── MONOTONICITY IS A REQUIREMENT, NOT A HAPPY ACCIDENT ────────────────────
 //
 // `bandFor` must never move DOWN a band as `apparentPx` grows, or a continuous
@@ -56,10 +128,13 @@ export type Band = 'absent' | 'grain' | 'state' | 'chip' | 'card' | 'opening' | 
  *          it, so it is not a texture, it is noise.
  *  ·  26 — a disc large enough to carry a second mark (the rim, the breach dot)
  *          without the two touching.
- *  ·  52 — where a 14-glyph outside label (87px at `CHAR_PX = 6.2`) has daylight
- *          on both sides of the tightest ring the packing produces.
- *  · 140 — where `168 - PAD*2 - COUNT_SLOT` px of inside room holds a word
- *          rather than a word with an elision in it (`LABEL_INSIDE_MIN = 96`).
+ *  ·  52 — where a 168x44 card is a SHAPE (44 x 11 px) rather than a smudge. It
+ *          draws no words: see the header on why the 87px-of-daylight
+ *          derivation this number used to carry was never true of it.
+ *  · 157 — where a card pays the floor for EVERY mark it draws. Set by the
+ *          smallest type on it, the count: `FLOOR.TEXT_PX x D_LEAF / 11.5 =
+ *          156.52`. The header carries the whole table and the 185.8 px ceiling
+ *          the opening picture puts on this number.
  *  · 380 — where a world is wide enough that its children are themselves at
  *          least `grain`, so there is something inside to dissolve INTO.
  *  · 0.85 — the world fills the stage bar a margin; past it, it IS the stage.
@@ -68,10 +143,34 @@ export const BAND_EDGES: Readonly<{
   grain: 7
   state: 26
   chip: 52
-  card: 140
+  card: 157
   opening: 380
   frame: 0.85
-}> = Object.freeze({ grain: 7, state: 26, chip: 52, card: 140, opening: 380, frame: 0.85 })
+}> = Object.freeze({ grain: 7, state: 26, chip: 52, card: 157, opening: 380, frame: 0.85 })
+
+/**
+ * WHAT A MARK OWES THE READER, in CSS pixels, wherever it is drawn.
+ *
+ * 9.0 because below it a name is a smudge with the shape of a word. 0.75 because
+ * a hairline thinner than three quarters of a device pixel is dropped or
+ * gamma-smeared to nothing by every rasteriser this app runs on.
+ *
+ * IT LIVES HERE RATHER THAN IN THE GATE THAT ASSERTS IT, and that is the whole
+ * point of this wave: `MindNode` decides whether to draw a glyph by asking
+ * whether its own card can pay `TEXT_PX` for it, `mapRender.test.tsx` asserts
+ * the same two numbers on every mark it can measure, and a second copy of either
+ * is how a renderer and its gate come to disagree about what legible means.
+ *
+ * TWO MARKS ARE EXEMPT AND THE ARGUMENT IS KEPT: `grain`'s disc and `state`'s
+ * disc/rim are authored as FRACTIONS OF `worldD` (`GRAIN_DISC = 0.42`), so their
+ * apparent size IS the band's own definition and is correct by construction, and
+ * their outline is decoration on a filled disc. A floor there would mean scaling
+ * the disc, which would change what the band MEANS.
+ */
+export const FLOOR: Readonly<{ TEXT_PX: 9; STROKE_PX: 0.75 }> = Object.freeze({
+  TEXT_PX: 9,
+  STROKE_PX: 0.75,
+})
 
 /**
  * How much of a band's width the cross-fade occupies at its top edge.
@@ -150,6 +249,41 @@ export function bandFor(apparentPx: number, viewportMinPx: number): Band {
   if (a < BAND_EDGES.card) return 'chip'
   if (a < BAND_EDGES.opening) return 'card'
   return a < frameStartOf(viewportMinPx) ? 'opening' : 'frame'
+}
+
+/**
+ * HOW SMALL THIS DRAWING CAN BE — the bottom edge of a band, in apparent CSS px.
+ *
+ * ONE FUNCTION, THREE READERS, and that is the point of exporting it: `MindNode`
+ * asks it "can my card pay `FLOOR.TEXT_PX` for this glyph at the worst camera
+ * this band allows", the render gate asks it "where is the floor owed", and
+ * `bandFor` above is the cut it describes. A private copy in either of the other
+ * two is how a renderer and its gate come to disagree about which drawing is on
+ * screen — which is exactly the drift this wave closed.
+ *
+ * `frame`'s edge is the only viewport-relative one and `lod.ts` floors it at
+ * `opening`, so the default argument is not a convenience: `bandFloorPx('frame')`
+ * with no viewport returns 380, which is the true lower bound of the frame band
+ * on EVERY viewport. A caller with no window (a component inside the drawing)
+ * gets a sound answer rather than a wrong one.
+ */
+export function bandFloorPx(band: Band, viewportMinPx: number = 0): number {
+  switch (band) {
+    case 'absent':
+      return DOM_HORIZON_PX
+    case 'grain':
+      return BAND_EDGES.grain
+    case 'state':
+      return BAND_EDGES.state
+    case 'chip':
+      return BAND_EDGES.chip
+    case 'card':
+      return BAND_EDGES.card
+    case 'opening':
+      return BAND_EDGES.opening
+    case 'frame':
+      return frameStartOf(viewportMinPx)
+  }
 }
 
 /**

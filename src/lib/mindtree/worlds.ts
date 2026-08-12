@@ -194,6 +194,20 @@ export const FRAME_FRACTION = 0.85
  * The consequence, stated rather than discovered: a parent's own card is ~40% of
  * the size it was. That is right. The room inside a parent belongs to its
  * children; the parent's identity is on the rim.
+ *
+ * AND WHAT THAT COST THE TYPE ON IT, which wave 5 paid rather than left to be
+ * discovered. `cardScale / worldD` is `1 / D_LEAF` for a leaf and
+ * `HOLE_FRACTION / leafDiag = 1 / 510.78` here, so an authored 12.5 lands at
+ * `12.5 x apparent / 510.78` — 3.84 px at `BAND_EDGES.card`, and no band edge
+ * under the 185.8 px the opening picture measures could ever have lifted it.
+ * `MindNode` therefore authors its type and its strokes in WORLD units
+ * (`--mtree-world` = `worldD / (D_LEAF x cardScale)`, exactly `leafDiag /
+ * (HOLE_FRACTION x D_LEAF) = 2.5539` here and exactly 1 for a leaf), which makes
+ * the ink `authored x apparent / D_LEAF` for EVERY node in either role — the one
+ * identity `lod.ts` cuts its band edges on, and the reason a card inscribed in
+ * its ring draws the chip's picture: 168 leaf units is 65.8 WORLD units, under
+ * `LABEL_INSIDE_MIN`. worlds.test.ts pins both factors; `HOLE_FRACTION` is the
+ * number that decides the second one.
  */
 export const HOLE_FRACTION = 0.34
 

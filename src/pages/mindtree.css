@@ -944,10 +944,32 @@
   }
 }
 
+/* ── EVERY LENGTH IN THIS BLOCK IS MULTIPLIED BY ONE OF TWO FACTORS ────────
+   (the same device `mind-ring.css` uses for `--mring-px`, for a different
+   reason — that one pins the rim to the CAMERA, these two keep a card at its
+   own WORLD's scale.)
+
+   `--mtree-world`  the type's unit: `worldD / (D_LEAF x cardScale)`, floored at
+                    1. EXACTLY 1 for a card that fills its own world, so a leaf
+                    is byte for byte what it was; 2.5539 for one inscribed in
+                    its children's ring (`HOLE_FRACTION`), where without it a
+                    12.5px label lands at 3.84 px on the glass at its band's own
+                    floor. MindNode.tsx's header derives both.
+   `--mtree-hair`   the same factor RAISED until a 1-unit stroke clears
+                    `FLOOR.STROKE_PX = 0.75` at the band's bottom edge. A STROKE
+                    HAS A FLOOR and a glyph has a gate: a boundary can be
+                    widened without lying, a glyph cannot be enlarged without
+                    overflowing the `CHAR_PX` budget its card was measured
+                    against, so a glyph that cannot pay is simply not drawn.
+
+   BOTH DEFAULT TO 1, so the tidy tree, the phone's ring and `export.ts`'s
+   serialiser — none of which set them — draw exactly what they drew before.
+   `mapRender.test.tsx` reads every declaration below off this file and asserts
+   the resolved CSS pixels at five cameras. ─────────────────────────────────── */
 .mtree-node-box {
   fill: var(--mtree-fill);
   stroke: var(--mtree-ink);
-  stroke-width: 1;
+  stroke-width: calc(1px * var(--mtree-hair, 1));
   /* Size is the map's FIRST visual variable — `sizeForCount` encodes the count
      as area — so a branch that gains or loses work has to be seen changing
      size, not found to have changed size. `width`/`height` are SVG2 geometry
@@ -1006,7 +1028,7 @@
    no-contrast-cost device the edges use for depth. */
 .mtree-node[data-current] .mtree-node-box {
   stroke: var(--mtree-ink);
-  stroke-width: 2;
+  stroke-width: calc(2px * var(--mtree-hair, 1));
 }
 
 /* ONE SIZE FOR EVERY RING, and it is not a stylistic choice: MindNode.tsx
@@ -1018,9 +1040,9 @@
 .mtree-node-label {
   fill: var(--mtree-ink);
   font-family: var(--font);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--mtree-world, 1));
   font-weight: 600;
-  letter-spacing: -0.1px;
+  letter-spacing: calc(-0.1px * var(--mtree-world, 1));
 }
 
 .mtree-node[data-kind='entry'] .mtree-node-label {
@@ -1037,7 +1059,7 @@
 .mtree-node-count {
   fill: var(--mtree-ink);
   font-family: var(--font);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--mtree-world, 1));
   font-weight: 700;
 }
 
@@ -1046,7 +1068,7 @@
    rule: hiding an option must never hide data), and dashed so it reads as
    "this is not a live bucket" without a colour spent on it. */
 .mtree-node[data-retired] .mtree-node-box {
-  stroke-dasharray: 5 3;
+  stroke-dasharray: calc(5px * var(--mtree-hair, 1)) calc(3px * var(--mtree-hair, 1));
 }
 
 .mtree-node[data-retired] .mtree-node-label {
@@ -1065,7 +1087,14 @@
    is a colour, so the interior still takes the pointer. */
 .mtree-node[data-empty] .mtree-node-box {
   fill: transparent;
-  stroke-dasharray: 2 4;
+  /* THE DASH IS THE MARK, so its ink is floored with the stroke that draws it —
+     `--mtree-hair` — and it is published as two custom properties rather than
+     written inline because the render gate measures the ON half of it and
+     `declaration()` reads one property's value, not a space-separated list with
+     two `calc()`s in it. */
+  --mtree-dash-on: calc(2px * var(--mtree-hair, 1));
+  --mtree-dash-off: calc(4px * var(--mtree-hair, 1));
+  stroke-dasharray: var(--mtree-dash-on) var(--mtree-dash-off);
 }
 
 .mtree-node[data-empty] .mtree-node-label {
@@ -1086,7 +1115,7 @@
    mark is drawn as well as the outline widened. */
 .mtree-node[data-selected] .mtree-node-box {
   stroke: var(--mtree-ink);
-  stroke-width: 2;
+  stroke-width: calc(2px * var(--mtree-hair, 1));
 }
 
 .mtree-node-tick circle {
@@ -1096,7 +1125,7 @@
 .mtree-node-tick-glyph {
   fill: none;
   stroke: var(--bg-elev);
-  stroke-width: 1.8;
+  stroke-width: calc(1.8px * var(--mtree-hair, 1));
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -1133,32 +1162,32 @@
    the sweep, in both themes. */
 .mtree-node:focus-visible .mtree-node-box {
   stroke: var(--accent);
-  stroke-width: 2.5;
+  stroke-width: calc(2.5px * var(--mtree-hair, 1));
   stroke-dasharray: none;
 }
 
 .mtree-breach circle {
   fill: var(--red);
   stroke: var(--bg-elev);
-  stroke-width: 1.5;
+  stroke-width: calc(1.5px * var(--mtree-hair, 1));
 }
 
 .mtree-chevron circle {
   fill: var(--bg-elev-2);
   stroke: var(--mtree-ink);
-  stroke-width: 1;
+  stroke-width: calc(1px * var(--mtree-hair, 1));
 }
 
 .mtree-chevron-count {
   fill: var(--text-dim);
   font-family: var(--font);
-  font-size: 9.5px;
+  font-size: calc(9.5px * var(--mtree-world, 1));
   font-weight: 700;
 }
 
 .mtree-chevron-glyph {
   stroke: var(--text-dim);
-  stroke-width: 1.5;
+  stroke-width: calc(1.5px * var(--mtree-hair, 1));
   stroke-linecap: round;
 }
 

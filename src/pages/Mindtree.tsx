@@ -184,8 +184,6 @@ import {
   cameraAtWidth,
   frameCamera,
   octavesOf,
-  FRAME_FILL_DESKTOP,
-  FRAME_FILL_PHONE,
 } from './map/mapMotion'
 import { refreshEntries } from '../store/entries'
 import { useMapNodesTruncated } from '../store/config'
@@ -195,7 +193,7 @@ import { useMapDrag, useMapDragPressing } from './map/useMapDrag'
 import { useMapFocus } from './map/useMapFocus'
 import { useMapGeometry } from './map/useMapGeometry'
 import { isDiveTarget, useMapKeyboard } from './map/useMapKeyboard'
-import { useMapModel } from './map/useMapModel'
+import { useMapModel, type MapProgressSource } from './map/useMapModel'
 import { useMapOverlays } from './map/useMapOverlays'
 import { useMapToolbarActions } from './map/useMapToolbar'
 import { useMapUrl, useMapUrlFilter } from './map/useMapUrl'
@@ -312,7 +310,46 @@ export default function Mindtree(): ReactElement {
    */
   const { filter, setFilter } = useMapUrlFilter()
 
-  const model = useMapModel(compact, locale, filter)
+  /**
+   * ⚠ SEAM, 2026-08-13 — THE PROGRESS UNDERSCORE HAS NO SOURCE YET, AND `null`
+   * IS THE HONEST WAY TO SAY SO.
+   *
+   * `useMapModel`'s roll-up, the `progress` field on every view model and the
+   * `{done} of {total} live` clause in every accessible name are all built and
+   * tested; what is missing is the ONE read that feeds them, and it is missing
+   * on purpose. `map_node_use_cases` is 400 organizations x ~10 capabilities =
+   * ~4,000 rows, store/config.ts's header refuses it ("That is DATA, not
+   * configuration") and api/map.ts's `listNodeUseCasesFor` says outright: "NOT ON
+   * BOOT ... The portfolio surface opens it deliberately (`src/store/portfolio.ts`,
+   * wave 3) and pays for it." This screen is where the app lands, so a read fired
+   * from here IS boot, and firing it anyway would be this wave overruling a
+   * decision the wave before it wrote down.
+   *
+   * An empty array would be the WRONG stand-in and that is the reason this is
+   * typed as nullable at all: `[]` means "no organization has integrated
+   * anything", which would draw an empty underscore on every card and announce
+   * "0 of 90 live" on every branch. `null` means "nobody has looked", and the
+   * mark and the clause are both absent.
+   *
+   * WAVE 3 FLIPS THIS LINE and nothing else on this screen:
+   *
+   *     const links = usePortfolioLinks()      // store/portfolio.ts
+   *     const progressSource = useMemo(
+   *       () => (links === null ? null : { links, terminalKey: TERMINAL_STATUS,
+   *                                        terminalWordKey: 'mapnode.wordLive' }),
+   *       [links],
+   *     )
+   *
+   * — memoised, because the object's identity is a dependency of the roll-up,
+   * and `TERMINAL_STATUS` IMPORTED from MapBranchDetail.tsx (which has to gain
+   * an `export`), never restated: lib/mapNodes.ts's header is explicit that the
+   * literal lives at one call site. That same wave gives `useCaseProgress` its
+   * required 4th argument, which is what stops a link-less organization from
+   * shrinking the denominator instead of adding zeroes to it.
+   */
+  const progressSource: MapProgressSource | null = null
+
+  const model = useMapModel(compact, locale, filter, progressSource)
   // TWO TRUNCATIONS, TWO SENTENCES, and they are not the same fact. `model.truncated`
   // is the ENTRIES clamp (useMapModel.ts:187's `useEntriesTruncated()`) — the work
   // filed under the map is a window, so the counts are low. This one is the
@@ -352,6 +389,13 @@ export default function Mindtree(): ReactElement {
     expandedIds: model.expandedIds,
     textOf: model.textOf,
     setLive,
+    // WHO IS LOOKING — the two facts the opening camera is chosen from, and
+    // both are already in `useMapModel`'s return block (`meId`, `role`), so
+    // nothing new is computed here. Unwired, `useMapFocus` defaults them to
+    // `null`/`'member'` and every reader gets the workspace opening world;
+    // wired, an account manager lands on their own book.
+    meId: model.meId,
+    role: model.role,
   })
 
   /**
@@ -381,6 +425,51 @@ export default function Mindtree(): ReactElement {
    * back. The geometry is a pure function of the DEPARTMENT TREE and the reading
    * direction and of nothing else: not the zoom, not the viewport, not the
    * panel, not the filter, not the reader's folds.
+   */
+  /**
+   * ⚠ NO `sizeOf`, 2026-08-13, AND IT IS A MEASUREMENT THAT SAYS SO.
+   *
+   * `useMapModel`'s `collectSizes` is built, pure and tested
+   * (`useMapModel.test.ts`), and the design's §3.1 asks for a memo over it plus
+   * exactly one more line here:
+   *
+   *     sizeOf: (node, depth) => (depth === 0 ? undefined : sizes.get(node.id))
+   *
+   * That line turns the permanent render gate RED on two of its fifteen
+   * assertions, and the reason is structural rather than a tuning problem.
+   * `MindNode` authors EVERY mark — the 12.5px label, the count, the 0.5px box
+   * stroke, the chevron — in the units of a 168-wide leaf, and carries them on
+   * the ONE `scale(cardScale)` transform wave 1 introduced. Resizing a card's
+   * authored box to 252 does not resize anything inside it, so the glyph stops
+   * being the fraction of its card it was authored at:
+   *
+   *   small@opening  "Hospitals"  4.5067px in a 90.9px card; the contract owes
+   *                  12.5 x 90.9 / 168 = 6.7601px  →  0.667x short, which is
+   *                  exactly 168/252.
+   *
+   * And the cost is not only the gate's arithmetic. A bigger card is a bigger
+   * world (`worlds.ts` makes a world proportional to its card's diagonal), a
+   * bigger world is a bigger ring, and a bigger ring is a camera that pulls
+   * back — so `npm run lookat` measured the SMALLEST text on the glass falling
+   * 3.738px → 2.748px on the 19-org fixture and 4.184px → 2.807px on the
+   * 400-org one, for a channel worth 2.25x in area. This map's founding defect
+   * was 1.85px of label; spending a third of every glyph to encode a magnitude
+   * is the same trade in the same direction.
+   *
+   * AND THE GATE'S OWN ARITHMETIC IS ONLY HALF OF IT. `shareFloorPx` denominates
+   * in the constant `LEAF_WIDTH = 168`, which is correct for every card today and
+   * becomes a fiction the moment one card is authored at another width; the
+   * handoff carries a verified patch that reads the card's OWN authored width
+   * instead, changes no number the gate has ever measured, and takes all fifteen
+   * assertions green WITH the encoding on. It was run, and it is still not
+   * enough: at 375px the phone's framed ring goes from `card=3` to
+   * `card=2 chip=1`, so one of three organizations loses its NAME to pay for the
+   * magnitude. That is the trade refused here.
+   *
+   * THE FIX IS THEREFORE NOT A GATE EDIT. The encoding has to grow the node's
+   * WORLD and let `cardScale = worldD / ownD` carry the marks with it, which is
+   * `worlds.ts`'s two card rules — wave 1's frozen contract and a different
+   * unit's change.
    */
   const layout = useMemo(
     () => layoutWorlds<MindNodeModel>(focus.drawnRoot, { direction: rtl ? 'rtl' : 'ltr' }),
@@ -475,7 +564,12 @@ export default function Mindtree(): ReactElement {
    * locale by `model.textOf`. It is `isolate()`d by the rail and must never be
    * handed to `t()`.
    */
-  const frameFill = compact ? FRAME_FILL_PHONE : FRAME_FILL_DESKTOP
+  // ONE DERIVATION POINT, AND IT IS THE CAMERA'S. `useMapGeometry` derives the
+  // fill from the framed world's own fan-out (`frameFillFor`) rather than from
+  // the device; a second copy here would make the rail's rungs report where the
+  // camera WOULD sit using a number the camera no longer uses, so the tick you
+  // drag to would not be the framing you land in.
+  const frameFill = geo.frameFill
   const vMinRaw = Math.max(1, Math.min(geo.box.width, geo.box.height))
   const octaveFloor = octavesOf(
     cameraAtWidth(camera, geo.cameraBounds.maxWidth),

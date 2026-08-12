@@ -34,8 +34,8 @@ import {
   flyToCamera,
   flyToNode,
   FRAME_FILL_DESKTOP,
-  FRAME_FILL_PHONE,
   frameCamera,
+  frameFillFor,
   lerpCamera,
   MAP_EASE,
   MAP_EASE_POINTS,
@@ -47,6 +47,7 @@ import {
   rubberBandCamera,
   sampleCamera,
   tweenDurationFor,
+  TARGET_CHILD_PX,
   tweenProgress,
   viewBoxOf,
   wheelRatio,
@@ -58,6 +59,9 @@ import {
   type MotionBox,
   type Occlusion,
 } from './mapMotion'
+// The layout module, imported HERE and nowhere in `mapMotion.ts` — see
+// `packedRatio` below on why the asymmetry is the design rather than an accident.
+import { D_LEAF, GAP_RATIO, packRing } from '../../lib/mindtree/radial'
 
 /** A 960×520 window on the middle of a drawing — the desktop fallback box. */
 const WIDE: Camera = { cx: 480, cy: 260, width: 960, height: 520 }
@@ -664,37 +668,35 @@ describe('frameCamera', () => {
     expect(ltr.cy).toBeGreaterThan(0)
   })
 
-  it('lands a child of the framed world at CARD size on BOTH widths — one constant', () => {
-    // The whole justification for FRAME_FILL_PHONE existing at all. A uniform
-    // six-wide tier has a parent/child diameter ratio of 2.69; the CARD band
-    // starts at 140 CSS px and ends at 380.
-    const childD = WORLD.worldD / 2.69
+  it('lands a child of the framed world at a legible size on BOTH widths', () => {
+    // WHAT THE OLD TEST ASSERTED AND WHY IT WAS VACUOUS. It divided the world by
+    // 2.69 — the brief's parent/child ratio, the one whose ring overlaps every
+    // pair of siblings by 32% — and concluded the phone drew a 174px CARD. The
+    // packer's real six-wide ratio is 3.83 (worlds.ts's table), so the phone was
+    // drawing a 122px CHIP the whole time. This asserts what is on the glass.
+    const childD = WORLD.worldD / RATIO_AT_6
     const desk = apparent(framed(), STAGE.width, childD)
-    const phone = apparent(
-      frameCamera(WORLD, {
-        viewport: PHONE,
-        frameFill: FRAME_FILL_PHONE,
-        occlusion: CLEAR,
-        rtl: false,
-      }),
-      PHONE.width,
-      childD,
-    )
+    const phoneFill = frameFillFor(6, Math.min(PHONE.width, PHONE.height))
+    const phoneCam = frameCamera(WORLD, {
+      viewport: PHONE,
+      frameFill: phoneFill,
+      occlusion: CLEAR,
+      rtl: false,
+    })
+    const phone = apparent(phoneCam, PHONE.width, childD)
+    // The desktop's 0.87 puts a six-wide child squarely in the CARD band
+    // (140…380) — a named box, no derivation needed.
     expect(desk).toBeGreaterThan(140)
     expect(desk).toBeLessThan(380)
-    expect(phone).toBeGreaterThan(140)
-    expect(phone).toBeLessThan(380)
-    // …and the phone's framed world genuinely OVERFLOWS, which is the trade.
-    expect(apparent(
-      frameCamera(WORLD, {
-        viewport: PHONE,
-        frameFill: FRAME_FILL_PHONE,
-        occlusion: CLEAR,
-        rtl: false,
-      }),
-      PHONE.width,
-      WORLD.worldD,
-    )).toBeGreaterThan(PHONE.width)
+    // The phone lands it on TARGET_CHILD_PX exactly, which is the top of the
+    // CHIP band: a 44×44 box with its name outside along the ray. That is the
+    // trade the phone has always made and `TARGET_CHILD_PX`'s doc block prices
+    // the alternative. Above the chip edge (52) by better than two to one.
+    expect(phone).toBeCloseTo(TARGET_CHILD_PX, 6)
+    expect(phone).toBeGreaterThan(52)
+    // …and the phone's framed world genuinely OVERFLOWS, which is the other half
+    // of the trade: the parent's rim is off screen the moment you arrive.
+    expect(apparent(phoneCam, PHONE.width, WORLD.worldD)).toBeGreaterThan(PHONE.width)
   })
 
   it('is TOTAL — no input produces a NaN in the viewBox', () => {
@@ -715,6 +717,95 @@ describe('frameCamera', () => {
 
   it('is PURE — the same arguments give the same answer', () => {
     expect(framed()).toEqual(framed())
+  })
+})
+
+/* ──────────────── the fill, derived from fan-out rather than device ───────── */
+
+/**
+ * The parent/child diameter ratio the PACKER actually produces for a uniform
+ * ring of `n` — `packRing`, called for real.
+ *
+ * ⚠ THE TEST MAY IMPORT THE LAYOUT MODULE AND `mapMotion.ts` MAY NOT. That
+ * asymmetry is the whole design of `frameFillFor`'s closed form: the camera has
+ * no imports at all, which is what makes `useMapGeometry`'s "it CANNOT SEE THE
+ * LAYOUT MODULE" claim structural rather than a rule somebody remembers. So the
+ * ratio is restated there and CHECKED here, against the packer, at every fan-out
+ * the depth cap can produce.
+ */
+function packedRatio(n: number): number {
+  const childD = new Array<number>(n).fill(D_LEAF)
+  return packRing({ childD, gap: GAP_RATIO * D_LEAF }).parentD / D_LEAF
+}
+
+/** worlds.ts's own table, at the fan-out the phone constant was derived from. */
+const RATIO_AT_6 = 3.8304
+
+describe('frameFillFor', () => {
+  it('is the packer’s own ratio, at every fan-out the depth cap can draw', () => {
+    // THE ASSERTION THAT CAN FAIL: change RIM, GAP_RATIO or SINGLE_CHILD_RATIO in
+    // radial.ts and this goes red, because `frameFillFor` inverts the closed form
+    // and `packedRatio` runs the packer. Checked to 1e-9 relative — the two are
+    // the same product in a different order.
+    const failures: string[] = []
+    for (let n = 1; n <= 40; n += 1) {
+      // fill = ratio · TARGET / V, so ratio = fill · V / TARGET wherever the
+      // clamp is not binding. V is chosen per n to keep it off both bounds.
+      const v = (packedRatio(n) * TARGET_CHILD_PX) / 1.0
+      const recovered = (frameFillFor(n, v) * v) / TARGET_CHILD_PX
+      const want = packedRatio(n)
+      if (Math.abs(recovered - want) > want * 1e-9) {
+        failures.push(`n=${n}: closed form ${recovered.toFixed(6)} vs packRing ${want.toFixed(6)}`)
+      }
+    }
+    expect(failures.join('\n')).toBe('')
+  })
+
+  it('reproduces 1.25 where 1.25 was derived — six children on a 375px phone', () => {
+    // THE ONE CASE THE OLD CONSTANT GOT RIGHT, kept as the anchor: at six
+    // children the phone fill is 1.23 against the shipped 1.25, a 1.6%
+    // difference. `1.25 × 375 / 3.83 = 122px` is what the map actually drew, and
+    // TARGET_CHILD_PX is that number.
+    expect(packedRatio(6)).toBeCloseTo(RATIO_AT_6, 4)
+    expect(frameFillFor(6, 375)).toBeCloseTo(1.2257, 4)
+    expect(Math.abs(frameFillFor(6, 375) - 1.25) / 1.25).toBeLessThan(0.02)
+    // …and the child it lands is TARGET_CHILD_PX, which is what the fill is for.
+    expect((frameFillFor(6, 375) * 375) / packedRatio(6)).toBeCloseTo(TARGET_CHILD_PX, 6)
+  })
+
+  it('shrinks the fill at a narrow fan-out — 0.80 at two children', () => {
+    // The half the constant got WRONG. At n=2 the ratio is 2.49, so 1.25 put the
+    // child at 188px and the framed world 40% off the glass for no gain.
+    expect(packedRatio(2)).toBeCloseTo(2.4852, 4)
+    expect(frameFillFor(2, 375)).toBeCloseTo(0.7953, 4)
+    expect(frameFillFor(2, 375)).toBeLessThan(frameFillFor(6, 375))
+  })
+
+  it('clamps rather than framing a ring nothing can frame', () => {
+    // A 22-organization type ring wants a fill of 3.6; the ceiling is 1.6, and
+    // the honest answer past it is GROUPING (wave 6's RING_CAP), not a camera
+    // standing further back than the glass.
+    expect(frameFillFor(22, 375)).toBe(1.6)
+    expect(frameFillFor(40, 375)).toBe(1.6)
+    // And the floor: a desktop stage is wide enough that even six children ask
+    // for less than the widest view the camera allows.
+    expect(frameFillFor(2, 1600)).toBe(0.6)
+  })
+
+  it('is TOTAL — no fan-out and no viewport produces a NaN fill', () => {
+    for (const [name, value] of [
+      ['zero children', frameFillFor(0, 375)],
+      ['negative children', frameFillFor(-3, 375)],
+      ['NaN children', frameFillFor(Number.NaN, 375)],
+      ['zero viewport', frameFillFor(6, 0)],
+      ['NaN viewport', frameFillFor(6, Number.NaN)],
+    ] as const) {
+      expect(Number.isFinite(value), name).toBe(true)
+      expect(value, name).toBeGreaterThan(0)
+    }
+    // A world with no children is not a ring, so the ratio is 1 and the fill is
+    // whatever the clamp allows — never Infinity, never 0.
+    expect(frameFillFor(0, 375)).toBe(0.6)
   })
 })
 

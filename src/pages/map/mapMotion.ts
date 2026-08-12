@@ -167,22 +167,137 @@ const CAMERA_EPSILON = 0.5
 export const FRAME_FILL_DESKTOP = 0.87
 
 /**
- * THE ONLY PHONE/DESKTOP DIFFERENCE IN THE ENTIRE CAMERA, and it is deliberately
- * greater than 1: a framed world OVERFLOWS a small screen.
+ * THE SIZE OF A NAMED CARD ON A PHONE, in CSS px — the number the phone's fill
+ * is derived FROM rather than a fill somebody tuned by feel.
  *
- * The arithmetic is the whole argument. A uniform six-wide tier has a
- * parent/child diameter ratio of 2.69, so a child of the framed world comes up
- * at `frameFill × V / 2.69` CSS pixels. On a 375×812 phone with the 587px canvas
- * the shell already ships, V = 375 and 1.25 × 375 / 2.69 ≈ 174px — a CARD, with
- * its name inside it. At 0.87 the same child is 121px, which is a CHIP: a
- * 44×44 box with its label outside along the ray. On a 1600×900 desktop
- * 0.87 × 835 / 2.69 ≈ 270px, also a CARD.
+ * 120 IS NOT A ROUND NUMBER SOMEBODY LIKED — it is what the shipped phone
+ * constant actually delivered, measured with the packing's real ratio:
+ * `FRAME_FILL_PHONE × 375 / 3.83 = 1.25 × 375 / 3.83 = 122 px`. The fill is
+ * being made honest here, not being changed, so the target is the number the map
+ * has always drawn.
  *
- * ONE CONSTANT, and a child of the framed world is a legible named card at both
- * widths. The cost is that the parent's rim is off screen the moment you arrive
- * on a phone, which is exactly what the stage border and the breadcrumb are for.
+ * ⚠ IT IS THE TOP OF `lod.ts`'s CHIP BAND, NOT THE CARD BAND, AND THAT IS STATED
+ * RATHER THAN ROUNDED UP. `BAND_EDGES.card` is 140, so a child at 120 px is a
+ * 44×44 chip with its label OUTSIDE along the ray — which is what a phone has
+ * drawn since the band table shipped, and 120 is 86% of the way to a card rather
+ * than the 32% the old constant's own doc block implied (it claimed 174 px off a
+ * ratio the packer does not use). Raising the target to 140 would make the phone
+ * draw real cards and cost `1.43 × 375` of fill: the framed world 43% off the
+ * glass on the short axis instead of 23%. That is a legibility decision with a
+ * measurement on both sides and it is NOT this unit's to take — the design fixed
+ * 120, the phone's ring cap (16, wave 6) is the other half of the same picture,
+ * and a target raised without the cap just magnifies a ring of twenty-two.
+ *
+ * The render gate is where the choice becomes visible: `phone @ opening`'s band
+ * histogram is the line that will say whether 120 is enough.
  */
-export const FRAME_FILL_PHONE = 1.25
+export const TARGET_CHILD_PX = 120
+
+/**
+ * The fill may not leave these — a floor so the framed world still owns the
+ * middle of the screen at a wide fan-out, and a ceiling so a two-child world
+ * does not overflow the glass by more than half a screen.
+ *
+ * 0.6 is `ROOT_FLOOR_FILL + 0.2`: below the widest view the camera allows at all
+ * there is nothing left to call a framing. 1.6 is the fill at which the framed
+ * world's own rim is one third of a screen outside the glass on the short axis,
+ * which is as much overflow as the breadcrumb can honestly stand in for.
+ */
+const FRAME_FILL_MIN = 0.6
+const FRAME_FILL_MAX = 1.6
+
+/**
+ * THE PACKING'S OWN PARENT/CHILD DIAMETER RATIO, restated as a closed form.
+ *
+ * ⚠ RESTATED AND NOT IMPORTED, and the reason is this file's own module graph:
+ * `mapMotion.ts` has NO imports at all — `Math` only — which is what makes
+ * `useMapGeometry`'s header claim true ("it CANNOT SEE THE LAYOUT MODULE AT
+ * ALL"). An `import { packRing } from '../../lib/mindtree/radial'` here would
+ * hand the camera an edge to the layout module and put the destroyed
+ * `camera → layout → bounds → camera` cycle one refactor from coming back. So
+ * the arithmetic is restated, and `mapMotion.test.ts` — which may import
+ * anything — asserts this function EQUALS `packRing().parentD / D_LEAF` for a
+ * uniform ring at every fan-out 1..40. Drift is a red test, not a silent lie.
+ *
+ * THE ARITHMETIC, from `radial.ts`'s pair constraint applied inward:
+ *
+ *     r        = (D + GAP_RATIO·D) / (2·sin(π/n))     the CHORD, not the arc
+ *     D_parent = 2·(r + D/2)·RIM
+ *     ratio(n) = D_parent / D = 2·RIM·((1 + GAP_RATIO)/(2·sin(π/n)) + ½)
+ *
+ * with `RIM = 1.14`, `GAP_RATIO = 0.18` and, at n = 1 — where there is no pair
+ * to separate — the authored `SINGLE_CHILD_RATIO = 2.2`. The arc bound
+ * `n·(D+gap)/2π` never binds: `n·sin(π/n)/π ≤ 1` for every n, so the chord is at
+ * least the arc at every fan-out.
+ *
+ * It reproduces worlds.ts's own table exactly: 2 → 2.49, 3 → 2.69, 4 → 3.04,
+ * 6 → 3.83, 9 → 5.07.
+ */
+function worldRatio(childCount: number): number {
+  const n = Math.floor(childCount)
+  if (!Number.isFinite(n) || n <= 0) return 1
+  // radial.ts's SINGLE_CHILD_RATIO. A ring of one has no pair to be separated
+  // from, so the number is authored rather than derived.
+  if (n === 1) return 2.2
+  const RIM = 1.14
+  const GAP_RATIO = 0.18
+  return 2 * RIM * ((1 + GAP_RATIO) / (2 * Math.sin(Math.PI / n)) + 0.5)
+}
+
+/**
+ * HOW MUCH OF THE STAGE A FRAMED WORLD FILLS — A FUNCTION OF FAN-OUT, NOT OF
+ * DEVICE. This replaces `FRAME_FILL_PHONE`, and the replacement is the point.
+ *
+ * ── WHAT THE OLD CONSTANT GOT RIGHT AND WHAT IT GOT WRONG ──────────────────
+ *
+ * `FRAME_FILL_PHONE = 1.25` was derived from ONE sentence: "a uniform six-wide
+ * tier has a parent/child diameter ratio of 2.69, so a child of the framed world
+ * comes up at `frameFill × V / 2.69`; at V = 375 that is 174 px, a CARD." Two
+ * things were wrong with it and one was right.
+ *
+ *  · THE RATIO WAS THE BRIEF'S, NOT THE PACKING'S. MAP-ZOOM §11's headline
+ *    formula overlaps every pair of sibling worlds by 32% and `radial.ts`
+ *    implements the pair constraint instead, so the real six-wide ratio is 3.83
+ *    (worlds.ts's header states the whole table and its cost). The child was
+ *    never 174 px. It was `1.25 × 375 / 3.83 = 122 px`.
+ *  · IT WAS A CONSTANT FOR A QUANTITY THAT IS NOT ONE. At n = 2 the ratio is
+ *    2.49, so 1.25 puts the child at 188 px and the framed world 40% off the
+ *    glass for no gain; at n = 22 — an unaggregated type ring — the ratio is
+ *    11.3 and the child is 41 px, below the 44 px target floor.
+ *  · WHAT IT GOT RIGHT is 122 px. That is a named card on a phone, it is what
+ *    the shipped map actually drew, and it is `TARGET_CHILD_PX`.
+ *
+ * ── THE DERIVATION, WHICH IS NOW WHAT THE NUMBER IS ────────────────────────
+ *
+ *     frameFillFor(n, V) = clamp(ratio(n) · TARGET_CHILD_PX / V, 0.6, 1.6)
+ *
+ * because a child of a world framed at `fill` measures `fill · V / ratio(n)` CSS
+ * px, and setting that to `TARGET_CHILD_PX` and solving is the line above. It
+ * reproduces the old constant WHERE THE OLD CONSTANT WAS DERIVED — at n = 6 on a
+ * 375 px phone it returns 1.23 against 1.25, a 1.6% difference nothing on the
+ * glass can see — and fixes it everywhere else: 0.80 at n = 2, and the 1.6 cap
+ * at n ≥ 8.
+ *
+ * `V` IS THE STAGE'S SMALLER SIDE, NOT THE VISIBLE PART'S. `frameCamera` divides
+ * the fill by the UNOCCLUDED minimum, and the resting camera is never occluded
+ * (that is `frameCamera`'s own rule, restated in its header) — so passing the
+ * element's smaller side here keeps this arithmetic and that one talking about
+ * the same pixels.
+ *
+ * ⚠ THE RING CAP IS NOT HERE. `RING_CAP = compact ? 16 : 24` — the fan-out past
+ * which a ring must be GROUPED rather than framed harder — belongs to wave 6 and
+ * lives in the model beside `leafThreshold` (`useMapModel.ts:318`), because it
+ * changes what the tree CONTAINS and this function only changes how far away the
+ * camera stands from it. The seam between them is `n`: this function's answer at
+ * n > 24 is the 1.6 ceiling, which is the honest "I cannot frame that" and not a
+ * substitute for grouping.
+ */
+export function frameFillFor(childCount: number, viewportMinPx: number): number {
+  const v = size(viewportMinPx, 1)
+  const want = (worldRatio(childCount) * TARGET_CHILD_PX) / v
+  if (!Number.isFinite(want)) return FRAME_FILL_DESKTOP
+  return Math.min(FRAME_FILL_MAX, Math.max(FRAME_FILL_MIN, want))
+}
 
 /**
  * How far past the deepest structural world's framing a reader may magnify.
@@ -546,7 +661,7 @@ export interface Occlusion {
 export interface FrameOptions {
   /** The CANVAS ELEMENT, in CSS px — the full stage, not the visible part. */
   readonly viewport: { readonly width: number; readonly height: number }
-  /** `FRAME_FILL_PHONE` or `FRAME_FILL_DESKTOP`. */
+  /** `FRAME_FILL_DESKTOP`, or `frameFillFor(childCount, V)` on a phone. */
   readonly frameFill: number
   readonly occlusion: Occlusion
   readonly rtl: boolean

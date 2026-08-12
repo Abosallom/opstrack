@@ -69,8 +69,8 @@ import {
   cameraAtWidth,
   clampCamera,
   FRAME_FILL_DESKTOP,
-  FRAME_FILL_PHONE,
   frameCamera,
+  frameFillFor,
   MAP_TWEEN_MS,
   octavesOf,
   retargetCameraTween,
@@ -124,6 +124,15 @@ export interface CameraWorld {
   readonly worldY: number
   readonly worldD: number
   readonly structural: boolean
+  /**
+   * This world's own children, by id. Read for ONE thing: the fan-out that
+   * `frameFillFor` turns into the phone's framing fill, so that a two-child
+   * world and a twenty-child world are not framed as though they were the same
+   * picture. `PositionedNode.childIds` satisfies it, so `WorldNode` still
+   * satisfies this interface structurally and this file still has no edge to the
+   * layout module.
+   */
+  readonly childIds: readonly string[]
 }
 
 /**
@@ -169,7 +178,10 @@ export interface MapGeometryOptions<L extends CameraLayout> {
    * That resolution is not re-derived here and must not be.
    */
   focusWorldId: string | null
-  /** Phone. Decides `FRAME_FILL` and nothing else in this file. */
+  /**
+   * Phone. Decides WHICH FILL RULE applies and nothing else in this file: the
+   * desktop constant, or `frameFillFor` off the framed world's own fan-out.
+   */
   compact: boolean
   rtl: boolean
   svgRef: RefObject<SVGSVGElement | null>
@@ -289,7 +301,34 @@ export function useMapGeometry<L extends CameraLayout>({
     }
   }, [layout.rootD, deepestD, box])
 
-  const frameFill = compact ? FRAME_FILL_PHONE : FRAME_FILL_DESKTOP
+  /**
+   * HOW MUCH OF THE STAGE THE FRAMED WORLD FILLS — a function of ITS FAN-OUT on
+   * a phone, and the desktop constant everywhere else.
+   *
+   * THE ONE DERIVATION POINT, and it moved from a device to a measurement.
+   * `FRAME_FILL_PHONE = 1.25` was derived from "a child of the framed world must
+   * land at card size", using the brief's parent/child ratio of 2.69 — but
+   * `radial.ts` implements the PAIR constraint and the real six-wide ratio is
+   * 3.83, so the constant was solving for a picture the packing does not draw.
+   * `frameFillFor` solves the same sentence against the packing that ships:
+   * 1.23 at six children (where 1.25 came from), 0.80 at two, the 1.6 ceiling
+   * past eight. `mapMotion.ts`'s doc block carries the whole arithmetic.
+   *
+   * DESKTOP IS UNTOUCHED. 0.87 is not a card-size derivation — it is "the
+   * world's rim is inside the glass when you arrive" — and at 835 px of stage it
+   * already puts a six-wide child at 189 px, comfortably inside the CARD band.
+   * Deriving it from fan-out too would clamp it to the 0.6 floor and buy a
+   * smaller picture for nothing.
+   *
+   * `layout.byId` IS NOT A CAMERA INPUT: `focusWorldId` is the drill-in, and
+   * `box` is the element. Neither depends on the camera, so this memo cannot
+   * re-open the `camera → layout → bounds → camera` cycle this file destroyed.
+   */
+  const frameFill = useMemo(() => {
+    if (!compact) return FRAME_FILL_DESKTOP
+    const framed = focusWorldId === null ? undefined : layout.byId.get(focusWorldId)
+    return frameFillFor(framed?.childIds.length ?? 0, Math.min(box.width, box.height))
+  }, [compact, focusWorldId, layout, box])
 
   /* ── the one read of layout.bounds ──────────────────────────────────────── */
 
@@ -520,6 +559,17 @@ export function useMapGeometry<L extends CameraLayout>({
     [dropTween],
   )
 
+  /**
+   * ⚠ `frameFill` HERE IS THE WORLD THE READER IS IN, NOT THE ONE THEY ARE FLYING
+   * TO, and that is a named approximation rather than an oversight. `flyTo` takes
+   * a bare `{worldX, worldY, worldD}` — the shape three call sites outside this
+   * file already build — so the destination's fan-out is not in scope, and
+   * widening that parameter would change a signature the crumb bar, the dive rail
+   * and the keyboard all pass. The error is bounded and small: fan-out changes by
+   * one tier per dive, and `frameFillFor` moves 1.23 → 1.6 across four tiers of
+   * fan-out. Wave 6's grouping caps the ring at 16 on a phone, which bounds it
+   * further; widen the parameter then, with the cap, or not at all.
+   */
   const frameOptionsRef = useRef({ frameFill, occludeInline, occludeBlockEnd, rtl })
   frameOptionsRef.current = { frameFill, occludeInline, occludeBlockEnd, rtl }
 
@@ -876,6 +926,19 @@ export function useMapGeometry<L extends CameraLayout>({
     flyTo,
     /** Drawing units per CSS pixel — what the LOD bands are measured against. */
     scale,
+    /**
+     * HOW MUCH OF THE STAGE A FRAMED WORLD FILLS, RESOLVED ONCE — returned so
+     * that it is resolved once.
+     *
+     * `pages/Mindtree.tsx` held a SECOND copy of `compact ? phone : desktop` for
+     * the dive rail's octave ticks, and two copies of a fill rule is two fill
+     * rules one edit apart: the rail's rungs would keep saying where the camera
+     * WOULD sit using a number the camera no longer uses, and the tick you drag
+     * to would not be the framing you land in. Now that the rule is a function
+     * of the framed world's fan-out rather than of the device, that drift is
+     * guaranteed rather than possible. Read this instead.
+     */
+    frameFill,
     octaves,
     octaveSpan,
     cameraBounds,

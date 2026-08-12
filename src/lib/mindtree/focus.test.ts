@@ -30,6 +30,7 @@ import { EMPTY_FILTER, type FilterContext } from '../entryFilter'
 import {
   ancestorIdsOf,
   canFocus,
+  defaultFocusFor,
   dimensionStableId,
   drawnIds,
   findNode,
@@ -855,5 +856,208 @@ describe('refocusTarget', () => {
     // case, and an ancestor that happens to still exist must not win.
     const at = refocusTarget(drawn, { entryId: 'e1', fromId: 'root/track:t1' }, has)
     expect(at).toBe('root/track:t1/group:blocked/entry:e1')
+  })
+})
+
+/* ── where the map opens ────────────────────────────────────────────────── */
+
+/**
+ * THE PORTFOLIO SHAPE, in miniature — the same rings the render gate's
+ * 400-organization fixture draws, with three organizations per type instead of
+ * twenty-two:
+ *
+ *   root ▸ Onboarding ▸ 2 directorates ▸ 3 account managers ▸ 6 types ▸ orgs
+ *
+ * Built with the `node` helper above, so every id is the one model.ts would
+ * mint and every `entity` carries its map-node id in `bucketKey` — which is what
+ * `defaultFocusFor` matches on. Hand-writing a second id scheme here would prove
+ * the resolver works on ids I chose.
+ */
+function amBook(adId: string, am: string, types: number, orgsPerType: number): MindNode {
+  const amId = `${adId}/entity:${am}`
+  const typeNodes: MindNode[] = []
+  for (let t = 0; t < types; t += 1) {
+    const typeKey = `${am}-type-${t}`
+    const typeId = `${amId}/entity:${typeKey}`
+    const orgNodes: MindNode[] = []
+    for (let o = 0; o < orgsPerType; o += 1) {
+      orgNodes.push(entityNode(typeId, `${typeKey}-org-${o}`))
+    }
+    typeNodes.push(entityNode(amId, typeKey, orgNodes))
+  }
+  return entityNode(adId, am, typeNodes)
+}
+
+const OB_TRACK = 'root/track:ob'
+const AD_NORTH = `${OB_TRACK}/entity:ad-north`
+const AD_SOUTH = `${OB_TRACK}/entity:ad-south`
+const AM_SARA = `${AD_NORTH}/entity:am-sara`
+
+function portfolioTree(): MindNode {
+  const north = entityNode(OB_TRACK, 'ad-north', [
+    amBook(AD_NORTH, 'am-sara', 6, 3),
+    amBook(AD_NORTH, 'am-faisal', 6, 3),
+  ])
+  const south = entityNode(OB_TRACK, 'ad-south', [amBook(AD_SOUTH, 'am-nouf', 6, 3)])
+  return node(null, 'root', 'root', [node(ROOT_ID, 'track', 'ob', [north, south])])
+}
+
+/** `map_nodes.account_manager_id`, as the surface supplies it: bucketKey → member. */
+function managedBy(meId: string, ...bucketKeys: readonly string[]): (key: string) => string | null {
+  const owned = new Set(bucketKeys)
+  return (key: string): string | null => (owned.has(key) ? meId : null)
+}
+
+describe('defaultFocusFor — the map opens on the reader’s own world', () => {
+  it('frames an account manager on their own cohort when a node IS them', () => {
+    // TEST 1 OF THE TWO OWNERSHIP ROADS: `bucketKey === meId`. model.ts:196 says
+    // a bucketKey is "a track id, a map-node id, a status key, AN OWNER KEY", so
+    // a ring cut on a person carries that person's id and needs no lookup — which
+    // is what wave 6's `?by=manager` cohort will be, and what the render gate's
+    // `am:` tier stands in for.
+    const tree = portfolioTree()
+    expect(defaultFocusFor('am-sara', 'member', tree)).toBe(AM_SARA)
+    // …and the world it names is the one worth landing on: six type cards.
+    expect(findNode(tree, AM_SARA)?.children).toHaveLength(6)
+  })
+
+  it('frames an account manager on the smallest world holding their whole book', () => {
+    // TEST 2: `managerOf` — the `account_manager_id` facet, spread across two of
+    // Sara's six types. No single type holds all six organizations, so the answer
+    // is the ring that does: her own cohort. This is the design's "AD → their
+    // span" arithmetic, arriving at an AM's shape.
+    const tree = portfolioTree()
+    const mine = managedBy(
+      'sara-uuid',
+      'am-sara-type-0-org-0', 'am-sara-type-0-org-1', 'am-sara-type-0-org-2',
+      'am-sara-type-1-org-0', 'am-sara-type-1-org-1', 'am-sara-type-1-org-2',
+    )
+    expect(defaultFocusFor('sara-uuid', 'member', tree, mine)).toBe(AM_SARA)
+  })
+
+  it('descends all the way to the ring when the whole book is one type', () => {
+    const tree = portfolioTree()
+    const mine = managedBy(
+      'sara-uuid',
+      'am-sara-type-3-org-0', 'am-sara-type-3-org-1', 'am-sara-type-3-org-2',
+    )
+    expect(defaultFocusFor('sara-uuid', 'member', tree, mine)).toBe(
+      `${AM_SARA}/entity:am-sara-type-3`,
+    )
+  })
+
+  it('stops OUTSIDE a single organization — one card is not an opening', () => {
+    // A camera framed on a childless node draws one card and answers nothing, so
+    // an account manager whose entire book is one organization opens on the ring
+    // that organization sits in. Their cohort, by another road.
+    const tree = portfolioTree()
+    const mine = managedBy('sara-uuid', 'am-sara-type-4-org-1')
+    expect(defaultFocusFor('sara-uuid', 'member', tree, mine)).toBe(
+      `${AM_SARA}/entity:am-sara-type-4`,
+    )
+  })
+
+  it('does NOT hand an admin somebody else’s book — the workspace, every time', () => {
+    // The one thing `role` decides. Sara's own id, with an admin's role: the
+    // answer moves from her cohort to the Onboarding track world, which is the
+    // design table's admin/owner row.
+    const tree = portfolioTree()
+    expect(defaultFocusFor('am-sara', 'member', tree)).toBe(AM_SARA)
+    expect(defaultFocusFor('am-sara', 'admin', tree)).toBe(OB_TRACK)
+    expect(defaultFocusFor('am-sara', 'owner', tree)).toBe(OB_TRACK)
+  })
+
+  it('skips the single-child chain — a root drawing one track says nothing', () => {
+    // The workspace opening. `root` is a pill with one track under it; spending
+    // the whole screen on "there is one track" costs the reader a dive before the
+    // map has told them anything.
+    const tree = portfolioTree()
+    expect(defaultFocusFor(null, 'member', tree)).toBe(OB_TRACK)
+    expect(defaultFocusFor('nobody-at-all', 'member', tree)).toBe(OB_TRACK)
+    expect(defaultFocusFor('', 'member', tree)).toBe(OB_TRACK)
+  })
+
+  it('stops at the first ring that BRANCHES, and never past it', () => {
+    // ad-north holds two account managers, so the descent must not enter it —
+    // framing one directorate would hide the other half of the workspace from a
+    // reader who owns neither.
+    const tree = portfolioTree()
+    const opening = defaultFocusFor(null, 'member', tree)
+    expect(opening).toBe(OB_TRACK)
+    expect(findNode(tree, opening as string)?.children.map((c) => c.id)).toEqual([
+      AD_NORTH,
+      AD_SOUTH,
+    ])
+  })
+
+  it('answers null — the drawn root — when the workspace already branches', () => {
+    // Two tracks: the root IS the picture, and null is the caller's own fallback
+    // rather than a `?focus=` that says the same thing.
+    //
+    // t2 IS EMPTY AND STILL COUNTS. model.ts draws a track with nothing on it
+    // because "which track has nothing on it" is worth seeing; a descent that
+    // stepped past it into t1 would delete that answer from the opening frame.
+    expect(sampleTree().children.map((c) => c.id)).toEqual([T1, 'root/track:t2'])
+    expect(findNode(sampleTree(), 'root/track:t2')?.children).toHaveLength(0)
+    expect(defaultFocusFor(null, 'member', sampleTree())).toBeNull()
+    expect(defaultFocusFor('me-1', 'admin', sampleTree())).toBeNull()
+  })
+
+  it('never returns ROOT_ID — null is how it says "the drawn root"', () => {
+    for (const tree of [portfolioTree(), sampleTree(), hierarchyTree()]) {
+      for (const role of ['member', 'admin']) {
+        expect(defaultFocusFor('am-sara', role, tree)).not.toBe(ROOT_ID)
+      }
+    }
+  })
+
+  it('RESOLVES — every id it returns is drawable, with no fallback reported', () => {
+    // THE GUARANTEE THE STORE DEPENDS ON. `useMapFocus` hands this answer to
+    // `resolveFocus` as the requested id and writes back only when
+    // `missingId !== null`. An id that needed a fallback would therefore be
+    // PERSISTED, would travel into `?focus=` on the next mirror pass, and a link
+    // the reader shared would carry the sender's book to the recipient.
+    const tree = portfolioTree()
+    const mine = managedBy('sara-uuid', 'am-sara-type-3-org-0')
+    const answers = [
+      defaultFocusFor('am-sara', 'member', tree),
+      defaultFocusFor('sara-uuid', 'member', tree, mine),
+      defaultFocusFor(null, 'member', tree),
+      defaultFocusFor('am-sara', 'admin', tree),
+    ]
+    for (const id of answers) {
+      expect(id).not.toBeNull()
+      const view = resolveFocus(tree, id)
+      expect(view.missingId, `${id as string} needed a fallback`).toBeNull()
+      expect(view.focusId).toBe(id)
+      expect(canFocus(view.node)).toBe(true)
+    }
+  })
+
+  it('ignores content nodes — a group named after you is not a place', () => {
+    // `?dim=owner` cuts a `group:` per member, so a group's bucketKey IS a member
+    // id. Groups are drawn INSIDE their owner's world and can never be framed
+    // (worlds.ts's STRUCTURAL_KINDS), so matching one would aim the camera at a
+    // world the dive cannot enter.
+    const owner = node(T1, 'group', 'me-1', [node(`${T1}/group:me-1`, 'entry', 'e9')])
+    const t1 = node(ROOT_ID, 'track', 't1', [owner])
+    const tree = node(null, 'root', 'root', [t1])
+    expect(owner.bucketKey).toBe('me-1')
+    // The answer is the workspace opening — the one track — and emphatically NOT
+    // the group that carries the reader's own id.
+    expect(defaultFocusFor('me-1', 'member', tree)).toBe(T1)
+    expect(defaultFocusFor('me-1', 'member', tree)).not.toBe(owner.id)
+  })
+
+  it('is PURE and TOTAL — a bare root, an empty tree, a missing manager map', () => {
+    const bare = node(null, 'root', 'root', [])
+    expect(defaultFocusFor('me-1', 'member', bare)).toBeNull()
+    expect(defaultFocusFor(null, 'admin', bare)).toBeNull()
+    const tree = portfolioTree()
+    expect(defaultFocusFor('am-sara', 'member', tree)).toBe(
+      defaultFocusFor('am-sara', 'member', tree),
+    )
+    // A manager map that answers null for everything is the same as none.
+    expect(defaultFocusFor('am-sara', 'member', tree, () => null)).toBe(AM_SARA)
   })
 })

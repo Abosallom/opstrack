@@ -175,12 +175,49 @@
 // a LEAF and 3.43–9.30 px on a PARENT, and the 1-unit outline is 0.70–1.90 px
 // and 0.27–0.74 px. Across CHIP (52–140 px) the leaf's label is 3.25–8.75 px.
 //
-// THOSE SUB-9px FIGURES ARE REPORTED, NOT PATCHED HERE. They are the product of
-// three decisions owned by three different places — the band edges (lod.ts),
-// HOLE_FRACTION (worlds.ts) and the authored 12.5 (mindtree.css) — and the
-// render gate's "min text ≥ 9 px CSS" assertion is where they meet. Silently
-// enlarging a constant in this file to clear a floor set elsewhere is exactly
-// how the drawing lost its units in the first place.
+// ── WHAT WAVE 5 CHANGED: A STROKE HAS A FLOOR, A GLYPH HAS A GATE ──────────
+//
+// The figures in the paragraph above were reported and not patched, because the
+// three constants that produce them are owned by three different places. Wave 5
+// takes the decision in ONE place — `lod.ts`'s header carries the whole table
+// and `FLOOR` carries the two numbers — and this file implements the half of it
+// that is a drawing decision. Two rules, and they are different on purpose:
+//
+//   A STROKE HAS A FLOOR. A boundary is not something you read, so it can be
+//   widened without lying about anything. Every stroke and every dash below is
+//   multiplied by `--mtree-hair`, which is the width that puts `FLOOR.STROKE_PX`
+//   on the glass at the WORST camera this node's band allows.
+//
+//   A GLYPH HAS A GATE. A glyph cannot be enlarged without breaking the
+//   `CHAR_PX` budget its card was measured against — the card would overflow —
+//   so a glyph whose card cannot pay `FLOOR.TEXT_PX` for it IS NOT DRAWN. Not
+//   shrunk, not faded: absent, with the name arriving at the band that can
+//   afford it and, for a world with children, on its camera-pinned rim.
+//
+// ── AND THE UNIT THE TYPE IS AUTHORED IN IS THE WORLD, NOT THE CARD ────────
+//
+// `--mtree-world` is `worldD / (D_LEAF x cardScale)`, floored at 1. It is
+// EXACTLY 1 for a card that fills its own world — so a leaf's drawing is byte
+// for byte what wave 1 shipped — and `leafDiag / (HOLE_FRACTION x D_LEAF) =
+// 173.666 / 68 = 2.5539` for a card inscribed in its children's ring. Multiply
+// it into an authored `u` and the ink on the glass collapses to ONE identity,
+// the same for every node at every depth in every role:
+//
+//     css px = u x --mtree-world x cardScale x scale  =  u x apparent / D_LEAF
+//
+// which is the line `lod.ts` derives `BAND_EDGES.card = 157` from. Without it a
+// parent's 12.5 lands at `12.5 x apparent / 510.8` — 3.84 px at that same edge —
+// and no band edge below the opening picture's 185.8 px ceiling could ever have
+// lifted it. WITH it, the parent's card becomes what it geometrically is: a
+// 65.8 x 17.2 WORLD-unit box, which is narrower than `LABEL_INSIDE_MIN` and so
+// takes the drawing this file already had for a box too narrow to hold a word —
+// name outside on the ray, count alone in the middle. No new predicate, no
+// second layout: `room = width / --mtree-world` is the one line that routes it.
+//
+// WHAT A YIELDING CARD GIVES UP, stated rather than discovered: its chevron
+// (the ray is spent on the word — the argument this file already made about the
+// chip) and, below 157 px, its words entirely. What it does not give up is its
+// box, its outline, its count, its breach dot and its progress underscore.
 //
 // THE ALTERNATIVE — counter-scaling by the camera, `font-size: 13/scale` — was
 // rejected for three reasons, and the third decides it: (1) it makes every
@@ -207,14 +244,17 @@
 
 import {
   memo,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactElement,
 } from 'react'
 import { isolate, stripIsolates } from '../../lib/bidi'
 import type { Point, PositionedNode } from '../../lib/mindtree/layout'
+import { FLOOR, bandFloorPx } from '../../lib/mindtree/lod'
 import type { Band } from '../../lib/mindtree/lod'
 import type { MindNode as MindNodeModel } from '../../lib/mindtree/model'
+import { D_LEAF } from '../../lib/mindtree/radial'
 import { useMindIsSelected } from '../../store/mindtree'
 
 /**
@@ -373,6 +413,22 @@ const PAD = 12
 const COUNT_SLOT = 34
 
 /**
+ * THE TYPE SIZES `mindtree.css` AUTHORS, restated here because this file is
+ * where the decision to DRAW a glyph is taken and that decision is arithmetic on
+ * exactly these numbers.
+ *
+ * TWO COPIES OF FOUR NUMBERS, PINNED EQUAL BY THE RENDER GATE — which reads the
+ * sheet off disk and asserts each of these against the declaration it belongs
+ * to (`mapRender.test.tsx`'s "the gate itself"). The alternative is a component
+ * that measures text, which `truncate`'s own header already refuses for the
+ * reason charts/Chart.tsx states: a second layout pass per node per render.
+ */
+const LABEL_PX = 12.5
+const COUNT_PX = 11.5
+const CHEVRON_COUNT_PX = 9.5
+const SECONDARY_PX = 11
+
+/**
  * GRAIN's disc, as a fraction of the world's DIAMETER — so the mark is
  * `0.42 x apparent` at every distance without this component knowing the scale.
  * The whole band is 7-26px, so the disc runs 2.9-10.9px: a texture, not a shape.
@@ -505,6 +561,8 @@ function outsideLabelAt(
   height: number,
   outward: Point,
   rtl: boolean,
+  /** `OUTSIDE_LABEL_GAP` in the units this node's type is authored in. */
+  gap: number,
 ): OutsideLabel {
   const cx = width / 2
   const cy = height / 2
@@ -514,8 +572,8 @@ function outsideLabelAt(
   // narrow enough) but the division must still be total.
   const len = Math.hypot(dx, dy) || 1
   return {
-    x: outward.x + (dx / len) * OUTSIDE_LABEL_GAP,
-    y: outward.y + (dy / len) * OUTSIDE_LABEL_GAP,
+    x: outward.x + (dx / len) * gap,
+    y: outward.y + (dy / len) * gap,
     anchor: (outward.x > cx) !== rtl ? 'start' : 'end',
   }
 }
@@ -590,9 +648,86 @@ export const MindNode = memo(function MindNode({
   const width = pos.width / cardScale
   const height = pos.height / cardScale
 
+  /**
+   * This node's world, in DRAWING units, and the smallest apparent size its
+   * band allows. Everything below is derived from these two and from
+   * `cardScale`; no camera number reaches this component, which is what keeps
+   * `memo()` paying across a zoom (see the header's rejected alternative).
+   */
+  const hasWorld = pos.worldD !== undefined && Number.isFinite(pos.worldD) && pos.worldD > 0
+  const worldDrawn = hasWorld ? (pos.worldD as number) : Math.max(pos.width, pos.height, 1e-6)
+  const bandFloor = bandFloorPx(band)
+
+  /**
+   * THE UNIT THE TYPE AND THE STROKES ARE AUTHORED IN — see the header.
+   *
+   * FLOORED AT 1, and the floor is what keeps the two layouts that have no
+   * worlds byte for byte what they were: the tidy tree and the phone's ring
+   * hand this component a 168x44 or a 44x44 box with no `worldD` at all, and
+   * `max(pos.width, pos.height) / D_LEAF` would otherwise SHRINK their type.
+   * A card can only ever be told to draw at its world's scale or at its own,
+   * never smaller than its own.
+   */
+  const worldFactor = Math.max(1, worldDrawn / (D_LEAF * cardScale))
+
+  /**
+   * CSS px this node is GUARANTEED for a mark authored at `units`, at the worst
+   * camera its band allows — `units x --mtree-world x cardScale x scale` with
+   * `scale >= bandFloor / worldD` substituted. On a world layout it collapses to
+   * `units x bandFloor / D_LEAF`, which is the identity `lod.ts` cuts the band
+   * edges on.
+   */
+  const inkPx = (units: number): number => (units * worldFactor * cardScale * bandFloor) / worldDrawn
+  /**
+   * A glyph this card cannot pay `FLOOR.TEXT_PX` for is not drawn.
+   *
+   * TRUE OUTRIGHT WHERE THERE IS NO WORLD, and that is not a loophole — it is
+   * the only sound answer. The tidy tree and the phone's ring are fitted to a
+   * viewBox by their page, so `band` is this component's `card` default rather
+   * than a camera's reading and the apparent-size relationship the whole of this
+   * arithmetic rests on does not exist. Those two drawings are unchanged by this
+   * wave, which is the property they are held to.
+   */
+  const pays = (units: number): boolean => !hasWorld || inkPx(units) >= FLOOR.TEXT_PX
+  /**
+   * The same question for the ONE glyph on this card whose sheet is not
+   * `mindtree.css`: the Organization's second line is `.mring-secondary`, which
+   * `mind-ring.css` authors and which this wave does not own, so it carries no
+   * `--mtree-world` and is measured in the CARD's units rather than the world's.
+   * Asking `pays()` about it would overstate its ink by the world factor.
+   */
+  const paysUnscaled = (units: number): boolean =>
+    !hasWorld || (units * cardScale * bandFloor) / worldDrawn >= FLOOR.TEXT_PX
+
+  /**
+   * A STROKE HAS A FLOOR. `--mtree-hair` multiplies every stroke width and every
+   * dash in the sheet, and it is the world factor RAISED until a 1-unit outline
+   * clears `FLOOR.STROKE_PX` at the band's own bottom edge. It is exactly the
+   * world factor at `card` and above (`0.75 x 200 / 157 = 0.955`, so the floor
+   * is already met); at `chip` it is `0.75 x 200 / 52 = 2.885` times it, which
+   * is right — there the outline is the whole mark, the words having gone.
+   *
+   * `absent` is exempt because it is `visibility: hidden`: flooring a stroke
+   * nobody can see against a 4px DOM horizon would compute a 37-unit hairline
+   * for no reader.
+   */
+  const hair =
+    band === 'absent' || !hasWorld
+      ? worldFactor
+      : Math.max(worldFactor, (FLOOR.STROKE_PX * worldDrawn) / (cardScale * bandFloor))
+
+  /**
+   * The card's inline room IN THE UNITS ITS TYPE IS AUTHORED IN — 168 for a card
+   * that fills its world, 65.8 for one inscribed in its children's ring. THE ONE
+   * LINE THAT ROUTES A YIELDING CARD to the drawing this file already had for a
+   * box too narrow to hold a word.
+   */
+  const room = width / worldFactor
+  const pad = PAD * worldFactor
+
   const budget = Math.max(
     3,
-    Math.floor((width - PAD * 2 - (hasCount ? COUNT_SLOT : 0)) / CHAR_PX),
+    Math.floor((room - PAD * 2 - (hasCount ? COUNT_SLOT : 0)) / CHAR_PX),
   )
 
   // Inline-start and inline-end resolved into x, once. Nothing below multiplies
@@ -609,8 +744,8 @@ export const MindNode = memo(function MindNode({
   // <html>, which is what makes the behaviour a property of this component
   // (and of the exported file, where `svgDocument()` writes the same attribute)
   // instead of a property of wherever the markup happens to be mounted.
-  const startX = rtl ? width - PAD : PAD
-  const endX = rtl ? PAD : width - PAD
+  const startX = rtl ? width - pad : pad
+  const endX = rtl ? pad : width - pad
   const markX = rtl ? PAD : width - PAD
   /** The selection tick's corner — the mirror of the breach mark's. */
   const tickX = rtl ? width - PAD : PAD
@@ -649,19 +784,22 @@ export const MindNode = memo(function MindNode({
    * being tested against.
    */
   /**
-   * THE GATE IS THE BAND, and the width test is the CARD band's own fallback.
+   * THE GATE IS THE ROOM, AND IT IS NOW THE ONLY GATE.
    *
-   * `band === 'chip'` is the promotion the contract asks for: the 44x44 count
-   * chip with its name outside along the ray stops being a phone hack and
-   * becomes a distance. The `pos.width < LABEL_INSIDE_MIN` clause survives
-   * underneath it because the drawing that ships TODAY — the phone drill-in,
-   * where `ringNodeSize` returns 44x44 on the outermost ring — has no camera and
-   * therefore no band, and taking the clause away would silently return that
-   * screen to a ring of numbered dots with no names.
+   * `band === 'chip'` used to be an arm of this test, and wave 5 removed it
+   * rather than kept it: the chip band draws no words at all now (`lod.ts`'s
+   * header carries the 3.25 px that forced that), so an outside label there
+   * would be a name at a size this file refuses to draw.
+   *
+   * What remains covers strictly more than the arm it replaced, because `room`
+   * is measured in the units the type is authored in: 168 for a card that fills
+   * its world, 44 for the phone drill-in's outermost ring (`ringNodeSize`, no
+   * camera and therefore no band — the case this clause has always carried), and
+   * 65.8 for a card inscribed in its children's ring, which is the new one.
    */
   const outsideLabel =
-    outward !== undefined && (band === 'chip' || width < LABEL_INSIDE_MIN)
-      ? outsideLabelAt(width, height, outward, rtl)
+    outward !== undefined && room < LABEL_INSIDE_MIN
+      ? outsideLabelAt(width, height, outward, rtl, OUTSIDE_LABEL_GAP * worldFactor)
       : null
 
   /**
@@ -705,15 +843,28 @@ export const MindNode = memo(function MindNode({
   /** A world dissolving into its children. Non-text ink only; see the header. */
   const dissolving = band === 'opening' && !terminal
   /**
-   * The three bands that draw a box with words in it. ABSENT draws a box with
-   * nothing in it, and a dissolving world draws a box that is leaving.
+   * THE TWO BANDS THAT DRAW A BOX WITH WORDS IN IT, and `chip` is no longer one
+   * of them — `lod.ts`'s header carries the arithmetic (a name there is
+   * 3.25-9.8 px and a count 3.0-9.0 px, which is the same lie about legibility
+   * the `state` band already refuses to tell about a numeral in a 30 px disc).
+   * ABSENT draws a box with nothing in it, and a dissolving world draws a box
+   * that is leaving.
+   *
+   * THE BAND SAYS WHERE, AND `pays()` SAYS WHETHER — one gate per glyph, because
+   * the four type sizes on this card are four different numbers and the smallest
+   * of them is what `BAND_EDGES.card` was cut on. Every one of these is asserted
+   * against `FLOOR.TEXT_PX` on the glass, at five cameras, by the render gate.
    */
-  const showText = band === 'chip' || band === 'card' || holding
+  const showText = band === 'card' || holding
+  const showName = showText && pays(LABEL_PX)
+  const showCount = hasCount && showText && pays(COUNT_PX)
   const secondLine =
-    holding && view.secondary != null && view.secondary !== ''
+    holding && paysUnscaled(SECONDARY_PX) && view.secondary != null && view.secondary !== ''
       ? // Truncated against the FULL inline room, not the label's: the second
         // line carries no count, so the `COUNT_SLOT` reservation is not its to
-        // pay. By glyph count, never by measurement — see `truncate`.
+        // pay. By glyph count, never by measurement — see `truncate`. In CARD
+        // units, because that is the unit `.mring-secondary` is authored in —
+        // see `paysUnscaled`.
         truncate(view.secondary, Math.max(3, Math.floor((width - PAD * 2) / CHAR_PX)))
       : null
   /**
@@ -727,7 +878,7 @@ export const MindNode = memo(function MindNode({
     (band === 'card' || holding || dissolving) && view.progress != null && view.progress.total > 0
       ? Math.max(
           0,
-          Math.min(1, view.progress.done / view.progress.total) * (width - PAD * 2),
+          Math.min(1, view.progress.done / view.progress.total) * (width - pad * 2),
         )
       : 0
 
@@ -822,7 +973,22 @@ export const MindNode = memo(function MindNode({
       // only opacity this component ever writes, because opacity is never a
       // resting state (see the header). It resolves to 0 within 0.3 octaves and
       // the node then leaves the DOM entirely.
-      style={dissolving ? { ...node.colourVars, opacity: 1 - bandOut } : node.colourVars}
+      // THE TWO NUMBERS THE SHEET NEEDS AND CANNOT DERIVE. `--mtree-world`
+      // multiplies every font size and letter-spacing in `mindtree.css`;
+      // `--mtree-hair` multiplies every stroke width and every dash. Both are
+      // functions of this node's own geometry and its band and of NOTHING the
+      // camera knows, so they are memo-stable across a zoom — which is the
+      // difference between this and the counter-scaling the header rejects.
+      // Both default to 1 in the sheet, so a caller that never sets them (the
+      // tidy tree, `export.ts`'s serialiser) draws exactly what it drew before.
+      style={
+        {
+          ...node.colourVars,
+          '--mtree-world': worldFactor,
+          '--mtree-hair': hair,
+          ...(dissolving ? { opacity: 1 - bandOut } : null),
+        } as CSSProperties
+      }
       direction={rtl ? 'rtl' : 'ltr'}
       data-band={band}
       data-kind={node.kind}
@@ -891,7 +1057,7 @@ export const MindNode = memo(function MindNode({
           nobody measured. The name hands off INSTANTLY at the band edge — it
           leaves this card at exactly the instant MindWorldRim draws it on the
           world's rim, so it is never absent and never drawn twice. */}
-      {!showText ? null : outsideLabel === null ? (
+      {!showName ? null : outsideLabel === null ? (
         <text
           className="mtree-node-label"
           x={startX}
@@ -944,7 +1110,7 @@ export const MindNode = memo(function MindNode({
         </text>
       )}
 
-      {hasCount && showText && (
+      {showCount && (
         <text
           className="mtree-node-count tabular"
           // With the label outside, the box holds the count ALONE, so it takes
@@ -969,12 +1135,16 @@ export const MindNode = memo(function MindNode({
       {view.breachHint !== null && showText && (
         <g className="mtree-breach" aria-hidden="true">
           <title>{view.breachHint}</title>
-          {/* ON A CHIP THE DOT MOVES TO THE MIDDLE of the block-start edge,
-              where a 44x44 box has no competing ink: the count owns the centre
-              and the name is outside the box entirely, so the reading-end
-              corner the card uses is 22 units from both of them and reads as
-              belonging to neither. */}
-          <circle cx={band === 'chip' ? width / 2 : markX} cy={9} r={4} />
+          {/* AUTHORED IN THE CARD'S OWN UNITS, not the world's, and it is the
+              same exemption `lod.ts`'s FLOOR states for grain and state: a
+              FILLED disc's size is a fraction of the drawing it sits in, so
+              scaling it up on a card inscribed in its children's ring would put
+              a 10-unit dot in a 44-unit box — a mark that had eaten its own
+              card. It stays the corner mark it is, and it stays clear of the
+              count in both layouts: the card's count sits at the reading end
+              (`endX`, one line of type below this dot) and an outside-label
+              card's count sits in the middle. */}
+          <circle cx={markX} cy={9} r={4} />
         </g>
       )}
 
@@ -1001,10 +1171,14 @@ export const MindNode = memo(function MindNode({
       {fillW > 0 && (
         <rect
           className="mring-progress"
-          x={rtl ? width - PAD - fillW : PAD}
-          y={height - PROGRESS_INSET - PROGRESS_H}
+          x={rtl ? width - pad - fillW : pad}
+          // IN THE TYPE'S UNITS, like the inset it sits in. A 2-unit bar on a
+          // card inscribed in its children's ring is 0.61 px at that band's own
+          // floor — a sliver nobody sees — and 1.57 px in world units, which is
+          // the same share of the drawing the leaf's bar is of its own.
+          y={height - (PROGRESS_INSET + PROGRESS_H) * worldFactor}
           width={fillW}
-          height={PROGRESS_H}
+          height={PROGRESS_H * worldFactor}
           aria-hidden="true"
         />
       )}
@@ -1014,16 +1188,20 @@ export const MindNode = memo(function MindNode({
           control competing with the card. Not clickable on its own: the card is
           the target, and see the header for why.
 
-          NOT AT CHIP. The chevron is drawn at `pos.outward` — a point on the ray
-          — and at CHIP that is exactly where the name is, `OUTSIDE_LABEL_GAP`
-          further along the same ray. Two marks in one place is not a band, so
-          the chip spends the ray on the word and says "there is more this way"
-          with the ring of children the reader can already see out there. */}
-      {pos.hasChildren && band !== 'chip' && showText && (
+          NOT WHERE THE NAME IS. The chevron is drawn at `pos.outward` — a point
+          on the ray — and that is exactly where an OUTSIDE label sits,
+          `OUTSIDE_LABEL_GAP` further along the same ray. Two marks in one place
+          is not a band, so a node that spends its ray on its word says "there is
+          more this way" with the ring of children the reader can already see out
+          there. The test was `band !== 'chip'` while the chip was the only
+          drawing that put its name outside; it is now the outside label itself,
+          which is the same rule stated about the mark it is actually about, and
+          which also covers a card inscribed in its children's ring. */}
+      {pos.hasChildren && outsideLabel === null && showText && (
         <g className="mtree-chevron" aria-hidden="true" data-open={expanded ? '' : undefined}>
           {view.toggleHint !== null && <title>{view.toggleHint}</title>}
           <circle cx={chevron.x} cy={chevron.y} r={7} />
-          {!expanded && pos.hiddenChildCount > 0 && (
+          {!expanded && pos.hiddenChildCount > 0 && pays(CHEVRON_COUNT_PX) && (
             <text
               className="mtree-chevron-count tabular"
               x={chevron.x}
