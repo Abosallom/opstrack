@@ -905,16 +905,17 @@ const SEEDED_USE_CASES = [
 ]
 
 describe('the shipped templates', () => {
-  it('both files begin with a UTF-8 BOM — without it Excel destroys the Arabic', () => {
-    for (const name of ['structure.csv', 'structure.example.csv']) {
+  it('all three files begin with a UTF-8 BOM — without it Excel destroys the Arabic', () => {
+    for (const name of ['structure.csv', 'structure.example.csv', 'structure.demo.csv']) {
       const bytes = readFileSync(new URL(name, TEMPLATE_DIR))
       expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf])
     }
   })
 
-  it('both files carry the SAME header, and it matches 0024 exactly and in order', () => {
+  it('all three files carry the SAME header, and it matches 0024 exactly and in order', () => {
     const headerOf = (name) => parseCsv(readTemplate(name))[0].cells
     expect(headerOf('structure.example.csv')).toEqual(headerOf('structure.csv'))
+    expect(headerOf('structure.demo.csv')).toEqual(headerOf('structure.csv'))
     expect(headerOf('structure.csv')).toEqual([...FIXED_COLUMNS, ...SEEDED_USE_CASES])
   })
 
@@ -1000,6 +1001,226 @@ describe('THE ROUND TRIP, on the file that ships — plan, apply, re-plan, empty
     expect(
       sets.filter((a) => a.path[a.path.length - 1] === 'Al Faridah General Hospital').length,
     ).toBe(9)
+  })
+})
+
+// ── the demo file ───────────────────────────────────────────────────────────
+//
+// `structure.demo.csv` exists because the workspace holds ONE node, and every
+// judgement asked of Aziz so far — the dive through the tiers, the vendor
+// grouping, the use-case panel, whether the purple reads as the logo — was
+// made against a nearly empty canvas. It is invented data that gets imported
+// into the LIVE project, which is why the two properties that make it
+// reversible are asserted here instead of assumed:
+//
+//   1. EVERY node it creates hangs under `UHR > Demo Portfolio`. That single
+//      root is the entire reset story. 0023 constrains `map_nodes.source` to
+//      ('local','jira') and there is no third value to mark a row as
+//      demo-created, so the marker has to live in the SHAPE of the data — one
+//      subtree, deleted whole, with nothing to unpick from `UHR > OB`.
+//   2. The second plan is empty, so an interrupted apply is recovered by
+//      re-running rather than by hand.
+//
+// The counts are the ones the live dry run printed on 2026-08-12: 22 nodes,
+// 1 implied, 67 use-case links, 0 refusals. If a later edit to the file moves
+// them, move them here — a demo file nobody re-measured is a demo file that
+// quietly stopped covering a state.
+//
+// ⚠ AND THE REST OF THIS BLOCK IS NOT DECORATION EITHER. Half of what follows
+// asserts things that are not about the planner at all: that no invented vendor
+// can be read as a real Saudi company, that no tier mirrors the MOH cluster
+// structure, that the row advertising the empty state IS empty, that the
+// descriptions read as a PMO's copy rather than as notes to a reviewer. Those
+// are the properties a code review caught and a passing planner never would —
+// this file gets imported into the LIVE project and screenshotted inside a
+// Nphies PMO, so "the plan is correct" was never the whole bar.
+
+/** The live workspace as measured: UHR active, `UHR > OB` under it, two members. */
+const demoWorkspace = () => ({
+  tracks: [{ id: 't-uhr', name: 'UHR', name_ar: 'السجل الصحي الموحد', archived: false }],
+  nodes: [
+    {
+      id: 'n-ob',
+      parent_id: null,
+      track_id: 't-uhr',
+      kind_id: null,
+      name: 'OB',
+      name_ar: '',
+      description: '',
+      description_ar: '',
+      account_manager_id: null,
+      vendor: '',
+      sort_order: 1,
+      archived: false,
+      map_node_use_cases: [],
+    },
+  ],
+  kinds: KINDS,
+  // The only two provisioned accounts. `Aziz` has no username and signs in by
+  // email; the demo names these two and leaves most rows BLANK on purpose,
+  // because unassigned is what the map looks like in week one.
+  members: [
+    { id: 'p-aziz', display_name: 'Aziz', username: null, email: 'az.alsaloom@gmail.com' },
+    { id: 'p-nasser', display_name: 'Nasser Alabri', username: 'nasser', email: 'nasser@opstrack.internal' },
+  ],
+  useCases: SEEDED_USE_CASES.map((name, i) => ({ id: `u-${i}`, name, sort_order: i + 1 })),
+})
+
+describe('THE DEMO FILE, against the live workspace it is meant for', () => {
+  const DEMO = readTemplate('structure.demo.csv')
+
+  it('refuses nothing, and plans the counts the live dry run printed', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    expect(codes(plan)).toEqual([])
+    expect(plan.summary.create).toBe(22)
+    expect(plan.summary.createImplied).toBe(1)
+    expect(plan.summary.setLinks).toBe(67)
+    expect(plan.summary.clearLinks).toBe(0)
+    expect(plan.summary.update).toBe(0)
+    expect(plan.summary.newUseCases).toBe(0)
+  })
+
+  it('hangs every node under one deletable root — this IS the reset', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    const created = pathsOf(plan, 'create-node')
+    expect(created[0]).toBe('UHR > Demo Portfolio')
+    expect(
+      created.every((p) => p === 'UHR > Demo Portfolio' || p.startsWith('UHR > Demo Portfolio > ')),
+    ).toBe(true)
+    // `UHR > OB` is the one real node. The demo sits BESIDE it, not under it,
+    // and does not update it.
+    expect(created.some((p) => p.startsWith('UHR > OB'))).toBe(false)
+    expect(plan.actions.some((a) => a.kind === 'update-node')).toBe(false)
+  })
+
+  it('leaves exactly one intermediate implied, because nobody had seen that work', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    expect(
+      plan.actions.filter((a) => a.kind === 'create-node' && a.implied).map((a) => a.name),
+    ).toEqual(['Sarab Group'])
+  })
+
+  it('spreads four vendors unevenly, so the vendor filter has something to say', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    expect(plan.summary.vendors).toEqual([
+      { name: 'Demo Vendor Alpha', count: 7 },
+      { name: 'Demo Vendor Beta', count: 4 },
+      { name: 'Demo Vendor Delta', count: 1 },
+      { name: 'Demo Vendor Gamma', count: 2 },
+    ])
+  })
+
+  // ⚠ EVERY INVENTED NAME MUST BE UNMISTAKABLY INVENTED. The first draft of this
+  // file named its four vendors `Sahab Health Systems` and `Wathiq Integration`
+  // — near-misses on stc's real SAHABA cloud and on Wathq, the Ministry of
+  // Commerce's real company-verification platform — and they carried 11 of the
+  // 14 vendor-bearing organizations, which is exactly what a vendor-grouped
+  // screenshot is made of. A screenshot taken inside a Riyadh PMO reading
+  // "Wathiq Integration — 7 organizations" is a real integrator with an
+  // invented book of business. `Demo Vendor …` cannot be read as a company.
+  it('names no vendor that could be mistaken for a real integrator', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    expect(plan.summary.vendors.every((v) => v.name.startsWith('Demo Vendor '))).toBe(true)
+    // Two organizations with NO vendor: *not recorded* is a state the filter has
+    // to draw, and it is the state most real rows will be in on day one.
+    const orgs = plan.actions.filter((a) => a.kind === 'create-node' && a.values.kindName === 'Organization')
+    expect(orgs.filter((a) => a.values.vendor === '').length).toBe(2)
+  })
+
+  // The same rule for the tree itself. The first draft named its four tier-2
+  // nodes `Central/Western/Eastern/Northern Cluster` — the MOH health-cluster
+  // structure — and filed a near-miss on a real Qatif hospital under the wrong
+  // one, so the branch read as the real national programme AND read as wrong.
+  // These are `Wave N`, which also matches the `Phase` kind they carry: the only
+  // middle kind 0023 seeds is Programme/Phase/Organization, and a node labelled
+  // "Cluster · Phase" invites a bug report about the kind vocabulary instead of
+  // the decision (add a `Cluster` kind in Settings › Catalogue, or do not).
+  it('names no tier that mirrors a real national programme, and matches its own kind', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    const phases = plan.actions.filter((a) => a.kind === 'create-node' && a.values.kindName === 'Phase')
+    expect(phases.map((a) => a.name)).toEqual(['Wave 1', 'Wave 2', 'Wave 3', 'Wave 4'])
+  })
+
+  // ⚠ THE ROW THAT DEMONSTRATES EMPTY MUST BE EMPTY. The first draft put the
+  // sentence "Nothing recorded at all: no vendor, no account manager, no
+  // capability. This is the empty state" into the description of the row that
+  // was supposed to BE the empty state — the longest organization-level
+  // description in the file. So the one state 16 of 18 real organizations will
+  // be in on day one was the one state the dataset never rendered. The
+  // explanation lives in the README; this row carries nothing.
+  it('ships one genuinely bare organization, so the empty panel can be judged', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    const bare = plan.actions.find((a) => a.kind === 'create-node' && a.name === 'Areej Day Surgery Unit')
+    expect(bare.values.name_ar).toBe('')
+    expect(bare.values.vendor).toBe('')
+    expect(bare.values.description).toBe('')
+    expect(bare.values.description_ar).toBe('')
+    expect(bare.values.account_manager_id).toBe(null)
+    expect(plan.actions.some((a) => a.kind === 'set-use-case' && a.path.includes('Areej Day Surgery Unit'))).toBe(false)
+  })
+
+  // Descriptions render in the Organization panel, so they have to be the kind
+  // of copy a PMO writes — otherwise he cannot judge length, wrapping or the
+  // Arabic/English pairing, and any screenshot that leaves the room shows the
+  // build's own reasoning back at itself. The earlier file failed this on seven
+  // rows ("The largest branch on purpose: the map encodes descendant count as
+  // size…"). One long and one short survive, so wrapping is still exercised.
+  it('describes organizations, not the dataset', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    const orgs = plan.actions.filter((a) => a.kind === 'create-node' && a.values.kindName === 'Organization')
+    const meta = /\bon purpose\b|\bthe map\b|\bthis row\b|\bthe importer\b|\bempty state\b|\bfalls back\b/iu
+    expect(orgs.filter((a) => meta.test(a.values.description)).map((a) => a.name)).toEqual([])
+    const lengths = orgs.map((a) => a.values.description.length)
+    expect(Math.max(...lengths)).toBeGreaterThan(200)
+    expect(Math.min(...lengths)).toBe(0)
+  })
+
+  // A branch that reads EARLY, next to two that read DONE. Two thirds `live`
+  // everywhere put every progress affordance — the "6 of 9 live" matrix, any
+  // roll-up, any colour ramp — at the top of its range, so the interesting end
+  // of the scale was never drawn.
+  it('puts one whole branch at the early end of the scale', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    const sets = plan.actions.filter((a) => a.kind === 'set-use-case')
+    const tally = (rows) => rows.reduce((m, a) => ({ ...m, [a.status]: (m[a.status] ?? 0) + 1 }), {})
+    expect(tally(sets)).toEqual({ live: 33, testing: 16, planned: 18 })
+    expect(tally(sets.filter((a) => a.path.includes('Wave 4')))).toEqual({ live: 1, testing: 3, planned: 9 })
+  })
+
+  it('puts BOTH ends of the use-case panel on screen: all ten live, and nothing at all', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    const byOrg = new Map()
+    for (const a of plan.actions.filter((x) => x.kind === 'set-use-case')) {
+      const org = a.path[a.path.length - 1]
+      byOrg.set(org, [...(byOrg.get(org) ?? []), a.status])
+    }
+    const orgs = plan.actions
+      .filter((a) => a.kind === 'create-node' && a.values.kindName === 'Organization')
+      .map((a) => a.name)
+    expect(orgs.length).toBe(16)
+    expect(byOrg.get('Nawras General Hospital')).toEqual(Array(10).fill('live'))
+    expect(byOrg.get('Marjan Coastal Hospital')).toEqual(Array(10).fill('live'))
+    // Nothing recorded at all — the state the panel renders as an em-dash.
+    expect(orgs.filter((o) => !byOrg.has(o)).length).toBe(3)
+    // A single capability, which is the other end of the same axis.
+    expect(orgs.filter((o) => (byOrg.get(o) ?? []).length === 1).length).toBe(2)
+    expect(new Set([...byOrg.values()].flat())).toEqual(new Set(['planned', 'testing', 'live']))
+  })
+
+  it('names an Arabic name on most rows, and deliberately not on all of them', () => {
+    const plan = planCsv(DEMO, demoWorkspace())
+    const created = plan.actions.filter((a) => a.kind === 'create-node' && !a.implied)
+    const withArabic = created.filter((a) => a.values.name_ar !== '')
+    expect(withArabic.length).toBeGreaterThanOrEqual(created.length - 5)
+    expect(withArabic.length).toBeLessThan(created.length)
+  })
+
+  it('THE SECOND PLAN IS EMPTY — an interrupted apply is fixed by re-running', () => {
+    const before = demoWorkspace()
+    const after = applyToSnapshot(before, planCsv(DEMO, before).actions)
+    const second = planCsv(DEMO, after)
+    expect(codes(second)).toEqual([])
+    expect(second.actions).toEqual([])
   })
 })
 

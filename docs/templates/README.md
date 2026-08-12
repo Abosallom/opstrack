@@ -9,9 +9,16 @@ would do, then apply it.**
 |---|---|
 | [`structure.csv`](structure.csv) | The empty template. Header row only. **This is the file you fill in.** |
 | [`structure.example.csv`](structure.example.csv) | The same header, filled in with invented data, so you can see the shape before you type anything. |
+| [`structure.demo.csv`](structure.demo.csv) | Invented organizations, **made to be run**, so the map is full while the real structure is still being collected. It can be taken back out exactly — see [The demo data](#the-demo-data). |
 
 Everything in the example file is a placeholder — the hospitals, the vendors and
-the people are all made up. It is there to be read, not imported.
+the people are all made up. It is there to be read, not imported: the people it
+names have no accounts, so an import of it is refused. The demo file is invented
+too, but it is invented to run.
+
+**If the real structure is not collected yet, start with the demo file.** It
+fills the map today and comes back out exactly when the real one arrives:
+[The demo data](#the-demo-data).
 
 ---
 
@@ -38,6 +45,239 @@ copy that ships. A file on your Desktop works the same way.
 The importer reads its credentials from `.env.local` in the repo root and never
 takes them on the command line. If it says a value is missing, it names which
 one; see the RUNBOOK for where each one comes from.
+
+---
+
+## The demo data
+
+`structure.demo.csv` is a filled-in file of **invented** organizations that is
+meant to be run, not only read. Import it and the map is full.
+
+**It is here because an empty map cannot be judged.** A workspace holding one
+node under one track answers none of the questions the app exists to answer: the
+tiers do not nest, the Organization panel has nothing beside it, the vendor
+grouping has one vendor to group, and "6 of 9 live" is a sentence with nothing
+behind it. Deciding whether a screen works needs something on the screen.
+Collecting the real structure takes weeks. This takes a minute — and, which is
+the point, it comes back out in a minute.
+
+Everything in it is made up: the organizations, their Arabic names, the vendors,
+the descriptions, every use-case status. It is shaped rather than random — four
+waves of deliberately unequal size, sixteen organizations, and four vendors
+across fourteen of them so the vendor grouping has more than a token to group
+and *no vendor recorded* is represented too. The states each screen has to
+render are all present on purpose: two sites with every capability live, three
+with nothing recorded at all, one with a vendor but no capability, one with a
+capability but no vendor, a laboratory whose scope is genuinely narrow, and
+several mid-migration. A map where every branch looks the same tests nothing.
+
+The 67 statuses are **33 `live`, 16 `testing`, 18 `planned`**, and that split is
+deliberate too: `Wave 4` reads as a branch that has barely started (1 live, 3
+testing, 9 planned) while `Wave 1` and `Wave 2` carry the finished sites. A
+dataset that is two-thirds `live` everywhere puts every progress affordance —
+the *6 of 9 live* matrix, any roll-up, any colour ramp — at the top of its range
+and never draws the interesting end of the scale.
+
+Three decisions worth knowing before you judge what you see:
+
+* **Nothing in it is a real name.** The vendors are `Demo Vendor Alpha` through
+  `Delta` rather than plausible integrator names, and no tier or organization
+  borrows a real cluster, city or facility. That is not timidity — a screenshot
+  of the vendor view showing a real integrator with an invented book of business
+  is a screenshot that misstates somebody's business inside a Nphies PMO.
+* **The four tiers are `Wave 1`–`Wave 4`, typed `Phase`.** `Programme`, `Phase`
+  and `Organization` are the only kinds the catalogue seeds, so the names were
+  chosen to match the kind they carry. If your real structure wants a `Cluster`
+  or a `Department` tier, add the kind in **Settings › Catalogue** *before* the
+  real import — the demo is not making that decision for you.
+* **`Areej Day Surgery Unit` is completely bare** — no Arabic name, no account
+  manager, no vendor, no description, no capability. It is there so the empty
+  Organization panel can be looked at, because that is what most of the map will
+  look like on day one of the real import. Its own row says nothing about that
+  on purpose: a description in it would be the one thing stopping it being empty.
+
+The only values in it that are *not* invented are the ones that cannot be: the
+track it hangs from (`UHR`), the capability column names, and the two account
+managers it names — the two people who actually have accounts. The demo file
+gets no exemption from any rule on this page.
+
+**It all hangs off one node, `UHR > Demo Portfolio`,** whose description says so
+in both languages. That is on purpose: one branch is one thing to find, look at,
+and take away. It does cost one tier: the deepest demo path is five segments
+(`UHR > Demo Portfolio > Wave 1 > Sarab Group > Ghadeer Family Medicine
+Centre`), so what you are looking at is **one level deeper than the real
+structure will be** once it hangs directly off `UHR`. Read the nesting with that
+one-tier offset in mind; the wrapper is what makes the reset one branch instead
+of twenty-two.
+
+It goes through the same planner as any other file. Same dry run, same refusals,
+same behaviour on a second run. There is no demo mode:
+
+```sh
+node scripts/import-structure.mjs docs/templates/structure.demo.csv
+node scripts/import-structure.mjs docs/templates/structure.demo.csv --apply
+```
+
+The dry run against the workspace as it stands today reports what the file is
+built to report — **22 nodes to create, 0 to update, 67 use-case links to set,
+0 refusals** — and lists `UHR > OB`, the node that was already there, under *in
+the app but not in this file*, untouched. **Nothing in this file updates
+anything**, and that is what makes its removal exact rather than approximate:
+see [what it puts back, and what it cannot](#what-it-puts-back-and-what-it-cannot),
+none of which bites a file that only creates.
+
+**Nothing in the database says "demo".** A node written by this importer has
+`source = 'local'`, and so does every node created by hand in the app; there is
+no third value, and adding one would put a word in the schema that every screen,
+filter and export would then have to understand. What tells the demo rows from
+the real ones is not a column — it is the **manifest** that the apply writes: a
+file, on disk, listing exactly what that run created. **Keep it.** It is the only
+record of which rows came from this file.
+
+Losing it is survivable *for this file only*, and only because of the shape
+above: `UHR > Demo Portfolio` is one branch, so you could delete it in the app
+by hand — deepest node first, because a node with children underneath it cannot
+be deleted. That is twenty-two confirmations instead of one command. Keep the
+manifest.
+
+### Taking it out when the real data arrives
+
+Remove the demo **first**, then import the real file:
+
+```sh
+# 1 & 2. Remove the demo — dry run, then apply. See "Taking an import back".
+node scripts/import-structure.mjs --undo <the manifest the demo apply printed>
+node scripts/import-structure.mjs --undo <the manifest the demo apply printed> --apply
+
+# 3 & 4. Now import the real structure.
+node scripts/import-structure.mjs docs/templates/structure.csv
+node scripts/import-structure.mjs docs/templates/structure.csv --apply
+```
+
+**The order matters, and not for tidiness.** Nodes are matched on their full
+path. A real organization that happens to sit at a path the demo invented is
+therefore not a new node — the real import *adopts* the demo node and writes the
+real values onto it. That node now holds real data while the manifest still
+lists it as demo-created, so an undo run afterwards deletes it. Take the demo out
+while it is still unambiguously demo.
+
+---
+
+## Taking an import back
+
+Every `--apply` writes a **manifest**: one JSON file recording what that run did
+— which project, which file, when, the id and full path of every node it
+created, every use-case link it set or cleared with the status that was there
+before, and every field it overwrote with its old value beside the new one. It
+holds no credentials. Manifests land in `docs/EVIDENCE/import-runs/`, named
+`import-<UTC stamp>-<project ref>.json` so a plain `ls` puts the newest last:
+
+```
+docs/EVIDENCE/import-runs/import-20260812T190400Z-lrysgpbkmuqgzsjesfkr.json
+```
+
+**Its path is printed at the end of the run, and that printed path is the one you
+pass back** — you never have to construct it. Undoing is a mode of the same
+script, and dry-run by default like everything else here:
+
+```sh
+# 1. See what it would remove. This writes NOTHING.
+node scripts/import-structure.mjs --undo docs/EVIDENCE/import-runs/import-20260812T190400Z-lrysgpbkmuqgzsjesfkr.json
+
+# 2. When the printed list is what you meant, remove it.
+node scripts/import-structure.mjs --undo docs/EVIDENCE/import-runs/import-20260812T190400Z-lrysgpbkmuqgzsjesfkr.json --apply
+```
+
+**Commit the manifests.** They hold node ids, node names and capability names —
+no keys, no emails, no usernames. An undo that only exists on one laptop is not
+an undo: it has to survive a `git clean`, a fresh clone, and the machine the demo
+was loaded from.
+
+### Four things to know before you rely on it
+
+**It removes only what THAT run created.** Not the workspace, not the tree, not
+an earlier import. One run, one manifest, one undo. Nodes that existed before the
+run are left standing; nodes created by a different run are that run's
+manifest's business. Import the same file three times and you have three
+manifests, each knowing only its own creates — the second and third are nearly
+empty, because by then there was nothing left to create. **The manifest worth
+keeping is the one from the run that created the nodes**, which is normally the
+first.
+
+**It refuses the wrong project outright.** The manifest records which project it
+was applied to. If `SUPABASE_URL` points somewhere else, the run stops before it
+reads anything — because most of those ids would simply not exist in the other
+project, and the undo would print a tidy list of *already gone* that reads
+exactly like a successful reset.
+
+**A node somebody has since used is refused, not deleted.** This is the rule the
+whole command is built around, and it is wider than the database's own guard.
+A demo node is left exactly where it is when *any* of these is true:
+
+| What happened to it | Why it is not this script's to remove |
+|---|---|
+| It has a **child node this import did not create** | Somebody built under it. Deleting the parent would take their node with it. |
+| **Entries are filed on it** | Real work is recorded against it. |
+| A **capability status was set or changed by hand** on it | That is the sentence *"this hospital integrates ADT"* — a person wrote it, and this script did not. |
+| It has been **moved** — to another parent, or to another track | A deliberate placement. Everything *below* a moved node is kept too, because the subtree moved with it. |
+| Something **below it is being kept** | A node with a child cannot be deleted, so one kept organization keeps its wave and its programme with it. |
+
+Each one is named in the plan with exactly what is in the way, before anything
+is removed. That is the behaviour working, not failing. Move or close the work,
+then run the same manifest again to take the rest. A **rename** is *not* a
+refusal — a renamed dummy is still a dummy — but the plan prints the new name
+before it deletes it.
+
+**Running it twice is safe.** The undo asks what is still there rather than
+assuming; a node that is already gone is not an error, it is nothing to do. A
+second run against the same manifest prints an empty plan. And since this is a
+sequence of REST calls rather than a transaction — exactly as the import is — a
+run that stops partway is recovered the same way: run it again.
+
+### What it puts back, and what it cannot
+
+**It does put field values back**, on any node whose values still look exactly
+like what the import wrote. A vendor the import overwrote, a description it
+replaced, an account manager it reassigned: the manifest carries the old value
+and the undo PATCHes it back — including on a node that existed long before the
+run. In this workspace `UHR > OB` is that node. Same rule for a use-case status
+the import *raised* rather than created: `testing` that the import pushed to
+`live` goes back to `testing`, and a link the import created is removed
+outright.
+
+**The rule that governs all of it: only what still looks exactly like what the
+import wrote is put back.** A field somebody has edited since is left at their
+value and printed as `edited since the import — left alone`. A status somebody
+has moved since is left alone too — and, as the table above says, it now also
+stops the node being deleted.
+
+Two things it genuinely cannot do:
+
+* **A capability created by `--add-use-cases` stays in the catalogue** if
+  anything still points at it. The database refuses to delete a capability that
+  has any record against it, deliberately — see
+  [`--add-use-cases`](#--add-use-cases). One with nothing left pointing at it
+  after the undo *is* removed.
+* **It is not a transaction.** If it stops partway, what came off has come off;
+  re-run the same manifest for the rest.
+
+### `--archive-refused`
+
+```sh
+node scripts/import-structure.mjs --undo <manifest> --archive-refused
+```
+
+Archives a refused node instead of leaving it, and it applies in **one** case
+only: a node with no children at all whose sole blocker is the entries filed on
+it. Archiving cascades to every descendant, so archiving a node that was refused
+*because* somebody put a node under it would archive their node too — which is
+the loss the refusal existed to prevent, arriving through the gentle-looking
+door. The plan says per node which of the two happened, and why the fallback did
+not apply when it did not.
+
+It is off by default and it is rarely what you want: an archived node still holds
+its name against the sibling-name index, so an archived demo `Nawras General
+Hospital` makes a real one un-creatable under the same parent.
 
 ---
 
@@ -196,7 +436,10 @@ whole truth of your workspace:
   already has an account (`scripts/provision-people.mjs` creates those).
 * **It does not delete.** A node you removed from the file stays in the app.
   Deleting is done in the app, deliberately, one node at a time, with the
-  guard that refuses to delete a node that still has work under it.
+  guard that refuses to delete a node that still has work under it. The one
+  way to delete from a file is `--undo <manifest>`, which removes what a single
+  named run created and nothing else — see
+  [Taking an import back](#taking-an-import-back).
 * **It does not import outstanding issues.** Those are entries — they have
   owners, dates, statuses and a comment thread — and they will get their own
   file. Nothing in this one touches them.
