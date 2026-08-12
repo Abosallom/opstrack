@@ -1,0 +1,355 @@
+/* Settings › Jira — the `.jir-*` prefix, per the class registry
+   (docs/EXECUTION-PLAN.md §1.0.7).
+
+   A SEPARATE SHEET FROM structure.css, catalogue.css AND admin.css, on exactly
+   the rule that split those three from each other: this screen is the only one
+   in the settings tree that renders a WIDE DATA TABLE of rows that came from
+   outside this workspace, plus a standing read-only declaration that has to
+   read as a promise rather than as a warning. Neither layout exists anywhere
+   else — `.str-*` owns a tree with an indent, `.cat-*` owns two flat lists with
+   an add form — and reaching into either for the half that happens to match
+   would make every future change to those screens a change to this one.
+
+   Almost everything visible here is a global.css primitive and is deliberately
+   NOT restyled: `.card`, `.btn`, `.btn-sm`, `.btn-ghost`, `.btn-primary`,
+   `.field`, `.field-label`, `.field-error`, `.input`, `.select`, `.sr-only` and
+   `.tabular`. This file owns four layouts that have no primitive — the standing
+   read-only card, the status mapping list, the reconciliation breakdown, and
+   the results table with its horizontal scroller.
+
+   ── LOGICAL PROPERTIES ONLY ──
+
+   No physical property appears below. The house rule, and here it decides two
+   things that would otherwise be visibly wrong in Arabic: the read-only card's
+   accent rule is a `border-inline-start` (a `border-left` would put the accent
+   on the far side of the text in Arabic), and every gap between a label and its
+   value is `gap` or a margin on the inline axis by name.
+
+   ── THE TABLE SCROLLS INSIDE ITSELF ──
+
+   Five columns of third-party text do not fit a 375px phone and never will, so
+   `.jir-table-wrap` is the `overflow-x: auto` container and the PAGE never
+   scrolls sideways. `min-inline-size` on the table is what makes the scroller
+   real rather than decorative — without it the table would compress its columns
+   to unreadable slivers instead of overflowing. */
+
+.jir {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-inline-size: 980px;
+}
+
+.jir-bar {
+  display: flex;
+  align-items: center;
+}
+
+/* The route's h1 lives in the app header, so the page opens on its standfirst
+   rather than repeating the title. */
+.jir-intro {
+  font-size: 13px;
+  line-height: 1.55;
+  /* --text-dim, not --text-faint: this sits directly on --bg, and dim is the
+     token that clears AA at every elevation. */
+  color: var(--text-dim);
+}
+
+/* ---------- the standing statement ---------- */
+
+/* GREEN AND CALM, NOT AMBER. This is a promise being kept, not a hazard being
+   flagged: the whole point of the card is that the owner can run this against
+   live data without checking anything. An amber card would read as "careful",
+   which is the opposite of what it says. */
+.jir-readonly {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-inline-start: 3px solid var(--green);
+  background: color-mix(in srgb, var(--green) 7%, var(--bg-elev));
+}
+
+.jir-ro-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  padding-inline-start: 1.1rem;
+  list-style: disc;
+}
+
+/* ---------- a card ---------- */
+
+.jir-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.jir-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.jir-sub {
+  font-size: 13px;
+  font-weight: 600;
+  margin-block-start: 4px;
+}
+
+.jir-note {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.jir-muted {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.jir-ok {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--green);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Wraps rather than scrolls: two buttons on a 375px phone with a long Arabic
+   verb on each is a row that must be allowed to become two rows. */
+.jir-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------- projects ---------- */
+
+.jir-projects {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jir-project {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  padding-block: 4px;
+  border-block-end: 1px solid var(--border);
+}
+
+.jir-project-key {
+  font-weight: 600;
+  /* A project key is Latin on every Jira site there is; pinning the direction
+     keeps `NPH-12` from reordering inside an Arabic paragraph. */
+  direction: ltr;
+  unicode-bidi: isolate;
+  min-inline-size: 5.5rem;
+}
+
+.jir-project-name {
+  color: var(--text-dim);
+}
+
+/* ---------- the field mapping ---------- */
+
+.jir-fields {
+  display: grid;
+  gap: 10px;
+}
+
+/* Two selects side by side once there is room for both labels; stacked below
+   that, because a truncated field name is a field nobody can pick correctly.
+   A container query rather than a viewport one would be better still, but this
+   card is full-width at every breakpoint the settings tree has. */
+@media (min-width: 640px) {
+  .jir-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ---------- statuses ---------- */
+
+.jir-statuses {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jir-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-block: 4px;
+  border-block-end: 1px solid var(--border);
+}
+
+.jir-status-name {
+  font-size: 13px;
+}
+
+.jir-status-pick {
+  min-inline-size: 11rem;
+}
+
+/* ---------- the query ---------- */
+
+.jir-jql {
+  /* JQL is a formal Latin language: a monospace face makes an unbalanced
+     parenthesis visible, which is the single most common thing wrong with a
+     query somebody typed. */
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* ---------- the answer ---------- */
+
+.jir-summary {
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 600;
+}
+
+.jir-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jir-reason {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  padding-block: 4px;
+  border-block-end: 1px solid var(--border);
+}
+
+.jir-reason-label {
+  flex: 1 1 12rem;
+}
+
+.jir-reason-count {
+  font-weight: 600;
+}
+
+/* The one row that is good news gets the one colour that says so. Everything
+   else stays neutral: nine amber rows would make a normal, expected result look
+   like nine problems. */
+.jir-reason[data-reason='matched'] .jir-reason-count {
+  color: var(--green);
+}
+
+/* ---------- the table ---------- */
+
+.jir-table-wrap {
+  overflow-x: auto;
+  /* The scroller must not clip the focus ring of a link inside it on the block
+     axis, which `overflow-x` alone would do by promoting the block axis to
+     auto. Explicitly visible is not permitted beside auto, so the padding is
+     what keeps the ring off the edge. */
+  padding-block: 2px;
+}
+
+.jir-table {
+  inline-size: 100%;
+  min-inline-size: 44rem;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.jir-table th {
+  text-align: start;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-block-end: 1px solid var(--border);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* The last row keeps no rule under it: a border-block-end on every cell would
+   draw a line along the bottom of the table with nothing beneath it. */
+.jir-row:last-child .jir-cell {
+  border-block-end: none;
+}
+
+.jir-cell {
+  padding: 8px;
+  vertical-align: top;
+  border-block-end: 1px solid var(--border);
+  line-height: 1.5;
+}
+
+.jir-cell-issue {
+  display: table-cell;
+  min-inline-size: 9rem;
+}
+
+.jir-issue-link,
+.jir-issue-key {
+  display: block;
+  font-weight: 600;
+  /* An issue key is Latin on every site; isolate it so it reads correctly
+     inside an Arabic table. */
+  direction: ltr;
+  unicode-bidi: isolate;
+  /* 44px block-axis target on the one control in every row. */
+  min-block-size: 24px;
+  padding-block: 10px;
+}
+
+/* The issue's own summary, under its key: dim and small, because it is there to
+   let a person recognise the row rather than to be read. A DIFFERENT CLASS from
+   `.jir-summary` above, which is the reconciliation sentence — two things named
+   "summary" in one screen is exactly how a rule ends up styling the wrong one. */
+.jir-issue-summary {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.jir-cell-verdict {
+  display: table-cell;
+  min-inline-size: 14rem;
+}
+
+.jir-verdict-pair {
+  display: block;
+  font-weight: 600;
+  color: var(--green);
+}
+
+.jir-verdict-no {
+  display: block;
+  color: var(--text-dim);
+}
+
+.jir-cell-verdict .jir-muted {
+  display: block;
+}
+
+/* ---------- the closing mark ---------- */
+
+.jir-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  padding-block: 6px;
+}

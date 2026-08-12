@@ -66,6 +66,7 @@ import enFilter from './en/filter.json'
 import enFollowups from './en/followups.json'
 import enGroups from './en/groups.json'
 import enHealth from './en/health.json'
+import enJira from './en/jira.json'
 import enMap from './en/map.json'
 import enMapadmin from './en/mapadmin.json'
 import enMapnode from './en/mapnode.json'
@@ -112,6 +113,7 @@ import arFilter from './ar/filter.json'
 import arFollowups from './ar/followups.json'
 import arGroups from './ar/groups.json'
 import arHealth from './ar/health.json'
+import arJira from './ar/jira.json'
 import arMap from './ar/map.json'
 import arMapadmin from './ar/mapadmin.json'
 import arMapnode from './ar/mapnode.json'
@@ -172,6 +174,7 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   followups: enFollowups,
   groups: enGroups,
   health: enHealth,
+  jira: enJira,
   map: enMap,
   mapadmin: enMapadmin,
   mapnode: enMapnode,
@@ -220,6 +223,7 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   followups: arFollowups,
   groups: arGroups,
   health: arHealth,
+  jira: arJira,
   map: arMap,
   mapadmin: arMapadmin,
   mapnode: arMapnode,
@@ -277,6 +281,7 @@ export const en: LocaleTree = {
   ...enFollowups,
   ...enGroups,
   ...enHealth,
+  ...enJira,
   ...enMap,
   ...enMapadmin,
   ...enMapnode,
@@ -325,6 +330,7 @@ export const ar: LocaleTree = {
   ...arFollowups,
   ...arGroups,
   ...arHealth,
+  ...arJira,
   ...arMap,
   ...arMapadmin,
   ...arMapnode,

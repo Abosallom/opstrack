@@ -39,6 +39,7 @@ import {
   IconNetwork,
   IconMonitor,
   IconMoon,
+  IconPlug,
   IconShieldCheck,
   IconSun,
   IconUser,
@@ -429,6 +430,12 @@ export default function Settings(): ReactElement {
           >
             <NavLink to="/settings/structure" className="btn btn-ghost">
               {t('structure.manage')}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
+          </Section>
+          <Section icon={IconPlug} title={t('jira.title')} description={t('jira.settingsHint')}>
+            <NavLink to="/settings/jira" className="btn btn-ghost">
+              {t('jira.manage')}
               <IconChevronEnd className="icon-directional" size={16} />
             </NavLink>
           </Section>

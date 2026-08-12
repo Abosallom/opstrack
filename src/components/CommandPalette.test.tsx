@@ -500,7 +500,7 @@ describe('the palette registry against App.tsx', () => {
     expect(ids).toContain('screen:/settings/terminology')
     expect(ids).not.toContain('screen:/settings/roles')
     expect(ids).not.toContain('screen:/settings/members')
-    expect(ids).toHaveLength(SCREENS.length + LENSES.length + 6)
+    expect(ids).toHaveLength(SCREENS.length + LENSES.length + 7)
     // The shared prefix is still the member's list, in the member's order.
     const member = screenCandidates(asMember, () => {}).map((r) => r.item.id)
     expect(ids.slice(0, member.length)).toEqual(member)

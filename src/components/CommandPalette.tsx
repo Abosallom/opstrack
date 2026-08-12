@@ -329,6 +329,8 @@ export const ADMIN_SCREENS: readonly AdminPaletteScreen[] = [
   // Below tracks: the tree (0023), then the catalogue that tree is measured
   // against (0024). Same coarse-to-fine order, continued one level down.
   { to: '/settings/structure', labelKey: 'structure.title', permKey: 'structure.edit' },
+  // The read-only Jira reader, on the same key App.tsx gates its route with.
+  { to: '/settings/jira', labelKey: 'jira.title', permKey: 'structure.edit' },
   // ⚠ The catalogue writes `use_cases` (vocab.edit) in one half and
   //   `map_node_kinds` (structure.edit) in the other. `vocab.edit` is the key
   //   App.tsx gates the route on, so it is the key this row must carry — a row

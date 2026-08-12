@@ -97,6 +97,7 @@ const GroupsAdmin = lazy(() => import('./pages/settings/GroupsAdmin'))
 // (0023/0024). Two chunks rather than one for the reason GroupsAdmin is its own:
 // an admin renaming a phase should not pay for the capability list to load.
 const StructureAdmin = lazy(() => import('./pages/settings/StructureAdmin'))
+const JiraAdmin = lazy(() => import('./pages/settings/JiraAdmin'))
 const CatalogueAdmin = lazy(() => import('./pages/settings/CatalogueAdmin'))
 // Roles & permissions (0025). The STRICTEST gate in the file, and the one that
 // did not move to a narrower key: what is ticked here is what is_admin() answers
@@ -793,6 +794,13 @@ export default function App(): ReactElement {
                 element={
                   canEditStructure ? <StructureAdmin /> : <Navigate to="/settings" replace />
                 }
+              />
+              {/* The Jira reader (read-only). Gated exactly like Structure:
+                  it reads `map_nodes` and `use_cases` to match against, and the
+                  edge function re-verifies the caller itself. */}
+              <Route
+                path="/settings/jira"
+                element={canEditStructure ? <JiraAdmin /> : <Navigate to="/settings" replace />}
               />
               {/* The catalogue edits the WORDS the tree is described with, so
                   `vocab.edit` — 0025 puts `use_cases` on that key.

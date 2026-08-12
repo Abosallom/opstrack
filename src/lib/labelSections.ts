@@ -1034,6 +1034,22 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       },
     ],
   },
+  // Settings › Jira — the read-only Jira harness. Beside `structure` and
+  // `catalogue` because it is the same screen family: it matches Jira's values
+  // against the tree those two screens build.
+  jira: {
+    section: 'entryFields',
+    where: 'terminology.where.settingsJira',
+    rules: [
+      { prefixes: ['subtitle', 'title'], section: 'screenTitles' },
+      { prefixes: ['settingsHint'], section: 'messages' },
+      { prefixes: ['fieldCustom', 'statusIgnore', 'statusLive', 'statusPlanned', 'statusTesting'], section: 'healthStates' },
+      { prefixes: ['connTest', 'connTesting', 'jqlRun', 'jqlRunning', 'manage', 'mapLoad', 'mapLoading', 'projectsLoad', 'projectsLoading', 'showAll', 'showOnly'], section: 'actions' },
+      { prefixes: ['fieldsEmpty', 'projectsEmpty', 'projectsUntried', 'resultsEmpty', 'resultsUntried', 'statusesEmpty'], section: 'emptyStates' },
+      { prefixes: ['ambiguousMatches', 'blank', 'catalogueFailed', 'connOk', 'connSecrets', 'connUntested', 'err', 'filtered', 'issueCount', 'loadFailed', 'morePages', 'notSaved', 'projectsCount', 'readOnly', 'summary', 'verdict'], section: 'messages' },
+      { prefixes: ['reason'], section: 'messages' },
+    ],
+  },
   // Settings › Catalogue (0023/0024) — the HL7/FHIR capability list and the
   // kinds a map node can be. Beside `mapadmin` because Structure and Catalogue
   // are one screen family; `where` reuses the note that already names both.

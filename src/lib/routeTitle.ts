@@ -109,6 +109,8 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   if (pathname.startsWith('/settings/structure')) return 'structure.title'
   if (pathname.startsWith('/settings/catalogue')) return 'catalogue.title'
   if (pathname.startsWith('/settings/roles')) return 'roles.title'
+  // Settings › Jira, on the same precedent — the screen renders no h1 of its own.
+  if (pathname.startsWith('/settings/jira')) return 'jira.title'
   // Settings › AI assist. Same precedent as vocabulary/recurring/terminology/
   // groups: it names itself out of its own namespace, because 'ai.title' already
   // ships in both languages and a route.ai twin would only ever hold the same

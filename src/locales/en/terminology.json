@@ -71,6 +71,7 @@
       "settingsCatalogueUseCases": "Settings, then Catalogue — the capabilities list at the top of the screen.",
       "settingsCatalogueKinds": "Settings, then Catalogue — the node kinds list at the bottom of the screen.",
       "settingsCatalogueDelete": "Settings, then Catalogue — the “are you sure” box before a capability or a kind is deleted.",
+      "settingsJira": "Settings, then Jira — the read-only reader: the connection, the field mapping and what a query returns.",
       "settingsExport": "Settings, then Export.",
       "settingsMembers": "Settings, then Members.",
       "settingsPush": "Settings, then Push notifications.",
