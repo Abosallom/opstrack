@@ -127,7 +127,7 @@
      …vs a node fill                                   6.35 / 5.53
      progress underscore (ink) on a node fill          6.35 / 5.53
      state breach dot (--red) vs a node fill           4.07 / 4.45
-     match arc (--accent) on --bg / --bg-elev-2        5.63 / 12.57 · 4.51 / 11.57
+     match arc (--accent) on --bg / --bg-elev-2        5.78 / 12.60 · 4.63 / 11.60
      …over the worst 16% node fill                     3.15 / 9.39  ← the floor
 
    WHY THE MATCH COUNT IS `--text` AND THE ARC IS `--accent`. The last two rows

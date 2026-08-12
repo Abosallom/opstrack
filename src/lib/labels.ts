@@ -16,7 +16,7 @@
 
 import { useCallback } from 'react'
 import { useLocale, type Locale } from './i18n'
-import type { Track } from '../types'
+import type { MapNode, MapNodeKind, Track } from '../types'
 
 /**
  * A track's name in the given locale.
@@ -36,4 +36,43 @@ export function useTrackLabel(): (track: Track) => string {
   // Memoised on locale so passing this into a memo'd list row does not
   // invalidate it on every parent render.
   return useCallback((track: Track) => trackLabel(track, locale), [locale])
+}
+
+/**
+ * A hierarchy node's name — `trackLabel`'s rule one level down, fallback and all.
+ *
+ * It takes a `Pick` rather than a whole `MapNode` because both call sites hold a
+ * different shape of the same two columns: the map builds its view model from
+ * store rows, and the admin screen labels a draft that has no id yet.
+ */
+export function nodeLabel(node: Pick<MapNode, 'name' | 'name_ar'>, locale: Locale): string {
+  if (locale === 'ar') return node.name_ar.trim() || node.name
+  return node.name
+}
+
+/** The supported way for a component to label a node. Re-renders on language change. */
+export function useNodeLabel(): (node: Pick<MapNode, 'name' | 'name_ar'>) => string {
+  const locale = useLocale()
+  return useCallback((node: Pick<MapNode, 'name' | 'name_ar'>) => nodeLabel(node, locale), [locale])
+}
+
+/**
+ * A node KIND's name — "Organization", "Phase".
+ *
+ * A CAPTION AND NEVER A CONDITION. Three files say so at length (model.ts's
+ * `entityType`, useMapKeyboard's dive test, MapBranchDetail's header): the moment
+ * anything compares this string to a literal, renaming a kind in the admin screen
+ * silently changes behaviour somewhere nobody was looking. It is resolved for the
+ * locale precisely because it is display text — a condition would then depend on
+ * the reader's language, which is the tell.
+ */
+export function kindLabel(kind: Pick<MapNodeKind, 'name' | 'name_ar'>, locale: Locale): string {
+  if (locale === 'ar') return kind.name_ar.trim() || kind.name
+  return kind.name
+}
+
+/** The supported way for a component to label a node kind. */
+export function useKindLabel(): (kind: Pick<MapNodeKind, 'name' | 'name_ar'>) => string {
+  const locale = useLocale()
+  return useCallback((kind: Pick<MapNodeKind, 'name' | 'name_ar'>) => kindLabel(kind, locale), [locale])
 }

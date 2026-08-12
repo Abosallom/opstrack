@@ -49,6 +49,10 @@ vi.mock('../../store/entries', () => ({
   createEntryOptimistic: () => Promise.resolve({ ok: false, error: 'common.error' }),
 }))
 
+// Imported for `invalidateConfig`. The real module registers a `window` focus
+// listener at module scope and there is no DOM here.
+vi.mock('../../store/config', () => ({ invalidateConfig: () => {} }))
+
 const { QuickAddPanel, draftToNewEntry } = await import('./QuickAdd')
 const { draftAt, draftRefusal } = await import('../../lib/mindtree/actions')
 const { NO_VALUE, NAME_PREFIX } = await import('../../lib/mindtree/dropRules')
@@ -215,6 +219,21 @@ describe('QuickAddPanel', () => {
     expect(html).toContain('aria-describedby="qh"')
     expect(html).toContain('id="qh"')
     expect(html).toContain('Enter adds it and leaves the box open for the next one.')
+  })
+
+  it('wears the BRANCH strings in branch mode', () => {
+    // The one half of the branch composer a server render can see: same panel,
+    // same form, four different strings. If these ever come back as the entry
+    // set, `mode` has stopped reaching the panel and the reader is being asked
+    // "What needs doing?" while naming a department.
+    const branch = render({ mode: 'branch', heading: 'New branch under ⁨UHR⁩' })
+    expect(branch).toContain('aria-label="Branch name"')
+    expect(branch).toContain('placeholder="Name this branch"')
+    expect(branch).toContain('Add branch')
+    expect(branch).toContain('New branch under ⁨UHR⁩')
+    // And not the item strings, which is the failure worth naming.
+    expect(branch).not.toContain('aria-label="New item"')
+    expect(branch).not.toContain('placeholder="What needs doing?"')
   })
 
   it('refuses to submit an empty line', () => {

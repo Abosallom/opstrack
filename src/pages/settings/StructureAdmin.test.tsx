@@ -122,6 +122,11 @@ vi.mock('../../api/tracks', () => ({ listTracks: record('listTracks') }))
 
 const { setLocale, t } = await import('../../lib/i18n')
 const mod = await import('./StructureAdmin')
+// The bilingual fallback moved to lib/labels — one rule, two screens, since the
+// map now builds its view model from the same function. Imported here rather
+// than re-tested there because this suite is where the reasoning behind it (the
+// column is `not null default ''`, so the test is for EMPTY) is written down.
+const { nodeLabel: nodeLabelIn } = await import('../../lib/labels')
 const StructureAdmin = mod.default
 const {
   MAX_LEVEL,
@@ -130,7 +135,6 @@ const {
   flattenTrack,
   hasArchivedAncestor,
   legalParents,
-  nodeLabelIn,
   parentChoiceValue,
   parseParentChoice,
   subtreeHeight,

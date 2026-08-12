@@ -48,6 +48,15 @@
 // chosen from a menu on the branch it was dropped on — and only one of the two
 // would have `dropRules`' XOR fix for unassigning a free-text owner.
 //
+// TWO VERBS HERE EDIT THE MAP RATHER THAN THE WORK — `addBranch` and
+// `archiveBranch` — and they are decided by exactly the same rules as the rest.
+// `map_nodes` writes are gated on is_admin() by 0023, surfaced as the
+// `structure.edit` grant, and that verdict ARRIVES AS INPUT for the nudge rule's
+// reason: it lives in a store and `src/lib/**` may not import one. What is
+// different about them is stated where they are built (`structuralActions`):
+// they are ABSENT without the grant rather than disabled with a sentence,
+// because "you are not an admin" is not a rule a reader can act on.
+//
 // THE ONE THING THIS FILE STILL FOLDS A PATH FOR IS `addHere`, and that is a
 // different question with a different answer. A CREATE has no current bucket to
 // compare against and no row to move: "add an item here" under Network's Blocked
@@ -103,6 +112,8 @@ export type MindActionKind =
   | 'applySelection'
   | 'focus'
   | 'collapse'
+  | 'addBranch'
+  | 'archiveBranch'
 
 export interface MindAction {
   readonly kind: MindActionKind
@@ -200,6 +211,28 @@ export interface MindActionCtx {
   readonly focusedId: string | null
   /** See MindNudgeVerdict. REQUIRED so a surface cannot forget to wire it. */
   readonly nudge: MindNudgeLookup
+  /**
+   * May this reader SHAPE the hierarchy — `structure.edit`, the grant
+   * `pages/settings/StructureAdmin.tsx` already gates on.
+   *
+   * IT ARRIVES AS INPUT for `nudge`'s reason: the answer lives in
+   * `store/auth.useHasPerm` and `src/lib/**` may not import a store. The screen
+   * already holds it.
+   *
+   * OPTIONAL, AND IT DEFAULTS TO CLOSED — the one place in this file where a
+   * missing input is not a wiring bug to shout about. `undefined` means "no
+   * structural verbs", which is exactly what a reader without the grant must
+   * see, so a surface that has not wired it yet shows the map it showed before
+   * rather than two verbs whose every press would come back 42501.
+   *
+   * ABSENT RATHER THAN DISABLED, and it is the one refusal in this module that
+   * is silent. Every other `reasonKey` teaches a rule the reader could satisfy —
+   * sign in, pick a different bucket, tick something. "You are not an admin" is
+   * not a rule they can act on, it is a fact about their account, and two greyed
+   * rows on every branch of the map is a permanent reminder of it. The verbs
+   * that are MEANINGLESS rather than refused are absent for the same reason.
+   */
+  readonly canEditStructure?: boolean
 }
 
 // ── the reason keys ────────────────────────────────────────────────────────
@@ -220,6 +253,7 @@ export const WHY_NONE_EDITABLE = 'mindtree.whyNoneEditable'
 export const WHY_FOCUSED = 'mindtree.whyFocused'
 export const WHY_EMPTY_BRANCH = 'mindtree.whyEmptyBranch'
 export const WHY_NO_NUDGE = 'mindtree.whyNoNudge'
+export const WHY_TOO_DEEP = 'mindtree.whyTooDeep'
 
 /**
  * A leaf the store no longer holds.
@@ -363,6 +397,147 @@ export function draftRefusal(path: readonly MindNode[], dimension: MindDimension
   return WHY_EMPTY_BRANCH
 }
 
+// ── the branch a structural verb acts on ───────────────────────────────────
+
+/**
+ * The deepest a node may sit below its track — `v_max_depth` in 0023's
+ * `map_nodes_check_tree()`, MIRRORED here and not owned here.
+ *
+ * IT IS 1-BASED, LIKE THE TRIGGER: a node hanging directly off a track is at
+ * level 1. `pages/settings/StructureAdmin.tsx` holds the same number as
+ * `MAX_LEVEL` and refuses "Add child" with it for the same reason this file
+ * refuses "Add a branch here"; the value cannot be derived from either place
+ * because the cap lives in a plpgsql constant. Two mirrors of one constant is
+ * one more than anybody wants, and importing across `src/lib` → `src/pages` is
+ * the thing that is actually forbidden (EXECUTION-PLAN rule 2), so the two
+ * copies stay and this comment is what keeps them in step.
+ *
+ * WITHOUT THIS THE READER MEETS 22023. The trigger is deferred, so the refusal
+ * arrives after a name has been typed and a button pressed, as
+ * `mapadmin.errTooDeep` — correct, and too late to be a rule anybody learns.
+ */
+export const MAX_BRANCH_LEVEL = 6
+
+/**
+ * WHERE a structural verb would write, folded out of the root-to-node path.
+ *
+ * ONE SHAPE FOR BOTH VERBS, because both need the same three facts and a second
+ * type would be a second fold of the same path. Which field matters depends on
+ * the verb, and each is documented for the verb that reads it.
+ *
+ * `map_nodes` is a tree hanging under a TRACK, so `trackId` is not optional
+ * context — the column is `not null` on every row and `createMapNode` sends it
+ * even when there is a parent, so that a caller's belief about which track a
+ * branch belongs to is checkable against `map_node_cross_track` rather than
+ * left to a trigger nobody can see from the map.
+ */
+export interface MindBranchRef {
+  /** The track this branch lives under. `map_nodes.track_id`. */
+  readonly trackId: string
+  /**
+   * The map node this path ends on, or null when the path ends on the TRACK
+   * itself — which is a real place, not a missing one: a child added there is a
+   * level-1 node with `parent_id: null`.
+   */
+  readonly nodeId: string | null
+  /** The 1-based level `nodeId` sits at; 0 when the path ends on the track. */
+  readonly level: number
+  /**
+   * Any structural step on the path is already put away — an archived track, an
+   * archived Organization that still holds work and is therefore still drawn.
+   *
+   * CARRIED RATHER THAN REFUSED HERE, because the two verbs want different
+   * sentences from the same fact: adding under an archived branch is how one
+   * quietly comes back to life, and archiving one again is a no-op the reader
+   * should be told about rather than allowed to perform.
+   */
+  readonly retired: boolean
+}
+
+/**
+ * Fold a root-to-node path into the place a structural verb would write, or
+ * null when this path names no place in `map_nodes`.
+ *
+ * THE PATH AGAIN, AND FOR A THIRD REASON. `draftAt` folds it because a create
+ * means the intersection of every ring; `evaluateDrop` folds it because a move
+ * does. This folds it because the hierarchy IS the path: the track at the top
+ * says which tree, and each `entity` step below it is one level of that tree,
+ * so the depth the database will check is something this function can count
+ * rather than something the reader discovers on submit.
+ *
+ * NULL HAS FOUR CAUSES and all four are structural rather than permissive: the
+ * node is not a track or an entity (a group, a leaf, a "+N more" and the root
+ * are not places in `map_nodes`); a `group` or `entry` step sits ABOVE the node,
+ * which no tree this app draws produces and which would make the level count a
+ * fiction; a track whose bucket key is missing or empty; an entity whose bucket
+ * key is missing or empty, which is a malformed node rather than a bucket — the
+ * same `NO_VALUE` refusal `draftAt` makes one ring out, and for its reason:
+ * there is no "no organization" node.
+ */
+export function branchRefAt(path: readonly MindNode[]): MindBranchRef | null {
+  const node = path[path.length - 1]
+  if (node === undefined) return null
+  if (node.kind !== 'track' && node.kind !== 'entity') return null
+
+  let trackId: string | null = null
+  let nodeId: string | null = null
+  let level = 0
+  let retired = false
+
+  for (const step of path) {
+    if (step.kind === 'root') continue
+    if (step.kind === 'track') {
+      if (step.bucketKey === null || step.bucketKey === NO_VALUE) return null
+      trackId = step.bucketKey
+      retired = retired || step.retired
+      continue
+    }
+    if (step.kind === 'entity') {
+      if (step.bucketKey === null || step.bucketKey === NO_VALUE) return null
+      nodeId = step.bucketKey
+      level += 1
+      retired = retired || step.retired
+      continue
+    }
+    // A group, a leaf or a fold above the node. The hierarchy does not run
+    // through one, so neither does the level count.
+    return null
+  }
+
+  // The untracked pile. It is drawn, it holds real work, and it is not a track
+  // — so there is no `track_id` to hang a node from and no branch to add.
+  if (trackId === null) return null
+  return { trackId, nodeId, level, retired }
+}
+
+/**
+ * Why a NEW CHILD BRANCH cannot go here, or null when it can.
+ *
+ * ONE RULE, TWO READERS, and that is the whole reason it is a function rather
+ * than four lines inside the menu. `structuralActions` asks it to decide whether
+ * to grey the verb; `components/mindtree/QuickAdd.tsx` asks it again when the
+ * composer is already open, because a tree can change underneath a popover — a
+ * realtime archive, another admin's move — and a form that can no longer submit
+ * must say why instead of teaching the reader to press Enter and get nothing.
+ * Two copies of this would be a menu and a form disagreeing about the depth cap.
+ *
+ * IT DOES NOT ASK ABOUT `structure.edit`. The grant decides whether the VERB
+ * exists at all (see `MindActionCtx.canEditStructure`), and there is no path to
+ * the composer that does not go through the verb. Restating it here would put a
+ * permission check in a component's render, which is where a permission check
+ * goes stale.
+ */
+export function branchAddRefusal(path: readonly MindNode[], meId: string | null): string | null {
+  if (meId === null) return WHY_SIGNED_OUT
+  const ref = branchRefAt(path)
+  if (ref === null) return WHY_EMPTY_BRANCH
+  // Adding under a branch that is put away is how one quietly comes back to
+  // life — `draftAt`'s rule about an archived Org, one table up.
+  if (ref.retired) return WHY_RETIRED
+  if (ref.level + 1 > MAX_BRANCH_LEVEL) return WHY_TOO_DEEP
+  return null
+}
+
 // ── the list ───────────────────────────────────────────────────────────────
 
 /**
@@ -490,6 +665,14 @@ function branchActions(
     out.push(selectionAction(path, node, ctx))
   }
 
+  // Shaping the tree, between the work verbs and the two view verbs. The
+  // position is deliberate: everything above changes WORK, everything below
+  // changes only what is on screen, and these two sit on the seam because they
+  // change the MAP — which is neither, and is the only pair here that outlives
+  // the reader's session. Appending them at the end instead would put the two
+  // most consequential rows under the two most reversible ones.
+  out.push(...structuralActions(path, node, ctx))
+
   // Focus. `focusedId ?? ROOT_ID` normalises "no drill-in" to the root node, so
   // the root's own entry in the list reads as "show every track" and correctly
   // reports itself already-showing when nothing is focused.
@@ -524,6 +707,108 @@ function branchActions(
 }
 
 const EMPTY_PATCH: EntryPatch = Object.freeze({})
+
+/**
+ * The two verbs that edit the HIERARCHY rather than the work filed on it.
+ *
+ * WHY THEY ARE ON THE MAP AT ALL. Shaping the tree lived on one other screen —
+ * Settings › Structure — which meant a round trip per branch: leave the picture,
+ * find the row in an indented list, add, come back, check it landed where you
+ * meant. The owner's sentence for this was that the map "looks static": not that
+ * it does not move, but that it can only be LOOKED AT. These two verbs are the
+ * answer, and they are deliberately the SAME two the settings screen offers
+ * (add a child, put one away) rather than a lighter subset — a second, weaker
+ * editor is how the two screens start disagreeing about what a branch is.
+ *
+ * SETTINGS › STRUCTURE IS NOT REPLACED AND MUST NOT BE. It is the only place an
+ * archived branch is visible, which makes it the only place one is RESTORED,
+ * and it owns the fields this composer has no room for: the Arabic name, the
+ * kind, the account manager, re-parenting, reordering. This is the fast path for
+ * the shape; that is the full editor for the detail.
+ *
+ * NOTHING IS OFFERED WITHOUT `structure.edit` — see `MindActionCtx`.
+ */
+function structuralActions(
+  path: readonly MindNode[],
+  node: MindNode,
+  ctx: MindActionCtx,
+): readonly MindAction[] {
+  if (ctx.canEditStructure !== true) return EMPTY_ACTIONS
+  // A status bucket, an owner bucket and the root are drawn branches that are
+  // not PLACES: a group stands for a value inside its Org, and the root stands
+  // for the workspace. Hanging a `map_nodes` row off one is a category error
+  // rather than a refusal, so neither verb appears — the same distinction
+  // `branchActions` already makes for `applySelection`, one ring out. "Add an
+  // ITEM here" is still offered on all three, and that is the difference.
+  if (node.kind !== 'track' && node.kind !== 'entity') return EMPTY_ACTIONS
+
+  const ref = branchRefAt(path)
+  const out: MindAction[] = []
+
+  // ADD A CHILD BRANCH. Offered on a track (where the child is a level-1 node)
+  // and on every Organization above the cap. `entries_insert`'s reasoning does
+  // not apply here — 0023 gates `map_nodes` writes on is_admin(), and that is
+  // exactly the grant this whole function is behind — so the only refusals left
+  // are structural: no session, no place, a branch already put away, and the
+  // depth the database is about to check.
+  const addWhy = branchAddRefusal(path, ctx.meId)
+  out.push({
+    kind: 'addBranch',
+    labelKey: 'mindtree.actAddBranch',
+    enabled: addWhy === null,
+    reasonKey: addWhy,
+    mutates: true,
+    // The composer asks for a name, which is the only question a create has;
+    // asking a second time whether the reader meant to type it would be a
+    // dialog in front of a text box.
+    confirm: false,
+    closes: false,
+    targetIds: EMPTY_IDS,
+    patch: null,
+  })
+
+  // ARCHIVE. ORGANIZATIONS ONLY, and the absence on a track is a category error
+  // rather than a refusal: a track is a row in `tracks`, archiving one is
+  // `setTrackArchived`, and it takes its whole hierarchy plus every item ever
+  // filed on it with it. That is a decision for the track editor, with the
+  // track editor's counts in front of it — not for a right-click on a ring.
+  if (node.kind === 'entity') {
+    const why =
+      ctx.meId === null
+        ? WHY_SIGNED_OUT
+        : ref === null || ref.nodeId === null
+          ? WHY_EMPTY_BRANCH
+          : ref.retired
+            ? // Already put away, and still drawn because it holds work.
+              // model.ts renders a retired bucket rather than dropping it; this
+              // is the one place that fact turns into a refusal instead of a
+              // second archive that would write the value already in the column.
+              WHY_RETIRED
+            : null
+    out.push({
+      kind: 'archiveBranch',
+      labelKey: 'mindtree.actArchiveBranch',
+      enabled: why === null,
+      reasonKey: why,
+      mutates: true,
+      // ALWAYS ASKS, and the counts in the question are the whole point:
+      // archiving CASCADES to every descendant and that is invisible from a
+      // canvas. `NodeMenu` reads `getMapNodeUsage` before it raises the dialog —
+      // a destructive act that explains itself afterwards has already happened.
+      confirm: true,
+      // `closes` is about CLOSING WORK — it gates `dropRules.closesEntry`'s
+      // sentence and the close-flavoured confirm. Archiving a branch writes no
+      // status on anything; the items filed on it stay exactly as open as they
+      // were and stop being drawn. Setting this true would word the question as
+      // though the work had been finished.
+      closes: false,
+      targetIds: EMPTY_IDS,
+      patch: null,
+    })
+  }
+
+  return out
+}
 
 /**
  * The verb that names what this branch does to the selection. A LABEL, not a

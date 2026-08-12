@@ -204,3 +204,22 @@
   border-block-end: 1px solid var(--border);
   margin-block-end: 4px;
 }
+
+/* The seam above "Add a branch here" and "Archive this branch". Everything above
+   it changes WORK; these two change the MAP, and they are the only rows in the
+   panel whose effect outlives the reader's session.
+
+   ONE HAIRLINE, NO COLOUR, AND NO NEW TOKEN. `--border` is already the panel's
+   own edge and the `data-shape='back'` rule's separator, so this adds nothing to
+   the contrast matrix: it is the same non-text mark on the same `--bg-elev` fill
+   that has already been measured. A red "Archive" row would be the alternative,
+   and it would be a colour picked for danger that has to clear 3:1 in both
+   themes on a surface this sheet does not own — while saying nothing the word
+   "Archive" and the confirmation behind it do not already say.
+
+   `border-block-start`, so the seam is above the group in both directions. The
+   block axis does not mirror, which is exactly why it is the safe one here. */
+.mtree-menu-item[data-group-start='true'] {
+  border-block-start: 1px solid var(--border);
+  margin-block-start: 4px;
+}

@@ -15,6 +15,7 @@ import { useCallback, useMemo, useState } from 'react'
 import type { MutableRefObject } from 'react'
 import { canNudge, askOffer, outstandingAsk } from '../../components/entry/NudgeButton'
 import type { MindMenuChoice, MindMenuChoices } from '../../components/mindtree/NodeMenu'
+import type { QuickAddMode } from '../../components/mindtree/QuickAdd'
 import { t } from '../../lib/i18n'
 import type { MindActionCtx, MindNudgeVerdict } from '../../lib/mindtree/actions'
 import { NO_VALUE, NAME_PREFIX } from '../../lib/mindtree/dropRules'
@@ -26,6 +27,7 @@ import type {
   MindVocabOption,
 } from '../../lib/mindtree/model'
 import { readLocalAsk } from '../../store/nudges'
+import { useHasPerm } from '../../store/auth'
 import { memberLabel, type Member } from '../../store/members'
 import type { Entry, UserRole } from '../../types'
 import type { Box } from './useMapViewport'
@@ -85,8 +87,21 @@ export function useMapOverlays({
 }: MapOverlaysOptions) {
   /** The open node menu — its path is a memo slice, so the component's memo holds. */
   const [menuAt, setMenuAt] = useState<{ nodeId: string; x: number; y: number } | null>(null)
-  /** The open quick-add form, same shape and the same reference discipline. */
-  const [addAt, setAddAt] = useState<{ nodeId: string; x: number; y: number } | null>(null)
+  /**
+   * The open quick-add form, same shape and the same reference discipline —
+   * plus WHICH THING IS BEING NAMED.
+   *
+   * `mode` is carried because it cannot be inferred: the same Organization
+   * offers both `addHere` (an item filed on it) and `addBranch` (a child branch
+   * under it), and the path is identical for the two. The menu row the reader
+   * pressed is the only thing that knows which they meant.
+   */
+  const [addAt, setAddAt] = useState<{
+    nodeId: string
+    x: number
+    y: number
+    mode: QuickAddMode
+  } | null>(null)
 
   /**
    * The nudge verdict, SUPPLIED rather than computed by `lib/mindtree/actions`.
@@ -117,6 +132,16 @@ export function useMapOverlays({
   )
 
   /**
+   * May this reader SHAPE the hierarchy — the grant that decides whether the two
+   * structural verbs appear on a branch at all.
+   *
+   * READ HERE rather than inside `lib/mindtree/actions.ts` because that module
+   * may not import a store; the same reason `nudgeVerdict` above is supplied
+   * rather than computed. A page hook is exactly where a store may be read.
+   */
+  const canEditStructure = useHasPerm('structure.edit')
+
+  /**
    * The context every action decision is made against — the node menu's, and the
    * keyboard's refusal sentences.
    *
@@ -134,8 +159,9 @@ export function useMapOverlays({
       dimension,
       focusedId,
       nudge: nudgeVerdict,
+      canEditStructure,
     }),
-    [meId, role, entryById, selection, dimension, focusedId, nudgeVerdict],
+    [meId, role, entryById, selection, dimension, focusedId, nudgeVerdict, canEditStructure],
   )
 
   /**

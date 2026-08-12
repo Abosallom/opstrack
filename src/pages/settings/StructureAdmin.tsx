@@ -79,8 +79,8 @@ import {
   updateMapNode,
 } from '../../api/map'
 import { listTracks } from '../../api/tracks'
-import { t, useLocale, type Locale } from '../../lib/i18n'
-import { useTrackLabel } from '../../lib/labels'
+import { t, useLocale } from '../../lib/i18n'
+import { kindLabel, useNodeLabel, useTrackLabel } from '../../lib/labels'
 import { trackIcon } from '../../lib/trackIcons'
 import { trackVars } from '../../lib/trackStyle'
 import { invalidateConfig } from '../../store/config'
@@ -110,28 +110,11 @@ export const MAX_LEVEL = 6
 /** `map_nodes_name_len_chk` — 1..60 on the trimmed name. Mirrored, not owned. */
 const NAME_MAX = 60
 
-/**
- * A node's name in the given locale — `lib/labels.trackLabel`'s rule, one level
- * down, including its fallback: `name_ar` is `not null default ''`, so the test
- * is for EMPTY rather than null and an untranslated node shows its English name
- * instead of a blank row.
- *
- * LOCAL, AND IT SHOULD NOT STAY THAT WAY. This belongs beside `trackLabel` in
- * `src/lib/labels.ts` — that file's whole subject is localised display names for
- * database rows — and it is the same twelve-line consolidation GroupsAdmin's
- * `groupLabelIn` is already waiting on. Duplicated here because labels.ts is not
- * this worker's file. Carried in the handoff.
- */
-export function nodeLabelIn(node: Pick<MapNode, 'name' | 'name_ar'>, locale: Locale): string {
-  if (locale === 'ar') return node.name_ar.trim() || node.name
-  return node.name
-}
-
-/** The same rule for a kind. Same consolidation, same handoff. */
-function kindLabelIn(kind: Pick<MapNodeKind, 'name' | 'name_ar'>, locale: Locale): string {
-  if (locale === 'ar') return kind.name_ar.trim() || kind.name
-  return kind.name
-}
+// The node and kind label rules used to live here as `nodeLabelIn`/`kindLabelIn`,
+// marked "should not stay that way". They now live beside `trackLabel` in
+// `src/lib/labels.ts`, which is that file's whole subject, and the map reads the
+// same two functions to build its view model — so a fallback fixed in one place
+// is fixed for both screens instead of drifting between them.
 
 /* ───────────────────────────── the tree, purely ──────────────────────────── */
 //
@@ -464,7 +447,7 @@ export default function StructureAdmin(): ReactElement {
   const members = useMembers()
   // Memoised on locale so passing it into a callback does not invalidate one on
   // every render — useTrackLabel's own reasoning.
-  const nodeLabel = useCallback((node: MapNode) => nodeLabelIn(node, locale), [locale])
+  const nodeLabel = useNodeLabel()
 
   const [tracks, setTracks] = useState<Track[] | null>(null)
   const [nodes, setNodes] = useState<MapNode[]>([])
@@ -967,7 +950,7 @@ export default function StructureAdmin(): ReactElement {
 
           <div className="str-marks">
             <span className="pill str-kind">
-              {kind ? kindLabelIn(kind, locale) : t('structure.kindNone')}
+              {kind ? kindLabel(kind, locale) : t('structure.kindNone')}
             </span>
             {node.vendor.trim() !== '' && <span className="pill str-vendor">{node.vendor}</span>}
             {node.archived && <span className="pill warn">{t('structure.archived')}</span>}
@@ -1123,7 +1106,7 @@ export default function StructureAdmin(): ReactElement {
                   <option value="">{t('structure.kindNone')}</option>
                   {kinds.map((k) => (
                     <option key={k.id} value={k.id}>
-                      {kindLabelIn(k, locale)}
+                      {kindLabel(k, locale)}
                     </option>
                   ))}
                 </select>
@@ -1333,7 +1316,7 @@ export default function StructureAdmin(): ReactElement {
             <option value="">{t('structure.kindNone')}</option>
             {kinds.map((k) => (
               <option key={k.id} value={k.id}>
-                {kindLabelIn(k, locale)}
+                {kindLabel(k, locale)}
               </option>
             ))}
           </select>

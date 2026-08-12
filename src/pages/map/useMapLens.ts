@@ -16,6 +16,48 @@
 // time either writer ran alone, which is the defect the contract's risk 6 names
 // for the collapse state and the same trap in a different corner.
 //
+// ── THE SELECTED LEAF: THE NODE YOU PICKED, BESIDE THE WORLD YOU ARE IN ────
+//
+// The owner's correction — "make the map when i zoom in until Org itself then a
+// side bar to open it" — splits one idea in two. The DRILL-IN says which world
+// the reader is inside; it is `useMapFocus`'s and it re-roots the drawing. The
+// SELECTION says which node the reader picked; an Organization is a LEAF you
+// arrive at, so picking one must move NOTHING on the canvas — no re-root, no
+// zoom, no relayout.
+//
+// `subjectForLens` only ever knew about the first. Fed `focusNodeId`, the panel
+// could only ever be about the node the map had re-rooted to, so a tap on an
+// Organization opened the branch panel on the DEPARTMENT above it — and, on the
+// workspace the owner is looking at today, on nothing at all, because a map with
+// no drill-in has `focusNodeId === null` and `shape` with null is `{kind:'none'}`
+// and a `none` subject renders no panel. The sidebar opened empty.
+//
+// So this hook holds the second id, and `panelSubjectFor` is the one place the
+// two are resolved: THE SELECTION WINS WHILE IT LASTS. It lasts exactly as long
+// as it is still answering the reader's question, which is three rules and no
+// more:
+//
+//   the drill-in MOVES     dropped. The reader dove somewhere else; a panel
+//                          still describing the organization they picked two
+//                          worlds ago is the stale-panel defect.
+//   a CHIP sets the lens   dropped. A chip means "show me this lens, HERE", and
+//                          here is where the map is, not what was picked before.
+//   the panel CLOSES       dropped. Dismissing the sidebar dismisses its subject;
+//                          re-opening it with the shape chip must answer where
+//                          the reader is now.
+//
+// A LENS ARRIVING FROM THE URL IS NOT A CHIP and is deliberately not a fourth
+// rule: `useMapUrl` writes the store directly, back/forward is the only way it
+// happens, and a link carries a DRILL-IN — so if the reader is somewhere else,
+// the first rule has already dropped the pick, and if they are not, the last
+// node they asked about is still the right answer.
+//
+// It is deliberately NOT persisted and NOT in the URL. `useMapUrl` mirrors
+// `lens`/`stage`/`focus`, all three of which describe where the map IS; a
+// selection is a thing the reader just pointed at, and a link that re-opened
+// yesterday's organization over today's map would be describing the pointer
+// rather than the map.
+//
 // THE DETENT IS SESSION STATE, DELIBERATELY, and this is the one departure worth
 // reading twice. `phoneDetentFor` gives every subject its opening height, and
 // `needs-me` and `what-changed` open at `full` because anything less shows a
@@ -62,6 +104,30 @@ import {
  */
 export type { PanelDetent }
 
+/**
+ * WHAT THE PANEL IS ABOUT, given both ids — the one place they are resolved.
+ *
+ * `selectedNodeId` is the leaf the reader PICKED (an Organization tap);
+ * `focusNodeId` is the world they are INSIDE (`useMapFocus`'s resolved drill-in,
+ * never the persisted preference). The selection wins, because picking a node is
+ * the more recent and the more specific of the two acts — and because the only
+ * gesture that sets one deliberately leaves the camera where it was, which means
+ * the drill-in cannot answer for it.
+ *
+ * A THIN FUNCTION OVER `subjectForLens`, ON PURPOSE. It adds a precedence and
+ * nothing else: no new `PanelSubject`, no new `MapLens`, no second exhaustive
+ * switch to keep in step with lens.ts's. Exported so the precedence can be
+ * asserted with plain values — the hook it lives in cannot be observed through
+ * `renderToStaticMarkup`, whose single pass never sees a setter's effect.
+ */
+export function panelSubjectFor(
+  lens: MapLens,
+  selectedNodeId: string | null,
+  focusNodeId: string | null,
+): PanelSubject {
+  return subjectForLens(lens, selectedNodeId ?? focusNodeId)
+}
+
 export interface MapLensState {
   readonly lens: MapLens
   readonly stage: MapStage
@@ -92,7 +158,40 @@ export function useMapLens(options: {
   const panelOpen = useMindPanelOpen()
 
   const stage = stageWithTable(lens, table)
-  const subject = useMemo(() => subjectForLens(lens, focusNodeId), [lens, focusNodeId])
+
+  /**
+   * THE LEAF THE READER PICKED, which is not the world they are inside. Null is
+   * the ordinary state: the panel then follows the drill-in exactly as it did
+   * before an Organization could be selected at all.
+   */
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+
+  /**
+   * THE DRILL-IN MOVED, SO THE SELECTION IS STALE — dropped in the render that
+   * discovers it rather than in an effect, on the same argument the detent
+   * adjustment below spells out: an effect lands one paint later, and that paint
+   * shows the organization the reader has just dived away from, under the new
+   * world's breadcrumb.
+   *
+   * `selected` is read from the local rather than from state so that the
+   * discarded pass is already correct; React re-runs the component immediately
+   * on a render-phase adjustment, and the ref is written first so the re-run
+   * sees no change and stops.
+   */
+  const focusRef = useRef(focusNodeId)
+  let selected = selectedNodeId
+  if (focusRef.current !== focusNodeId) {
+    focusRef.current = focusNodeId
+    if (selectedNodeId !== null) {
+      selected = null
+      setSelectedNodeId(null)
+    }
+  }
+
+  const subject = useMemo(
+    () => panelSubjectFor(lens, selected, focusNodeId),
+    [lens, selected, focusNodeId],
+  )
 
   const [detent, setDetentState] = useState<PanelDetent>(() => phoneDetentFor(subject))
 
@@ -121,8 +220,19 @@ export function useMapLens(options: {
     setDetentState(phoneDetentFor(subject))
   }
 
-  const setLens = useCallback(
-    (next: MapLens) => {
+  /**
+   * SHOW THIS LENS, ABOUT THIS NODE — the half both public setters share, and
+   * the reason they can differ at all.
+   *
+   * `pick` is the leaf being selected, or null for "whatever the map is showing
+   * me". It is taken as an argument rather than read from state because both
+   * callers run inside the reader's tap, and state written in that tap is not
+   * readable until the next render — the detent below would be computed from the
+   * PREVIOUS subject, which is how a phone sheet opens at `peek` on an
+   * Organization that wanted `half`.
+   */
+  const applyLens = useCallback(
+    (next: MapLens, pick: string | null) => {
       setMindLens(next)
       /**
        * A CHIP MEANS "SHOW ME THIS", so it re-opens a dock the reader closed.
@@ -135,10 +245,22 @@ export function useMapLens(options: {
       // this one runs inside the TAP, so the sheet opens at the right height
       // even for a chip whose subject kind does not change (branch → branch on
       // another node), where the adjustment has nothing to react to.
-      setDetentState(phoneDetentFor(subjectForLens(next, focusNodeId)))
+      setDetentState(phoneDetentFor(panelSubjectFor(next, pick, focusNodeId)))
+    },
+    [focusNodeId],
+  )
+
+  const setLens = useCallback(
+    (next: MapLens) => {
+      // A CHIP IS "SHOW ME THIS LENS, HERE". `here` is where the map is, so a
+      // leaf picked earlier is dropped: a reader who taps `The shape` after
+      // dismissing an organization is asking about the branch they are in, and
+      // handing them the organization back would make the chip mean two things.
+      setSelectedNodeId(null)
+      applyLens(next, null)
       announce(t('mindtree.lensChanged', { label: t(LENS_KEY[next]) }))
     },
-    [announce, focusNodeId],
+    [announce, applyLens],
   )
 
   /**
@@ -157,17 +279,27 @@ export function useMapLens(options: {
   )
 
   /**
-   * Make this subject the panel's subject — the inverse of `subjectForLens`.
+   * Make this subject the panel's subject — the inverse of `panelSubjectFor`.
    *
-   * `branch` sets the SHAPE lens and nothing else: the drill-in belongs to
-   * `useMapFocus`, and a caller asking for a branch panel has just focused that
-   * node (or is about to). Writing the focus from here would give one concept
-   * two writers, which is how a drill-in and a breadcrumb start disagreeing.
+   * `branch` SETS THE SHAPE LENS AND REMEMBERS THE NODE, and it still does not
+   * touch the focus. The drill-in belongs to `useMapFocus`; writing it from here
+   * would give one concept two writers, which is how a drill-in and a breadcrumb
+   * start disagreeing — and for the gesture this exists to serve it would be
+   * actively wrong, because selecting an Organization must leave the camera and
+   * the drawing exactly where they are.
+   *
+   * IT IS THE ONE CASE THAT DOES NOT ANNOUNCE, and that is not an omission. Its
+   * only caller is the Organization tap, which holds the node's LABEL; this hook
+   * holds nothing but an id. "Now showing The shape" is what the lens sentence
+   * would say to a reader who just opened one organization's details, and it is
+   * both false and useless. The caller names the node instead — one act, one
+   * sentence.
    */
   const setSubject = useCallback(
     (next: PanelSubject) => {
       switch (next.kind) {
         case 'none':
+          setSelectedNodeId(null)
           setMindPanelOpen(false)
           announce(t('mindtree.panelHidden'))
           return
@@ -175,7 +307,8 @@ export function useMapLens(options: {
           setLens('needs-me')
           return
         case 'branch':
-          setLens('shape')
+          setSelectedNodeId(next.nodeId)
+          applyLens('shape', next.nodeId)
           return
         case 'changes':
           setLens('what-changed')
@@ -185,11 +318,16 @@ export function useMapLens(options: {
           return
       }
     },
-    [announce, setLens],
+    [announce, applyLens, setLens],
   )
 
   const setPanelOpen = useCallback(
     (open: boolean) => {
+      // DISMISSING THE SIDEBAR DISMISSES ITS SUBJECT. Escape and the close
+      // button are how a reader says "not this one"; leaving the pick behind
+      // would make the next `The shape` chip re-open the organization they just
+      // closed instead of the branch they are standing in.
+      if (!open) setSelectedNodeId(null)
       setMindPanelOpen(open)
       announce(t(open ? 'mindtree.panelShown' : 'mindtree.panelHidden'))
     },

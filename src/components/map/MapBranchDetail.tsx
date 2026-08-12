@@ -325,7 +325,18 @@ export function DetailBand({
           ) : error !== null ? (
             <span className="mbr-note">{t(error)}</span>
           ) : linked === 0 ? (
-            <NotRecorded />
+            /* THE STATE THE OWNER WILL SEE MOST IN THE FIRST WEEK, written as a
+               sentence rather than as a dash. Every other em-dash on this panel
+               sits in a FIELD or in the status column, where a reader's eye
+               already has a label beside it and a dash reads as "this one is
+               blank". Here the dash would be standing in for `6 of 9 live` — a
+               whole sentence — at the top of a band that is otherwise ten rows
+               of dashes, and "the band failed to load" and "nobody has recorded
+               anything yet" would look identical. The rows below still render:
+               on a brand-new organization they are the CHECKLIST of what there
+               is to record, which is the one useful thing this band can say
+               before anybody has said anything. */
+            <span>{t('mapnode.statusNone')}</span>
           ) : (
             <>
               <span className="tabular" aria-hidden="true">

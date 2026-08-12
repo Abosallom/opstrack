@@ -150,6 +150,9 @@ export interface MapDive {
    * Enter on an ORGANIZATION: open the info sidebar beside the map.
    * THE CAMERA DOES NOT MOVE BY ONE UNIT. The dive answers "where am I in the
    * organisation"; the sidebar answers "what is the state of this one thing".
+   * `activate` announces the node by name after calling this — the sidebar is
+   * the only one of the six verbs that changes nothing a screen reader would
+   * otherwise be told about.
    */
   details: (nodeId: string) => void
   /**
@@ -373,9 +376,23 @@ export function useMapKeyboard({
       // hierarchy with identical thresholds, so a tap on a department is a
       // dive there too, and the one-ring drill-in below is the pre-camera
       // fallback rather than the phone's answer.
+      //
+      // THE SIDEBAR SAYS WHOSE DETAILS IT IS SHOWING, and this is the only place
+      // that CAN say it: nothing moves on the canvas, focus stays on the node it
+      // was already on, so a screen reader is given no reason of its own to
+      // re-read anything. `useMapLens` is deliberately silent for this subject
+      // because it holds an id and this line holds the label.
+      //
+      // THE SENTENCE IS THE PANEL'S OWN TITLE (`mindtree.panelBranch`, which
+      // Mindtree.tsx renders at the head of the surface that just opened), so
+      // the two cannot drift into describing the same act two ways — and no new
+      // key enters the bundles for a gesture that already has one.
       if (dive !== undefined && (node.kind === 'track' || node.kind === 'entity')) {
         if (isDiveTarget(node)) dive.into(node.id)
-        else dive.details(node.id)
+        else {
+          dive.details(node.id)
+          setLive(t('mindtree.panelBranch', { label: textOf(node.label) }))
+        }
         return
       }
       if (compact && node.children.length > 0) {

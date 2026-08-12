@@ -1,6 +1,8 @@
 {
   "mindtree": {
+    "actAddBranch": "أضف فرعًا هنا…",
     "actAddHere": "أضف بندًا هنا",
+    "actArchiveBranch": "أرشفة هذا الفرع…",
     "actAssign": "إسناد إلى…",
     "actAssignHere": "أسنِد البنود المحددة إلى هذا الشخص",
     "actCollapse": "طيّ",
@@ -27,6 +29,7 @@
     "archived": "مؤرشف",
     "backTo": "الرجوع إلى ⁨{label}⁩",
     "backToRoot": "كل المسارات",
+    "branchArchived": "تمت أرشفة ⁨{label}⁩. غادر الخريطة ومعه كل ما تحته.",
     "branchEmpty": "لا شيء معلّق",
     "breachHint": "تحت هذا الفرع عمل تجاوز مهلة الخدمة.",
     "breadcrumb": "موضعك في الخريطة",
@@ -53,6 +56,24 @@
     "colUnassigned": "بلا مسؤول",
     "collapseNode": "طيّ ⁨{label}⁩",
     "collapsedAll": "طُويت كل الفروع.",
+    "confirmArchiveBody": "سيغادر الخريطة ومعه كل ما تحته. لن يُحذف أي شيء.",
+    "confirmArchiveBranches": {
+      "one": "فرع واحد تحته مباشرة سيذهب معه.",
+      "two": "فرعان تحته مباشرة سيذهبان معه.",
+      "few": "{count} فروع تحته مباشرة ستذهب معه.",
+      "many": "{count} فرعًا تحته مباشرة ستذهب معه.",
+      "other": "{count} فرع تحته مباشرة ستذهب معه."
+    },
+    "confirmArchiveItems": {
+      "one": "بند واحد مسجَّل عليه لن يظهر على الخريطة.",
+      "two": "بندان مسجَّلان عليه لن يظهرا على الخريطة.",
+      "few": "{count} بنود مسجَّلة عليه لن تظهر على الخريطة.",
+      "many": "{count} بندًا مسجَّلًا عليه لن يظهر على الخريطة.",
+      "other": "{count} بند مسجَّل عليه لن يظهر على الخريطة."
+    },
+    "confirmArchiveOk": "أرشفة",
+    "confirmArchiveTitle": "هل تؤرشف ⁨{label}⁩؟",
+    "confirmArchiveTrap": "استعادته لاحقًا لن تعيد فروعه — فإلغاء الأرشفة لا يعرف أيها كان مؤرشفًا من قبل.",
     "confirmBulkBody": "ستنتقل جميعها إلى ⁨{label}⁩، ولا سبيل للتراجع عن الدفعة كاملة.",
     "confirmBulkOk": "طبِّق",
     "confirmBulkTitle": {
@@ -214,6 +235,12 @@
     "panelNumbers": "ستة أرقام",
     "panelResize": "تغيير ارتفاع اللوحة",
     "panelShown": "اللوحة ظاهرة.",
+    "quickAddBranchDone": "أصبح ⁨{name}⁩ على الخريطة تحت ⁨{label}⁩.",
+    "quickAddBranchField": "اسم الفرع",
+    "quickAddBranchHint": "زر الإدخال يضيفه ويترك الحقل مفتوحًا للفرع التالي. نوعه واسمه العربي يُضبطان في الإعدادات › الهيكل.",
+    "quickAddBranchPlaceholder": "سمِّ هذا الفرع",
+    "quickAddBranchSubmit": "إضافة فرع",
+    "quickAddBranchUnder": "فرع جديد تحت ⁨{label}⁩",
     "quickAddDone": "أُضيف ⁨{title}⁩ تحت ⁨{label}⁩.",
     "quickAddField": "بند جديد",
     "quickAddHint": "زر الإدخال يضيفه ويترك الحقل مفتوحًا للبند التالي.",
@@ -263,6 +290,7 @@
     "whyNoneEditable": "لا يمكن تغيير أي من البنود المحددة.",
     "whyNotYours": "لا يغيّره إلا من سجّله أو من أُسنِد إليه أو أحد المشرفين.",
     "whyRetired": "لم يعد هذا الفرع مستخدمًا، ولا يقبل عملًا جديدًا.",
-    "whySignedOut": "انتهت جلستك. سجّل الدخول من جديد لإجراء التغييرات."
+    "whySignedOut": "انتهت جلستك. سجّل الدخول من جديد لإجراء التغييرات.",
+    "whyTooDeep": "هذا الفرع يقع في المستوى السادس، وهو أعمق ما تصل إليه الخريطة."
   }
 }

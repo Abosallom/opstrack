@@ -101,6 +101,28 @@ function contrast(fg: Rgb, bg: Rgb): number {
   return (hi + 0.05) / (lo + 0.05)
 }
 
+/**
+ * Hue in degrees, 0–360. Only the hue channel of HSL is needed here, and only
+ * by the brand-arc claim below — contrast is hue-blind, which is exactly the
+ * gap that assertion exists to cover.
+ *
+ * A GREY HAS NO HUE. When max === min the expression is 0/0, and the callers
+ * below would silently compare NaN. Every value it is handed is a saturated
+ * accent, so rather than return a fake 0 (which is red, and would read as a
+ * real answer) this returns null and the caller asserts on it.
+ */
+function hue([r, g, b]: Rgb): number | null {
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const d = max - min
+  if (d === 0) return null
+  let h: number
+  if (max === r) h = 60 * (((g - b) / d) % 6)
+  else if (max === g) h = 60 * ((b - r) / d + 2)
+  else h = 60 * ((r - g) / d + 4)
+  return ((h % 360) + 360) % 360
+}
+
 /* ───────────────────────────── the CSS reading ───────────────────────────── */
 
 /**
@@ -280,6 +302,43 @@ describe('the nphies brand palette', () => {
       expect(contrast(ink!, accent!)).toBeGreaterThanOrEqual(4.5)
     })
 
+    it(`${theme.name}: --accent-ink is readable on the HOVER fill too`, () => {
+      // `.btn-primary:hover` swaps the background to --accent-hover and keeps
+      // `color: var(--accent-ink)`. So the hover state is a second filled
+      // surface carrying the same ink, and nothing measured it: a hover tuned
+      // for the old accent could fail here while the resting state passed, and
+      // the only signal would be a button that gets harder to read when you
+      // point at it.
+      const ink = tokens.get('--accent-ink')
+      const hover = tokens.get('--accent-hover')
+      expect(ink, `--accent-ink missing from ${theme.selector}`).toBeDefined()
+      expect(hover, `--accent-hover missing from ${theme.selector}`).toBeDefined()
+      expect(contrast(ink!, hover!)).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it(`${theme.name}: --accent sits in the ring's violet/purple arc`, () => {
+      // WHY A HUE ASSERTION LIVES IN A CONTRAST FILE. Every other claim here is
+      // hue-blind by construction — relative luminance weights R, G and B and
+      // then throws the hue away, so a blue, a violet and a magenta of equal
+      // luminance are indistinguishable to all of it. That is the whole reason
+      // the accent could sit at the cold end of the brand ring for months while
+      // passing every measurement in this file.
+      //
+      // The owner's correction was that the app read as blue when the mark is
+      // mostly violet through magenta. Without this test that correction is a
+      // comment, and the next person to "fix" the accent by nudging it toward a
+      // more conventional UI blue would find nothing objecting. 240–280° is the
+      // ring's violet stop (#7b72c4, 247°) through its purple stop (#8e6fbf,
+      // 263°) with a little room either side; it deliberately EXCLUDES the
+      // ring's blue stop (#5b7fcb, 221°) and its magenta (#b25fa5, 309°).
+      const accent = tokens.get('--accent')
+      expect(accent, `--accent missing from ${theme.selector}`).toBeDefined()
+      const h = hue(accent!)
+      expect(h, '--accent is a grey — it carries no brand hue at all').not.toBeNull()
+      expect(h!).toBeGreaterThanOrEqual(240)
+      expect(h!).toBeLessThanOrEqual(280)
+    })
+
     it(`${theme.name}: every --track-* clears 3:1 as a bar on every surface`, () => {
       const tracks = [...tokens.keys()].filter((k) => k.startsWith('--track-'))
       // A guard against the failure mode this whole file exists to prevent:
@@ -313,7 +372,11 @@ describe('the swatch presets', () => {
       const keys = [...ROOT.keys()].filter(
         (k) => k.startsWith('--swatch-') && k.endsWith(`-${theme.name}`),
       )
-      expect(keys.length, 'no --swatch-* tokens found — check the selector').toBeGreaterThanOrEqual(8)
+      // THIRTEEN pairs since the purple joined the ladder. The guard is `>=` so
+      // adding a swatch never fails it, but the floor is raised to the real
+      // count rather than left at 8: a floor five below the truth would let a
+      // rename silently drop four pairs out of the sweep and still pass.
+      expect(keys.length, 'no --swatch-* tokens found — check the selector').toBeGreaterThanOrEqual(13)
       for (const key of keys) {
         for (const surface of SURFACES) {
           expect(

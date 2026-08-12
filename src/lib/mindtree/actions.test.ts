@@ -27,6 +27,7 @@ import { describe, expect, it } from 'vitest'
 import { EMPTY_FILTER, type FilterContext } from '../entryFilter'
 import { ENTRIES_UPDATE_IS_OPEN } from '../permissions'
 import {
+  MAX_BRANCH_LEVEL,
   MIND_BULK_CONFIRM_AT,
   WHY_CLOSED,
   WHY_DERIVED,
@@ -38,6 +39,9 @@ import {
   WHY_NO_SELECTION,
   WHY_RETIRED,
   WHY_SIGNED_OUT,
+  WHY_TOO_DEEP,
+  branchAddRefusal,
+  branchRefAt,
   draftAt,
   draftRefusal,
   editableOf,
@@ -1120,5 +1124,241 @@ describe('every label and reason is a translated key', () => {
     // `mindtree` namespace, or in another one whose sentence already says this
     // exactly (`entry.errNotFound`, and dropRules' own refusals).
     expect(seen.filter((k) => !/^(mindtree|entry)\.[A-Za-z]+$/.test(k))).toEqual([])
+  })
+})
+
+
+/* ─────────────────── shaping the map from the map itself ─────────────────── */
+//
+// The two verbs that edit `map_nodes` rather than `entries`. Everything below
+// runs against a REAL tree for this file's stated reason: `branchRefAt` reads
+// `kind`, `bucketKey` and `retired` off what model.ts emits, and a hand-written
+// path would only prove that actions.ts agrees with itself.
+
+/** UHR ▸ l1 ▸ l2 ▸ … ▸ l6, one item on the deepest, so every level is drawn. */
+function deepTree(levels = 6): MindNode {
+  const entities: MindEntity[] = []
+  for (let i = 1; i <= levels; i += 1) {
+    entities.push(ent({ id: `l${i}`, parentId: i === 1 ? null : `l${i - 1}`, typeKey: 'Phase' }))
+  }
+  return build({
+    entries: [entry({ id: 'a', track_id: 't-1', node_id: `l${levels}`, created_by: 'me-1' })],
+    tracks: [UHR_TRACK],
+    vocab: statusVocab(),
+    entities,
+  })
+}
+
+function deepPath(id: string, levels = 6): MindNode[] {
+  return findPath(deepTree(levels), (n) => n.kind === 'entity' && n.bucketKey === id)
+}
+
+/**
+ * The archived Org, WITH the item that keeps it drawn.
+ *
+ * model.ts renders a retired bucket only while it still holds work, so the
+ * fixture has to file something on it — the idiom the `draftAt` blocks above use
+ * three times for the same node.
+ */
+function putAwayPath(): MindNode[] {
+  return orgPath('org-old', {
+    entries: [entry({ id: 'a', track_id: 't-1', node_id: 'org-old', created_by: 'me-1' })],
+  })
+}
+
+/** The context with the grant that makes the two verbs exist at all. */
+function admin(over: Partial<MindActionCtx> = {}): MindActionCtx {
+  return ctx({ canEditStructure: true, ...over })
+}
+
+describe('branchRefAt — the place a structural verb writes', () => {
+  it('reads the track off a track node, with no parent and level 0', () => {
+    const path = findPath(orgTree(), (n) => n.kind === 'track')
+    // A child added here is a level-1 node with `parent_id: null` — a real
+    // place, not a missing one.
+    expect(branchRefAt(path)).toEqual({
+      trackId: 't-1',
+      nodeId: null,
+      level: 0,
+      retired: false,
+    })
+  })
+
+  it('counts one level per entity step, deepest last', () => {
+    // root ▸ UHR ▸ OB ▸ Org1. `level` is the trigger's numbering, so OB is 1.
+    expect(branchRefAt(orgPath('ob'))).toEqual({
+      trackId: 't-1',
+      nodeId: 'ob',
+      level: 1,
+      retired: false,
+    })
+    expect(branchRefAt(orgPath('org-1'))).toEqual({
+      trackId: 't-1',
+      nodeId: 'org-1',
+      level: 2,
+      retired: false,
+    })
+  })
+
+  it('reports a branch that is already put away, and one whose ANCESTOR is', () => {
+    // Archived and still drawn, because it holds work — model.ts's rule that
+    // hiding an option must never hide data.
+    expect(branchRefAt(putAwayPath())?.retired).toBe(true)
+
+    const throughArchived = orgPath('org-1', {
+      entities: [
+        ent({ id: 'ob', label: 'OB', typeKey: 'Phase', archived: true }),
+        ent({ id: 'org-1', parentId: 'ob' }),
+      ],
+    })
+    // The Org itself is live; the phase above it is not, and adding under it is
+    // how the archived phase quietly comes back to life.
+    expect(throughArchived[throughArchived.length - 1].retired).toBe(false)
+    expect(branchRefAt(throughArchived)?.retired).toBe(true)
+  })
+
+  it('names no place on a node that is not part of the hierarchy', () => {
+    const tree = orgTree()
+    // The root, a status bucket, a leaf and a fold are all drawn; none of them
+    // is a row in `map_nodes`.
+    expect(branchRefAt(pathTo(tree, tree.id))).toBeNull()
+    expect(branchRefAt(findPath(tree, (n) => n.kind === 'group'))).toBeNull()
+    expect(branchRefAt(findPath(tree, (n) => n.kind === 'entry'))).toBeNull()
+    expect(branchRefAt([])).toBeNull()
+  })
+
+  it('refuses the untracked pile, which has no track_id to hang a node from', () => {
+    // An entry with no track still gets a branch, keyed NO_VALUE. There is no
+    // row in `tracks` behind it, so there is nothing for `map_nodes.track_id`.
+    const root = build({ entries: [entry({ id: 'a' })], vocab: statusVocab() })
+    const path = findPath(root, (n) => n.kind === 'track')
+    expect(path[path.length - 1].bucketKey).toBe('')
+    expect(branchRefAt(path)).toBeNull()
+  })
+})
+
+describe('branchAddRefusal — one rule, read by the menu and by the composer', () => {
+  it('permits a healthy branch and a track', () => {
+    expect(branchAddRefusal(orgPath('org-1'), 'me-1')).toBeNull()
+    expect(branchAddRefusal(findPath(orgTree(), (n) => n.kind === 'track'), 'me-1')).toBeNull()
+  })
+
+  it('tests the session first, as every other verdict in this file does', () => {
+    expect(branchAddRefusal(orgPath('org-1'), null)).toBe(WHY_SIGNED_OUT)
+  })
+
+  it('refuses a branch that is put away', () => {
+    expect(branchAddRefusal(putAwayPath(), 'me-1')).toBe(WHY_RETIRED)
+  })
+
+  it('refuses the SEVENTH level with a sentence, which is what 22023 is not', () => {
+    // 0023's deferred trigger raises `map_node_depth` at level 7, after a name
+    // has been typed and a button pressed. This is the same refusal, before.
+    expect(branchRefAt(deepPath('l6'))?.level).toBe(MAX_BRANCH_LEVEL)
+    expect(branchAddRefusal(deepPath('l6'), 'me-1')).toBe(WHY_TOO_DEEP)
+    // And the level that still fits is not refused.
+    expect(branchAddRefusal(deepPath('l5'), 'me-1')).toBeNull()
+  })
+})
+
+describe('the structural verbs on a node', () => {
+  it('offers NOTHING without structure.edit — absent, not greyed', () => {
+    // "You are not an admin" is not a rule a reader can act on, and two greyed
+    // rows on every branch of the map is a permanent reminder of it.
+    const offered = kinds(mindActionsFor(orgPath('org-1'), ctx()))
+    expect(offered).not.toContain('addBranch')
+    expect(offered).not.toContain('archiveBranch')
+  })
+
+  it('offers both on an Organization, and only "add" on a track', () => {
+    expect(kinds(mindActionsFor(orgPath('org-1'), admin()))).toEqual(
+      expect.arrayContaining(['addBranch', 'archiveBranch']),
+    )
+    // A track is a row in `tracks`; archiving one is the track editor's job and
+    // takes every item ever filed on it. Absent is a category error, not a
+    // refusal, so there is no greyed row and no sentence.
+    const track = kinds(mindActionsFor(findPath(orgTree(), (n) => n.kind === 'track'), admin()))
+    expect(track).toContain('addBranch')
+    expect(track).not.toContain('archiveBranch')
+  })
+
+  it('offers neither on a status bucket, which is not part of the hierarchy', () => {
+    const group = kinds(mindActionsFor(findPath(orgTree(), (n) => n.kind === 'group'), admin()))
+    expect(group).not.toContain('archiveBranch')
+    // Nor "add a branch": a status bucket is drawn INSIDE its Org, it stands for
+    // a value rather than a place, and hanging a `map_nodes` row off it is a
+    // category error rather than something to grey out with a sentence. "Add an
+    // ITEM here" is still offered, and that is the difference.
+    expect(group).not.toContain('addBranch')
+    expect(group).toContain('addHere')
+  })
+
+  it('offers neither on a leaf', () => {
+    const rows = [entry({ id: 'a', track_id: 't-1', node_id: 'org-1', created_by: 'me-1' })]
+    const leaf = findPath(orgTree(), (n) => n.kind === 'entry')
+    const offered = kinds(
+      mindActionsFor(leaf, admin({ entryById: new Map(rows.map((r) => [r.id, r])) })),
+    )
+    expect(offered).not.toContain('addBranch')
+    expect(offered).not.toContain('archiveBranch')
+  })
+
+  it('sits between the work verbs and the two view verbs', () => {
+    // Everything above changes WORK, everything below changes only what is on
+    // screen. These two change the MAP, and they are the only rows in the panel
+    // whose effect outlives the session — so they may not sit under the two most
+    // reversible verbs in the list.
+    const list = kinds(mindActionsFor(orgPath('org-1'), admin()))
+    expect(list.indexOf('addBranch')).toBeGreaterThan(list.indexOf('applySelection'))
+    expect(list.indexOf('archiveBranch')).toBeLessThan(list.indexOf('focus'))
+    expect(list.indexOf('addBranch')).toBeLessThan(list.indexOf('archiveBranch'))
+  })
+
+  it('marks archive as a write that ASKS FIRST and closes nothing', () => {
+    const archive = byKind(mindActionsFor(orgPath('org-1'), admin()), 'archiveBranch')
+    expect(archive.mutates).toBe(true)
+    // The cascade is invisible from a canvas, so the dialog is not optional.
+    expect(archive.confirm).toBe(true)
+    // Archiving writes no status on anything. The items filed on it stay exactly
+    // as open as they were and stop being drawn; `closes: true` would word the
+    // question as though the work had been finished.
+    expect(archive.closes).toBe(false)
+    // It writes `map_nodes`, never `entries` — so there is no patch and no row
+    // for a surface to run `patchEntry` over.
+    expect(archive.targetIds).toEqual([])
+    expect(archive.patch).toBeNull()
+  })
+
+  it('carries the depth refusal onto the row rather than into a Postgres code', () => {
+    const deep = byKind(mindActionsFor(deepPath('l6'), admin()), 'addBranch')
+    expect(deep.enabled).toBe(false)
+    expect(deep.reasonKey).toBe(WHY_TOO_DEEP)
+    // Archiving the deepest branch is still perfectly legal — the cap is about
+    // what goes BELOW it.
+    expect(byKind(mindActionsFor(deepPath('l6'), admin()), 'archiveBranch').enabled).toBe(true)
+  })
+
+  it('refuses both on a branch that is already put away, each with its sentence', () => {
+    const put = mindActionsFor(putAwayPath(), admin())
+    expect(byKind(put, 'addBranch').reasonKey).toBe(WHY_RETIRED)
+    // Archiving an archived node would write the value already in the column.
+    const archive = byKind(put, 'archiveBranch')
+    expect(archive.enabled).toBe(false)
+    expect(archive.reasonKey).toBe(WHY_RETIRED)
+  })
+
+  it('refuses both when the session has gone, before anything else', () => {
+    const out = mindActionsFor(orgPath('org-1'), admin({ meId: null }))
+    expect(byKind(out, 'addBranch').reasonKey).toBe(WHY_SIGNED_OUT)
+    expect(byKind(out, 'archiveBranch').reasonKey).toBe(WHY_SIGNED_OUT)
+  })
+
+  it('leaves every other verb on the node exactly where it was', () => {
+    // The grant ADDS rows; it must not reorder or re-decide the ones that were
+    // already there, or every existing assertion in this file is about a
+    // different menu.
+    const without = kinds(mindActionsFor(orgPath('org-1'), ctx()))
+    const with_ = kinds(mindActionsFor(orgPath('org-1'), admin()))
+    expect(with_.filter((k) => k !== 'addBranch' && k !== 'archiveBranch')).toEqual(without)
   })
 })

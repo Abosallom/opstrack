@@ -50,7 +50,21 @@ const NAME_MAX = 40
  * Preset colours, as dark/light pairs.
  *
  * Every pair is a token already declared in global.css, where its contrast was
- * computed against all three surfaces of BOTH themes. That is the reason the
+ * computed against all three surfaces of BOTH themes — and as of the ring
+ * repaint that is TRUE AGAIN rather than merely claimed. Five of the seven had
+ * drifted: they were hexes that once matched a token, kept while global.css
+ * moved underneath them, so this grid was handing out colours the swatch sweep
+ * in styles/contrast.test.ts had never measured. The worst of them was
+ * `#58a6ff`, annotated "--accent", a bright blue that was never the accent and
+ * is now two hue families away from it — a picker offering blue in the name of
+ * a violet brand. Each row is now annotated with the token it IS, so the next
+ * drift is a one-line diff rather than an archaeology problem.
+ *
+ * `colorPurple` is new, and it is the ring's own purple stop (= --track-infra).
+ * The ladder had no purple at all, which is how a brand whose mark is mostly
+ * violet through magenta ended up with a track picker that led with blues.
+ *
+ * That is the reason the
  * grid is a fixed list rather than a colour wheel: a hue picked freehand is
  * routinely 2:1 in one theme, and a 3px identity bar nobody can see is worse
  * than no bar at all. The free hex fields below exist for when that trade-off
@@ -64,13 +78,15 @@ const NAME_MAX = 40
  * anyone who wants it.
  */
 const SWATCHES: readonly { dark: string; light: string; labelKey: string }[] = [
-  { dark: '#8b7bf5', light: '#5b4bd6', labelKey: 'admin.tracks.colorViolet' }, // --track-pmo
-  { dark: '#22b8d6', light: '#0a7d94', labelKey: 'admin.tracks.colorCyan' }, // --track-itops
-  { dark: '#e0a020', light: '#9c6600', labelKey: 'admin.tracks.colorAmber' }, // --track-network
-  { dark: '#46c26a', light: '#2c7a45', labelKey: 'admin.tracks.colorGreen' }, // --track-infra
-  { dark: '#f2678f', light: '#c2385f', labelKey: 'admin.tracks.colorRose' }, // --track-sre
-  { dark: '#58a6ff', light: '#1560c9', labelKey: 'admin.tracks.colorBlue' }, // --accent
-  { dark: '#ff7a7a', light: '#c02b2b', labelKey: 'admin.tracks.colorRed' }, // --red
+  // the ring's middle leads, as it does in global.css's ladder
+  { dark: '#8a82cb', light: '#675cbb', labelKey: 'admin.tracks.colorViolet' }, // --swatch-violet-*
+  { dark: '#9a7fc6', light: '#7b56b4', labelKey: 'admin.tracks.colorPurple' }, // --swatch-purple-*
+  { dark: '#47b1d8', light: '#1e7291', labelKey: 'admin.tracks.colorCyan' }, // --swatch-cyan-*
+  { dark: '#e0a020', light: '#9c6600', labelKey: 'admin.tracks.colorAmber' }, // --swatch-amber-*
+  { dark: '#46c26a', light: '#2c7a45', labelKey: 'admin.tracks.colorGreen' }, // --swatch-green-*
+  { dark: '#cd6c96', light: '#b43d71', labelKey: 'admin.tracks.colorRose' }, // --swatch-rose-*
+  { dark: '#698acf', light: '#3c66be', labelKey: 'admin.tracks.colorBlue' }, // --swatch-blue-*
+  { dark: '#ff7a7a', light: '#b32828', labelKey: 'admin.tracks.colorRed' }, // --red
 ]
 
 // ── SLA overrides ──────────────────────────────────────────────────────────

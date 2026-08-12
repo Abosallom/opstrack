@@ -629,8 +629,12 @@ export default function Mindtree(): ReactElement {
          * CAMERA DOES NOT MOVE BY ONE UNIT. No re-root, no zoom, no relayout.
          */
         details: (id: string) => {
+          // ONE ACT, ONE SENTENCE. `setSubject`'s branch case opens the panel
+          // itself (`applyLens` → `setMindPanelOpen(true)`), so a second
+          // `setPanelOpen(true)` here would only add a second announcement —
+          // "The panel is showing." — that the keyboard's own sentence then
+          // overwrites in the same tick.
           lens.setSubject(subjectForLens('shape', id))
-          lens.setPanelOpen(true)
         },
         /**
          * Focus moved — follow it by the MINIMUM MOVE. `flyTo` frames the
@@ -1323,6 +1327,7 @@ export default function Mindtree(): ReactElement {
       {addAt !== null && addPath !== null && addPath.length > 0 && (
         <QuickAdd
           path={addPath}
+          mode={addAt.mode}
           label={textOf(addPath[addPath.length - 1].label)}
           dimension={model.dimension}
           at={{ x: addAt.x, y: addAt.y }}

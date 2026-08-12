@@ -1,6 +1,8 @@
 {
   "mindtree": {
+    "actAddBranch": "Add a branch here…",
     "actAddHere": "Add an item here",
+    "actArchiveBranch": "Archive this branch…",
     "actAssign": "Assign to…",
     "actAssignHere": "Give the selected items to this person",
     "actCollapse": "Collapse",
@@ -23,6 +25,7 @@
     "archived": "Archived",
     "backTo": "Back to ⁨{label}⁩",
     "backToRoot": "All tracks",
+    "branchArchived": "Archived ⁨{label}⁩. It and everything beneath it have left the map.",
     "branchEmpty": "All clear",
     "breachHint": "Something under this branch is past its service deadline.",
     "breadcrumb": "Where you are in the map",
@@ -46,6 +49,18 @@
     "colUnassigned": "Unassigned",
     "collapseNode": "Collapse ⁨{label}⁩",
     "collapsedAll": "Every branch is closed.",
+    "confirmArchiveBody": "It leaves the map, and so does everything beneath it. Nothing is deleted.",
+    "confirmArchiveBranches": {
+      "one": "{count} branch directly beneath it goes with it.",
+      "other": "{count} branches directly beneath it go with it."
+    },
+    "confirmArchiveItems": {
+      "one": "{count} item filed on it stops appearing on the map.",
+      "other": "{count} items filed on it stop appearing on the map."
+    },
+    "confirmArchiveOk": "Archive",
+    "confirmArchiveTitle": "Archive ⁨{label}⁩?",
+    "confirmArchiveTrap": "Restoring it later does not bring its branches back — un-archiving cannot know which of them were already put away.",
     "confirmBulkBody": "They all move to ⁨{label}⁩, and there is no way to undo the batch.",
     "confirmBulkOk": "Apply",
     "confirmBulkTitle": {
@@ -174,6 +189,12 @@
     "panelNumbers": "Six numbers",
     "panelResize": "Change the panel height",
     "panelShown": "The panel is showing.",
+    "quickAddBranchDone": "⁨{name}⁩ is on the map under ⁨{label}⁩.",
+    "quickAddBranchField": "Branch name",
+    "quickAddBranchHint": "Enter adds it and leaves the box open for the next one. Its kind and its Arabic name are set in Settings › Structure.",
+    "quickAddBranchPlaceholder": "Name this branch",
+    "quickAddBranchSubmit": "Add branch",
+    "quickAddBranchUnder": "New branch under ⁨{label}⁩",
     "quickAddDone": "⁨{title}⁩ added under ⁨{label}⁩.",
     "quickAddField": "New item",
     "quickAddHint": "Enter adds it and leaves the box open for the next one.",
@@ -222,6 +243,7 @@
     "whyNoneEditable": "None of the selected items can be changed.",
     "whyNotYours": "Only the person who raised this, its owner, or an admin can change it.",
     "whyRetired": "That branch is no longer in use and cannot take new work.",
-    "whySignedOut": "Your session has ended. Sign in again to make changes."
+    "whySignedOut": "Your session has ended. Sign in again to make changes.",
+    "whyTooDeep": "This branch is already six levels deep, which is as deep as the map goes."
   }
 }

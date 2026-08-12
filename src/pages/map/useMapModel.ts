@@ -26,13 +26,14 @@ import type { MindNodeView } from '../../components/mindtree/MindNode'
 import { isolate } from '../../lib/bidi'
 import type { FilterState } from '../../lib/entryFilter'
 import { t } from '../../lib/i18n'
-import { useTrackLabel } from '../../lib/labels'
+import { useKindLabel, useNodeLabel, useTrackLabel } from '../../lib/labels'
 import { entityIdOf } from '../../lib/mapNodes'
 import {
   MIND_DIMENSIONS,
   ROOT_ID,
   buildMindtree,
   groupTotals,
+  type MindEntity,
   type MindLabel,
   type MindNode as MindNodeModel,
   type MindTrack,
@@ -62,7 +63,7 @@ import {
   useMindSelectionCount,
   useMindView,
 } from '../../store/mindtree'
-import { useMapNodeMap, useTracks } from '../../store/config'
+import { useMapNodeKinds, useMapNodeMap, useMapNodes, useTracks } from '../../store/config'
 import { useMemberMap, useMembers, memberLabel } from '../../store/members'
 import { useVocabAll, useVocabLabel } from '../../store/vocab'
 import { useAuth } from '../../store/auth'
@@ -170,6 +171,14 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
    * re-resolved by a few hundred nodes on every pan frame.
    */
   const mapNodeById = useMapNodeMap()
+  /**
+   * EVERY node, archived included — `buildMindtree` requires the whole list and
+   * decides for itself what a retired branch looks like, exactly as it does for
+   * tracks. Filtering here would hand it a forest with holes in it, and a child
+   * whose parent had been filtered out would silently re-root at its track.
+   */
+  const mapNodes = useMapNodes()
+  const nodeKinds = useMapNodeKinds()
   const members = useMembers()
   const memberById = useMemberMap()
   const ctx = useFilterContext()
@@ -183,6 +192,8 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
    */
   const entriesLoaded = useEntriesLoadedOnce()
   const trackLabelOf = useTrackLabel()
+  const nodeLabelOf = useNodeLabel()
+  const kindLabelOf = useKindLabel()
   const vocabLabelOf = useVocabLabel()
   const { profile } = useAuth()
   /**
@@ -230,6 +241,38 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
       })),
     [tracks, trackLabelOf],
   )
+
+  /**
+   * The hierarchy, as the model takes it.
+   *
+   * ROW SHAPE IN, VIEW MODEL OUT, and the two things this does are exactly the
+   * two `mindTracks` above does: resolve the label for the locale, and drop the
+   * columns the model has no business seeing. `vendor`, `account_manager_id`,
+   * `source` and the sync columns stay out — a node's integrator is a fact the
+   * PANEL shows, and a model that carried it would invalidate the whole tree
+   * every time somebody typed a character into that field.
+   *
+   * `typeKey` is the kind's name RESOLVED FOR THE LOCALE, and it is a caption:
+   * lib/labels.kindLabel says at length why nothing may branch on it. A kind
+   * that was deleted leaves `kind_id` pointing at nothing (`on delete set null`
+   * is the FK, but a stale first-paint cache can also carry an id the kinds list
+   * no longer has), so a missing kind reads as null rather than throwing.
+   */
+  const mindEntities = useMemo<MindEntity[]>(() => {
+    const kindById = new Map(nodeKinds.map((kind) => [kind.id, kind]))
+    return mapNodes.map((node) => {
+      const kind = node.kind_id === null ? undefined : kindById.get(node.kind_id)
+      return {
+        id: node.id,
+        trackId: node.track_id,
+        parentId: node.parent_id,
+        label: nodeLabelOf(node),
+        sortOrder: node.sort_order,
+        archived: node.archived,
+        typeKey: kind === undefined ? null : kindLabelOf(kind),
+      }
+    })
+  }, [mapNodes, nodeKinds, nodeLabelOf, kindLabelOf])
 
   const vocab = useMemo<readonly MindVocabOption[]>(() => {
     // Owner and health have no vocabulary: the roster and the four computed
@@ -280,12 +323,13 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
         entries,
         health,
         tracks: mindTracks,
-        // ⚠ WAVE A INTERIM, AND THE ONE PRODUCTION CALL SITE. An empty list
-        // reproduces today's four-ring tree exactly — which is the invariant this
-        // wave is gated on — but it also means the hierarchy never renders. The
-        // map-node store is Wave B; when it lands, this becomes its list, or
-        // every Org Aziz enters stays invisible with nothing complaining.
-        entities: [],
+        // THE ONE PRODUCTION CALL SITE, and the line the whole hierarchy hangs
+        // off. It was `[]` through Wave A — which reproduced the old four-ring
+        // tree exactly, and meant every Org anyone entered stayed invisible with
+        // nothing complaining. `MindNode.kind === 'entity'` was unreachable in
+        // the running app, and with it the dive past the track ring, the Org
+        // leaf and the whole detail panel.
+        entities: mindEntities,
         vocab,
         members,
         dimension,
@@ -303,6 +347,7 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
       entries,
       health,
       mindTracks,
+      mindEntities,
       vocab,
       members,
       dimension,

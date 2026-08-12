@@ -22,11 +22,14 @@
 import { useCallback } from 'react'
 import { toast } from '../../components/toast'
 import type { MindMenuRun } from '../../components/mindtree/NodeMenu'
+import type { QuickAddMode } from '../../components/mindtree/QuickAdd'
+import { setMapNodeArchived } from '../../api/map'
 import { t } from '../../lib/i18n'
 import { pooled } from '../../lib/pooled'
 import { WHY_GONE } from '../../lib/mindtree/actions'
 import { DROP_UNCHANGED_KEY } from '../../lib/mindtree/dropRules'
 import type { MindLabel, MindNode as MindNodeModel } from '../../lib/mindtree/model'
+import { invalidateConfig } from '../../store/config'
 import { patchEntry } from '../../store/entries'
 import { openEntry } from '../../store/entrySheet'
 import { setMindCollapsed } from '../../store/mindtree'
@@ -57,7 +60,7 @@ export interface MapWritesOptions {
   textOf: (label: MindLabel) => string
   toggleFold: (id: string) => void
   focusBranch: (nodeId: string | null) => void
-  openAdd: (at: { nodeId: string; x: number; y: number }) => void
+  openAdd: (at: { nodeId: string; x: number; y: number; mode: QuickAddMode }) => void
 }
 
 export function useMapWrites({
@@ -110,8 +113,35 @@ export function useMapWrites({
           // to travel. It is a second overlay rather than a field inside the
           // menu because it owns a text input, a submit and a "keep it open for
           // the next one" loop — QuickAdd.tsx's whole argument.
-          openAdd({ nodeId: node.id, x: at.x, y: at.y })
+          openAdd({ nodeId: node.id, x: at.x, y: at.y, mode: 'entry' })
           return
+        case 'addBranch':
+          // The SAME composer, one line of text, opened where the menu was —
+          // see QuickAdd.tsx's header on why this is not a third popover.
+          openAdd({ nodeId: node.id, x: at.x, y: at.y, mode: 'branch' })
+          return
+        case 'archiveBranch': {
+          // ALREADY CONFIRMED, WITH THE COUNTS IN THE QUESTION. `NodeMenu` read
+          // `getMapNodeUsage` before it raised the dialog and hands the answer
+          // over on the run, so this function neither asks again nor counts
+          // again — a surface that asked as well would ask twice, which is the
+          // rule this file already holds for MIND_BULK_CONFIRM_AT.
+          const nodeId = run.branch?.nodeId ?? null
+          if (nodeId === null || !run.confirmed) return
+          void (async () => {
+            const result = await setMapNodeArchived(nodeId, true)
+            if (!result.ok) {
+              toast(t(result.error), { tone: 'error' })
+              return
+            }
+            // `map_nodes` writes go through api/, so nothing else would tell the
+            // picture the tree changed. This is what takes the branch off the
+            // map.
+            invalidateConfig()
+            setLive(t('mindtree.branchArchived', { label }))
+          })()
+          return
+        }
         case 'nudge': {
           // An RPC, not a patch: `nudge_entry()` (migration 0019) writes the
           // notification, the audit row and the stamp in one transaction, which

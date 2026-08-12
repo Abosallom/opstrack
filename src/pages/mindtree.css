@@ -140,14 +140,14 @@
        on --bg-elev / --bg-elev-2                5.92 / 5.54 · 5.13 / 4.71
 
    NON-TEXT — 3:1
-     match arc (--accent) on --bg                5.63 / 12.57
-     …on --bg-elev-2                             4.51 / 11.57
+     match arc (--accent) on --bg                5.78 / 12.60
+     …on --bg-elev-2                             4.63 / 11.60
      …over the worst 16% node fill               3.15 / 9.39
      dive rail track + ticks (--field-border),
        on the plate (--bg-elev)                  3.77 / 3.65
-     dive rail thumb (--accent), on the plate    5.20 / 13.62
+     dive rail thumb (--accent), on the plate    5.34 / 13.65
      …the same thumb painted straight onto its
-       own track                                 1.38 / 3.73  ← FAILS, and is
+       own track                                 1.42 / 3.74  ← FAILS, and is
        why the thumb carries a 2px --bg-elev ring rather than a taste for one.
 
    THE MATCH COUNT IS `--text` AND THE ARC IT COUNTS IS `--accent`, which looks

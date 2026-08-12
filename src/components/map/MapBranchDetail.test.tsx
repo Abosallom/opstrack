@@ -80,6 +80,7 @@ const MapBranchDetail = (await import('./MapBranchDetail')).default
 const { DetailBand, localName, managerLabel } = await import('./MapBranchDetail')
 const { useCaseProgress: progressOf } = await import('../../lib/mapNodes')
 const { setLocale, t } = await import('../../lib/i18n')
+const { phoneDetentFor: phoneDetent } = await import('../../lib/mindtree/lens')
 
 /* ────────────────────────────── fixtures ────────────────────────────── */
 
@@ -196,6 +197,19 @@ const SHEET = SHEET_SRC['./map-branch.css'] ?? ''
  */
 const fieldsOf = (html: string): string =>
   html.slice(html.indexOf('mbr-fields'), html.indexOf('mbr-uc"'))
+
+/**
+ * Just the matrix's heading line.
+ *
+ * Same argument as `fieldsOf`: every row below carries the same "nothing
+ * recorded" sentence for its own empty status, so an unqualified `toContain` is
+ * true of the band whatever the heading says.
+ */
+const ucHeadOf = (html: string): string => {
+  const from = html.indexOf('mbr-uc-head')
+  const to = html.indexOf('mbr-uc-list')
+  return html.slice(from, to < 0 ? undefined : to)
+}
 
 /** React's own escaping, so an assertion can be written against a real t(). */
 const esc = (s: string): string =>
@@ -353,15 +367,30 @@ describe('the use-case matrix', () => {
     )
   })
 
-  it('renders an em-dash instead of 0 of 3 when nothing is recorded at all', () => {
+  it('says nothing is recorded, in words, instead of 0 of 3 or a bare dash', () => {
     // "This organization is at zero" and "nobody has recorded anything about
     // this organization" are different facts, and the second one is what an
     // empty join says.
+    //
+    // IN WORDS, because this is the state a brand-new organization is in and the
+    // owner is about to create organizations from scratch. The dash is right in
+    // a FIELD and in the status column, where a label sits beside it; here it
+    // would be standing in for a whole sentence at the head of a band that is
+    // otherwise ten rows of dashes, and a failed load would look the same.
     const html = band({ links: [] })
-    expect(html).toContain(esc(t('mapnode.notRecorded')))
+    expect(ucHeadOf(html)).toContain(esc(t('mapnode.statusNone')))
     expect(html).not.toContain(
       esc(t('mapnode.progress', { done: 0, total: 3, status: t('mapnode.wordLive') })),
     )
+  })
+
+  it('still lists every capability for an organization with nothing recorded', () => {
+    // The rows are the CHECKLIST of what there is to record — the one useful
+    // thing this band can say before anybody has said anything — so the empty
+    // state loses the number, never the list.
+    const html = band({ links: [] })
+    expect(html.match(/mbr-uc-row/g)).toHaveLength(3)
+    expect(html).toContain('⁨ADT⁩')
   })
 
   it('shows the loading state before the links land, and no rows', () => {
@@ -402,6 +431,72 @@ describe('a node whose kind declares no fields', () => {
     expect(html).toContain(esc(t('mapnode.accountManager')))
     // Mid-fetch, which is all a static render can ever catch: no effects run.
     expect(html).toContain(esc(t('common.loading')))
+  })
+})
+
+/* ─────────────────── which node this band opens ON ───────────────────── */
+
+/**
+ * THE BAND WAS RIGHT AND THE SUBJECT WAS WRONG, which is the whole of what this
+ * unit had left to do: `MapBranch` mounts this component on the panel's subject
+ * node, and the panel's subject was resolved from the DRILL-IN alone. Tapping an
+ * Organization deliberately does not re-root the map, so the drill-in still
+ * named the department above it — and on the workspace as it stands today, with
+ * nothing drilled into at all, it named nothing and the sidebar rendered empty.
+ *
+ * ASSERTED HERE, IN THE BAND'S OWN SUITE, and the reason is worth stating: this
+ * unit owns `useMapLens.ts` and this file, and no third. `panelSubjectFor` is
+ * exported precisely so the precedence can be read with plain values — the hook
+ * around it cannot be observed under `renderToStaticMarkup`, whose single pass
+ * never sees a setter's effect. If the integrator gives `useMapLens` a suite of
+ * its own, this block moves there whole.
+ */
+const { panelSubjectFor } = await import('../../pages/map/useMapLens')
+
+describe('the node the sidebar opens on', () => {
+  it('prefers the SELECTED organization over the world the reader is inside', () => {
+    // The tap that opens this band moves nothing on the canvas, so the drill-in
+    // is still the department. Reading it would show the department's account
+    // manager under the organization's name.
+    expect(panelSubjectFor('shape', 'org-1', 'dept-1')).toEqual({
+      kind: 'branch',
+      nodeId: 'org-1',
+    })
+  })
+
+  it('opens on an organization even when nothing is drilled into at all', () => {
+    // TODAY'S WORKSPACE. The map draws UHR alone with no drill-in, so
+    // `focusNodeId` is null — and `shape` with null is `{kind:'none'}`, which
+    // renders NO PANEL. Before this precedence existed the sidebar could not
+    // open on the only workspace there is.
+    expect(panelSubjectFor('shape', 'org-1', null)).toEqual({ kind: 'branch', nodeId: 'org-1' })
+    expect(panelSubjectFor('shape', null, null)).toEqual({ kind: 'none' })
+  })
+
+  it('falls back to the drill-in with nothing selected, exactly as before', () => {
+    expect(panelSubjectFor('shape', null, 'dept-1')).toEqual({
+      kind: 'branch',
+      nodeId: 'dept-1',
+    })
+  })
+
+  it('changes no other lens, because a selection is only a `shape` question', () => {
+    // No new PanelSubject and no new MapLens: the four other lenses answer
+    // questions about the workspace, not about one node, and a pick must not
+    // leak into them.
+    expect(panelSubjectFor('needs-me', 'org-1', null)).toEqual({ kind: 'needsMe' })
+    expect(panelSubjectFor('what-changed', 'org-1', 'dept-1')).toEqual({ kind: 'changes' })
+    expect(panelSubjectFor('numbers', 'org-1', null)).toEqual({ kind: 'numbers' })
+    expect(panelSubjectFor('by-status', 'org-1', null)).toEqual({ kind: 'none' })
+  })
+
+  it('opens a phone at the branch height, not at the sliver', () => {
+    // The detent follows the RESOLVED subject. Computed from the drill-in
+    // instead, an organization tapped on a map with no drill-in resolves `none`
+    // → `peek`, and the sheet opens as a sliver over the node the reader just
+    // asked about.
+    expect(phoneDetent(panelSubjectFor('shape', 'org-1', null))).toBe('half')
+    expect(phoneDetent(panelSubjectFor('shape', null, null))).toBe('peek')
   })
 })
 
