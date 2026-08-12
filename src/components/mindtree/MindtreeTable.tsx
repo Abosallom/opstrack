@@ -73,7 +73,18 @@ import { useCallback, useId, useMemo, useState, type CSSProperties, type ReactEl
 import { isolate } from '../../lib/bidi'
 import { diffDays, formatAge, instantToIsoDate, type IsoDate } from '../../lib/dates'
 import { t, useLocale, type Locale } from '../../lib/i18n'
-import { normalizeSearch } from '../../lib/text'
+// The generic half of this file's sort, extracted so the portfolio table reuses
+// the cycle rather than growing a second one that disagrees on the third click.
+// `nextSort` is re-exported below under its own name — see the wrapper.
+import {
+  ariaSort,
+  compareText,
+  nextSort as nextSortState,
+  sortRows,
+  type SortableColumn,
+  type SortDir,
+  type TableSort,
+} from '../../lib/mindtree/tableSort'
 import {
   MIND_DIMENSIONS,
   groupTotals,
@@ -140,9 +151,10 @@ export interface MindtreeTableRow {
    * The deepest STRUCTURAL node between the track and this row — an Org's
    * `map_nodes.id` — or null when the row sits directly under its track.
    *
-   * Carried today, unused today. It is what `FilterState.mapNodeIds` will want
-   * the day that facet exists; see `filterForCell`, which cannot narrow to an
-   * Org until then and says so.
+   * READ BY `filterForCell`, which puts it in `FilterState.mapNodeIds` so a
+   * drill-down lands on the set the cell counted rather than on the whole track
+   * above it. It is `map_nodes.id` and not a label because that facet is matched
+   * against `FilterContext.ancestryOfNode`, which is keyed on ids.
    */
   nodeKey: string | null
   /** `trackVars()`'s pair, straight off the TRACK node. Never a hex picked here.
@@ -186,15 +198,16 @@ export interface MindtreeTableRow {
 
 export type MindtreeSortColumn = 'track' | 'group' | 'count' | 'unassigned' | 'breached' | 'age'
 
-export type MindtreeSortDir = 'asc' | 'desc'
+/** ALIASES, NOT SECOND DECLARATIONS. The shapes are tableSort's; naming them
+ *  here keeps every existing import path and every existing annotation exactly
+ *  as it was, while there stays one definition of what a sort is. */
+export type MindtreeSortDir = SortDir
+export type MindtreeSort = TableSort<MindtreeSortColumn>
 
-export interface MindtreeSort {
-  column: MindtreeSortColumn
-  dir: MindtreeSortDir
-}
-
-interface ColumnDef {
-  key: MindtreeSortColumn
+/** A column of THIS table: tableSort's `{ key, numeric }` plus the label only
+ *  this table has. Passed to `nextSort` unchanged — the shared cycle reads the
+ *  two fields it declares and ignores the rest. */
+interface ColumnDef extends SortableColumn<MindtreeSortColumn> {
   /** Written as a literal so lib/localeReach.test.ts can see it. */
   labelKey: string
   /** Numbers open DESCENDING (the biggest pile is the question), text ASCENDING. */
@@ -557,19 +570,13 @@ export function buildGroupRows(
 }
 
 // ── sorting ────────────────────────────────────────────────────────────────
-
-/**
- * Folded, then compared by CODE POINT — never `localeCompare`, which with no
- * explicit locale is host-dependent and would order this table differently in
- * the test runner and in the browser. lib/entryFilter's title sort documents
- * the same choice, and folding is what makes code-point order sane in both
- * languages (case, tashkeel and Arabic-Indic digits are gone first).
- */
-function compareText(a: string, b: string): number {
-  const x = normalizeSearch(a)
-  const y = normalizeSearch(b)
-  return x < y ? -1 : x > y ? 1 : 0
-}
+//
+// THE GENERIC HALF LIVES IN lib/mindtree/tableSort.ts — the three-state cycle,
+// the copy-and-total sort, `aria-sort`, and the folded code-point text
+// comparison. It moved unchanged when the portfolio table needed the same
+// headers over a different row; what stays here is the only part that is about
+// THIS table, which is what a column MEANS. The two exports below keep their
+// names and their exact signatures so no import anywhere else changed.
 
 /**
  * An empty cell has no age. It sorts BELOW a zero-day-old item in both
@@ -605,36 +612,28 @@ function compareRows(a: MindtreeTableRow, b: MindtreeTableRow, column: MindtreeS
 }
 
 /**
- * Sorts a COPY, and every comparison ends on `order` so the result is TOTAL.
- * Array.prototype.sort is stable everywhere that matters, but stability only
- * preserves an order the caller already had — and `order` is that order, kept
- * explicitly so a re-render cannot hand the sort a different starting point.
+ * This table's rows, sorted — `sortRows` with this table's comparator bound to
+ * it. `null` means the tree's own reading order, which is the order the picture
+ * is drawn in; it is a real state, not "unsorted".
  *
- * `null` means the tree's own reading order, which is the order the picture is
- * drawn in. It is a real state, not "unsorted".
+ * KEPT AS A NAMED EXPORT WITH THIS EXACT SIGNATURE rather than re-exporting the
+ * generic. Callers pass `MindtreeSort | null` and get rows back with no
+ * comparator in hand, which is what makes the sort one decision rather than a
+ * choice every caller re-makes — and it is why the extraction changed no import
+ * and no test outside this file.
  */
 export function sortTableRows(
   rows: readonly MindtreeTableRow[],
   sort: MindtreeSort | null,
 ): MindtreeTableRow[] {
-  const copy = [...rows]
-  if (sort === null) return copy.sort((a, b) => a.order - b.order)
-  const sign = sort.dir === 'asc' ? 1 : -1
-  return copy.sort((a, b) => sign * compareRows(a, b, sort.column) || a.order - b.order)
+  return sortRows(rows, sort, compareRows)
 }
 
 /** The header cycle: unsorted → the column's natural direction → the other →
- *  unsorted. Three states, because the tree's order is worth getting back to. */
+ *  unsorted. tableSort's, narrowed to this table's column union so a typo in a
+ *  column key is a compile error here rather than a sort that never fires. */
 export function nextSort(current: MindtreeSort | null, column: ColumnDef): MindtreeSort | null {
-  const first: MindtreeSortDir = column.numeric ? 'desc' : 'asc'
-  if (current === null || current.column !== column.key) return { column: column.key, dir: first }
-  if (current.dir === first) return { column: column.key, dir: first === 'asc' ? 'desc' : 'asc' }
-  return null
-}
-
-function ariaSort(sort: MindtreeSort | null, column: MindtreeSortColumn): 'ascending' | 'descending' | 'none' {
-  if (sort === null || sort.column !== column) return 'none'
-  return sort.dir === 'asc' ? 'ascending' : 'descending'
+  return nextSortState(current, column)
 }
 
 // ── drilling down ──────────────────────────────────────────────────────────
@@ -653,15 +652,24 @@ function ariaSort(sort: MindtreeSort | null, column: MindtreeSortColumn): 'ascen
  * is left alone and only the group half is applied. The handoff proposes the
  * facet; until it exists, this is the honest behaviour.
  *
- * ⚠ A ROW UNDER AN ORG NARROWS TO ITS TRACK, NOT TO THE ORG — the same gap, one
- * ring deeper, and it is the same call for the same reason. `FilterState` has no
- * `mapNodeIds` yet, so the finest thing this function can say about a row under
- * `UHR › OB › Org1` is "the UHR track, blocked". That is a SUPERSET of what the
- * cell counted: the reader clicks 3 and lands on 12. The alternatives were to
- * filter to nothing (worse — it looks broken) or to withhold the button (worse
- * still — the drill-down is the only way out of this table into the rows). The
- * row already carries `nodeKey` for the day the facet exists, and the ONE line
- * that changes then is spelled out in the handoff.
+ * A ROW UNDER AN ORG NOW NARROWS TO THE ORG. It shipped narrowing to the TRACK,
+ * because `FilterState` had no node facet and the finest thing this function
+ * could say about a row under `UHR › OB › Org1` was "the UHR track, blocked" —
+ * a SUPERSET of what the cell counted, so the reader clicked 3 and landed on 12.
+ * `mapNodeIds` exists now (entryFilter.ts:69), the row has carried `nodeKey`
+ * against this day since the walk went recursive, and the cell finally filters
+ * to what it counted. Two facts make the one line below true and both live in
+ * other files: `nodeKey` is `map_nodes.id` (model.ts's entity node sets
+ * `bucketKey: entity.id`), and the facet reaches every DESCENDANT of that id
+ * through `FilterContext.ancestryOfNode`, which store/entries.ts builds over the
+ * whole tree — so "Org1, blocked" is Org1 and everything filed beneath it, which
+ * is exactly the set the cell walked.
+ *
+ * A ROW WITH NO NODE LEAVES THE FACET ALONE, which is the untracked pile's rule
+ * one ring down and not an oversight either. `mapNodeIds: []` means "the whole
+ * map", not "filed under no organization", so clearing it would WIDEN a filter
+ * the reader is narrowing. The rows this can reach are the ones filed at a track
+ * itself, and under an active branch filter they are empty by construction.
  */
 export function filterForCell(
   base: FilterState,
@@ -671,8 +679,9 @@ export function filterForCell(
   const next: FilterState = {
     ...base,
     trackIds: row.trackKey === NO_VALUE ? base.trackIds : [row.trackKey],
-    // A cell is a track × group intersection, so any other facet on the same
-    // two axes would fight it. Everything else the reader chose — search, tags,
+    mapNodeIds: row.nodeKey === null ? base.mapNodeIds : [row.nodeKey],
+    // A cell is a path × group intersection, so any other facet on those same
+    // axes would fight it. Everything else the reader chose — search, tags,
     // date range, sort — survives, because those narrow WITHIN the cell.
     statuses: [],
     priorities: [],

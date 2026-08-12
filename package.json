@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run",
+    "lookat": "node scripts/lookat.mjs",
     "seed": "node scripts/seed.mjs",
     "provision": "node scripts/provision-people.mjs",
     "preview": "vite preview",

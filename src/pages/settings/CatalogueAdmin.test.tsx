@@ -105,7 +105,7 @@ vi.mock('../../api/map', () => {
   return {
     listUseCases: record('listUseCases'),
     listMapNodeKinds: record('listMapNodeKinds'),
-    listNodeUseCases: record('listNodeUseCases'),
+    listNodeUseCasesFor: record('listNodeUseCasesFor'),
     listMapNodes: record('listMapNodes'),
     createUseCase: record('createUseCase'),
     updateUseCase: record('updateUseCase'),

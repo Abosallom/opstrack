@@ -56,16 +56,34 @@ It is dry-run by default, idempotent, refuses to reissue a code, and prints ever
 derived username before it creates anything. Who is on the roster and what they
 are allowed to do: [`docs/PEOPLE.md`](PEOPLE.md).
 
-⚠ **DO NOT APPLY `0025` BEFORE PROVISIONING — NOT YET.** The script writes the
-Director role for seven people, and `0025`'s Director role is real in the
-*database* and invisible in the *app*: every configuration screen still guards on
-`profile.role === 'admin'`, which `0025` keeps derived from the system role only.
-A Director therefore reads as `'member'` to the client and is redirected away
-from every screen the database just opened to them. Provision with `0025`
-**unapplied** — everyone lands Admin or Member from the legacy column, which is
-exactly today's behaviour — and assign the seven Directors once the
-permission-aware client gate ships. See *"What 0025 does NOT do"* in
-[`docs/PENDING-MIGRATIONS.md`](PENDING-MIGRATIONS.md).
+✅ **`0025` IS APPLIED, AND THE ORDER THIS PARAGRAPH USED TO FORBID HAS ALREADY
+HAPPENED.** This block read *"DO NOT APPLY `0025` BEFORE PROVISIONING — NOT
+YET"* until 13 August 2026. Its reason was that a Director was real in the
+*database* and invisible in the *app*, because every configuration screen
+guarded on `profile.role === 'admin'`. **That gate shipped** — screens now ask
+`useHasPerm(key)` (`src/store/auth.ts:267`), which answers from the permission
+set `0025` fills. `legacyPermissionKeys(profile.role)` is still read, and being
+exact about WHEN matters: `loadPermissions()` (`auth.ts:334-360`) publishes it
+SYNCHRONOUSLY as step 1, so there is no instant in which a signed-in admin is
+treated as a member, and then step 2 replaces it with the real set — that is
+the step that finds the Director. The legacy set therefore stands as the final
+answer only when step 2 fails, and a failure does not latch (`loadedAt` is
+stamped by step 2 alone). `0025` was applied on 12 August and the roles are
+seeded and live.
+
+So provisioning writes `profiles.role_id` **directly** for the seven Directors
+(`scripts/provision-people.mjs:99-111`), and it does so by PROBING for the
+column rather than assuming it: the script still has an honest "0025 has not
+run" arm, and that honesty is the reason this paragraph can be checked instead
+of trusted. Do not simplify the probe away on the grounds that `0025` is
+applied now.
+
+⛔ **Do not re-run `0023`, `0024` or `0025`.** Re-running `0023` after `0025`
+restores `is_admin()` on `map_nodes`/`map_node_kinds` and silently strips the
+Director role of the whole tree — no error, no failed statement, a Director
+whose writes affect zero rows. See
+[`docs/PENDING-MIGRATIONS.md`](PENDING-MIGRATIONS.md), which is the runbook for
+this and carries the `w_0025` / `f_0025` canary query.
 
 ⚠ **The sixteen invite codes print ONCE and exist nowhere else afterwards.** Be
 present when `--apply` runs, and read the derived-username table on the dry run
@@ -733,8 +751,10 @@ Verified against the live project on 30 July 2026: the first ten rows returned
 > against the live project — no Postgres exists in the environment that wrote these
 > rows.** Each fingerprint was derived by reading the migration file, so a row saying
 > `yes` means the object that file creates exists; it does not mean the file's probe
-> blocks ever ran. `0023`, `0024` and `0025` are on disk and unapplied as of this
-> commit. Apply order is `0023` → `0024` → `0025`, and `0025` must be last of the
+> blocks ever ran. `0023`, `0024` and `0025` were applied to the live project on
+> 12 August 2026 and are NEVER RE-RUN (`docs/PENDING-MIGRATIONS.md` carries the
+> evidence and the one named exception). The order they were applied in was
+> `0023` → `0024` → `0025`, and `0025` had to be last of the
 > three because it redefines `is_admin()`, which every policy in both calls —
 > **and because it now re-points 21 write policies and restates 8 admin RPCs that
 > `0023` and four applied files own.** That order is no longer advisory: `0025`

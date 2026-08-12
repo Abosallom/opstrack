@@ -29,7 +29,18 @@
 import { describe, expect, it } from 'vitest'
 import { fitToViewBox, layoutMindtree } from './layout'
 import type { Bounds, LayoutInputNode, MindtreeLayout, NodeSize, PositionedNode } from './layout'
-import { layoutMindtreeRadial, radialWedges, ringNodeSize, ringsThatFit } from './radial'
+import { BAND_EDGES, DOM_HORIZON_PX } from './lod'
+import {
+  D_LEAF,
+  GAP_RATIO,
+  RIM,
+  layoutMindtreeRadial,
+  packRing,
+  radialWedges,
+  ringNodeSize,
+  ringsThatFit,
+} from './radial'
+import { FRAME_FRACTION } from './worlds'
 
 const EPS = 1e-9
 const TAU = Math.PI * 2
@@ -842,5 +853,71 @@ describe('ringsThatFit — the depth cap is a measurement, not a table', () => {
 
     expect(measure(build([9, 5, 4]))).toBe(1)
     expect(measure(build([3, 4, 6]))).toBe(2)
+  })
+})
+
+// ── the tier ratio ─────────────────────────────────────────────────────────
+
+describe('packRing — the tier ratio IS the altitude model', () => {
+  it('is 1.14·(1.18/sin(π/n) + 1) at every fan-out the design tabulated', () => {
+    // ONE TABLE, AND EVERY CANVAS DECISION HANGS OFF IT. `ratio(n)` is how much
+    // bigger a parent world is than each of its n children, so a child of the
+    // FRAMED world is `FRAME_FRACTION·V / ratio(n)` CSS px across, and that
+    // number alone decides which of the five drawings it gets. The closed form
+    // falls straight out of the packer: adjacent equal children need
+    // `(D + gap)/(2·sin(π/n))` of radius, and `parentD = 2(r + D/2)·RIM`, so
+    //
+    //     ratio(n) = RIM · (2·GAP_FACTOR / (2·sin(π/n)) + 1)
+    //              = 1.14 · (1.18 / sin(π/n) + 1)
+    //
+    // Pinned here so that a change to RIM or GAP_RATIO reds the LEGIBILITY
+    // claim and not merely the packing test — the two are the same claim.
+    //
+    //   n    ratio    child px   band     what the reader sees
+    //   2      2.49     285.6    card     name inside the box
+    //   9      5.07     139.9    card*    name inside the box
+    //   10     5.49     129.2    chip     44x44 box, name outside along the ray
+    //   24    11.45      62.0    chip     the ring cap: still a named chip
+    //   40    18.29      38.8    state    a ringed dot, no text at all
+    //   400  172.42       4.1    absent   0.1px above the DOM horizon
+    //
+    // * MEASURED ON THIS REPO'S OWN 1576x835 STAGE, not the design's 853px one,
+    //   and the difference matters at exactly one row: nine children land at
+    //   139.90 px against `BAND_EDGES.card = 140`. RING_TARGET = 9 is a tenth of
+    //   a pixel from being chips on a desktop, so the assertions below claim the
+    //   band only where the margin is real.
+    const D = D_LEAF
+    const gap = GAP_RATIO * D
+    const ratio = (n: number): number =>
+      packRing({ childD: new Array<number>(n).fill(D), gap }).parentD / D
+    const closedForm = (n: number): number => RIM * ((1 + GAP_RATIO) / Math.sin(Math.PI / n) + 1)
+
+    const table: [number, number][] = [
+      [2, 2.49],
+      [3, 2.69],
+      [4, 3.04],
+      [6, 3.83],
+      [9, 5.07],
+      [10, 5.49],
+      [24, 11.45],
+      [40, 18.29],
+      [400, 172.42],
+    ]
+    for (const [n, pinned] of table) {
+      expect([n, ratio(n)]).toEqual([n, expect.closeTo(closedForm(n), 9)])
+      expect([n, ratio(n)]).toEqual([n, expect.closeTo(pinned, 2)])
+    }
+
+    // …and the consequence the cap is made of, on a 1576x835 stage: a child of
+    // the framed world at nine is a named box, at twenty-four is still a named
+    // chip, at forty has lost its words, and at four hundred is not drawn.
+    const childPx = (n: number): number => (FRAME_FRACTION * 835) / ratio(n)
+    expect(childPx(9)).toBeGreaterThan(BAND_EDGES.chip)
+    expect(childPx(24)).toBeGreaterThan(BAND_EDGES.chip)
+    expect(childPx(25)).toBeGreaterThan(BAND_EDGES.chip)
+    expect(childPx(40)).toBeLessThan(BAND_EDGES.chip)
+    expect(childPx(40)).toBeGreaterThan(BAND_EDGES.state)
+    expect(childPx(400)).toBeLessThan(BAND_EDGES.grain)
+    expect(childPx(400)).toBeGreaterThan(DOM_HORIZON_PX)
   })
 })

@@ -38,6 +38,7 @@
 
 import { create } from 'zustand'
 import { listMapNodeKinds, listMapNodes, listUseCases } from '../api/map'
+import type { Loaded } from '../api/entries'
 import type { ApiResult } from '../api/result'
 import { listGroups, listTracks } from '../api/tracks'
 import { hasSession } from './auth'
@@ -138,6 +139,28 @@ interface ConfigState {
    * it back.
    */
   visibleUseCases: UseCase[]
+  /**
+   * The map-nodes read stopped at its page cap, so `mapNodes` is a WINDOW onto the
+   * hierarchy and every count derived from it is low.
+   *
+   * TRUNCATION IS CARRIED, NOT SWALLOWED — api/entries.ts's rule, reaching this
+   * store for the first time. It is here rather than left in the api layer because
+   * the failure it describes has no other symptom: a partial map renders perfectly,
+   * every ring is drawn, every number is wrong and nothing is red. `Mindtree.tsx`
+   * reads it through `useMapNodesTruncated()` (Mindtree.tsx:323) and puts a sentence
+   * in the work island beside the breadcrumb (Mindtree.tsx:1057), NEXT TO but never
+   * merged with `model.truncated` — that one is the ENTRIES clamp, and collapsing the
+   * two would tell somebody hunting a named organization that the numbers are merely
+   * approximate. THE THREE SETTINGS SCREENS DROP THIS FLAG: StructureAdmin,
+   * JiraAdmin and CatalogueAdmin take `.rows` and discard `.truncated`, so a clamped
+   * hierarchy is still silent there. Named because it is a gap, not a decision.
+   *
+   * False on a cold start from cache, and that is not a guess: `writeRowCache`
+   * refuses to store more than CACHE_MAX_ROWS rows, and a truncated read is by
+   * construction MAX_PAGES × PAGE_SIZE = 5,000 of them, so a cached list can never
+   * be a clipped one.
+   */
+  mapNodesTruncated: boolean
   loading: boolean
   /** Epoch ms of the last successful load; null means never loaded. */
   loadedAt: number | null
@@ -262,6 +285,11 @@ function deriveMap(
  * come through here anyway: one function that takes the whole world and returns the
  * whole world is what makes "did I rebuild everything that depends on this?" a
  * question nobody has to ask.
+ *
+ * `mapNodesTruncated` is the one field of the state this function does NOT return,
+ * and the Omit says so rather than a comment alone: it is a property of the READ,
+ * not of the rows. No arrangement of the five lists can tell you whether a sixth
+ * page existed, so deriving it here would mean inventing it.
  */
 function deriveAll(
   tracks: Track[],
@@ -269,7 +297,7 @@ function deriveAll(
   nodes: MapNode[],
   kinds: MapNodeKind[],
   useCases: UseCase[],
-): Omit<ConfigState, 'loading' | 'loadedAt'> {
+): Omit<ConfigState, 'loading' | 'loadedAt' | 'mapNodesTruncated'> {
   return {
     ...derive(tracks, groups),
     ...deriveGroups(groups),
@@ -310,8 +338,31 @@ function readRowCache<T extends { id: string }>(key: string): T[] {
   }
 }
 
-function writeRowCache(key: string, rows: unknown): void {
+/**
+ * The most rows any of the five caches may hold.
+ *
+ * MEASURED, NOT CHOSEN. `MAP_NODES_CACHE_KEY` holds every column of every node —
+ * ~600 bytes a row — and it is `JSON.stringify`'d and `setItem`'d SYNCHRONOUSLY on
+ * the load that gates first paint, then rewritten on every 30-second focus refetch.
+ * At 400 organizations that is a ~250KB blob written on the main thread twice a
+ * minute; at the read's own ceiling of 5,000 it would be ~3MB, which is most of a
+ * 5MB origin quota spent on a screen the network is about to answer anyway.
+ *
+ * ABOVE THE CAP, WRITE NOTHING AND REMOVE THE KEY. A cache with the first thousand
+ * rows of a five-thousand-row workspace is worse than no cache: the first paint
+ * would draw a confidently wrong map from it, and `mapNodesTruncated` — which
+ * belongs to the READ, not to the rows — would be false while it did. Removing the
+ * stale key is the half that is easy to forget and the half that matters: leaving
+ * yesterday's smaller-workspace blob in place would keep serving it forever.
+ */
+const CACHE_MAX_ROWS = 1000
+
+function writeRowCache(key: string, rows: readonly unknown[]): void {
   try {
+    if (rows.length > CACHE_MAX_ROWS) {
+      localStorage.removeItem(key)
+      return
+    }
     localStorage.setItem(key, JSON.stringify(rows))
   } catch {
     // Best effort: a full quota must not break a successful fetch.
@@ -326,6 +377,9 @@ const useConfigStore = create<ConfigState>(() => ({
     readRowCache<MapNodeKind>(MAP_NODE_KINDS_CACHE_KEY),
     readRowCache<UseCase>(USE_CASES_CACHE_KEY),
   ),
+  // See the field's own note: the cache cannot hold a clipped read, so the honest
+  // opening answer is "not truncated" rather than "unknown".
+  mapNodesTruncated: false,
   loading: false,
   loadedAt: null,
 }))
@@ -423,6 +477,20 @@ export function useMapRoots(): Map<string, MapNode[]> {
   return useConfigStore((s) => s.mapRoots)
 }
 
+/**
+ * True when the hierarchy on screen is a WINDOW rather than the whole thing.
+ *
+ * THE ONE SELECTOR HERE THAT A SCREEN MUST NOT IGNORE. Every other value in this
+ * store is wrong only if the read failed, and a failed read is visible; this one is
+ * the flag on a read that SUCCEEDED and came back short, which is the only failure
+ * in this file that renders as a complete, plausible, wrong map. `Mindtree.tsx`
+ * pairs it with a sentence in the footer, the way `MapBranch.tsx:753-760` pairs
+ * `useEntriesTruncated()` with `track.statsPartial`.
+ */
+export function useMapNodesTruncated(): boolean {
+  return useConfigStore((s) => s.mapNodesTruncated)
+}
+
 /** Every node kind — Programme, Phase, Organization — ordered by sort_order. */
 export function useMapNodeKinds(): MapNodeKind[] {
   return useConfigStore((s) => s.mapNodeKinds)
@@ -478,23 +546,41 @@ let inFlight: Promise<void> | null = null
  *
  * `accepted` is what the caller stamps `loadedAt` from, so the flag and the rows
  * cannot drift apart the way two parallel `if` chains eventually do.
+ *
+ * IT TAKES BOTH SHAPES, AND THAT IS WHY IT IS STILL ONE FUNCTION. Three of the five
+ * reads now answer with `Loaded<T>` — rows plus the verdict on whether the server
+ * had more — while `listTracks` and `listGroups` still answer with a plain array,
+ * because at nine tracks and two groups they cannot be clipped and giving them a
+ * flag that is always false would be ceremony. A second `settleLoaded` would be the
+ * fifth copy of the three-branch decision this function exists to prevent, so the
+ * union is absorbed here in one line and `truncated` comes out false for the arrays.
  */
+function isLoaded<T>(data: T[] | Loaded<T>): data is Loaded<T> {
+  // The two shapes are an array and an object with a `rows` array. Array.isArray is
+  // the whole test: a `Loaded<T>` is never an array, and this stays true if the
+  // interface gains a field, which `data.rows !== undefined` would not survive if a
+  // row type ever grew a `rows` of its own.
+  return !Array.isArray(data)
+}
+
 function settle<T extends { id: string }>(
   label: string,
-  result: ApiResult<T[]>,
+  result: ApiResult<T[] | Loaded<T>>,
   previous: T[],
   cacheKey: string,
-): { rows: T[]; accepted: boolean } {
+): { rows: T[]; accepted: boolean; truncated: boolean } {
   if (!result.ok) {
     console.warn(`[config] ${label} load failed:`, result.error)
-    return { rows: previous, accepted: false }
+    return { rows: previous, accepted: false, truncated: false }
   }
-  if (result.data.length === 0 && !hasSession()) {
+  const rows = isLoaded(result.data) ? result.data.rows : result.data
+  const truncated = isLoaded(result.data) ? result.data.truncated : false
+  if (rows.length === 0 && !hasSession()) {
     console.warn(`[config] ignoring an empty ${label} read made without a session`)
-    return { rows: previous, accepted: false }
+    return { rows: previous, accepted: false, truncated: false }
   }
-  writeRowCache(cacheKey, result.data)
-  return { rows: result.data, accepted: true }
+  writeRowCache(cacheKey, rows)
+  return { rows, accepted: true, truncated }
 }
 
 /**
@@ -558,6 +644,11 @@ export function loadConfig(force = false): Promise<void> {
       // out of date.
       useConfigStore.setState({
         ...deriveAll(tracks.rows, groups.rows, nodes.rows, kinds.rows, useCases.rows),
+        // The verdict travels with the rows it describes. A read that was NOT
+        // accepted leaves the previous verdict alone for settle()'s own reason: the
+        // rows on screen are still the previous rows, so a flag reset to false would
+        // take the truncation sentence off a map that is still a window.
+        mapNodesTruncated: nodes.accepted ? nodes.truncated : prev.mapNodesTruncated,
         // Only the tracks read may stamp this — see the note above.
         ...(tracks.accepted ? { loadedAt: Date.now() } : {}),
       })

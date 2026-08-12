@@ -31,7 +31,12 @@
 
 import { supabase } from './supabase'
 import { fail, notConfigured, type ApiResult } from './result'
+import { chunkIds, fetchAllPages } from './paging'
 import { pgErrorKey } from '../lib/pgError'
+// TYPE-ONLY, so entries.ts's doctrine comment at 82-98 stays the one place
+// `Loaded<T>` is explained and this module gains no runtime coupling to the
+// entries loader.
+import type { Loaded } from './entries'
 import type {
   MapNode,
   MapNodeInput,
@@ -86,6 +91,17 @@ async function nextSortOrder(
 // ── nodes (0023) ────────────────────────────────────────────────────────────
 
 /**
+ * The page ceiling for every read in this module — five pages, so 5,000 rows.
+ *
+ * The portfolio this map exists for is ~400 organizations under a handful of
+ * phases; five pages is an order of magnitude of headroom and still a bound, so a
+ * bug somewhere else cannot turn a page loop into an infinite one. Past it the read
+ * comes back `truncated` and the screen says so — which is the whole point of this
+ * wave: a map missing rows must never look like a map.
+ */
+const MAX_PAGES = 5
+
+/**
  * Every node, ordered for display. Archived nodes are hidden unless asked for.
  *
  * ONE FLAT READ, not a recursive walk: the tree is assembled client-side by
@@ -94,22 +110,40 @@ async function nextSortOrder(
  * re-bucketed here, because the map draws children in sibling order and a recursive
  * CTE returns them in traversal order.
  *
+ * PAGED, AND THAT IS THE POINT OF THE WHOLE UNIT. Unpaged, this read stopped at
+ * PostgREST's 1,000-row ceiling and reported success: `buildMindtree` then received
+ * a truncated list, every count on every ring was silently low, and the tree itself
+ * carried no mark. That is the worst failure available here — a correct-LOOKING
+ * wrong number in front of an executive — and it is why the return type is
+ * `Loaded<MapNode>` rather than an array. The flag has a reader: store/config.ts
+ * keeps it as `mapNodesTruncated` and the map shell renders a sentence from it.
+ *
  * The second sort key is `name` for listTracks' reason: `sort_order` defaults to 0
  * and the reorder RPC only rewrites the ids it was handed, so without a stable tie
  * break two loads of the same data render in different orders — which reads as data
  * loss, not as a sort.
+ *
+ * THE THIRD SORT KEY IS `id`, AND PAGING IS WHAT ADDED IT. `(sort_order, name)` is
+ * not unique — two organizations under different phases may hold both — and a
+ * non-total order under `.range()` is not merely unstable, it drops and duplicates
+ * rows: the server is free to return a tied row on page 1 and again on page 2, or
+ * on neither. `id` makes the order total. It changes nothing a reader can see,
+ * because it only breaks ties that previously reshuffled between loads anyway.
  */
-export async function listMapNodes(includeArchived = false): Promise<ApiResult<MapNode[]>> {
+export async function listMapNodes(includeArchived = false): Promise<ApiResult<Loaded<MapNode>>> {
   if (!supabase) return notConfigured()
-  let query = supabase
-    .from('map_nodes')
-    .select('*')
-    .order('sort_order', { ascending: true })
-    .order('name', { ascending: true })
-  if (!includeArchived) query = query.eq('archived', false)
-  const { data, error } = await query
-  if (error) return fail(pgErrorKey(error))
-  return { ok: true, data: (data ?? []) as MapNode[] }
+  const client = supabase
+  return await fetchAllPages<MapNode>((from, to) => {
+    let query = client
+      .from('map_nodes')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)
+    if (!includeArchived) query = query.eq('archived', false)
+    return query
+  }, MAX_PAGES)
 }
 
 /**
@@ -409,16 +443,33 @@ export async function deleteMapNode(id: string): Promise<ApiResult<MapNodeUsage>
 // why an admin may add a fourth kind without a code change — and it is also why the
 // kinds carry no colour: colour on this map means track, at every depth.
 
-/** Every kind, ordered for display. Small enough that there is no paging question. */
-export async function listMapNodeKinds(): Promise<ApiResult<MapNodeKind[]>> {
+/**
+ * Every kind, ordered for display.
+ *
+ * PAGED TOO, THOUGH THIS TABLE HOLDS THREE ROWS — and the reason is not symmetry
+ * for its own sake. "Small enough that there is no paging question" is exactly what
+ * the old comment here said, and it is a judgement about today's data written into
+ * a function that outlives it; the same sentence was true of `map_nodes` when it was
+ * written. One `.range()` and a `Loaded<T>` cost a caller `.rows` and remove the
+ * category of bug entirely. The loop makes exactly one request while the table is
+ * short, which it will be for years.
+ *
+ * `id` joins the sort keys for listMapNodes' reason: `.range()` needs a total order.
+ */
+export async function listMapNodeKinds(): Promise<ApiResult<Loaded<MapNodeKind>>> {
   if (!supabase) return notConfigured()
-  const { data, error } = await supabase
-    .from('map_node_kinds')
-    .select('*')
-    .order('sort_order', { ascending: true })
-    .order('name', { ascending: true })
-  if (error) return fail(pgErrorKey(error))
-  return { ok: true, data: (data ?? []) as MapNodeKind[] }
+  const client = supabase
+  return await fetchAllPages<MapNodeKind>(
+    (from, to) =>
+      client
+        .from('map_node_kinds')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    MAX_PAGES,
+  )
 }
 
 export async function createMapNodeKind(
@@ -528,18 +579,26 @@ export async function deleteMapNodeKind(id: string): Promise<ApiResult<void>> {
  * this table copies: hiding removes a capability from the pickers and changes
  * nothing about the links that already name it. The admin screen passes true; the
  * panel that offers a member a capability to tick passes nothing.
+ *
+ * PAGED for listMapNodeKinds' reason — "more to be added later" is this table's
+ * stated future (see the section header), and a catalogue that quietly stopped at
+ * 1,000 capabilities would leave every matrix short a column with nothing on screen
+ * to say so. `id` joins the sort keys because `.range()` needs a total order.
  */
-export async function listUseCases(includeHidden = false): Promise<ApiResult<UseCase[]>> {
+export async function listUseCases(includeHidden = false): Promise<ApiResult<Loaded<UseCase>>> {
   if (!supabase) return notConfigured()
-  let query = supabase
-    .from('use_cases')
-    .select('*')
-    .order('sort_order', { ascending: true })
-    .order('name', { ascending: true })
-  if (!includeHidden) query = query.eq('hidden', false)
-  const { data, error } = await query
-  if (error) return fail(pgErrorKey(error))
-  return { ok: true, data: (data ?? []) as UseCase[] }
+  const client = supabase
+  return await fetchAllPages<UseCase>((from, to) => {
+    let query = client
+      .from('use_cases')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)
+    if (!includeHidden) query = query.eq('hidden', false)
+    return query
+  }, MAX_PAGES)
 }
 
 export async function createUseCase(input: UseCaseInput): Promise<ApiResult<UseCase>> {
@@ -630,8 +689,23 @@ export async function deleteUseCase(id: string): Promise<ApiResult<void>> {
 // rather than writing something that means nothing.
 
 /**
- * Every link, or just one node's. Ordered so two loads of the same data render in
- * the same order — the pair is the primary key, so the ordering is total and stable.
+ * The columns every link read asks for, by name.
+ *
+ * NAMED RATHER THAN `*` so `MapNodeUseCase` cannot drift from the query when the
+ * table gains an audit column — `listTrackSlas`' precedent — and WIDER than the
+ * three key columns it used to be. 0024 gave this table `source`, `external_ref`,
+ * `external_url`, `synced_at` and `overrides` on the day it was created, and
+ * nothing has ever read them: a link that came from Jira has looked exactly like a
+ * link somebody typed. One list, used by every reader here, is what keeps the
+ * widening from being true of one loader and false of the next — the kind of
+ * two-answers-for-one-question seam this wave exists to close.
+ */
+const LINK_COLUMNS =
+  'node_id, use_case_id, status, source, external_ref, external_url, synced_at, overrides'
+
+/**
+ * One node's links. Ordered so two loads of the same data render in the same order —
+ * the pair is the primary key, so the ordering is total and stable.
  *
  * FETCH-ON-OPEN, NOT STORED. store/config.ts holds the tree and the catalogue
  * because nothing renders a node without them; it deliberately does not hold this,
@@ -639,20 +713,88 @@ export async function deleteUseCase(id: string): Promise<ApiResult<void>> {
  * nobody looks at until a panel is open, and a cache of them would have to be
  * invalidated by every tick of a checkbox on every other client.
  *
- * The columns are named rather than `*`, so `MapNodeUseCase` cannot drift from the
- * query when the table gains an audit column — `listTrackSlas`' precedent.
+ * THE OPTIONAL ARGUMENT IS GONE, AND ITS ABSENCE IS THE FIX. `nodeId?: string` is
+ * precisely the shape that let a caller issue the unbounded read of the whole join
+ * — four thousand rows at 400 organizations — which came back with the first
+ * thousand and reported success. Removing the optional makes that read
+ * UNREPRESENTABLE rather than merely bounded, which is `updateMapNode`'s idiom one
+ * function up: it subtracts `parentId`/`trackId` from its own parameter type so
+ * that reaching for one is a compile error instead of a key silently dropped. The
+ * bulk read now has its own name and its own paging — `listNodeUseCasesFor` below.
+ *
+ * THIS PATH STAYS UNPAGED, deliberately. MapBranchDetail.tsx:65-74 argues that its
+ * capability numbers are immune to PostgREST's 1,000-row clamp BY CONSTRUCTION —
+ * one node's links are at most one row per capability — and that argument has to
+ * stay true, not merely be believed: it is why the item count, which is not immune,
+ * sits on the stats band under `track.statsPartial` instead. A `Loaded<T>` here
+ * would suggest a doubt this read does not have.
  */
-export async function listNodeUseCases(nodeId?: string): Promise<ApiResult<MapNodeUseCase[]>> {
+export async function listNodeUseCases(nodeId: string): Promise<ApiResult<MapNodeUseCase[]>> {
   if (!supabase) return notConfigured()
-  let query = supabase
+  const { data, error } = await supabase
     .from('map_node_use_cases')
-    .select('node_id, use_case_id, status')
+    .select(LINK_COLUMNS)
+    .eq('node_id', nodeId)
     .order('node_id', { ascending: true })
     .order('use_case_id', { ascending: true })
-  if (nodeId !== undefined) query = query.eq('node_id', nodeId)
-  const { data, error } = await query
   if (error) return fail(pgErrorKey(error))
-  return { ok: true, data: (data ?? []) as MapNodeUseCase[] }
+  return { ok: true, data: (data ?? []) as unknown as MapNodeUseCase[] }
+}
+
+/**
+ * The links for a SET of nodes — the portfolio's read, and the one that had to be
+ * built rather than reached for.
+ *
+ * CHUNKED, BECAUSE THE FILTER TRAVELS IN THE URL. 400 uuids in one `.in()` is a
+ * ~15KB query string that a proxy rejects before Postgres ever sees it, so the ids
+ * go in `ID_CHUNK`-sized pieces — `entries.ts:113-120`'s constant and its reasoning,
+ * now in api/paging.ts where both callers can see it.
+ *
+ * EACH CHUNK IS PAGED AND THE VERDICTS ARE OR-ED. 150 organizations times ten
+ * capabilities is 1,500 rows, which is already past the ceiling for one chunk — the
+ * exact shape of failure that made this whole unit necessary, one level down. A
+ * chunk that hit the cap truncates the WHOLE answer, because the caller is asking
+ * one question ("the links for these nodes") and a partial answer to it is partial
+ * however few of its pieces were clipped.
+ *
+ * NOT ON BOOT. At 400 × 10 this is ~4,000 rows and ~250KB; store/config.ts's header
+ * draws the line and this side of it is data, not configuration. The portfolio
+ * surface opens it deliberately (`src/store/portfolio.ts`, wave 3) and pays for it.
+ *
+ * An empty `nodeIds` resolves with an empty, untruncated answer and makes NO
+ * request: `.in('node_id', [])` asks the server for nothing, and a round trip to be
+ * told what the caller already knew is one the portfolio pays on every render where
+ * the filter matched no organizations.
+ */
+export async function listNodeUseCasesFor(
+  nodeIds: readonly string[],
+): Promise<ApiResult<Loaded<MapNodeUseCase>>> {
+  if (!supabase) return notConfigured()
+  const client = supabase
+
+  const rows: MapNodeUseCase[] = []
+  let truncated = false
+  for (const chunk of chunkIds(nodeIds)) {
+    const result = await fetchAllPages<MapNodeUseCase>(
+      (from, to) =>
+        client
+          .from('map_node_use_cases')
+          .select(LINK_COLUMNS)
+          .in('node_id', chunk)
+          .order('node_id', { ascending: true })
+          .order('use_case_id', { ascending: true })
+          .range(from, to),
+      MAX_PAGES,
+    )
+    // A failed chunk fails the read. Returning what the earlier chunks held with
+    // `truncated: true` would be a different sentence on screen — "some rows are
+    // missing because the workspace is big" — for what is actually an error, and
+    // the two must not be told apart by whether the caller happened to look.
+    if (!result.ok) return result
+    rows.push(...result.data.rows)
+    truncated = truncated || result.data.truncated
+  }
+  return { ok: true, data: { rows, truncated } }
 }
 
 /**
@@ -696,8 +838,11 @@ export async function setNodeUseCase(
       { node_id: nodeId, use_case_id: useCaseId, status },
       { onConflict: 'node_id,use_case_id' },
     )
-    .select('node_id, use_case_id, status')
+    // The same LINK_COLUMNS the reads ask for, so the row this hands back is the
+    // row a reload would show — including `source` and `overrides`, which the
+    // database defaults and this function never sends.
+    .select(LINK_COLUMNS)
     .single()
   if (error) return fail(pgErrorKey(error))
-  return { ok: true, data: data as MapNodeUseCase }
+  return { ok: true, data: data as unknown as MapNodeUseCase }
 }

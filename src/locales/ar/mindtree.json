@@ -226,6 +226,7 @@
       "other": "{count} بند إضافي"
     },
     "nodeName": "⁨{label}⁩، {detail}",
+    "nodesPartial": "جزء من التسلسل فقط محمَّل، لذلك تنقص هذه الخريطة بعض المنشآت.",
     "openEntry": "فتح ⁨{title}⁩",
     "panelBranch": "داخل ⁨{label}⁩",
     "panelChanges": "سجلّ التغييرات",

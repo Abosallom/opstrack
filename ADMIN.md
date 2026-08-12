@@ -1,7 +1,9 @@
 # CoreTrack — administration
 
-> **Pending database migrations:** see [`docs/PENDING-MIGRATIONS.md`](docs/PENDING-MIGRATIONS.md). Migrations `0014`–`0017` are written, tested and **not yet
-> applied**; four user-facing guarantees are broken until they are run.
+> **Database migrations: nothing is pending.** Everything through `0025` is applied to the live
+> project. See [`docs/PENDING-MIGRATIONS.md`](docs/PENDING-MIGRATIONS.md) before every deploy —
+> it is the only file that answers "what still has to be run?", and `0023`/`0024`/`0025` are
+> never re-run.
 
 
 What an admin can change from the app, what is deliberately not changeable, what

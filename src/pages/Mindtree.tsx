@@ -188,6 +188,7 @@ import {
   FRAME_FILL_PHONE,
 } from './map/mapMotion'
 import { refreshEntries } from '../store/entries'
+import { useMapNodesTruncated } from '../store/config'
 import { useMapLens } from './map/useMapLens'
 import { useMapCursor } from './map/useMapCursor'
 import { useMapDrag, useMapDragPressing } from './map/useMapDrag'
@@ -312,6 +313,14 @@ export default function Mindtree(): ReactElement {
   const { filter, setFilter } = useMapUrlFilter()
 
   const model = useMapModel(compact, locale, filter)
+  // TWO TRUNCATIONS, TWO SENTENCES, and they are not the same fact. `model.truncated`
+  // is the ENTRIES clamp (useMapModel.ts:187's `useEntriesTruncated()`) — the work
+  // filed under the map is a window, so the counts are low. This one is the
+  // HIERARCHY clamp (store/config.ts's `mapNodesTruncated`, set from api/map.ts's
+  // paged read): organizations themselves are missing, so rings a reader is looking
+  // for are not drawn at all. Collapsing them into one sentence would tell somebody
+  // hunting a named org that the numbers are approximate.
+  const nodesTruncated = useMapNodesTruncated()
 
   /**
    * The reader asked for less motion. Read ONCE, here, and threaded down —
@@ -1040,11 +1049,12 @@ export default function Mindtree(): ReactElement {
               18x6px box of border and background at the canvas's start corner —
               measured in the browser at 1600x900 with no tracks. The island and
               the component must agree about having nothing to say. */}
-          {(onMap && diveTrail.length > 1) || model.truncated ? (
+          {(onMap && diveTrail.length > 1) || model.truncated || nodesTruncated ? (
             <div className="mtree-isle mtree-work">
               {onMap && <Breadcrumb trail={diveTrail} onFocus={flyToId} />}
 
               {model.truncated && <p className="mtree-note">{t('mindtree.truncated')}</p>}
+              {nodesTruncated && <p className="mtree-note">{t('mindtree.nodesPartial')}</p>}
             </div>
           ) : null}
         </div>

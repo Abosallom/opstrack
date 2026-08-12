@@ -474,17 +474,45 @@ describe('buildTableRows at arbitrary depth', () => {
     ])
   })
 
-  it('narrows a deep cell to its TRACK, and says so rather than pretending', () => {
-    // FilterState has no `mapNodeIds` facet yet, so the finest thing the
-    // drill-down can express about a row under Org1 is "the UHR track,
-    // blocked" — a SUPERSET of what the cell counted. Asserted so the gap stays
-    // deliberate and so the day the facet lands, this test is the one that
-    // changes. The untracked pile's identical gap is pinned two describes down.
+  it('narrows a deep cell to its ORG, not to the whole track above it', () => {
+    // THE TEST THE OLD COMMENT PROMISED. This shipped narrowing to the track,
+    // because `FilterState` had no node facet: the reader clicked 3 and landed
+    // on 12, a superset of what the cell counted. `mapNodeIds` exists now
+    // (entryFilter.ts:69) and `nodeKey` has been carried against this day since
+    // the walk went recursive, so the drill-down finally lands on the set the
+    // cell walked — Org1 and everything filed beneath it, via
+    // `FilterContext.ancestryOfNode`.
     const deep = buildTableRows(deepTree(), ENTRY_MAP, TODAY)[1]!
     const next = filterForCell(EMPTY_FILTER, 'status', deep)
+    expect(deep.nodeKey).toBe('n-org1')
+    expect(next.mapNodeIds).toEqual(['n-org1'])
+    // The track stays too: the two facets are independent dimensions (each
+    // documented in entryFilter as "not a shorthand for the other"), and a
+    // filter that dropped the track would widen the moment the reader cleared
+    // the branch chip.
     expect(next.trackIds).toEqual(['t-net'])
     expect(next.statuses).toEqual(['blocked'])
-    expect(deep.nodeKey).toBe('n-org1')
+  })
+
+  it('replaces a coarser branch filter rather than intersecting with it', () => {
+    // The reader was looking at all of OB and clicked a cell under Org1. The
+    // cell counted Org1, so the filter says Org1 — `mapNodeIds` is a list of
+    // ORs, and keeping OB in it would land on every organization under OB.
+    const deep = buildTableRows(deepTree(), ENTRY_MAP, TODAY)[1]!
+    const next = filterForCell({ ...EMPTY_FILTER, mapNodeIds: ['n-ob'] }, 'status', deep)
+    expect(next.mapNodeIds).toEqual(['n-org1'])
+  })
+
+  it('leaves the branch facet alone for a row filed at the track itself', () => {
+    // `mapNodeIds: []` means "the whole map", not "under no organization" —
+    // the untracked pile's gap one ring down. Clearing it would WIDEN a filter
+    // the reader is narrowing, so a row with no node touches the facet at all.
+    const trackLevel = buildTableRows(deepTree(), ENTRY_MAP, TODAY)[3]!
+    expect(trackLevel.nodeKey).toBeNull()
+    expect(filterForCell(EMPTY_FILTER, 'status', trackLevel).mapNodeIds).toEqual([])
+    expect(
+      filterForCell({ ...EMPTY_FILTER, mapNodeIds: ['n-ob'] }, 'status', trackLevel).mapNodeIds,
+    ).toEqual(['n-ob'])
   })
 })
 

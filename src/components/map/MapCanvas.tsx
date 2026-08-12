@@ -177,6 +177,21 @@ export default function MapCanvas({
     return out
   }, [order, scale, viewportMinPx])
 
+  /**
+   * DRAWING UNITS PER CSS PIXEL — the reciprocal of the camera scale, computed
+   * ONCE here and handed to every rim.
+   *
+   * IT IS THE RIM'S NUMBER AND NOTHING ELSE'S. A card is drawn at its own
+   * world's scale (MindNode's `scale(cardScale)`), so it needs nothing from the
+   * camera at all and stays memo-stable across a zoom; the rim is CHROME and is
+   * pinned to the screen, so it needs exactly this. Two rules, each argued
+   * where it applies — MindNode.tsx's header and MindWorldRim.tsx's.
+   *
+   * `scale` is guarded again inside MindWorldRim; the division is written here
+   * because this is the one place the camera number lives.
+   */
+  const unitsPerPx = scale > 0 && Number.isFinite(scale) ? 1 / scale : 1
+
   return (
     <div
       className="mtree-canvas"
@@ -290,11 +305,30 @@ export default function MapCanvas({
             is document order, so a world's boundary has to be laid down under
             the marks that live inside it. A rim only exists for a world that is
             OPENING (the card dissolving, the boundary arriving) or that IS the
-            frame (the boundary leaving as the stage border takes over). */}
+            frame (the boundary leaving as the stage border takes over).
+
+            AND THAT PAINT ORDER IS ALSO A CONTRAST FACT, which is why it is
+            restated here rather than left as a layering note: the rim's label
+            and its match count are laid down UNDER every node mark, so where a
+            descendant's disc meets them the disc is the foreground. No text in
+            this drawing is ever composited over the 44% grain/state fill —
+            mind-ring.css's matrix carries the measurement and cites this line
+            for why the composite does not occur. Move this block after the
+            nodes and that certification is void. */}
         {order.map((pos) => {
           const read = bands.get(pos.id)
           if (read === undefined) return null
           if (read.band !== 'opening' && read.band !== 'frame') return null
+          // A NODE WITH NO CHILDREN HAS NO RIM, and this one line is the whole
+          // of defect 7 — the double label at zoom-in. `MindNode`'s `holding`
+          // branch keeps a terminal card AND its label past 380px, deliberately
+          // (an Organization is the only thing on the canvas with nothing
+          // beneath it competing for the room). Drawing a rim for it as well
+          // put the same name on the card and on the boundary at the same
+          // instant, which is the one thing the handoff rule forbids: a name is
+          // never absent and NEVER DRAWN TWICE. There is also nothing for such
+          // a rim to be the boundary of — the dive stops here.
+          if (!pos.hasChildren) return null
           if (pos.worldX === undefined || pos.worldY === undefined || pos.worldD === undefined) {
             return null
           }
@@ -308,6 +342,7 @@ export default function MapCanvas({
               matchWedges={matchWedgesById.get(pos.id) ?? EMPTY_WEDGES}
               rtl={rtl}
               fade={read.band === 'opening' ? read.out : 1 - read.out}
+              unitsPerPx={unitsPerPx}
             />
           )
         })}

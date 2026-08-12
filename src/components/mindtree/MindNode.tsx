@@ -137,6 +137,67 @@
 // label (and later from rim label to breadcrumb): it is never absent, never
 // drawn twice, and never on screen at a ratio it was not measured at.
 //
+// ── EVERY MARK IN THIS FILE IS AUTHORED IN LEAF UNITS ──────────────────────
+//
+// The node's <g> is drawn inside `scale(pos.cardScale)`, and that one attribute
+// is the whole of the fix for eight of the fifteen defects the render harness
+// measured. Before it, this file authored its marks in LEAF units while the
+// layout placed them in WORLD units: `worlds.ts` scales a card by
+// `cardScale = worldD / D_LEAF`, so a depth-4 card is 73,284 units wide, while
+// `PAD = 12`, `COUNT_SLOT = 34`, `CHAR_PX = 6.2`, the breach `r={4}`, the
+// chevron `r={7}`, `PROGRESS_H = 2`, `rx={10}` and every CSS length
+// (`font-size: 12.5px`, `stroke-width: 1`, `[data-empty]`'s `stroke-dasharray:
+// 2 4`) stayed at 1x. `public/__lookat/desktop-full.svg` is the proof: a
+// 73,284-unit card carrying 12.5-unit text and a 1-unit outline, which at
+// `scale 3.98e-3` is a 292 px card with a 0.05 px label and a 0.004 px outline.
+//
+// SVG TRANSFORMS SCALE STROKE WIDTHS AND DASH ARRAYS as well as coordinates,
+// which is why this is ONE change and not fourteen: the font size, the glyph
+// budget, the corner radius, both dash arrays, the breach dot, the chevron and
+// the underscore all come right together, and every constant below stays byte
+// for byte what it was.
+//
+// So `pos.width`, `pos.height`, `pos.outward` and the world triple arrive in
+// WORLD units and are divided by `cardScale` ONCE, at the top of the component.
+// Nothing below reads `pos.width` again.
+//
+// WHAT IT DELIVERS, in numbers, so the next reader can check it rather than
+// believe it. An authored length of `u` renders at `u × cardScale × scale` CSS
+// px, and `worlds.ts` sets `cardScale` by TWO rules, not one:
+//
+//   a LEAF fills its world     cardScale = worldD / 200          → u × D/200
+//   a PARENT yields to its ring
+//                              cardScale = 0.34·worldD / 173.66  → u × D/510.8
+//
+// (173.66 is hypot(168, 44), the leaf card's diagonal; 0.34 is HOLE_FRACTION,
+// which inscribes a parent's card in the hole its children's ring leaves.) So
+// across the CARD band (worldD 140–380 px) the 12.5px label is 8.75–23.75 px on
+// a LEAF and 3.43–9.30 px on a PARENT, and the 1-unit outline is 0.70–1.90 px
+// and 0.27–0.74 px. Across CHIP (52–140 px) the leaf's label is 3.25–8.75 px.
+//
+// THOSE SUB-9px FIGURES ARE REPORTED, NOT PATCHED HERE. They are the product of
+// three decisions owned by three different places — the band edges (lod.ts),
+// HOLE_FRACTION (worlds.ts) and the authored 12.5 (mindtree.css) — and the
+// render gate's "min text ≥ 9 px CSS" assertion is where they meet. Silently
+// enlarging a constant in this file to clear a floor set elsewhere is exactly
+// how the drawing lost its units in the first place.
+//
+// THE ALTERNATIVE — counter-scaling by the camera, `font-size: 13/scale` — was
+// rejected for three reasons, and the third decides it: (1) it makes every
+// node's props camera-dependent, so `memo()` stops paying and a wheel notch
+// re-renders every node, the exact thing MapCanvas's band memo exists to
+// prevent; (2) it breaks LOD invariant 1 — a card at 200 px and a card at
+// 350 px would carry differently proportioned text; (3) `worlds.ts` already
+// states the contract this restores, verbatim: "A card occupies the same share
+// of its world at every depth, so the LOD bands are one table that applies to
+// the root and to a leaf identically." Today that sentence is false. The scale
+// transform makes it true. It is a bug fix against a written contract.
+//
+// AND THE OTHER RULE, which lives in MindWorldRim.tsx: a rim is CHROME and is
+// pinned to the CAMERA (`--mring-px`), not to its world. A card is a drawing at
+// its own level; a rim is the stage's own furniture on its way to becoming the
+// breadcrumb. Two rules, each with its own stated reason.
+//
 // GRAIN AND STATE ARE NOT CONTROLS. They carry no `role`, no `tabIndex` and no
 // handlers, they are `aria-hidden`, and they are NOT emitted into the
 // `role="tree"` DOM at all — so the roving tabindex can never land on an
@@ -157,9 +218,9 @@ import type { MindNode as MindNodeModel } from '../../lib/mindtree/model'
 import { useMindIsSelected } from '../../store/mindtree'
 
 /**
- * A positioned node, plus the three numbers the containment layout adds.
+ * A positioned node, plus the four numbers the containment layout adds.
  *
- * ALL THREE ARE OPTIONAL AND THAT IS DELIBERATE, not a hedge: `layout.ts`'s
+ * ALL FOUR ARE OPTIONAL AND THAT IS DELIBERATE, not a hedge: `layout.ts`'s
  * linear tidy tree and `radial.ts`'s rings emit `PositionedNode` and know
  * nothing about worlds, and this component still draws both. When the world
  * fields are absent every band falls back to the node's own box, which is the
@@ -175,6 +236,22 @@ export type MindNodePos = PositionedNode<MindNodeModel> & {
   readonly worldY?: number
   /** Diameter of this node's world, drawing units. The band's input. */
   readonly worldD?: number
+  /**
+   * How much bigger than a leaf's this world's authored drawing is
+   * (`WorldNode.cardScale`, worlds.ts:241, already exported and already on
+   * every node `MapCanvas` is handed). `worldD / D_LEAF` for a LEAF; a node
+   * with children instead yields to its ring at `HOLE_FRACTION·worldD /
+   * leafDiag` — worlds.ts:83-85 states both rules and this file's header
+   * carries the two number ranges they produce.
+   *
+   * IT IS THE ONLY NEW NUMBER THIS COMPONENT NEEDED, and it needs it because
+   * `width`/`height` already carry it: the card is authored at 168x44 and
+   * arrives multiplied. Dividing it back out is what lets every constant in
+   * this file stay at 1x inside a `scale()` — see the header. Absent (the tidy
+   * tree, the ring, the export path) it is 1 and the drawing is byte for byte
+   * what it was.
+   */
+  readonly cardScale?: number
 }
 
 /** Everything this component would otherwise have had to resolve itself. */
@@ -496,9 +573,26 @@ export const MindNode = memo(function MindNode({
   const expanded = pos.childIds.length > 0
   const hasCount = view.count !== null
 
+  /**
+   * THE ONE DIVISION, and everything below is in leaf units because of it.
+   *
+   * TOTAL RATHER THAN TRUSTING: a zero, a negative or a NaN `cardScale` would
+   * turn every coordinate in this component into a NaN or an Infinity and the
+   * node would vanish from a drawing that still claims it in the `role="tree"`
+   * walk. 1 is the layouts that have no worlds at all, so the fallback is not a
+   * guess — it is the other drawing this component ships.
+   */
+  const cardScale =
+    pos.cardScale !== undefined && Number.isFinite(pos.cardScale) && pos.cardScale > 0
+      ? pos.cardScale
+      : 1
+  /** The card's box in LEAF units — 168x44 at every depth. */
+  const width = pos.width / cardScale
+  const height = pos.height / cardScale
+
   const budget = Math.max(
     3,
-    Math.floor((pos.width - PAD * 2 - (hasCount ? COUNT_SLOT : 0)) / CHAR_PX),
+    Math.floor((width - PAD * 2 - (hasCount ? COUNT_SLOT : 0)) / CHAR_PX),
   )
 
   // Inline-start and inline-end resolved into x, once. Nothing below multiplies
@@ -515,26 +609,35 @@ export const MindNode = memo(function MindNode({
   // <html>, which is what makes the behaviour a property of this component
   // (and of the exported file, where `svgDocument()` writes the same attribute)
   // instead of a property of wherever the markup happens to be mounted.
-  const startX = rtl ? pos.width - PAD : PAD
-  const endX = rtl ? PAD : pos.width - PAD
-  const markX = rtl ? PAD : pos.width - PAD
+  const startX = rtl ? width - PAD : PAD
+  const endX = rtl ? PAD : width - PAD
+  const markX = rtl ? PAD : width - PAD
   /** The selection tick's corner — the mirror of the breach mark's. */
-  const tickX = rtl ? pos.width - PAD : PAD
+  const tickX = rtl ? width - PAD : PAD
 
   /**
    * WHERE "AWAY FROM THE HUB" IS, or undefined on the linear layout.
    *
    * Read once into a local so the two consumers below narrow off the same
    * `const` — a property access would have to be re-narrowed at each use.
+   *
+   * IN LEAF UNITS LIKE EVERYTHING ELSE. `radial.ts` computes it from the card's
+   * own half-width plus a gap, both already multiplied by `cardScale`, so it
+   * lives in the same world-scaled space `width`/`height` arrived in and takes
+   * the same one division. The identity `cardScale === 1` short-circuit keeps
+   * the two layouts that have no worlds allocating nothing.
    */
-  const outward = pos.outward
+  const outward =
+    pos.outward === undefined || cardScale === 1
+      ? pos.outward
+      : { x: pos.outward.x / cardScale, y: pos.outward.y / cardScale }
   /**
    * The chevron's centre. On a ring it is `outward` — already mirrored, already
    * relative to this node's corner, so NOTHING is multiplied by a direction
    * here. On the linear layout `outward` is undefined and this is the
    * inline-end expression this line has always held.
    */
-  const chevron = outward ?? { x: rtl ? -9 : pos.width + 9, y: pos.height / 2 }
+  const chevron = outward ?? { x: rtl ? -9 : width + 9, y: height / 2 }
   /**
    * Non-null when the label is drawn outside the box.
    *
@@ -557,8 +660,8 @@ export const MindNode = memo(function MindNode({
    * screen to a ring of numbered dots with no names.
    */
   const outsideLabel =
-    outward !== undefined && (band === 'chip' || pos.width < LABEL_INSIDE_MIN)
-      ? outsideLabelAt(pos.width, pos.height, outward, rtl)
+    outward !== undefined && (band === 'chip' || width < LABEL_INSIDE_MIN)
+      ? outsideLabelAt(width, height, outward, rtl)
       : null
 
   /**
@@ -569,10 +672,20 @@ export const MindNode = memo(function MindNode({
    * layouts have. It is only ever consulted by GRAIN and STATE, which those
    * layouts never reach, so it costs them nothing and keeps the arithmetic
    * total.
+   *
+   * IN LEAF UNITS, because the grain/state <g> carries the same `scale()` the
+   * card's does. Those two marks are authored as FRACTIONS of `worldD`, so the
+   * scale changes none of their geometry — it changes their CSS lengths, which
+   * are the same 1x-inside-a-world bug the header describes, arriving from the
+   * other side: `.mring-state-rim`'s `stroke-width: 1` was one WORLD unit, and
+   * at the state band (worldD 26–140 px, worldD ≈ 3,900 units at depth 3) that
+   * is 0.005 px of ink. In leaf units it is `worldD_px / D_LEAF` = 0.13–0.70 px
+   * — a hairline instead of nothing, which is why the FILL SHARE (mind-ring.css,
+   * 44% at grain/state) is what actually carries these two distances.
    */
-  const worldD = pos.worldD ?? Math.max(pos.width, pos.height)
-  const worldCX = pos.worldX !== undefined ? pos.worldX - pos.x : pos.width / 2
-  const worldCY = pos.worldY !== undefined ? pos.worldY - pos.y : pos.height / 2
+  const worldD = (pos.worldD ?? Math.max(pos.width, pos.height)) / cardScale
+  const worldCX = pos.worldX !== undefined ? (pos.worldX - pos.x) / cardScale : width / 2
+  const worldCY = pos.worldY !== undefined ? (pos.worldY - pos.y) / cardScale : height / 2
 
   /**
    * A node with nothing beneath it — an ORGANIZATION, the leaf of the department
@@ -601,7 +714,7 @@ export const MindNode = memo(function MindNode({
       ? // Truncated against the FULL inline room, not the label's: the second
         // line carries no count, so the `COUNT_SLOT` reservation is not its to
         // pay. By glyph count, never by measurement — see `truncate`.
-        truncate(view.secondary, Math.max(3, Math.floor((pos.width - PAD * 2) / CHAR_PX)))
+        truncate(view.secondary, Math.max(3, Math.floor((width - PAD * 2) / CHAR_PX)))
       : null
   /**
    * The progress underscore's length in drawing units, 0 when there is nothing
@@ -614,7 +727,7 @@ export const MindNode = memo(function MindNode({
     (band === 'card' || holding || dissolving) && view.progress != null && view.progress.total > 0
       ? Math.max(
           0,
-          Math.min(1, view.progress.done / view.progress.total) * (pos.width - PAD * 2),
+          Math.min(1, view.progress.done / view.progress.total) * (width - PAD * 2),
         )
       : 0
 
@@ -639,7 +752,7 @@ export const MindNode = memo(function MindNode({
     return (
       <g
         className="mring-mark"
-        transform={`translate(${pos.x} ${pos.y})`}
+        transform={`translate(${pos.x} ${pos.y}) scale(${cardScale})`}
         style={node.colourVars}
         data-band={band}
         aria-hidden="true"
@@ -697,7 +810,13 @@ export const MindNode = memo(function MindNode({
       // its name and its place in the set exist before the repaint, rather than
       // the reader arriving at a set that just changed size underneath them.)
       className={band === 'absent' ? 'mtree-node mring-absent' : 'mtree-node'}
-      transform={`translate(${pos.x} ${pos.y})`}
+      // THE ONE ATTRIBUTE THAT FIXES EIGHT DEFECTS. See the header: every mark
+      // below is authored in LEAF units, and this is what puts them at their
+      // own world's scale — coordinates, stroke widths and dash arrays alike,
+      // which is why it is one change and not fourteen. `scale(1)` on the
+      // layouts that have no worlds is the identity, so the tidy tree, the ring
+      // and export.ts's serialiser draw exactly what they drew before.
+      transform={`translate(${pos.x} ${pos.y}) scale(${cardScale})`}
       // ONE DISSOLVE, NOT TWO FADES. While a world opens, its card crosses out
       // over the identical band its children's grain crosses in — and it is the
       // only opacity this component ever writes, because opacity is never a
@@ -757,10 +876,10 @@ export const MindNode = memo(function MindNode({
           draw 22x10 elliptical corners: a lozenge, not a pill. */}
       <rect
         className="mtree-node-box"
-        width={pos.width}
-        height={pos.height}
-        rx={pos.depth === 0 ? pos.height / 2 : 10}
-        ry={pos.depth === 0 ? pos.height / 2 : 10}
+        width={width}
+        height={height}
+        rx={pos.depth === 0 ? height / 2 : 10}
+        ry={pos.depth === 0 ? height / 2 : 10}
       />
 
       {/* THE LABEL, INSIDE OR OUT — never both, and the two are one <text>
@@ -780,7 +899,7 @@ export const MindNode = memo(function MindNode({
           // baseline lifts to make room. It is the only place on the canvas
           // with a third text row, because it is the only place with nothing
           // beneath it competing for the space.
-          y={pos.height / 2 + (secondLine === null ? 0 : TWO_LINE_TOP)}
+          y={height / 2 + (secondLine === null ? 0 : TWO_LINE_TOP)}
           textAnchor="start"
           dominantBaseline="central"
         >
@@ -816,7 +935,7 @@ export const MindNode = memo(function MindNode({
         <text
           className="mring-secondary"
           x={startX}
-          y={pos.height / 2 + TWO_LINE_BOTTOM}
+          y={height / 2 + TWO_LINE_BOTTOM}
           textAnchor="start"
           dominantBaseline="central"
           aria-hidden="true"
@@ -832,8 +951,8 @@ export const MindNode = memo(function MindNode({
           // the middle rather than sitting against the reading end of an empty
           // chip. `middle` needs no mirror: it is the geometric centre in both
           // scripts.
-          x={outsideLabel === null ? endX : pos.width / 2}
-          y={pos.height / 2}
+          x={outsideLabel === null ? endX : width / 2}
+          y={height / 2}
           textAnchor={outsideLabel === null ? 'end' : 'middle'}
           dominantBaseline="central"
           aria-hidden="true"
@@ -855,7 +974,7 @@ export const MindNode = memo(function MindNode({
               and the name is outside the box entirely, so the reading-end
               corner the card uses is 22 units from both of them and reads as
               belonging to neither. */}
-          <circle cx={band === 'chip' ? pos.width / 2 : markX} cy={9} r={4} />
+          <circle cx={band === 'chip' ? width / 2 : markX} cy={9} r={4} />
         </g>
       )}
 
@@ -882,8 +1001,8 @@ export const MindNode = memo(function MindNode({
       {fillW > 0 && (
         <rect
           className="mring-progress"
-          x={rtl ? pos.width - PAD - fillW : PAD}
-          y={pos.height - PROGRESS_INSET - PROGRESS_H}
+          x={rtl ? width - PAD - fillW : PAD}
+          y={height - PROGRESS_INSET - PROGRESS_H}
           width={fillW}
           height={PROGRESS_H}
           aria-hidden="true"
@@ -926,7 +1045,7 @@ export const MindNode = memo(function MindNode({
 
       {/* A leaf gets a quiet dot at the reading start so a row of entries reads
           as a list rather than as four unrelated cards. Purely decorative. */}
-      {isLeaf && showText && <circle className="mtree-leaf-dot" cx={rtl ? pos.width - 4 : 4} cy={pos.height / 2} r={2} aria-hidden="true" />}
+      {isLeaf && showText && <circle className="mtree-leaf-dot" cx={rtl ? width - 4 : 4} cy={height / 2} r={2} aria-hidden="true" />}
 
       {/* The selection tick, at the block-start reading-START corner — the one
           corner nothing else uses (the breach mark owns the reading END, and the

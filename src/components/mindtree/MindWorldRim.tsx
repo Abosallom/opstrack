@@ -37,6 +37,31 @@
 // is the difference between a map that has lost the set and a map that knows
 // where it is.
 //
+// ── THE RIM IS CHROME, AND THAT IS WHY IT IS THE ONE EXCEPTION ─────────────
+//
+// MindNode draws its card in LEAF units inside `scale(cardScale)`: a card is a
+// drawing at its own level, so its text, its outline and its dash arrays all
+// grow with the world it belongs to. This component does the OPPOSITE, and the
+// difference is argued rather than inherited:
+//
+//  · The rim is the stage's own furniture, not a mark in the drawing. It is on
+//    its way to becoming the BREADCRUMB — the handoff at 0.85V hands this exact
+//    label to HTML text at a constant CSS size — and a name that grew for half
+//    an octave and then snapped to 13px at the crossing would make the handoff
+//    the most visible thing on the canvas instead of the least.
+//  · There are at most ~3 rims on screen ever: only `opening` and `frame` nodes
+//    have one, and MapCanvas draws none at all for a node with no children. So
+//    the camera-dependent prop that would be a disaster on 400 memo()'d nodes
+//    (a wheel notch re-rendering all of them) costs three re-renders here.
+//  · A world's rim is the ONE mark whose apparent size is pinned by definition:
+//    the band it is drawn in is a statement about how big this world looks.
+//
+// So `unitsPerPx` (= 1/scale) arrives as a prop, goes onto the group as
+// `--mring-px`, and mind-ring.css multiplies every authored CSS length by it —
+// `calc(13px * var(--mring-px, 1))`, `calc(2 * var(--mring-px, 1))`. The two
+// drops below take the same multiplication in JS, because they are `y`
+// attributes and there is no stylesheet to do it for them.
+//
 // ── COLOUR, MEASURED ───────────────────────────────────────────────────────
 //
 // Every figure is in this file's sheet (mind-ring.css), computed over the full
@@ -62,14 +87,31 @@ export interface MindWorldRimProps {
    * `trackStyle.trackVars()` produced it and `model.ts` stapled it onto the
    * node. THE ONLY WAY A HUE ENTERS THIS DRAWING.
    *
-   * Any other custom property set here is honoured too, which is the escape
-   * hatch for the one thing this component cannot compute: SVG font sizes are in
-   * USER UNITS, so the rim label scales with the camera like every other word on
-   * this canvas. A caller that wants it pinned to a constant CSS size can pass
-   * `{ '--mring-rim-font': `${13 / scale}px` }` alongside the pair — the sheet
-   * reads that variable and falls back to 13.
+   * Any other custom property set here is honoured too. It used to be the
+   * escape hatch for the camera as well — a caller could pass
+   * `--mring-rim-font` to pin the label — and that hatch is GONE, because the
+   * pinning is no longer optional: `unitsPerPx` does it for every caller and
+   * `--mring-px` carries it to the sheet. An escape hatch nobody may decline is
+   * a prop.
    */
   readonly ink: CSSProperties
+  /**
+   * DRAWING UNITS PER CSS PIXEL — `1 / scale`, the reciprocal of the camera
+   * number MapCanvas already holds.
+   *
+   * WHY THE RECIPROCAL AND NOT `scale`: every use of it here is a
+   * MULTIPLICATION of an authored CSS length, in JS below and in `calc()` in
+   * the sheet, and `calc(13px / var(--mring-scale))` is a division inside a
+   * custom property — legal, but it puts the one arithmetic step that can
+   * divide by zero inside a stylesheet, where there is no place to guard it.
+   * The guard lives in one line of this component instead.
+   *
+   * REQUIRED, with no default. A missing value would silently restore the
+   * defect this prop exists to fix — a rim label authored at 13 USER units,
+   * which on a 98,360-unit world rasterises at 0.05 px — and this component has
+   * exactly one caller, so there is nobody for a default to rescue.
+   */
+  readonly unitsPerPx: number
   /** Matches in this world's subtree. 0 draws no match rim at all. */
   readonly matches: number
   /**
@@ -93,9 +135,18 @@ export interface MindWorldRimProps {
   readonly fade: number
 }
 
-/** Where the label sits below the rim's block-start edge, in drawing units. */
+/**
+ * Where the label sits below the rim's block-start edge, in CSS PIXELS.
+ *
+ * IT USED TO BE DRAWING UNITS and the number is unchanged, because at
+ * `cardScale = 1` — a leaf's own world — the two are the same thing. What
+ * changed is that it now means the same distance on the screen at every
+ * altitude: multiplied by `unitsPerPx` below, 18 is 18 px under the rim
+ * whether the world is the workspace or an Organization. Left in units, it was
+ * 18/98,360 of the root's radius, i.e. the label sat ON the boundary line.
+ */
 const LABEL_DROP = 18
-/** And the match count below it, on the same centre line. */
+/** And the match count below it, on the same centre line. Same units. */
 const COUNT_DROP = 40
 
 /** Path data is rounded so a pan does not rewrite every arc with float noise. */
@@ -137,9 +188,15 @@ function wedgePath(
 }
 
 /**
- * Memoised for the same reason MindNode is: a pure camera change must re-render
- * zero rims whose fade did not move. Every prop is either a primitive or an
- * object the page's memo owns, so the default shallow compare is exactly right.
+ * Memoised, though `unitsPerPx` now changes on every zoom frame, so a rim DOES
+ * re-render on a pure camera change — and it must: being pinned to the camera
+ * is the whole point of it. What the memo still buys is a PAN, where the scale
+ * does not move and nothing here re-renders at all. The cost of the zoom case
+ * is bounded by construction rather than by hope: only `opening` and `frame`
+ * nodes have a rim, MapCanvas draws none for a node with no children, and at
+ * 2.22 octaves per tier that is at most a handful on screen. The same prop on
+ * MindNode would re-render four hundred cards a notch, which is exactly why
+ * a card is scaled by its world instead.
  */
 export const MindWorldRim = memo(function MindWorldRim({
   world,
@@ -149,16 +206,33 @@ export const MindWorldRim = memo(function MindWorldRim({
   matchWedges,
   rtl,
   fade,
+  unitsPerPx,
 }: MindWorldRimProps): ReactElement | null {
   if (!(fade > 0)) return null
   const radius = world.worldD / 2
   if (!Number.isFinite(radius) || radius <= 0) return null
   const opacity = fade >= 1 ? undefined : fade
+  /**
+   * THE ONE GUARD, and it is here rather than in the sheet because a stylesheet
+   * has no `else`. A camera scale of 0 (the first frame before the stage has
+   * been measured) or a NaN would otherwise put `Infinity` into a `y` attribute
+   * and `calc(13px * NaN)` into a font size — one of which draws nothing and
+   * the other of which draws at the browser's default. 1 is the identity: the
+   * drawing this component made before the camera existed.
+   */
+  const px = Number.isFinite(unitsPerPx) && unitsPerPx > 0 ? unitsPerPx : 1
 
   return (
     <g
       className="mring-world"
-      style={ink}
+      // `--mring-px` IS THE WHOLE CAMERA PIN. mind-ring.css multiplies both
+      // font sizes and both stroke widths by it; the two `y` drops below do the
+      // same multiplication in JS, because an attribute has no cascade. Written
+      // as a string deliberately: it is a unitless <number>, and a bare JS
+      // number is one React release away from being serialised as `1234px`,
+      // which would make every `calc()` that reads it invalid and silently drop
+      // the declaration.
+      style={{ ...ink, '--mring-px': String(px) } as CSSProperties}
       // The world's identity belongs to its treeitem while it still has one and
       // to the breadcrumb after that. A third announcement of the same name,
       // from a decorative circle, would say it twice to the one reader who
@@ -196,7 +270,7 @@ export const MindWorldRim = memo(function MindWorldRim({
       <text
         className="mring-world-label"
         x={r2(world.worldX)}
-        y={r2(world.worldY - radius + LABEL_DROP)}
+        y={r2(world.worldY - radius + LABEL_DROP * px)}
         textAnchor="middle"
         dominantBaseline="central"
       >
@@ -207,7 +281,7 @@ export const MindWorldRim = memo(function MindWorldRim({
         <text
           className="mring-world-matches tabular"
           x={r2(world.worldX)}
-          y={r2(world.worldY - radius + COUNT_DROP)}
+          y={r2(world.worldY - radius + COUNT_DROP * px)}
           textAnchor="middle"
           dominantBaseline="central"
         >

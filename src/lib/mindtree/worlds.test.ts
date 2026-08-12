@@ -12,6 +12,11 @@
 //     produces at three children and the SHORTER CHORD produces at all of them.
 //   · EVERY MARK IS INSIDE ITS OWN WORLD — cards, chevrons, spokes and control
 //     points. That is what lets the renderer cull by disc and never clip.
+//   · A PARENT YIELDS THE ROOM TO ITS CHILDREN — its card is inscribed in the
+//     hole its children's ring leaves (HOLE_FRACTION), and the guarantee holds
+//     at every fan-out the schema's depth cap can produce. Defect 6.
+//   · A SPOKE LEAVES A CARD, NOT A HUB — the start is on the parent card's own
+//     outline, along the bearing. Defect 15.
 //   · THE PARTITION IS EXACT, by SHARED ENDPOINTS. A telescoping sum of float
 //     differences is not exact; a chain of shared endpoints is.
 //   · BOUNDS CONTAIN THE CURVES and are CENTRED ON THE ROOT — the second is the
@@ -32,6 +37,7 @@ import {
   D_LEAF,
   FRAME_FRACTION,
   GAP_RATIO,
+  HOLE_FRACTION,
   RIM,
   SINGLE_CHILD_RATIO,
   ancestorWorlds,
@@ -131,6 +137,17 @@ describe('the packing constants are named, exported and load-bearing', () => {
   it('D_LEAF holds a 168x44 card with the rim to spare', () => {
     // The reason 200 is the unit: the authored leaf card's diagonal, plus room.
     expect(Math.hypot(168, 44)).toBeLessThan(D_LEAF)
+  })
+
+  it('HOLE_FRACTION is the fifth, and it is smaller than the hole it names', () => {
+    expect(HOLE_FRACTION).toBe(0.34)
+    // The hole a six-child ring leaves, as a share of the parent's diameter,
+    // computed from the packer rather than quoted: (2r − D) / parentD. This is
+    // the 0.36 the constant was derived against, and 0.34 is inside it.
+    const D = 200
+    const six = packRing({ childD: new Array<number>(6).fill(D), gap: GAP_RATIO * D })
+    expect((2 * six.radius - D) / six.parentD).toBeCloseTo(0.355, 3)
+    expect(HOLE_FRACTION).toBeLessThan((2 * six.radius - D) / six.parentD)
   })
 })
 
@@ -422,6 +439,197 @@ describe('layoutWorlds — every mark a node owns is inside its own world', () =
       expect(fromCentre).toBeGreaterThan(Math.min(n.width, n.height) / 2)
       expect(fromCentre).toBeLessThanOrEqual(n.worldD / 2 + EPS)
     }
+  })
+})
+
+// ── the hole a parent leaves its children ──────────────────────────────────
+
+describe('layoutWorlds — a parent yields the room inside to its children', () => {
+  /** The parent's card and its ring, for a root with `n` identical leaves. */
+  function ring(n: number): {
+    readonly parent: WorldNode<TestNode>
+    readonly kids: readonly WorldNode<TestNode>[]
+  } {
+    const layout = layoutWorlds(fan(n))
+    return { parent: layout.byId.get('root') as WorldNode<TestNode>, kids: childrenOf(layout, 'root') }
+  }
+
+  it('keeps a parent card inside the circle its children sit on, at EVERY fan-out 1..40', () => {
+    // THE GUARANTEE THAT HOLDS EVERYWHERE, and the reason it is this one rather
+    // than the stronger "clears every child world": below six children the
+    // packing leaves no hole a legible card fits in, and at one child there is
+    // no hole at all (SINGLE_CHILD_RATIO puts the lone world over the hub). See
+    // the crossover test below, and HOLE_FRACTION's own note.
+    for (let n = 1; n <= 40; n += 1) {
+      const { parent, kids } = ring(n)
+      const circum = Math.hypot(parent.width, parent.height) / 2
+      for (const kid of kids) expect(circum).toBeLessThan(distance(parent, kid))
+    }
+  })
+
+  it('is binding at ONE child, where it spends 80% of the room and no more', () => {
+    // The margin, named where a future edit to HOLE_FRACTION will trip over it:
+    // a lone child's centre sits 0.211·worldD out and the card's circumcircle
+    // reaches 0.17·worldD, so 0.34 could not grow past ~0.42 without a parent's
+    // own card reaching the ring its children are placed on.
+    const { parent, kids } = ring(1)
+    const circum = Math.hypot(parent.width, parent.height) / 2
+    expect(circum / distance(parent, kids[0])).toBeCloseTo(0.804, 3)
+    expect(circum / parent.worldD).toBeCloseTo(HOLE_FRACTION / 2, 12)
+  })
+
+  it('clears every child world outright from SIX children up, and not at five', () => {
+    // WHERE THE CONSTANT COMES FROM, asserted from both sides so that moving it
+    // in either direction reds this claim and sends the next reader back to the
+    // arithmetic in HOLE_FRACTION's note. Six is the commonest fan-out on this
+    // screen (worlds.ts's own header), and 0.34 is the hole six leaves. The
+    // test uses the card's REAL support — the nearest point of an axis-aligned
+    // rect to the child's centre — not its circumcircle, because a 168x44 card
+    // is flat and the circumcircle would understate it by a third.
+    const clears = (n: number): boolean => {
+      const { parent, kids } = ring(n)
+      const halfW = parent.width / 2
+      const halfH = parent.height / 2
+      return kids.every((kid) => {
+        const dx = Math.max(0, Math.abs(kid.worldX - parent.worldX) - halfW)
+        const dy = Math.max(0, Math.abs(kid.worldY - parent.worldY) - halfH)
+        return Math.hypot(dx, dy) >= kid.worldD / 2
+      })
+    }
+    for (let n = 6; n <= 40; n += 1) expect([n, clears(n)]).toEqual([n, true])
+    for (let n = 1; n <= 5; n += 1) expect([n, clears(n)]).toEqual([n, false])
+  })
+
+  it('round-trips through cardScale to the card the author actually wrote', () => {
+    // THE SEAM WITH THE RENDERER. A mark drawn inside `scale(cardScale)` is
+    // authored in LEAF UNITS, so this division is the one MindNode performs in
+    // reverse on every card at every depth: get it wrong and every glyph budget,
+    // stroke width and 44px target in the drawing is off by the tier.
+    for (const tree of [uniform(3, 4), workspace(), fan(24)]) {
+      const layout = layoutWorlds(tree)
+      for (const n of layout.nodes) {
+        expect(n.width / n.cardScale).toBeCloseTo(168, 9)
+        expect(n.height / n.cardScale).toBeCloseTo(44, 9)
+      }
+    }
+    // …and with a size encoding it returns the AUTHORED card, not the leaf —
+    // which is what makes `width / cardScale` safe to draw into unconditionally.
+    const sized = layoutWorlds(uniform(2, 4), {
+      sizeOf: (_n, depth) => (depth === 1 ? { width: 240, height: 60 } : undefined),
+    })
+    for (const n of sized.nodes) {
+      if (n.depth !== 1) continue
+      expect(n.width / n.cardScale).toBeCloseTo(240, 9)
+      expect(n.height / n.cardScale).toBeCloseTo(60, 9)
+    }
+  })
+
+  it('holds the hole even when an encoding authors a branch card at twice the leaf', () => {
+    // The one word past the design's formula, earning its place: with a plain
+    // `/ leafDiagonal` a branch card an encoding doubled would carry a
+    // 0.68·worldD diagonal into a 0.36·worldD hole and put defect 6 back.
+    const layout = layoutWorlds(uniform(2, 6), {
+      sizeOf: (_n, depth) => (depth === 1 ? { width: 336, height: 88 } : undefined),
+    })
+    for (const n of layout.nodes) {
+      if (n.childIds.length === 0) continue
+      expect(Math.hypot(n.width, n.height) / n.worldD).toBeLessThanOrEqual(HOLE_FRACTION + EPS)
+    }
+  })
+
+  it('leaves a LEAF filling its world, whatever its fan-out neighbours do', () => {
+    // The other half of the two-rule header: nothing above changed a leaf.
+    for (const n of [1, 2, 6, 24]) {
+      const { kids } = ring(n)
+      for (const kid of kids) {
+        expect(kid.cardScale).toBe(1)
+        expect(Math.hypot(kid.width, kid.height) / kid.worldD).toBeCloseTo(
+          Math.hypot(168, 44) / D_LEAF,
+          12,
+        )
+      }
+    }
+  })
+})
+
+// ── the spoke leaves a card ────────────────────────────────────────────────
+
+describe('layoutWorlds — a spoke starts on the parent card, not at the parent hub', () => {
+  it('anchors the start ON the card outline, along the bearing, in both directions', () => {
+    // DEFECT 15. Asserted as two geometric facts rather than by restating the
+    // support function here — a test that recomputes the formula it is checking
+    // agrees with itself and with nothing else. On the ray: the cross product
+    // with the bearing vanishes and the dot product is positive. On the
+    // outline: exactly one axis is at its half-extent and neither is past it.
+    for (const direction of ['ltr', 'rtl'] as const) {
+      const layout = layoutWorlds(workspace(), { direction })
+      expect(layout.edges.length).toBeGreaterThan(0)
+      for (const edge of layout.edges) {
+        const parent = layout.byId.get(edge.parentId) as WorldNode<TestNode>
+        const child = layout.byId.get(edge.childId) as WorldNode<TestNode>
+        const dx = edge.start.x - parent.worldX
+        const dy = edge.start.y - parent.worldY
+        const cos = Math.cos(child.bearing)
+        const sin = Math.sin(child.bearing)
+        expect(Math.abs(dx * sin - dy * cos)).toBeLessThan(1e-9)
+        expect(dx * cos + dy * sin).toBeGreaterThan(0)
+        const ratioX = Math.abs(dx) / (parent.width / 2)
+        const ratioY = Math.abs(dy) / (parent.height / 2)
+        expect(Math.max(ratioX, ratioY)).toBeCloseTo(1, 9)
+        expect(Math.min(ratioX, ratioY)).toBeLessThanOrEqual(1 + EPS)
+      }
+    }
+  })
+
+  it('draws no ink under the card it left, and none backwards', () => {
+    const layout = layoutWorlds(uniform(2, 6))
+    for (const edge of layout.edges) {
+      const parent = layout.byId.get(edge.parentId) as WorldNode<TestNode>
+      const child = layout.byId.get(edge.childId) as WorldNode<TestNode>
+      // no point of the curve's hull is strictly inside either card…
+      for (const p of [edge.start, edge.c1, edge.c2, edge.end]) {
+        const inParent =
+          Math.abs(p.x - parent.worldX) < parent.width / 2 - EPS &&
+          Math.abs(p.y - parent.worldY) < parent.height / 2 - EPS
+        const inChild =
+          Math.abs(p.x - child.worldX) < child.width / 2 - EPS &&
+          Math.abs(p.y - child.worldY) < child.height / 2 - EPS
+        expect(inParent || inChild).toBe(false)
+      }
+      // …and the controls sit BETWEEN the ends, so no spoke doubles back
+      const cos = Math.cos(child.bearing)
+      const sin = Math.sin(child.bearing)
+      const along = (p: { x: number; y: number }): number =>
+        (p.x - edge.start.x) * cos + (p.y - edge.start.y) * sin
+      const span = along(edge.end)
+      for (const p of [edge.c1, edge.c2]) {
+        expect(along(p)).toBeGreaterThanOrEqual(-EPS)
+        expect(along(p)).toBeLessThanOrEqual(span + EPS)
+      }
+    }
+  })
+
+  it('collapses to its own chord where the two cards already overlap', () => {
+    // AT ONE CHILD THE SPAN GOES NEGATIVE, and that is the packing's doing, not
+    // this anchor's: SINGLE_CHILD_RATIO puts the lone world's centre 0.46·D from
+    // the hub with a radius of 0.5·D, so it covers the hub, and the parent's
+    // card outline can sit farther out along the ray than the child's near edge.
+    // The clamp is what keeps that case a straight segment — c1 ON start, c2 ON
+    // end — instead of a connector that loops back out through the card it came
+    // from. (The one-rule drawing had the same overlap and worse: the parent's
+    // card was 894 units wide inside a 2,129-unit world and swallowed the child
+    // whole.)
+    const layout = layoutWorlds(node('a', [node('b', [node('c')])]))
+    const first = layout.edges[0]
+    expect(first.parentId).toBe('a')
+    const child = layout.byId.get(first.childId) as WorldNode<TestNode>
+    const cos = Math.cos(child.bearing)
+    const sin = Math.sin(child.bearing)
+    const span = (first.end.x - first.start.x) * cos + (first.end.y - first.start.y) * sin
+    expect(span).toBeLessThan(0)
+    expect(first.c1).toEqual(first.start)
+    expect(first.c2).toEqual(first.end)
+    expectFinite(layout)
   })
 })
 
@@ -741,14 +949,26 @@ describe('layoutWorlds — the coordinate space stays where float precision is',
     }
   })
 
-  it('authors every world card at its own scale', () => {
+  it('authors every world card at its own scale, by the rule for its role', () => {
+    // THE SAME SHARE OF ITS OWN WORLD AT EVERY DEPTH, still — but two shares,
+    // one per role, and neither of them a function of depth. A leaf FILLS its
+    // world; a parent YIELDS to the ring it encloses. That is what lets lod.ts
+    // key one band table on `worldD` alone. This test used to assert the leaf
+    // share for every node, which was the arithmetic form of defect 6.
     const layout = layoutWorlds(uniform(3, 4))
+    const leafShare = 168 / D_LEAF
+    const parentShare = (HOLE_FRACTION * 168) / Math.hypot(168, 44)
     for (const n of layout.nodes) {
-      // the card occupies the same share of its world at every depth — the
-      // reference's "every level was drawn at its own scale", as arithmetic
-      expect(n.width / n.worldD).toBeCloseTo(168 / D_LEAF, 12)
-      expect(n.cardScale).toBeCloseTo(n.worldD / D_LEAF, 9)
+      const isLeaf = n.childIds.length === 0
+      expect(n.width / n.worldD).toBeCloseTo(isLeaf ? leafShare : parentShare, 12)
+      expect(n.cardScale).toBeCloseTo(
+        isLeaf ? n.worldD / D_LEAF : (HOLE_FRACTION * n.worldD) / Math.hypot(168, 44),
+        9,
+      )
     }
+    // and the two shares are genuinely different: a parent's card is 39% of the
+    // card the one-rule drawing gave it — the cost stated in the header.
+    expect(parentShare / leafShare).toBeCloseTo(0.392, 3)
   })
 
   it('survives 200 children on one ring', () => {

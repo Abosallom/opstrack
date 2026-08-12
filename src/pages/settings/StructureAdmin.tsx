@@ -497,11 +497,11 @@ export default function StructureAdmin(): ReactElement {
       setErrorKey(nodeResult.error)
       return
     }
-    setNodes(nodeResult.data)
+    setNodes(nodeResult.data.rows)
     // A failed KIND read is not a failed screen. The kinds are a chip and a
     // picker; the tree is the point, and refusing to draw it because the
     // vocabulary above it did not load would be the wrong trade.
-    if (kindResult.ok) setKinds(kindResult.data)
+    if (kindResult.ok) setKinds(kindResult.data.rows)
   }, [])
 
   useEffect(() => {

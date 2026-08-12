@@ -76,7 +76,7 @@ import {
   deleteUseCase,
   listMapNodeKinds,
   listMapNodes,
-  listNodeUseCases,
+  listNodeUseCasesFor,
   listUseCases,
   reorderMapNodeKinds,
   updateMapNodeKind,
@@ -214,10 +214,9 @@ export default function CatalogueAdmin(): ReactElement {
     // unusable without the first two. The last two are ADVISORY — they produce
     // the counts the delete confirmations name — so a failure there sets the
     // usage map to null rather than failing the screen.
-    const [useCaseResult, kindResult, linkResult, nodeResult] = await Promise.all([
+    const [useCaseResult, kindResult, nodeResult] = await Promise.all([
       listUseCases(true),
       listMapNodeKinds(),
-      listNodeUseCases(),
       listMapNodes(true),
     ])
     if (!alive.current) return
@@ -225,17 +224,30 @@ export default function CatalogueAdmin(): ReactElement {
     if (!useCaseResult.ok) {
       setErrorKey(useCaseResult.error)
       setUseCases([])
-      setKinds(kindResult.ok ? kindResult.data : [])
+      setKinds(kindResult.ok ? kindResult.data.rows : [])
       return
     }
     if (!kindResult.ok) {
       setErrorKey(kindResult.error)
-      setUseCases(useCaseResult.data)
+      setUseCases(useCaseResult.data.rows)
       setKinds([])
       return
     }
-    setUseCases(useCaseResult.data)
-    setKinds(kindResult.data)
+    setUseCases(useCaseResult.data.rows)
+    setKinds(kindResult.data.rows)
+
+    // THE LINK READ MOVED BELOW THE NODE READ, and the serial round trip is the
+    // price of a read that can no longer be unbounded: listNodeUseCases lost its
+    // optional argument (api/map.ts), so the bulk form names the nodes it is
+    // about. It is asked for exactly the nodes counted above, which also makes
+    // the count's denominator explicit instead of implied. Advisory, like the
+    // node read: a failure sets the usage map to null rather than failing the
+    // screen. `alive` is re-checked because this await is a second chance to
+    // land after the screen has gone.
+    const linkResult = await listNodeUseCasesFor(
+      nodeResult.ok ? nodeResult.data.rows.map((n) => n.id) : [],
+    )
+    if (!alive.current) return
 
     if (linkResult.ok) {
       // DISTINCT NODES, not rows: the pair is the primary key, so one
@@ -243,7 +255,7 @@ export default function CatalogueAdmin(): ReactElement {
       // count is already the organization count. Counted through a Set anyway,
       // so the sentence stays true if the join ever grows a third key column.
       const seen = new Map<string, Set<string>>()
-      for (const link of linkResult.data) {
+      for (const link of linkResult.data.rows) {
         const nodes = seen.get(link.use_case_id) ?? new Set<string>()
         nodes.add(link.node_id)
         seen.set(link.use_case_id, nodes)
@@ -259,7 +271,7 @@ export default function CatalogueAdmin(): ReactElement {
       // does on a live one, and a count that quietly skipped them would
       // under-report what the delete is about to touch.
       const counts = new Map<string, number>()
-      for (const node of nodeResult.data) {
+      for (const node of nodeResult.data.rows) {
         if (node.kind_id === null) continue
         counts.set(node.kind_id, (counts.get(node.kind_id) ?? 0) + 1)
       }

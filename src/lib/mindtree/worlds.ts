@@ -77,15 +77,34 @@
 // disjoint. That pair of facts is what makes the dive legible: a world is a
 // complete picture, and no part of one leaks into its neighbour at any zoom.
 //
-// A NODE'S CARD IS AUTHORED AT ITS WORLD'S SCALE — `width`/`height` are the leaf
-// card multiplied by `cardScale = worldD / D_LEAF`. This is the reference's
-// second property made arithmetic: what is a texture at one distance is a drawn
-// picture at the next, because every level was drawn at its own size. A card
-// occupies the same share of its world at every depth, so the LOD bands (U2) are
-// one table that applies to the root and to a leaf identically — a world 140 CSS
-// px across shows a card the same size whether it is the workspace or an
-// Organization, which is precisely why "the child becomes the view" needs no
+// A NODE'S CARD IS AUTHORED AT ITS WORLD'S SCALE, AND THERE ARE TWO RULES —
+// one for the room a LEAF owns and one for the room a PARENT lends out:
+//
+//   a leaf FILLS its world        cardScale = worldD / D_LEAF
+//                                 → the card's diagonal is 0.87·worldD
+//   a parent YIELDS to its ring   cardScale = HOLE_FRACTION·worldD / leafDiag
+//                                 → the card's diagonal is 0.34·worldD
+//
+// Both are the reference's second property made arithmetic — what is a texture
+// at one distance is a drawn picture at the next, because every level was drawn
+// at its own size — and both are THE SAME SHARE OF THAT NODE'S OWN WORLD AT
+// EVERY DEPTH. Two shares, one per role, neither a function of depth. That is
+// what the LOD bands (U2) rest on: `lod.ts` keys the band table on `worldD`
+// alone (`apparentOf`, lod.ts:130), so it applies to the root and to a leaf
+// identically, which is precisely why "the child becomes the view" needs no
 // special case for how deep it is.
+//
+// The second rule is defect 6 of the render harness, and it is not cosmetic: a
+// parent card authored at `worldD / D_LEAF` carries a 0.87·worldD diagonal into
+// the 0.36·worldD hole a six-child ring leaves, so EVERY parent's own card was
+// drawn straight across its own children's ring, at every tier, in every
+// screenshot the harness took. `HOLE_FRACTION` states the measurement, and
+// states what it does not buy.
+//
+// The consequence is a fact about the drawing rather than a regression: a
+// parent's card is ~40% of the size it was, and its identity moves OUTWARD onto
+// the rim (`MindWorldRim`, drawn only for a node with children). The room
+// inside a parent belongs to its children.
 //
 // BOXES NEVER ROTATE. Only world-centres sit on a circle. That is what keeps
 // MindNode's measured CHAR_PX glyph budget, <rect> hit-testing, PulseLayer's
@@ -147,6 +166,38 @@ const CHEVRON_GAP = 9
 export const FRAME_FRACTION = 0.85
 
 /**
+ * A PARENT'S CARD, AS A SHARE OF ITS WORLD'S DIAMETER — the hole its children's
+ * ring leaves, expressed as the card's DIAGONAL so that it is one number for
+ * every aspect ratio a caller can author.
+ *
+ * THE MEASUREMENT THAT FORCED IT. A card authored at its world's scale carries a
+ * diagonal of `hypot(168, 44) / 200 = 0.87·worldD`. The ring the packing above
+ * builds leaves a free centre of `(2r − D) / worldD` — at six children, the
+ * commonest fan-out on this screen, `r = 1.18·D` and that is 0.36·worldD. So the
+ * parent's own card covered its children's ring by better than two to one, at
+ * every tier. 0.34 is that hole with a hair of margin, and measured against the
+ * card's real support function rather than its circumcircle it is the constant
+ * at which a parent's card clears every child world outright FROM SIX CHILDREN
+ * UP: 6 clears with 15% to spare, 5 does not clear at all.
+ *
+ * WHAT IT DOES NOT BUY, stated here because worlds.test.ts pins it rather than
+ * hiding it. Below six children the packing leaves no hole a legible card fits
+ * in — at three the free centre is 0.13·worldD, and at one there is no hole at
+ * all, because `SINGLE_CHILD_RATIO = 2.2` puts the lone child's centre 0.46·D
+ * from the hub with a radius of 0.5·D and its world therefore covers the hub.
+ * Shrinking every parent's card until it cleared a two-child ring would mean a
+ * 36-unit card in a 500-unit world: illegible at every fan-out, to remove an
+ * overlap the reader sees at five of them. So the guarantee that holds at EVERY
+ * fan-out 1..40 is the weaker one: the card stays inside the circle its
+ * children's CENTRES sit on, binding at one child where it uses 80% of it.
+ *
+ * The consequence, stated rather than discovered: a parent's own card is ~40% of
+ * the size it was. That is right. The room inside a parent belongs to its
+ * children; the parent's identity is on the rim.
+ */
+export const HOLE_FRACTION = 0.34
+
+/**
  * THE DIVE STEPS THROUGH DEPARTMENTS, AND STOPS THERE.
  *
  * `worldAt` — the world the breadcrumb names and the camera is measured against
@@ -176,10 +227,16 @@ export interface WorldNode<N extends LayoutInputNode = LayoutInputNode>
   /** `kind` is 'root' | 'track' | 'entity'. Only a structural node may be framed. */
   readonly structural: boolean
   /**
-   * `worldD / D_LEAF`: how much bigger than a leaf's this world's authored
-   * drawing is. `width`/`height` already carry it; a renderer scaling a stroke,
-   * a font size or a 44px target into this world's own scale wants the number
-   * itself.
+   * How much bigger than a leaf card's this node's authored drawing is —
+   * `worldD / D_LEAF` for a leaf, and `HOLE_FRACTION·worldD / leafDiagonal` for
+   * a node with children (see the header's two rules and `HOLE_FRACTION`).
+   *
+   * `width`/`height` already carry it. THE NUMBER ITSELF IS THE RENDERER'S
+   * CONTRACT: a mark drawn inside `scale(cardScale)` is authored in LEAF UNITS,
+   * so `width / cardScale` is the card the author wrote and every stroke, font
+   * size and 44px target inside it is the leaf's, unscaled by depth. That
+   * round-trip is asserted in worlds.test.ts because it is the seam this number
+   * exists for.
    */
   readonly cardScale: number
   /**
@@ -276,10 +333,12 @@ export function layoutWorlds<N extends LayoutInputNode>(
   // grows a card by area grows its world by area too and the legend — "size =
   // open items" — stays true of the world as well as of the box.
   const leafDiag = Math.max(Math.hypot(leaf.width, leaf.height), 1e-6)
+  const ownDiag: number[] = new Array<number>(count).fill(leafDiag)
   const ownD: number[] = new Array<number>(count).fill(D_LEAF)
   for (let i = 0; i < count; i += 1) {
     const node = work[i]
-    ownD[i] = Math.max(1e-6, (D_LEAF * Math.hypot(node.width, node.height)) / leafDiag)
+    ownDiag[i] = Math.hypot(node.width, node.height)
+    ownD[i] = Math.max(1e-6, (D_LEAF * ownDiag[i]) / leafDiag)
   }
 
   // ── OUTWARD FROM THE LEAVES ─────────────────────────────────────────────
@@ -307,12 +366,37 @@ export function layoutWorlds<N extends LayoutInputNode>(
     ringRadiusOf[i] = packed.radius
     ringBearings[i] = packed.bearings
     ringEdges[i] = packed.edges
-    // `max` with the node's OWN card: a caller may hand a branch a card bigger
-    // than its children's ring needs, and a world that did not hold its own card
-    // would break the containment invariant at the top rather than at a leaf.
-    // The ring is NOT scaled up with it — leaving it where it is can only make
-    // the rim margin wider, never narrower.
+    // `max` with the node's OWN card. It is no longer containment's guard — a
+    // parent's card is HOLE_FRACTION of its world and cannot reach the rim from
+    // the hub whatever it was authored at — so what it now buys is the SIZE
+    // ENCODING on a branch: a branch whose card an encoding grew gets a world
+    // grown with it, and the legend "size = open items" stays true of a
+    // department as well as of an Organization. The ring is NOT scaled up with
+    // it, which can only make the rim margin wider, never narrower.
     worldD[i] = Math.max(ownD[i], packed.parentD)
+  }
+
+  // ── THE TWO CARD RULES, ONCE ────────────────────────────────────────────
+  // Computed here and read three times — by the placement loop, by every spoke
+  // and by the bounds union — because a second `cardScale` anywhere is how a
+  // card and the connector that has to meet it end up disagreeing about where
+  // the card's edge is.
+  const cardScaleOf: number[] = new Array<number>(count).fill(1)
+  const cardW: number[] = new Array<number>(count).fill(0)
+  const cardH: number[] = new Array<number>(count).fill(0)
+  for (let i = 0; i < count; i += 1) {
+    // `max(leafDiag, ownDiag)` is one word past the design's formula and it is
+    // load-bearing: a branch card an encoding authored at TWICE the leaf would
+    // otherwise carry a 0.68·worldD diagonal into a 0.36·worldD hole and put
+    // defect 6 straight back. Below the leaf it is the design's formula
+    // unchanged, so a smaller authored card yields a proportionally smaller one.
+    const scale =
+      work[i].children.length === 0
+        ? worldD[i] / ownD[i]
+        : (HOLE_FRACTION * worldD[i]) / Math.max(leafDiag, ownDiag[i])
+    cardScaleOf[i] = scale
+    cardW[i] = work[i].width * scale
+    cardH[i] = work[i].height * scale
   }
 
   // ── DOWNWARD, PLACING WORLDS ────────────────────────────────────────────
@@ -361,7 +445,7 @@ export function layoutWorlds<N extends LayoutInputNode>(
   // is its own fixed point EXACTLY — `hubX - 0 === hubX + 0` — which is what
   // makes the root's x byte-identical in both directions.
   const rootD = worldD[0]
-  const bounds = boundsFor(rootD, work, wx, wy, ownD, worldD, ringRadiusOf, bearing, indexOf)
+  const bounds = boundsFor(rootD, work, wx, wy, cardW, cardH, bearing, indexOf)
   const hubX = bounds.width / 2
   const hubY = bounds.height / 2
   const px = (x: number): number => (rtl ? hubX - x : hubX + x)
@@ -374,9 +458,9 @@ export function layoutWorlds<N extends LayoutInputNode>(
 
   for (let i = 0; i < count; i += 1) {
     const node = work[i]
-    const scale = worldD[i] / ownD[i]
-    const width = node.width * scale
-    const height = node.height * scale
+    const scale = cardScaleOf[i]
+    const width = cardW[i]
+    const height = cardH[i]
     const cx = px(wx[i])
     const cy = py(wy[i])
     const theta = pt(bearing[i])
@@ -434,7 +518,19 @@ export function layoutWorlds<N extends LayoutInputNode>(
 
     if (node.parent !== null) {
       const p = indexOf.get(node.parent.id) as number
-      edges.push(spoke(node, work[p], px(wx[p]), py(wy[p]), cx, cy, theta, width, height))
+      edges.push(
+        spoke(node, work[p], {
+          hubX: px(wx[p]),
+          hubY: py(wy[p]),
+          parentHalfW: cardW[p] / 2,
+          parentHalfH: cardH[p] / 2,
+          cx,
+          cy,
+          halfW: width / 2,
+          halfH: height / 2,
+          theta,
+        }),
+      )
     }
   }
 
@@ -536,9 +632,8 @@ function boundsFor<N extends LayoutInputNode>(
   work: readonly LayoutWorkNode<N>[],
   wx: readonly number[],
   wy: readonly number[],
-  ownD: readonly number[],
-  worldD: readonly number[],
-  ringRadiusOf: readonly number[],
+  cardW: readonly number[],
+  cardH: readonly number[],
   bearing: readonly number[],
   indexOf: ReadonlyMap<string, number>,
 ): Bounds {
@@ -552,18 +647,31 @@ function boundsFor<N extends LayoutInputNode>(
   }
   for (let i = 0; i < work.length; i += 1) {
     const node = work[i]
-    const scale = worldD[i] / ownD[i]
-    const halfW = (node.width * scale) / 2
-    const halfH = (node.height * scale) / 2
+    const halfW = cardW[i] / 2
+    const halfH = cardH[i] / 2
     see(wx[i] - halfW, wy[i] - halfH)
     see(wx[i] + halfW, wy[i] + halfH)
     if (node.parent === null) continue
     const p = indexOf.get(node.parent.id) as number
-    const run = EDGE_CURVE * ringRadiusOf[p]
-    // The two control points of this node's spoke, in the same hub-relative
-    // space, before the mirror — the marks the union exists for.
-    see(wx[p] + run * Math.cos(bearing[i]), wy[p] + run * Math.sin(bearing[i]))
-    see(wx[i] - run * Math.cos(bearing[i]), wy[i] - run * Math.sin(bearing[i]))
+    // The spoke's four points, in the same hub-relative space, BEFORE the
+    // mirror — from the identical function that emits them, not from an
+    // estimate of where they probably are. A support radius reads |cos| and
+    // |sin|, so θ and π − θ give the same one and the pre-mirror answer is the
+    // post-mirror answer reflected, which is what lets this run here at all.
+    const points = spokePoints({
+      hubX: wx[p],
+      hubY: wy[p],
+      parentHalfW: cardW[p] / 2,
+      parentHalfH: cardH[p] / 2,
+      cx: wx[i],
+      cy: wy[i],
+      halfW,
+      halfH,
+      theta: bearing[i],
+    })
+    see(points.c1.x, points.c1.y)
+    see(points.c2.x, points.c2.y)
+    see(points.start.x, points.start.y)
   }
   const width = 2 * spanX
   const height = 2 * spanY
@@ -571,8 +679,8 @@ function boundsFor<N extends LayoutInputNode>(
 }
 
 /**
- * One connector, as four points, from the hub of a world to the card of one of
- * its children.
+ * One connector, as four points, from the CARD at the hub of a world to the card
+ * of one of its children.
  *
  * A containment drawing has little need of connectors — the child being INSIDE
  * the parent is the statement the edge would have made — so U2 is free to draw
@@ -586,32 +694,77 @@ function boundsFor<N extends LayoutInputNode>(
 function spoke<N extends LayoutInputNode>(
   node: LayoutWorkNode<N>,
   parent: LayoutWorkNode<N>,
-  hubX: number,
-  hubY: number,
-  cx: number,
-  cy: number,
-  theta: number,
-  width: number,
-  height: number,
+  input: SpokeInput,
 ): MindtreeEdge {
-  const cos = Math.cos(theta)
-  const sin = Math.sin(theta)
-  const eTip = supportRadius(width / 2, height / 2, theta)
-  const ex = cx - eTip * cos
-  const ey = cy - eTip * sin
-  // The run is the distance actually covered. It can be zero or less when a
-  // child's world swallows its parent's hub — one enormous sibling beside a
-  // small one — and a negative run would draw a connector pointing backwards
-  // through the card it came from, so it is clamped rather than trusted.
-  const run = Math.max(0, (ex - hubX) * cos + (ey - hubY) * sin) * EDGE_CURVE
+  const points = spokePoints(input)
   return {
     id: `${parent.id}->${node.id}`,
     parentId: parent.id,
     childId: node.id,
     depth: node.depth,
-    start: { x: hubX, y: hubY },
+    start: points.start,
+    end: points.end,
+    c1: points.c1,
+    c2: points.c2,
+  }
+}
+
+interface SpokeInput {
+  readonly hubX: number
+  readonly hubY: number
+  readonly parentHalfW: number
+  readonly parentHalfH: number
+  readonly cx: number
+  readonly cy: number
+  readonly halfW: number
+  readonly halfH: number
+  readonly theta: number
+}
+
+/**
+ * The four points, in whatever space the caller is working in.
+ *
+ * BOTH ENDS SIT ON A CARD'S OUTLINE — defect 15 of the render harness. The
+ * connector used to leave from the parent's world CENTRE, which was harmless
+ * only for as long as the parent's card covered its own ring anyway: once the
+ * card is inscribed in the hole (HOLE_FRACTION), a spoke from the centre is a
+ * line drawn out from under a box, and the arrowless end of it is visible ink
+ * inside the card at every band where both are drawn. `supportRadius` at the
+ * bearing is the same anchor the polar layout already uses on the far end
+ * (radial.ts's `layoutMindtreeRadial`, which anchors both ends this way), so the
+ * two shapes meet a box at the identical point.
+ *
+ * ONE FUNCTION, TWO CALLERS — the edge list and the bounds union. The union
+ * exists to catch a mark escaping the drawing's margin, and a union computed
+ * from an ESTIMATE of where the control points are cannot catch anything.
+ */
+function spokePoints(input: SpokeInput): {
+  readonly start: Point
+  readonly end: Point
+  readonly c1: Point
+  readonly c2: Point
+} {
+  const { hubX, hubY, cx, cy, theta } = input
+  const cos = Math.cos(theta)
+  const sin = Math.sin(theta)
+  const sTip = supportRadius(input.parentHalfW, input.parentHalfH, theta)
+  const eTip = supportRadius(input.halfW, input.halfH, theta)
+  const sx = hubX + sTip * cos
+  const sy = hubY + sTip * sin
+  const ex = cx - eTip * cos
+  const ey = cy - eTip * sin
+  // The run is the distance actually covered. It can be zero or less when a
+  // child's world swallows its parent's hub — one enormous sibling beside a
+  // small one, or the lone child of SINGLE_CHILD_RATIO, whose world covers the
+  // hub by construction — and a negative run would draw a connector pointing
+  // backwards through the card it came from, so it is clamped rather than
+  // trusted. Clamped to zero the spoke is a straight segment, which is the
+  // honest drawing of two cards that are already touching.
+  const run = Math.max(0, (ex - sx) * cos + (ey - sy) * sin) * EDGE_CURVE
+  return {
+    start: { x: sx, y: sy },
     end: { x: ex, y: ey },
-    c1: { x: hubX + run * cos, y: hubY + run * sin },
+    c1: { x: sx + run * cos, y: sy + run * sin },
     c2: { x: ex - run * cos, y: ey - run * sin },
   }
 }

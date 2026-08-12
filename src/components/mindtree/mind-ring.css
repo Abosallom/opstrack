@@ -130,6 +130,62 @@
      match arc (--accent) on --bg / --bg-elev-2        5.78 / 12.60 · 4.63 / 11.60
      …over the worst 16% node fill                     3.15 / 9.39  ← the floor
 
+   ── APPENDED: THE BAND-DEPENDENT FILL SHARE (44% at grain/state) ───────────
+
+   THE DEFECT, in numbers rather than in adjectives. `--mtree-fill` mixes the
+   track colour 16% into --bg-elev, and at that share the five seeded tracks
+   composite to rgb(41,45,62) rgb(32,49,64) rgb(31,53,64) rgb(44,45,61)
+   rgb(53,41,51) — a maximum pairwise channel spread of 22/255 dark, 25/255
+   light, and a worst-pair contrast of 1.01:1. At `card` and `opening` that is
+   correct and deliberate: the LABEL carries identity there and a loud fill
+   would fight the text sitting on it. At `grain` and `state` there is no text
+   at all — the disc's hue IS the only information — and 22/255 of separation
+   across a whole palette is not information, it is uniform slate.
+
+   So the share becomes a function of the band, which costs no new token and no
+   new selector: `.mring-grain` and `.mring-state-disc` are drawn at those two
+   bands and NOWHERE ELSE, so redeclaring `--mtree-fill` on those two rules IS
+   the band condition. `.mtree-node-box` keeps 16% untouched.
+
+   At 44% the same five tracks composite to rgb(74,73,109) rgb(48,85,114)
+   rgb(44,94,115) rgb(81,72,107) rgb(106,62,79) — spread 62/255 dark, 70/255
+   light. 2.8x the separation, which is the measurement that forced the change.
+
+   MEASURED, same method, same 52³ = 140,608-hue sweep, dark / light:
+
+     ink outline on its OWN 44% fill, worst hue        3.58 / 5.50  ← the new
+       (the mark's bound under 1.4.11 — still a pass)                  floor
+     44% fill vs the canvas (--bg-elev), worst hue     1.00 / 1.00
+     16% fill vs the canvas, worst hue                 1.00 / 1.00
+
+   THE LAST TWO ROWS ARE THE POINT AND THEY ARE NOT A REGRESSION. A free hex an
+   admin types can always mix to the canvas's own luminance at ANY share, so the
+   fill has never bounded itself and does not now; what bounds the disc is its
+   outline, and that outline is what 1.4.11 is satisfied by. The share moved the
+   floor from 6.35 to 3.58 and 3.58 clears 3:1 — that is the whole of the price.
+
+   WHAT IS *NOT* MEASURED HERE, because the composite does not occur, stated
+   with the line that makes it true. `--text` over the worst 44% fill is
+   3.39 / 5.49 and `--accent` over it is 1.24 / 4.21 — both would be failures if
+   any word or arc were painted ON one of these discs. None is: MindNode draws
+   NO text at grain or state (its LOD table says why — a numeral in a 30px disc
+   is a lie about legibility), and the world rim's label, its match count and
+   its match arc are laid down in MapCanvas's RIM LAYER, which is emitted before
+   the node layer, so where a disc meets them the DISC is the foreground. That
+   ordering is a comment in MapCanvas.tsx citing this paragraph. If the rim ever
+   moves after the nodes, these two numbers become live and this certification
+   is void.
+
+   AND ONE CORRECTION TO THE TABLE ABOVE, rather than a stale figure left to
+   rot. Re-running the sweep reproduces every published row exactly — 4.88/4.85,
+   8.82/12.28, 6.35/5.53, 6.06/5.53, 4.07/4.45 — except the accent floor, which
+   comes out 3.24 / 9.39 against today's `--accent: #9884d6`, not 3.15. The
+   3.15 was measured against the accent this app carried before the purple
+   joined the ladder. The claim it supports is unchanged (a non-text pass, a
+   text fail), and the row is left as published only until the wholesale
+   recomputation this repo has already scheduled; it is named here so the next
+   reader inherits the discrepancy rather than the confidence.
+
    WHY THE MATCH COUNT IS `--text` AND THE ARC IS `--accent`. The last two rows
    are the whole argument: 3.15 clears the 3:1 a non-text arc owes and misses the
    4.5:1 a numeral owes. Painting the count in the accent because it counts the
@@ -177,6 +233,13 @@
    the fan-out the geometry already encoded. No text: at 7-26px a numeral is
    3px of ink and a lie about legibility. */
 .mring-grain {
+  /* 44%, NOT the 16% `.mring-mark` resolved above — the band-dependent share.
+     This rule and `.mring-state-disc` are the only marks drawn at `grain` and
+     `state`, and at those two distances there is no text: the hue IS the
+     information, and 16% flattens the whole palette to within 22/255 of itself.
+     The sheet header carries the sweep and the new 3.58 / 5.50 floor. */
+  --mtree-fill: color-mix(in srgb, var(--track-color) 44%, var(--bg-elev));
+
   fill: var(--mtree-fill);
   stroke: var(--mtree-ink);
   stroke-width: 1;
@@ -186,6 +249,12 @@
    invariant made visible. The mark changes KIND: "there is something here"
    becomes "this is a place, and it has an edge". */
 .mring-state-disc {
+  /* The same 44% as `.mring-grain`, for the same reason and measured in the
+     same sweep. Two declarations rather than a shared class: they are the two
+     marks the two bands own, and a third rule to bind them would be a selector
+     that exists only to avoid writing a number twice. */
+  --mtree-fill: color-mix(in srgb, var(--track-color) 44%, var(--bg-elev));
+
   fill: var(--mtree-fill);
   stroke: none;
 }
@@ -248,43 +317,73 @@
   --track-color: var(--track-c-light, var(--track-c-dark, var(--field-border)));
 }
 
-/* 2 units, matching the `[data-current]` marker's weight: this is the boundary
+/* ── EVERY LENGTH BELOW IS MULTIPLIED BY `--mring-px` ──────────────────────
+
+   `--mring-px` is DRAWING UNITS PER CSS PIXEL (`1 / camera.scale`), written on
+   the rim's own group by MindWorldRim.tsx from a prop MapCanvas computes once.
+   Multiplying an authored length by it converts px into user units, so `2`
+   below means two CSS pixels of ink at every altitude.
+
+   THIS IS THE ONE MARK ON THE MAP THAT WORKS THIS WAY, and MindWorldRim's
+   header argues it: a card is a drawing at its own level (MindNode scales the
+   whole card by `cardScale`, so its constants stay at 1x), and a rim is CHROME
+   on its way to becoming the breadcrumb, which is HTML text at a constant size.
+   Without the pin the numbers here are USER units: on the root's 98,360-unit
+   world at `scale 3.98e-3` that is a 0.008 px boundary — which is exactly why
+   the render harness caught the rim "rasterising as broken dashes" and the
+   match arcs being computed, emitted and invisible.
+
+   The `, 1` fallback in each `var()` is the linear/ring drawing, which has no
+   camera and no worlds: 1 unit per px is the identity, and those layouts get
+   the sheet they always had.
+
+   NOT AN OPACITY AND NOT A NEW INK. Every colour below is unchanged and every
+   figure in the header still stands: this changes how WIDE a stroke is, which
+   costs no contrast at all — the same argument `.mring-guide`'s depth ladder
+   makes at the top of this file. */
+
+/* 2 CSS px, matching the `[data-current]` marker's weight: this is the boundary
    of the place the reader is in, and it is the same statement one level up. */
 .mring-world-edge {
   fill: none;
   stroke: var(--mtree-ink);
-  stroke-width: 2;
+  stroke-width: calc(2 * var(--mring-px, 1));
 }
 
 /* "Three matches in there, that way." Drawn over each matching child's wedge,
-   4 units so it reads as an overlay on the rim rather than as the rim, and
+   4 CSS px so it reads as an overlay on the rim rather than as the rim, and
    round-capped so two adjacent wedges stay two marks. */
 .mring-world-match {
   fill: none;
   stroke: var(--accent);
-  stroke-width: 4;
+  stroke-width: calc(4 * var(--mring-px, 1));
   stroke-linecap: round;
 }
 
-/* THE NAME THE CARD USED TO CARRY. SVG font sizes are USER UNITS, so this scales
-   with the camera exactly like every other word in the drawing; a caller that
-   needs it pinned to a constant CSS size passes `--mring-rim-font` alongside the
-   colour pair (MindWorldRim's `ink` prop documents it). --text on the canvas is
-   15.74 / 16.44 and 12.61 / 15.14 on the darkest surface the map can put behind
-   it — this is the one mark on the map with headroom to spare. */
+/* THE NAME THE CARD USED TO CARRY. SVG font sizes are USER UNITS, so a bare
+   `13px` here would scale with the camera like every other word in the drawing
+   — which is right for a card and wrong for this, the mark that has to hand off
+   to a breadcrumb at a fixed CSS size. `--mring-px` pins it. --text on the
+   canvas is 15.74 / 16.44 and 12.61 / 15.14 on the darkest surface the map can
+   put behind it — this is the one mark on the map with headroom to spare. */
 .mring-world-label {
   fill: var(--text);
   font-family: var(--font);
-  font-size: var(--mring-rim-font, 13px);
+  font-size: calc(13px * var(--mring-px, 1));
   font-weight: 700;
-  letter-spacing: -0.1px;
+  /* Pinned too, and it is not pedantry: `letter-spacing` is a length in user
+     units like the font size, so leaving it bare would make the tracking a
+     smaller and smaller fraction of the glyph as the world grows — the one way
+     a "pinned" label could still change shape with the camera. */
+  letter-spacing: calc(-0.1px * var(--mring-px, 1));
 }
 
 /* The count, in the ink rather than in the accent it counts — 3.15:1 dark is a
-   non-text pass and a text FAIL, and the sheet header shows the working. */
+   non-text pass and a text FAIL, and the sheet header shows the working (and
+   the correction: 3.24 against today's accent). */
 .mring-world-matches {
   fill: var(--text);
   font-family: var(--font);
-  font-size: var(--mring-rim-font, 13px);
+  font-size: calc(13px * var(--mring-px, 1));
   font-weight: 700;
 }

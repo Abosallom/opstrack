@@ -233,8 +233,8 @@ export default function JiraAdmin(): ReactElement {
       if (!n.ok || !u.ok) {
         setCatalogueError(n.ok ? (u.ok ? null : u.error) : n.error)
       } else {
-        setNodes(n.data)
-        setUseCases(u.data)
+        setNodes(n.data.rows)
+        setUseCases(u.data.rows)
         setCatalogueError(null)
       }
       setCatalogueReady(true)

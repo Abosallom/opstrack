@@ -392,7 +392,10 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
         section: 'actions',
       },
       { prefixes: ['empty', 'branchEmpty'], section: 'emptyStates' },
-      { prefixes: ['err'], section: 'messages' },
+      // `nodesPartial` joins the errors rather than the states it sits beside on
+      // screen: it is a sentence about the READ, like every other message here,
+      // and the reader who retitles it is retitling a warning.
+      { prefixes: ['err', 'nodesPartial'], section: 'messages' },
     ],
   },
 

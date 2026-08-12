@@ -180,6 +180,7 @@
       "other": "+{count} more items"
     },
     "nodeName": "⁨{label}⁩, {detail}",
+    "nodesPartial": "Only part of the hierarchy is loaded, so some organizations are missing from this map.",
     "openEntry": "Open ⁨{title}⁩",
     "panelBranch": "Inside ⁨{label}⁩",
     "panelChanges": "The record of changes",

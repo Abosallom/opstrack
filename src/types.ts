@@ -944,18 +944,46 @@ export interface UseCase {
 /**
  * map_node_use_cases — which organization integrated which capability, and how far.
  *
- * THREE COLUMNS AND NO ID: the pair is the primary key, so the ordering is total and
- * two loads of the same data render in the same order. `TrackSlaRule` is shaped this
- * way for the same reason, and api/map.ts selects these three columns by name rather
- * than `*` so the type cannot drift from the query.
+ * NO ID: the pair is the primary key, so the ordering is total and two loads of the
+ * same data render in the same order. `TrackSlaRule` is shaped this way for the same
+ * reason, and api/map.ts selects these columns by name rather than `*` so the type
+ * cannot drift from the query.
  *
  * ABSENCE IS A VALUE. No row means "not integrated", which is why there is no
  * 'none' member of `UseCaseStatus`.
+ *
+ * THE FIVE JIRA COLUMNS ARE OPTIONAL, AND THAT IS A STATEMENT ABOUT ROWS RATHER
+ * THAN ABOUT THE TABLE. 0024 created all five `not null default`/nullable on day one
+ * (0024:393-397) and every row in the database has them; what is genuinely optional
+ * is whether the value in hand CAME FROM the database. Hand-built rows in fixtures
+ * and optimistic rows a panel holds between a tick and its round trip carry the
+ * three key columns alone, and a required field would force every one of them to
+ * invent a `source` — which is exactly the "seeded default asserting a fact nobody
+ * stated" this feature refuses elsewhere. api/map.ts's LINK_COLUMNS populates all
+ * eight on every read, so `source === undefined` means "not from a read", never
+ * "no source". Test for the field, not for its value.
  */
 export interface MapNodeUseCase {
   node_id: string
   use_case_id: string
   status: UseCaseStatus
+  /** 'local' unless a sync wrote the row. The frozen twin of `map_nodes.source`. */
+  source?: MapNodeSource
+  /** The Jira issue key this link mirrors, or null for a link somebody typed. */
+  external_ref?: string | null
+  /** Deep link to that issue. Null unless `external_ref` names one. */
+  external_url?: string | null
+  /** When the sync last touched this row; null for a local link. */
+  synced_at?: string | null
+  /**
+   * Fields a person changed by hand that a future sync must not overwrite.
+   *
+   * Empty on every row today — nothing writes it yet. It is read before it is
+   * written on purpose: `held` is only meaningful if the row can say which fields
+   * are held, and a write path that discovers that afterwards has already lost the
+   * edits it was supposed to protect.
+   */
+  overrides?: string[]
 }
 
 /**
