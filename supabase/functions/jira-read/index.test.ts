@@ -30,25 +30,41 @@
 //
 // That any of this works against a real Jira Cloud site. Nobody on this fleet
 // has a credential, by design. `jiraCall()` is not exercised at all: no network
-// call is made, no page is followed, and the paging loop in `opSearch` is
-// therefore UNPROVEN except by reading. The first honest test of that is Aziz
-// pressing `ping` against his own site. Said plainly here rather than implied
-// by a green suite.
+// call is made and no `fetch` is stubbed. The first honest test of the wire is
+// Aziz pressing `ping` against his own site. Said plainly here rather than
+// implied by a green suite.
+//
+// ⚠ ONE THING MOVED OUT OF THAT PARAGRAPH, AND IT MOVED FOR A REASON. This
+//   header used to say the `search` paging loop was "UNPROVEN except by
+//   reading" — and a differential review then found, by reading, that it lost
+//   issues whenever the 200-issue cap crossed a page boundary. So the loop is
+//   now `collectSearchPages()`, which takes the page reader as an argument, and
+//   §9 below drives it with a MODEL of Jira: a backlog where `maxResults` is a
+//   ceiling, the cursor is an offset, and a page may come back short. What that
+//   proves is the paging ARITHMETIC and the cursor bookkeeping — that no issue
+//   is dropped between the cursor and the last issue returned. What it still
+//   cannot prove is that the real endpoint behaves like the model. Both halves
+//   matter; neither is the other.
 
 import { describe, expect, it } from 'vitest'
 
 import {
   ENDPOINTS,
   DEFAULT_SEARCH_FIELDS,
+  FIELDS_CAP,
   FIELDS_PER_SEARCH,
   JQL_MAX_LENGTH,
   PROJECTS_MAX_RESULTS,
   SEARCH_DEFAULT_RESULTS,
+  SEARCH_MAX_ISSUES,
+  SEARCH_MAX_PAGES,
   SEARCH_MAX_RESULTS,
   assertReadOnlyEndpoints,
   basicAuthHeader,
   clampCount,
   clampOffset,
+  collectSearchPages,
+  firstNonAsciiPosition,
   isOperation,
   issueUrl,
   looksLikeEmail,
@@ -60,11 +76,14 @@ import {
   parseRetryAfter,
   readCredential,
   scrub,
+  selectFields,
   summarizeJiraError,
   validateFields,
   validateJql,
   validatePageToken,
   type JiraEndpoint,
+  type JiraFieldOut,
+  type PageReader,
 } from './index.ts'
 
 /* ──────────────────────── reading the file off disk ─────────────────────── */
@@ -337,12 +356,17 @@ describe('the token stays inside this function', () => {
   it('reads the secrets only AFTER the caller has been authorized', async () => {
     // ORDER, NOT PRESENCE, IS THE PROPERTY. `verify_jwt` is on at the gateway,
     // but the ANON KEY satisfies it and ships in every browser bundle — so a
-    // secret check placed first answers a stranger with `missing_secret`
-    // (which of the three Jira variables are set) and, through `bad_base_url`,
-    // with the literal value it rejected. If someone ever pastes the TOKEN into
-    // the wrong secret box, "secrets first" echoes it to an unauthenticated
-    // caller. Pinned by position because a reorder is exactly the kind of tidy
-    // edit that reads like an improvement.
+    // secret check placed first answers a stranger with `missing_secret`: which
+    // of the three Jira variables are set, and whether the set ones are
+    // well-formed. A map of this project's configuration, to anyone who asks.
+    //
+    // It used to be worse: while `bad_base_url` still echoed the value it
+    // rejected, "secrets first" also handed a MISPASTED TOKEN to an
+    // unauthenticated caller. That echo is gone (see the #2 group below), so
+    // this ordering is now the second of two independent defences rather than
+    // the only one — which is a reason to keep it, not to relax it. Pinned by
+    // position because a reorder is exactly the kind of tidy edit that reads
+    // like an improvement.
     const code = stripComments(await readSource())
     const handler = code.slice(code.indexOf('export async function handle('))
     const authAt = handler.indexOf('auth.getUser(')
@@ -661,5 +685,416 @@ describe('normalizeProject', () => {
 
   it('survives a project row with nothing in it', () => {
     expect(normalizeProject({}, 'https://acme.atlassian.net').url).toBeNull()
+  })
+})
+
+/* ═══════ 9. the four holes a differential review reproduced (#2/#5/#8/#9) ══ */
+
+/**
+ * ⚠ REGRESSION TESTS, AND EACH ONE FAILED BEFORE ITS FIX. They are grouped
+ *   together rather than filed under the sections above because what they have
+ *   in common is more useful than what they are about: every one of them shipped
+ *   through a green suite, a written header that claimed the opposite, and a
+ *   README that documented the promise being broken. Each `describe` below
+ *   states the reproduction, so a future reader can tell a test that is guarding
+ *   something from a test that is decorating something.
+ */
+
+describe('#2 — no error path quotes the value it just rejected', () => {
+  // Stands in for the operator slip the file's own header models: the ATATT…
+  // API token pasted into the JIRA_BASE_URL box. It is not a real token; the
+  // point is only its SHAPE (long, opaque, no scheme).
+  const PASTED = 'ATATT3xFfGF0notarealtoken0000000000000000000000000000000000'
+
+  it('refuses a pasted credential WITHOUT putting it in the error body', () => {
+    // BEFORE: `JIRA_BASE_URL is not a URL … — got "ATATT3xFfGF0…"`, returned to
+    // every structure.edit holder, and scrub() could not help — in this scenario
+    // the token is not the value of JIRA_API_TOKEN, so there is nothing to match.
+    const r = parseBaseUrl(PASTED)
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.detail).not.toContain(PASTED)
+    expect(r.detail).not.toContain('ATATT')
+    expect(r.detail).toBe('JIRA_BASE_URL is not a URL. Expected https://your-site.atlassian.net')
+  })
+
+  it('does not echo a scheme-shaped prefix either', () => {
+    // `new URL('head:tail')` SUCCEEDS, with protocol 'head:'. A quoted
+    // `u.protocol` therefore leaks the head of any pasted value that happens to
+    // contain a colon — which is why only the http: case is named, and named as
+    // a literal in this file rather than as an echo.
+    const r = parseBaseUrl('ATATT3xFfGF0:the-rest-of-it')
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.detail).not.toContain('ATATT')
+    expect(r.detail).toMatch(/must start with https/)
+  })
+
+  it('still names http:// specifically, because that mistake is worth naming', () => {
+    const r = parseBaseUrl('http://acme.atlassian.net')
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.detail).toMatch(/not http:\/\//)
+    expect(r.detail).toMatch(/in the clear/)
+  })
+
+  it.each([
+    ['a bare token', PASTED],
+    ['a token with a colon', 'ATATT3xFfGF0:more'],
+    ['an https URL whose host is the token', `https://${PASTED}`],
+    ['a token with dots, JWT-shaped', 'eyJhbGciOi.eyJzdWIiOi.SflKxwRJSM'],
+    ['a password-looking value', 'hunter2-correct-horse-battery-staple'],
+    ['an email in the wrong box', 'aziz@example.com'],
+  ])('never repeats %s back to the caller', (_label, input) => {
+    const r = parseBaseUrl(input)
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.detail).not.toContain(input)
+    // And the same value, wrapped by the layer that actually reaches the wire.
+    const c = readCredential({ baseUrl: input, email: 'aziz@example.com', token: 'tok-0000-0000' })
+    expect(c.ok).toBe(false)
+    if (c.ok) return
+    expect(c.failure.error).not.toContain(input)
+  })
+
+  it('pins the ONLY value parseBaseUrl is allowed to interpolate', async () => {
+    // POSITION-PINNED ON THE SOURCE, because the fix is an absence and an
+    // absence is exactly what a behavioural test stops noticing when someone
+    // adds a helpful `got "${…}"` back to a branch three refactors from now.
+    // `host` is the only thing this function may ever interpolate, and it
+    // appears exactly twice: once in the no-path refusal (which is last on
+    // purpose, so `host` has already passed every shape test and can only be a
+    // real domain name by then) and once in the success `origin`. A third
+    // interpolation, or a different variable, is the defect coming back.
+    const code = stripComments(await readSource())
+    const start = code.indexOf('export function parseBaseUrl(')
+    const end = code.indexOf('export function looksLikeEmail(')
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const body = code.slice(start, end)
+    expect(body.match(/\$\{[^}]*\}/g) ?? []).toEqual(['${host}', '${host}'])
+    // The host checks must precede the path check, which is what makes that
+    // one quote safe. A reorder would read like tidying.
+    expect(body.indexOf('is not a valid hostname')).toBeLessThan(body.indexOf('with no path after it'))
+  })
+})
+
+describe('#9 — a non-ASCII JIRA_EMAIL is a named diagnosis, not a 500', () => {
+  // An Arabic-script address: this app ships an Arabic locale, so this operator
+  // is not hypothetical. It passes looksLikeEmail's deliberately loose regex.
+  const ARABIC_EMAIL = 'عزيز@example.com'
+
+  it('is accepted by the loose email shape check — which is the trap', () => {
+    expect(looksLikeEmail(ARABIC_EMAIL)).toBe(true)
+  })
+
+  it('is refused BY NAME, at 503, before anything touches the wire', () => {
+    // BEFORE: readCredential said ok, basicAuthHeader called btoa, btoa threw
+    // InvalidCharacterError from FOUR LINES OUTSIDE jiraCall's try block, and
+    // every operation — ping included — answered a generic 500 about Jira,
+    // which had never been contacted.
+    const r = readCredential({
+      baseUrl: 'https://acme.atlassian.net',
+      email: ARABIC_EMAIL,
+      token: 'ATATT-not-a-real-token-0000',
+    })
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.status).toBe(503)
+    expect(r.failure.code).toBe('bad_email')
+    expect(r.failure.error).toMatch(/outside plain ASCII/)
+    expect(r.failure.error).toMatch(/position 1/)
+    // The POSITION is a shape; the CHARACTER would be a value. Same rule as #2.
+    expect(r.failure.error).not.toContain(ARABIC_EMAIL)
+    expect(r.failure.error).not.toContain('عزيز')
+  })
+
+  it.each([
+    ['a Cyrillic lookalike a', 'аziz@example.com', 1],
+    ['a non-breaking space', 'aziz b@example.com', 5],
+    ['a smart quote', 'o’brien@example.com', 2],
+    ['a trailing zero-width space', 'aziz@example.com​', 17],
+  ])('catches %s and says where', (_label, email, at) => {
+    expect(firstNonAsciiPosition(email)).toBe(at)
+    const r = readCredential({ baseUrl: 'https://acme.atlassian.net', email, token: 'tok-0000-0000' })
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.failure.code).toBe('bad_email')
+    expect(r.failure.error).toContain(`position ${at}`)
+  })
+
+  it('leaves a plain ASCII address alone', () => {
+    expect(firstNonAsciiPosition('aziz@example.com')).toBe(0)
+    expect(readCredential({
+      baseUrl: 'https://acme.atlassian.net',
+      email: 'aziz@example.com',
+      token: 'ATATT-not-a-real-token-0000',
+    }).ok).toBe(true)
+  })
+
+  it('makes basicAuthHeader TOTAL, so no input can resurrect the 500', () => {
+    // The validator above is the behaviour; this is the belt. A bare btoa throws
+    // on any code point over U+00FF, and this function is called outside the try
+    // block that would have caught it.
+    expect(() => basicAuthHeader(ARABIC_EMAIL, 'tok')).not.toThrow()
+    expect(() => basicAuthHeader('a@b.com', '🔑-emoji-token')).not.toThrow()
+    expect(() => basicAuthHeader('日本@example.com', 'ぱすわーど')).not.toThrow()
+    expect(basicAuthHeader(ARABIC_EMAIL, 'tok').startsWith('Basic ')).toBe(true)
+  })
+
+  it('stays byte-identical to the old header for every real credential', () => {
+    // ASCII in, same base64 out — the fix must not quietly change the bytes a
+    // working Jira site already accepts.
+    expect(basicAuthHeader('a@b.com', 'tok')).toBe(`Basic ${btoa('a@b.com:tok')}`)
+    expect(basicAuthHeader('aziz@example.com', 'ATATT3xFfGF0-0000')).toBe(
+      `Basic ${btoa('aziz@example.com:ATATT3xFfGF0-0000')}`,
+    )
+  })
+
+  it('encodes the non-ASCII case as UTF-8 bytes rather than mangling them', () => {
+    // Unreachable through readCredential, and still specified: a total function
+    // whose output is unspecified is only half a fix.
+    const decoded = atob(basicAuthHeader('é@b.com', 'tok').slice('Basic '.length))
+    const bytes = Uint8Array.from(decoded, (c) => c.charCodeAt(0))
+    expect(new TextDecoder().decode(bytes)).toBe('é@b.com:tok')
+  })
+})
+
+describe('#8 — selectFields sorts custom-first BEFORE it caps', () => {
+  function field(name: string, custom: boolean): JiraFieldOut {
+    return {
+      id: custom ? `customfield_${10000 + Number(name.replace(/\D/g, ''))}` : name,
+      key: null,
+      name,
+      custom,
+      schemaType: 'string',
+      customType: null,
+      clauseNames: [],
+    }
+  }
+
+  // Jira's wire order is unspecified, and this is the order that breaks the
+  // old code: every custom field sits AFTER the cap.
+  const bigSite: JiraFieldOut[] = [
+    ...Array.from({ length: 700 }, (_, i) => field(`system ${i}`, false)),
+    ...Array.from({ length: 40 }, (_, i) => field(`custom ${i}`, true)),
+  ]
+
+  it('keeps every custom field on a site that overruns the cap', () => {
+    // BEFORE: slice(0, 600) ran first, so all 40 customs were dropped and the
+    // response still looked complete and custom-first — customCount: 0 was the
+    // only tell, on the one operation whose entire purpose (README §6) is
+    // finding two custom field ids.
+    const sel = selectFields(bigSite)
+    expect(sel.truncated).toBe(true)
+    expect(sel.fields).toHaveLength(FIELDS_CAP)
+    expect(sel.fields.filter((f) => f.custom)).toHaveLength(40)
+    expect(sel.fields[0].custom).toBe(true)
+    // The cap can now only ever fall on system fields.
+    expect(sel.fields.at(-1)?.custom).toBe(false)
+  })
+
+  it('measures truncation against what MATCHED, not against what fitted', () => {
+    const sel = selectFields(bigSite)
+    expect(sel.matched).toBe(740)
+    expect(sel.fields.length).toBeLessThan(sel.matched)
+  })
+
+  it('filters customOnly first, then sorts, then caps', () => {
+    const sel = selectFields(bigSite, { customOnly: true })
+    expect(sel.truncated).toBe(false)
+    expect(sel.matched).toBe(40)
+    expect(sel.fields.every((f) => f.custom)).toBe(true)
+  })
+
+  it('orders custom-first then by name, and touches nothing under the cap', () => {
+    const sel = selectFields([field('zzz', false), field('bbb', false), field('aaa 1', true)])
+    expect(sel.truncated).toBe(false)
+    expect(sel.fields.map((f) => f.name)).toEqual(['aaa 1', 'bbb', 'zzz'])
+  })
+
+  it('does not mutate the array it was handed', () => {
+    const input = [field('zzz', false), field('aaa 1', true)]
+    selectFields(input)
+    expect(input.map((f) => f.name)).toEqual(['zzz', 'aaa 1'])
+  })
+})
+
+describe('#5 — the paging loop never reads an issue it does not return', () => {
+  /**
+   * A JIRA THAT BEHAVES. `maxResults` is a CEILING (it may serve fewer, never
+   * more), the cursor is an offset, and `shortPages` models the permission
+   * filtering that makes a real page come back shorter than asked for.
+   *
+   * The fixture the differential review said was missing is the one this makes
+   * possible: pages that MISALIGN with the 200-issue cap.
+   */
+  function fakeBacklog(total: number, opts: { shortPages?: Record<number, number> } = {}) {
+    const asked: { token: string | undefined; maxResults: number }[] = []
+    let call = 0
+    const read: PageReader = ({ token, maxResults }) => {
+      asked.push({ token, maxResults })
+      call += 1
+      const from = token === undefined ? 0 : Number(token.slice('at-'.length))
+      const n = Math.max(0, Math.min(maxResults, opts.shortPages?.[call] ?? maxResults, total - from))
+      const issues = Array.from({ length: n }, (_, i) => ({ id: String(from + i), key: `OPS-${from + i}` }))
+      const to = from + n
+      return Promise.resolve({
+        ok: true as const,
+        status: 200,
+        data: to < total ? { issues, nextPageToken: `at-${to}` } : { issues, isLast: true },
+      })
+    }
+    return { read, asked }
+  }
+
+  const keysOf = (issues: unknown[]) => issues.map((i) => (i as { key: string }).key)
+
+  it('loses nothing when the cap crosses mid-page — maxResults=70 into a 200 cap', async () => {
+    // THE REPRODUCTION. 200 is not a multiple of 70, so the cap crossed
+    // mid-page even with perfectly full pages: the loop kept 60 of the third
+    // page's 70 issues, dropped 10 — and advanced the cursor PAST them, so no
+    // call would ever return them again.
+    const site = fakeBacklog(1000)
+    const first = await collectSearchPages(site.read, { maxResults: 70 })
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    expect(first.value.issues).toHaveLength(SEARCH_MAX_ISSUES)
+    expect(first.value.truncated).toBe(true)
+    expect(first.value.nextPageToken).toBe('at-200')
+    // Never asked for more than the budget could keep — that is the mechanism.
+    expect(site.asked.map((a) => a.maxResults)).toEqual([70, 70, 60])
+
+    const second = await collectSearchPages(site.read, {
+      maxResults: 70,
+      startToken: first.value.nextPageToken,
+    })
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    // The seam between the two calls is contiguous. No gap, no repeat.
+    expect(keysOf([...first.value.issues, ...second.value.issues])).toEqual(
+      Array.from({ length: 400 }, (_, i) => `OPS-${i}`),
+    )
+  })
+
+  it('loses nothing when a SHORT page misaligns the running total (100/70/…)', async () => {
+    // The other half of the review's reproduction: Jira shortens a page through
+    // permission filtering, so the totals stop landing on the cap.
+    const site = fakeBacklog(1000, { shortPages: { 2: 70 } })
+    const first = await collectSearchPages(site.read, { maxResults: 100 })
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    expect(site.asked.map((a) => a.maxResults)).toEqual([100, 100, 30])
+    expect(first.value.issues).toHaveLength(SEARCH_MAX_ISSUES)
+    expect(first.value.nextPageToken).toBe('at-200')
+
+    const second = await collectSearchPages(site.read, {
+      maxResults: 100,
+      startToken: first.value.nextPageToken,
+    })
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    expect(keysOf([...first.value.issues, ...second.value.issues])).toEqual(
+      Array.from({ length: 400 }, (_, i) => `OPS-${i}`),
+    )
+  })
+
+  it('reads a whole small backlog and reports it complete', async () => {
+    const site = fakeBacklog(120)
+    const r = await collectSearchPages(site.read, { maxResults: 50 })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.issues).toHaveLength(120)
+    expect(r.value.pages).toBe(3)
+    expect(r.value.truncated).toBe(false)
+    expect(r.value.nextPageToken).toBeUndefined()
+  })
+
+  it('stops at the page budget with a resumable cursor', async () => {
+    const site = fakeBacklog(10_000, { shortPages: { 1: 5, 2: 5, 3: 5, 4: 5, 5: 5 } })
+    const r = await collectSearchPages(site.read, { maxResults: 100 })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.pages).toBe(SEARCH_MAX_PAGES)
+    expect(r.value.issues).toHaveLength(25)
+    expect(r.value.truncated).toBe(true)
+    expect(r.value.nextPageToken).toBe('at-25')
+  })
+
+  it('hands back the cursor that FETCHED the page when a server overshoots', async () => {
+    // A server that ignores maxResults is the only remaining way the cap can
+    // cross mid-page. Returning `next` here would skip the unread tail forever;
+    // returning the fetching cursor costs a duplicate page, which the caller
+    // can see and de-dupe by issue key.
+    let call = 0
+    const read: PageReader = ({ token }) => {
+      call += 1
+      const from = token === undefined ? 0 : Number(token.slice('at-'.length))
+      const n = call === 1 ? 100 : 150 // page 2 overshoots a 100-issue budget
+      const issues = Array.from({ length: n }, (_, i) => ({ key: `OPS-${from + i}` }))
+      return Promise.resolve({
+        ok: true as const,
+        status: 200,
+        data: { issues, nextPageToken: `at-${from + n}` },
+      })
+    }
+    const r = await collectSearchPages(read, { maxResults: 100 })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.issues).toHaveLength(SEARCH_MAX_ISSUES)
+    expect(r.value.truncated).toBe(true)
+    expect(r.value.nextPageToken).toBe('at-100')
+    expect(r.value.nextPageToken).not.toBe('at-250')
+  })
+
+  it('calls a stalled cursor truncated instead of spinning to the page budget', async () => {
+    const read: PageReader = () =>
+      Promise.resolve({
+        ok: true as const,
+        status: 200,
+        data: { issues: [{ key: 'OPS-1' }], nextPageToken: 'same-forever' },
+      })
+    const r = await collectSearchPages(read, { maxResults: 50 })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.pages).toBe(2)
+    expect(r.value.truncated).toBe(true)
+  })
+
+  it('relays an upstream failure instead of returning half a page', async () => {
+    const read: PageReader = () =>
+      Promise.resolve({
+        ok: false as const,
+        status: 429,
+        failure: { code: 'jira_rate_limited' as const, error: 'slow down' },
+        headers: { 'Retry-After': '30' },
+      })
+    const r = await collectSearchPages(read, { maxResults: 50 })
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.err.status).toBe(429)
+    expect(r.err.headers).toEqual({ 'Retry-After': '30' })
+  })
+
+  it('treats a page with no issues array as an empty page rather than throwing', async () => {
+    const read: PageReader = () => Promise.resolve({ ok: true as const, status: 200, data: {} })
+    const r = await collectSearchPages(read, { maxResults: 50 })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.issues).toHaveLength(0)
+    expect(r.value.truncated).toBe(false)
+  })
+
+  it('never issues a request once the budget is spent', async () => {
+    const site = fakeBacklog(10_000)
+    const r = await collectSearchPages(site.read, { maxResults: 100 })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    // 200 issues in exactly two full pages, and then it stops — it does not
+    // fetch a third page to discover it has no room for it.
+    expect(site.asked).toHaveLength(2)
+    expect(r.value.pages).toBe(2)
+    expect(r.value.nextPageToken).toBe('at-200')
+    expect(r.value.truncated).toBe(true)
   })
 })

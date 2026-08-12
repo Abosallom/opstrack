@@ -110,6 +110,21 @@ otherwise eat.
   Basic auth is email + API token; a username produces a `401` that reads like
   a bad token and sends you off to mint a second one that fails identically.
   The function checks the shape and says so instead.
+- `JIRA_EMAIL` carrying an **invisible passenger** — a non-breaking space, a
+  smart quote, a Cyrillic `а` that looks exactly like a Latin one. An Atlassian
+  account email is plain ASCII, so the function refuses anything else and tells
+  you *the position of the first offending character* — "at position 7" — which
+  is the one sentence that ends that search. It does not print the character,
+  and it does not print your address.
+
+**A refusal never repeats your value back to you.** Every message above names
+the *shape* the value should have (`Expected https://your-site.atlassian.net`),
+never the shape it had. That is deliberate: the most likely single mistake with
+these three boxes is pasting the **token** into the wrong one, and an error
+message that helpfully quoted what it rejected would hand your whole Atlassian
+account to everyone who can call this function. The one exception is a site
+address that has already passed every check but has a path on it — then it
+quotes back `https://your-site.atlassian.net`, because that quote *is* the fix.
 
 **A secret you have not set is never a 500.** It comes back naming the exact
 variable — *"JIRA_API_TOKEN is not set on this project"* — and if all three are
@@ -224,6 +239,17 @@ most likely to meet:
 a response. Server logs carry the operation name and an HTTP status, nothing
 more.
 
+**And the rule that keeps that promise honest: no error ever quotes the value it
+rejected.** It names the shape the value should have had instead — see the end
+of §3. This was a real hole, found by review rather than in the field: the
+"that is not a URL" refusal used to print the value it had been given, so the
+single most plausible slip (the `ATATT…` token pasted into the `JIRA_BASE_URL`
+box) put your whole Atlassian account into a response body readable by everyone
+holding `structure.edit`. Scrubbing could not have caught it — in that scenario
+the token is not the value of `JIRA_API_TOKEN`, so there is nothing to match
+against. Not printing it is the only fix that works, and the test suite now pins
+it against the source text so it cannot come back as a helpful tweak.
+
 ---
 
 ## 8. Limits, and why the count can be short
@@ -245,6 +271,25 @@ When a result is cut short, the response says `"truncated": true` and hands back
 `nextPageToken` so the screen can ask for more — rather than quietly showing you
 part of your backlog as though it were all of it. Narrow the JQL and you will
 usually be inside the limits.
+
+**The cursor is a resume point, and nothing between it and the last issue you
+were given has been read.** That sentence is the whole contract, and it was not
+true until this wave: the loop used to ask Jira for a full page, keep only the
+part that fitted under the 200-issue ceiling, and then hand back a cursor
+pointing *past* the page it had only half-read. The issues in the gap came back
+from no call, ever — `truncated: true` said "there is more" while the cursor
+said "start after the part you skipped". It did not need anything exotic to fire:
+`maxResults: 70` against a 200 ceiling misaligns every time. The fix is to spend
+the budget *before* asking — each page is requested at exactly the size that can
+be kept — so the cursor Jira returns always points one issue past the last one
+you were handed. A fixture suite now drives that loop through short pages,
+misaligned pages, an exhausted page budget and a server that overshoots.
+
+**The 600-field cap falls on system fields, never on your custom ones.** `fields`
+sorts custom-first *before* it caps, which matters only on a very large site —
+but on such a site the old order (cap, then sort) could drop every custom field
+while the response still looked complete, on the one operation whose whole
+purpose is §6.
 
 Jira's newer search endpoint has **no total count** and no `startAt` — paging is
 by an opaque `nextPageToken`. So there is no "1–25 of 431" to show you; that
@@ -311,7 +356,10 @@ real site. But documentation is not a live 200.
 Specifically unproven until you press the button:
 
 - that the Basic header is accepted by your site
-- that the multi-page `search` loop pages correctly against a real backlog
+- that the multi-page `search` loop pages correctly **against a real backlog** —
+  its arithmetic and cursor bookkeeping are now proven against a *model* of Jira
+  (short pages, misaligned pages, an exhausted budget, an overshooting server),
+  which is a different and lesser claim than a live 200
 - that your Jira's `Retry-After` behaves as assumed under throttling
 - the exact shape of your custom fields
 

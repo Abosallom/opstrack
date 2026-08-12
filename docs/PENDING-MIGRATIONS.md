@@ -21,11 +21,12 @@ that warns about it, to the one reader who is alone at a SQL Editor and trusting
 
 ## Status — 13 August 2026
 
-**Nothing is pending.** `0023`, `0024` and `0025` are applied to the live project
-(`lrysgpbkmuqgzsjesfkr`) and there is live data sitting on top of them. The next two files —
-`0026_map_node_stages.sql` and `0027_map_node_goals_and_counts.sql` — are **designed and not yet
-written**; they arrive in waves 2 and 3 of the map revamp, and the pending table below is where
-they get listed the moment their SQL exists, in the same commit as the SQL.
+**Three files are pending.** `0023`, `0024` and `0025` are applied to the live project
+(`lrysgpbkmuqgzsjesfkr`) and there is live data sitting on top of them.
+`0026_map_node_stages.sql`, `0027_map_node_goals_and_counts.sql` and `0028_jira_settings.sql` are
+**written and have never been run against any database** — they are in the pending table below,
+each with a "verify live by" query that is runnable the moment it is applied, and each comes back
+out of that table in the same sitting it goes in.
 
 ### ⛔ 0023, 0024 and 0025 are APPLIED. None of them is ever re-run.
 
@@ -310,30 +311,49 @@ since `delete_track` now has real rows to destroy:
 2. Deleting a track that has map nodes with **no** reassignment target must raise
    `track_in_use:` and name the node count.
 
-## Pending — 0026 and 0027, designed and NOT YET WRITTEN
+## Pending — 0026, 0027 and 0028: WRITTEN, and NOT YET RUN ANYWHERE
 
-Neither file exists in `supabase/migrations/` yet. They are designed in full (the map-revamp
-plan, §B) and written by the waves named below; **this table is filled in with real "verify live
-by" queries in the same commit as the SQL**, which is the rule at the bottom of this page.
+All three files now exist in `supabase/migrations/`. **None of them has been applied to any
+database.** They are pending in the strict sense this page means it — written, reviewed, probed on
+paper, and not yet run — which is a different state from the one this section described while they
+were still designs, and the difference matters to the one person who follows this page alone:
+there is now something to paste into the SQL Editor.
 
-| # | File | Written by | What it will contain | Owner runs it |
-|---|---|---|---|---|
-| 0026 | `map_node_stages.sql` | wave 2 | `map_node_stages` on the 5-part configurable-list pattern (0018's) — name 1..40, `name_ar`, `sort_order`, `hidden`, `terminal`, `paused`, `expected_days` (NULL = no stalled threshold), no colour column, seven seeded and all renameable; plus `map_node_progress` (`node_id` pk → `map_nodes` on delete cascade, `stage_id`, `stage_changed_at`, `updated_at`, `updated_by`), member-writable because setting a stage is fieldwork and not configuration, with the stamp trigger as the only writer of `stage_changed_at` | before wave 2's client half is useful |
-| 0027 | `map_node_goals_and_counts.sql` | wave 3 | `map_node_goals` (node_id cascade, label/`label_ar`, nullable `stage_id`, `target > 0`, `target_date`), written on `structure.edit` and audited; plus the `v_map_node_open_counts` view with `security_invoker = true` — mandatory, and its own probe reads `reloptions` to prove it | after 0026 |
+The "verify live by" column is filled for each, per the rule at the bottom of this page: **the row
+lands in the same commit as the SQL, with a query that runs today and goes false if the file is
+ever reverted.** Move a row out of this table and into the applied table in the same sitting it is
+applied in — the other half of that rule, and the half that once cost this file three days.
 
-**The binding constraint on both, and it is a seam with this page:** `0026` and `0027`
+| # | File | Written by | What it contains | Owner runs it | Verify live by (runnable the moment it is applied) |
+|---|---|---|---|---|---|
+| 0026 | `map_node_stages.sql` | wave 2 | `map_node_stages` on the 5-part configurable-list pattern (0018's) — name 1..40, `name_ar`, `sort_order`, `hidden`, `terminal`, `paused`, `expected_days` (NULL = no stalled threshold), no colour column, seven seeded and all renameable; plus `map_node_progress` (`node_id` pk → `map_nodes` on delete cascade, `stage_id`, `stage_changed_at`, `updated_at`, `updated_by`), member-writable because setting a stage is fieldwork and not configuration, with the stamp trigger as the only writer of `stage_changed_at` | before wave 2's client half is useful | 7 rows in `map_node_stages`, exactly 1 `terminal`; `map_node_progress` present with `map_node_progress_pkey` on `(node_id)`; `map_node_progress_stage_stamp_trg` is BEFORE INSERT OR UPDATE and sorts before `map_node_progress_touch_trg`; `reorder_map_node_stages`'s only argument is named `p_ids` |
+| 0027 | `map_node_goals_and_counts.sql` | wave 3 | `map_node_goals` (node_id cascade, label/`label_ar`, nullable `stage_id`, `target > 0`, `target_date`), written on `structure.edit` and audited; plus the `v_map_node_open_counts` view with `security_invoker = true` — mandatory, and its own probe reads `reloptions` to prove it | after 0026 | `map_node_goals` present; `v_map_node_open_counts`'s `reloptions` contains `security_invoker=true` (a view without it reads as its OWNER and hands every member counts RLS would have withheld) |
+| 0028 | `jira_settings.sql` | wave 7 | The saved Jira reading configuration, **one row**: `site_base_url`, the three field ids, `status_map jsonb`, `fold_arabic`, `jql`, **`enabled boolean not null default false`**, `updated_at`/`updated_by`. One-row-ness is a CHECKED SINGLETON KEY — a fixed uuid primary key plus `jira_settings_singleton_chk` — because the key alone stops a second row with the SAME id and nothing else. Member-read (every member's screens ask whether Jira is on), `structure.edit`-write, touch + `config_audit` triggers. NO seed row, NO credentials, NO sync state | any time — the client half is safe to ship first (see below) | `jira_settings` present; `pg_get_expr` of the `enabled` default contains `false`; `jira_settings_singleton_chk` exists; `jira_settings_select`'s `qual` contains `is_member` **and** `jira_settings_update`'s contains `structure.edit`; `select count(*) from jira_settings` is 0 until somebody saves on the Jira screen |
+
+**0028 is the one file on this page whose client half is safe to ship before it is applied**, and
+that is a property of the design rather than a licence to be casual: `loadJiraSettings()` fails
+with `common.errMissingTable` on a project without the table, `src/store/config.ts` keeps
+`jiraSettings` null on any failed read, and `useJiraEnabled()` therefore answers **false**. The
+off-switch fails CLOSED through the failure path as well as the happy one, so the visible effect
+of "0028 not applied" is exactly the visible effect of "Jira not turned on": nothing. The Settings
+card names that state rather than reporting an error.
+
+**The binding constraint on all three, and it is a seam with this page:** `0026`, `0027` and `0028`
 **redefine nothing** that `0023`, `0024` or `0025` owns — no policy on the seven configuration
 tables, none of the eleven functions, not `is_admin()`. Their tables are new, so their policies
-are new. If either file ever re-points something `0025` owns, `w_0025` and probe 5 stop being
+are new. If any of the three ever re-points something `0025` owns, `w_0025` and probe 5 stop being
 canaries for "somebody re-ran an old file" and start being ambiguous, which costs more than the
-tidiness it would buy. Both are re-runnable, both get applied twice, and both carry probe blocks
-whose failure tokens ship in `pgError.ts` in the same commit.
+tidiness it would buy. All three are re-runnable, all three get applied twice, and all three carry
+probe blocks whose failure keys ship in `pgError.ts` in the same commit — `0028`'s are constraint
+NAMES rather than raised tokens (`jira_settings_singleton_chk`, `jira_settings_site_base_url_chk`,
+`jira_settings_field_len_chk`, `jira_settings_jql_len_chk`, `jira_settings_status_map_chk`), and
+the file's header carries the same list so the two halves are edited together.
 
-## How to run one (0026 and 0027, when they land)
+## How to run one (0026, 0027 and 0028)
 
 1. Supabase dashboard → `opstrack` project → **SQL Editor**.
 2. Open `supabase/migrations/<file>`, copy all, paste, **Run**. In numeric order.
-3. `0026` and `0027` are re-runnable — running one twice is safe and is how they are tested.
+3. All three are re-runnable — running one twice is safe and is how they are tested.
    **This does not extend backwards to `0023`, `0024` or `0025`**: see the ⛔ block above, where
    `0023` and `0024` are never re-run and `0025` is re-applied only as a repair and only last.
 4. Read the `NOTICE` lines. They are the migration's own self-checks; a `FAILED` notice means it

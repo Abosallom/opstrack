@@ -60,7 +60,12 @@ import type { ThemePref } from '../lib/theme'
 import { trackIcon } from '../lib/trackIcons'
 import { trackVars } from '../lib/trackStyle'
 import { signOut, useAuth, useHasPerm, useIsAdmin } from '../store/auth'
-import { useActiveTracks } from '../store/config'
+import {
+  useActiveTracks,
+  useJiraEnabled,
+  useJiraSettings,
+  useJiraStatusesDropped,
+} from '../store/config'
 import { setLocaleSetting, setTheme, useSettings } from '../store/settings'
 import './settings.css'
 
@@ -83,6 +88,31 @@ const BACKEND_PILL: Record<BackendState, { tone: string; labelKey: string }> = {
   checking: { tone: '', labelKey: 'settings.backendChecking' },
   ok: { tone: 'ok', labelKey: 'settings.backendConnected' },
   unreachable: { tone: 'warn', labelKey: 'settings.backendUnreachable' },
+}
+
+/**
+ * The four states the Jira card can be in, named rather than collapsed.
+ *
+ * THE CARD ALWAYS RENDERS — it is the only way in to turning the feature on, so
+ * hiding it when Jira is off would hide the switch inside the thing it switches.
+ * Every OTHER Jira surface in the app is absent while `useJiraEnabled()` is
+ * false, and that asymmetry is the whole design: a control that does nothing is
+ * a promise, and this is the one screen where the control does something.
+ *
+ * FOUR STATES AND NOT TWO, which is the backend pill's own discipline one card
+ * down. "Nobody has set this up" and "somebody set it up and switched it off"
+ * are different sentences with different next actions, and so is "switched on
+ * with no site address" — a state in which the integration reports as live and
+ * every link it would draw is dead. Collapsing them into "Not connected" would
+ * send the reader to re-do work that is already done.
+ */
+type JiraCardState = 'unset' | 'off' | 'incomplete' | 'on'
+
+const JIRA_PILL: Record<JiraCardState, { tone: string; labelKey: string }> = {
+  unset: { tone: '', labelKey: 'jiraconfig.stateUnset' },
+  off: { tone: '', labelKey: 'jiraconfig.stateOff' },
+  incomplete: { tone: 'warn', labelKey: 'jiraconfig.stateIncomplete' },
+  on: { tone: 'ok', labelKey: 'jiraconfig.stateOn' },
 }
 
 /**
@@ -180,6 +210,24 @@ export default function Settings(): ReactElement {
   const canEditStructure = useHasPerm('structure.edit')
   const canEditVocab = useHasPerm('vocab.edit')
   const isAdmin = useIsAdmin()
+  // THE ONE HOOK, asked here as everywhere else. `useJiraSettings()` is read
+  // beside it because this card is one of the two screens allowed to (the Jira
+  // reader is the other): it needs to tell "nobody has saved one" from "saved
+  // and switched off", and no other surface in the app does.
+  const jiraSettings = useJiraSettings()
+  const jiraEnabled = useJiraEnabled()
+  const jiraStatusesDropped = useJiraStatusesDropped()
+  const jiraState: JiraCardState =
+    jiraSettings === null
+      ? 'unset'
+      : !jiraSettings.enabled
+        ? 'off'
+        : // `enabled` is true here, so the only way `useJiraEnabled()` can still
+          // be false is a missing site address — which is what makes this arm
+          // the honest reading of the hook rather than a second definition of it.
+          jiraEnabled
+          ? 'on'
+          : 'incomplete'
   // THE PILL STAYS ON THE LEGACY COLUMN, and it is the one place in this file
   // that should. It answers "what does the workspace call you", not "what may
   // you do" — and `profiles.role` is the column the Members screen shows, the
@@ -433,11 +481,54 @@ export default function Settings(): ReactElement {
               <IconChevronEnd className="icon-directional" size={16} />
             </NavLink>
           </Section>
+          {/* THE ONE JIRA SURFACE THAT ALWAYS RENDERS. Every other one — the
+              "view in Jira" links, the source caption — is ABSENT while
+              `useJiraEnabled()` is false, because a disabled control is a
+              promise. This card is the exception for the obvious reason: it is
+              the way in to turning the feature on, and a switch hidden inside
+              the thing it switches is a switch nobody finds.
+
+              It stays inside the `structure.edit` block with its neighbours,
+              and that is this page's own rule rather than an oversight: the
+              /settings/jira ROUTE is gated on the same key, and a card App.tsx
+              then bounces is worse than no card.
+
+              The pill NAMES THE STATE in four ways (see JiraCardState), and the
+              line under it states the scope this wave actually shipped — read
+              only, nothing scheduled, nothing written back, no organization
+              invented from an issue. Stated where somebody would go looking for
+              a "Sync now" button and not find one. */}
           <Section icon={IconPlug} title={t('jira.title')} description={t('jira.settingsHint')}>
-            <NavLink to="/settings/jira" className="btn btn-ghost">
-              {t('jira.manage')}
-              <IconChevronEnd className="icon-directional" size={16} />
-            </NavLink>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: 12,
+              }}
+            >
+              <span className={`pill ${JIRA_PILL[jiraState].tone}`.trim()}>
+                {t(JIRA_PILL[jiraState].labelKey)}
+              </span>
+              <p className="muted">
+                {t(jiraEnabled ? 'jiraconfig.refusals' : 'jiraconfig.offEverywhere')}
+              </p>
+              {/* The coded-values trap, surfaced where the owner will see it
+                  without going looking. api/jiraSettings.ts drops a saved status
+                  word it no longer understands and COUNTS the drop; without this
+                  line the only symptom is a preview in which some issues report
+                  "status not mapped", which reads as a Jira problem and is not
+                  one. */}
+              {jiraStatusesDropped > 0 && (
+                <p className="muted">
+                  {t('jiraconfig.droppedStatuses', { count: jiraStatusesDropped })}
+                </p>
+              )}
+              <NavLink to="/settings/jira" className="btn btn-ghost">
+                {t('jira.manage')}
+                <IconChevronEnd className="icon-directional" size={16} />
+              </NavLink>
+            </div>
           </Section>
           <Section
             icon={IconLayers}

@@ -30,6 +30,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  distinctStatusValues,
   mapJiraIssues,
   statusMapConflicts,
   type JiraExistingLink,
@@ -49,6 +50,24 @@ import {
   type JiraIssue,
 } from './types'
 import type { MapNode, UseCase } from '../../types'
+
+/**
+ * The module's own text.
+ *
+ * One property below is about the FILE rather than about the function — see the
+ * NUL case in "the harness itself" — and `?raw` is the only way to ask it.
+ */
+const MAP_SOURCE: string = (await import('./map.ts?raw')).default
+
+/**
+ * THIS FILE's own text, for the same property applied to the guard itself.
+ *
+ * The NUL case below asserts that `map.ts` contains no raw U+0000 — and the
+ * first version of that assertion wrote its expected value as a raw U+0000,
+ * which made THIS file the binary one and left every grep over it silent while
+ * the assertion happily passed. Both sides are checked now.
+ */
+const SELF_SOURCE: string = (await import('./map.test.ts?raw')).default
 
 /* ────────────────────────────── fixtures ────────────────────────────── */
 
@@ -648,6 +667,39 @@ describe('the harness itself', () => {
     expect(JSON.stringify({ issues, organizations, useCases, existing, mapping: MAPPING })).toBe(before)
   })
 
+  it('joins the pair unambiguously without putting a NUL in the source', () => {
+    // THE DEFECT THIS PINS, which was not a behaviour bug at all: `pairKey` used
+    // a literal U+0000 as its separator, and BSD grep therefore called this file
+    // BINARY. Every standing grep in the repo answered `Binary file matches`
+    // instead of the line, which is how a whole module sat unwired through
+    // several reviews without anybody reading it. The separator still cannot
+    // occur in a uuid; it is now spelled `\u0000`.
+    expect(MAP_SOURCE).not.toContain('\u0000')
+    expect(MAP_SOURCE).toContain('\\u0000')
+    // ⚠ AND THIS FILE TOO, WHICH IS WHERE THE DEFECT WENT NEXT. The first
+    //   version of this very test wrote its expected value as a RAW U+0000
+    //   byte, so `map.test.ts` became the binary file `map.ts` had stopped
+    //   being — `grep -n MAP_SOURCE src/lib/jira/map.test.ts` printed nothing
+    //   at all, and the assertion above went on passing regardless. A guard
+    //   that makes itself ungreppable has moved the problem, not fixed it.
+    //   Both sides are spelled with the escape; both sides are checked.
+    expect(SELF_SOURCE).not.toContain('\u0000')
+    // And it still separates: two different pairs whose concatenations would
+    // collide under a naive join stay two different cells.
+    const a = node({ id: 'ab', name: 'A' })
+    const b = node({ id: 'a', name: 'B' })
+    const one = capability({ id: 'c', name: 'One' })
+    const two = capability({ id: 'bc', name: 'Two' })
+    const preview = mapJiraIssues(
+      [
+        issue('NPH-1', jiraFields('A', 'One', jiraStatus('Done'))),
+        issue('NPH-2', jiraFields('B', 'Two', jiraStatus('Done'))),
+      ],
+      context({ organizations: [a, b], useCases: [one, two] }),
+    )
+    expect(preview.resolved).toBe(2)
+  })
+
   it('handles an empty payload and an empty workspace without special-casing either', () => {
     expect(mapJiraIssues([], context())).toEqual({
       readings: [],
@@ -660,6 +712,62 @@ describe('the harness itself', () => {
       context({ organizations: [], useCases: [] }),
     )
     expect(codesOf(empty.readings)).toEqual(['organization-unknown', 'use-case-unknown'])
+  })
+})
+
+/* ─────────────────── the statuses the screen offers to map ───────────── */
+
+describe('distinctStatusValues', () => {
+  it('reads the CONFIGURED status field, not a literal `status`', () => {
+    // A site may track this in a select field. The picker offering words from
+    // `status` while the mapper judged `customfield_10099` would offer a list
+    // that can never match — two readers of one axis, which is the shape of bug
+    // this whole unit exists to remove.
+    const issues = [
+      issue('NPH-1', { [ORG_FIELD]: 'x', status: jiraStatus('Done'), cf: { value: 'Shipped' } }),
+    ]
+    expect(distinctStatusValues(issues, MAPPING)).toEqual(['Done'])
+    expect(distinctStatusValues(issues, { ...MAPPING, statusField: 'cf' })).toEqual(['Shipped'])
+  })
+
+  it('dedupes by the normalised word and keeps the FIRST spelling seen', () => {
+    // The first spelling is the one he has to recognise in the list; the
+    // normalised form is what the mapper looks the mapping up by. Two spellings
+    // of one status therefore share one row and one answer.
+    const seen = distinctStatusValues(
+      [
+        issue('A', jiraFields('x', 'y', jiraStatus('In Progress'))),
+        issue('B', jiraFields('x', 'y', jiraStatus('  in   progress '))),
+        issue('C', jiraFields('x', 'y', jiraStatus('Done'))),
+        issue('D', jiraFields('x', 'y', null)),
+        issue('E', null),
+      ],
+      MAPPING,
+    )
+    expect(seen).toEqual(['In Progress', 'Done'])
+  })
+
+  it('offers every word a multi-valued field carried', () => {
+    // The mapper refuses such an issue as `status-multivalued`, but a word seen
+    // only on a refused issue is still a word he may want mapped — and hiding it
+    // would make the refusal unfixable from this screen.
+    expect(
+      distinctStatusValues(
+        [issue('A', jiraFields('x', 'y', [{ value: 'Done' }, { value: 'Backlog' }]))],
+        MAPPING,
+      ),
+    ).toEqual(['Done', 'Backlog'])
+  })
+
+  it('folds the two spellings together only when the mapping asks', () => {
+    const issues = [
+      issue('A', jiraFields('x', 'y', jiraStatus('مكتملة'))),
+      issue('B', jiraFields('x', 'y', jiraStatus('مكتمله'))),
+    ]
+    expect(distinctStatusValues(issues, MAPPING)).toHaveLength(2)
+    expect(distinctStatusValues(issues, { ...MAPPING, foldArabic: true })).toEqual([
+      'مكتملة',
+    ])
   })
 })
 

@@ -154,6 +154,14 @@ export function pgErrorKey(error: unknown): string {
       // would make "6 of 9 live" a number nobody can reconcile.
       if (text.includes('use_cases_name_ar_uidx')) return 'mapadmin.errUseCaseNameArTaken'
       if (text.includes('use_cases_name_uidx')) return 'mapadmin.errUseCaseNameTaken'
+      // jira_settings (0028) holds ONE row, and the primary key is one of the two
+      // things that says so. Unreachable through the app — api/jiraSettings.ts
+      // upserts on the singleton id — so this is the sentence for a second row
+      // arriving some other way, and it is deliberately the SAME sentence the
+      // CHECK gets below: "there is one Jira configuration and something tried to
+      // write a second" is one fact, and which half caught it is not the reader's
+      // problem.
+      if (text.includes('jira_settings_pkey')) return 'jiraconfig.errSingleton'
       break
     case '23503':
       // Raised by tracks_block_delete_when_referenced(), which counts the
@@ -193,6 +201,30 @@ export function pgErrorKey(error: unknown): string {
       if (text.includes('label_overrides_key_shape') || text.includes('label_overrides_key_len')) {
         return 'terminology.errBadKey'
       }
+      // jira_settings (0028) — the saved Jira configuration. FOUR CONSTRAINTS,
+      // FOUR SENTENCES, and the split is 0017's argument one table over: "that
+      // address cannot be a link" and "that query is too long" send the reader to
+      // different boxes on the same screen, and both arriving as the generic key
+      // is what makes a screen guess.
+      //
+      // ⚠ NONE OF THESE SENTENCES MAY EVER QUOTE WHAT WAS REFUSED. This file
+      //   returns KEYS and interpolates nothing, so the rule holds structurally —
+      //   but it is written here because the temptation is real and specific: the
+      //   Postgres `details` for a check violation can carry the FAILING ROW, and
+      //   a screen that echoed it back would print a site address, a token pasted
+      //   into the wrong box, or a JQL naming internal projects into a shared
+      //   browser and the next screenshot. Describe the SHAPE a value must have;
+      //   never the value.
+      if (text.includes('jira_settings_singleton_chk')) return 'jiraconfig.errSingleton'
+      if (text.includes('jira_settings_site_base_url_chk')) return 'jiraconfig.errBadSiteUrl'
+      if (text.includes('jira_settings_field_len_chk')) return 'jiraconfig.errFieldTooLong'
+      if (text.includes('jira_settings_jql_len_chk')) return 'jiraconfig.errJqlTooLong'
+      // The SHAPE of status_map, never its vocabulary. 0028 deliberately puts no
+      // CHECK on the VALUES — a saved word this app no longer knows is dropped
+      // and counted on read (api/jiraSettings.ts), because a constraint could
+      // only refuse and would make the fix unreachable. This arm therefore fires
+      // only for a status_map that is not an object at all.
+      if (text.includes('jira_settings_status_map_chk')) return 'jiraconfig.errStatusMapShape'
       break
     case '23502':
       // NOT NULL violated. This should now be UNREACHABLE: the one column that

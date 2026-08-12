@@ -383,6 +383,46 @@ export function mapJiraIssues(
 }
 
 /**
+ * The status words THESE ISSUES actually carry, in first-seen order.
+ *
+ * THE THIRD AXIS OF THE MAPPING, AND IT COSTS NO EXTRA CALL. `jira-read` has no
+ * `statuses` operation and the screen is better without one: a site's workflow
+ * list is dozens of statuses across every project on it, and asking Aziz to map
+ * words no issue in his query carries is work that answers nothing. What he has
+ * to map is the handful his own results stand in, and the search reply already
+ * contains them.
+ *
+ * READ THROUGH `mapping.statusField`, not through a literal `'status'`. A site
+ * may track this in a select field, `statusMap` is keyed on whatever that field
+ * says, and a picker reading one field while the mapper reads another would
+ * offer words that can never match. One field id, read in both places.
+ *
+ * Deduplicated by the NORMALISED word — the same key `resolveStatus` looks the
+ * mapping up by, folding included — and reported in the FIRST SPELLING SEEN,
+ * because that is the one Aziz has to recognise in the list. So two spellings of
+ * one status share one row and one answer.
+ *
+ * A multi-valued status field contributes EVERY value it carried: the mapper
+ * refuses such an issue as `status-multivalued`, and a word that is only ever
+ * seen on a refused issue is still a word he may want mapped.
+ */
+export function distinctStatusValues(
+  issues: readonly JiraIssue[],
+  mapping: JiraFieldMapping,
+): string[] {
+  const folding: NameFolding = { arabic: mapping.foldArabic === true }
+  const seen = new Map<string, string>()
+  for (const issue of issues) {
+    for (const value of readFieldText(issue, mapping.statusField).values) {
+      const key = normalizeName(value, folding)
+      if (key.length === 0) continue
+      if (!seen.has(key)) seen.set(key, value)
+    }
+  }
+  return [...seen.values()]
+}
+
+/**
  * Status-map keys that normalise to the same word but disagree about what it
  * means — `{ 'In Progress': 'testing', 'in  progress': 'live' }`.
  *
@@ -400,9 +440,15 @@ export function statusMapConflicts(
 
 /* ───────────────────────────── internals ───────────────────────────── */
 
-// ` ` cannot occur in a uuid, so the join is unambiguous without escaping.
+// U+0000 cannot occur in a uuid, so the join is unambiguous without escaping.
+// WRITTEN AS AN ESCAPE, NEVER AS THE CHARACTER ITSELF. A literal NUL in this
+// file makes BSD grep call it binary, and every standing grep in this repo
+// then reports `Binary file matches` instead of the line — which is how a
+// dead module survived several reviews unread. An invisible byte that hides
+// the file from the tools that police the file is not a separator worth
+// having in source.
 function pairKey(nodeId: string, useCaseId: string): string {
-  return `${nodeId} ${useCaseId}`
+  return `${nodeId}\u0000${useCaseId}`
 }
 
 interface NameCandidate<T> {

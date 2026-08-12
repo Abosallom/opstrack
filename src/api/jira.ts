@@ -108,7 +108,8 @@
 //       (`isLast` appears only sometimes and is a bonus, never the signal). A
 //       count needs a second, separate call — `POST
 //       /rest/api/3/search/approximate-count` — and it is approximate. This is
-//       why `JiraSearchPage` has no `total` field to be tempted by, and why the
+//       why neither the wire envelope nor `JiraSearchResult` below carries a
+//       `total` field to be tempted by, and why the
 //       screen's summary counts THE ISSUES IT ACTUALLY RECEIVED and says so. A
 //       reconciliation that quoted a number it had not examined would be the one
 //       number on the screen that is not evidence.
@@ -129,20 +130,39 @@
 // is cheaper than letting the owner lose twenty minutes of picking and wonder
 // whether the app is broken.
 //
-// ═══ THE RESOLVER LIVES HERE, NOT ON THE SERVER ═══
+// ═══ THIS FILE IS TRANSPORT. THE RESOLVER IS `src/lib/jira/map.ts` ═══
 //
-// `resolveIssue` / `reconcile` are pure and are the substance of what the owner
-// asked to see: not the JSON, but whether each issue lands on an organization
-// and a use case he actually has. They are here rather than in the function
-// because the answer depends on THIS workspace's `map_nodes` and `use_cases`,
-// which the browser already holds and the function would have to re-read with a
-// service role; and here rather than in the screen because a pure function with
-// a table of cases is testable under `environment: 'node'` while a rendered
-// table is not.
+// It used to be both, and that was the bug. Two mappers existed: this file's
+// `resolveIssue`/`reconcile`, and `src/lib/jira/map.ts` — richer, purer, with
+// 800 lines of tests, and WIRED TO NOTHING. Whichever one a reader found, they
+// found the wrong one half the time. §C of the map-revamp plan picked the tested
+// one, and this file's ~200-line parallel resolver (`JiraMapping`,
+// `JiraCatalogue`, `ResolveReason`, `RESOLVE_REASONS`, `ResolvedIssue`,
+// `Reconciliation`, `indexByName`, `resolveIssue`, `reconcile`) is gone. What it
+// judged, `mapJiraIssues` judges better:
+//
+//   · ALL the reasons an issue did not resolve, not the first blocking one.
+//   · `absent` (the field is not in the payload — a configuration bug) told
+//     apart from `blank` (nobody filled it in — fieldwork).
+//   · `duplicate-pair`: two issues claiming one organization × capability cell,
+//     which a first-wins resolver files against a hospital silently.
+//   · `externalRef` / `externalUrl` — the two columns a write path must stamp.
+//   · `effect: create | update | unchanged | held`, where `held` is the
+//     `overrides` contract from 0023/0024. Nothing else in this app expresses it.
+//
+// `fieldText` and `normalizeName` went with it — `lib/jira/types.ts`'s
+// `textValuesOf` is the reader that keeps "absent" and "blank" apart, and
+// `normalizeName` there takes the Arabic-folding flag this one could not. The
+// status picker's `distinctStatuses` moved to `lib/jira/map.ts` as
+// `distinctStatusValues`, where it reads the CONFIGURED status field instead of
+// a literal `'status'`.
+//
+// What remains here is the conversation with the edge function and nothing else:
+// invoke it, map its failures to i18n keys, and read its replies totally.
 
 import { supabase } from './supabase'
 import { fail, notConfigured, type ApiResult } from './result'
-import type { MapNode, UseCase, UseCaseStatus } from '../types'
+import { isRecord, readSearchPage, type JiraIssue } from '../lib/jira/types'
 
 /** The edge function this module talks to. Read-only by name and by contract. */
 export const JIRA_FUNCTION = 'jira-read'
@@ -221,31 +241,19 @@ export interface JiraField {
 }
 
 /**
- * One issue, as the harness needs it: the key, a link back, and the raw values
- * of the fields that were asked for.
+ * One page of search results, as this app holds it.
  *
- * `fields` IS DELIBERATELY `Record<string, unknown>`. A Jira field value is a
- * string, a number, `{ value }`, `{ name }`, `{ displayName }`, an array of any
- * of those, or an Atlassian Document Format tree — and which one it is depends
- * on a field type this app does not control. Typing it as anything narrower
- * would be a lie the first time the owner picks a field nobody anticipated;
- * `fieldText()` below is the total function that reads it.
- */
-export interface JiraIssue {
-  key: string
-  /** Absolute `…/browse/KEY`, or null when the function could not build one. */
-  url: string | null
-  fields: Record<string, unknown>
-}
-
-/**
- * One page of search results.
+ * NOT a second declaration of `lib/jira/types.ts`'s `JiraSearchPage`, which is
+ * the WIRE envelope — `issues?`, `nextPageToken?`, `isLast?`, every one of them
+ * optional because that is what a third party may or may not send. This is what
+ * the reader made of it: always an array, a cursor that is null or a real token,
+ * plus one fact only `jira-read` knows.
  *
  * NO `total`, BY CONSTRUCTION — see the header. `nextPageToken` is null when
  * this was the last page, which is the only end-of-results signal the endpoint
  * gives.
  */
-export interface JiraSearchPage {
+export interface JiraSearchResult {
   issues: JiraIssue[]
   nextPageToken: string | null
   /**
@@ -463,24 +471,43 @@ function toField(raw: unknown): JiraField {
  * which is where it would actually be clicked.
  */
 export function toIssue(raw: unknown): JiraIssue {
-  const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
-  const fields = (typeof r.fields === 'object' && r.fields !== null ? r.fields : {}) as Record<
-    string,
-    unknown
-  >
-  return { key: str(r.key), url: safeHttpUrl(r.url), fields }
+  const r = isRecord(raw) ? raw : {}
+  return {
+    key: str(r.key),
+    url: safeHttpUrl(r.url),
+    // NULL, NOT `{}`, WHEN THE PAYLOAD CARRIED NO FIELDS OBJECT, and the
+    // difference is a whole sentence on the screen. `mapJiraIssues` reads `{}`
+    // as "every mapped field is absent from this issue" and `null` as
+    // `issue-malformed / no-fields` — which is what a search that forgot its
+    // `fields` list actually produces. Substituting an empty object here would
+    // report one configuration mistake as three data problems per issue.
+    fields: isRecord(r.fields) ? r.fields : null,
+  }
 }
 
-/** The whole search reply, normalised. A missing token means "last page". */
-export function toSearchPage(raw: unknown): JiraSearchPage {
-  const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
-  const issues = Array.isArray(r.issues) ? r.issues.map(toIssue).filter((i) => i.key !== '') : []
-  const token = str(r.nextPageToken)
+/**
+ * The whole search reply, normalised. A missing token means "last page".
+ *
+ * KEYLESS ISSUES SURVIVE, and that is a change of mind this file used to hold
+ * the other way. Dropping them kept a blank row off the table at the cost of the
+ * one property the harness is built on — `readings.length === issues.length`, no
+ * issue silently disappearing between the payload and the summary. A keyless
+ * issue is now reported by name (`issue-malformed / no-key`) rather than by
+ * absence, which is the only form of "something is wrong with your payload" a
+ * reader can act on.
+ *
+ * The envelope itself is read by `lib/jira/types.ts`'s `readSearchPage`, so the
+ * cursor rules (absent token = last page; `isLast` may stop early and never keep
+ * going) are stated once, next to the endpoint contract they come from.
+ */
+export function toSearchPage(raw: unknown): JiraSearchResult {
+  const page = readSearchPage(raw)
+  const r = isRecord(raw) ? raw : {}
   return {
-    issues,
-    nextPageToken: token === '' ? null : token,
+    issues: page.issues.map(toIssue),
+    nextPageToken: page.nextPageToken,
     // A cursor left over is more, whether or not the function also said so.
-    truncated: r.truncated === true || token !== '',
+    truncated: r.truncated === true || page.nextPageToken !== null,
   }
 }
 
@@ -583,32 +610,6 @@ export async function jiraFields(): Promise<ApiResult<JiraField[]>> {
 }
 
 /**
- * The statuses the RESULT actually carries, in first-seen order.
- *
- * THE THIRD AXIS OF THE MAPPING, AND IT COSTS NO CALL. There is no `statuses`
- * operation on the function and the screen is better off without one: a site's
- * full workflow list is dozens of statuses across every project on it, and the
- * owner would be asked to map statuses no issue in his query has. What he needs
- * is the handful his own issues stand in, which the search reply already
- * contains — so this reads them out of it.
- *
- * Deduplicated by the NORMALISED name but reported with the first spelling seen,
- * because that is what he has to recognise in the list; `resolveIssue` looks the
- * mapping up through the same normaliser, so two spellings of one status share
- * one row and one answer.
- */
-export function distinctStatuses(issues: JiraIssue[]): string[] {
-  const seen = new Map<string, string>()
-  for (const issue of issues) {
-    const name = fieldText(issue.fields.status)
-    if (name === '') continue
-    const key = normalizeName(name)
-    if (!seen.has(key)) seen.set(key, name)
-  }
-  return [...seen.values()]
-}
-
-/**
  * Run a JQL query and return one page.
  *
  * `fields` IS REQUIRED AND IS REFUSED WHEN EMPTY. The new endpoint's default is
@@ -622,7 +623,7 @@ export function distinctStatuses(issues: JiraIssue[]): string[] {
  * testing what HIS query returns, and a query the app edited on the way out is
  * not that.
  */
-export async function jiraSearch(input: JiraSearchInput): Promise<ApiResult<JiraSearchPage>> {
+export async function jiraSearch(input: JiraSearchInput): Promise<ApiResult<JiraSearchResult>> {
   const jql = input.jql.trim()
   if (jql === '') return fail('jira.errJqlRequired')
   if (input.fields.length === 0) return fail('common.error')
@@ -642,303 +643,4 @@ export async function jiraSearch(input: JiraSearchInput): Promise<ApiResult<Jira
   )
   if (!result.ok) return result
   return { ok: true, data: toSearchPage(result.data) }
-}
-
-/* ───────────────────────── reading one field's value ──────────────────────── */
-
-/**
- * The text of a Jira field value, whatever shape it arrived in. TOTAL.
- *
- * The shapes, and why each is here rather than in a `switch` somebody trims
- * later: a text field is a string; a number field is a number; a single-select
- * is `{ value }`; a status, priority, component or version is `{ name }`; a user
- * field is `{ displayName }`; a project or issue link is `{ key }`; labels and
- * multi-selects are arrays of any of those; and a rich-text field is an
- * Atlassian Document Format tree whose text is scattered across nested `content`
- * arrays. The owner's organization could be carried by ANY of them, because it
- * is his Jira and not ours.
- *
- * An array joins with ', ' and drops its empties — one label of three being
- * blank should not blank the cell. A shape nobody anticipated yields '', which
- * the resolver reports as "the field is empty on this issue": a stated,
- * countable reason rather than a crash.
- */
-export function fieldText(raw: unknown, depth = 0): string {
-  // ADF nests, and a malformed tree could nest without end. Six is deeper than
-  // any real description's text runs and terminates a cycle regardless.
-  if (depth > 6) return ''
-  if (raw === null || raw === undefined) return ''
-  if (typeof raw === 'string') return raw.trim()
-  if (typeof raw === 'number' || typeof raw === 'boolean') return String(raw)
-  if (Array.isArray(raw)) {
-    return raw
-      .map((item) => fieldText(item, depth + 1))
-      .filter((s) => s !== '')
-      .join(', ')
-  }
-  if (typeof raw !== 'object') return ''
-
-  const r = raw as Record<string, unknown>
-  // Order matters: `value` before `name` because a single-select carries both
-  // on some site configurations and `value` is the one the person chose.
-  for (const key of ['value', 'name', 'displayName', 'key'] as const) {
-    const v = r[key]
-    if (typeof v === 'string' && v.trim() !== '') return v.trim()
-  }
-  // ADF: { type: 'doc', content: [ … { type: 'text', text } … ] }
-  if (typeof r.text === 'string') return r.text.trim()
-  if (Array.isArray(r.content)) {
-    return r.content
-      .map((node) => fieldText(node, depth + 1))
-      .filter((s) => s !== '')
-      .join(' ')
-      .trim()
-  }
-  return ''
-}
-
-/**
- * The comparison form of a name — what "the same organization" means here.
- *
- * MATCHING IS THE ENTIRE POINT OF THE SCREEN, so the rules are written down
- * rather than left to `===`:
- *
- *   · NFKC and case folding, because "ADT" and "adt" are one capability and a
- *     full-width character pasted out of a spreadsheet is the same letter.
- *   · Whitespace collapsed, because a name typed with two spaces in Jira and
- *     one here is a difference nobody can see and everybody would argue about.
- *   · ARABIC IS NORMALISED, and this is the rule that earns the function. Half
- *     these organizations are recorded in Arabic. Tashkeel is optional in
- *     writing and is present in one system and absent in the other; أ إ آ are
- *     typed as ا by anyone in a hurry; ة and ه, and ى and ي, are interchanged
- *     constantly. Without this, "مستشفى الملك فيصل" and "مستشفي الملك فيصل"
- *     are two different hospitals, and the owner would be told that his data is
- *     wrong when it is his keyboard that differs.
- *
- * What it deliberately does NOT do is fuzzy matching — no edit distance, no
- * substring containment. A harness whose verdict is "probably this one" is not
- * evidence, and the sync this is a rehearsal for would be writing rows on the
- * strength of it.
- */
-export function normalizeName(raw: string): string {
-  return raw
-    .normalize('NFKC')
-    .replace(/[ً-ْٰـ]/g, '')
-    .replace(/[أإآٱ]/g, 'ا')
-    .replace(/ى/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase()
-}
-
-/* ──────────────────────────── the verdict, purely ─────────────────────────── */
-
-/**
- * Which Jira field carries what, and which status means what.
- *
- * NOT PERSISTED — see the header. `statuses` is keyed by the NORMALISED Jira
- * status name rather than by its id, because the id is a number the owner never
- * sees and the name is what he picked in the list.
- */
-export interface JiraMapping {
-  orgFieldId: string
-  useCaseFieldId: string
-  statuses: Record<string, UseCaseStatus>
-}
-
-/** The workspace side of the comparison: what this app already has. */
-export interface JiraCatalogue {
-  nodes: MapNode[]
-  useCases: UseCase[]
-}
-
-/**
- * Why an issue did or did not land somewhere. ONE reason per issue, the first
- * blocking one, in the order below — a row that names three problems at once is
- * a row nobody acts on.
- *
- * `statusUnmapped` is deliberately NOT a failure of the pair: the organization
- * and the use case were both found, and only how far along it is could not be
- * read. It is counted apart for that reason — it is the one reason on this list
- * that a sync could still write a row for.
- */
-export type ResolveReason =
-  | 'matched'
-  | 'noMapping'
-  | 'orgBlank'
-  | 'orgUnknown'
-  | 'orgAmbiguous'
-  | 'useCaseBlank'
-  | 'useCaseUnknown'
-  | 'useCaseAmbiguous'
-  | 'statusUnmapped'
-
-/** Every reason, in the order the screen lists them. Pinned by the test. */
-export const RESOLVE_REASONS: readonly ResolveReason[] = [
-  'matched',
-  'statusUnmapped',
-  'noMapping',
-  'orgBlank',
-  'orgUnknown',
-  'orgAmbiguous',
-  'useCaseBlank',
-  'useCaseUnknown',
-  'useCaseAmbiguous',
-]
-
-/** One issue, judged against the mapping and this workspace's own data. */
-export interface ResolvedIssue {
-  issue: JiraIssue
-  /** The raw text the org field held on this issue, '' when it held nothing. */
-  orgValue: string
-  /** The node it named, or null. */
-  node: MapNode | null
-  /** How many nodes answered to that name — >1 is the ambiguity. */
-  nodeMatches: number
-  useCaseValue: string
-  useCase: UseCase | null
-  useCaseMatches: number
-  /** The Jira status name, '' when the issue carried none. */
-  statusValue: string
-  /** What the mapping says that status means here, or null. */
-  status: UseCaseStatus | null
-  reason: ResolveReason
-}
-
-/** The answer to the owner's question, in the shape the summary line needs. */
-export interface Reconciliation {
-  /** Issues examined — what came back, never a `total` nobody counted. */
-  total: number
-  /** Landed on an organization AND a use case. `statusUnmapped` counts here. */
-  matched: number
-  unmatched: number
-  /** reason → how many. Every reason present, including the zeroes. */
-  byReason: Record<ResolveReason, number>
-  rows: ResolvedIssue[]
-}
-
-/**
- * An index from every name a row answers to, onto the rows that answer to it.
- *
- * BOTH LANGUAGES, ONE INDEX. `name_ar` is `not null default ''` on both tables,
- * so an empty Arabic name is "not translated yet" and must not become a key
- * every untranslated row collides on.
- *
- * A LIST PER NAME, NOT ONE ROW, and that is not defensiveness. 0023's sibling
- * uniqueness index is `(track_id, parent_id, lower(btrim(name)))` — scoped to
- * the PARENT — so two organizations with the same name under two different
- * phases is a legal, deliberate state of this database. Collapsing them here
- * would silently pick whichever one loaded first and report a confident match
- * to the wrong hospital.
- */
-function indexByName<T>(rows: T[], names: (row: T) => string[]): Map<string, T[]> {
-  const out = new Map<string, T[]>()
-  for (const row of rows) {
-    for (const name of names(row)) {
-      const key = normalizeName(name)
-      if (key === '') continue
-      const bucket = out.get(key)
-      if (bucket) {
-        // The same row reached by two of its own names (an org whose Arabic and
-        // English names are identical) is one candidate, not an ambiguity.
-        if (!bucket.includes(row)) bucket.push(row)
-      } else out.set(key, [row])
-    }
-  }
-  return out
-}
-
-/**
- * Judge one issue. Pure.
- *
- * ARCHIVED NODES AND HIDDEN USE CASES STILL MATCH, and the choice is
- * deliberate. This screen answers "what would this issue land on", and an
- * archived organization is still the organization the issue is about; reporting
- * `orgUnknown` for one would send the owner looking for a data problem that is
- * really a filing decision he made himself. The sync that eventually writes rows
- * is where "…but it is archived" becomes a question worth asking.
- */
-export function resolveIssue(
-  issue: JiraIssue,
-  mapping: JiraMapping,
-  index: { nodes: Map<string, MapNode[]>; useCases: Map<string, UseCase[]> },
-): ResolvedIssue {
-  const orgValue = mapping.orgFieldId ? fieldText(issue.fields[mapping.orgFieldId]) : ''
-  const useCaseValue = mapping.useCaseFieldId ? fieldText(issue.fields[mapping.useCaseFieldId]) : ''
-  const statusValue = fieldText(issue.fields.status)
-
-  const nodeHits = index.nodes.get(normalizeName(orgValue)) ?? []
-  const useCaseHits = index.useCases.get(normalizeName(useCaseValue)) ?? []
-  const status = mapping.statuses[normalizeName(statusValue)] ?? null
-
-  const base = {
-    issue,
-    orgValue,
-    node: nodeHits.length === 1 ? nodeHits[0] : null,
-    nodeMatches: nodeHits.length,
-    useCaseValue,
-    useCase: useCaseHits.length === 1 ? useCaseHits[0] : null,
-    useCaseMatches: useCaseHits.length,
-    statusValue,
-    status,
-  }
-
-  // The precedence. Nothing can be said about an issue until the screen has been
-  // told which field to read, so `noMapping` outranks every value-level reason —
-  // otherwise an unconfigured screen reports forty blank fields as forty data
-  // problems.
-  const reason: ResolveReason =
-    !mapping.orgFieldId || !mapping.useCaseFieldId
-      ? 'noMapping'
-      : orgValue === ''
-        ? 'orgBlank'
-        : nodeHits.length > 1
-          ? 'orgAmbiguous'
-          : nodeHits.length === 0
-            ? 'orgUnknown'
-            : useCaseValue === ''
-              ? 'useCaseBlank'
-              : useCaseHits.length > 1
-                ? 'useCaseAmbiguous'
-                : useCaseHits.length === 0
-                  ? 'useCaseUnknown'
-                  : status === null
-                    ? 'statusUnmapped'
-                    : 'matched'
-
-  return { ...base, reason }
-}
-
-/**
- * Judge a page, and count it. THE SUMMARY LINE IS THE ANSWER TO HIS QUESTION.
- *
- * "31 of 40 issues resolve to an organization and a use case; 9 do not" — with
- * the nine broken down by reason and reachable from the breakdown. A wall of
- * JSON is not a test of the inputs; a reconciliation is.
- *
- * `matched` COUNTS `statusUnmapped` TOO, and the header of `ResolveReason` says
- * why: the pair was found, which is the question the sentence asks. Every reason
- * appears in `byReason` including the zeroes, so the breakdown is a stable list
- * rather than one that reorders itself as the data changes.
- */
-export function reconcile(
-  issues: JiraIssue[],
-  mapping: JiraMapping,
-  catalogue: JiraCatalogue,
-): Reconciliation {
-  const index = {
-    nodes: indexByName(catalogue.nodes, (n) => [n.name, n.name_ar]),
-    useCases: indexByName(catalogue.useCases, (u) => [u.name, u.name_ar]),
-  }
-  const rows = issues.map((issue) => resolveIssue(issue, mapping, index))
-
-  const byReason = Object.fromEntries(RESOLVE_REASONS.map((r) => [r, 0])) as Record<
-    ResolveReason,
-    number
-  >
-  for (const row of rows) byReason[row.reason] += 1
-
-  const matched = byReason.matched + byReason.statusUnmapped
-  return { total: rows.length, matched, unmatched: rows.length - matched, byReason, rows }
 }

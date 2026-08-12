@@ -38,6 +38,12 @@
 
 import { create } from 'zustand'
 import { listMapNodeKinds, listMapNodes, listUseCases } from '../api/map'
+import {
+  loadJiraSettings,
+  saveJiraSettings,
+  type JiraSettings,
+  type JiraSettingsInput,
+} from '../api/jiraSettings'
 import type { Loaded } from '../api/entries'
 import type { ApiResult } from '../api/result'
 import { listGroups, listTracks } from '../api/tracks'
@@ -161,6 +167,38 @@ interface ConfigState {
    * be a clipped one.
    */
   mapNodesTruncated: boolean
+  /**
+   * The saved Jira configuration (0028), or null when nobody has saved one.
+   *
+   * THE SIXTH READ, AND IT IS ONE ROW. It belongs here for the reason the map
+   * hierarchy does: `useJiraEnabled()` decides whether a "view in Jira" link
+   * EXISTS on surfaces that are already rendering from this store, and a second
+   * store would be a second load, a second cache and a second chance for two
+   * parts of one screen to disagree about whether the integration is on.
+   *
+   * NULL IS THREE STATES AT ONCE AND THE SCREENS SEPARATE THEM, not this field:
+   * nobody has saved a configuration, the read failed, or 0028 has not been
+   * applied to this project. All three mean the same thing to every consumer
+   * except the Settings card — Jira is OFF — which is why `useJiraEnabled()`
+   * can be one boolean and the card is the one place that names the state.
+   *
+   * ⚠ DELIBERATELY NOT CACHED IN localStorage, unlike all five lists above. A
+   *   cached `enabled: true` would render Jira surfaces on first paint from a
+   *   value that may since have been switched off — the off-switch has to fail
+   *   CLOSED, and the only way to be sure of that is to have nothing to fail
+   *   open from. It is one small row on a load that already makes five reads.
+   */
+  jiraSettings: JiraSettings | null
+  /**
+   * How many saved status words carried a value this app no longer knows.
+   *
+   * Carried rather than swallowed, `mapNodesTruncated`'s rule for the same
+   * reason: the failure has no other symptom. A dropped mapping renders as a
+   * perfectly ordinary preview in which some issues report "status not mapped",
+   * which reads as a Jira problem and is not one. api/jiraSettings.ts drops and
+   * counts; the Settings card and the Jira screen say so.
+   */
+  jiraStatusesDropped: number
   loading: boolean
   /** Epoch ms of the last successful load; null means never loaded. */
   loadedAt: number | null
@@ -286,10 +324,12 @@ function deriveMap(
  * whole world is what makes "did I rebuild everything that depends on this?" a
  * question nobody has to ask.
  *
- * `mapNodesTruncated` is the one field of the state this function does NOT return,
- * and the Omit says so rather than a comment alone: it is a property of the READ,
- * not of the rows. No arrangement of the five lists can tell you whether a sixth
- * page existed, so deriving it here would mean inventing it.
+ * `mapNodesTruncated` is one of the fields of the state this function does NOT
+ * return, and the Omit says so rather than a comment alone: it is a property of the
+ * READ, not of the rows. No arrangement of the five lists can tell you whether a
+ * sixth page existed, so deriving it here would mean inventing it. The two Jira
+ * fields are omitted for the same kind of reason one step further out — they come
+ * from a different table entirely and nothing in these five lists implies them.
  */
 function deriveAll(
   tracks: Track[],
@@ -297,7 +337,10 @@ function deriveAll(
   nodes: MapNode[],
   kinds: MapNodeKind[],
   useCases: UseCase[],
-): Omit<ConfigState, 'loading' | 'loadedAt' | 'mapNodesTruncated'> {
+): Omit<
+  ConfigState,
+  'loading' | 'loadedAt' | 'mapNodesTruncated' | 'jiraSettings' | 'jiraStatusesDropped'
+> {
   return {
     ...derive(tracks, groups),
     ...deriveGroups(groups),
@@ -380,6 +423,11 @@ const useConfigStore = create<ConfigState>(() => ({
   // See the field's own note: the cache cannot hold a clipped read, so the honest
   // opening answer is "not truncated" rather than "unknown".
   mapNodesTruncated: false,
+  // NO CACHE, AND THE OPENING ANSWER IS OFF. Every other field above opens from
+  // localStorage; this one opens from nothing, because the only failure mode
+  // worth designing against here is a Jira surface appearing when it should not.
+  jiraSettings: null,
+  jiraStatusesDropped: 0,
   loading: false,
   loadedAt: null,
 }))
@@ -518,6 +566,54 @@ export function useConfigLoading(): boolean {
   return useConfigStore((s) => s.loading)
 }
 
+// ── Jira, and the one answer to "is it on" (0028) ──────────────────────────
+
+/**
+ * TRUE ONLY WHEN JIRA IS BOTH TURNED ON AND USABLE — the single question every
+ * Jira surface outside Settings asks, and the reason there is one hook.
+ *
+ * ⚠ THE ALTERNATIVE THIS EXISTS TO PREVENT is `settings?.site_base_url != null`
+ *   written out at four call sites. Four copies of a predicate is four answers
+ *   the day one of them is edited, and the failure is silent in the worst
+ *   direction: a link that appears on one screen and not another, for a feature
+ *   the owner believes is switched off.
+ *
+ * TWO CONDITIONS, NOT ONE. `enabled` is the owner's decision; a `siteBaseUrl` is
+ * what makes a link possible at all. A workspace that is switched on with no
+ * site address can produce no href, and "an integration is on" plus "every link
+ * it would draw is dead" is worse than off — so this answers false and the
+ * Settings card names that state in words rather than leaving it to be guessed.
+ *
+ * FALSE ON EVERY DEGRADED PATH: signed out, before the first load lands, when
+ * the read failed, when 0028 has not been applied, and when the row has never
+ * been saved. The off-switch fails CLOSED (see the field's own note), which is
+ * what makes shipping this ahead of the migration safe.
+ */
+export function useJiraEnabled(): boolean {
+  return useConfigStore(
+    (s) => s.jiraSettings?.enabled === true && (s.jiraSettings?.siteBaseUrl ?? '') !== '',
+  )
+}
+
+/**
+ * The whole saved configuration, or null when nobody has saved one.
+ *
+ * FOR THE TWO SETTINGS SCREENS ALONE — the card on /settings and the Jira screen
+ * that edits it. Everything else asks `useJiraEnabled()`: a surface that reads
+ * this object is a surface that can invent its own definition of "on".
+ */
+export function useJiraSettings(): JiraSettings | null {
+  return useConfigStore((s) => s.jiraSettings)
+}
+
+/**
+ * How many saved status words no longer mean anything here — 0 in the ordinary
+ * case, and the number the screens have to say out loud when it is not.
+ */
+export function useJiraStatusesDropped(): number {
+  return useConfigStore((s) => s.jiraStatusesDropped)
+}
+
 // ── loading ────────────────────────────────────────────────────────────────
 
 /**
@@ -584,6 +680,42 @@ function settle<T extends { id: string }>(
 }
 
 /**
+ * settle() for a read that answers with ONE THING rather than a list — the Jira
+ * configuration (0028).
+ *
+ * A SECOND FUNCTION RATHER THAN A WIDENED FIRST ONE, and the split is honest
+ * rather than lazy: settle()'s three branches are all about rows — "keep the
+ * previous ROWS", "an empty LIST from an unauthenticated read is not an answer",
+ * "write the row CACHE" — and two of the three have no meaning here. There is no
+ * cache to write (see the field's note: the off-switch must fail closed), and an
+ * absent configuration is not an empty list, it is a legitimate answer that the
+ * Settings card names.
+ *
+ * ONE BRANCH SURVIVES AND IT IS THE ONE THAT MATTERS: a FAILED read keeps what
+ * was already in hand rather than writing null over it. That is FIX-APP-6's
+ * lesson — a failed read must not latch — and here it has a second edge: on a
+ * project where 0028 has not been applied this read fails on every attempt, and
+ * blanking the state each time would be indistinguishable from success.
+ *
+ * ⚠ THE UNAUTHENTICATED CASE IS NOT SPECIAL-CASED, and that is deliberate. Signed
+ *   out, RLS makes this read come back with NO ROW, which lands as
+ *   `settings: null` — Jira off. That is the correct answer for a signed-out
+ *   reader, not a poisoned one, because nothing is cached and the next signed-in
+ *   load overwrites it.
+ */
+function settleOne<T>(
+  label: string,
+  result: ApiResult<T>,
+  previous: T,
+): { value: T; accepted: boolean } {
+  if (!result.ok) {
+    console.warn(`[config] ${label} load failed:`, result.error)
+    return { value: previous, accepted: false }
+  }
+  return { value: result.data, accepted: true }
+}
+
+/**
  * Fetch tracks, groups and the map hierarchy unless a good copy is already in hand.
  *
  * Safe to call unawaited (`void loadConfig()`) and safe to call twice
@@ -591,7 +723,10 @@ function settle<T extends { id: string }>(
  * and logs, because the tracks list is chrome on most screens and blowing up a
  * route's render for it would be a worse outcome than a slightly stale colour.
  *
- * THE FIVE READS ARE INDEPENDENT, and that asymmetry is deliberate:
+ * THE SIX READS ARE INDEPENDENT, and that asymmetry is deliberate. The sixth is
+ * the Jira configuration (0028) — one row, joining the load rather than taking a
+ * store of its own for the reason the hierarchy did: `useJiraEnabled()` decides
+ * whether a link EXISTS on surfaces already rendering from here.
  *
  *   * `loadedAt` is stamped on the TRACKS read ALONE, exactly as it always has
  *     been, and the three new reads change nothing about that. Groups are a lens
@@ -627,14 +762,23 @@ export function loadConfig(force = false): Promise<void> {
     listMapNodes(true),
     listMapNodeKinds(),
     listUseCases(true),
+    loadJiraSettings(),
   ])
-    .then(([trackResult, groupResult, nodeResult, kindResult, useCaseResult]) => {
+    .then(([trackResult, groupResult, nodeResult, kindResult, useCaseResult, jiraResult]) => {
       const prev = useConfigStore.getState()
       const tracks = settle('tracks', trackResult, prev.tracks, CACHE_KEY)
       const groups = settle('groups', groupResult, prev.groups, GROUPS_CACHE_KEY)
       const nodes = settle('map nodes', nodeResult, prev.mapNodes, MAP_NODES_CACHE_KEY)
       const kinds = settle('node kinds', kindResult, prev.mapNodeKinds, MAP_NODE_KINDS_CACHE_KEY)
       const useCases = settle('use cases', useCaseResult, prev.useCases, USE_CASES_CACHE_KEY)
+      // THE SIXTH READ. One row, no cache, and its failure is as harmless as it
+      // is loud: everything below keeps the previous value and `useJiraEnabled()`
+      // stays false. On a project without 0028 it fails on every load, which is
+      // exactly the state the Settings card renders as "not set up yet".
+      const jira = settleOne('jira settings', jiraResult, {
+        settings: prev.jiraSettings,
+        droppedStatuses: prev.jiraStatusesDropped,
+      })
 
       // ONE setState, ONE deriveAll, whatever succeeded and whatever did not. The
       // rebuild is unconditional because the derived views SPAN the lists: a groups
@@ -649,6 +793,12 @@ export function loadConfig(force = false): Promise<void> {
         // rows on screen are still the previous rows, so a flag reset to false would
         // take the truncation sentence off a map that is still a window.
         mapNodesTruncated: nodes.accepted ? nodes.truncated : prev.mapNodesTruncated,
+        // The row and its drop count travel together, always: they are two
+        // halves of one read, and publishing a count beside a configuration it
+        // did not come from would put "3 status words are unusable" on screen
+        // beside a mapping in which all of them are fine.
+        jiraSettings: jira.value.settings,
+        jiraStatusesDropped: jira.value.droppedStatuses,
         // Only the tracks read may stamp this — see the note above.
         ...(tracks.accepted ? { loadedAt: Date.now() } : {}),
       })
@@ -675,6 +825,41 @@ export function loadConfig(force = false): Promise<void> {
 export function invalidateConfig(): void {
   useConfigStore.setState({ loadedAt: null })
   void loadConfig(true)
+}
+
+/**
+ * Save the Jira configuration and publish what the database stored.
+ *
+ * THE WRITE LIVES HERE RATHER THAN AT THE SCREEN, and that is the same decision
+ * `useJiraEnabled()` is: the off-switch has one answer, so it has one place that
+ * changes it. A screen that called `saveJiraSettings()` itself would hold a
+ * saved-but-unpublished configuration until the next focus refetch — the toggle
+ * would read "on" beside surfaces still rendering as "off", for up to thirty
+ * seconds, which is exactly long enough to be reported as a bug.
+ *
+ * NOT `invalidateConfig()`, DELIBERATELY. That refetches all six reads including
+ * every map node — up to 400 rows and a ~250KB cache write — to publish one row
+ * that this call already has in hand. Nothing else in the store depends on this
+ * row, so there is nothing else to rebuild: `deriveAll` never touches it (its
+ * Omit says so) and no derived view spans it.
+ *
+ * The response is the STORED row, not the input (api/jiraSettings.ts), so what
+ * this publishes is what a reload would show — including a `droppedStatuses`
+ * count the screen has to surface at the moment of saving.
+ *
+ * Errors are returned, never swallowed: the caller renders `t(result.error)`,
+ * which is an i18n key and never the value that was refused.
+ */
+export async function saveJiraConfig(
+  input: JiraSettingsInput,
+): Promise<ApiResult<{ droppedStatuses: number }>> {
+  const result = await saveJiraSettings(input)
+  if (!result.ok) return result
+  useConfigStore.setState({
+    jiraSettings: result.data.settings,
+    jiraStatusesDropped: result.data.droppedStatuses,
+  })
+  return { ok: true, data: { droppedStatuses: result.data.droppedStatuses } }
 }
 
 // A second device (or the SQL editor) can change tracks while this tab sits in

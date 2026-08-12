@@ -1,6 +1,13 @@
 // What Jira Cloud ACTUALLY sends, and the four small readers that turn it into
 // something the rest of the app can hold without a `?.` in every expression.
 //
+// THE SINGLE DECLARATION OF THESE SHAPES. `JiraIssue`, `JiraSearchPage` and
+// `normalizeName` were declared here AND in `src/api/jira.ts` — two spellings of
+// one wire contract, drifting apart in the dark. `api/jira.ts` now imports from
+// this file (api → lib is the legal direction; lib → api is not), and the one
+// field on `JiraIssue` that Jira does not send is documented as such where it is
+// declared rather than justifying a second interface.
+//
 // READ-ONLY BY CONSTRUCTION. Nothing in this directory writes anything, to Jira
 // or to us. Aziz: "make just read from JIRA without changing anything… to test
 // the inputs from JIRA." Both halves of "without changing anything" hold — no
@@ -97,6 +104,20 @@ export interface JiraIssue {
   key?: string | null
   /** The REST self-link. Not the browse URL a person clicks; see `browseUrlFor`. */
   self?: string | null
+  /**
+   * The browse URL, WHICH JIRA DOES NOT SEND — `jira-read` builds it from the
+   * base URL it authenticated against and `src/api/jira.ts`'s `toIssue` puts it
+   * through `safeHttpUrl` before it ever reaches here.
+   *
+   * It is on this interface, rather than on a second one in `api/`, because
+   * this file is the SINGLE declaration of the issue shape (a parallel
+   * declaration is what §C of the plan deleted) and because a reader must be
+   * able to tell "the function gave me no link" from "the function gave me one".
+   * Absent on a payload read straight off the wire, which is the honest answer
+   * for one: `browseUrlFor(mapping.siteBaseUrl, key)` is how this module builds
+   * a link of its own, and it never reads this field.
+   */
+  url?: string | null
   /**
    * The requested fields, keyed by field id. `unknown` and not a mapped type:
    * a custom field's value shape is decided by its TYPE (text, select,

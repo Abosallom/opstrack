@@ -1,5 +1,6 @@
-// Proof for /settings/jira — the promise, the resolver, the shell the screen
-// first paints, and the two locale files it is made of.
+// Proof for /settings/jira — the promise, the seam between the transport and
+// the mapper, the shell the screen first paints, and the two locale files it is
+// made of.
 //
 // WHY renderToStaticMarkup AND NOT A DOM: the reason every sibling page test
 // gives. vitest.config.ts is `environment: 'node'`, there is no jsdom and no
@@ -16,30 +17,37 @@
 // pressing it — but a button that does not exist cannot be pressed, and THAT is
 // checkable, exhaustively, in the text of the files.
 //
-// SECOND, THE RESOLVER. `reconcile()` is the answer to the owner's actual
-// question ("31 of 40 resolve; 9 do not"), and every one of its reasons mirrors
-// something real: an empty field, a name this workspace has never heard of, a
-// name TWO organizations answer to — which is a legal state of the database,
-// because 0023's sibling-name uniqueness is scoped to the parent. Those are the
-// cases worth pinning, and none of them needs a render to see.
+// SECOND, THE SEAM — WHICH IS WHERE THE BUG WAS. There were two mappers in this
+// repo: `reconcile()` here in api/jira.ts, and `src/lib/jira/map.ts`, which was
+// better, pure, carried 800 lines of tests and WAS WIRED TO NOTHING. §C of the
+// plan deleted the parallel one. So the arithmetic itself is proven next door in
+// `map.test.ts`, against fixtures, and what is proven HERE is everything that
+// lives BETWEEN the two files and could therefore be proven in neither:
+//
+//   · the transport hands the mapper what the mapper's contract expects —
+//     `fields: null` when the payload carried none, and a keyless issue kept
+//     rather than dropped, because "one reading per issue" is the property the
+//     whole harness rests on;
+//   · every `code` the mapper can emit has a sentence on this screen, in both
+//     languages — derived from map.ts's own source, so a fifteenth reason
+//     cannot ship rendering its own code at a reader;
+//   · the cursor the endpoint returns is sent back, against the query that
+//     produced it and not against whatever is in the textarea now.
 //
 // THIRD, THE LOCALE PAIR, READ AS JSON RATHER THAN THROUGH t(). The `jira`
-// namespace is NEW, and a new namespace does not reach a reader until
-// `src/locales/index.ts` imports it and `lib/labelSections.ts` places it — two
-// files this worker does not own, applied by the integrator. Asserting through
-// t() here would fail for a reason that has nothing to do with the strings being
-// right, and would go on failing every time somebody ran the suite before
-// integration. Reading the two JSON files directly asserts everything that IS
-// this worker's: parity, tokens, plural categories, bidi isolates, and that
-// every key the screen asks for exists in both languages.
-// StructureAdmin.test.tsx wrote that reasoning down first; this is the same
-// situation one namespace later.
+// namespace reaches a reader only once `src/locales/index.ts` imports it and
+// `lib/labelSections.ts` places it — two files this worker does not own.
+// Asserting through t() here would fail for a reason that has nothing to do with
+// the strings being right. Reading the two JSON files directly asserts
+// everything that IS this worker's: parity, tokens, plural categories, bidi
+// isolates, and that every key the screen asks for exists in both languages.
 
 import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import type { MapNode, UseCase } from '../../types'
-import type { JiraIssue, JiraMapping } from '../../api/jira'
+import { mapJiraIssues, type JiraMapContext } from '../../lib/jira/map'
+import type { JiraFieldMapping } from '../../lib/jira/types'
 import EN from '../../locales/en/jira.json'
 import AR from '../../locales/ar/jira.json'
 
@@ -98,35 +106,48 @@ const record =
 vi.mock('../../api/map', () => ({
   listMapNodes: record('listMapNodes'),
   listUseCases: record('listUseCases'),
+  listNodeUseCasesFor: record('listNodeUseCasesFor'),
 }))
 
 const { setLocale } = await import('../../lib/i18n')
 const JiraAdmin = (await import('./JiraAdmin')).default
+const API = await import('../../api/jira')
 const {
   MAX_PAGE_SIZE,
   JIRA_ERROR_KEYS,
   JIRA_FUNCTION,
-  RESOLVE_REASONS,
-  distinctStatuses,
-  fieldText,
   issueHref,
-  normalizeName,
-  reconcile,
   safeHttpUrl,
   secretKey,
+  toIssue,
   toSearchPage,
-} = await import('../../api/jira')
+} = API
 
 /**
- * The screen's source, the client module's source, and the sheet, as text.
+ * The screen's source, the client module's source, the mapper's source, and the
+ * sheet, as text.
  *
- * `?raw` for the two .tsx/.ts files: the properties worth pinning here are
- * properties of the FILES — "no write verb appears" and "every key the screen
- * asks for exists in both languages" — and neither is reachable through an
- * export.
+ * `?raw` for the .tsx/.ts files: the properties worth pinning here are
+ * properties of the FILES — "no write verb appears", "every code the mapper can
+ * emit has a sentence" — and none of them is reachable through an export.
  */
 const SOURCE: string = (await import('./JiraAdmin.tsx?raw')).default
+
+/**
+ * The same file with its prose removed.
+ *
+ * Needed for exactly one question — "does this file still CALL the deleted
+ * resolver" — because the answer is no and the file says so at length. Both
+ * headers name `reconcile` deliberately: a reader arriving to look for it
+ * deserves to be told where it went and why, and a grep over the prose would
+ * forbid the paragraph that explains the deletion. Every other assertion here
+ * reads the whole file, comments included, because a locale key mentioned only
+ * in a comment is still a key somebody will reach for.
+ */
+const codeOf = (src: string): string =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 const API_SOURCE: string = (await import('../../api/jira.ts?raw')).default
+const MAP_SOURCE: string = (await import('../../lib/jira/map.ts?raw')).default
 
 /**
  * The sheet as text — and it CANNOT come through `?raw`.
@@ -205,18 +226,23 @@ function capability(name: string, nameAr = ''): UseCase {
   }
 }
 
-function issue(key: string, fields: Record<string, unknown>): JiraIssue {
-  return { key, url: `https://acme.atlassian.net/browse/${key}`, fields }
+/** The mapping this screen builds, with the field ids its selects would hold. */
+const MAPPING: JiraFieldMapping = {
+  organizationField: 'customfield_10050',
+  useCaseField: 'customfield_10051',
+  statusField: 'status',
+  statusMap: { Live: 'live', 'In Testing': 'testing', 'To Do': 'planned' },
+  siteBaseUrl: 'https://acme.atlassian.net',
 }
 
-const MAPPING: JiraMapping = {
-  orgFieldId: 'customfield_10050',
-  useCaseFieldId: 'customfield_10051',
-  statuses: { live: 'live', 'in testing': 'testing', 'to do': 'planned' },
-}
-
-const CATALOGUE = {
-  nodes: [node('King Faisal Specialist Hospital'), node('مستشفى الملك فيصل')],
+const CATALOGUE: Omit<JiraMapContext, 'mapping'> = {
+  // Bilingual, because the case worth proving end to end is the Arabic one:
+  // `name_ar` carries the hospital's real name and a Jira field pasted in
+  // Arabic arrives wrapped in invisible bidi marks.
+  organizations: [
+    node('King Faisal Specialist Hospital', 'مستشفى الملك فيصل'),
+    node('Jeddah Medical City'),
+  ],
   useCases: [capability('ADT'), capability('Medication Prescribe V1')],
 }
 
@@ -226,7 +252,7 @@ describe('the read-only promise is a property of the source, not a claim', () =>
   it('contains no write path in either file this unit owns', () => {
     // THE POINT OF THE WHOLE UNIT. Aziz asked to read from Jira "without
     // changing anything", and both halves of that hold: nothing is written to
-    // Jira, and nothing is written HERE. A screen with an Import button that is
+    // Jira, and nothing is written HERE. A screen with an Apply button that is
     // merely disabled would fail this test, which is exactly the intent — a
     // control that does not exist cannot fire against live data, whatever a
     // future edit does to a boolean.
@@ -249,15 +275,20 @@ describe('the read-only promise is a property of the source, not a claim', () =>
     for (const verb of WRITES) {
       expect(SOURCE, `${verb} in JiraAdmin.tsx`).not.toContain(verb)
       expect(API_SOURCE, `${verb} in api/jira.ts`).not.toContain(verb)
+      expect(MAP_SOURCE, `${verb} in lib/jira/map.ts`).not.toContain(verb)
     }
   })
 
-  it('asks the database for reads only, and only for the two catalogues', () => {
-    // The one thing this screen reads from Postgres is what it matches AGAINST:
-    // the organizations and the capabilities this workspace already has. Both
-    // are selects. If a third import from api/map ever appears here it is worth
-    // a second look, which is what this line is.
-    expect(SOURCE).toContain("import { listMapNodes, listUseCases } from '../../api/map'")
+  it('asks the database for reads only, and only for the three catalogues', () => {
+    // What this screen reads from Postgres is what it matches AGAINST — the
+    // organizations and the capabilities — plus the links it already records,
+    // which is what turns `effect` from a decoration into a fact. All three are
+    // selects. A fourth import from api/map is worth a second look, which is
+    // what this line is.
+    expect(SOURCE).toContain(
+      "import { listMapNodes, listNodeUseCasesFor, listUseCases } from '../../api/map'",
+    )
+    expect(SOURCE.match(/from '\.\.\/\.\.\/api\/map'/g)?.length).toBe(1)
   })
 
   it('names an endpoint that is read-only by name as well as by contract', () => {
@@ -286,10 +317,66 @@ describe('the read-only promise is a property of the source, not a claim', () =>
     expect(SOURCE).not.toContain('toast(')
   })
 
-  it('says the mapping does not survive the screen', () => {
-    // No table holds it and none is being written this wave, so the screen has
-    // to say so rather than let him lose the picking and wonder.
-    expect(SOURCE).toContain("t('jira.notSaved')")
+  it('says where the mapping goes, now that somewhere holds it', () => {
+    // AMENDED DELIBERATELY AT THE WAVE-7 GATE, not left to pass by luck. This
+    // asserted `t('jira.notSaved')` — "none of this is saved anywhere" — which
+    // was true until 0028's `jira_settings` row and the Save button landed in
+    // this same commit. A test that keeps passing while the sentence it pins
+    // has become a lie is worse than no test, so the key was retired from both
+    // bundles and this line follows it. The screen still has to answer the
+    // question ("where did my twenty minutes of picking go?"); it now answers
+    // it from the other side, and repeats that saving is not connecting.
+    //
+    // The literal is asserted in its CALL form, because the header still names
+    // the retired key in prose — a reader arriving at this file looking for the
+    // sentence that used to be here deserves to be told where it went and why,
+    // and a bare substring test would forbid the paragraph that explains it.
+    expect(SOURCE).not.toContain("t('jira.notSaved')")
+    expect(SOURCE).toContain("t('jiraconfig.savedHere')")
+  })
+
+  it('saves the CONFIGURATION and still writes no workspace data', () => {
+    // The one write this screen makes, and the reason it does not contradict
+    // the card above it: `jira_settings` is this screen's own settings — the
+    // field mapping, the query, the off-switch — and not an organization, a
+    // capability or an item. `jira.readOnlyApp` ("no organizations, no
+    // capabilities, no items") stays true word for word, which is why the
+    // WRITES grep above still passes unchanged over this file.
+    //
+    // It goes through the STORE, never `api/jiraSettings` directly, so the
+    // off-switch has exactly one place that changes it.
+    expect(SOURCE).toContain("import { saveJiraConfig, useJiraSettings } from '../../store/config'")
+    expect(SOURCE).not.toContain("from '../../api/jiraSettings'")
+    expect(SOURCE).toContain("t('jiraconfig.save')")
+    expect(SOURCE).toContain("t('jiraconfig.enableLabel')")
+    // The dropped-status count is its own sentence, never folded into the
+    // confirmation: "saved" over four silently discarded status words is the
+    // shape of lie this screen exists not to tell.
+    expect(SOURCE).toContain("t('jiraconfig.saved')")
+    expect(SOURCE).toContain("t('jiraconfig.droppedStatuses'")
+  })
+
+  it('reconciles the site address with the connection test in ONE order', () => {
+    // The live cross-unit seam of this wave. What is RENDERED as a link and
+    // what is STORED must come from the same expression, or a save can change
+    // where the links point. A fresh ping outranks the saved row (if the site
+    // moved, the test knows and the row does not); the saved row is what keeps
+    // links alive on a cold load before anybody presses Test.
+    const expr = 'ping?.site.baseUrl ?? saved?.siteBaseUrl ?? null'
+    expect(SOURCE.match(new RegExp(expr.replace(/[.?]/g, '\\$&'), 'g'))?.length).toBe(2)
+    // Never `?? ''`: a blank address must go in as NULL so the Settings card
+    // can say "on, but no site address" instead of showing it as connected.
+    expect(SOURCE).not.toContain("siteBaseUrl: ping?.site.baseUrl ?? ''")
+  })
+
+  it('states each of the four refusals where a person would look for it', () => {
+    // The owner's scope for this wave is READ-ONLY: no apply, no schedule, no
+    // entry sync, no organization creation. A capability that is deliberately
+    // absent and unmentioned reads as one nobody thought of — so each refusal is
+    // written beside the thing it refuses rather than in a release note.
+    for (const key of ['jira.noApply', 'jira.noSchedule', 'jira.noEntries', 'jira.noNodes']) {
+      expect(SOURCE, key).toContain(`t('${key}')`)
+    }
   })
 })
 
@@ -315,213 +402,288 @@ describe('the first paint', () => {
   it('reads nothing from Jira until it is asked to', () => {
     // A screen that pinged on mount would authenticate against a live third
     // party because somebody opened Settings — and would do it again on every
-    // navigation. Every Jira call sits behind a button; the ONE effect in the
-    // file reads this workspace's own two catalogues, which is what the verdict
-    // column is computed against.
+    // navigation. Every Jira call sits behind a button. There are exactly THREE
+    // effects and none of them touches Jira: hydrating the form from the saved
+    // row (a store read, no network at all), the catalogues on mount, and the
+    // existing links for the organizations the readings landed on (without
+    // which `effect` says `create` about everything, forever).
+    //
+    // WAS TWO UNTIL THE SAVED CONFIGURATION LANDED. The count is asserted, not
+    // bounded, precisely so that a fourth effect has to come through this line
+    // and state what it reads.
     render('admin')
-    expect(SOURCE.match(/useEffect\(/g)?.length).toBe(1)
-    // The body only, up to its dependency array — the rest of the file is where
+    expect(SOURCE.match(/useEffect\(/g)?.length).toBe(3)
+    // Each body only, up to its dependency array — the rest of the file is where
     // the Jira calls legitimately live, inside the button handlers.
-    const effect = SOURCE.split('useEffect(')[1].split('}, [')[0]
-    expect(effect).toContain('listMapNodes')
-    for (const call of ['jiraPing', 'jiraSearch', 'jiraFields', 'jiraProjects', 'jiraStatuses']) {
-      expect(effect, call).not.toContain(call)
+    for (const index of [1, 2, 3]) {
+      const effect = SOURCE.split('useEffect(')[index].split('}, [')[0]
+      for (const call of ['jiraPing', 'jiraSearch', 'jiraFields', 'jiraProjects']) {
+        expect(effect, `${call} in effect ${String(index)}`).not.toContain(call)
+      }
+    }
+    // The hydration effect latches: re-running it on every store publish would
+    // throw away half-typed JQL each time the tab regains focus.
+    expect(SOURCE.split('useEffect(')[1]).toContain('if (hydrated || saved === null) return')
+    expect(SOURCE.split('useEffect(')[2]).toContain('listMapNodes')
+    expect(SOURCE.split('useEffect(')[3]).toContain('listNodeUseCasesFor')
+  })
+})
+
+/* ═════════════ 3. THE SEAM: WHAT THE TRANSPORT HANDS THE MAPPER ═══════════ */
+
+describe('the transport hands the mapper what its contract expects', () => {
+  it('renders the ONE mapper, and no trace of the deleted one', () => {
+    // The finding this whole unit exists to close: two mappers, one wired.
+    // Checked against the module's EXPORTS rather than its text, because the
+    // header names the deleted functions on purpose — a reader arriving at
+    // api/jira.ts looking for `reconcile` deserves to be told where it went and
+    // why, and a grep over the prose would forbid the paragraph that explains
+    // the deletion.
+    expect(SOURCE).toContain('mapJiraIssues')
+    for (const dead of [
+      'reconcile',
+      'resolveIssue',
+      'RESOLVE_REASONS',
+      'fieldText',
+      'normalizeName',
+      'distinctStatuses',
+      'indexByName',
+    ]) {
+      expect(Object.keys(API), `${dead} still exported`).not.toContain(dead)
+      // Word-bounded: `readFieldText(` is the reader that REPLACED `fieldText(`,
+      // and a substring test would forbid the replacement along with the
+      // original.
+      expect(codeOf(SOURCE), `${dead} on the screen`).not.toMatch(new RegExp(`\\b${dead}\\(`))
     }
   })
-})
 
-/* ═════════════════════════ 3. THE FIELD VALUE READER ═════════════════════ */
-
-describe('fieldText reads whatever shape the value arrived in', () => {
-  it('handles the shapes a real Jira actually returns', () => {
-    expect(fieldText('  Acme Hospital  ')).toBe('Acme Hospital')
-    expect(fieldText(42)).toBe('42')
-    // single-select
-    expect(fieldText({ value: 'ADT', id: '1' })).toBe('ADT')
-    // status / priority / component
-    expect(fieldText({ name: 'In Testing' })).toBe('In Testing')
-    // user
-    expect(fieldText({ displayName: 'Sara Alsaab' })).toBe('Sara Alsaab')
-    // labels and multi-selects
-    expect(fieldText(['ADT', { value: 'Lab Order' }])).toBe('ADT, Lab Order')
-    // rich text (ADF)
-    expect(
-      fieldText({
-        type: 'doc',
-        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'King Faisal' }] }],
-      }),
-    ).toBe('King Faisal')
+  it('keeps a keyless issue instead of dropping it', () => {
+    // This file used to hold the opposite: a keyless issue was filtered out to
+    // keep a blank row off the table. That trades the one property the harness
+    // is built on — one reading per issue, nothing vanishing between the payload
+    // and the summary — for a cosmetic. The mapper names it `issue-malformed`
+    // instead, which is a thing a reader can act on.
+    const page = toSearchPage({ issues: [{ key: 'NPH-1', fields: {} }, { fields: {} }, 7] })
+    expect(page.issues).toHaveLength(2)
+    const preview = mapJiraIssues(page.issues, { ...CATALOGUE, mapping: MAPPING })
+    expect(preview.readings).toHaveLength(page.issues.length)
+    expect(preview.readings[1]).toEqual({
+      outcome: 'unresolved',
+      issueKey: null,
+      reasons: [{ code: 'issue-malformed', detail: 'no-key' }],
+    })
   })
 
-  it('answers an empty string for anything it cannot read, rather than throwing', () => {
-    // The screen is pointed at a site nobody here has ever seen. A reader that
-    // threw on an unexpected shape would turn "your custom field is odd" into a
-    // blank screen, which is the one answer a diagnostic may not give.
-    expect(fieldText(null)).toBe('')
-    expect(fieldText(undefined)).toBe('')
-    expect(fieldText({})).toBe('')
-    expect(fieldText({ nested: { deep: 'x' } })).toBe('')
+  it('reports "no fields" as itself rather than as three absent fields', () => {
+    // `fields: {}` and `fields: null` are different sentences: the first says
+    // the three mapped fields are not on this issue, the second says the search
+    // asked for no fields at all — one configuration mistake instead of three
+    // data problems per issue. Substituting `{}` here would erase that split
+    // before the mapper ever saw it.
+    expect(toIssue({ key: 'NPH-1' }).fields).toBeNull()
+    expect(toIssue({ key: 'NPH-1', fields: {} }).fields).toEqual({})
+    const preview = mapJiraIssues([toIssue({ key: 'NPH-1' })], { ...CATALOGUE, mapping: MAPPING })
+    expect(preview.readings[0]).toEqual({
+      outcome: 'unresolved',
+      issueKey: 'NPH-1',
+      reasons: [{ code: 'issue-malformed', detail: 'no-fields' }],
+    })
   })
 
-  it('terminates on a cyclic value', () => {
-    const loop: Record<string, unknown> = {}
-    loop.content = [loop]
-    expect(fieldText(loop)).toBe('')
-  })
-})
-
-describe('normalizeName decides what "the same organization" means', () => {
-  it('folds case and collapses whitespace', () => {
-    expect(normalizeName('  ADT  ')).toBe(normalizeName('adt'))
-    expect(normalizeName('King  Faisal')).toBe(normalizeName('King Faisal'))
-  })
-
-  it('normalises the Arabic differences nobody can see', () => {
-    // Half these organizations are recorded in Arabic. Tashkeel is optional,
-    // أ/إ/آ are typed as ا by anyone in a hurry, and ة/ه and ى/ي are
-    // interchanged constantly. Without this the owner would be told his data is
-    // wrong when it is his keyboard that differs.
-    expect(normalizeName('مستشفى الملك فيصل')).toBe(normalizeName('مستشفي الملك فيصل'))
-    expect(normalizeName('الأمانة')).toBe(normalizeName('الامانة'))
-    expect(normalizeName('مكّة')).toBe(normalizeName('مكه'))
-  })
-
-  it('does NOT fuzzy match', () => {
-    // A verdict of "probably this one" is not evidence, and the sync this
-    // rehearses would be writing rows on the strength of it.
-    expect(normalizeName('King Faisal')).not.toBe(normalizeName('King Faisal Hospital'))
-  })
-})
-
-/* ═════════════════════ 4. THE VERDICT AND THE SUMMARY ════════════════════ */
-
-describe('reconcile answers the question he actually asked', () => {
-  it('counts the matched, the unmatched, and every reason', () => {
-    const rows = [
-      issue('NPH-1', {
-        customfield_10050: 'King Faisal Specialist Hospital',
-        customfield_10051: 'ADT',
-        status: { name: 'Live' },
-      }),
-      issue('NPH-2', {
-        customfield_10050: 'مستشفى الملك فيصل',
-        customfield_10051: { value: 'Medication Prescribe V1' },
-        status: { name: 'In Testing' },
-      }),
-      issue('NPH-3', { customfield_10051: 'ADT', status: { name: 'Live' } }),
-      issue('NPH-4', {
-        customfield_10050: 'Some Other Hospital',
-        customfield_10051: 'ADT',
-        status: { name: 'Live' },
-      }),
-      issue('NPH-5', {
-        customfield_10050: 'King Faisal Specialist Hospital',
-        customfield_10051: 'Radiology Order',
-        status: { name: 'Live' },
-      }),
-      issue('NPH-6', {
-        customfield_10050: 'King Faisal Specialist Hospital',
-        customfield_10051: 'ADT',
-        status: { name: 'Ready for release' },
-      }),
-    ]
-    const report = reconcile(rows, MAPPING, CATALOGUE)
-
-    expect(report.total).toBe(6)
-    // THE SENTENCE: matched counts the pair being found, so the issue whose
-    // Jira status is unmapped counts as matched — the organization and the
-    // capability were both located, which is what the sentence claims.
-    expect(report.matched).toBe(3)
-    expect(report.unmatched).toBe(3)
-    expect(report.byReason.matched).toBe(2)
-    expect(report.byReason.statusUnmapped).toBe(1)
-    expect(report.byReason.orgBlank).toBe(1)
-    expect(report.byReason.orgUnknown).toBe(1)
-    expect(report.byReason.useCaseUnknown).toBe(1)
-  })
-
-  it('names WHICH organization and WHICH capability, not just "yes"', () => {
-    const report = reconcile(
-      [
-        issue('NPH-1', {
-          customfield_10050: 'ADT',
-          customfield_10051: 'ADT',
-          status: { name: 'Live' },
-        }),
+  it('sees through an RLM pasted into an Arabic field, on the path the screen runs', () => {
+    // `map.test.ts` proves the stripping against the mapper directly. THIS is
+    // the same case entering through the reply the edge function actually sends
+    // — because for a year the module that could do this was not the module the
+    // screen called, and "the two strings are the same but the import says
+    // unknown organization" is the least debuggable failure this feature could
+    // ship.
+    const page = toSearchPage({
+      issues: [
+        {
+          key: 'NPH-7',
+          url: 'https://acme.atlassian.net/browse/NPH-7',
+          fields: {
+            customfield_10050: '‏مستشفى الملك فيصل‏',
+            customfield_10051: { value: 'ADT' },
+            status: { name: 'Live' },
+          },
+        },
       ],
-      { ...MAPPING, orgFieldId: 'customfield_10051' },
-      CATALOGUE,
-    )
-    // Both axes read the same field here — a legal configuration on a site
-    // where one field carries both — so the org lookup misses and says so.
-    expect(report.rows[0].reason).toBe('orgUnknown')
-    expect(report.rows[0].useCase?.name).toBe('ADT')
+    })
+    const preview = mapJiraIssues(page.issues, { ...CATALOGUE, mapping: MAPPING })
+    expect(preview.readings[0]).toMatchObject({
+      outcome: 'resolved',
+      organizationMatchedOn: 'name_ar',
+      status: 'live',
+      externalRef: 'NPH-7',
+      externalUrl: 'https://acme.atlassian.net/browse/NPH-7',
+    })
   })
 
-  it('reports ambiguity rather than picking one', () => {
-    // 0023's sibling-name uniqueness is scoped to the PARENT, so two
-    // organizations of the same name under two phases is a legal state of this
-    // database. Collapsing them would report a confident match to the wrong
-    // hospital.
-    const twins = {
-      nodes: [node('Riyadh Hospital'), node('Riyadh Hospital')],
-      useCases: [capability('ADT')],
+  it('reports two issues claiming one cell, rather than letting the last win', () => {
+    // The reason a preview is safe to reason about at all: an apply path built
+    // on a resolver without this concept upserts both and files one hospital's
+    // integration state on top of another's, silently.
+    const page = toSearchPage({
+      issues: [
+        {
+          key: 'NPH-1',
+          fields: {
+            customfield_10050: 'King Faisal Specialist Hospital',
+            customfield_10051: 'ADT',
+            status: { name: 'To Do' },
+          },
+        },
+        {
+          key: 'NPH-2',
+          fields: {
+            customfield_10050: 'King Faisal Specialist Hospital',
+            customfield_10051: 'ADT',
+            status: { name: 'Live' },
+          },
+        },
+      ],
+    })
+    const preview = mapJiraIssues(page.issues, { ...CATALOGUE, mapping: MAPPING })
+    expect(preview.resolved).toBe(1)
+    expect(preview.readings[1]).toMatchObject({
+      outcome: 'unresolved',
+      reasons: [{ code: 'duplicate-pair', claimedBy: 'NPH-1' }],
+    })
+    // …and the screen draws it as the warning it is rather than as one more
+    // grey line among fourteen.
+    expect(SOURCE).toContain("'jir-verdict-no field-error'")
+  })
+})
+
+/* ════════ 4. EVERY REASON THE MAPPER CAN EMIT HAS A SENTENCE HERE ═════════ */
+
+/** kebab code → the camel name this screen keys its sentences by. */
+const camel = (code: string): string =>
+  code
+    .split('-')
+    .map((word, index) => (index === 0 ? word : word[0].toUpperCase() + word.slice(1)))
+    .join('')
+
+/**
+ * The codes, read off the UNION ARMS of `JiraUnresolvedReason` and not off every
+ * `code:` in the file — map.ts's own header argues for the discriminated union
+ * by quoting the alternative (`code: 'error'` with a prose message), and a
+ * looser pattern would count the thing the comment is arguing against.
+ */
+const CODES = [
+  ...new Set([...MAP_SOURCE.matchAll(/\|\s*\{\s*code: '([a-z-]+)'/g)].map((m) => m[1])),
+].sort()
+
+describe('the fourteen sentences', () => {
+  it('covers every code map.ts can emit, derived from map.ts itself', () => {
+    // NOT a hand-copied list. A fifteenth reason added next door fails HERE,
+    // rather than rendering its own code at a reader in production — which is
+    // the failure mode of every screen that maps an enum by hand.
+    expect(CODES.length).toBe(13)
+    const expected = CODES.flatMap((code) =>
+      // `issue-malformed` is the one code whose sentence depends on its payload:
+      // "no key" and "no fields" have different causes and different fixes, so
+      // thirteen codes are fourteen sentences.
+      code === 'issue-malformed' ? ['issueNoKey', 'issueNoFields'] : [camel(code)],
+    )
+    expect(expected).toHaveLength(14)
+    for (const name of expected) {
+      const key = `jira.reason${name[0].toUpperCase()}${name.slice(1)}`
+      expect(SOURCE, key).toContain(`'${key}'`)
+      const local = key.slice('jira.'.length)
+      expect(local in EN_NS, `en ${key}`).toBe(true)
+      expect(local in AR_NS, `ar ${key}`).toBe(true)
     }
-    const report = reconcile(
+  })
+
+  it('has exactly those fourteen plus the one for the issues that landed', () => {
+    const used = [...new Set([...SOURCE.matchAll(/'(jira\.reason[A-Z]\w*)'/g)].map((m) => m[1]))]
+    expect(used).toHaveLength(15)
+    expect(used).toContain('jira.reasonMatched')
+  })
+
+  it('says WHICH kind of empty, because that decides who has to fix it', () => {
+    // `absent` on every issue = the field id is wrong or the token cannot see
+    // it, which is configuration. `blank` on some issues = nobody filled it in,
+    // which is fieldwork. Same-looking empty cell, two different people. The old
+    // resolver had one word for both.
+    expect(SOURCE).toContain("t('jira.presenceAbsent'")
+    expect(SOURCE).toContain("t('jira.presenceBlank'")
+  })
+
+  it('marks an archived organization and a retired capability rather than hiding them', () => {
+    expect(SOURCE).toContain("t('jira.orgArchived')")
+    expect(SOURCE).toContain("t('jira.useCaseRetired')")
+    const closed = node('Old Clinic')
+    closed.archived = true
+    const retired = capability('Clinical Notes')
+    retired.hidden = true
+    const preview = mapJiraIssues(
       [
-        issue('NPH-9', {
-          customfield_10050: 'Riyadh Hospital',
-          customfield_10051: 'ADT',
-          status: { name: 'Live' },
+        toIssue({
+          key: 'NPH-3',
+          fields: {
+            customfield_10050: 'Old Clinic',
+            customfield_10051: 'Clinical Notes',
+            status: { name: 'Live' },
+          },
         }),
       ],
-      MAPPING,
-      twins,
+      { organizations: [closed], useCases: [retired], mapping: MAPPING },
     )
-    expect(report.rows[0].reason).toBe('orgAmbiguous')
-    expect(report.rows[0].nodeMatches).toBe(2)
-    expect(report.rows[0].node).toBeNull()
+    expect(preview.readings[0]).toMatchObject({
+      outcome: 'resolved',
+      organizationArchived: true,
+      useCaseHidden: true,
+    })
   })
 
-  it('counts a row reached by both its own names ONCE', () => {
-    // An organization whose Arabic and English names are the same string is one
-    // candidate, not an ambiguity.
-    const same = { nodes: [node('ADT Clinic', 'ADT Clinic')], useCases: [capability('ADT')] }
-    const report = reconcile(
+  it('names all four things a sync would do, and that nothing does them', () => {
+    for (const key of [
+      'jira.effectCreate',
+      'jira.effectUpdate',
+      'jira.effectUnchanged',
+      'jira.effectHeld',
+      'jira.effectsCreate',
+      'jira.effectsUpdate',
+      'jira.effectsUnchanged',
+      'jira.effectsHeld',
+    ]) {
+      expect(SOURCE, key).toContain(`'${key}'`)
+    }
+    // `held` is the `overrides` contract from 0023/0024 and the reason this
+    // mapper was the one worth keeping: a status edited HERE is one a sync must
+    // not overwrite, and nothing else in this app can say so.
+    const preview = mapJiraIssues(
       [
-        issue('NPH-10', {
-          customfield_10050: 'ADT Clinic',
-          customfield_10051: 'ADT',
-          status: { name: 'Live' },
+        toIssue({
+          key: 'NPH-4',
+          fields: {
+            customfield_10050: 'King Faisal Specialist Hospital',
+            customfield_10051: 'ADT',
+            status: { name: 'Live' },
+          },
         }),
       ],
-      MAPPING,
-      same,
+      {
+        ...CATALOGUE,
+        mapping: MAPPING,
+        existing: [
+          {
+            node_id: CATALOGUE.organizations[0].id,
+            use_case_id: CATALOGUE.useCases[0].id,
+            status: 'planned',
+            overrides: ['status'],
+          },
+        ],
+      },
     )
-    expect(report.rows[0].reason).toBe('matched')
-    expect(report.rows[0].nodeMatches).toBe(1)
-  })
-
-  it('says "no mapping" before it says anything about the values', () => {
-    // An unconfigured screen must not report forty blank fields as forty data
-    // problems.
-    const report = reconcile(
-      [issue('NPH-11', { status: { name: 'Live' } })],
-      { orgFieldId: '', useCaseFieldId: '', statuses: {} },
-      CATALOGUE,
-    )
-    expect(report.rows[0].reason).toBe('noMapping')
-    expect(report.byReason.noMapping).toBe(1)
-  })
-
-  it('carries every reason in the breakdown, including the zeroes', () => {
-    const report = reconcile([], MAPPING, CATALOGUE)
-    expect(Object.keys(report.byReason).sort()).toEqual([...RESOLVE_REASONS].sort())
-    expect(report.total).toBe(0)
+    expect(preview.effects).toEqual({ create: 0, update: 0, unchanged: 0, held: 1 })
   })
 })
 
-/* ═══════════════════ 5. THE LINK, AND THE PAGING THAT CHANGED ════════════ */
+/* ═══════════════════ 5. THE LINK, AND THE CURSOR THAT MOVES ══════════════ */
 
 describe('an issue link is validated the way the column would validate it', () => {
   it('accepts http(s) and refuses everything else', () => {
@@ -533,6 +695,7 @@ describe('an issue link is validated the way the column would validate it', () =
     expect(safeHttpUrl('/browse/NPH-1')).toBeNull()
     expect(safeHttpUrl('')).toBeNull()
     expect(safeHttpUrl(null)).toBeNull()
+    expect(toIssue({ key: 'X', url: 'javascript:alert(1)' }).url).toBeNull()
   })
 
   it('builds one from the site when the function did not supply it', () => {
@@ -560,14 +723,30 @@ describe('the search reply is read the way the CURRENT endpoint answers', () => 
     expect(toSearchPage({ issues: [], truncated: true }).truncated).toBe(true)
   })
 
-  it('drops a keyless issue rather than rendering a blank row', () => {
-    const page = toSearchPage({ issues: [{ key: 'NPH-1', fields: {} }, { fields: {} }, 7] })
-    expect(page.issues.map((i) => i.key)).toEqual(['NPH-1'])
-  })
-
   it('survives a reply of the wrong shape entirely', () => {
     expect(toSearchPage(null).issues).toEqual([])
     expect(toSearchPage({ issues: 'nope' }).issues).toEqual([])
+  })
+
+  it('SENDS THE CURSOR BACK, against the query that produced it', () => {
+    // The cursor was the one thing this screen never did anything with: it
+    // reported "there is more" and offered no way to read it. The token belongs
+    // to the query and the field list that produced it, so continuation reads
+    // `ran` — what was actually run — rather than the textarea, which the owner
+    // may have edited since.
+    expect(SOURCE).toContain('nextPageToken,')
+    expect(SOURCE).toContain('jql: ran.jql')
+    expect(SOURCE).toContain('fields: ran.fields')
+    expect(SOURCE).toContain("t('jira.loadMore')")
+    // Appended, never replaced: "the first issue in the input keeps the pair" is
+    // the duplicate rule, and a page that replaced its predecessors would move
+    // that verdict between two clicks.
+    expect(SOURCE).toContain('...(prev ?? []), ...result.data.issues')
+    // And the OTHER "there is more" — the function spending its own per-call
+    // budget with no cursor to hand back — is kept, so "everything was read"
+    // cannot be printed over a page that was cut short.
+    expect(SOURCE).toContain('setTruncated(result.data.truncated)')
+    expect(SOURCE).toContain("t('jira.allRead')")
   })
 
   it('never quotes a site total, because the endpoint no longer returns one', () => {
@@ -578,28 +757,25 @@ describe('the search reply is read the way the CURRENT endpoint answers', () => 
     expect(SOURCE).toContain('jira.morePages')
   })
 
-  it('reads the statuses to map out of the result, not out of a second call', () => {
+  it('asks for the fields the mapper will read, and no others by accident', () => {
+    // The new endpoint returns IDS ONLY when `fields` is omitted — a silent
+    // default that renders a perfect table with every value blank. The list is
+    // DERIVED from the mapping (`jiraSearchFields`) rather than typed out, so
+    // the field the mapper reads is the field the search asked for.
+    expect(SOURCE).toContain("const ALWAYS_FIELDS = ['summary']")
+    expect(SOURCE).toContain('jiraSearchFields(mapping)')
+    expect(API_SOURCE).toContain('input.fields.length === 0')
+    expect(MAX_PAGE_SIZE).toBe(100)
+  })
+
+  it('reads the statuses to map out of the result, through the mapped field', () => {
     // There is no `statuses` operation on the function, and the screen is
     // better for it: a site's whole workflow list is dozens of statuses across
     // every project, and mapping ones no issue in the query carries answers
-    // nothing. Deduplicated by the normalised name, reported in the first
-    // spelling seen — which is what he has to recognise in the list.
-    const seen = distinctStatuses([
-      issue('A', { status: { name: 'In Testing' } }),
-      issue('B', { status: { name: 'in  testing' } }),
-      issue('C', { status: { name: 'Live' } }),
-      issue('D', { status: null }),
-    ])
-    expect(seen).toEqual(['In Testing', 'Live'])
+    // nothing. `distinctStatusValues` reads them through `mapping.statusField`,
+    // so the picker cannot offer words the mapper will never look up.
+    expect(SOURCE).toContain('distinctStatusValues')
     expect(API_SOURCE).not.toContain("op: 'statuses'")
-  })
-
-  it('always names the fields it wants', () => {
-    // The new endpoint returns IDS ONLY when `fields` is omitted — a silent
-    // default that renders a perfect table with every value blank.
-    expect(SOURCE).toContain("const ALWAYS_FIELDS = ['summary', 'status']")
-    expect(API_SOURCE).toContain('input.fields.length === 0')
-    expect(MAX_PAGE_SIZE).toBe(100)
   })
 })
 
@@ -658,6 +834,16 @@ describe('a missing secret is a sentence, not a 500', () => {
       .filter((local) => !(local in EN_NS) || !(local in AR_NS))
     expect(missing.sort()).toEqual([])
   })
+
+  it('says so when the two sides it compares were themselves clipped', () => {
+    // A catalogue read that hit PostgREST's row cap would report an
+    // organization that IS here as unknown, and a clipped link read would report
+    // an existing cell as new. Both are named on the glass rather than left to
+    // be discovered.
+    expect(SOURCE).toContain("t('jira.catalogueTruncated')")
+    expect(SOURCE).toContain("t('jira.linksTruncated')")
+    expect(SOURCE).toContain("t('jira.linksFailed')")
+  })
 })
 
 /* ═══════════════════════ 7. THE SHEET, WHICH MUST MIRROR ═════════════════ */
@@ -700,6 +886,14 @@ describe('the sheet', () => {
       .filter((c) => c.startsWith('jir-'))
       .filter((c) => c !== 'jir' && !SHEET.includes(`.${c}`))
     expect(missing.sort()).toEqual([])
+  })
+
+  it('adds no class of its own to a sheet it does not own this wave', () => {
+    // jira.css is not this unit's file. Every class the rewritten screen uses is
+    // either one the sheet already had or a global primitive (`.switch`, `.btn`,
+    // `.field-error`), so the readings table cannot ship unstyled.
+    const jir = [...SOURCE.matchAll(/'(jir-[\w-]+)'/g)].map((m) => m[1])
+    for (const cls of jir) expect(SHEET, cls).toContain(`.${cls}`)
   })
 })
 
@@ -745,6 +939,18 @@ describe('the jira namespace', () => {
   it('has no empty value in either language', () => {
     const blank = [...EN_FLAT, ...AR_FLAT].filter(([, v]) => v.trim() === '').map(([k]) => k)
     expect(blank).toEqual([])
+  })
+
+  it('carries no key the screen stopped asking for', () => {
+    // The four reasons the old resolver had — `noMapping`, `orgBlank`,
+    // `useCaseBlank`, and the two half-names `reasonOrgUnknown` /
+    // `reasonUseCaseUnknown` in their old spelling — went with it. A locale file
+    // that keeps the strings of a deleted feature is how a translator ends up
+    // proofreading sentences nobody will ever read.
+    for (const gone of ['reasonNoMapping', 'reasonOrgBlank', 'reasonUseCaseBlank']) {
+      expect(gone in EN_NS, `en ${gone}`).toBe(false)
+      expect(gone in AR_NS, `ar ${gone}`).toBe(false)
+    }
   })
 
   it('uses the same interpolation tokens for the same key', () => {
@@ -815,21 +1021,25 @@ describe('bidi', () => {
    * Tokens whose value can run the other way.
    *
    * Every one of these is third-party or user text: an account's display name,
-   * a site title, an organization's name, a capability's name, a Jira status,
-   * an issue key, an email address, a reason sentence. Latin as often as
-   * Arabic, in a paragraph that may be either — which is exactly the case FSI
-   * exists for. The counted tokens are deliberately absent: a number needs no
-   * fence.
+   * a site title, an organization's name, a capability's name, a Jira status, a
+   * Jira field id, an issue key, an email address, a reason sentence, a status
+   * this app records. Latin as often as Arabic, in a paragraph that may be
+   * either — which is exactly the case FSI exists for. The counted tokens are
+   * deliberately absent: a number needs no fence.
    */
   const USER_VALUES = new Set([
     'account',
     'email',
+    'from',
     'key',
+    'names',
     'node',
     'reason',
     'site',
     'status',
     'useCase',
+    'value',
+    'values',
   ])
 
   it('fences every interpolation whose value can run the other way', () => {
@@ -930,6 +1140,11 @@ describe('the sentences carry the tokens the screen passes', () => {
       expect(pair).toContain('ADT')
       expect(local('openIssue', { key: 'NPH-1' })).toContain('NPH-1')
       expect(local('summaryMatched', { count: 31 })).toContain('31')
+      // The new sentences take a value the reader has to be able to act on: the
+      // field id that was not in the payload, and the issue that won the pair.
+      expect(local('presenceAbsent', { value: 'customfield_10050' })).toContain('customfield_10050')
+      expect(local('duplicateClaimedBy', { key: 'NPH-1' })).toContain('NPH-1')
+      expect(local('effectHeld', { from: 'Planned' })).toContain('Planned')
     }
     setLocale('en')
   })

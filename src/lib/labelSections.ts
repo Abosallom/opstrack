@@ -359,6 +359,16 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       { prefixes: ['title'], section: 'screenTitles' },
       // The four grouping axes and the state words the nodes carry. These are
       // the same vocabulary the board and follow-ups use, read off a picture.
+      //
+      // `countLive` — "6 of 9 live", the progress underscore said out loud in
+      // every branch's accessible name — rides the `count` prefix WITHOUT a rule
+      // of its own, and that is the answer rather than an oversight: it sits
+      // beside countOpen/countBreached/countUnassigned in one comma-joined
+      // sentence, so an owner retitling one of them will want the other three in
+      // the same list. The word "live" inside it is NOT renamed here — it is
+      // interpolated from `mapnode.wordLive`, which already has its own row and
+      // its own `terminology.where.mindtreeProgress` note, and a second editable
+      // copy of one word is exactly the drift the where-notes exist to prevent.
       {
         prefixes: ['archived', 'breach', 'count', 'dim'],
         section: 'healthStates',
@@ -1049,8 +1059,47 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       { prefixes: ['fieldCustom', 'statusIgnore', 'statusLive', 'statusPlanned', 'statusTesting'], section: 'healthStates' },
       { prefixes: ['connTest', 'connTesting', 'jqlRun', 'jqlRunning', 'manage', 'mapLoad', 'mapLoading', 'projectsLoad', 'projectsLoading', 'showAll', 'showOnly'], section: 'actions' },
       { prefixes: ['fieldsEmpty', 'projectsEmpty', 'projectsUntried', 'resultsEmpty', 'resultsUntried', 'statusesEmpty'], section: 'emptyStates' },
-      { prefixes: ['ambiguousMatches', 'blank', 'catalogueFailed', 'connOk', 'connSecrets', 'connUntested', 'err', 'filtered', 'issueCount', 'loadFailed', 'morePages', 'notSaved', 'projectsCount', 'readOnly', 'summary', 'verdict'], section: 'messages' },
+      { prefixes: ['ambiguousMatches', 'blank', 'catalogueFailed', 'connOk', 'connSecrets', 'connUntested', 'err', 'filtered', 'issueCount', 'loadFailed', 'morePages', 'projectsCount', 'readOnly', 'summary', 'verdict'], section: 'messages' },
       { prefixes: ['reason'], section: 'messages' },
+      // W7's ~30 new keys. Without these they fall to the namespace default
+      // (`entryFields`) and Terminology files thirty sentences under "entry
+      // fields", which is where nobody would look for them. Longest-prefix-wins
+      // makes this a pure addition: `foldArabicBody` is listed beside
+      // `foldArabic` so the longer prefix takes it to `messages`, and
+      // `statusField` is deliberately absent so it keeps the `entryFields`
+      // default beside `orgField` and `useCaseField` — it names a field.
+      { prefixes: ['foldArabic', 'loadMore', 'loadingMore'], section: 'actions' },
+      { prefixes: ['noKey', 'noLink'], section: 'healthStates' },
+      {
+        prefixes: ['allRead', 'candidates', 'catalogueTruncated', 'duplicateClaimedBy',
+          'effect', 'foldArabicBody', 'links', 'mapIncomplete', 'matchedOnArabic',
+          'noApply', 'noEntries', 'noNodes', 'noSchedule', 'orgArchived', 'presence',
+          'statusConflict', 'useCaseRetired', 'valueWas', 'valuesWere'],
+        section: 'messages',
+      },
+    ],
+  },
+  // The SAVED Jira configuration (0028) — the state pill on the Settings card,
+  // the off-switch's own words, and the five sentences 0028's constraints map
+  // to. A SEPARATE NAMESPACE FROM `jira`, and the split is ownership rather
+  // than taxonomy: `jira` is the reader screen's vocabulary and this is the
+  // configuration's, and one file per namespace is exactly how this repo keeps
+  // two workers off one another's strings (src/locales/index.ts's header).
+  //
+  // `where` reuses the Jira note: both namespaces are renamed from the same
+  // screen family, and a second note would say the same sentence twice.
+  jiraconfig: {
+    section: 'entryFields',
+    where: 'terminology.where.settingsJira',
+    rules: [
+      // What the integration IS right now — the four states of the card's pill,
+      // read the way `admin.tracks.archived` is read: a condition, not a label.
+      { prefixes: ['state'], section: 'healthStates' },
+      { prefixes: ['enableLabel', 'save', 'saving'], section: 'actions' },
+      {
+        prefixes: ['droppedStatuses', 'enableHint', 'err', 'offEverywhere', 'refusals', 'saved'],
+        section: 'messages',
+      },
     ],
   },
   // Settings › Catalogue (0023/0024) — the HL7/FHIR capability list and the

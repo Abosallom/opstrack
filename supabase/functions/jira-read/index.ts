@@ -156,6 +156,23 @@
 // NEVER LOG OR RETURN THE TOKEN. No log line in this file interpolates a
 // secret, no error body carries a request header, and `scrub()` is a second
 // belt over anything that came back from Jira before it is put on the wire.
+//
+// AND THE RULE THAT MAKES THAT ONE HOLD: NO ERROR PATH EVER QUOTES A VALUE IT
+// JUST REJECTED — it names the SHAPE the value should have had instead. This is
+// not tidiness. §1 models the operator slip precisely (the `ATATT…` token pasted
+// into the JIRA_BASE_URL box); an echo on that branch put the whole Atlassian
+// account into a response body readable by every `structure.edit` holder, and
+// `scrub()` was powerless because in that scenario the token is not the value of
+// JIRA_API_TOKEN. `parseBaseUrl` and the JIRA_EMAIL checks therefore describe
+// (`is not a URL. Expected https://your-site.atlassian.net`, `a character
+// outside plain ASCII, at position 7`) and never quote. The single exception is
+// ordered for and documented at `parseBaseUrl`: a hostname that has already
+// passed every shape test may be quoted back, because that quote IS the fix.
+//
+// Two values a caller supplies about himself are still echoed on purpose —
+// `validateFields` quotes the 40 leading characters of a bad field id, and
+// `validateJql` reports a length — because those came from the person reading
+// the message, in the same request, and are not read from a secret.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -411,6 +428,22 @@ export interface ParsedBaseUrl {
  * Returning the origin ALSO makes the `external_url` promise in header §5 true
  * by construction: every browse link this file emits starts `https://`, which
  * is what 0023's `map_nodes_external_url_chk` requires.
+ *
+ * ⚠ NOTHING THAT FAILED VALIDATION IS EVER QUOTED BACK. This function describes
+ *   the SHAPE the value should have and never the shape it had. The reason is
+ *   the exact operator slip header §1 already models — the `ATATT…` token pasted
+ *   into the JIRA_BASE_URL box — which lands in the not-a-URL branch below: an
+ *   echo there put the whole Atlassian account into an error body readable by
+ *   every `structure.edit` holder, which is a population, not one person, and
+ *   `scrub()` cannot help because in that scenario the token is not the value of
+ *   JIRA_API_TOKEN. The username/password and `bad_email` branches already made
+ *   the no-echo choice; this is the rest of the function catching up.
+ *
+ *   THE ONE EXCEPTION IS DELIBERATE AND ORDERED FOR: the no-path branch quotes
+ *   `https://${host}` — the fix, spelled out — and it runs LAST, after the host
+ *   has passed every shape test below, so the only text that can appear there is
+ *   a real domain name. That is why the host checks now precede the path check
+ *   rather than following it; do not "tidy" them back.
  */
 export function parseBaseUrl(raw: string): { ok: true; value: ParsedBaseUrl } | { ok: false; detail: string } {
   const trimmed = raw.trim()
@@ -420,16 +453,24 @@ export function parseBaseUrl(raw: string): { ok: true; value: ParsedBaseUrl } | 
   try {
     u = new URL(trimmed)
   } catch {
+    // ⚠ THE BRANCH A PASTED TOKEN LANDS IN. No `got "…"`, ever.
     return {
       ok: false,
-      detail: `JIRA_BASE_URL is not a URL. Expected something like https://your-site.atlassian.net — got "${trimmed}".`,
+      detail: 'JIRA_BASE_URL is not a URL. Expected https://your-site.atlassian.net',
     }
   }
 
   if (u.protocol !== 'https:') {
+    // `http:` is named because that sentence is a literal in this file and the
+    // mistake is worth naming precisely. Any OTHER scheme is described, not
+    // quoted: `new URL()` accepts `<anything-without-a-slash>:rest`, so a pasted
+    // secret containing a colon would arrive here with its head in `u.protocol`.
     return {
       ok: false,
-      detail: `JIRA_BASE_URL must start with https:// (got "${u.protocol}//"). An API token over plain http is a token on the wire in the clear.`,
+      detail:
+        u.protocol === 'http:'
+          ? 'JIRA_BASE_URL must start with https://, not http://. An API token over plain http is a token on the wire in the clear.'
+          : 'JIRA_BASE_URL must start with https://. Expected https://your-site.atlassian.net',
     }
   }
   if (u.username || u.password) {
@@ -441,24 +482,26 @@ export function parseBaseUrl(raw: string): { ok: true; value: ParsedBaseUrl } | 
   if (u.search || u.hash) {
     return { ok: false, detail: 'JIRA_BASE_URL must be just the site address — no query string, no #fragment.' }
   }
-  if (u.pathname !== '' && u.pathname !== '/') {
-    return {
-      ok: false,
-      detail: `JIRA_BASE_URL must be just the site address, with no path (got "${u.pathname}"). Use https://${u.hostname} — this function appends /rest/api/3/... itself.`,
-    }
-  }
 
   const host = u.hostname.toLowerCase()
   if (!host.includes('.') || host.endsWith('.')) {
-    return { ok: false, detail: `JIRA_BASE_URL host "${host}" is not a domain name. Expected e.g. your-site.atlassian.net.` }
+    return { ok: false, detail: 'JIRA_BASE_URL host is not a domain name. Expected e.g. your-site.atlassian.net.' }
   }
   // An IP literal is never a Jira Cloud site, and is the shape a copy-paste
   // accident takes when someone points this at an internal host.
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host === 'localhost' || host.endsWith('.localhost')) {
-    return { ok: false, detail: `JIRA_BASE_URL host "${host}" is not a Jira Cloud site.` }
+    return { ok: false, detail: 'JIRA_BASE_URL host is not a Jira Cloud site — a bare IP address or localhost never is.' }
   }
   if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(host)) {
-    return { ok: false, detail: `JIRA_BASE_URL host "${host}" is not a valid hostname.` }
+    return { ok: false, detail: 'JIRA_BASE_URL host is not a valid hostname. Expected e.g. your-site.atlassian.net.' }
+  }
+
+  // LAST, so `host` has already proven itself a domain name (see the ⚠ above).
+  if (u.pathname !== '' && u.pathname !== '/') {
+    return {
+      ok: false,
+      detail: `JIRA_BASE_URL must be just the site address, with no path after it. Use https://${host} — this function appends /rest/api/3/... itself.`,
+    }
   }
 
   return {
@@ -471,6 +514,42 @@ export function parseBaseUrl(raw: string): { ok: true; value: ParsedBaseUrl } | 
 export function looksLikeEmail(raw: string): boolean {
   const s = raw.trim()
   return s.length >= 3 && s.length <= 254 && /^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(s)
+}
+
+/**
+ * 1-based position of the first character outside printable ASCII, or 0 for a
+ * clean string.
+ *
+ * ⚠ WHY THIS EXISTS, AND WHY IT REFUSES RATHER THAN COPES. `looksLikeEmail` is
+ *   deliberately loose (`[^\s@]+`), which accepts a Unicode local part — an
+ *   Arabic-script address passes it, and this app ships an Arabic locale, so
+ *   that operator exists. The value then goes into `basicAuthHeader`, and the
+ *   pair after it goes on the wire as HTTP Basic.
+ *
+ *   Two ways to fix that, and the choice matters:
+ *
+ *     (a) ENCODE IT — base64 the UTF-8 bytes and send them. Legal per RFC 7617
+ *         only if the server reads the credential as UTF-8; Atlassian documents
+ *         no charset for Basic, so this is a guess that comes back as a 401
+ *         reading "Jira rejected the credential" — pointing the owner at his
+ *         token, which is fine, over an email he cannot see is wrong.
+ *     (b) REFUSE IT BY NAME. An Atlassian account email is plain ASCII; a
+ *         character above U+007E in that box is a paste that brought a lookalike
+ *         with it (a Cyrillic а, a smart quote, an NBSP). Naming that is a
+ *         two-minute fix. Naming the token instead is an evening.
+ *
+ *   We refuse — (b) — and `basicAuthHeader` is ALSO made total, so the refusal
+ *   is the behaviour and the encoder can never be the thing that decides.
+ *
+ *   THE POSITION, NOT THE CHARACTER. Same rule as `parseBaseUrl`: an index is a
+ *   shape, a character is a value.
+ */
+export function firstNonAsciiPosition(s: string): number {
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s.charCodeAt(i)
+    if (c < 0x20 || c > 0x7e) return i + 1
+  }
+  return 0
 }
 
 export interface JiraCredential {
@@ -523,6 +602,22 @@ export function readCredential(raw: {
   }
 
   const email = raw.email.trim()
+  // BEFORE the shape check, because it is the more specific diagnosis: a value
+  // that is both non-ASCII and not-an-email is a paste slip first and a typo
+  // second, and "there is an invisible character at position 7" is the sentence
+  // that ends the search. Same `bad_email` code — the browser's `jira.err*` map
+  // is a sibling's file and this is not a new failure mode, only a named one.
+  const nonAscii = firstNonAsciiPosition(email)
+  if (nonAscii > 0) {
+    return {
+      ok: false,
+      status: 503,
+      failure: {
+        code: 'bad_email',
+        error: `JIRA_EMAIL contains a character outside plain ASCII, at position ${nonAscii}. An Atlassian account email has none — this is usually a paste that carried a lookalike letter, a smart quote or a non-breaking space with it. Retype the address by hand.`,
+      },
+    }
+  }
   if (!looksLikeEmail(email)) {
     return {
       ok: false,
@@ -548,9 +643,27 @@ export function readCredential(raw: {
  *
  * The return value is a secret. It is passed straight into `jiraCall`'s header
  * object and is never logged, never returned, and never stored.
+ *
+ * ⚠ TOTAL BY CONSTRUCTION. A bare `btoa(...)` throws `InvalidCharacterError` on
+ *   any code point above U+00FF, and this function is called from `jiraCall`
+ *   FOUR LINES ABOVE ITS try BLOCK — so that throw escaped to `handle()`'s
+ *   catch-all and every operation, `ping` included, answered a generic 500
+ *   "Something went wrong reading from Jira" for a credential Jira was never
+ *   asked about. That is precisely the misdiagnosis header §6 promises never to
+ *   give ("A MISSING SECRET IS A DIAGNOSIS, NOT A 500").
+ *
+ *   `readCredential` now refuses a non-ASCII JIRA_EMAIL by name, so this branch
+ *   should be unreachable — which is exactly why it is written to be total
+ *   anyway: encoding UTF-8 bytes first means every char handed to `btoa` is a
+ *   BYTE (<= 0xFF), so there is no input to this function that can throw, and no
+ *   future caller can reintroduce the 500 by skipping the validator. For ASCII
+ *   input — every real credential — the output is byte-identical to before.
  */
 export function basicAuthHeader(email: string, token: string): string {
-  return `Basic ${btoa(`${email}:${token}`)}`
+  const bytes = new TextEncoder().encode(`${email}:${token}`)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i])
+  return `Basic ${btoa(binary)}`
 }
 
 /**
@@ -1049,22 +1162,52 @@ async function opProjects(cred: JiraCredential, body: RequestBody): Promise<Resp
   })
 }
 
+export interface FieldSelection {
+  fields: JiraFieldOut[]
+  /** Fields that matched BEFORE the cap — what `truncated` is measured against. */
+  matched: number
+  truncated: boolean
+}
+
+/**
+ * Filter, ORDER, then cap. Pure, and exported so the order is a thing CI checks
+ * rather than a thing a reader has to notice.
+ *
+ * Custom-first then by name: the custom fields are what this operation exists to
+ * surface (header §5), so they must not be buried under sixty system fields the
+ * owner already knows.
+ *
+ * ⚠ THE SORT COMES BEFORE THE CAP, AND THAT ORDER IS THE WHOLE POINT. Capping
+ *   first caps along JIRA'S OWN WIRE ORDER, which is unspecified — on a site
+ *   with more than `cap` fields whose customs happen to sit late in that array,
+ *   EVERY custom field is dropped while the response still looks complete and
+ *   custom-first. The only tell was `customCount: 0`, on the one operation whose
+ *   entire reason to exist (README §6) is finding two custom field ids. Sorting
+ *   first means the cap can only ever fall on system fields.
+ */
+export function selectFields(
+  all: readonly JiraFieldOut[],
+  opts: { customOnly?: boolean; cap?: number } = {},
+): FieldSelection {
+  const cap = opts.cap ?? FIELDS_CAP
+  const matching = opts.customOnly === true ? all.filter((f) => f.custom) : [...all]
+
+  matching.sort((a, b) => {
+    if (a.custom !== b.custom) return a.custom ? -1 : 1
+    return (a.name ?? '').localeCompare(b.name ?? '')
+  })
+
+  const truncated = matching.length > cap
+  return { fields: truncated ? matching.slice(0, cap) : matching, matched: matching.length, truncated }
+}
+
 async function opFields(cred: JiraCredential, body: RequestBody): Promise<Response> {
   const res = await jiraCall(cred, 'fieldList')
   if (!res.ok) return failure(res.failure, res.status, res.headers)
 
   const all = Array.isArray(res.data) ? res.data : []
-  let fields = all.map(normalizeField)
-  if (body.customOnly === true) fields = fields.filter((f) => f.custom)
-  const truncated = fields.length > FIELDS_CAP
-  if (truncated) fields = fields.slice(0, FIELDS_CAP)
-
-  // Sorted custom-first, then by name: the custom fields are what this
-  // operation exists to surface (header §5), so they should not be buried
-  // under sixty system fields the owner already knows about.
-  fields.sort((a, b) => {
-    if (a.custom !== b.custom) return a.custom ? -1 : 1
-    return (a.name ?? '').localeCompare(b.name ?? '')
+  const { fields, truncated } = selectFields(all.map(normalizeField), {
+    customOnly: body.customOnly === true,
   })
 
   return json({
@@ -1076,6 +1219,122 @@ async function opFields(cred: JiraCredential, body: RequestBody): Promise<Respon
     customCount: fields.filter((f) => f.custom).length,
     truncated,
   })
+}
+
+/**
+ * Reads ONE page of the JQL search. Injected into `collectSearchPages` so the
+ * paging rules below can be driven by fixtures instead of by a live Jira — the
+ * test suite's own header used to say this loop was "UNPROVEN except by
+ * reading", and a differential review then found an issue-losing boundary in it
+ * that no test could have seen. It is a callback, not a fetch: the one `fetch`
+ * in this file stays inside `jiraCall`, where the allow-list is.
+ */
+export type PageReader = (args: {
+  token: string | undefined
+  maxResults: number
+}) => Promise<JiraCallResult>
+
+export interface SearchCollection {
+  /** RAW issue objects, in page order. Normalising is the caller's job. */
+  issues: unknown[]
+  pages: number
+  /** Where a resume must start. `undefined` means "there is nothing after this". */
+  nextPageToken: string | undefined
+  truncated: boolean
+}
+
+/**
+ * Follow the cursor until the budget runs out, WITHOUT EVER READING AN ISSUE IT
+ * DOES NOT RETURN.
+ *
+ * ⚠ THAT INVARIANT IS THE FIX, AND IT IS WHY THE ASK IS CLAMPED. The loop used
+ *   to request a full page, keep what fitted under SEARCH_MAX_ISSUES, drop the
+ *   rest — and then hand back the cursor pointing PAST the page it had only
+ *   half-read. Those dropped issues were returned by no call, ever: `truncated:
+ *   true` said "there is more" while the cursor said "resume after the part you
+ *   skipped". It did not even need a short page — maxResults=70 against a 200
+ *   cap crosses mid-page with perfectly full ones (200 is not a multiple of 70).
+ *
+ *   So the remaining budget is computed BEFORE the request and the ask is
+ *   clamped to it. Jira treats `maxResults` as a CEILING — permission filtering
+ *   shortens pages, nothing lengthens them — so a clamped ask means the cursor
+ *   that comes back always points exactly one issue past the last one kept.
+ *   Every exit from this loop therefore satisfies: everything before
+ *   `nextPageToken` is either in `issues` or was never fetched.
+ */
+export async function collectSearchPages(
+  readPage: PageReader,
+  opts: { startToken?: string; maxResults: number; maxIssues?: number; maxPages?: number },
+): Promise<{ ok: true; value: SearchCollection } | { ok: false; err: JiraCallErr }> {
+  const maxIssues = opts.maxIssues ?? SEARCH_MAX_ISSUES
+  const maxPages = opts.maxPages ?? SEARCH_MAX_PAGES
+
+  const issues: unknown[] = []
+  let token: string | undefined = opts.startToken
+  let pages = 0
+  let truncated = false
+
+  while (pages < maxPages) {
+    // THE BUDGET IS SPENT BEFORE THE PAGE IS ASKED FOR, NOT AFTER IT ARRIVES.
+    const remaining = maxIssues - issues.length
+    if (remaining <= 0) {
+      // Budget spent with a cursor still in hand. `token` is the honest resume
+      // point and the final `truncated` assignment below catches it.
+      break
+    }
+    const want = Math.min(opts.maxResults, remaining)
+
+    // The cursor that FETCHED this page, kept for the overshoot branch below.
+    const pageToken: string | undefined = token
+
+    // ⚠ THE CURRENT CONTRACT: POST, JSON body, cursor paging by an OPAQUE
+    //   `nextPageToken`. There is no `startAt` and no `total` on this endpoint
+    //   any more — code written from memory of the v2 API sends `startAt`,
+    //   receives page one forever, and looks like it works. The response is
+    //   `{ issues, nextPageToken?, isLast? }`, and BOTH pagination keys are
+    //   optional in practice: the absence of `nextPageToken` is the reliable
+    //   end-of-results signal, `isLast` is a bonus when present.
+    const res = await readPage({ token: pageToken, maxResults: want })
+    if (!res.ok) return { ok: false, err: res }
+    pages += 1
+
+    const page = obj(res.data)
+    const got = Array.isArray(page.issues) ? page.issues : []
+    const kept = got.slice(0, remaining)
+    for (const raw of kept) issues.push(raw)
+
+    const next = typeof page.nextPageToken === 'string' && page.nextPageToken ? page.nextPageToken : undefined
+    // A server that returns the SAME cursor twice would otherwise spin until
+    // the page budget runs out. Cheap to check, and it turns a mystery into a
+    // clean `truncated: true`.
+    const stalled = next !== undefined && next === pageToken
+
+    if (got.length > kept.length) {
+      // Jira sent MORE than it was asked for — a contract violation, and the
+      // only remaining way the cap can cross mid-page. The tail of THIS page is
+      // unread, so the cursor that must go back to the caller is the one that
+      // FETCHED it, never `next`: resuming from `next` is exactly the silent
+      // loss this branch exists to make impossible. Re-reading a page the
+      // caller already holds is a duplicate, which is visible and de-dupable by
+      // issue key; a skipped issue is neither.
+      truncated = true
+      token = pageToken
+      break
+    }
+
+    token = next
+    if (page.isLast === true || next === undefined || stalled) {
+      if (stalled) truncated = true
+      if (page.isLast === true || next === undefined) token = undefined
+      break
+    }
+  }
+
+  // Budget spent with a cursor still in hand: there IS more, and saying so is
+  // the difference between a bounded read and a lie about the backlog size.
+  if (token !== undefined) truncated = true
+
+  return { ok: true, value: { issues, pages, nextPageToken: token, truncated } }
 }
 
 async function opSearch(cred: JiraCredential, body: RequestBody): Promise<Response> {
@@ -1090,61 +1349,23 @@ async function opSearch(cred: JiraCredential, body: RequestBody): Promise<Respon
 
   const maxResults = clampCount(body.maxResults, SEARCH_DEFAULT_RESULTS, SEARCH_MAX_RESULTS)
 
-  const issues: JiraIssueOut[] = []
-  let token: string | undefined = startToken.value
-  let pages = 0
-  let truncated = false
-
-  while (pages < SEARCH_MAX_PAGES) {
-    // ⚠ THE CURRENT CONTRACT: POST, JSON body, cursor paging by an OPAQUE
-    //   `nextPageToken`. There is no `startAt` and no `total` on this endpoint
-    //   any more — code written from memory of the v2 API sends `startAt`,
-    //   receives page one forever, and looks like it works. The response is
-    //   `{ issues, nextPageToken?, isLast? }`, and BOTH pagination keys are
-    //   optional in practice: the absence of `nextPageToken` is the reliable
-    //   end-of-results signal, `isLast` is a bonus when present.
-    const res: JiraCallResult = await jiraCall(cred, 'jqlSearch', {
-      body: {
-        jql: jql.value,
-        maxResults,
-        fields: fields.value,
-        ...(token ? { nextPageToken: token } : {}),
-      },
-    })
-    if (!res.ok) return failure(res.failure, res.status, res.headers)
-    pages += 1
-
-    const page = obj(res.data)
-    const got = Array.isArray(page.issues) ? page.issues : []
-    for (const raw of got) {
-      if (issues.length >= SEARCH_MAX_ISSUES) {
-        truncated = true
-        break
-      }
-      issues.push(normalizeIssue(raw, cred.base.origin))
-    }
-
-    const next = typeof page.nextPageToken === 'string' && page.nextPageToken ? page.nextPageToken : undefined
-    // A server that returns the SAME cursor twice would otherwise spin until
-    // the page budget runs out. Cheap to check, and it turns a mystery into a
-    // clean `truncated: true`.
-    const stalled = next !== undefined && next === token
-    token = next
-
-    if (page.isLast === true || token === undefined || stalled) {
-      if (stalled) truncated = true
-      if (page.isLast === true || next === undefined) token = undefined
-      break
-    }
-    if (issues.length >= SEARCH_MAX_ISSUES) {
-      truncated = true
-      break
-    }
+  const collected = await collectSearchPages(
+    ({ token, maxResults: want }) =>
+      jiraCall(cred, 'jqlSearch', {
+        body: {
+          jql: jql.value,
+          maxResults: want,
+          fields: fields.value,
+          ...(token ? { nextPageToken: token } : {}),
+        },
+      }),
+    { startToken: startToken.value, maxResults },
+  )
+  if (!collected.ok) {
+    return failure(collected.err.failure, collected.err.status, collected.err.headers)
   }
-
-  // Budget spent with a cursor still in hand: there IS more, and saying so is
-  // the difference between a bounded read and a lie about the backlog size.
-  if (token !== undefined) truncated = true
+  const { issues: raw, pages, nextPageToken, truncated } = collected.value
+  const issues = raw.map((r) => normalizeIssue(r, cred.base.origin))
 
   return json({
     ok: true,
@@ -1157,7 +1378,14 @@ async function opSearch(cred: JiraCredential, body: RequestBody): Promise<Respon
     maxResults,
     // Hand the cursor back so the screen can offer "load more" WITHOUT this
     // function ever following an unbounded number of pages in one request.
-    nextPageToken: token ?? null,
+    //
+    // ⚠ THE CURSOR IS A RESUME POINT AND NOTHING BETWEEN IT AND THE LAST ISSUE
+    //   IN `issues` HAS BEEN READ. That is now true on every exit from the loop
+    //   above, which is what makes "load more" honest rather than a way to skip
+    //   a page. `truncated: true` with a null cursor is the one degenerate case
+    //   (an overshooting first page): it means "there is more and I cannot tell
+    //   you where to resume" — re-run the query rather than assume completeness.
+    nextPageToken: nextPageToken ?? null,
     truncated,
     limits: {
       maxIssuesPerCall: SEARCH_MAX_ISSUES,
@@ -1187,10 +1415,15 @@ export async function handle(req: Request): Promise<Response> {
   //   satisfies that gate and the anon key ships in every browser bundle
   //   (send-push's header says so in as many words). So "secrets first" means
   //   any stranger holding the public key learns which of the three Jira
-  //   variables are set, and — through `bad_base_url`, which echoes the value it
-  //   rejected — the literal contents of JIRA_BASE_URL. The plausible operator
-  //   slip of pasting the TOKEN into the wrong secret box would then echo the
-  //   token itself to an unauthenticated caller.
+  //   variables are set and whether the configured ones are well-formed — a map
+  //   of this project's configuration, handed to anyone who asks.
+  //
+  //   ⚠ THIS USED TO BE WORSE, AND THE REPAIR BELONGS IN THE OTHER FILE. When
+  //     `bad_base_url` still echoed the value it rejected, "secrets first" also
+  //     meant a pasted TOKEN came back to an UNAUTHENTICATED caller. That echo
+  //     is gone (see `parseBaseUrl`), and this ordering is what remains: two
+  //     independent defences for one slip, and neither is now load-bearing
+  //     alone. Do not relax either on the strength of the other.
   //
   //   The cost of this order is one extra round trip before a `missing_secret`
   //   answer, paid only by a caller who is signed in and authorized — which is

@@ -835,12 +835,38 @@ export async function setNodeUseCase(
   const { data, error } = await supabase
     .from('map_node_use_cases')
     .upsert(
-      { node_id: nodeId, use_case_id: useCaseId, status },
+      // ⚠ `overrides: ['status']` IS THE HELD CONTRACT, AND IT IS WRITTEN HERE
+      //   BECAUSE THIS IS THE ONLY PLACE A PERSON EDITS THIS CELL.
+      //
+      //   `overrides` is 0024's per-field editing contract: the column names the
+      //   fields a HUMAN has changed since the last sync, and a future Jira
+      //   write path must never overwrite one of them — `JiraEffect.held`
+      //   (src/lib/jira/map.ts:196) is that promise rendered as a value on the
+      //   preview screen. Until this line, nothing in the app ever wrote the
+      //   column, so `held` would have counted 0 on every preview forever: a
+      //   proud zero that means "we checked and found nothing" when it actually
+      //   means "we have never recorded anything to find". The refusal has to be
+      //   TRUE from the first run of a sync that does not exist yet, which is
+      //   why it is stamped now and not with the writer.
+      //
+      //   THE SET FORM IS THE APPEND FORM TODAY, and that is a fact about the
+      //   product rather than a shortcut: `status` is the only field of this row
+      //   a person can edit, so the array is only ever `[]` or `['status']` and
+      //   writing it whole is writing the union. THE DAY A SECOND FIELD BECOMES
+      //   EDITABLE HERE, THIS LINE IS WRONG — it would drop the other entry —
+      //   and the fix is a read-modify-write or a Postgres `array_agg` in an
+      //   RPC, because PostgREST cannot union an array in an upsert. That is a
+      //   sentence on the future writer's own ticket, not a TODO: the wave that
+      //   adds the second editable field is the wave that must find this.
+      //
+      //   Nothing to do on the DELETE path above: clearing a cell removes the
+      //   row, and a row that does not exist holds nothing.
+      { node_id: nodeId, use_case_id: useCaseId, status, overrides: ['status'] },
       { onConflict: 'node_id,use_case_id' },
     )
     // The same LINK_COLUMNS the reads ask for, so the row this hands back is the
-    // row a reload would show — including `source` and `overrides`, which the
-    // database defaults and this function never sends.
+    // row a reload would show — including `source`, which the database defaults
+    // and this function never sends, and `overrides`, which it now does.
     .select(LINK_COLUMNS)
     .single()
   if (error) return fail(pgErrorKey(error))

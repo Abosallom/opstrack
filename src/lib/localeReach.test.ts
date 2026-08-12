@@ -114,6 +114,15 @@ const NOT_KEYS = new Set<string>([
   // handed to t(); both are compared against a Postgres CHECK constraint.
   'capture.write',
   'members.manage',
+  // A RETIRED KEY, NAMED SO IT STAYS RETIRED. It said "the mapping and the
+  // query are not saved anywhere", which stopped being true when 0028's
+  // `jira_settings` row and the Save button landed; it was deleted from both
+  // bundles and `jiraconfig.savedHere` replaced it on the glass. The one place
+  // the string still occurs is JiraAdmin.test.tsx, in an assertion that the
+  // screen does NOT ask for it — the opposite of a request, and the reason a
+  // reachability scan finds it. Removing this entry would make that guard
+  // impossible to write.
+  'jira.notSaved',
 ])
 
 /** Files whose key-shaped strings are documentation rather than requests. */

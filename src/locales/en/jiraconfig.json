@@ -1,0 +1,25 @@
+{
+  "jiraconfig": {
+    "stateUnset": "Not set up yet",
+    "stateOff": "Not connected",
+    "stateIncomplete": "On, but no site address",
+    "stateOn": "Connected",
+    "offEverywhere": "While this is off, Jira appears nowhere else in the app — no links, no captions, nothing to click.",
+    "refusals": "Reading only: nothing is written back to Jira, nothing syncs on a schedule, no items are created from issues, and no organization is ever added to the map by Jira.",
+    "droppedStatuses": {
+      "one": "1 saved status no longer means anything here. It was left out rather than guessed at — open the Jira reader and pick it again.",
+      "other": "{count} saved statuses no longer mean anything here. They were left out rather than guessed at — open the Jira reader and pick them again."
+    },
+    "enableLabel": "Turn Jira on",
+    "enableHint": "Off until you say so. Turning it on makes the links appear; it starts nothing and writes nothing.",
+    "save": "Save this configuration",
+    "saving": "Saving…",
+    "saved": "Configuration saved.",
+    "savedHere": "The mapping, the query and the on/off switch are saved for this workspace when you press Save, so you do not lose the picking. Saving them is not connecting: it changes nothing in Jira and creates nothing here.",
+    "errSingleton": "There is one Jira configuration for this workspace, and something tried to write a second. Reload the page and save again.",
+    "errBadSiteUrl": "That is not a usable site address. It must start with https:// and name your Jira site — the shape is https://yoursite.atlassian.net, with nothing after it.",
+    "errFieldTooLong": "That is too long to be a Jira field id. A field id is a short word or a customfield_ number, not a sentence.",
+    "errJqlTooLong": "That query is too long to save. Shorten it — the saved query is a sample to check the mapping against, not a whole report.",
+    "errStatusMapShape": "The saved status mapping is not in a shape this app can read. Pick your statuses again on the Jira reader and save."
+  }
+}
