@@ -448,9 +448,20 @@ is repurposed verbatim (its `{label}` slot takes a department name).
 ### THE DIVE RAIL, specified
 
 `<input type="range">`, `min=0`, `max=octaveSpan`, `step=0.02`, vertical at the canvas
-inline-end (block-centred, 44×308), with **`aria-valuetext` set to the WORLD IT CURRENTLY
+inline-end (block-centred), with **`aria-valuetext` set to the WORLD IT CURRENTLY
 FRAMES**, not to a number. One node in the accessibility tree, natively keyboard-reachable
 (arrows step a tier, **Home = frame the root**), continuous, and it speaks a word.
+
+> **CORRECTED BY MEASUREMENT (rebuild).** This section priced the island at **44×308** — the
+> track's own width. The TRACK is still 44px, but the plate that carries it measures
+> **~134×366** at 1600×900, because the tick LABELS need a gutter *on* the plate. That is not
+> an overrun, it is where the next paragraph's promise gets paid: beside a vertical rail the
+> only axis a label can hang on is the block axis, and **the block axis does not mirror** — so
+> a name hung outside the plate sits over the drawing in Arabic and off the screen edge in
+> English, at 11px `--text-dim` over whatever colour a node happens to be. Inside the plate it
+> is over the measured `--bg-elev`. The budget line in §7 moves with it: **~1.4% → ~4%** of the
+> stage. If the 4% is ever judged too dear, the only lever is to cut the names back to
+> unlabelled marks — which is the one thing the CUT table below promised would not happen.
 
 **Tick marks beside the track at each world boundary ON THE CURRENT PATH**, labelled with the
 real department names from `map_node_kinds` — already bilingual data, which is precisely why
@@ -491,22 +502,51 @@ with `inset-inline-*`, so the mirror is free in the HTML layer.
 sidebar − 1180 = **188px** that no rule in `mindtree.css` can reach today. This is the last
 structural pixel-thief on the screen and it is named in the sheet's own handoff.
 
-Islands, inset 12–16 from the stage edges:
+> **THE OPT-IN SHIPPED, SO THE TABLE ABOVE IS OFF BY THE SIDEBAR.** `app-shell.css` gives the
+> map route `data-fullbleed`, which drops the 1180px cap *and* zeroes `--main-pad-inline`. The
+> stage therefore measures **1368**, not 1600: the sidebar's 232px is real and sticky, and no
+> full-bleed opt-in can reclaim it. Read every "1600" in the region table as 1368 of usable
+> inline space. **The zeroed inline padding is load-bearing on the phone too, and in a way that
+> reads as a bug:** at 375px *nothing* on this screen has an inline gutter unless it states one,
+> so any block that forgets lands flush against the glass and looks sheared. `.mtree-rail`,
+> `.mtree-foot` and `.mdive[data-compact]` each state their own 8px for exactly this reason.
 
-- **top-start**, 540×44 — search + Filter (n). Facets open as a panel **over** the picture,
-  never as a row that pushes it down. **1.8%**
-- **top-centre**, `max-inline-size: 540px`, 32px — **the breadcrumb**.
+Islands, inset 12 from the stage edges:
+
+> **CORRECTED BY MEASUREMENT (rebuild): FOUR ISLANDS BECAME ONE CONTROL RAIL.** The four
+> boxes below were each positioned *absolutely, against a stage width this document measured
+> wrong* — and no absolute box can see another, so the browser showed what the arithmetic could
+> not: "Grouped by Status" alone on an orphan second row at the opposite edge from the row it
+> belonged to, and the lens island lying across the empty state's sentence. The replacement is
+> one flex row, `nowrap`, and the only number left in the layer is its own 12px inset. What
+> follows is what is on the screen now.
+
+- **the rail**, 1344 wide, one row, at the stage's block start — the filter group at the
+  reading start (out of the rail's *flow*, so an open facet panel grows over the picture
+  without carrying the row down with it), then the five lens chips + Meetings + Export, then
+  the group-by disclosure. Measured 384 + 726 + 147 with 63px to spare in English, 94 in
+  Arabic. Below that width the **lens island** is the one that yields — it wraps inside its own
+  plate for 44px — and the group-by never shortens, because a control whose whole job is to
+  name the active dimension may not be the thing that gets abbreviated. **≈3.5%**
+- **under the rail** — **the breadcrumb** and the truncation note.
   `NphiesCore › UHR › Onboarding › **Riyadh Cluster**`. Each crumb a 44px tap that flies to
   that world; the last is `aria-current="location"`, unclickable. **Truncates from the
-  START** (`…› Onboarding › Riyadh Cluster`) — the near end is what you need. It sits in the
-  576px gap the two top islands leave, so it never collides above 1080px. **0.7%**
-- **canvas-start**, 300×44 — the group-by menu. **1.0%**
-- **top-end**, 460×44 — five lens chips + Meetings + Export. **1.5%**
-- **inline-end, block-centred**, 44×396 — the dive rail + Table. **1.4%**
+  START** (`…› Onboarding › Riyadh Cluster`) — the near end is what you need. It is an
+  INDICATOR, not a control, which is why it left the rail and sits beneath it. **0.7%**
+- **inline-end, block-centred** — the dive rail + Table. **Measured ~134×366, ≈4%** (§6 states
+  what the extra width buys and why it cannot be spent elsewhere).
 - **caption strip** — the legend (`size = open items` · `● past deadline` ·
-  **`direction from the centre means nothing`**), the summary sentences, the result count.
+  **`direction from the centre means nothing`**), the summary sentences.
   One row, one baseline. A radial map invites a reader to decide 3 o'clock is important; the
-  legend must say it is not.
+  legend must say it is not. **The separate result count is deleted**: it was
+  `mindtree.countOpen` with `model.tree.count`, the same number from the same expression the
+  summary sentence already carries in its `{open}` slot, so the screen printed "0 open" twice —
+  the second time larger than the sentence containing it. The key is *not* orphaned, and the
+  "no locale key is retired" rule is not invoked: `pages/map/useMapModel.ts` still builds a
+  node's detail line from it.
+- **what the canvas says when there is no drawing** is centred in the space the rail leaves,
+  not in the whole stage. An empty state is the only thing on the screen when it is on the
+  screen, and floating chrome may not lie across it.
 
 **Chrome at rest ≈ 8.8% of the stage.** The delta versus the prior contract's numbers is two
 INDICATORS — the breadcrumb and the truncation-from-the-start rule — which are the price of a
@@ -519,9 +559,18 @@ be finger-scrolled). It reports its own occlusion by ResizeObserver — `MapPane
 already does this and is kept byte for byte. **It does not move the map**, because occlusion
 no longer feeds a fit.
 
-**Tab order, asserted in a test and not inherited:** search → Filter → breadcrumb crumbs →
-lens chips → Meetings → Export → group-by → dive slider → Table → the tree's single roving
+**Tab order, asserted in a test and not inherited:** search → Filter → lens chips → Meetings
+→ Export → group-by → breadcrumb crumbs → dive slider → Table → the tree's single roving
 stop → sidebar → composer.
+
+> **THE CRUMBS MOVED FROM THIRD TO SEVENTH, and it is the rail's doing, not a slip.** When the
+> breadcrumb was its own top-centre island it sat visually between the two top islands, so
+> third was also its reading position. It is now beneath the rail, and DOM order here is both
+> the tab order and the reading order — so third would have been a keyboard stop that fires
+> before every control it is drawn under. `MindtreeShell.test.ts` asserts the CONTROLS' order
+> (`FilterBar → MapLensBar → MapModeBar → MapToolbar → MapDiveRail → stage → panel →
+> composer`) and that assertion is unchanged and still passing; the crumbs are not in it,
+> which is why this line — and not a test — is what records their move.
 
 **WCAG 1.4.10 reflow.** The `100dvh` stage is gated on
 `(min-width: 768px) and (min-height: 480px)`; the phone grid on

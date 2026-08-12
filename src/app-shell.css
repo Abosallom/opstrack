@@ -87,10 +87,36 @@
    would mean two rules undoing each other across a file boundary. The BLOCK
    padding is left alone: the map cancels it deliberately (its stage is
    `100dvh - header`) and a route that opts into full bleed without a fixed-height
-   stage still wants its block rhythm. */
+   stage still wants its block rhythm.
+
+   ── THE DESIGN PADDING GOES TO ZERO. THE NOTCH ARITHMETIC MAY NOT. ──────────
+
+   `zero` WAS TOO BLUNT, AND THE CASCADE IS WHY IT WAS NOT OBVIOUS. This rule is
+   `.main-content[data-fullbleed]` — a class AND an attribute, specificity
+   (0,2,0) — and the phone breakpoint below re-declares `--main-pad-inline` on
+   `.main-content`, specificity (0,1,0). Higher specificity wins regardless of
+   source order, so on the map route this `0px` beat the phone value at every
+   width. The phone value is not a design number: it is
+   `max(14px, env(safe-area-inset-left), env(safe-area-inset-right))`, and the
+   two `env()` terms are the DEVICE saying where its own glass is rounded or
+   interrupted. Zeroing them let the map's chrome run under a notch, and it did
+   it silently — `mindtree.css`'s phone block still carries a comment claiming
+   "the inline gutters are KEPT here", written when they were.
+
+   So the 14/18/28px DESIGN padding is what full bleed cancels, and the safe-area
+   floor survives it. On every non-notched viewport — including the 375x812 and
+   1600x900 the rebuild was measured at — both `env()` terms are `0px`, `max()`
+   is `0px`, and this is byte-for-byte the behaviour of the `0px` it replaces.
+   It differs only where a device says it must.
+
+   IT IS NOT A SUBSTITUTE FOR THE 8px THE MAP'S OWN ROWS STATE. This is the
+   floor under the whole stage; `.mtree-rail`, `.mtree-foot` and
+   `.mdive[data-compact]` still state their own gutter, because a control flush
+   against the glass reads as sheared whether or not there is a notch behind
+   it. */
 .main-content[data-fullbleed] {
   max-inline-size: none;
-  --main-pad-inline: 0px;
+  --main-pad-inline: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
 }
 
 /* ---------- sidebar (>= 768px) ---------- */

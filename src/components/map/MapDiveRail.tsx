@@ -72,14 +72,20 @@
 //
 // ── ORIENTATION IS A WRITING MODE, WHICH IS WHY THERE IS NO SECOND LAYOUT ──
 //
-// Vertical 44×308 at the canvas inline-end on the desktop; horizontal and full
-// width immediately above the pinned lens rail on a phone, because a vertical
-// rail at the inline end collides with the thumb's natural arc and with the
-// sheet's drag handle. That is ONE rule set in map-altitude.css switched by
-// `writing-mode` alone: the slider is 44px on its BLOCK axis and long on its
-// INLINE axis in both cases, and the ticks are placed with `inset-inline-start`.
+// Vertical at the canvas inline-end on the desktop; horizontal and full width
+// immediately above the pinned lens rail on a phone, because a vertical rail at
+// the inline end collides with the thumb's natural arc and with the sheet's drag
+// handle. That is ONE rule set in map-altitude.css switched by `writing-mode`
+// alone: the slider is 44px on its BLOCK axis and long on its INLINE axis in
+// both cases, and the ticks are placed with `inset-inline-start`.
 // No physical property, no second layout, and the Arabic mirror is free — see
 // that sheet's header for what the mirror actually does to a vertical rail.
+//
+// THE PLATE IS WIDER THAN THE SLIDER, and the sheet's header says by how much
+// and why: the tier NAMES need a gutter ON the plate, because the only axis a
+// label can hang on beside a vertical rail is the block axis, and the block axis
+// does not mirror. Off the plate they are over the drawing in one script and off
+// the screen in the other.
 
 import {
   useCallback,
@@ -285,8 +291,16 @@ export default function MapDiveRail({
                 className="mdive-tick"
                 style={{ '--mdive-at': `${(rung.octaves / span) * 100}%` } as CSSProperties}
               >
-                <span className="mdive-tick-mark" />
+                {/* THE NAME COMES FIRST AND THE MARK COMES SECOND, and the
+                    order is the layout: the tick is a flex column on the axis
+                    ACROSS the rail, so the first child sits in the plate's
+                    label gutter and the second grows from it to the track,
+                    crossing the groove. Swapping these two lines detaches every
+                    tier name from the thing it names — the mark would start at
+                    the gutter's edge and the word would land on the slider,
+                    which is exactly the defect this order fixes. */}
                 <span className="mdive-tick-label">{isolate(rung.label)}</span>
+                <span className="mdive-tick-mark" />
               </li>
             ))}
           </ul>

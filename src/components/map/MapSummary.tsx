@@ -21,10 +21,44 @@
 // WHAT IS MAP-ONLY AND WHAT IS NOT is unchanged and still the reason this file
 // has a `showMapChrome` branch at all: the legend, the hint and the sr-only
 // keyboard contract belong to the PICTURE and disappear in table view; the
-// summary sentences, the count and the live region describe the WORKSPACE and
-// stay.
+// summary sentences and the live region describe the WORKSPACE and stay.
+//
+// ── THE COUNT IS GONE, BECAUSE THE SUMMARY ALREADY SAID IT ────────────────
+//
+// `mindtree.countOpen` is `"{count} open"` and its count is `model.tree.count`.
+// `mindtree.summary` is `"{count} tracks, {open} open, {breached} past
+// deadline."` and its `{open}` is `model.tree.count` — THE SAME NUMBER FROM THE
+// SAME EXPRESSION (pages/map/useMapModel.ts). Rendering both put "0 open" on
+// the screen twice, the second time on its own line and at a larger size than
+// the sentence that contains it, which reads as a defect and was one.
+//
+// The one that goes is the COUNT, not the sentence: the sentence is the reading
+// of the picture — how many tracks, how much open, how much late — and the count
+// is a fragment of it that used to be a chip in a header rail that no longer
+// exists. Deleting the fragment loses nothing; deleting the sentence would lose
+// the tracks and the breaches.
+//
+// THE `countLabel` PROP IS GONE WITH IT. It survived one commit as a prop the
+// component accepted and did not render, so that the call site — owned by
+// another unit — kept type-checking; both halves are deleted together here.
+// `mindtree.countOpen` is NOT orphaned by this: pages/map/useMapModel.ts still
+// builds a node's detail line from it, which is where the string earns its keep.
+//
+// ── AND IT PUBLISHES ITS OWN HEIGHT, WHICH IS A COLLISION FIX ─────────────
+//
+// On a phone the dive rail is a horizontal plate pinned above the two fixed
+// rails, and its containing block reaches the block END of the stage — so it
+// floated ON TOP of this strip, opaque, with a third legend line running under
+// it visible only as clipped single characters. The rail cannot be told how much
+// to clear at author time: this strip is two sentences in English and three
+// lines in Arabic, and it grows with a selection bar above it. So it MEASURES
+// itself and publishes the number, exactly as MapCapture publishes
+// `--map-composer-block-size` for the sheet, and map-altitude.css adds it to the
+// rail's own block-end margin. One number, measured once, nothing to keep in
+// step, and no feedback loop: the rail is out of flow, so where it sits cannot
+// change how tall this is.
 
-import type { ReactElement } from 'react'
+import { useEffect, useRef, type ReactElement } from 'react'
 import { t } from '../../lib/i18n'
 
 export interface MapSummaryProps {
@@ -36,13 +70,6 @@ export interface MapSummaryProps {
   summary: string
   busiest: string | null
   topGroup: string | null
-  /**
-   * The filter's own result count — `t('mindtree.countOpen', { count })`,
-   * previously a standalone chip in the header rail. It is a READING of the
-   * picture, so it belongs in the picture's caption and not in a third row of
-   * chrome above it.
-   */
-  countLabel: string
   live: { text: string; seq: number }
 }
 
@@ -53,11 +80,54 @@ export default function MapSummary({
   summary,
   busiest,
   topGroup,
-  countLabel,
   live,
 }: MapSummaryProps): ReactElement {
+  const capRef = useRef<HTMLDivElement | null>(null)
+
+  /**
+   * HOW TALL THIS STRIP IS, published to the dive rail.
+   *
+   * PHONE ONLY, and the property is REMOVED above 768px: on the desktop the rail
+   * is block-centred against the canvas's inline end and this strip is in the
+   * grid's own block-end row, so they cannot meet and a number the sheet does
+   * not read is a number that can go stale.
+   *
+   * The element measured is `.mtree-foot` — this strip AND the selection bar
+   * that shares its row — because the rail has to clear the row, not the
+   * paragraph. It is clipped (`max-block-size: 7rem; overflow: auto`), so the
+   * rect is what the reader can SEE rather than what the text would need, which
+   * is the number the rail wants. Falling back to this element keeps a
+   * restructured foot honest: the caption is the row's LAST child, so clearing
+   * it clears everything above it too.
+   *
+   * NOT A DOCUMENT OR WINDOW LISTENER, and disconnected with the property it
+   * set: the rule MapCapture's own publisher states and keeps.
+   */
+  useEffect(() => {
+    const el = capRef.current
+    if (!compact || el === null || typeof ResizeObserver === 'undefined') return
+    const host = el.closest<HTMLElement>('.mtree') ?? document.documentElement
+    const box = el.closest<HTMLElement>('.mtree-foot') ?? el
+    let last = ''
+    const publish = (): void => {
+      const size = Math.round(box.getBoundingClientRect().height)
+      const next = size > 0 ? `${size}px` : ''
+      if (next === last) return
+      last = next
+      if (next === '') host.style.removeProperty('--map-caption-block-size')
+      else host.style.setProperty('--map-caption-block-size', next)
+    }
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(box)
+    return () => {
+      observer.disconnect()
+      host.style.removeProperty('--map-caption-block-size')
+    }
+  }, [compact])
+
   return (
-    <div className="mtree-cap">
+    <div className="mtree-cap" ref={capRef}>
       {showMapChrome && (
         <>
           <ul className="mtree-legend" aria-label={t('mindtree.legend')}>
@@ -117,7 +187,11 @@ export default function MapSummary({
         {topGroup !== null && ` ${topGroup}`}
       </p>
 
-      <p className="mtree-cap-count tabular">{countLabel}</p>
+      {/* THE RESULT COUNT USED TO BE HERE and is deleted rather than restyled —
+          it was `{count} open` beside a sentence that already reads `{count}
+          tracks, {open} open, {breached} past deadline.` with the SAME count in
+          the `{open}` slot. See this file's header for why the fragment goes and
+          the sentence stays. */}
 
       {/* polite, not assertive: the filter's own count already announces on
           every keystroke through FilterBar, and two assertive regions on one

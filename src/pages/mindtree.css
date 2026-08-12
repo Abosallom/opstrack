@@ -58,7 +58,17 @@
    above `.mtree`.
 
    LOGICAL PROPERTIES ONLY in the CSS box model — `inline-size`, `block-size`,
-   `padding-inline`, `inset-inline`. There is no physical direction in this file.
+   `padding-inline`, `inset-inline`. No PROPERTY in this file states a physical
+   direction, and the standing grep for one returns nothing.
+
+   THE ONE PHYSICAL VALUE, STATED SO IT IS NOT DISCOVERED: the phone rail's
+   scroll fade is a `linear-gradient`, and a gradient has no logical direction —
+   `to right` means `to right` in Arabic too. It is therefore written twice, once
+   per direction, selected on the `dir` attribute `lib/i18n.ts` writes onto
+   <html>. The two rules are a PAIR and neither is complete alone; the fade's
+   placement (`inset-inline-end`, `inline-size`) is logical as everything else
+   here is. map-lens.css carries the same pair for the same reason.
+
    INSIDE the <svg> there is no such thing as a logical property: SVG has `x` and
    nothing else, so direction is resolved in ARITHMETIC by
    lib/mindtree/layout.ts (which mirrors the whole drawing) and by MindNode.tsx
@@ -262,6 +272,37 @@
      problems panel, or the sheet will sit on top of both. */
   --map-composer-block-size: calc(64px + env(safe-area-inset-bottom, 0px));
 
+  /* HOW TALL THE CAPTION STRIP IS, published to the DIVE RAIL — the third member
+     of this family and the newest, and it exists because the rail landed on the
+     legend. On a phone `.mdive[data-compact]` is a horizontal plate pinned above
+     the two fixed rails, and its containing block runs to the block END of the
+     stage, which is below this strip; without this term the plate sat on top of
+     two legend sentences with a third line surviving only as clipped single
+     characters. `map-altitude.css` adds it to the rail's `margin-block-end`.
+
+     A FLOOR HERE, THE MEASUREMENT IN `MapSummary.tsx`, exactly as the composer
+     above splits the job — and the floor is what makes the fix survive the case
+     the measurement cannot cover. That publisher is guarded on
+     `typeof ResizeObserver === 'undefined'`, so on any host without one the
+     variable is NEVER written and a `0px` fallback would put the plate straight
+     back on the legend, permanently. It also removes the property whenever the
+     screen is not compact, and re-publishes one frame after mount.
+
+     7rem IS THE STRIP'S OWN CAP, not a guess: the phone rule below clips
+     `.mtree-foot` at `max-block-size: 7rem`, so this is the tallest the strip
+     can ever be and the plate cannot collide at any content length in either
+     language. It over-reserves when the strip is shorter — for one frame, until
+     the observer publishes the real number, which is an INLINE style on this
+     same element and therefore beats this declaration. Keep the two in step: if
+     that cap moves, this moves with it.
+
+     ON `.mtree` AND NOT `:root`, which is the rule MapCapture's publisher states
+     and the reason it works: the publisher writes its inline style to `.mtree`,
+     and a declaration on the element itself beats one inherited from an
+     ancestor. A floor on `:root` would be shadowed by this element's own
+     cascade, not overridden by the measurement. */
+  --map-caption-block-size: 7rem;
+
   /* HOW MUCH OF THE SCREEN'S BLOCK START THE PHONE SHEET MAY NOT HAVE, published
      the same way and travelling the same route. `components/map/map-panel.css`
      subtracts this from `.mpan[data-sheet]`'s `max-block-size`, so a sheet at
@@ -334,6 +375,45 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-inline-size: 0;
+}
+
+/* THE CONTROL RAIL — one row that owns the placement of every control on this
+   screen, and the reason there is no longer a second row nobody placed.
+
+   WHAT IT REPLACES. Each island used to position ITSELF: the filter rail at
+   `inset-block-start: 12px`, the group-by island at 68px, the lens island at a
+   `max-inline-size` budgeted against a stage width that measured wrong. Three
+   absolute boxes hoping to miss each other produce exactly what the browser
+   showed at 1600x900 — "Grouped by …" alone on a second row at the opposite
+   edge of the screen from the row it belongs to, aligned to nothing — and they
+   produce it silently, because no absolute box can see another. A flex row
+   cannot: the groups are laid out against each other by construction, and the
+   only number left in the whole layer is the 12px the rail is inset by.
+
+   `display: contents` HERE AND ON THE PHONE, a flex row only on the desktop
+   stage. In the fallback document column (and in the phone's inline scroller)
+   the four groups must be children of the layer itself, exactly as they were
+   before this element existed, so the rail adds a box in the one layout that
+   has a use for one and no box at all in the other two. */
+.mtree-rail {
+  display: contents;
+}
+
+/* THE CANVAS'S OWN ANSWER, PLACED WHERE THE CHROME IS NOT.
+   `.empty-state` (global.css) is a column with `padding-block: 48px 40px` and
+   no block centring, so on a full-bleed stage it starts at the same block start
+   as the rail floating over it: at 1600x900 the lens island landed on "An admin
+   creates tracks from Settings, then Tracks." and sheared it mid-word. The
+   sentence is not the thing to shrink — the reader with no tracks has nothing
+   else on the screen to read — so the float keeps the block start and the
+   sentence takes the middle of what is left. The reserve itself is in the two
+   guarded layouts, because it is the chrome's height and the chrome is a
+   different shape in each. */
+.mtree-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-inline-size: 0;
 }
 
@@ -531,10 +611,17 @@
   min-inline-size: 0;
 }
 
-/* The group-by chips, the drill-in trail and the truncation note, stacked into
-   one island at the canvas's inline-start. Three things about the SAME drawing:
-   how it is partitioned, where inside it the reader is standing, and whether
-   what is drawn is all of it. */
+/* The drill-in trail and the truncation note, stacked into one island under the
+   rail at the canvas's reading start. Two facts about the SAME drawing: where
+   inside it the reader is standing, and whether what is drawn is all of it.
+
+   THE GROUP-BY DISCLOSURE HAS LEFT THIS ISLAND for `.mtree-group` on the rail,
+   and the split is the difference between a CONTROL and an INDICATOR. It was
+   stacked here on the argument that "how it is partitioned" is a fact about the
+   same drawing — which is true, and it is still the one thing in the stack a
+   reader can press, so it belongs where the pressable things are. What was left
+   behind was a plate holding one chip at the canvas's start, on a row of its
+   own, under the search field and aligned to nothing. */
 .mtree-work {
   flex-direction: column;
   align-items: flex-start;
@@ -1294,9 +1381,20 @@
    comment used to name is gone with the copies.
 
    AND THE INLINE HALF COLLAPSES TO NOTHING ON THIS ROUTE with no second rule:
-   under `data-fullbleed` the shell sets `--main-pad-inline: 0px`, so
-   `calc(-1 * 0px)` is zero and `calc(100% + 2 * 0px)` is 100%. One arithmetic,
-   two configurations. */
+   under `data-fullbleed` the shell reduces `--main-pad-inline` to the safe-area
+   floor — `max(env(safe-area-inset-left), env(safe-area-inset-right))`, which is
+   `0px` on every viewport without a cutout — so `calc(-1 * 0px)` is zero and
+   `calc(100% + 2 * 0px)` is 100%. One arithmetic, two configurations.
+
+   IT WAS A LITERAL `0px` UNTIL THE OVERLAP PASS, and the reason it is no longer
+   one is in app-shell.css: that `0px` also outranked the phone breakpoint's
+   notch arithmetic, which is not this route's to cancel. Nothing here changes
+   shape — on a cutout device this negative margin simply pulls the STAGE back
+   out to the glass the same way it always did, which is what a full-bleed
+   drawing wants; the difference lands on the fallback document column, which
+   has no such negation, and on the phone grid, which negates the BLOCK axis
+   only. Both are the layouts where a reader would otherwise lose a line of text
+   under a rounded corner. */
 
 @media (min-width: 768px) and (min-height: 480px) {
   .mtree {
@@ -1319,74 +1417,171 @@
 
   /* THE ISLAND LAYER — one sheet over the stage that refuses pointers, so the
      canvas underneath keeps every press that does not land on a control. Out of
-     flow, so it claims none of the three grid rows. */
+     flow, so it claims none of the three grid rows.
+
+     12px of padding here rather than a `12px` inset repeated on every island:
+     the rail stretches to this box and everything inside it is placed against
+     the rail, so the stage's margin is stated once. `padding` (all four sides
+     equal) is direction-agnostic and needs no logical form. */
   .mtree-isles {
     position: absolute;
     inset: 0;
     z-index: 3;
     display: block;
+    padding: 12px;
+    pointer-events: none;
+  }
+
+  /* THE RAIL, and it is the whole of the top chrome's geometry.
+
+     MEASURED IN THE BROWSER AT 1600x900, EN, and every number here was read off
+     `getBoundingClientRect` rather than projected:
+
+       1344  the rail — the stage is 1368 (1600 less the 232px sidebar; the
+             `.main-content` 1180 cap this sheet used to quote does not reach
+             `.mtree`, which bleeds through it) less this layer's two 12px
+        384  the filter group, at its 24rem cap
+        726  the lens island — five chips, Meetings with its icon, the export
+             disclosure. The number the previous pass measured, to the pixel
+        147  the group-by disclosure, "Grouped by Status"
+       1281  = 384 + 12 + 726 + 12 + 147, with 63px of the rail left over
+
+     So all three groups DO fit on one line here, and the rail's job below 1537px
+     of viewport is to decide which of them yields. `nowrap` IS THE LOAD-BEARING
+     WORD in that decision, because the alternative is the defect this rail
+     exists to remove:
+
+       wrap  — the last group drops to a second line at the far edge, aligned to
+               nothing, which is exactly what "Grouped by Status" looked like
+               when it was an island of its own; or
+       shrink — the lens island takes the squeeze and wraps INSIDE ITS OWN PLATE,
+               spending 48px of its own block size and leaving all three groups
+               on the row, in the order and at the edges the reader last saw.
+
+     The second is the one this sheet already priced ("the second line takes
+     44px, not 300"), so the rail refuses to wrap and the shellbar is the item
+     that may shrink — down to its own min-content, which is one chip wide. The
+     group-by does not shrink: a control whose whole job is to NAME the active
+     dimension may not be the thing that gets shortened.
+
+     `justify-content: flex-end` puts the two end groups against the reading
+     end; the filter group is out of flow (below) and the reserve it needs is
+     this rail's `padding-inline-start`. `--mtree-find-inline` is declared once,
+     here, and both the reserve and the group's own width are read from it, so
+     there is no second number to keep in step.
+
+     POINTERS OFF: the rail is a transparent box across the whole width of the
+     picture, and at `auto` it would swallow the press that starts a pan just as
+     the island layer would. Only the plates inside it take pointers back. */
+  .mtree-rail {
+    --mtree-find-inline: min(24rem, 50%);
+
+    position: relative;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-inline-start: calc(var(--mtree-find-inline) + 12px);
     pointer-events: none;
   }
 
   .mtree-isle,
   .mtree-shellbar {
-    position: absolute;
+    position: relative;
     pointer-events: auto;
     box-shadow: var(--shadow);
     z-index: 1;
   }
 
-  /* THE ONE ISLAND THAT GROWS, so it is the one that paints on top. At rest
-     nothing overlaps: the filter rail is 52px at a 12px inset and the group-by
-     island starts at 68. Open the facet disclosure and the rail becomes a 585px
-     panel over the canvas — and the group-by island, being LATER in the DOM,
-     would otherwise paint through it. Measured at 1600x900 with all eleven
-     facets showing. */
+  /* The lens island is the one that yields, and the group-by is the one that
+     does not. The `min-inline-size: 0` this depends on is already on the base
+     rule for every island, and it is what lets a wrapping plate shrink at all:
+     a flex item's automatic minimum is its content's min-content size, so
+     without it the shellbar would refuse to go below one unwrapped line and
+     would push the group-by off the rail's end instead of wrapping. */
+  .mtree-shellbar {
+    flex: 0 1 auto;
+  }
+
+  .mtree-group {
+    flex: 0 0 auto;
+  }
+
+  /* THE ONE GROUP THE RAIL TAKES OUT OF ITS FLOW, and the reason is what
+     happens when the facet disclosure opens: the filter island becomes 722px tall
+     over the canvas (measured at 1600x900 with all eleven facets showing, the
+     panel itself 662). In the rail's flow that would take the rail's height with
+     it and carry the trail under it that far down the picture. Out of flow it
+     grows over the canvas and nothing else moves — which is the contract's
+     "facets open as a panel OVER the picture, never as a row that pushes it
+     down", applied to the chrome as well as to the map.
+
+     Its width is reserved by the rail's `padding-inline-start` from the same
+     `--mtree-find-inline`, so the two end groups can never be laid out
+     underneath it. 24rem = 384px holds a 140px search field, the `Mine` chip
+     and the `Filter (n)` disclosure on one 44px line (measured: the island is
+     384x52 at 1600x900), and `.flt-rail` scrolls on the inline axis rather than
+     wrapping if a locale needs more; the `50%` floor stops it eating the rail at
+     the narrow end of this layout (768px).
+
+     `max-block-size` IS THE STAGE'S HEIGHT AND NOT `100%`, because `100%` now
+     resolves against the RAIL — a 52px box — and would clip the open panel to
+     nothing. It is `.mtree`'s own `block-size` expression, minus this layer's
+     two 12px insets, read from the same variable so the two cannot drift.
+
+     z-index 2 (over the islands' 1) so the open panel paints over the group-by
+     and the trail rather than through them: they are LATER in the DOM and would
+     otherwise win. */
   .mtree-find {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    inline-size: var(--mtree-find-inline);
+    max-block-size: calc(100dvh - var(--app-header-block-size, 65px) - 24px);
     z-index: 2;
   }
 
-  /* ISLAND 1 — the filter rail, at the top-start corner.
-     ISLAND 2 — the lens chips and the mode entrances, at the top-end corner.
-
-     THE COLLISION BUDGET, MEASURED IN THE BROWSER RATHER THAN PROJECTED. The
-     contract budgeted 540 + 460 + 24 = 1024 of 1600 and concluded the two never
-     meet above 1080px. Both halves of that were wrong on the real screen:
-     `.main-content` caps the stage at 1180px, not 1600 (see above), and the lens
-     island measures **726px** at 1600×900 in English — five chips, two badges,
-     Meetings with its icon, and the export disclosure — not 460. 544 + 726 + 24
-     is 1294 into 1180, and the first screenshot showed the `Mine` chip sitting
-     underneath the `Needs me` chip.
-
-     So the budget is re-derived from the measurement: the filter rail is capped
-     at 24rem = 384px — which still holds a 140px search field, the `Mine` chip
-     and the `Filter (n)` disclosure on one 44px line, and `.flt-rail` scrolls on
-     the inline axis rather than wrapping if a locale needs more — and the lens
-     island is capped at whatever is left. 1180 − 384 − 36 = 760 against a
-     measured 726, so it stays one line here with 34px of slack and WRAPS inside
-     its own island below roughly 1146px of stage. That is the contract's stated
-     failure mode and its stated cost: the second line takes 44px, not 300. */
-  .mtree-find {
-    inset-block-start: 12px;
-    inset-inline-start: 12px;
-    inline-size: min(24rem, calc(100% - 24px));
-    max-block-size: calc(100% - 24px);
-  }
-
-  .mtree-shellbar {
-    inset-block-start: 12px;
-    inset-inline-end: 12px;
-    max-inline-size: calc(100% - 24rem - 36px);
-  }
-
-  /* ISLAND 3 — the group-by chips and the trail, under the filter rail. 68px is
-     12px of inset plus a 44px control plus 12px of air, which is the one number
-     the panel's own `inset-block-start` also uses: nothing at the block start of
-     this stage overlaps anything else at rest, in either direction. */
+  /* THE TRAIL, under the rail rather than at a number that hopes to clear it.
+     `inset-block-start: 100%` is the rail's OWN block end, so when the lens
+     island wraps to two lines the trail moves with it — the previous `68px` was
+     12px of inset plus a 44px control plus 12px of air, and it silently stopped
+     being right the moment anything on the row was taller than one line. */
   .mtree-work {
-    inset-block-start: 68px;
-    inset-inline-start: 12px;
-    max-inline-size: calc(100% - 24px);
+    position: absolute;
+    inset-block-start: 100%;
+    inset-inline-start: 0;
+    margin-block-start: 12px;
+    max-inline-size: 100%;
+  }
+
+  /* WHAT THE CANVAS SAYS, CENTRED IN WHAT THE RAIL LEAVES.
+
+     136px is the rail's WORST case and not its resting one, because the reserve
+     may not be a bet on which locale is running. Measured, the rail is 38px (a
+     32px chip in a 6px plate) and the filter group beside it is 52 (a 44px
+     input in the same plate); the reserve is sized for the wrapped rail plus
+     the trail island that sits under it:
+
+        12  the layer's inset
+     +   6  the plate — 2x1px of border and 2x2px of block padding
+     +  44  a control at the tallest this rail carries (the search field)
+     +  16  the row gap, when the lens island wraps (`.mtree-shellbar`)
+     +  44  the second line of it
+     +  12  air between the rail and the sentence
+     = 134 -> 136 on the 4px grid
+
+     A PADDING AND NOT AN INSET, so the sentence keeps the stage's inline centre
+     — a reader with no tracks looks at the middle of the screen, not at the
+     middle of the space under a toolbar. The inline end clears the dive rail
+     (44px + its own 12px inset) and, when a panel is open, whatever the panel
+     measured itself to be covering. */
+  .mtree-blank {
+    position: absolute;
+    inset: 0;
+    padding-block-start: 136px;
+    padding-inline: 12px calc(56px + var(--map-occlude-inline, 0px));
+    overflow: auto;
   }
 
   /* THE CANVAS IS THE PAGE. `.mpan-split` fills the 1fr and is made
@@ -1455,10 +1650,21 @@
 @media (max-width: 767px) and (min-height: 480px) {
   .mtree {
     position: relative;
-    /* `.main-content`'s own block padding, cancelled — see the stage block. The
-       inline gutters are KEPT here: 14px of them is `env(safe-area-inset-*)`
-       arithmetic that belongs to the device rather than to this screen, and a
-       375px rail is more legible inside them than bled to the bezel. */
+    /* `.main-content`'s own block padding, cancelled — see the stage block.
+
+       THIS COMMENT USED TO SAY "the inline gutters are KEPT here", AND THEY ARE
+       NOT. They stopped being kept the moment the map took `data-fullbleed`:
+       `app-shell.css`'s `.main-content[data-fullbleed]` outranks the phone
+       breakpoint's `--main-pad-inline` on specificity, so this screen has NO
+       inline gutter it does not state itself. That sentence is why three
+       separate blocks ended up drawn against the bezel and read as sheared —
+       the sheet promised a margin that the cascade had already taken away.
+
+       What survives up there now is the `env(safe-area-inset-*)` half, which is
+       the device's statement about its own glass and was never this screen's to
+       cancel; the 14px design half is gone for good, which is the point of full
+       bleed. Everything on this screen that must not touch the edge — the rail,
+       the caption strip, the dive rail — states its own 8px. */
     margin-block: -16px calc(-20px - env(safe-area-inset-bottom, 0px));
     block-size: calc(100dvh - var(--app-header-block-size, 65px));
     display: grid;
@@ -1477,19 +1683,51 @@
     );
   }
 
-  /* ONE TOP RAIL, NOT SEVEN ROWS. The filter, the group-by chips and the
-     altitude button share the grid's leading `auto` row, and it scrolls along
-     the inline axis rather than wrapping — the same trade `map-lens.css` makes
-     for its chips, and for its reason: shrinking a control to fit 375px is the
-     one thing rule 4 forbids. Every target keeps its 44px and the row pans.
+  /* ONE TOP RAIL, NOT SEVEN ROWS. The filter, the group-by disclosure and the
+     trail share the grid's leading `auto` row, and it scrolls along the inline
+     axis rather than wrapping — the same trade `map-lens.css` makes for its
+     chips, and for its reason: shrinking a control to fit 375px is the one thing
+     rule 4 forbids. Every target keeps its 44px and the row pans.
 
-     `padding-block: 8px` and NOT 4: this is an `overflow` container, so it clips
+     THE LAYER AND THE SCROLLER ARE TWO ELEMENTS HERE, and the split is what
+     makes the fade below possible: an overlay absolutely positioned inside a
+     scroll container SCROLLS WITH THE CONTENT, so it would fade the end of the
+     content rather than the edge of the window onto it. `.mtree-isles` is the
+     still frame, `.mtree-rail` is the thing that moves.
+
+     `position: relative` AND NOT A TRANSFORM, A FILTER, A MASK OR `contain`.
+     `.mtree-shellbar` is `position: fixed` at z-index 71 INSIDE this element
+     (its DOM seat is what keeps the Tab order), and every one of those
+     properties would make an ancestor of it either a containing block or a
+     stacking context — which would re-anchor the pinned lens rail to this 60px
+     strip, or bury its 71 under the sheet's 70. `position: relative` does
+     neither: it is a containing block for ABSOLUTE descendants only, and with
+     `z-index: auto` it starts no stacking context. That is the whole reason the
+     fade is a positioned pseudo-element and not a `mask-image`. */
+  .mtree-isles {
+    position: relative;
+    display: block;
+    pointer-events: auto;
+  }
+
+  /* `padding-block: 8px` and NOT 4: this is an `overflow` container, so it clips
      its children at its PADDING edge, and clipped area is not hit-tested.
      `.tap-44`'s overlay reaches 7px past a chip's padding box — 6px past a
      1px-bordered chip's border box — so 4px would cut 2px off each end of every
-     target. map-lens.css measured this first and states the same number. */
-  .mtree-isles {
-    position: static;
+     target. map-lens.css measured this first and states the same number.
+
+     `padding-inline: 8px` IS THE OTHER HALF OF WHAT LOOKED LIKE A SHEAR.
+     Measured at 375x812: `.main-content` pads 16px/20px on the BLOCK axis and
+     ZERO on the inline one, so this row ran bezel to bezel and the last control
+     on it — "Grouped by Status", at 246→375 — had its border drawn in the
+     viewport's final pixel column. Nothing was actually cut off; a control
+     flush against the glass simply reads as one that is. 8px is the same
+     clearance the pinned lens rail already carries at its own start, and it is
+     what `.tap-44` needs at a scroller's edge anyway: the row is 192 + 8 + 129
+     against 359 of padded width, so it still fits without scrolling at all in
+     English at the root. */
+  .mtree-rail {
+    display: flex;
     flex-direction: row;
     flex-wrap: nowrap;
     align-items: center;
@@ -1497,7 +1735,42 @@
     overflow-x: auto;
     overscroll-behavior-inline: contain;
     padding-block: 8px;
+    padding-inline: 8px;
     pointer-events: auto;
+  }
+
+  /* THE ROW SAYS THAT IT CONTINUES. At 375px the filter group and the group-by
+     disclosure cannot both fit, so the row pans — and what the browser showed
+     was "Grouped by Statu" sheared flat against the viewport edge, which reads
+     as a broken render rather than as an affordance. A 24px fade at the
+     scrolling edge is the usual answer and it is the honest one here: it is
+     drawn in the PAGE's own colour, so where the row does not actually reach the
+     edge the gradient is `--bg` over `--bg` and nothing is drawn at all.
+
+     `inset-inline-end` PUTS IT ON THE READING END IN BOTH LANGUAGES. The
+     gradient INSIDE it cannot follow: CSS gradients have no logical direction —
+     `to right` is `to right` in Arabic — so the one physical statement in this
+     sheet is paired with its mirror below, and the pair is the mirror. There is
+     no logical form of this to prefer; a `linear-gradient(to inline-end, …)`
+     does not exist. */
+  .mtree-isles::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    inline-size: 24px;
+    /* The row scrolls underneath it and the ladder's frame starts below it, so
+       a press here must reach the map, not the fade. */
+    pointer-events: none;
+    background: linear-gradient(to right, transparent, var(--bg));
+  }
+
+  /* THE MIRROR. `dir` is set on <html> by `lib/i18n.ts` (`el.dir = 'rtl'`), so
+     an attribute selector reads it in every engine — `:dir()` would be the
+     semantic spelling and is younger than the oldest browser this app is
+     installed on. */
+  [dir='rtl'] .mtree-isles::after {
+    background: linear-gradient(to left, transparent, var(--bg));
   }
 
   /* NO PLATE ON THE PHONE. The rail is a grid row ABOVE the canvas rather than
@@ -1529,14 +1802,44 @@
     inset-block: 68px 0;
   }
 
+  /* The same centring, without the reserve: nothing floats over the block start
+     of a phone canvas — the top rail is a grid row ABOVE it and the two pinned
+     bars are already subtracted from this row by `.mtree`'s `padding-block-end`
+     — so what the canvas says takes the middle of the whole canvas. */
+  .mtree-blank {
+    position: absolute;
+    inset: 0;
+    padding-inline: 12px;
+    overflow: auto;
+  }
+
   /* Fine print, capped. The legend, the angle line, `mindtree.mobileHint` and
      the two summary sentences measured 165px in Arabic at 375x812 — a fifth of
      the screen for text nobody reads twice. 7rem holds the hint (which is the
      ONLY place the pan-and-pinch gesture is named for a thumb) and scrolls the
-     rest, and it hands 53px back to the map. */
+     rest, and it hands 53px back to the map.
+
+     8px OF GUTTER, AND IT IS THE OTHER HALF OF A COLLISION, NOT A MARGIN
+     PREFERENCE. The map route is the app's only `data-fullbleed` one, and
+     app-shell.css zeroes `--main-pad-inline` for it — deliberately, so the stage
+     spans the glass — so on this screen NOTHING has an inline gutter unless it
+     states one. The dive rail states `inset-inline: 8px` (map-altitude.css);
+     this strip stated nothing, so the legend ran from the bezel and the rail's
+     opaque plate began 8px in. What the browser showed at 375x812 was three
+     single characters — "A", "O", "si" — surviving at the inline-start edge of
+     a line that was otherwise behind the rail, which reads as clipped text and
+     not as a gutter that was never asked for. The token in `.mdive[data-compact]`
+     lifts the rail off this strip entirely; this declaration is what makes the
+     two agree about where the reading edge is. 8px is the number `.mtree-rail`
+     above and the rail itself both already use, so the three line up.
+
+     THE DESKTOP RULE STATES 12px FOR THE SAME REASON at its own width, and the
+     two differ because the phone's rail does: this is the gutter of the row
+     beside it, not a constant. */
   .mtree-foot {
     max-block-size: 7rem;
     overflow: auto;
+    padding-inline: 8px;
   }
 
   .mtree-isle {

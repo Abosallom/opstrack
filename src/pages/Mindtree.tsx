@@ -23,12 +23,23 @@
 //
 // So `.mtree` is now a fixed grid — `100dvh` minus the app header — with ONE
 // in-flow column of stage, caption and composer, and the whole of the chrome
-// lifted out of the flow into FOUR FLOATING ISLANDS over the picture:
+// lifted out of the flow into ONE FLOATING CONTROL RAIL over the picture, plus
+// the two indicators that belong to the drawing rather than to the reader:
 //
-//   top-start     the filter rail — search · Mine · Filter (n)
-//   top-end       the lens chips · Meetings · the export menu
-//   canvas-start  the group-by chips · the drill-in trail
-//   canvas-end    the altitude ladder — four stops · Fit · Table
+//   the rail        search · Mine · Filter (n)   ‖   the lens chips · Meetings ·
+//                   the export menu · Grouped by … — ONE row, one block start,
+//                   laid out by flexbox rather than by three absolute boxes
+//                   that were hoped to miss each other
+//   under the rail  the drill-in trail and the truncation note
+//   canvas-end      the altitude ladder — four stops · Fit · Table
+//
+// THE RAIL IS ONE ROW BECAUSE THE BROWSER SHOWED THREE. Every island used to
+// place ITSELF with `inset-block-start: 12px` or `68px` and a max-inline-size
+// budgeted against a stage width that measured wrong, so "Grouped by …" landed
+// on an orphan second row aligned to nothing and the filter rail's scrollbar
+// pushed it 2px into the island above. A flex row cannot produce either: the
+// only number left is the rail's own inset, and what does not fit is resolved
+// by wrapping INSIDE the island that overflowed.
 //
 // FLOATING CHROME OVER A CANVAS IS A HIT-TESTING AND FOCUS-ORDER HAZARD the old
 // column did not have, and it is handled rather than hoped away. `.mtree-isles`
@@ -917,72 +928,112 @@ export default function Mindtree(): ReactElement {
           box. On a phone this layer stops being a layer and becomes the top
           rail: the grid's leading `auto` row. */}
       <div className="mtree-isles">
-        {/* ISLAND 1, top-start: the filter rail. Its `Mine` chip is the SINGLE
-            owner of "only my work" now — MapList no longer renders a second one
-            — and its facets open as a panel over the picture rather than as a
-            row that pushes the picture down. */}
-        <div className="mtree-isle mtree-find">
-          <FilterBar
-            value={filter}
-            onChange={setFilter}
-            facets={lens.lens === 'numbers' ? NUMBERS_FACETS : FACETS}
-            tags={model.tags}
-            // A HOOK FOR ONE DECLARATION, and `className` is the prop that
-            // exists for exactly this: `.flt` carries a 14px `margin-block-end`
-            // that is right in a document and wrong inside a 44px island, where
-            // it measured as 14px of empty plate that pushed the rail into the
-            // group-by chips below it. See `.mtree-filter` in mindtree.css.
-            className="mtree-filter"
-          />
-        </div>
+        {/* THE CONTROL RAIL — one row, three groups, and flexbox rather than
+            three absolute boxes budgeted against each other. It carries every
+            control the shell has: the filter group at the reading start, the
+            destinations and the modes at the reading end, and the group-by
+            disclosure beside them. Nothing on this screen is a control and NOT
+            on this row.
 
-        {/* ISLAND 2, top-end: THE FIVE DESTINATIONS AND THE TWO MODES, in one
-            row, at every width and never behind a disclosure. Each chip replaces
-            a tab-bar slot, and a tab tap costs one interaction — so must a chip.
-            Below 768px this element leaves the flow entirely and becomes the
-            pinned rail at the block end, one z-index above the sheet. */}
-        <div className="mtree-shellbar">
-          <MapLensBar
-            lens={lens.lens}
-            onLens={lens.setLens}
-            compact={compact}
-            counts={{ 'needs-me': attentionCount, 'what-changed': changesCount }}
-          />
-          <MapModeBar
-            compact={compact}
-            exporting={toolbar.exporting}
-            onExport={toolbar.runExport}
-          />
-        </div>
+            Measured at 1600x900 after the change: the rail is 1344 and the
+            three groups are 384 + 726 + 147, so all three sit on one line with
+            63px to spare (1250 and 94px to spare in Arabic). Below that the row
+            still does not wrap and no group is pushed off it — the lens island
+            shrinks and wraps INSIDE ITS OWN PLATE, which is the failure mode
+            `mindtree.css` already prices at 44px and the only one that leaves
+            every group where the reader last saw it. */}
+        <div className="mtree-rail">
+          {/* THE FILTER GROUP, at the reading start. Its `Mine` chip is the
+            SINGLE owner of "only my work" now — MapList no longer renders a
+            second one — and its facets open as a panel over the picture rather
+            than as a row that pushes the picture down. That is why it is the
+            one group the rail takes OUT of its flow (see `.mtree-find`): opened,
+            this island measures 722px tall at 1600x900, and in the rail's flow
+            it would carry the trail that far down the picture with it. Measured
+            open: the other two groups stay at y=77, h=38, unmoved. */}
+          <div className="mtree-isle mtree-find">
+            <FilterBar
+              value={filter}
+              onChange={setFilter}
+              facets={lens.lens === 'numbers' ? NUMBERS_FACETS : FACETS}
+              tags={model.tags}
+              // A HOOK FOR ONE DECLARATION, and `className` is the prop that
+              // exists for exactly this: `.flt` carries a 14px `margin-block-end`
+              // that is right in a document and wrong inside a 44px island, where
+              // it measured as 14px of empty plate that pushed the rail into the
+              // group-by chips below it. See `.mtree-filter` in mindtree.css.
+              className="mtree-filter"
+            />
+          </div>
 
-        {/* ISLAND 3, canvas-start: what the rings are made of, and where the
-            reader is inside them. The two belong together — the trail is the way
-            back OUT of a drill-in and the chips are what the drill-in is
-            partitioned by — and stacking them costs one island rather than two.
-            `truncated` rides along because it is a fact about the same drawing. */}
-        {(onTree || model.truncated) && (
-          <div className="mtree-isle mtree-work">
-            {onTree && (
+          {/* THE FIVE DESTINATIONS AND THE TWO MODES, at the reading end of the
+              same row, at every width and never behind a disclosure. Each chip
+              replaces a tab-bar slot, and a tab tap costs one interaction — so
+              must a chip. Below 768px this element leaves the rail entirely and
+              becomes the pinned bar at the block end, one z-index above the
+              sheet, which is why it is a `position: fixed` element that happens
+              to be parented here: its DOM seat is what keeps the Tab order. */}
+          <div className="mtree-shellbar">
+            <MapLensBar
+              lens={lens.lens}
+              onLens={lens.setLens}
+              compact={compact}
+              counts={{ 'needs-me': attentionCount, 'what-changed': changesCount }}
+            />
+            <MapModeBar
+              compact={compact}
+              exporting={toolbar.exporting}
+              onExport={toolbar.runExport}
+            />
+          </div>
+
+          {/* WHAT THE RINGS ARE MADE OF — on the control row with every other
+              control, and no longer alone on a second row at the opposite edge
+              of the screen from the row it belongs to. It sits AFTER the modes
+              because Tab order is DOM order here (MindtreeShell.test.ts asserts
+              it) and a control that reads before the lens chips but focuses
+              after them is worse than one placed a group late. */}
+          {onTree && (
+            <div className="mtree-isle mtree-group">
               <MapToolbar
                 dimension={model.dimension}
                 onDimension={toolbar.chooseDimension}
                 compact={compact}
               />
-            )}
+            </div>
+          )}
 
-            {/* THE TRAIL'S SOURCE IS THE CAMERA, NOT A DRILL-IN. `diveTrail` is
-                `ancestorWorlds(layout, worldAt(camera))` — root first, where you
-                are LAST, inclusive — which is `FocusView.trail`'s shape exactly,
-                so nothing inside the component changes. It is DERIVED, so it
-                cannot drift from the picture: there is no state for it to drift
-                from, and the name hands off from the rim label to the crumb at
-                the 0.85V crossing and at no other instant. A crumb press is a
-                fly, not a re-root. */}
-            {onMap && <Breadcrumb trail={diveTrail} onFocus={flyToId} />}
+          {/* WHERE THE READER IS INSIDE THE RINGS, and whether what is drawn is
+              all of it. Both are INDICATORS rather than controls — the trail is
+              the way back out of a drill-in, the note is a fact about the
+              drawing — so they sit under the rail rather than on it, at the
+              canvas's reading start. A child of the rail and not a sibling,
+              because on a phone the whole rail is one inline scroller and the
+              trail scrolls with it rather than costing the map a second row.
 
-            {model.truncated && <p className="mtree-note">{t('mindtree.truncated')}</p>}
-          </div>
-        )}
+              THE TRAIL'S SOURCE IS THE CAMERA, NOT A DRILL-IN. `diveTrail` is
+              `ancestorWorlds(layout, worldAt(camera))` — root first, where you
+              are LAST, inclusive — which is `FocusView.trail`'s shape exactly,
+              so nothing inside the component changes. It is DERIVED, so it
+              cannot drift from the picture: there is no state for it to drift
+              from, and the name hands off from the rim label to the crumb at
+              the 0.85V crossing and at no other instant. A crumb press is a
+              fly, not a re-root.
+
+              `diveTrail.length > 1` AND NOT `onMap`, and the difference is one
+              empty plate: `Breadcrumb` returns null at the root world (a trail
+              of one is not a trail), so a plate opened on `onMap` alone drew an
+              18x6px box of border and background at the canvas's start corner —
+              measured in the browser at 1600x900 with no tracks. The island and
+              the component must agree about having nothing to say. */}
+          {(onMap && diveTrail.length > 1) || model.truncated ? (
+            <div className="mtree-isle mtree-work">
+              {onMap && <Breadcrumb trail={diveTrail} onFocus={flyToId} />}
+
+              {model.truncated && <p className="mtree-note">{t('mindtree.truncated')}</p>}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* ISLAND 4, canvas inline-end: THE DIVE RAIL, which is what eleven
@@ -1047,33 +1098,59 @@ export default function Mindtree(): ReactElement {
               <Skeleton height={320} />
             </div>
           ) : showError ? (
-            <EmptyState
-              title={t('mindtree.errLoad')}
-              description={model.error ?? undefined}
-              action={
-                <button type="button" className="btn" onClick={() => void refreshEntries()}>
-                  {t('mindtree.refresh')}
-                </button>
-              }
-            />
+            /* WHEN THERE IS NO DRAWING, WHAT THE CANVAS SAYS IS THE SCREEN, and
+               the floating rail may not land on it. `.empty-state` is a column
+               with 48px of block-start padding, so on a full-bleed stage the
+               sentence began at the same block start as the chrome floating over
+               it: at 1600x900 the lens island covered "An admin creates tracks
+               from Settings…" from the word "adm" onward, which reads as a
+               truncation bug rather than as an occlusion.
+
+               `.mtree-blank` is the fix, and it is the one that does not cost a
+               word: the sentence is not shortened, not shrunk and not moved off
+               the centre line — it is centred in THE SPACE THE RAIL LEAVES
+               instead of in the whole stage, which is a block-start reserve and
+               nothing else (mindtree.css). Every non-drawing state gets it, so
+               a failed load and a filtered-to-nothing map are placed by the same
+               rule as an empty workspace. */
+            <div className="mtree-blank">
+              <EmptyState
+                title={t('mindtree.errLoad')}
+                description={model.error ?? undefined}
+                action={
+                  <button type="button" className="btn" onClick={() => void refreshEntries()}>
+                    {t('mindtree.refresh')}
+                  </button>
+                }
+              />
+            </div>
           ) : noTracks ? (
-            <EmptyState title={t('mindtree.emptyTracks')} description={t('mindtree.emptyTracksHint')} />
+            <div className="mtree-blank">
+              <EmptyState
+                title={t('mindtree.emptyTracks')}
+                description={t('mindtree.emptyTracksHint')}
+              />
+            </div>
           ) : nothing && filtered ? (
-            <EmptyState
-              title={t('mindtree.emptyFiltered')}
-              description={t('mindtree.emptyFilteredHint')}
-              action={
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setFilter({ ...EMPTY_FILTER })}
-                >
-                  {t('mindtree.clearFilters')}
-                </button>
-              }
-            />
+            <div className="mtree-blank">
+              <EmptyState
+                title={t('mindtree.emptyFiltered')}
+                description={t('mindtree.emptyFilteredHint')}
+                action={
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => setFilter({ ...EMPTY_FILTER })}
+                  >
+                    {t('mindtree.clearFilters')}
+                  </button>
+                }
+              />
+            </div>
           ) : model.tree.count === 0 && !filtered ? (
-            <EmptyState title={t('mindtree.empty')} description={t('mindtree.emptyHint')} />
+            <div className="mtree-blank">
+              <EmptyState title={t('mindtree.empty')} description={t('mindtree.emptyHint')} />
+            </div>
           ) : lens.stage === 'table' ? (
             <MindtreeTable
               root={model.tree}
@@ -1184,11 +1261,12 @@ export default function Mindtree(): ReactElement {
           summary={model.summary}
           busiest={model.busiest}
           topGroup={model.topGroup}
-          // THE RESULT COUNT ARRIVES HERE instead of being a standalone chip in
-          // the header. It was one of ~20 same-weight controls in a row that had
-          // nothing to do with it; beside the summary sentences it is the same
-          // kind of statement as the ones either side of it.
-          countLabel={t('mindtree.countOpen', { count: model.tree.count })}
+          // NO `countLabel`. It used to arrive here as `mindtree.countOpen` with
+          // `model.tree.count`, which is the SAME number the summary sentence
+          // already carries in its `{open}` slot from the same expression — so
+          // the screen read "0 open" twice, the second time on its own line and
+          // larger than the sentence containing it. The fragment is gone; the
+          // sentence, which also carries the tracks and the breaches, stays.
           live={live}
         />
       </div>

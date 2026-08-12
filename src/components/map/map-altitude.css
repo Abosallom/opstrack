@@ -64,7 +64,22 @@
    HORIZONTAL on the phone, and the difference is one `writing-mode` and nothing
    else: the slider is 44px on its BLOCK axis and long on its INLINE axis in both
    cases, and the ticks are placed with `inset-inline-start`. One rule set, two
-   orientations, no `transform`, no second layout.
+   orientations, no `transform`, no second layout. The compact rule is now
+   literally that — a writing mode and two insets — because the plate's
+   `flex-direction` was `column`, the BLOCK axis, and had to be overridden per
+   orientation; `row` is the rail's own axis in both and the override is gone.
+
+   THE FOOTPRINT, AND WHERE IT DEPARTS FROM docs/MAP-ZOOM.md §6. That budget
+   prices this island at 44×396: a 44px column, block-centred at the canvas's
+   inline end. The track is still 44px and the plate is still one column, but it
+   now carries a 4.5rem GUTTER for the tier names — measured at ~132×364 with
+   three rungs — because those names have nowhere else legible to be. Outside the
+   plate they are 11px `--text-dim` over an arbitrary node colour, and they leave
+   the viewport outright in one of the two scripts: the block axis is the only
+   axis a label can hang on beside a vertical rail, and it does not mirror, so
+   block-start is over the map in Arabic and past the screen edge in English. The
+   gutter is the price of keeping the words the CUT table promised would survive
+   as tick labels. Reported to the integrator rather than assumed.
 
    WHAT THE ARABIC MIRROR DOES TO A VERTICAL RAIL, STATED PLAINLY BECAUSE IT IS
    NOT OBVIOUS. Under `writing-mode: vertical-lr` the inline axis runs top → bottom
@@ -91,6 +106,14 @@
    applies twice. This is the same contract `.malt` had, so the frame needs no
    change on the desktop. */
 .mdive {
+  /* THE LABEL GUTTER, ACROSS THE RAIL — the strip of plate the tier names live
+     in, and the whole of the difference between a label that belongs to the rail
+     and one that floats over the drawing. It is stated once, here, because it is
+     the only number in this file that has to differ between the two
+     orientations: across a VERTICAL rail a tier name is as long as the word
+     (capped at the same 4.5rem the label truncates to), and across a HORIZONTAL
+     one it is a single 11px line. See the ticks block. */
+  --mdive-gutter: 4.5rem;
   position: absolute;
   inset-inline-end: 12px;
   inset-block: 0;
@@ -113,13 +136,35 @@
    their heights are MEASURED and published rather than copied: map-panel.css
    travels the same two tokens for the same reason. The fallbacks are the ones
    that file already uses, so a rail that has not reported yet lands in the right
-   place rather than at zero. */
+   place rather than at zero.
+
+   THE THIRD TOKEN IS A COLLISION FIX AND THE COLLISION WAS VISIBLE.
+   `.mtree-ladder` — this island's containing block — reaches the block END of
+   the stage's padding box, which is BELOW the caption strip, so `inset-block:
+   auto 0` plus the two rail heights landed this plate exactly on top of the
+   legend: two sentences behind an opaque box, and a third line under it visible
+   only as three clipped characters at the inline-start edge. There is no author-
+   time number for that strip — it is two sentences in English, three lines in
+   Arabic, and it grows when a selection bar joins its row — so MapSummary.tsx
+   MEASURES it and publishes `--map-caption-block-size` onto `.mtree`, exactly as
+   MapCapture.tsx publishes the composer's. Adding it here puts the plate's
+   block-end 8px above the strip's block-start at any height, in either language.
+   The fallback is 0px, which is this file's behaviour before the measurement
+   arrives and on any host that does not render that strip.
+
+   NO LOOP: this island is out of flow, so where it sits cannot change how tall
+   the strip is. */
 .mdive[data-compact] {
+  /* One 11px line and the 4px that ties it to its mark, on the 4px grid. A
+     horizontal rail spends its gutter on the BLOCK axis, where a label is a line
+     tall rather than a word wide. */
+  --mdive-gutter: 16px;
   inset-inline: 8px;
   inset-block: auto 0;
   margin-block: 0;
   margin-block-end: calc(
-    var(--map-composer-block-size, 0px) + var(--map-lens-rail-block-size, 48px) + 8px
+    var(--map-composer-block-size, 0px) + var(--map-lens-rail-block-size, 48px) +
+      var(--map-caption-block-size, 0px) + 8px
   );
   block-size: auto;
 }
@@ -132,10 +177,22 @@
    `writing-mode: vertical-lr` IS THE ORIENTATION, and it is set on the plate so
    the track, the ticks and the slider all inherit one axis system. The Table row
    below it is turned back to `horizontal-tb` for its own text, which is the only
-   place in this file that names a writing mode twice. */
+   place in this file that names a writing mode twice.
+
+   `row` IS ALONG THE RAIL, IN BOTH ORIENTATIONS, AND `column` WAS THE BUG.
+   Flexbox reads its axes through the writing mode: under `vertical-lr` the
+   INLINE axis is the rail's own long axis and the BLOCK axis is across it. This
+   plate said `column` — the block axis — so on the desktop the Table toggle was
+   laid out BESIDE the track rather than at the end of it, which is what made the
+   rail read as two objects side by side and put the plate at ~90px wide where
+   docs/MAP-ZOOM.md §6 prices it as one 44px column. `row` is one declaration for
+   both orientations: down the rail when it is vertical, along it when it is
+   horizontal, and the compact rule now changes the WRITING MODE and nothing
+   else — which is the claim this file's header makes and, until now, did not
+   keep. */
 .mdive-plate {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
   padding: 8px;
@@ -148,9 +205,6 @@
 
 .mdive[data-compact] .mdive-plate {
   writing-mode: horizontal-tb;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
 }
 
 /* The positioning context for the ticks, and the thing that gives the slider its
@@ -163,6 +217,16 @@
   align-items: center;
   min-inline-size: 308px;
   min-block-size: 44px;
+  /* THE GUTTER IS PART OF THE TRACK, not of the tick that draws into it — which
+     is what makes the plate GROW to hold the tier names instead of letting them
+     hang over the drawing. An absolutely positioned tick contributes nothing to
+     its container's size, so a label placed outside this padding would sit on
+     the canvas at whatever colour a node happened to be, and would leave the
+     screen entirely in one of the two scripts: the block axis does not mirror,
+     so a label hung off the block start is over the map in Arabic and off the
+     edge in English. Inside the plate it is over the plate's own measured
+     `--bg-elev` in both. */
+  padding-block-start: var(--mdive-gutter);
 }
 
 .mdive[data-compact] .mdive-track {
@@ -184,30 +248,61 @@
 
 /* `--mdive-at` is the rung's share of the octave span, written by the component
    as a percentage. `inset-inline-start` is what makes the placement mirror in
-   Arabic and rotate with the writing mode, both for free. */
+   Arabic and rotate with the writing mode, both for free.
+
+   A TICK IS A LABEL AND THE LINE THAT ATTACHES IT, and the second half is the
+   fix. This was a 10px dash and a word, laid out along the flex `row` — which
+   under `vertical-lr` is the RAIL'S OWN AXIS — so the mark sat 20px off the
+   groove at the far edge of the 44px slider box and the word ran DOWN the rail
+   onto the thumb. Read at 1600×900 that is a stray glyph and a floating title,
+   not a graduation.
+
+   `column` is the axis ACROSS the rail in both orientations, so the tick now
+   spans the track: the name in the gutter, then the mark from the name's edge
+   all the way to the track's block end, crossing the groove. The mark is the
+   leader line. Nothing is adrift because everything is on one line that ends on
+   the thing it is measuring. */
 .mdive-tick {
   position: absolute;
   inset-inline-start: var(--mdive-at, 0%);
-  inset-block-start: 0;
+  /* The gutter AND the slider box: `inset: 0` on the list is its containing
+     block's PADDING box, so this spans the name's strip and the groove's. */
+  inset-block: 0;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  /* ALONG THE RAIL, AT THE TICK. `center` would put the mark at the middle of
+     the label instead of at the octave it names, and the mark is the thing that
+     has to be exact. */
+  align-items: flex-start;
   gap: 4px;
 }
 
+/* THE LEADER LINE, 1px across the rail and as long as what is left. `flex` and
+   not a fixed length: the gutter is 4.5rem across a vertical rail and 16px
+   across a horizontal one, and a mark that had to be told which is a mark that
+   drifts the next time either changes. `--field-border` on the plate's
+   `--bg-elev` is 3.77 / 3.65 — the same measured pair as the track it lands
+   on. */
 .mdive-tick-mark {
+  flex: 1 1 auto;
   inline-size: 1px;
-  block-size: 10px;
   background: var(--field-border);
 }
 
 /* The department's own name, out of `map_node_kinds` — which is why the ladder
    can be the admin's depth rather than four English words. `horizontal-tb`
    because a rotated glyph run is not a label anybody reads; the LABEL is
-   horizontal even where the rail is vertical, and it hangs off the tick's
-   block-start edge, which is the plate's inline end on the desktop. */
+   horizontal even where the rail is vertical, and it sits in the gutter the
+   track reserves for it — ON the plate, over `--bg-elev` at 8.05 / 7.04, rather
+   than over whatever node the drawing put underneath.
+
+   4.5rem AND NOT 7: the cap and the gutter are the SAME number, because the
+   gutter is what makes the label part of the rail and a label wider than its
+   gutter is a label back over the map. Longer names truncate, which the
+   breadcrumb and `aria-valuetext` both spell in full. */
 .mdive-tick-label {
   writing-mode: horizontal-tb;
-  max-inline-size: 7rem;
+  max-inline-size: 4.5rem;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;

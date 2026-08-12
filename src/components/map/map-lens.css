@@ -16,8 +16,15 @@
 
    LOGICAL PROPERTIES ONLY — `padding-inline`, `margin-inline-start`,
    `inline-size`, `scroll-padding-inline`. The chip row scrolls along the INLINE
-   axis, so it reverses with the document direction for free; there is no
-   physical direction in this file.
+   axis, so it reverses with the document direction for free.
+
+   WITH ONE STATED EXCEPTION, AT THE BOTTOM OF THIS FILE: the scroll fade is a
+   `linear-gradient`, and a gradient has no logical direction — `to right` means
+   `to right` in Arabic too. It is therefore written twice, once per direction,
+   selected on the `dir` attribute `lib/i18n.ts` sets on <html>. Every PROPERTY
+   that places it (`inset-inline-end`, `inline-size`, `inset-block`) is still
+   logical; only the angle is not, and it is mirrored explicitly rather than
+   left to break Arabic quietly. Do not add a second one without the pair.
 
    MOTION: none of its own. The only transition is the one `.btn`-family
    primitives already carry.
@@ -102,8 +109,55 @@
      +  4  the gap
      + 44  the export disclosure
      +  8  end padding
-     = 134 -> 136 on the 4px grid. */
-  padding-inline-end: 136px;
+     = 134 -> 136 on the 4px grid.
+
+     STATED ONCE NOW, as a custom property, because the fade below has to land on
+     the same line: the chips stop where this reserve begins, and a second
+     literal 136 in this file would be a number to keep in step. The one in
+     `map-mode.css` cannot be reached from here (a property declared on one of
+     two SIBLINGS does not inherit sideways) and stays where it is, stated. */
+  --mlens-modes-reserve: 136px;
+
+  padding-inline-end: var(--mlens-modes-reserve);
+}
+
+/* THE CHIP ROW SAYS THAT IT CONTINUES. Five destinations do not fit 375px — that
+   is the deliberate trade above, not a defect — but what the browser showed was
+   "By statu" sheared flat against the reserve, with nothing to say the row pans.
+   A word cut in half reads as a broken render; a 24px fade reads as an edge.
+
+   IT IS DRAWN IN THE RAIL'S OWN COLOUR, so it costs nothing when there is
+   nothing to hide: with four short chips in a wide compact window the gradient
+   is `--bg-elev` over `--bg-elev` and no fade is visible at all. Contrast is
+   untouched — the ink under it is the same ink, at the same size, and the chip
+   it lands on is reachable by the scroll it is advertising.
+
+   A PSEUDO-ELEMENT AND NOT `mask-image` ON THE SCROLLER, deliberately: a mask
+   creates a stacking context, and this rail is the element whose z-index 71 has
+   to stay one above the phone sheet's 70. Masking anything on this path is how
+   the map disappears under the sheet again.
+
+   `inset-inline-end` puts it on the reading end in both languages; the gradient
+   inside it cannot follow, because CSS gradients have no logical direction — so
+   the pair of rules below IS the mirror, and neither is complete without the
+   other. */
+.mlens[data-compact]::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--mlens-modes-reserve);
+  inline-size: 24px;
+  /* The row scrolls under it and the modes sit beside it; a press here belongs
+     to whichever chip is passing beneath. */
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--bg-elev));
+}
+
+/* THE MIRROR. `lib/i18n.ts` writes `document.documentElement.dir`, so an
+   attribute selector reads it in every engine; `:dir()` is the semantic
+   spelling and is younger than the oldest browser this app is installed on. */
+[dir='rtl'] .mlens[data-compact]::after {
+  background: linear-gradient(to left, transparent, var(--bg-elev));
 }
 
 /* ---------- the five chips ---------- */
