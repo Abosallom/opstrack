@@ -193,7 +193,7 @@ import { useMapCursor } from './map/useMapCursor'
 import { useMapDrag, useMapDragPressing } from './map/useMapDrag'
 import { useMapFocus } from './map/useMapFocus'
 import { useMapGeometry } from './map/useMapGeometry'
-import { useMapKeyboard } from './map/useMapKeyboard'
+import { isDiveTarget, useMapKeyboard } from './map/useMapKeyboard'
 import { useMapModel } from './map/useMapModel'
 import { useMapOverlays } from './map/useMapOverlays'
 import { useMapToolbarActions } from './map/useMapToolbar'
@@ -842,7 +842,17 @@ export default function Mindtree(): ReactElement {
          */
         const node = findNode(model.tree, subject.nodeId) ?? focus.drawnRoot
         return {
-          title: t('mindtree.panelBranch', { label: model.textOf(node.label) }),
+          // "INSIDE" IS THE ONE PREPOSITION THE OWNER'S CORRECTION RULES OUT for
+          // an Organization. For a DEPARTMENT you dove into it is exactly right —
+          // you are inside that world and the map re-rooted to say so. An
+          // Organization is a LEAF you ARRIVE AT: nothing re-roots, nothing
+          // zooms, and the panel is a description of one thing rather than a
+          // view from within it. `isDiveTarget` is the same test `activate` uses
+          // to choose between the two gestures, so the title cannot disagree
+          // with the gesture that opened it.
+          title: isDiveTarget(node)
+            ? t('mindtree.panelBranch', { label: model.textOf(node.label) })
+            : t('mindtree.panelOrg', { label: model.textOf(node.label) }),
           body: (
             <MapBranch
               node={node}

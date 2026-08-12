@@ -187,6 +187,7 @@
     "panelHidden": "The panel is hidden.",
     "panelNeedsMe": "What needs you",
     "panelNumbers": "Six numbers",
+    "panelOrg": "⁨{label}⁩ — details",
     "panelResize": "Change the panel height",
     "panelShown": "The panel is showing.",
     "quickAddBranchDone": "⁨{name}⁩ is on the map under ⁨{label}⁩.",

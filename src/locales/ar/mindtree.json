@@ -233,6 +233,7 @@
     "panelHidden": "اللوحة مخفية.",
     "panelNeedsMe": "ما يحتاج إليك",
     "panelNumbers": "ستة أرقام",
+    "panelOrg": "⁨{label}⁩ — التفاصيل",
     "panelResize": "تغيير ارتفاع اللوحة",
     "panelShown": "اللوحة ظاهرة.",
     "quickAddBranchDone": "أصبح ⁨{name}⁩ على الخريطة تحت ⁨{label}⁩.",

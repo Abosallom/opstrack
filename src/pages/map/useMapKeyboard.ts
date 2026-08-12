@@ -383,15 +383,17 @@ export function useMapKeyboard({
       // re-read anything. `useMapLens` is deliberately silent for this subject
       // because it holds an id and this line holds the label.
       //
-      // THE SENTENCE IS THE PANEL'S OWN TITLE (`mindtree.panelBranch`, which
+      // THE SENTENCE IS THE PANEL'S OWN TITLE (`mindtree.panelOrg`, which
       // Mindtree.tsx renders at the head of the surface that just opened), so
-      // the two cannot drift into describing the same act two ways — and no new
-      // key enters the bundles for a gesture that already has one.
+      // the two cannot drift into describing the same act two ways. This arm is
+      // reached only when `isDiveTarget` is FALSE — an Organization — and that
+      // is exactly the case Mindtree.tsx titles with `panelOrg` rather than
+      // `panelBranch`: you ARRIVE AT an Organization, you are not inside it.
       if (dive !== undefined && (node.kind === 'track' || node.kind === 'entity')) {
         if (isDiveTarget(node)) dive.into(node.id)
         else {
           dive.details(node.id)
-          setLive(t('mindtree.panelBranch', { label: textOf(node.label) }))
+          setLive(t('mindtree.panelOrg', { label: textOf(node.label) }))
         }
         return
       }
