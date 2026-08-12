@@ -1163,17 +1163,19 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
         section: 'messages',
         where: 'terminology.where.settingsCatalogueKinds',
       },
-      // The third list's dialog. It reuses the SCREEN-WIDE note rather than a
-      // list-specific one, unlike its two neighbours above: there is no
-      // `settingsCatalogueStages` where-note in `terminology.json`, which this
-      // file may not add, and naming a key that does not exist would fail
-      // localeReach rather than mislabel a row. The handoff asks for that note
-      // (and for `settingsCatalogueKinds`, whose text says "at the bottom of
-      // the screen" and stopped being true when this list landed under it).
+      // The third list's dialog, and the third list-specific note. All three
+      // delete dialogs on this screen are word for word identical — "Delete
+      // {name}?" in both languages — so the where-note is the only thing that
+      // can tell an owner which list they are renaming.
+      //
+      // `terminology.where.settingsCatalogueStages` was added with this list.
+      // Its neighbour `settingsCatalogueKinds` used to say "at the bottom of
+      // the screen", which stopped being true the moment the ladder landed
+      // under it; it now says "the second of the three".
       {
         prefixes: ['deleteStage'],
         section: 'messages',
-        where: 'terminology.where.settingsCatalogue',
+        where: 'terminology.where.settingsCatalogueStages',
       },
       {
         prefixes: ['deleteConfirm'],
