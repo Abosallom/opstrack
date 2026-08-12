@@ -30,14 +30,38 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { refocusTarget } from '../../lib/mindtree/focus'
-import type { MindtreeLayout, PositionedNode } from '../../lib/mindtree/layout'
+import type { DrawnLayout, PositionedNode } from '../../lib/mindtree/layout'
 import type { MindNode as MindNodeModel } from '../../lib/mindtree/model'
 import { pruneMindSelection } from '../../store/mindtree'
 
 export interface MapCursorOptions {
-  layout: MindtreeLayout<MindNodeModel>
+  layout: DrawnLayout<MindNodeModel>
   order: readonly PositionedNode<MindNodeModel>[]
   svgRef: RefObject<SVGSVGElement | null>
+}
+
+/**
+ * THE PENDING-FOCUS RULE, as a pure function, for the reason `refocusTarget`
+ * is one: this file cannot be exercised in a `node` test environment and the
+ * rule can.
+ *
+ * `want` is an id an arrow key named that was NOT in the DOM — a child below
+ * `DOM_HORIZON_PX`, or a parent that has grown into the frame and left the SVG.
+ * The camera was asked to open the way in; this is the question asked on every
+ * commit afterwards: has it arrived?
+ *
+ * THE ONLY WRONG ANSWER IS A FALLBACK. If the node is not here yet, answer null
+ * and keep waiting — landing on "something near it", or on the whole-map fit,
+ * takes a reader who asked for one item somewhere they did not ask to be. The
+ * caller drops the request when the reader's next gesture supersedes it, which
+ * is what stops a fly that never lands from arming focus forever.
+ */
+export function pendingLanding(
+  drawn: readonly { readonly id: string }[],
+  want: string | null,
+): string | null {
+  if (want === null) return null
+  return drawn.some((pos) => pos.id === want) ? want : null
 }
 
 export function useMapCursor({ layout, order, svgRef }: MapCursorOptions) {
@@ -63,7 +87,25 @@ export function useMapCursor({ layout, order, svgRef }: MapCursorOptions) {
 
   const nodeRefs = useRef(new Map<string, SVGGElement>())
 
-  const activeId = cursorId !== null && layout.byId.has(cursorId) ? cursorId : (order[0]?.id ?? null)
+  /**
+   * The ids that are ACTUALLY IN THE DOM — which, once the camera culls, is a
+   * shorter list than the layout.
+   */
+  const drawnIds = useMemo(() => new Set(order.map((pos) => pos.id)), [order])
+
+  /**
+   * THE ROVING TAB STOP'S ONE PRECONDITION, and the cull is what makes it worth
+   * stating: `activeId` must name a node that is IN `order`.
+   *
+   * It used to ask `layout.byId`, which was the same question while `order ===
+   * layout.nodes`. With a DOM horizon the two diverge — a node can be laid out
+   * and not drawn — and a tab stop pointing at an element that is not in the
+   * document is a tab stop pointing at nothing: `useMapKeyboard` finds it at
+   * index −1 and every arrow key goes dead. Asking the DRAWN list instead is
+   * behaviour-preserving today (the two sets are equal) and is the guard that
+   * keeps the keyboard alive when they are not.
+   */
+  const activeId = cursorId !== null && drawnIds.has(cursorId) ? cursorId : (order[0]?.id ?? null)
 
   const registerRef = useCallback((id: string, el: SVGGElement | null) => {
     if (el === null) nodeRefs.current.delete(id)
@@ -130,6 +172,13 @@ export function useMapCursor({ layout, order, svgRef }: MapCursorOptions) {
    * them anyway.
    */
   const refocusRef = useRef<{ entryId: string; fromId: string | null } | null>(null)
+  /**
+   * The OTHER armed destination — an id an arrow named that the camera has not
+   * brought into the DOM yet. Declared here, beside the refocus request it
+   * loses to, rather than beside the effect that consumes it: the rule that
+   * matters is which REQUEST wins, and that is decided two lines below.
+   */
+  const pendingFocusRef = useRef<string | null>(null)
   const layoutRef = useRef(layout)
   layoutRef.current = layout
 
@@ -138,6 +187,12 @@ export function useMapCursor({ layout, order, svgRef }: MapCursorOptions) {
       if (!gestureHasFocus()) return
       const fromId = layoutRef.current.nodes.find((p) => p.node.entryId === entryId)?.id ?? null
       refocusRef.current = { entryId, fromId }
+      // A WRITE OUTRANKS A FLIGHT. Both repairs land in a layout effect on the
+      // same commit, and two armed destinations is one destination too many:
+      // the reader just dropped something, and where that thing went is where
+      // they are. Decided at the REQUEST rather than by which layout effect is
+      // declared first — an ordering nobody would think to preserve.
+      pendingFocusRef.current = null
     },
     [gestureHasFocus],
   )
@@ -163,10 +218,46 @@ export function useMapCursor({ layout, order, svgRef }: MapCursorOptions) {
     nodeRefs.current.get(id)?.focus()
   }, [layout, order])
 
+  /**
+   * AN ARROW WALKED PAST THE DOM HORIZON — hold the id, and land on it when the
+   * camera brings it in.
+   *
+   * `useMapKeyboard.reach` parks the id here and asks the camera to frame that
+   * world; this is the other half. It runs in a LAYOUT effect on `order`, beside
+   * the refocus machinery, for the same reason that one does: the destination
+   * element does not exist until the commit that draws it, and a `useEffect`
+   * would let the browser paint a frame with focus on `<body>` first.
+   *
+   * IT NEVER FALLS BACK. `pendingLanding` answers null while the node is still
+   * out there and the request simply stays armed — landing "near" the target, or
+   * on the whole-map fit, is the failure this exists to avoid. The request is
+   * dropped by `moveCursor`, i.e. by the reader's next gesture, which is what
+   * stops a fly that never lands from arming focus forever. A WRITE also drops
+   * it — see `requestRefocus`.
+   */
+  const requestPendingFocus = useCallback((id: string) => {
+    pendingFocusRef.current = id
+  }, [])
+
+  useLayoutEffect(() => {
+    const want = pendingFocusRef.current
+    if (want === null) return
+    const id = pendingLanding(order, want)
+    if (id === null) return
+    pendingFocusRef.current = null
+    setCursorId(id)
+    nodeRefs.current.get(id)?.focus()
+  }, [order])
+
   useEffect(() => {
     // Keep the roving tab stop on a node that still exists. A filter keystroke
     // can delete the focused branch out from under the reader, and a tabindex
     // pointing at nothing drops them back to the top of the document.
+    //
+    // `layout.byId` AND NOT THE DRAWN SET, deliberately: this asks whether the
+    // node still exists in the MODEL. A node the camera has culled has not
+    // vanished — it is one fly away — and repairing the cursor off it would
+    // have the tab stop fighting the flight that was sent to reach it.
     if (cursorId === null || layout.byId.has(cursorId)) return
     const next = order[0]?.id ?? null
     setCursorId(next)
@@ -182,6 +273,10 @@ export function useMapCursor({ layout, order, svgRef }: MapCursorOptions) {
 
   const moveCursor = useCallback((id: string | undefined) => {
     if (id === undefined) return
+    // A gesture that lands supersedes a gesture that is still in the air. Two
+    // armed destinations is how a reader ends up somewhere neither of them asked
+    // for, one commit later.
+    pendingFocusRef.current = null
     setCursorId(id)
     // Real DOM focus, not just a tabindex change: `aria-activedescendant` is
     // the alternative and it is the weaker one here, because the nodes are
@@ -226,6 +321,7 @@ export function useMapCursor({ layout, order, svgRef }: MapCursorOptions) {
     activeId,
     registerRef,
     requestRefocus,
+    requestPendingFocus,
     moveCursor,
     drawnEntryIds,
   }

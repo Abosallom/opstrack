@@ -296,6 +296,17 @@ function AppHeader({ titleKey }: { titleKey: string }): ReactElement {
 
 /* ---------- app ---------- */
 
+/**
+ * Is this route a full-bleed STAGE rather than a document?
+ *
+ * ONE PREDICATE, here, because `.main-content`'s padding is this file's and the
+ * decision to spend or not spend it is a fact about the route. `/` redirects to
+ * `/mindtree`, so both spellings are the map.
+ */
+function isMapRoute(pathname: string): boolean {
+  return pathname === '/' || pathname === '/mindtree' || pathname.startsWith('/mindtree/')
+}
+
 function Shell({ children }: { children: ReactNode }): ReactElement {
   const { pathname } = useLocation()
   const titleKey = titleKeyFor(pathname, NAV)
@@ -488,7 +499,25 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
             land; global.css suppresses the ring for exactly this programmatic
             case. aria-label names the landmark with the route, so the move is
             an announcement rather than a silent jump. */}
-        <main className="main-content" id="main" tabIndex={-1} aria-label={t(titleKey)}>
+        <main
+          className="main-content"
+          id="main"
+          tabIndex={-1}
+          aria-label={t(titleKey)}
+          /**
+           * THE FULL-BLEED OPT-IN, AND THE ROUTE SETS IT — the shell renders ONE
+           * `<main>` for every screen and must not guess which of them is a map.
+           *
+           * `.main-content` carries the document padding every list, form and
+           * settings page wants and a stage does not: 28px each side and 26/64
+           * block, which is 188px of a 1600px viewport spent framing a drawing
+           * that should be touching the edges. The map used to claw it back with
+           * negative margins copied from this file's own numbers, which is a
+           * drift hazard that had a comment admitting it. The attribute makes
+           * the padding zero at the source instead — see `mindtree.css`.
+           */
+          data-fullbleed={isMapRoute(pathname) ? '' : undefined}
+        >
           {children}
         </main>
       </div>

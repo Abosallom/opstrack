@@ -19,7 +19,7 @@ import { t } from '../../lib/i18n'
 import type { MindActionCtx, MindNudgeVerdict } from '../../lib/mindtree/actions'
 import { NO_VALUE, NAME_PREFIX } from '../../lib/mindtree/dropRules'
 import { trailTo } from '../../lib/mindtree/focus'
-import type { MindtreeLayout, PositionedNode } from '../../lib/mindtree/layout'
+import type { DrawnLayout, PositionedNode } from '../../lib/mindtree/layout'
 import type {
   MindDimension,
   MindNode as MindNodeModel,
@@ -32,7 +32,7 @@ import type { Box } from './useMapViewport'
 
 export interface MapOverlaysOptions {
   tree: MindNodeModel
-  layout: MindtreeLayout<MindNodeModel>
+  layout: DrawnLayout<MindNodeModel>
   nodeRefs: MutableRefObject<Map<string, SVGGElement>>
   rtl: boolean
   locale: string

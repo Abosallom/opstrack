@@ -1,10 +1,49 @@
-// WHAT THE TOOLBAR'S BUTTONS DO — the five shape controls and the export.
+// WHAT THE MAP'S BUTTONS DO — the group-by trim, the two id walks, and the
+// export.
 //
 // Extracted from pages/Mindtree.tsx unchanged. `components/map/MapToolbar.tsx`
 // is the chrome; this is the behaviour behind it, held at page level because
 // every one of these needs something the chrome cannot see: the whole tree (the
 // two id walks), the persisted focus (the dimension trim), or the LIVE <svg>
 // element (the export serialises it, it does not re-render it).
+//
+// THREE OF THESE NOW HAVE NO CONTROL, AND THEY STAY ANYWAY — AND KEEPING THEM
+// IS THE FAILURE MODE THIS UNIT WAS WARNED ABOUT, NOT AN OVERSIGHT.
+//
+// The toolbar is now ONE group-by menu. `Expand all`, `Collapse all` and the
+// `Compact` density toggle are rendered by nothing, and each was cut with a
+// mechanism named against it rather than on taste:
+//
+//   · Expand all / Collapse all — every child is already in the drawing, waiting
+//     at its own distance (docs/MAP-ZOOM.md §2: the geometry is a pure function
+//     of the department tree, laid out once at full depth). There is no fold to
+//     open. A button meaning "make the drawing as large as it can possibly be"
+//     is also the one thing a depth cap exists to prevent.
+//   · Compact — the LOD bands are absolute CSS pixels, so density is a CAMERA
+//     POSITION now rather than a preference.
+//
+// DELETING THE FUNCTIONS WOULD LOOK LIKE TIDYING AND WOULD COST THREE THINGS
+// THAT ARE NOT FREE. `expandMindAll`/`collapseMindAll` would lose their only
+// typed caller — and the node menu and the table stage still mean something by
+// both verbs. The `mindtree.expandedAll`/`collapsedAll`/`densityChanged`
+// announcements would stop being reachable and would have to be re-added as
+// orphan keys. And the density VALUE is still LIVE: `useMapGeometry` reads it
+// for the node box on the linear/table path, and `MindtreeTable` reads the MODEL
+// rather than the geometry, so it keeps its own node box at every camera
+// position. The functions are cheap, they are correct, and the surface that
+// offers them again — a command palette, a keyboard verb — is a call site away
+// rather than a rewrite away.
+//
+// `zoomPercent` IS THE SAME KIND OF SURVIVAL, one file over. It is no longer a
+// readout on any screen and `useMapGeometry` still returns it, because
+// `runExport` below prints it in the caption: that is a fact about a FILE — the
+// scale the picture in a steering deck was taken at — and not a control.
+//
+// `runExport` MOVED HOUSE WITHOUT MOVING FILE. The export disclosure it drives
+// is `MapModeBar`'s now rather than `MapToolbar`'s, which changes nothing here:
+// this hook was always the behaviour and never the markup, and it still needs
+// the live <svg>, the whole-map fit and the three summary sentences that only
+// the composition holds.
 //
 // THE MAP⇄TABLE SWITCH IS NOT HERE ANY MORE and must not come back. The collapse
 // moved it onto MapLensBar's stage group, so `useMapLens.setStage` is now the

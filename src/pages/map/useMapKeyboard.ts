@@ -60,8 +60,44 @@
 // and the invariant the map defends — Enter and click are the same act, Space
 // differs only on an item — exists precisely because one function is called from
 // both.
+//
+// ── THE KEYBOARD IS A FIRST-CLASS DIVE (docs/MAP-ZOOM.md §U5) ───────────────
+//
+// The camera redesign deletes the zoom buttons. It must not delete keyboard
+// zoom, and `ZOOM_STEP` therefore lives HERE and is exported from here: a
+// keyboard cannot be continuous, so the one place a stepped zoom is still the
+// right answer is the one place the reader has no wheel and no pinch. `+`/`=`
+// zoom in, `-`/`_` zoom out, at the cursor.
+//
+// THE SIX CAMERA VERBS ARRIVE AS ONE INJECTED OBJECT (`dive`), and it is
+// OPTIONAL. Every one of them is an effect on state this file does not own and
+// must not reach for — the camera is useMapGeometry's, the info sidebar is the
+// page's. Injecting them keeps this file a pure grammar over `order` (which is
+// what makes it testable without a DOM) and keeps the KEY→ACT mapping, which is
+// the accessibility contract, in the file that documents it. With `dive`
+// absent every key does exactly what it did before the camera existed, which is
+// what lets this land ahead of the unit that supplies it.
+//
+// WHICH ENTER YOU GET IS A QUESTION ABOUT STRUCTURE, NEVER ABOUT CONFIGURATION.
+// The owner's correction is that the dive steps through DEPARTMENTS and that an
+// Organization is a LEAF you arrive at, with its detail in the sidebar. The
+// mechanical form of that is `isDiveTarget` below: a node is a department iff it
+// has at least one child that is itself structural (`track` or `entity`). It is
+// NOT `entityType`, and model.ts forbids reading it — "what a Phase shows and
+// what an Org shows is configuration, not code". A workspace whose admin adds a
+// tier gets one more dive level for free, which is the whole point of the
+// correction: the number of levels is the depth of the tree, never four.
+//
+// PAST THE DOM HORIZON, HOLD THE ID AND FLY. `order` is the CULLED, drawn list,
+// so an arrow can name a node that is not in the DOM — the parent that has
+// become the frame, or a child still below `DOM_HORIZON_PX`. Answering with a
+// whole-map fit would take a reader who asked for ONE item to a picture of
+// everything. Instead the id is parked in useMapCursor's `requestPendingFocus`
+// and the camera is asked to open the way in; focus lands on the node the next
+// commit brings in. That is the same contract `flyToNode`'s `null` return
+// already documents at mapMotion.ts:551-566.
 
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, MutableRefObject } from 'react'
 import type { MindDragController } from '../../components/mindtree/DragLayer'
 import { dismissMindNodeCard } from '../../components/mindtree/NodeCard'
@@ -86,6 +122,50 @@ import {
 } from '../../store/mindtree'
 import type { Entry, UserRole } from '../../types'
 
+/**
+ * THE STEPPED ZOOM, AND THE ONLY PLACE IT SURVIVES.
+ *
+ * `docs/MAP-ZOOM.md §6` deletes the `Zoom −` / `Zoom +` buttons because the
+ * wheel and the pinch are the control. This constant is the reason that cut is
+ * not also a loss of reach: a keyboard has no continuous axis, so a reader
+ * without a pointer still needs a step, and 1.25 is the step the deleted buttons
+ * used. Exported so the test can assert the ratio rather than a magic number,
+ * and so nothing else in the app invents a second one.
+ */
+export const ZOOM_STEP = 1.25
+
+/**
+ * The camera, as six verbs — injected, never reached for.
+ *
+ * Optional at every call site. Absent, the keyboard behaves exactly as it did
+ * before the camera existed; present, every key that should move the camera
+ * does, and NO key that should not move it does. `details` is the one verb that
+ * must leave the camera alone, and that is stated in its own doc comment rather
+ * than left to the wiring.
+ */
+export interface MapDive {
+  /** Enter on a DEPARTMENT: fly until that world fills the frame. */
+  into: (nodeId: string) => void
+  /**
+   * Enter on an ORGANIZATION: open the info sidebar beside the map.
+   * THE CAMERA DOES NOT MOVE BY ONE UNIT. The dive answers "where am I in the
+   * organisation"; the sidebar answers "what is the state of this one thing".
+   */
+  details: (nodeId: string) => void
+  /**
+   * Focus moved — follow it BY THE MINIMUM MOVE. `flyToCamera` refuses to
+   * magnify, so a node that is already legible causes a pan at most and often
+   * nothing at all.
+   */
+  follow: (nodeId: string) => void
+  /** `+` / `=` / `−`, at the cursor. The ratio is always `ZOOM_STEP`. */
+  zoomBy: (ratio: number) => void
+  /** Home: frame the root world. */
+  home: () => void
+  /** Escape's last rung: surface one world. True when there was one to surface. */
+  surface: () => boolean
+}
+
 export interface MapKeyboardOptions {
   dragController: MindDragController
   order: readonly PositionedNode<MindNodeModel>[]
@@ -108,6 +188,48 @@ export interface MapKeyboardOptions {
   openMenuFor: (pos: PositionedNode<MindNodeModel>, at?: { x: number; y: number }) => void
   textOf: (label: MindLabel) => string
   setLive: (text: string) => void
+  /**
+   * The camera. Absent until the integrator wires U3, and every key falls back
+   * to its pre-camera behaviour while it is.
+   */
+  dive?: MapDive
+  /**
+   * ESCAPE'S THIRD RUNG. Returns true when it closed something. The stack is
+   * cancel the lift → dismiss the hover card → CLOSE THE PANEL → surface one
+   * world, and the panel sits third because it is chrome the reader raised and
+   * can see, while surfacing changes what the whole screen is about.
+   */
+  closePanel?: () => boolean
+  /**
+   * PARK AN ID THAT IS NOT IN THE DOM. useMapCursor lands it on the commit that
+   * brings the node in. Absent, an arrow past the horizon simply does nothing,
+   * which is what it does today.
+   */
+  requestPendingFocus?: (id: string) => void
+}
+
+/**
+ * IS THIS A WORLD YOU DIVE INTO, OR A LEAF YOU SELECT?
+ *
+ * The owner's correction, made mechanical: the zoom levels are DEPARTMENTS, and
+ * an Organization is the leaf the dive arrives at, not a level it enters. A
+ * department is a structural node with at least one structural child; an
+ * Organization is a structural node whose children are all content — the status
+ * buckets and the rows filed under it.
+ *
+ * STRUCTURE, NOT CONFIGURATION. `entityType` names the thing ("Programme",
+ * "Phase", "Organization") and model.ts forbids branching on it by name: "what a
+ * Phase shows and what an Org shows is configuration, not code." Nothing here
+ * reads it. The consequence is the one the correction asks for — an admin who
+ * adds a tier gets one more dive level with no code change, and the number of
+ * levels is the depth of the tree rather than four frozen English words.
+ *
+ * Exported so the test can drive it against real trees rather than through six
+ * layers of hook.
+ */
+export function isDiveTarget(node: MindNodeModel): boolean {
+  if (node.kind !== 'root' && node.kind !== 'track' && node.kind !== 'entity') return false
+  return node.children.some((kid) => kid.kind === 'track' || kid.kind === 'entity')
 }
 
 export function useMapKeyboard({
@@ -132,6 +254,9 @@ export function useMapKeyboard({
   openMenuFor,
   textOf,
   setLive,
+  dive,
+  closePanel,
+  requestPendingFocus,
 }: MapKeyboardOptions) {
   const toggleSelect = useCallback(
     (entryId: string, label: string) => {
@@ -215,6 +340,14 @@ export function useMapKeyboard({
         // FocusView header names it: the trail is INCLUSIVE of the focused node,
         // so its last element is where we are and the one before it is where
         // "out" goes.
+        //
+        // WITH A CAMERA the way back out is the same gesture and a better one:
+        // surfacing one WORLD, which is the exact inverse of the fly that got
+        // here and returns the reader to the framing they left, to the unit.
+        // `surface()` answering false means there is nothing above this — the
+        // reader is looking at the workspace — and the drill-in below is then
+        // still the honest answer for a build where a drill-in is what happened.
+        if (dive !== undefined && dive.surface()) return
         if (focusView.focusId === null) return
         const parent = focusView.trail[focusView.trail.length - 2]
         const up = parent === undefined || parent.id === ROOT_ID ? null : parent.id
@@ -224,6 +357,25 @@ export function useMapKeyboard({
             ? t('mindtree.clearFocus')
             : t('mindtree.focused', { label: textOf(parent.label) }),
         )
+        return
+      }
+      // ── THE DIVE AND THE SIDEBAR: two gestures, two questions ────────────
+      //
+      // A DEPARTMENT becomes the frame. An ORGANIZATION opens the info sidebar
+      // and THE CAMERA DOES NOT MOVE BY ONE UNIT — no zoom, no re-root, no
+      // relayout. The dive answers "where am I in the organisation"; the
+      // sidebar answers "what is the state of this one thing", and answering
+      // the second by moving the map would be answering a question nobody
+      // asked. Which of the two a node is is decided by `isDiveTarget`, on
+      // structure alone.
+      //
+      // Above the compact branch, deliberately: §8 gives the phone the FULL
+      // hierarchy with identical thresholds, so a tap on a department is a
+      // dive there too, and the one-ring drill-in below is the pre-camera
+      // fallback rather than the phone's answer.
+      if (dive !== undefined && (node.kind === 'track' || node.kind === 'entity')) {
+        if (isDiveTarget(node)) dive.into(node.id)
+        else dive.details(node.id)
         return
       }
       if (compact && node.children.length > 0) {
@@ -250,6 +402,7 @@ export function useMapKeyboard({
       setLive,
       draggedRef,
       setCurrentId,
+      dive,
     ],
   )
 
@@ -277,6 +430,46 @@ export function useMapKeyboard({
       return null
     },
     [entryById, meId, role],
+  )
+
+  /**
+   * WHICH IDS ARE ACTUALLY IN THE DOM RIGHT NOW.
+   *
+   * `order` is the CULLED, drawn list — nodes whose world intersects the camera
+   * rect and whose apparent size clears `DOM_HORIZON_PX`. Before the camera it
+   * is simply every laid-out node, so this set is the whole layout and every
+   * branch below takes its "it is drawn" arm exactly as it always did.
+   */
+  const drawnIds = useMemo(() => new Set(order.map((pos) => pos.id)), [order])
+
+  /**
+   * MOVE THE KEYBOARD TO `id` — AND, IF IT IS PAST THE DOM HORIZON, OPEN THE WAY
+   * IN FIRST AND ASK AGAIN.
+   *
+   * The drawn case is the old one: focus the element, and let the camera follow
+   * by the MINIMUM move — `flyToCamera` refuses to magnify, so a node that is
+   * already legible causes a pan at most and usually nothing.
+   *
+   * The undrawn case is the new one and it has exactly one wrong answer, which
+   * is to fit the whole map: a reader who asked for ONE item would be handed a
+   * picture of everything. Instead the id is parked and the camera is asked to
+   * frame that world; useMapCursor lands focus on it in the layout effect of the
+   * commit that brings it in. Without a camera wired there is nothing to fly, so
+   * the walk stops where the drawing stops — which is today's behaviour exactly.
+   */
+  const reach = useCallback(
+    (id: string | undefined) => {
+      if (id === undefined) return
+      if (drawnIds.has(id)) {
+        moveCursor(id)
+        dive?.follow(id)
+        return
+      }
+      if (dive === undefined) return
+      requestPendingFocus?.(id)
+      dive.into(id)
+    },
+    [drawnIds, moveCursor, dive, requestPendingFocus],
   )
 
   const onKeyDown = useCallback(
@@ -340,19 +533,44 @@ export function useMapKeyboard({
       switch (event.key) {
         case 'ArrowDown':
           event.preventDefault()
-          moveCursor(order[at + 1]?.id)
+          reach(order[at + 1]?.id)
           return
         case 'ArrowUp':
           event.preventDefault()
-          moveCursor(order[at - 1]?.id)
+          reach(order[at - 1]?.id)
           return
         case 'Home':
+          // BOTH, and they are the same act. APG says Home moves focus to the
+          // first node, which is the drawn root; §U5 says Home frames the root
+          // world. `order[0]` IS that world's node, so the two readings agree
+          // and the camera is asked for the framing rather than for `follow`'s
+          // minimum move — "take me back to the top" is a request to see the
+          // whole thing, not to keep the current magnification.
           event.preventDefault()
           moveCursor(order[0]?.id)
+          dive?.home()
           return
         case 'End':
           event.preventDefault()
-          moveCursor(order[order.length - 1]?.id)
+          reach(order[order.length - 1]?.id)
+          return
+        case '+':
+        case '=':
+        case '-':
+        case '_':
+          // KEYBOARD ZOOM, AND THE REASON IT OUTLIVES THE BUTTONS. §6 deletes
+          // `Zoom −` / `Zoom +` because the wheel and the pinch are the control
+          // — but a keyboard has no continuous axis, so deleting the buttons
+          // would delete the gesture entirely for a reader without a pointer.
+          // `ZOOM_STEP` survives here and only here.
+          //
+          // A modifier is left alone on purpose: Ctrl/Cmd +/− is the BROWSER's
+          // page zoom, and a map that swallowed it would take away the one
+          // magnification a low-vision reader already knows how to reach.
+          if (event.ctrlKey || event.metaKey || event.altKey) return
+          if (dive === undefined) return
+          event.preventDefault()
+          dive.zoomBy(event.key === '+' || event.key === '=' ? ZOOM_STEP : 1 / ZOOM_STEP)
           return
         case 'Enter':
           // ENTER IS UNCONDITIONAL and always has been: open the item, or open
@@ -397,6 +615,26 @@ export function useMapKeyboard({
             event.preventDefault()
             return
           }
+          // THE PANEL IS THE THIRD RUNG, and it is third rather than second for
+          // the same reason the card is second: the card is the thing most
+          // recently raised, the panel is chrome the reader opened and can see,
+          // and surfacing a world changes what the whole screen is about.
+          // MapPanel already owns its own two Escape orderings; this is the
+          // map's side of the same stack, and the boolean is what keeps the two
+          // from both firing on one press.
+          if (closePanel?.() === true) {
+            event.preventDefault()
+            return
+          }
+          // SURFACE ONE WORLD — the last rung, and the exact inverse of the fly
+          // that got here. False means there is nothing above: the reader is
+          // already looking at the workspace, and the drill-in clear below is
+          // then the honest answer for a build where a drill-in is what
+          // happened.
+          if (dive !== undefined && dive.surface()) {
+            event.preventDefault()
+            return
+          }
           if (focusView.focusId !== null) {
             event.preventDefault()
             setMindFocus(null)
@@ -414,10 +652,19 @@ export function useMapKeyboard({
           // On a phone every branch sits on the depth limit, so "open it" and
           // "drill into it" are the same gesture — which is what keeps the
           // arrow key and the tap doing the same thing.
+          //
+          // THE CAMERA RETIRES BOTH ARMS FOR A STRUCTURAL NODE. There is no
+          // fold to open — every child is already in the drawing, waiting at
+          // its own distance — and the phone is no longer capped at one ring,
+          // so "toward the children" is a fly, not a state change. `reach`
+          // handles the rest, including the child that is still below the DOM
+          // horizon.
+          else if (dive !== undefined && (node.kind === 'track' || node.kind === 'entity'))
+            reach(pos.childIds[0] ?? node.children[0]?.id)
           else if (compact) focusBranch(node.id)
           else setMindCollapsed(node.id, false)
         } else if (drawn) {
-          moveCursor(pos.childIds[0])
+          reach(pos.childIds[0])
         }
         return
       }
@@ -426,9 +673,14 @@ export function useMapKeyboard({
         event.preventDefault()
         if (drawn) {
           if (node.kind === 'more') toggleFold(node.id)
+          // Same argument, inverted: with a camera there is nothing to close,
+          // and "away from the children" is a step OUT to the parent world —
+          // which is where `reach` was already taking a leaf.
+          else if (dive !== undefined && (node.kind === 'track' || node.kind === 'entity'))
+            reach(pos.parentId ?? undefined)
           else setMindCollapsed(node.id, true)
         } else if (pos.parentId !== null) {
-          moveCursor(pos.parentId)
+          reach(pos.parentId)
         }
       }
     },
@@ -438,6 +690,7 @@ export function useMapKeyboard({
       order,
       rtl,
       moveCursor,
+      reach,
       activate,
       focusView.focusId,
       compact,
@@ -448,6 +701,8 @@ export function useMapKeyboard({
       whyNotLiftable,
       focusBranch,
       setLive,
+      dive,
+      closePanel,
     ],
   )
 

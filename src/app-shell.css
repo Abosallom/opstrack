@@ -35,13 +35,62 @@
   min-inline-size: 0;
 }
 
+/* ---------- the route's own box ----------
+
+   THE THREE PADDING NUMBERS ARE TOKENS, AND THAT IS A DRIFT FIX RATHER THAN A
+   TIDY-UP. `pages/mindtree.css` cancels this padding from the inside with
+   negative margins — the only way for a child to undo a parent's padding without
+   naming the parent — and until now it did so by COPYING these three numbers by
+   hand. Its own comment names the hazard: "if they drift, the map is misaligned
+   by the difference". `--app-header-block-size` already travels this exact route
+   for exactly this reason, so the tokens are declared here, this rule is
+   rendered FROM them, and the sheet that has to cancel them reads them instead
+   of remembering them.
+
+   Declared on `.main-content` itself rather than on `:root`: they are this box's
+   geometry, they change at the 768px breakpoint below, and a descendant is the
+   only thing that needs to see them. */
 .main-content {
+  --main-pad-block-start: 22px;
+  --main-pad-block-end: 56px;
+  --main-pad-inline: 18px;
   flex: 1 1 auto;
   min-inline-size: 0;
   inline-size: 100%;
   max-inline-size: 1180px;
-  padding-block: 22px 56px;
-  padding-inline: 18px;
+  padding-block: var(--main-pad-block-start) var(--main-pad-block-end);
+  padding-inline: var(--main-pad-inline);
+}
+
+/* ---------- full bleed ----------
+
+   THE LAST STRUCTURAL PIXEL-THIEF ON THE MAP SCREEN, and it is here rather than
+   in the map's own sheet because `.main-content` is not that sheet's to style
+   (§1.0.7 — one class, one owner).
+
+   MEASURED: at 1600x900 the map's stage renders 1180px wide inside a viewport
+   that has 1368px available after the 232px sidebar. `max-inline-size: 1180px`
+   is costing the drawing 188px — 14% of the width it could have — on the one
+   route in this app whose entire job is a picture. Every other route is a
+   document, and a 1180px measure is a reading-width decision that is right for
+   all of them, which is why the cap stays and an OPT-IN is what changes.
+
+   `data-fullbleed` is an attribute the ROUTE sets, not a class the shell
+   guesses: the shell renders one `<main>` for every screen and has no business
+   knowing which of them is a map. Reported to the integrator — `App.tsx`'s
+   `<main className="main-content">` takes `data-fullbleed` when the route is the
+   map, and nothing else in this file needs to change.
+
+   The inline padding goes to zero with the cap, because a stage that spans the
+   viewport and then insets itself by 28px is a stage with a 28px frame nobody
+   asked for — and `mindtree.css` cancels that padding anyway, so leaving it
+   would mean two rules undoing each other across a file boundary. The BLOCK
+   padding is left alone: the map cancels it deliberately (its stage is
+   `100dvh - header`) and a route that opts into full bleed without a fixed-height
+   stage still wants its block rhythm. */
+.main-content[data-fullbleed] {
+  max-inline-size: none;
+  --main-pad-inline: 0px;
 }
 
 /* ---------- sidebar (>= 768px) ---------- */
@@ -454,10 +503,15 @@
      map does NOT rely on this: `.mtree` clears its own composer through
      `--map-composer-block-size` (pages/mindtree.css), which is the only element
      that can, since the composer's height is measured at runtime. */
+  /* The TOKENS are retuned, not the `padding` declarations — that is the whole
+     point of routing them through custom properties, and it is what lets
+     `mindtree.css` cancel the right numbers at every width with one rule
+     instead of three copies. */
   .main-content {
-    padding-block: 16px calc(20px + env(safe-area-inset-bottom, 0px));
+    --main-pad-block-start: 16px;
+    --main-pad-block-end: calc(20px + env(safe-area-inset-bottom, 0px));
     /* Symmetric notch padding — see the note at the top of this file. */
-    padding-inline: max(14px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+    --main-pad-inline: max(14px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   }
 
   /* Retunes the header AND the offline strip's sticky offset in one move —
@@ -475,8 +529,9 @@
   }
 
   .main-content {
-    padding-block: 26px 64px;
-    padding-inline: 28px;
+    --main-pad-block-start: 26px;
+    --main-pad-block-end: 64px;
+    --main-pad-inline: 28px;
   }
 
   /* No composer docked at the block end on a wide viewport — the capture bar

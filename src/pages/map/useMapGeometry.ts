@@ -1,328 +1,731 @@
-// THE GEOMETRY AND THE VIEWPORT — how big a node is, where the tidy tree puts
-// it, what window of the drawing is on screen, and the three gestures that move
-// that window.
+// THE CAMERA — one window on a drawing that never moves, and the four gestures
+// that move the window.
 //
-// Extracted from pages/Mindtree.tsx unchanged.
+// ── WHAT THIS FILE STOPPED DOING, AND WHY THAT IS THE POINT ────────────────
+//
+// It used to build the drawing AND hold the view, and the two were wired
+// together in a loop nobody could see from either end:
+//
+//     depthLimit → layout → bounds → fit.scale → zoomBounds → heldZoom → depthLimit
+//
+// Every link was defensible on its own. Together they meant that zooming
+// changed how many rings were drawn, which changed the drawing's extent, which
+// changed the fit, which re-clamped the zoom — so the picture re-laid-out
+// itself under the reader roughly a dozen times per tier, and every node on the
+// map glided to new coordinates each time. A reader watching that is watching a
+// tree that scales, plus wobble. It is not a camera.
+//
+// THE CHAIN NOW HAS NO FIRST LINK, and it has none BY CONSTRUCTION rather than
+// by care:
+//
+//     geometry ← (department tree, direction)        ONE arrow, and not here
+//     LOD      ← (camera, box)
+//     camera   ← (gestures, tweens, one mount-time read of bounds)
+//     paint    ← (filter)                            never reaches geometry
+//
+// `depthLimit` is not a camera input and `bounds` is not a camera output. The
+// hook cannot recompute the drawing because IT CANNOT SEE THE LAYOUT MODULE AT
+// ALL: the layout arrives as an argument, typed structurally, and there is no
+// import path from here to `layoutWorlds`. "The camera never feeds the
+// geometry" is therefore a fact about the module graph rather than a rule
+// somebody has to keep remembering.
+//
+// ── ONE VALUE OF STATE ─────────────────────────────────────────────────────
+//
+// `camera = {cx, cy, width, height}` in DRAWING UNITS, plus a tween ref. That
+// is all of it. `zoom`, `heldZoom`, `zoomBounds`, `clampZoom`, `zoomBy`,
+// `resetView`, `fit`, `depthLimit`, `sizeOfForLimit`, `altitude` and its four
+// named stops are all gone, and every one of them existed to describe a
+// MULTIPLIER OF A MOVING FIT. An absolute width does not move when the drawing
+// does, so there is nothing left to re-clamp and nothing left to hold in two
+// places. `pan === null` is retired with them: "stay fitted" was only ever
+// needed because bounds moved.
+//
+// `scale = box.width / camera.width` — drawing units per CSS pixel — is derived
+// where it is needed and stored nowhere.
 //
 // ── ZOOM IS A viewBox, NEVER A CSS TRANSFORM ───────────────────────────────
 //
-// A `scale()` on the <svg> resamples text (it blurs) and, worse, moves
-// hit-testing away from where the marks appear at fractional scales. So zoom
-// and pan are arithmetic on the viewBox, exactly as lib/mindtree/layout's
-// `fitToViewBox` is written to support. `pan === null` means "stay fitted",
-// which is why expanding a branch re-fits the map for free and a user who has
-// panned is never yanked back.
+// Unchanged and still the reason the arithmetic is here: a `scale()` on the
+// <svg> resamples text and moves hit-testing away from where the marks appear
+// at fractional scales.
 //
-// THE THREE NULL-ANCHORING CALL SITES ARE IN THIS FILE TOGETHER, and that is
-// the reason the cut is drawn here rather than through the middle of it:
-// `panBy`, `zoomBy` and `onPointerMove` each have to turn "stay fitted" into a
-// real centre before they may move it. A build that carried two of the three
-// re-centres the map on every zoom press.
+// ── AND THE ANCHOR IS THE BUG FIX ──────────────────────────────────────────
 //
-// SO IS THE CLAMP CYCLE. layout → fit → zoomBounds → heldZoom is a read-time
-// clamp, not a write-time one: expanding a branch, typing in the filter or a
-// window resize moves `layout.bounds` → `fit.scale` → the multiplier bounds,
-// and the stored zoom is silently re-clamped on read. Two components each
-// holding half of that strand the reader outside the new bounds with the +/−
-// buttons unable to walk back — the exact bug SCALE_MIN/SCALE_MAX records as
-// already fixed once.
-//
-// ── AND THE BIG SCREEN, FOR THE SAME REASON AS THE SMALL ONE ───────────────
-//
-// The desktop had the identical defect as the phone and nobody had measured it,
-// because a desktop map "fits". The first cut opened every branch through ring 3
-// and gave `fitToViewBox` no floor, so a six-track workspace with 31 open items
-// fitted at 0.23: every node on the map was 10 CSS px tall — under WCAG 2.5.8's
-// 24, under the app's own 44 — and the 12.5px label rendered at 2.9px. The zoom
-// could not rescue it either, because the ceiling was a multiple OF THE FIT.
-//
-// Three numbers fix it and all three are derived rather than chosen. The map
-// OPENS AT THE TRACK RING (`OPEN_DEPTH`, in useMapModel), which fits at 1:1. The
-// fit REFUSES to shrink past a 24px node (`MIN_TARGET_PX`) and overflows into
-// the pan that was already built. And the zoom is bounded on the EFFECTIVE
-// scale, so + always reaches 1:1 however large the tree is.
+// The three gesture sites in this file used to resolve `pan === null` to the
+// FIT CENTRE before they could move it, so every pinch anchored on the middle
+// of the drawing rather than on the fingers and the picture slid out from under
+// the reader's hand. All three now call `anchoredZoom` on a point the reader
+// chose — the cursor, or the two-pointer midpoint — which is what makes "the
+// thing you zoom into becomes the whole frame" true with no target selection
+// anywhere in the app.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
-import { t } from '../../lib/i18n'
+import { fitToViewBox, type ViewBoxFit } from '../../lib/mindtree/layout'
 import {
-  DEFAULT_GAP,
-  DEFAULT_NODE_SIZE,
-  fitToViewBox,
-  layoutMindtree,
-  sizeForCount,
-  zoomLimits,
-  type Gap,
-  type NodeSize,
-} from '../../lib/mindtree/layout'
-import type { MindNode as MindNodeModel } from '../../lib/mindtree/model'
-import { useBoxSize } from './useMapViewport'
-
-/**
- * Zoom bounds, IN EFFECTIVE SCALE — drawing units per CSS pixel on screen —
- * rather than in multiples of the fit.
- *
- * The first cut clamped the MULTIPLIER at 4, which reads as generous and is
- * not: on-screen scale is `fit.scale × zoom`, so a map that fits at 0.15 had a
- * ceiling of 0.6 and could not be magnified to a legible size at all, however
- * many times the reader pressed +. The bound has to be on the number the reader
- * can actually see. `zoomLimits()` (lib/mindtree/layout) turns these two into
- * multiplier bounds against the current fit, and always leaves 1 — the fit
- * itself — reachable.
- */
-const SCALE_MIN = 0.25
-const SCALE_MAX = 3
-export const ZOOM_STEP = 1.25
-
-/**
- * WCAG 2.5.8's target minimum, in CSS pixels, and the floor under the fit.
- *
- * A node is at least `nodeSize.height` DRAWING units tall, which is 44 — but
- * drawing units are not pixels, and `fitToViewBox` exists to shrink them. With
- * no floor the desktop fit took a six-track workspace to 0.23 and every node on
- * the map to 10 px: under 2.5.8's 24 px, under the app's own 44, and with 2.9px
- * labels. Nor is the spacing exception available, because stacked entry nodes
- * are ~10px apart and their 24px circles would intersect.
- *
- * So the map REFUSES to shrink past a tappable node and overflows instead. The
- * pan is already built and paid for (`touch-action: none`, the pointer drag),
- * the fit-to-view button is one press away, and the default collapse means the
- * common case never overflows at all.
- */
-const MIN_TARGET_PX = 24
+  anchoredZoom,
+  beginCameraTween,
+  cameraAtWidth,
+  clampCamera,
+  FRAME_FILL_DESKTOP,
+  FRAME_FILL_PHONE,
+  frameCamera,
+  MAP_TWEEN_MS,
+  octavesOf,
+  retargetCameraTween,
+  ROOT_FLOOR_FILL,
+  rubberBandCamera,
+  sampleCamera,
+  viewBoxOf,
+  wheelRatio,
+  ZOOM_HEADROOM,
+  type Camera,
+  type CameraBounds,
+  type CameraTween,
+  type Occlusion,
+} from './mapMotion'
+import { useBoxSize, type Box } from './useMapViewport'
 
 /** A pointer that moved further than this was a pan, not a tap. */
 const DRAG_SLOP = 4
 
-const WIDE_NODE: NodeSize = DEFAULT_NODE_SIZE
-const COMPACT_NODE: NodeSize = { width: 132, height: 44 }
-const COMPACT_GAP: Gap = { depth: 34, sibling: 10 }
+/**
+ * How long after the last wheel event the camera springs back off a bound.
+ *
+ * A pinch has a release — a finger leaves the glass — and a wheel does not, so
+ * the wheel's "release" has to be measured. 220ms is long enough that a
+ * continuous scroll does not fight the spring mid-gesture and short enough that
+ * the recoil still reads as part of the same motion.
+ */
+const WHEEL_SETTLE_MS = 220
+
+/** Nothing is covering the stage. The RESTING camera always frames with this. */
+const NO_OCCLUSION: Occlusion = { inlineEnd: 0, blockEnd: 0 }
+
+/* ─────────────────── what the camera needs from the drawing ───────────────── */
 
 /**
- * The `density: 'compact'` desktop node, and the number that is NOT reduced.
+ * One node's world, as the CAMERA sees it — a centre and a diameter, plus
+ * whether it is a place the dive may stop.
  *
- * The inline axis shrinks (fewer characters of label per card, which the hover
- * card and the table both make good) and the depth gap tightens, because what
- * binds a wide map is rings across. THE BLOCK SIZE STAYS AT 44 — the same 44 the
- * comfortable node uses, and the same 44 `MIN_TARGET_PX / nodeSize.height` builds
- * the fit floor from. A density preference that shrank the touch target would be
- * a preference for failing WCAG 2.5.8, which is not a preference this app offers;
- * what it buys instead is roughly a third more branches on a laptop before the
- * map overflows into the pan.
+ * STRUCTURAL means `kind` is `'root' | 'track' | 'entity'`: a department tier.
+ * A `group`, `more` or `entry` node is drawn as CONTENT inside its owner's world
+ * and can never become the frame, which is the owner's correction — *"the
+ * leveling for department wise not org and info side bar"* — made mechanical.
+ * The camera reads the flag for exactly one purpose: the deepest structural
+ * world in the workspace sets the terminus.
+ *
+ * Declared here rather than imported so this file has NO edge to the layout
+ * module. `WorldNode` satisfies it structurally.
  */
-const DENSE_NODE: NodeSize = { width: 132, height: 44 }
-const DENSE_GAP: Gap = { depth: 44, sibling: 12 }
+export interface CameraWorld {
+  readonly worldX: number
+  readonly worldY: number
+  readonly worldD: number
+  readonly structural: boolean
+}
 
-export interface MapGeometryOptions {
-  drawnRoot: MindNodeModel
+/**
+ * The drawing, as the CAMERA sees it. `WorldLayout` satisfies it structurally.
+ *
+ * `revision` changes IFF THE TREE CHANGED — not when the filter narrows, not
+ * when the reader collapses a branch, not when the window resizes. It is the
+ * only thing that may re-frame the camera after mount, because it is the only
+ * thing that can make a remembered framing point at coordinates the drawing no
+ * longer occupies.
+ */
+export interface CameraLayout<W extends CameraWorld = CameraWorld> {
+  readonly nodes: readonly W[]
+  readonly byId: ReadonlyMap<string, W>
+  /** `Bounds`, in full, because the export's `fitToViewBox` wants all six. */
+  readonly bounds: {
+    readonly minX: number
+    readonly minY: number
+    readonly maxX: number
+    readonly maxY: number
+    readonly width: number
+    readonly height: number
+  }
+  /** Diameter of the root world, drawing units. The far end of the dive. */
+  readonly rootD: number
+  readonly revision: string
+}
+
+export interface MapGeometryOptions<L extends CameraLayout> {
+  /**
+   * THE DRAWING, BUILT ELSEWHERE AND HANDED IN. One arrow, at mount.
+   *
+   * Passed rather than built here so that no camera value can reach the layout
+   * call — see this file's header. It is also what lets this hook be reasoned
+   * about, and tested, without the layout module existing.
+   */
+  layout: L
+  /**
+   * The world the INITIAL camera frames — `focusView.node.id`.
+   *
+   * `useMapFocus` already resolves `?focus=` and the store, with a
+   * deepest-surviving-ancestor fallback and a three-writer convergence guard.
+   * That resolution is not re-derived here and must not be.
+   */
+  focusWorldId: string | null
+  /** Phone. Decides `FRAME_FILL` and nothing else in this file. */
   compact: boolean
-  density: 'compact' | 'comfortable'
   rtl: boolean
   svgRef: RefObject<SVGSVGElement | null>
-  setLive: (text: string) => void
   /**
    * Has the drag layer already claimed this press?
    *
    * Read through a callback rather than taken as a value because the controller
    * does not exist yet when this hook is called — `useMindDragLayer` needs
    * `panBy` and `cancelPan` from here, so the two are mutually dependent and the
-   * cycle is broken at the only point where it costs nothing: a predicate that
-   * is called during an event, long after both have been built.
+   * cycle is broken at the only point where it costs nothing.
    */
   isPressing: () => boolean
+  /**
+   * CSS px of the stage the floating panel covers at the inline END, and the
+   * phone sheet at the block END. MEASURED by those components' own
+   * ResizeObservers and threaded here, never assumed from a media query.
+   *
+   * THEY DO NOT MOVE THE RESTING CAMERA. Occlusion reaches the camera on a FLY
+   * and nowhere else: opening a panel that shoved the map sideways would be the
+   * same teleport this design exists to prevent, arriving from the other side.
+   */
+  occludeInline: number
+  occludeBlockEnd: number
+  /**
+   * The reader asked for less motion. PROGRAMMATIC moves become instant; the
+   * wheel and the pinch stay continuous, because direct manipulation is the
+   * reader's own hand rather than motion the app inflicted.
+   *
+   * An ARGUMENT, not a `matchMedia` read — `PulseLayer.useReducedMotion` is the
+   * one subscription and the shell threads it, which is what keeps the rule
+   * assertable without a browser.
+   */
+  reducedMotion?: boolean
 }
 
-export function useMapGeometry({
-  drawnRoot,
+/* ────────────────────────────── the hook ─────────────────────────────────── */
+
+interface CameraState {
+  /** The tree this camera was framed against. */
+  readonly revision: string
+  readonly camera: Camera
+  /**
+   * True until the camera has been framed against a MEASURED stage.
+   *
+   * The `useState` initializer necessarily runs before the ResizeObserver has
+   * reported anything, so the first camera is framed against `useBoxSize`'s
+   * fallback box. This flag lets exactly one correction happen when the real
+   * measurement lands, and never again — a later resize keeps the reader's
+   * camera and only re-derives its height, because a window drag that re-framed
+   * the map would be a teleport.
+   */
+  readonly provisional: boolean
+}
+
+export function useMapGeometry<L extends CameraLayout>({
+  layout,
+  focusWorldId,
   compact,
-  density,
   rtl,
   svgRef,
-  setLive,
   isPressing,
-}: MapGeometryOptions) {
-  const [zoom, setZoom] = useState(1)
-  /** Bumped by every zoom press; the announcement effect hangs off it. */
-  const [zoomTick, setZoomTick] = useState(0)
-  /** null = "stay fitted". See the viewBox note in this file's header. */
-  const [pan, setPan] = useState<{ x: number; y: number } | null>(null)
+  occludeInline,
+  occludeBlockEnd,
+  reducedMotion = false,
+}: MapGeometryOptions<L>) {
+  const { ref: measureRef, box } = useBoxSize({ width: 960, height: 520 })
+
+  /* ── the two ends of the dive ───────────────────────────────────────────── */
+
+  /**
+   * THE TERMINUS'S DIAMETER — the smallest STRUCTURAL world in the workspace.
+   *
+   * WHERE I DEPART FROM THE CONTRACT, AND THE REASON IS THE WHOLE POINT OF THE
+   * UNIT. It asks for *"D(deepest structural world on the CURRENT PATH)"*. The
+   * current path is `worldAt(camera)`'s ancestors — so a bound derived from it
+   * would be `camera → bounds → camera`, which is a feedback cycle of exactly
+   * the shape this file was rewritten to destroy, and one that can oscillate: a
+   * clamp that moves the camera can move the path that produced the clamp.
+   *
+   * The smallest structural world in the TREE is a mount-time constant, it
+   * permits at least as much magnification as any path needs, and it costs one
+   * linear scan when the admin changes the tree. The price is real and is named:
+   * on a shallow path the reader may magnify further past their deepest
+   * department than the terminus strictly intends. A dead stop that is slightly
+   * too generous is recoverable; a clamp that argues with itself is not.
+   */
+  const deepestD = useMemo(() => {
+    let smallest = layout.rootD > 0 ? layout.rootD : 1
+    for (const node of layout.nodes) {
+      if (!node.structural) continue
+      if (Number.isFinite(node.worldD) && node.worldD > 0 && node.worldD < smallest) {
+        smallest = node.worldD
+      }
+    }
+    return smallest
+  }, [layout])
+
+  /**
+   * The two ends, in DRAWING UNITS OF CAMERA WIDTH.
+   *
+   * `minWidth` is the terminus: `D / ZOOM_HEADROOM` puts the deepest
+   * department's world at 2.2× the width of the window, which is as close as the
+   * dive goes. `maxWidth` is the far end: wide enough that the root world still
+   * spans `ROOT_FLOOR_FILL` of the stage's smaller dimension, so pulling all the
+   * way back lands on a picture rather than on the void beside it.
+   *
+   * NOT A CAMERA INPUT ANYWHERE IN ITS DERIVATION — `rootD` and `deepestD` are
+   * facts about the tree, and `box` is the element, which is `inset: 0` and does
+   * not resize when something is drawn over it.
+   */
+  const cameraBounds = useMemo<CameraBounds>(() => {
+    const rootD = layout.rootD > 0 ? layout.rootD : 1
+    const v = Math.max(1, Math.min(box.width, box.height))
+    return {
+      maxWidth: (rootD * Math.max(1, box.width)) / (ROOT_FLOOR_FILL * v),
+      minWidth: deepestD / ZOOM_HEADROOM,
+    }
+  }, [layout.rootD, deepestD, box])
+
+  const frameFill = compact ? FRAME_FILL_PHONE : FRAME_FILL_DESKTOP
+
+  /* ── the one read of layout.bounds ──────────────────────────────────────── */
+
+  /**
+   * THE CAMERA'S ONLY ARROW FROM THE LAYOUT, and it fires when the admin changes
+   * the tree rather than when the reader breathes.
+   *
+   * Called from the `useState` initializer and from the revision guard below —
+   * never from a memo the camera consults each render. That is the structural
+   * difference between this file and the one it replaces: there is no expression
+   * anywhere in the render path whose value depends on both the camera and the
+   * drawing's extent, so there is nothing for a cycle to run around.
+   *
+   * NO OCCLUSION. The resting camera never sees it.
+   */
+  const initialCamera = useCallback(
+    (viewport: Box): Camera => {
+      const framed = focusWorldId === null ? undefined : layout.byId.get(focusWorldId)
+      const world = framed ?? {
+        // The fallback is the whole drawing, and it is the ONLY read of
+        // `layout.bounds` in this file's camera path.
+        worldX: layout.bounds.minX + layout.bounds.width / 2,
+        worldY: layout.bounds.minY + layout.bounds.height / 2,
+        worldD: Math.max(layout.bounds.width, layout.bounds.height),
+      }
+      return clampCamera(
+        frameCamera(world, { viewport, frameFill, occlusion: NO_OCCLUSION, rtl }),
+        cameraBounds,
+      )
+    },
+    // `cameraBounds` is in the closure and is derived from `box`; the callers
+    // are the initializer and the revision guard, both of which want the
+    // bounds current at the moment they run.
+    [layout, focusWorldId, frameFill, rtl, cameraBounds],
+  )
+
+  const [state, setState] = useState<CameraState>(() => ({
+    revision: layout.revision,
+    camera: initialCamera({ width: 960, height: 520 }),
+    provisional: true,
+  }))
+
+  /**
+   * THE ADMIN CHANGED THE TREE. Re-frame, once, and only for that.
+   *
+   * A `setState` during render is React's own idiom for adjusting state when a
+   * prop changes, and it is the right one here: an effect would paint one frame
+   * of the old camera against the new drawing, which is a visible flash of the
+   * map at coordinates that no longer mean anything.
+   */
+  if (state.revision !== layout.revision) {
+    setState({ revision: layout.revision, camera: initialCamera(box), provisional: false })
+  }
+
+  const stored = state.camera
+
+  /**
+   * The camera AS DRAWN — the stored width with the element's aspect.
+   *
+   * The viewBox and the element must agree about aspect or the map letterboxes,
+   * and every pixel↔unit conversion in this file and in `useMapOverlays` is
+   * `dx · camera.width / box.width`, which is exact only while they do. A resize
+   * therefore changes the camera's HEIGHT and nothing else: the window got
+   * taller, so you see more. It does not move.
+   */
+  const camera = useMemo<Camera>(() => {
+    if (!(box.width > 0) || !(box.height > 0) || !(stored.width > 0)) return stored
+    const height = (stored.width * box.height) / box.width
+    return height === stored.height ? stored : { ...stored, height }
+  }, [stored, box])
+
+  /** The camera the loop last painted, or the rendered one when nothing flies. */
+  const paintedRef = useRef<Camera | null>(null)
+  const cameraRef = useRef<Camera>(camera)
+  cameraRef.current = camera
+  const boundsRef = useRef<CameraBounds>(cameraBounds)
+  boundsRef.current = cameraBounds
+  const boxRef = useRef<Box>(box)
+  boxRef.current = box
+  const reducedRef = useRef(reducedMotion)
+  reducedRef.current = reducedMotion
+
+  const liveCamera = useCallback((): Camera => paintedRef.current ?? cameraRef.current, [])
+
+  /* ── the frame loop, and it is the only part that cannot be tested ──────── */
+
+  const tweenRef = useRef<CameraTween | null>(null)
+  const rafRef = useRef<number | null>(null)
+  const springRef = useRef<number | null>(null)
+
+  /** Drop the tween WHERE IT STANDS. The reader has taken the camera back. */
+  const dropTween = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    if (tweenRef.current === null) return
+    tweenRef.current = null
+    const painted = paintedRef.current
+    paintedRef.current = null
+    if (painted === null) return
+    // `cameraRef` too, and not only the state: a gesture that drops a tween
+    // reads the camera again in the SAME event — `onPointerDown` takes its pan
+    // origin from it — and React has not re-rendered yet. Without this the
+    // gesture would start from wherever the camera was before the fly, and the
+    // map would jump by the whole distance the tween had covered.
+    cameraRef.current = painted
+    setState((prev) => ({ ...prev, camera: painted, provisional: false }))
+  }, [])
+
+  /**
+   * Move the camera by ARITHMETIC ON A FRAME LOOP, because `viewBox` is an SVG
+   * presentation attribute with no CSS counterpart and there is no
+   * `transition: viewBox` to write.
+   *
+   * The loop writes through `viewBoxOf`, which is the ONE formatter, so the
+   * final frame is byte-identical to the string React renders from the settled
+   * state and there is nothing for React to correct. Without that the map would
+   * stick wherever the loop left it, because React only writes an attribute when
+   * the prop changed between renders.
+   */
+  const flyToCamera = useCallback(
+    (to: Camera, durationMs?: number) => {
+      if (springRef.current !== null) {
+        window.clearTimeout(springRef.current)
+        springRef.current = null
+      }
+      const now = performance.now()
+      const active = tweenRef.current
+      const options = { reducedMotion: reducedRef.current, durationMs }
+      const next =
+        active === null
+          ? beginCameraTween(liveCamera(), to, now, options)
+          : // A SECOND FLY BENDS THE MOVE rather than snapping: it restarts from
+            // where the camera actually is at this instant.
+            retargetCameraTween(active, to, now, options)
+
+      if (next === null) {
+        // Already there. `null` is the honest answer to "move to where you are",
+        // and running a loop for it would paint four identical frames.
+        dropTween()
+        setState((prev) => ({ ...prev, camera: to, provisional: false }))
+        return
+      }
+
+      tweenRef.current = next
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+
+      const tick = (): void => {
+        rafRef.current = null
+        const tween = tweenRef.current
+        if (tween === null) return
+        const { camera: at, done } = sampleCamera(tween, performance.now())
+        svgRef.current?.setAttribute('viewBox', viewBoxOf(at))
+        if (!done) {
+          paintedRef.current = at
+          rafRef.current = requestAnimationFrame(tick)
+          return
+        }
+        tweenRef.current = null
+        paintedRef.current = null
+        // Same reason as `dropTween`: a gesture arriving between the last frame
+        // and React's next render must see where the camera actually landed.
+        cameraRef.current = at
+        setState((prev) => ({ ...prev, camera: at, provisional: false }))
+      }
+      tick()
+    },
+    [dropTween, liveCamera, svgRef],
+  )
+
+  useEffect(
+    () => () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+      if (springRef.current !== null) window.clearTimeout(springRef.current)
+    },
+    [],
+  )
+
+  /* ── the public moves ───────────────────────────────────────────────────── */
+
+  /**
+   * WRITE THE CAMERA, AND MAKE IT READABLE IN THE SAME TASK.
+   *
+   * `cameraRef` is updated before the state, and that is not belt-and-braces:
+   * React batches every update raised inside one task, so two wheel events in
+   * one frame — which a trackpad delivers routinely — would both read the
+   * RENDERED camera and the second would overwrite the first, collapsing two
+   * notches into one. The old file recorded exactly this defect against its zoom
+   * buttons ("fifteen programmatic clicks moved the readout one step") and
+   * solved it with a functional updater; a functional updater is not available
+   * here because the anchor has to be resolved against the camera the gesture is
+   * actually looking at, so the read side is what gets fixed instead.
+   *
+   * The stored width is the RUBBER-BANDED one, not the raw one, so the picture
+   * and the state can never disagree about where the map is — every pixel↔unit
+   * conversion downstream reads the same value the viewBox does.
+   */
+  const writeCamera = useCallback((next: Camera) => {
+    const drawn = rubberBandCamera(next, boundsRef.current)
+    cameraRef.current = drawn
+    setState((prev) => ({ ...prev, camera: drawn, provisional: false }))
+  }, [])
+
+  /**
+   * Spring back off a bound once the gesture has let go.
+   *
+   * `MAP_TWEEN_MS`, not a derived duration: the recoil is a RESPONSE to the
+   * release rather than a journey, and it is the same 240ms the stylesheet
+   * spends on every other settle on this screen. It is NOT a spring in the
+   * physical sense and deliberately so — a spring has no end time, and a motion
+   * with no end time cannot be made instant for a reader who asked for that.
+   */
+  const springBack = useCallback(() => {
+    const at = liveCamera()
+    const clamped = clampCamera(at, boundsRef.current)
+    if (clamped === at) return
+    flyToCamera(clamped, MAP_TWEEN_MS)
+  }, [flyToCamera, liveCamera])
+
+  const setCamera = useCallback(
+    (next: Camera) => {
+      dropTween()
+      const held = clampCamera(next, boundsRef.current)
+      cameraRef.current = held
+      setState((prev) => ({ ...prev, camera: held, provisional: false }))
+    },
+    [dropTween],
+  )
+
+  const frameOptionsRef = useRef({ frameFill, occludeInline, occludeBlockEnd, rtl })
+  frameOptionsRef.current = { frameFill, occludeInline, occludeBlockEnd, rtl }
+
+  /**
+   * FLY TO A WORLD — a tap on a department, a crumb, a rail release.
+   *
+   * The one place occlusion enters the camera: the world is framed in the
+   * rectangle the reader can actually see through, so a dive with the panel open
+   * lands beside the panel rather than behind it.
+   */
+  const flyTo = useCallback(
+    (world: { readonly worldX: number; readonly worldY: number; readonly worldD: number }) => {
+      const options = frameOptionsRef.current
+      const framed = frameCamera(world, {
+        viewport: boxRef.current,
+        frameFill: options.frameFill,
+        occlusion: { inlineEnd: options.occludeInline, blockEnd: options.occludeBlockEnd },
+        rtl: options.rtl,
+      })
+      flyToCamera(clampCamera(framed, boundsRef.current))
+    },
+    [flyToCamera],
+  )
+
+  /**
+   * The camera framed against a MEASURED stage, exactly once.
+   *
+   * Guarded on `provisional`, so this fires on the first real measurement and
+   * never again — a reader resizing a window keeps their camera.
+   */
+  useEffect(() => {
+    if (!state.provisional) return
+    if (!(box.width > 0) || !(box.height > 0)) return
+    setState((prev) =>
+      prev.provisional ? { ...prev, camera: initialCamera(box), provisional: false } : prev,
+    )
+  }, [state.provisional, box, initialCamera])
+
+  /* ── what the rest of the page reads ────────────────────────────────────── */
+
+  const viewWidth = camera.width
+  const viewHeight = camera.height
+  const centerX = camera.cx
+  const centerY = camera.cy
+  const viewBox = viewBoxOf(camera)
+  const scale = box.width > 0 && camera.width > 0 ? box.width / camera.width : 1
+
+  /**
+   * STILL RETURNED, NO LONGER RENDERED. The "copy for a deck" caption prints the
+   * scale a FILE was taken at, which is a fact about a file rather than a
+   * control on a screen. Nothing in the chrome reads it.
+   */
+  const zoomPercent = Math.round(scale * 100)
+
+  /**
+   * The window that holds the WHOLE drawing — the EXPORT's frame, and the only
+   * fit left in the file.
+   *
+   * It reads `layout.bounds`, and it is allowed to: it is keyed on the layout
+   * and the element, never on the camera, so a wheel does not recompute it and
+   * it cannot appear in any cycle. A file does not get covered by a panel, so it
+   * ignores occlusion, and it has no floor because a picture that leaves the app
+   * is the whole picture.
+   */
+  const wholeMapFit = useMemo<ViewBoxFit>(
+    () => fitToViewBox(layout.bounds, box, { padding: 28, maxScale: 1, minScale: 0 }),
+    [layout.bounds, box],
+  )
+
+  /**
+   * WHERE THE READER IS ON THE DIVE, in octaves, zeroed at the widest view the
+   * camera allows so the rail can be `min={0} max={octaveSpan}` with no offset
+   * arithmetic at the control.
+   *
+   * A difference of two `octavesOf` readings rather than a second formula, so
+   * the rail and the fly agree about what an octave is by construction.
+   */
+  const vMin = Math.max(1, Math.min(box.width, box.height))
+  const octaveFloor = octavesOf(cameraAtWidth(camera, cameraBounds.maxWidth), layout.rootD, vMin)
+  const octaves = octavesOf(camera, layout.rootD, vMin) - octaveFloor
+  const octaveSpan =
+    octavesOf(cameraAtWidth(camera, cameraBounds.minWidth), layout.rootD, vMin) - octaveFloor
+
+  /* ── pointer arithmetic ─────────────────────────────────────────────────── */
+
+  /**
+   * A client point in DRAWING UNITS, against the camera as it is RIGHT NOW.
+   *
+   * The drawing's x axis is not mirrored by `dir` — SVG coordinates never are,
+   * and the layout module mirrors the geometry instead — so this arithmetic is
+   * identical in both reading directions and there is no `rtl` term in it.
+   */
+  const toDrawing = useCallback(
+    (clientX: number, clientY: number): { x: number; y: number } => {
+      const rect = svgRef.current?.getBoundingClientRect()
+      const width = rect !== undefined && rect.width > 0 ? rect.width : Math.max(1, boxRef.current.width)
+      const height =
+        rect !== undefined && rect.height > 0 ? rect.height : Math.max(1, boxRef.current.height)
+      const left = rect?.left ?? 0
+      const top = rect?.top ?? 0
+      const at = liveCamera()
+      return {
+        x: at.cx - at.width / 2 + ((clientX - left) / width) * at.width,
+        y: at.cy - at.height / 2 + ((clientY - top) / height) * at.height,
+      }
+    },
+    [liveCamera, svgRef],
+  )
+
+  /* ── the wheel ──────────────────────────────────────────────────────────── */
+
+  /**
+   * WHEEL IS ALWAYS ZOOM, anchored under the cursor.
+   *
+   * `preventDefault` is not politeness: the stage does not scroll, and on macOS
+   * a trackpad pinch arrives as `ctrl+wheel`, where the default action is to
+   * PAGE-ZOOM THE BROWSER. That is why the listener is attached non-passively
+   * below rather than as a React prop — React's root listeners are passive and a
+   * passive listener may not call `preventDefault`.
+   *
+   * No accumulator, no throttle, no rAF batching. Each event writes state
+   * directly and React's own batching is the only smoothing needed, because
+   * nothing downstream of the camera is recomputed.
+   */
+  const onWheel = useCallback(
+    (event: WheelEvent) => {
+      event.preventDefault()
+      dropTween()
+      const anchor = toDrawing(event.clientX, event.clientY)
+      writeCamera(anchoredZoom(liveCamera(), anchor, wheelRatio(event)))
+      if (springRef.current !== null) window.clearTimeout(springRef.current)
+      springRef.current = window.setTimeout(() => {
+        springRef.current = null
+        springBack()
+      }, WHEEL_SETTLE_MS)
+    },
+    [dropTween, liveCamera, springBack, toDrawing, writeCamera],
+  )
+
+  const onWheelRef = useRef(onWheel)
+  onWheelRef.current = onWheel
+  const wheelCleanupRef = useRef<(() => void) | null>(null)
+
+  /**
+   * The canvas ref — the size measurement AND the non-passive wheel listener,
+   * composed into one callback ref.
+   *
+   * A callback ref rather than an effect over `svgRef.current`, because a ref
+   * object's `.current` is not a reactive value: an effect reading it would
+   * attach nothing on any commit where the map stage was not mounted, and would
+   * never re-run to fix it when the reader switched back from the table.
+   *
+   * The listener is on the CANVAS WRAPPER rather than the `<svg>` so that a
+   * wheel over the empty margin around a small drawing still zooms — the
+   * wrapper is the stage, and the stage is the map.
+   */
+  const canvasRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      wheelCleanupRef.current?.()
+      wheelCleanupRef.current = null
+      measureRef(el)
+      if (el === null) return
+      // Through a ref, so the identity of this callback — and therefore the
+      // attach/detach cycle — does not change every time the camera moves.
+      const handler = (event: WheelEvent): void => onWheelRef.current(event)
+      el.addEventListener('wheel', handler, { passive: false })
+      wheelCleanupRef.current = (): void => el.removeEventListener('wheel', handler)
+    },
+    [measureRef],
+  )
+
+  useEffect(() => () => wheelCleanupRef.current?.(), [])
+
+  /* ── the pan the drag layer borrows ─────────────────────────────────────── */
 
   /** Set while a pan is in flight, so the click that ends it is not a tap. */
   const draggedRef = useRef(false)
   const pointersRef = useRef(new Map<number, { x: number; y: number }>())
   const panStartRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null)
-  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null)
+  const pinchRef = useRef<{
+    distance: number
+    midX: number
+    midY: number
+    anchor: { x: number; y: number }
+    camera: Camera
+  } | null>(null)
 
   /**
-   * The node box, from the viewport AND the reader's density choice.
-   *
-   * The phone's size wins outright: it is not a preference there, it is what
-   * makes one ring fit 375px at a legible label size (see `depthLimit` below),
-   * and offering a "comfortable" that does not fit would be offering a worse
-   * screen. On a desktop the two are a real choice and the store remembers it.
-   */
-  const dense = !compact && density === 'compact'
-  const nodeSize = compact ? COMPACT_NODE : dense ? DENSE_NODE : WIDE_NODE
-  const gap = compact ? COMPACT_GAP : dense ? DENSE_GAP : DEFAULT_GAP
-
-  /**
-   * The busiest branch in the current picture, which is what the area encoding
-   * is scaled against. Relative to the workload ON SCREEN rather than to a
-   * constant, so a quiet week still shows a shape instead of six identical
-   * minimum-size cards.
-   */
-  const fullAt = useMemo(() => {
-    let max = 1
-    for (const child of drawnRoot.children) if (child.count > max) max = child.count
-    return max
-  }, [drawnRoot])
-
-  const sizeOf = useCallback(
-    (node: MindNodeModel, depth: number): NodeSize | undefined => {
-      // The drawn root is the frame of reference and is not part of the
-      // encoding — sizing it by its own total would make it the biggest thing
-      // on screen in every workspace, which says nothing.
-      if (depth === 0) return undefined
-      if (node.kind === 'entry' || node.kind === 'more') {
-        // A leaf is one item by definition, so it is never in the encoding
-        // either. It gets extra inline room instead, because it carries a
-        // sentence-shaped title rather than a one-word bucket name.
-        return { width: nodeSize.width * 1.5, height: nodeSize.height }
-      }
-      return sizeForCount(node.count, {
-        min: nodeSize,
-        max: { width: nodeSize.width * 1.35, height: nodeSize.height * 1.45 },
-        fullAt,
-      })
-    },
-    [nodeSize, fullAt],
-  )
-
-  const layout = useMemo(
-    () =>
-      layoutMindtree(drawnRoot, {
-        nodeSize,
-        gap,
-        sizeOf,
-        // ONE RING PER SCREEN ON A PHONE, and this number is measured rather
-        // than chosen. MINDTREE-SPEC asks for root + tracks + groups (a limit of
-        // 2); laid out for a 341x422 canvas with the tightest node size that
-        // still holds a label, a five-track workspace comes to 464x584 drawing
-        // units and `fitToViewBox` returns a scale of 0.66 — which renders the
-        // 12.5px label at 8.2px. Squeezing the node to 108px only reaches 8.5px,
-        // because the binding constraint is the three rings across, not the box.
-        // At a limit of 1 the same workspace is 298x260, the scale is 0.96, and
-        // the label lands at 12.0px: full size. So the small screen shows one
-        // ring at a time and every tap goes one ring deeper, with the breadcrumb
-        // as the way back. The handoff states this trade and the numbers behind
-        // it plainly; a map whose labels are 8px is the "cramped and unusable"
-        // outcome the spec warns against, not a smaller version of this one.
-        depthLimit: compact ? 1 : undefined,
-        direction: rtl ? 'rtl' : 'ltr',
-      }),
-    [drawnRoot, nodeSize, gap, sizeOf, compact, rtl],
-  )
-
-  const { ref: canvasRef, box } = useBoxSize({ width: 960, height: 520 })
-
-  /**
-   * The floor under the fit, DERIVED rather than chosen.
-   *
-   * `nodeSize.height` is the smallest node the encoding can produce, so
-   * `MIN_TARGET_PX / nodeSize.height` is exactly the scale at which the
-   * smallest node is still a 24px target. The phone keeps its own, higher floor
-   * — 0.62 puts the 12.5px label at 7.8px, which is the point past which a
-   * one-handed reader is not reading anything.
-   *
-   * Below the floor the map overflows and the reader pans. That is the honest
-   * outcome and it is now the rare one: `OPEN_DEPTH` means the map opens at the
-   * track ring, which fits at 1:1 in every workspace measured.
-   */
-  const minScale = Math.max(compact ? 0.62 : 0, MIN_TARGET_PX / nodeSize.height)
-
-  const fit = useMemo(
-    () =>
-      fitToViewBox(layout.bounds, box, {
-        padding: 28,
-        // Never magnify: text scaled past 1:1 inside a viewBox is text rendered
-        // at a size nobody chose.
-        maxScale: 1,
-        minScale,
-      }),
-    [layout.bounds, box, minScale],
-  )
-
-  /**
-   * The window that holds the WHOLE drawing, with no floor and no zoom.
-   *
-   * Only the export reads it. The on-screen `fit` above refuses to shrink past
-   * a tappable node and therefore crops a big map on purpose; a file does not
-   * get tapped, so the picture that leaves the app is the whole picture. Same
-   * bounds, same padding, same viewport aspect — so the exported frame is the
-   * one the reader would see after pressing "Fit to view" on a big enough
-   * screen, rather than a different composition.
-   */
-  const wholeMapFit = useMemo(
-    () => fitToViewBox(layout.bounds, box, { padding: 28, maxScale: 1, minScale: 0 }),
-    [layout.bounds, box],
-  )
-
-  /** The multiplier bounds, against THIS fit — see SCALE_MIN/SCALE_MAX. */
-  const zoomBounds = useMemo(
-    () => zoomLimits(fit.scale, { minScale: SCALE_MIN, maxScale: SCALE_MAX }),
-    [fit.scale],
-  )
-
-  /**
-   * The zoom, held inside the bounds the CURRENT fit implies.
-   *
-   * Clamped on read rather than only on write, because the bounds move: an
-   * expand, a filter keystroke or a window resize changes `fit.scale`, and a
-   * multiplier stored under the old bounds would otherwise strand the reader
-   * outside the new ones with the buttons unable to walk back.
-   */
-  const heldZoom = Math.min(zoomBounds.max, Math.max(zoomBounds.min, zoom))
-
-  const viewWidth = fit.width / heldZoom
-  const viewHeight = fit.height / heldZoom
-  const centerX = pan?.x ?? fit.x + fit.width / 2
-  const centerY = pan?.y ?? fit.y + fit.height / 2
-  const viewBox = `${centerX - viewWidth / 2} ${centerY - viewHeight / 2} ${viewWidth} ${viewHeight}`
-  const zoomPercent = Math.round(fit.scale * heldZoom * 100)
-
-  const order = layout.nodes
-
-  /* ── the pan the drag layer borrows ───────────────────────────────────── */
-
-  /**
-   * Pan by a delta in DRAWING UNITS — what the drag layer's auto-pan and its
-   * keyboard reveal both call.
-   *
-   * ANCHORED IN THE SAME UPDATER, not in a second `setPan` beside it. While `pan`
-   * is null the viewBox is recomputed from the fit on every render, so a delta
-   * applied to "nothing" would be discarded; and anchoring in a separate write
-   * would leave one render between the two in which the map re-centres. One
-   * functional updater does both and stays pure, which `zoomBy` below explains
-   * at length for the same reason.
+   * Pan by a delta in DRAWING UNITS — the drag layer's auto-pan and its keyboard
+   * reveal. No anchoring left to do: there is no "stay fitted" to resolve.
    */
   const panBy = useCallback(
     (dx: number, dy: number) => {
-      setPan((current) => {
-        const base = current ?? { x: fit.x + fit.width / 2, y: fit.y + fit.height / 2 }
-        return { x: base.x + dx, y: base.y + dy }
-      })
+      dropTween()
+      const at = liveCamera()
+      writeCamera({ ...at, cx: at.cx + dx, cy: at.cy + dy })
     },
-    [fit],
+    [dropTween, liveCamera, writeCamera],
   )
 
   /**
    * Drop the page's own pan gesture, because the drag has taken it over.
    *
    * Only ever called for a TOUCH lift: a finger is allowed to pan the map from a
-   * node until the hold lands (that is the whole argument for the hold), so both
-   * gestures are armed for HOLD_MS and one of them has to let go. A mouse press
-   * on a draggable node never reaches this component at all — DragLayer stops it
-   * — so nothing needs cancelling there.
+   * node until the hold lands — that is the whole argument for the hold — so
+   * both gestures are armed for HOLD_MS and one of them has to let go.
    */
   const cancelPan = useCallback(() => {
     panStartRef.current = null
@@ -331,94 +734,39 @@ export function useMapGeometry({
     svgRef.current?.removeAttribute('data-panning')
   }, [svgRef])
 
-  /* ── zoom, pan, pinch ─────────────────────────────────────────────────── */
-
-  const clampZoom = useCallback(
-    (next: number): number => Math.min(zoomBounds.max, Math.max(zoomBounds.min, next)),
-    [zoomBounds],
-  )
-
-  const zoomBy = useCallback(
-    (factor: number) => {
-      // Two independent writes, NOT a setPan nested inside setZoom's updater —
-      // an updater must be pure, React may run it twice in development, and a
-      // state write from inside one is a side effect that fires as many times
-      // as the updater does.
-      //
-      // Anchoring the pan first is what keeps the picture put: while `pan` is
-      // null the viewBox is recomputed from the fit on every render, so zooming
-      // without anchoring would re-centre the map on the whole drawing at every
-      // press instead of magnifying what the reader is looking at.
-      setPan((current) => current ?? { x: fit.x + fit.width / 2, y: fit.y + fit.height / 2 })
-      // A FUNCTIONAL UPDATER, not `clampZoom(heldZoom * factor)`. React batches
-      // every update raised inside one task, so a value computed from the
-      // rendered `heldZoom` is the same value for every press in the batch —
-      // measured: fifteen programmatic clicks moved the readout one step. Real
-      // clicks land in separate tasks and would have hidden it.
-      setZoom((prev) => clampZoom(prev * factor))
-      // ANNOUNCED, like every other control on this screen. The two most-used
-      // buttons on the map used to be the only ones that said nothing: "Fit to
-      // view" called setLive and these did not, and the visible readout is
-      // deliberately `aria-live="off"` so it could not stand in. A low-vision
-      // user pressing + got no confirmation that anything had happened.
-      //
-      // Through a counter rather than from here, because the number to announce
-      // is the POST-CLAMP one and this function cannot know it — see the effect.
-      setZoomTick((n) => n + 1)
-    },
-    [fit, clampZoom],
-  )
-
-  /**
-   * The zoom announcement, raised once per press-or-batch, after the clamp.
-   *
-   * Keyed on the TICK and not on the percentage: pressing + at the ceiling
-   * changes nothing, and a reader who hears silence cannot tell "it did not
-   * work" from "there is no more". `zoomPercent` is read rather than watched,
-   * so a window resize — which moves the fit and therefore the percentage —
-   * does not speak.
-   */
-  useEffect(() => {
-    if (zoomTick === 0) return
-    setLive(t('mindtree.zoomLevel', { pct: zoomPercent }))
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoomTick])
-
-  const resetView = useCallback(() => {
-    setZoom(1)
-    setPan(null)
-    setLive(t('mindtree.zoomLevel', { pct: Math.round(fit.scale * 100) }))
-  }, [fit.scale, setLive])
-
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
-      // A press the drag layer has already claimed is not a pan. A MOUSE press
-      // on a draggable node never reaches this handler at all (DragLayer stops
-      // it), but a FINGER does — deliberately, so the map can still be panned
-      // from a node until the hold lands — and this is the second half of that:
-      // once the hold HAS landed, `onPanCancel` has cleared the pan and this
-      // guard keeps a second finger from starting a new one under the ghost.
+      // A press the drag layer has already claimed is not a pan.
       if (isPressing()) return
+      // A FINGER ON THE GLASS DROPS THE TWEEN WHERE IT STANDS. The reader has
+      // taken the camera back and the app has no business arguing.
+      dropTween()
       pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
       draggedRef.current = false
       if (pointersRef.current.size === 1) {
-        panStartRef.current = {
-          x: event.clientX,
-          y: event.clientY,
-          cx: centerX,
-          cy: centerY,
-        }
+        const at = liveCamera()
+        panStartRef.current = { x: event.clientX, y: event.clientY, cx: at.cx, cy: at.cy }
         event.currentTarget.setPointerCapture(event.pointerId)
       } else if (pointersRef.current.size === 2) {
         const [a, b] = [...pointersRef.current.values()]
-        // `heldZoom`, not the raw state: a resize or an expand moves the fit and
-        // therefore the bounds, and a pinch anchored on an out-of-bounds
-        // multiplier would jump the moment the second finger lands.
-        if (a && b) pinchRef.current = { distance: Math.hypot(a.x - b.x, a.y - b.y), zoom: heldZoom }
+        if (a !== undefined && b !== undefined) {
+          const midX = (a.x + b.x) / 2
+          const midY = (a.y + b.y) / 2
+          pinchRef.current = {
+            distance: Math.hypot(a.x - b.x, a.y - b.y),
+            midX,
+            midY,
+            // THE ANCHOR IS THE MIDPOINT, resolved once at the start of the
+            // gesture and held: re-resolving it per frame against a camera the
+            // same gesture is moving is how a pinch drifts.
+            anchor: toDrawing(midX, midY),
+            camera: liveCamera(),
+          }
+        }
         panStartRef.current = null
       }
     },
-    [centerX, centerY, heldZoom, isPressing],
+    [dropTween, isPressing, liveCamera, toDrawing],
   )
 
   const onPointerMove = useCallback(
@@ -429,13 +777,30 @@ export function useMapGeometry({
       const pinch = pinchRef.current
       if (pointersRef.current.size >= 2 && pinch !== null) {
         const [a, b] = [...pointersRef.current.values()]
-        if (!a || !b) return
+        if (a === undefined || b === undefined) return
         const distance = Math.hypot(a.x - b.x, a.y - b.y)
-        if (pinch.distance > 0) {
-          draggedRef.current = true
-          setZoom(clampZoom(pinch.zoom * (distance / pinch.distance)))
-          setPan((current) => current ?? { x: fit.x + fit.width / 2, y: fit.y + fit.height / 2 })
-        }
+        if (!(pinch.distance > 0) || !(distance > 0)) return
+        draggedRef.current = true
+
+        // ONE CONTINUOUS MOVE, NOT A ZOOM FOLLOWED BY A CORRECTION. The scale is
+        // anchored on the midpoint the gesture started from, and the midpoint's
+        // own travel pans in the same expression — so a pinch-and-shove lands
+        // where the reader's hand says it should rather than where a zoom about
+        // a fixed point would have put it.
+        //
+        // Computed from the camera AT THE START of the gesture each frame rather
+        // than incrementally, so float error cannot accumulate over a gesture
+        // that may run for hundreds of frames.
+        const zoomed = anchoredZoom(pinch.camera, pinch.anchor, pinch.distance / distance)
+        const width = Math.max(1, boxRef.current.width)
+        const height = Math.max(1, boxRef.current.height)
+        const midX = (a.x + b.x) / 2
+        const midY = (a.y + b.y) / 2
+        writeCamera({
+          ...zoomed,
+          cx: zoomed.cx - ((midX - pinch.midX) * zoomed.width) / width,
+          cy: zoomed.cy - ((midY - pinch.midY) * zoomed.height) / height,
+        })
         return
       }
 
@@ -445,28 +810,37 @@ export function useMapGeometry({
       const dy = event.clientY - start.y
       if (!draggedRef.current && Math.hypot(dx, dy) < DRAG_SLOP) return
       // Written straight to the DOM rather than held in state. The grab cursor
-      // is the one thing on this screen that has to change on the first pixel
-      // of a drag, and routing it through a re-render would re-render every
-      // node in the map to change a CSS cursor. `draggedRef` is a ref for the
-      // same reason — a ref read during render would never repaint anyway,
-      // which is what made the first cut's `data-panning` prop dead code.
+      // is the one thing on this screen that has to change on the first pixel of
+      // a drag, and routing it through a re-render would re-render every node in
+      // the map to change a CSS cursor.
       draggedRef.current = true
       svgRef.current?.setAttribute('data-panning', '')
       // Pixels → drawing units. The drawing's x axis is NOT mirrored by `dir`
       // (SVG coordinates never are — the layout module mirrored the geometry
       // instead), so this arithmetic is identical in both directions.
-      setPan({
-        x: start.cx - (dx * viewWidth) / box.width,
-        y: start.cy - (dy * viewHeight) / box.height,
+      //
+      // ABSOLUTE FROM THE PRESS, not a sum of deltas: `start.cx` was captured
+      // when the finger landed, so a dropped move event costs nothing and float
+      // error cannot accumulate over a drag.
+      writeCamera({
+        ...liveCamera(),
+        cx: start.cx - (dx * viewWidth) / box.width,
+        cy: start.cy - (dy * viewHeight) / box.height,
       })
     },
-    [box, viewWidth, viewHeight, fit, clampZoom, svgRef],
+    [box, liveCamera, viewWidth, viewHeight, svgRef, writeCamera],
   )
 
   const endPointer = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
       pointersRef.current.delete(event.pointerId)
-      if (pointersRef.current.size < 2) pinchRef.current = null
+      if (pointersRef.current.size < 2 && pinchRef.current !== null) {
+        pinchRef.current = null
+        // THE SPRING IS THE ONLY "YOU HAVE ARRIVED" SIGNAL IN THE DESIGN, and it
+        // costs no chrome: past the terminus the picture resists, and on release
+        // it recoils to the stop.
+        springBack()
+      }
       if (pointersRef.current.size === 0) {
         panStartRef.current = null
         svgRef.current?.removeAttribute('data-panning')
@@ -478,31 +852,52 @@ export function useMapGeometry({
         }, 0)
       }
     },
-    [svgRef],
+    [springBack, svgRef],
   )
 
   return {
     layout,
-    order,
+    /**
+     * The drawing's nodes, WITH THE CALLER'S OWN ELEMENT TYPE.
+     *
+     * `L` is generic and its constraint is `CameraLayout<CameraWorld>`, so a
+     * plain `layout.nodes` reads at the CONSTRAINT's element type — the four
+     * fields this file needs — and every downstream consumer (the roving tab
+     * stop, the overlays, the drag layer, the node renderer) would lose the
+     * dozen it needs. The indexed access says "whatever L's own nodes are",
+     * which is exactly what was passed in, and it is the only cast in the file.
+     */
+    order: layout.nodes as L['nodes'],
     canvasRef,
     box,
-    fit,
+    /** The one piece of view state, in drawing units. */
+    camera,
+    setCamera,
+    flyTo,
+    /** Drawing units per CSS pixel — what the LOD bands are measured against. */
+    scale,
+    octaves,
+    octaveSpan,
+    cameraBounds,
+    /**
+     * ALREADY ATTACHED, non-passively, by `canvasRef`. Returned so the behaviour
+     * is nameable and testable — DO NOT ATTACH IT A SECOND TIME.
+     */
+    onWheel,
+    zoomPercent,
     wholeMapFit,
     viewBox,
     viewWidth,
     viewHeight,
     centerX,
     centerY,
-    zoomPercent,
     draggedRef,
     panBy,
     cancelPan,
-    zoomBy,
-    resetView,
     onPointerDown,
     onPointerMove,
     endPointer,
   }
 }
 
-export type MapGeometry = ReturnType<typeof useMapGeometry>
+export type MapGeometry = ReturnType<typeof useMapGeometry<CameraLayout>>

@@ -62,6 +62,87 @@
 // and lets a big map overflow into the pan instead. This component's guarantee
 // is therefore: every node is at least `nodeSize.height` units tall and the
 // card is the only target; the page owns the units-to-pixels half.
+//
+// WHAT THE RADIAL LAYOUT COST THIS FILE, and what it deliberately did not. The
+// map now places nodes on rings around a hub instead of in left-to-right rows,
+// and THE BOXES STILL DO NOT ROTATE — that is the entire payoff of positioning
+// polar rather than drawing sunburst arcs. Everything below that resolves a
+// direction into an x (`startX`, `endX`, `markX`, `tickX`), the <rect> that
+// takes every pointer, the `CHAR_PX` glyph budget and the CSS translate tween
+// are unchanged and unchangeable by the flip: a rectangle at 9 o'clock is the
+// same rectangle, moved.
+//
+// Three things do change, and all three read their answer OFF THE GEOMETRY
+// rather than off a new prop, so no plumbing crosses a unit boundary:
+//
+//  · `pos.outward` (lib/mindtree/radial.ts) is a point on the ray from the hub,
+//    9 units past this node's own edge, relative to this node's corner and in
+//    the SAME already-mirrored space as x/y. The chevron is drawn there instead
+//    of at the inline-end edge, because a node at 9 o'clock has its children to
+//    its LEFT and an inline-end chevron would point back into the ring. The
+//    linear layout emits `undefined`, and the fallback below is that layout's
+//    old expression byte for byte.
+//  · The root is drawn as a PILL (`rx = height / 2`). It is the origin the rings
+//    are struck from, not the first of a list.
+//  · A node too narrow to hold a word puts its label OUTSIDE, along the ray. On
+//    a 375px phone the outer ring is 44x44 chips; a ring of numbered dots with
+//    no names is not a mind map, and the label placement is the only thing
+//    standing between this drawing and that one.
+//
+// ── WHAT THE CAMERA COST THIS FILE: FIVE DRAWINGS, NOT ONE THAT SCALES ─────
+//
+// This component now renders one of five AUTHORED drawings, selected by
+// `band` — `lib/mindtree/lod.ts`'s answer to "how big is this node's world on
+// screen, in CSS pixels". It is the whole of the zoom brief in one sentence: a
+// node is not one component that scales, it is a component that renders
+// DIFFERENTLY at each distance, showing what is legible and useful there and
+// nothing else. Scale the reference video's first frame 20x and you get a blurry
+// blue blob; every level of that film was authored at its own scale instead.
+//
+//   ABSENT  a rect nobody can see (`visibility: hidden`), kept in the DOM so the
+//           `role="tree"` walk is complete and the set is never renumbered.
+//   GRAIN   ONE filled disc. No text of any kind. The video's blue smudge on the
+//           tongue: "there is something here and it is that programme's colour".
+//           Forty grains read as a dense arc and six as a constellation — that
+//           density difference IS the information at this distance, and it is
+//           free, because it is the fan-out the geometry already encoded. ONE
+//           MARK PER NODE, NEVER A SAMPLE: model.ts's standing rule is that a
+//           branch labelled 12 showing 3 is the worst thing this map can do.
+//   STATE   disc + its own rim + the breach dot. STILL NO TEXT — a numeral
+//           inside a 30px disc renders at 3px and is a lie about legibility.
+//   CHIP    the 44x44 box, count centred inside, NAME OUTSIDE along the ray.
+//   CARD    the full box: name inside, count at the reading end, chevron,
+//           breach, and the progress underscore.
+//   OPENING the card dissolves; the name has already migrated to the rim label
+//           (MindWorldRim). An ORGANIZATION LEAF does not dissolve — it holds
+//           and gains a second line, because it is the only thing on the canvas
+//           with nothing beneath it competing for the room.
+//   FRAME   nothing at all. The world is the stage now; its border is an HTML
+//           border on the canvas element and its name is in the breadcrumb.
+//
+// TWO INVARIANTS, and they are what make this the reference rather than a
+// magnifier:
+//
+//  1. NO BAND RENDERS A NODE AT A SIZE THE BAND BELOW RENDERED IT. A card is not
+//     a scaled chip; it is a different set of marks. `lod.test.ts` asserts it by
+//     rendering every band of one fixture node and comparing the mark sets.
+//  2. TOTAL INK PER UNIT AREA IS ROUGHLY CONSTANT. As a world opens and loses
+//     its card, its children arrive with theirs. The picture never empties and
+//     never floods.
+//
+// TEXT NEVER TWEENS ITS OPACITY, and this is the rendering invariant that makes
+// the cross-fades legal. mindtree.css measured what a faded mark costs — edge ink
+// at `opacity: .55` falls 6.06/5.53 to 3.76/3.20 — so ONLY NON-TEXT INK
+// DISSOLVES here. A name hands off at a band edge, instantly, from card to rim
+// label (and later from rim label to breadcrumb): it is never absent, never
+// drawn twice, and never on screen at a ratio it was not measured at.
+//
+// GRAIN AND STATE ARE NOT CONTROLS. They carry no `role`, no `tabIndex` and no
+// handlers, they are `aria-hidden`, and they are NOT emitted into the
+// `role="tree"` DOM at all — so the roving tabindex can never land on an
+// aria-hidden mark, and WCAG 2.5.8's target size does not apply because they are
+// not targets. They are reachable three other ways: zoom to them, the accessible
+// table, or search.
 
 import {
   memo,
@@ -70,9 +151,31 @@ import {
   type ReactElement,
 } from 'react'
 import { isolate, stripIsolates } from '../../lib/bidi'
-import type { PositionedNode } from '../../lib/mindtree/layout'
+import type { Point, PositionedNode } from '../../lib/mindtree/layout'
+import type { Band } from '../../lib/mindtree/lod'
 import type { MindNode as MindNodeModel } from '../../lib/mindtree/model'
 import { useMindIsSelected } from '../../store/mindtree'
+
+/**
+ * A positioned node, plus the three numbers the containment layout adds.
+ *
+ * ALL THREE ARE OPTIONAL AND THAT IS DELIBERATE, not a hedge: `layout.ts`'s
+ * linear tidy tree and `radial.ts`'s rings emit `PositionedNode` and know
+ * nothing about worlds, and this component still draws both. When the world
+ * fields are absent every band falls back to the node's own box, which is the
+ * best available answer and is exactly what the drawing did before the camera.
+ *
+ * It is a WIDENING of the `pos` prop's type rather than a new prop, so nothing
+ * that already passes a `PositionedNode` has to change, and `MindNodeProps`
+ * gains exactly the two props the contract names.
+ */
+export type MindNodePos = PositionedNode<MindNodeModel> & {
+  /** Centre of this node's world, absolute drawing units. */
+  readonly worldX?: number
+  readonly worldY?: number
+  /** Diameter of this node's world, drawing units. The band's input. */
+  readonly worldD?: number
+}
 
 /** Everything this component would otherwise have had to resolve itself. */
 export interface MindNodeView {
@@ -91,10 +194,34 @@ export interface MindNodeView {
   toggleHint: string | null
   /** `mindtree.breachHint`, or null when nothing under this node is breached. */
   breachHint: string | null
+  /**
+   * The progress underscore's two numbers — Organizations beneath that are live,
+   * out of all of them. `lib/mapNodes.ts`'s `useCaseProgress()` already returns
+   * this shape and already refuses to summarise disagreeing organizations with
+   * one word. Absent or null on a node the roll-up does not cover.
+   *
+   * IT IS NUMBERS, NOT A FRACTION, because the accessible name has to state the
+   * same fact in words (`mindtree.nodeName` carries a `{done} of {total} live`
+   * clause) and one source for both is the only way the picture and the sentence
+   * cannot drift. The mark encodes LENGTH AND COLOUR ALONE, so WCAG 1.4.1 is
+   * kept honest by that clause and by nothing else.
+   */
+  progress?: { readonly done: number; readonly total: number } | null
+  /**
+   * The Organization leaf's second line — account manager and vendor, already
+   * joined and isolated by the page.
+   *
+   * THE ONLY THIRD TEXT ROW ON THE CANVAS, and it is drawn in exactly one place:
+   * a terminal node past 380px, which is the only node with nothing beneath it
+   * competing for the room. Everything else about an Organization — the use
+   * cases integrated, the outstanding issues, the matrix — belongs to the info
+   * sidebar and is one tap away.
+   */
+  secondary?: string | null
 }
 
 export interface MindNodeProps {
-  pos: PositionedNode<MindNodeModel>
+  pos: MindNodePos
   view: MindNodeView
   /** Arabic. SVG has no logical properties, so anchoring is arithmetic. */
   rtl: boolean
@@ -143,11 +270,57 @@ export interface MindNodeProps {
    * is ignored by every engine, which is the behaviour wanted here.
    */
   describedBy?: string
+  /**
+   * WHICH OF THE FIVE DRAWINGS TO RENDER — `lod.bandBlend(...).band`, computed
+   * once in the page's memo from this node's world diameter and the camera's
+   * scale. Never computed here: this component renders once per node and there
+   * can be hundreds, and the band is the same arithmetic for all of them.
+   *
+   * OPTIONAL, DEFAULTING TO `card`, and the default is what makes this file
+   * shippable on its own. `card` is byte-for-byte the drawing this component has
+   * always produced, so every caller that has not been taught about the camera
+   * yet — the linear tidy tree, the export path, today's `MapCanvas` — renders
+   * exactly what it rendered before. The camera's page passes the real band.
+   */
+  band?: Band
+  /**
+   * 0..1 cross-fade progress within `band`, from `lod.bandBlend`. Only `opening`
+   * and `frame` read it; every other band ignores it, because every other band
+   * is a resting picture and OPACITY IS NEVER A RESTING STATE.
+   */
+  bandOut?: number
 }
 
 /** Inline breathing room inside a node box, and the space kept for the count. */
 const PAD = 12
 const COUNT_SLOT = 34
+
+/**
+ * GRAIN's disc, as a fraction of the world's DIAMETER — so the mark is
+ * `0.42 x apparent` at every distance without this component knowing the scale.
+ * The whole band is 7-26px, so the disc runs 2.9-10.9px: a texture, not a shape.
+ */
+const GRAIN_DISC = 0.42
+
+/**
+ * STATE is a disc AND a rim, and the disc is SMALLER than GRAIN's rather than
+ * bigger — which is the first invariant made concrete. A grain that simply grew
+ * would be the same drawing at another size; a smudge that resolves into a
+ * ringed dot is a different mark, and it is the first moment the drawing says
+ * "this is a place with an edge" rather than "there is something here".
+ */
+const STATE_DISC = 0.3
+const STATE_RIM = 0.52
+/** The breach dot at STATE: 0.2 x apparent, so 5-10px across the band. */
+const STATE_BREACH = 0.1
+
+/** The progress underscore: 2 units tall, sitting 3 units inside the block end. */
+const PROGRESS_H = 2
+const PROGRESS_INSET = 3
+
+/** The two baselines a terminal card uses once it has a second line. */
+const TWO_LINE_TOP = -8
+const TWO_LINE_BOTTOM = 9
 
 /**
  * Worst-case advance width of the label face at 12.5px/600, in px.
@@ -193,6 +366,83 @@ const CHAR_PX = 6.2
  * neutral, and an Arabic label truncated in an English UI must put its ellipsis
  * at the run's own end, not at the sentence's.
  */
+/**
+ * Below this inline size a node cannot hold a word, so its label goes OUTSIDE.
+ *
+ * DERIVED FROM THE BUDGET ABOVE, not chosen: the inside label gets
+ * `width - PAD*2 - COUNT_SLOT` px of room, so at 96 units a branch carrying a
+ * count has `96 - 24 - 34 = 38`px — six glyphs at `CHAR_PX`, which is "Netwo…".
+ * Anything narrower is a chip with an elision in it rather than a label.
+ */
+const LABEL_INSIDE_MIN = 96
+
+/** How far past `outward` the outside label sits, along the same ray. */
+const OUTSIDE_LABEL_GAP = 8
+
+/**
+ * The outside label's glyph budget.
+ *
+ * A FIXED NUMBER RATHER THAN A MEASUREMENT, because the constraint on an
+ * outside label is not the box — there is no box — it is the ANGLE to the next
+ * node on the same ring, which this component cannot see and must not be told
+ * (it would be a second source of truth for something radial.ts already owns).
+ * 14 glyphs is ~87px at `CHAR_PX`, which is the widest label that still leaves
+ * daylight between two neighbours on the tightest ring the phone lays out.
+ */
+const OUTSIDE_LABEL_BUDGET = 14
+
+/** Where an outside label is drawn, and which end of it is pinned there. */
+interface OutsideLabel {
+  readonly x: number
+  readonly y: number
+  readonly anchor: 'start' | 'end'
+}
+
+/**
+ * The outside label's placement: `outward`, pushed `OUTSIDE_LABEL_GAP` further
+ * along the ray it already lies on, anchored so the words run AWAY from the hub.
+ *
+ * THE ANCHOR IS THE ONE PLACE THE RADIAL FLIP NEEDS `rtl` AT ALL, and the file
+ * header's text-anchor paragraph is exactly why. Every coordinate here arrives
+ * pre-mirrored from radial.ts, so no coordinate is multiplied by a direction.
+ * But `text-anchor: start|end` are LOGICAL keywords resolved against the
+ * group's `direction`, so under `rtl` `start` is the run's RIGHT extremity —
+ * and this placement's requirement is PHYSICAL ("the words must run away from
+ * the centre of the drawing"), not logical ("the words must start at the
+ * reading edge of a box"). A purely geometric `outward.x > cx ? 'start' : 'end'`
+ * therefore comes out inverted in Arabic and hangs every outside label back
+ * across its own ring — the same double-mirror the header records, arriving
+ * from the other side. `!== rtl` is that inversion, stated once:
+ *
+ *     ltr, right of hub  → run grows +x → 'start'
+ *     ltr, left of hub   → run grows -x → 'end'
+ *     rtl, right of hub  → run grows +x → 'end'    (rtl 'end' pins the left)
+ *     rtl, left of hub   → run grows -x → 'start'  (rtl 'start' pins the right)
+ *
+ * A DEPARTURE from MAP-REDESIGN §U3, which specifies the bare geometric test;
+ * see the run notes. The bare test is right in English and mirrored in Arabic,
+ * and "RTL equal to LTR" is not a rule with an exception in it.
+ */
+function outsideLabelAt(
+  width: number,
+  height: number,
+  outward: Point,
+  rtl: boolean,
+): OutsideLabel {
+  const cx = width / 2
+  const cy = height / 2
+  const dx = outward.x - cx
+  const dy = outward.y - cy
+  // A hub-centred node has no ray. It cannot reach here (the hub is never
+  // narrow enough) but the division must still be total.
+  const len = Math.hypot(dx, dy) || 1
+  return {
+    x: outward.x + (dx / len) * OUTSIDE_LABEL_GAP,
+    y: outward.y + (dy / len) * OUTSIDE_LABEL_GAP,
+    anchor: (outward.x > cx) !== rtl ? 'start' : 'end',
+  }
+}
+
 function truncate(label: string, budget: number): string {
   if (budget <= 0) return ''
   const bare = stripIsolates(label)
@@ -223,7 +473,9 @@ export const MindNode = memo(function MindNode({
   onHover,
   onMenu,
   describedBy,
-}: MindNodeProps): ReactElement {
+  band = 'card',
+  bandOut = 0,
+}: MindNodeProps): ReactElement | null {
   const node = pos.node
   const isLeaf = node.kind === 'entry'
   /**
@@ -265,10 +517,165 @@ export const MindNode = memo(function MindNode({
   // instead of a property of wherever the markup happens to be mounted.
   const startX = rtl ? pos.width - PAD : PAD
   const endX = rtl ? PAD : pos.width - PAD
-  const chevronX = rtl ? -9 : pos.width + 9
   const markX = rtl ? PAD : pos.width - PAD
   /** The selection tick's corner — the mirror of the breach mark's. */
   const tickX = rtl ? pos.width - PAD : PAD
+
+  /**
+   * WHERE "AWAY FROM THE HUB" IS, or undefined on the linear layout.
+   *
+   * Read once into a local so the two consumers below narrow off the same
+   * `const` — a property access would have to be re-narrowed at each use.
+   */
+  const outward = pos.outward
+  /**
+   * The chevron's centre. On a ring it is `outward` — already mirrored, already
+   * relative to this node's corner, so NOTHING is multiplied by a direction
+   * here. On the linear layout `outward` is undefined and this is the
+   * inline-end expression this line has always held.
+   */
+  const chevron = outward ?? { x: rtl ? -9 : pos.width + 9, y: pos.height / 2 }
+  /**
+   * Non-null when the label is drawn outside the box.
+   *
+   * GATED ON `outward` AND NOT ON WIDTH ALONE. "Outside" means "out along the
+   * ray", and the linear layout has no ray — a linear node narrower than
+   * `LABEL_INSIDE_MIN` (a phone's tightest `nodeSize`) would otherwise start
+   * flinging its label at a point that does not exist. The linear drawing is
+   * unchanged by this file's radial work, which is the property the flip is
+   * being tested against.
+   */
+  /**
+   * THE GATE IS THE BAND, and the width test is the CARD band's own fallback.
+   *
+   * `band === 'chip'` is the promotion the contract asks for: the 44x44 count
+   * chip with its name outside along the ray stops being a phone hack and
+   * becomes a distance. The `pos.width < LABEL_INSIDE_MIN` clause survives
+   * underneath it because the drawing that ships TODAY — the phone drill-in,
+   * where `ringNodeSize` returns 44x44 on the outermost ring — has no camera and
+   * therefore no band, and taking the clause away would silently return that
+   * screen to a ring of numbered dots with no names.
+   */
+  const outsideLabel =
+    outward !== undefined && (band === 'chip' || pos.width < LABEL_INSIDE_MIN)
+      ? outsideLabelAt(pos.width, pos.height, outward, rtl)
+      : null
+
+  /**
+   * The centre and the diameter of this node's WORLD, in this group's own
+   * coordinates (the <g> is translated to the node's corner).
+   *
+   * The fallback is the node's own box, which is what the linear and ring
+   * layouts have. It is only ever consulted by GRAIN and STATE, which those
+   * layouts never reach, so it costs them nothing and keeps the arithmetic
+   * total.
+   */
+  const worldD = pos.worldD ?? Math.max(pos.width, pos.height)
+  const worldCX = pos.worldX !== undefined ? pos.worldX - pos.x : pos.width / 2
+  const worldCY = pos.worldY !== undefined ? pos.worldY - pos.y : pos.height / 2
+
+  /**
+   * A node with nothing beneath it — an ORGANIZATION, the leaf of the department
+   * hierarchy the dive walks.
+   *
+   * IT IS READ OFF THE MODEL, NOT OFF A NEW PROP, and `hasChildren` is the right
+   * question rather than `kind`: `map_nodes` gives departments and organizations
+   * the same `entity` kind (see `mapNodes.entityIdOf`), so the thing that makes
+   * an Organization the end of the dive is not what it is called — it is that
+   * there is nothing under it to dive INTO. A department the admin has not put
+   * anything under yet behaves the same way, correctly: there is no world in
+   * there to enter.
+   */
+  const terminal = !pos.hasChildren
+  /** A terminal card holds past 380px and gains its second line. */
+  const holding = band === 'opening' && terminal
+  /** A world dissolving into its children. Non-text ink only; see the header. */
+  const dissolving = band === 'opening' && !terminal
+  /**
+   * The three bands that draw a box with words in it. ABSENT draws a box with
+   * nothing in it, and a dissolving world draws a box that is leaving.
+   */
+  const showText = band === 'chip' || band === 'card' || holding
+  const secondLine =
+    holding && view.secondary != null && view.secondary !== ''
+      ? // Truncated against the FULL inline room, not the label's: the second
+        // line carries no count, so the `COUNT_SLOT` reservation is not its to
+        // pay. By glyph count, never by measurement — see `truncate`.
+        truncate(view.secondary, Math.max(3, Math.floor((pos.width - PAD * 2) / CHAR_PX)))
+      : null
+  /**
+   * The progress underscore's length in drawing units, 0 when there is nothing
+   * to say. ONE DIVIDE — the only arithmetic in this file that touches data
+   * rather than geometry, and it is here rather than in the page's memo because
+   * the number it produces is a LENGTH, which is a fact about this node's box
+   * and nothing the page can know.
+   */
+  const fillW =
+    (band === 'card' || holding || dissolving) && view.progress != null && view.progress.total > 0
+      ? Math.max(
+          0,
+          Math.min(1, view.progress.done / view.progress.total) * (pos.width - PAD * 2),
+        )
+      : 0
+
+  // FRAME: nothing of this node is drawn in SVG. Its boundary is an HTML border
+  // on the stage element — where the mirror is free and there is no x arithmetic
+  // to get wrong — and its name is in the breadcrumb. The handoff happens at the
+  // 0.85V crossing and at no other instant, so the name is never absent and
+  // never drawn twice. This is the reference's "+1.8s: the mouth is gone
+  // entirely".
+  if (band === 'frame') return null
+
+  // The dissolve is over. The world is a place now, drawn by MindWorldRim, and
+  // leaving a fully transparent card in the DOM would be a mark at an opacity
+  // nobody measured sitting on top of its own children's targets.
+  if (dissolving && bandOut >= 1) return null
+
+  // GRAIN and STATE. Not controls, not in the tree, no text — see the header.
+  // The <g> still carries `node.colourVars`, because the ONE thing these marks
+  // say is which programme this is, and `--track-c-dark`/`--track-c-light` is
+  // the only way a hue is allowed to enter the drawing.
+  if (band === 'grain' || band === 'state') {
+    return (
+      <g
+        className="mring-mark"
+        transform={`translate(${pos.x} ${pos.y})`}
+        style={node.colourVars}
+        data-band={band}
+        aria-hidden="true"
+      >
+        {band === 'grain' ? (
+          <circle className="mring-grain" cx={worldCX} cy={worldCY} r={(worldD * GRAIN_DISC) / 2} />
+        ) : (
+          <>
+            <circle
+              className="mring-state-rim"
+              cx={worldCX}
+              cy={worldCY}
+              r={(worldD * STATE_RIM) / 2}
+            />
+            <circle
+              className="mring-state-disc"
+              cx={worldCX}
+              cy={worldCY}
+              r={(worldD * STATE_DISC) / 2}
+            />
+            {view.breachHint !== null && (
+              // At the block start of the disc, where nothing else is drawn.
+              // `cy` needs no mirror: the block axis is the one axis SVG and the
+              // reader agree about in both scripts.
+              <circle
+                className="mring-state-breach"
+                cx={worldCX}
+                cy={worldCY - (worldD * STATE_RIM) / 2}
+                r={(worldD * STATE_BREACH) / 2}
+              />
+            )}
+          </>
+        )}
+      </g>
+    )
+  }
 
   return (
     <g
@@ -281,10 +688,24 @@ export const MindNode = memo(function MindNode({
       ref={(el) => {
         registerRef(pos.id, el)
       }}
-      className="mtree-node"
+      // `mring-absent` is `visibility: hidden` and nothing else. The node stays
+      // in the `role="tree"` DOM one band deeper than the eye can see it, so the
+      // walk is complete and `aria-posinset`/`aria-setsize` — which come from
+      // the MODEL — are never renumbered by a cull. (A `visibility: hidden`
+      // element cannot take DOM focus, so a keyboard walk that reaches one still
+      // needs the page to fly the camera; what this buys is that the element,
+      // its name and its place in the set exist before the repaint, rather than
+      // the reader arriving at a set that just changed size underneath them.)
+      className={band === 'absent' ? 'mtree-node mring-absent' : 'mtree-node'}
       transform={`translate(${pos.x} ${pos.y})`}
-      style={node.colourVars}
+      // ONE DISSOLVE, NOT TWO FADES. While a world opens, its card crosses out
+      // over the identical band its children's grain crosses in — and it is the
+      // only opacity this component ever writes, because opacity is never a
+      // resting state (see the header). It resolves to 0 within 0.3 octaves and
+      // the node then leaves the DOM entirely.
+      style={dissolving ? { ...node.colourVars, opacity: 1 - bandOut } : node.colourVars}
       direction={rtl ? 'rtl' : 'ltr'}
+      data-band={band}
       data-kind={node.kind}
       data-depth={pos.depth}
       data-retired={node.retired ? '' : undefined}
@@ -323,30 +744,97 @@ export const MindNode = memo(function MindNode({
         onMenu(pos, { x: event.clientX, y: event.clientY })
       }}
     >
+      {/* THE HUB IS A PILL. `depth === 0` is the drawn root — the point the
+          rings are struck from — and a fully rounded end reads as the origin
+          rather than as the first of a list. It is a corner radius and nothing
+          else: the box is the same box, so the hit test, the size encoding
+          (useMapGeometry excludes depth 0 from `sizeForCount`) and export.ts's
+          serialiser are all untouched.
+
+          BOTH `rx` AND `ry`, which is one attribute more than MAP-REDESIGN
+          §U3 asks for — see the run notes. `ry` is stated explicitly on this
+          element, so it does NOT default to `rx`, and `rx = h/2` alone would
+          draw 22x10 elliptical corners: a lozenge, not a pill. */}
       <rect
         className="mtree-node-box"
         width={pos.width}
         height={pos.height}
-        rx={10}
-        ry={10}
+        rx={pos.depth === 0 ? pos.height / 2 : 10}
+        ry={pos.depth === 0 ? pos.height / 2 : 10}
       />
 
-      <text
-        className="mtree-node-label"
-        x={startX}
-        y={pos.height / 2}
-        textAnchor="start"
-        dominantBaseline="central"
-      >
-        {truncate(view.label, budget)}
-      </text>
+      {/* THE LABEL, INSIDE OR OUT — never both, and the two are one <text>
+          worth of ink either way. See `outsideLabelAt` for the anchor.
 
-      {hasCount && (
+          NOT DRAWN AT ALL while the card is dissolving, and that is the
+          rendering invariant rather than an optimisation: text never tweens its
+          opacity, because a half-faded label is a resting mark at a ratio
+          nobody measured. The name hands off INSTANTLY at the band edge — it
+          leaves this card at exactly the instant MindWorldRim draws it on the
+          world's rim, so it is never absent and never drawn twice. */}
+      {!showText ? null : outsideLabel === null ? (
+        <text
+          className="mtree-node-label"
+          x={startX}
+          // A terminal card past 380px carries a second line, so its own
+          // baseline lifts to make room. It is the only place on the canvas
+          // with a third text row, because it is the only place with nothing
+          // beneath it competing for the space.
+          y={pos.height / 2 + (secondLine === null ? 0 : TWO_LINE_TOP)}
+          textAnchor="start"
+          dominantBaseline="central"
+        >
+          {truncate(view.label, budget)}
+        </text>
+      ) : (
+        <text
+          className="mtree-node-label"
+          x={outsideLabel.x}
+          y={outsideLabel.y}
+          textAnchor={outsideLabel.anchor}
+          dominantBaseline="central"
+          // THE ONE THING THAT WOULD OTHERWISE CHANGE HIT-TESTING. This <text>
+          // is the only mark this component draws outside its own <rect>, and
+          // it sits inside the `role="treeitem"` <g> that takes the click — so
+          // without this, a label reaching across a ring would put an
+          // invisible piece of ITS node's target on top of a NEIGHBOUR's box,
+          // and which one won a tap would be decided by document order. The
+          // rect stays the whole target, exactly as it was.
+          pointerEvents="none"
+        >
+          {truncate(view.label, OUTSIDE_LABEL_BUDGET)}
+        </text>
+      )}
+
+      {/* THE SECOND LINE — an Organization's account manager and its vendor,
+          joined and isolated by the page. Drawn only on a terminal card past
+          380px; everything else about that Organization is one tap away in the
+          info sidebar, which is the gesture that answers "what is the state of
+          this one thing". --text-dim on a node fill measures 4.88 / 4.85, the
+          text floor mindtree.css already records. */}
+      {secondLine !== null && (
+        <text
+          className="mring-secondary"
+          x={startX}
+          y={pos.height / 2 + TWO_LINE_BOTTOM}
+          textAnchor="start"
+          dominantBaseline="central"
+          aria-hidden="true"
+        >
+          {secondLine}
+        </text>
+      )}
+
+      {hasCount && showText && (
         <text
           className="mtree-node-count tabular"
-          x={endX}
+          // With the label outside, the box holds the count ALONE, so it takes
+          // the middle rather than sitting against the reading end of an empty
+          // chip. `middle` needs no mirror: it is the geometric centre in both
+          // scripts.
+          x={outsideLabel === null ? endX : pos.width / 2}
           y={pos.height / 2}
-          textAnchor="end"
+          textAnchor={outsideLabel === null ? 'end' : 'middle'}
           dominantBaseline="central"
           aria-hidden="true"
         >
@@ -359,26 +847,68 @@ export const MindNode = memo(function MindNode({
           the smallest node size, and it is aria-hidden because the sentence it
           stands for is already inside `view.name`. The <title> is the native
           hover tooltip and is shown regardless of aria-hidden. */}
-      {view.breachHint !== null && (
+      {view.breachHint !== null && showText && (
         <g className="mtree-breach" aria-hidden="true">
           <title>{view.breachHint}</title>
-          <circle cx={markX} cy={9} r={4} />
+          {/* ON A CHIP THE DOT MOVES TO THE MIDDLE of the block-start edge,
+              where a 44x44 box has no competing ink: the count owns the centre
+              and the name is outside the box entirely, so the reading-end
+              corner the card uses is 22 units from both of them and reads as
+              belonging to neither. */}
+          <circle cx={band === 'chip' ? pos.width / 2 : markX} cy={9} r={4} />
         </g>
+      )}
+
+      {/* THE PROGRESS UNDERSCORE — the share of Organizations beneath this node
+          that are live.
+
+          LENGTH IS THE ENCODING AND THERE IS NO TRACK BEHIND THE REMAINDER. The
+          box's own PAD inset marks both ends, so the bar needs nothing drawn
+          under it to be read against — and the alternative that was proposed,
+          "the card's own outline ink at 20%", is not in mindtree.css's measured
+          matrix and is forbidden by that sheet in principle: dilution
+          composites a mark toward its background and hands the measured ratio
+          back (edge ink at opacity .55 falls 6.06/5.53 to 3.76/3.20, the whole
+          light-theme headroom). This ink is the branch ink AT FULL STRENGTH —
+          6.35 / 5.53 against a node fill, already measured, no new recipe.
+
+          BECAUSE THE ENCODING IS LENGTH AND COLOUR ALONE, the same fact is
+          stated in the node's accessible name (`mindtree.nodeName`'s
+          `{done} of {total} live` clause), which is what keeps WCAG 1.4.1
+          honest. Nothing here announces anything: the <g> above already carries
+          the sentence.
+
+          RTL is the one mirror: the fill grows from the READING start. */}
+      {fillW > 0 && (
+        <rect
+          className="mring-progress"
+          x={rtl ? pos.width - PAD - fillW : PAD}
+          y={pos.height - PROGRESS_INSET - PROGRESS_H}
+          width={fillW}
+          height={PROGRESS_H}
+          aria-hidden="true"
+        />
       )}
 
       {/* The disclosure affordance. Drawn in the gap toward the next ring, so
           it reads as "the branch continues this way" rather than as a second
           control competing with the card. Not clickable on its own: the card is
-          the target, and see the header for why. */}
-      {pos.hasChildren && (
+          the target, and see the header for why.
+
+          NOT AT CHIP. The chevron is drawn at `pos.outward` — a point on the ray
+          — and at CHIP that is exactly where the name is, `OUTSIDE_LABEL_GAP`
+          further along the same ray. Two marks in one place is not a band, so
+          the chip spends the ray on the word and says "there is more this way"
+          with the ring of children the reader can already see out there. */}
+      {pos.hasChildren && band !== 'chip' && showText && (
         <g className="mtree-chevron" aria-hidden="true" data-open={expanded ? '' : undefined}>
           {view.toggleHint !== null && <title>{view.toggleHint}</title>}
-          <circle cx={chevronX} cy={pos.height / 2} r={7} />
+          <circle cx={chevron.x} cy={chevron.y} r={7} />
           {!expanded && pos.hiddenChildCount > 0 && (
             <text
               className="mtree-chevron-count tabular"
-              x={chevronX}
-              y={pos.height / 2}
+              x={chevron.x}
+              y={chevron.y}
               textAnchor="middle"
               dominantBaseline="central"
             >
@@ -388,7 +918,7 @@ export const MindNode = memo(function MindNode({
           {expanded && (
             <path
               className="mtree-chevron-glyph"
-              d={`M ${chevronX - 3} ${pos.height / 2} h 6`}
+              d={`M ${chevron.x - 3} ${chevron.y} h 6`}
             />
           )}
         </g>
@@ -396,7 +926,7 @@ export const MindNode = memo(function MindNode({
 
       {/* A leaf gets a quiet dot at the reading start so a row of entries reads
           as a list rather than as four unrelated cards. Purely decorative. */}
-      {isLeaf && <circle className="mtree-leaf-dot" cx={rtl ? pos.width - 4 : 4} cy={pos.height / 2} r={2} aria-hidden="true" />}
+      {isLeaf && showText && <circle className="mtree-leaf-dot" cx={rtl ? pos.width - 4 : 4} cy={pos.height / 2} r={2} aria-hidden="true" />}
 
       {/* The selection tick, at the block-start reading-START corner — the one
           corner nothing else uses (the breach mark owns the reading END, and the
@@ -408,7 +938,7 @@ export const MindNode = memo(function MindNode({
           say the same fact twice. It is drawn at all because a SIGHTED reader
           ticking six items across three branches has no other way to see which
           six are travelling when the drag starts. */}
-      {isLeaf && selected && (
+      {isLeaf && selected && showText && (
         <g className="mtree-node-tick" aria-hidden="true">
           <circle cx={tickX} cy={11} r={7} />
           <path className="mtree-node-tick-glyph" d={`M ${tickX - 3} ${11} l 2 2.4 l 4 -4.8`} />

@@ -35,12 +35,19 @@
 // ── WHAT A CAMERA IS ───────────────────────────────────────────────────────
 //
 // The rectangle of DRAWING units currently on screen, as a centre and a size.
-// useMapGeometry holds the same thing split across two pieces of state — `pan`
-// (a centre, or null meaning "stay fitted") and `zoom` (a multiplier of the
-// fit) — and composes the attribute from them. `cameraOf` and `zoomForCamera`
-// below are that composition and its inverse, so the two representations can
-// never drift: `viewBoxOf` is the ONE formatter, and the hook is expected to
-// use it rather than keep a second copy of the template string.
+// It is now the map's ONE PIECE OF VIEW STATE. useMapGeometry used to hold the
+// same thing split in two — `pan` (a centre, or null meaning "stay fitted") and
+// `zoom` (a multiplier OF THE FIT) — and the split is what made the map's
+// feedback cycle possible: a multiplier of a moving fit moves when the fit
+// moves, and the fit moved whenever the drawing did. An absolute width in
+// drawing units cannot. `pan === null` is retired with it: "stay fitted" only
+// ever existed because bounds moved, and in the containment layout they do not.
+//
+// `cameraOf` and `zoomForCamera` remain as the composition and its inverse, so
+// a caller still holding the old pair can convert without a second opinion, and
+// so the export path can name the scale a file was taken at. `viewBoxOf` is the
+// ONE formatter, and the hook uses it rather than keeping a second copy of the
+// template string.
 //
 // That matters more than it looks. A frame loop that writes `viewBox` straight
 // to the element is writing behind React's back, and React only writes an
@@ -100,30 +107,34 @@ export const MAP_EASE_POINTS: readonly [number, number, number, number] = [0.4, 
  * The fly-to's bounds, in milliseconds.
  *
  * A fly is the one move whose length is not known in advance: it may be a nudge
- * of half a card or a jump across a workspace with six tracks open. A constant
- * would be wrong at both ends — 240ms is a teleport across the whole drawing and
- * a lazy crawl for a node just off screen — so `tweenDurationFor` derives it
- * from how far the camera actually travels, in units of what is on screen.
+ * of half a card or a dive through four department tiers. A constant would be
+ * wrong at both ends — 240ms is a teleport across the whole drawing and a lazy
+ * crawl for a node just off screen — so `tweenDurationFor` derives it from how
+ * far the camera actually travels, in units of what is on screen.
  *
  * The floor is the sheet's own FEEDBACK speed (140ms), because a move that short
- * is feedback: the reader asked and the map answered. The ceiling is 420ms,
- * which is the point past which a reader who knows where they are going starts
- * waiting for the app — and this app's whole argument is that it must not cost
- * its reader keystrokes.
+ * is feedback: the reader asked and the map answered.
+ *
+ * THE CEILING WAS 420 AND IS NOW 1100, and the number comes from the reference
+ * rather than from taste. 420ms across a whole workspace is a CUT, not a move:
+ * the reader arrives somewhere else with no account of how they got there, which
+ * is the one thing an infinite-zoom illustration never does. The reference
+ * spends about 1.8 seconds per nested world; at `OCTAVE_MS` this lands at
+ * ~2.6 octaves per second, deliberately close to it. A one-tier dive is about
+ * 1.43 octaves ≈ 570ms; a four-tier surface caps here.
  */
 export const FLY_MIN_MS = 140
-export const FLY_MAX_MS = 420
+export const FLY_MAX_MS = 1100
 
 /**
- * The travel that earns the full duration: two screens of pan, or a 4× change
- * of zoom, or any mix summing to the same.
+ * Milliseconds per OCTAVE of travel — the rate the dive runs at.
  *
- * Pan is measured in SCREENS rather than drawing units so the number means the
- * same thing on a phone and on a monitor, and zoom in OCTAVES (log2) for the
- * same reason — halving the view is one step whether it starts at 300 units or
- * at 3000.
+ * An octave is a doubling of the view, which is the unit the eye actually
+ * tracks: halving the window is the same size of change whether it starts at
+ * 300 units or at 3000. Pan is converted to the same currency by measuring it
+ * in SCREENS, so the number means the same thing on a phone and on a monitor.
  */
-const FULL_TRIP = 2
+const OCTAVE_MS = 300
 
 /**
  * Breathing room around a flown-to node, in drawing units.
@@ -142,6 +153,101 @@ const FLY_PADDING = 28
  * would animate something with no visible frames in it.
  */
 const CAMERA_EPSILON = 0.5
+
+/* ───────────────────────── the dive's four numbers ───────────────────────── */
+
+/**
+ * How much of the unoccluded stage a FRAMED world fills, as a fraction of the
+ * stage's smaller dimension. Desktop.
+ *
+ * 0.87 rather than 1 so the world's rim is inside the glass when you arrive —
+ * the reference's "the mouth has become a frame around the edge" — and so the
+ * frame you land in is the frame you keep as the children resolve.
+ */
+export const FRAME_FILL_DESKTOP = 0.87
+
+/**
+ * THE ONLY PHONE/DESKTOP DIFFERENCE IN THE ENTIRE CAMERA, and it is deliberately
+ * greater than 1: a framed world OVERFLOWS a small screen.
+ *
+ * The arithmetic is the whole argument. A uniform six-wide tier has a
+ * parent/child diameter ratio of 2.69, so a child of the framed world comes up
+ * at `frameFill × V / 2.69` CSS pixels. On a 375×812 phone with the 587px canvas
+ * the shell already ships, V = 375 and 1.25 × 375 / 2.69 ≈ 174px — a CARD, with
+ * its name inside it. At 0.87 the same child is 121px, which is a CHIP: a
+ * 44×44 box with its label outside along the ray. On a 1600×900 desktop
+ * 0.87 × 835 / 2.69 ≈ 270px, also a CARD.
+ *
+ * ONE CONSTANT, and a child of the framed world is a legible named card at both
+ * widths. The cost is that the parent's rim is off screen the moment you arrive
+ * on a phone, which is exactly what the stage border and the breadcrumb are for.
+ */
+export const FRAME_FILL_PHONE = 1.25
+
+/**
+ * How far past the deepest structural world's framing a reader may magnify.
+ *
+ * THE TERMINUS IS THE OWNER'S CORRECTION MADE PHYSICAL. The dive steps through
+ * DEPARTMENTS; an Organization is a leaf you arrive at and select, not a level
+ * you enter. So there has to be a bottom, and 2.2× past the deepest department's
+ * framing is where it is: enough magnification that every Organization card is
+ * comfortably readable and a 44px drop target inside one is reachable, and no
+ * further. Past it the gesture resists and springs back — a physical dead stop,
+ * which is the only "you have arrived" signal this design needs and the only
+ * place in it where a gesture is resisted at all. It costs no chrome.
+ */
+export const ZOOM_HEADROOM = 2.2
+
+/**
+ * The resistance past a bound. Well under 1, so the excess compresses hard.
+ *
+ * 0.35 means pushing 4× past the limit draws 1.6× past it: the reader can see
+ * that they have pushed, and cannot get lost doing it.
+ */
+export const RUBBER_EXPONENT = 0.35
+
+/**
+ * How small the ROOT world may get before the camera refuses to pull back, as a
+ * fraction of the stage's smaller dimension.
+ *
+ * The far end of the dive is a picture of the whole workspace, not the void
+ * around it. At 0.4 the root world still owns the middle of the screen at the
+ * widest view the camera allows, so "zoom all the way out" always lands on
+ * something rather than on empty coordinates the reader has to hunt back from.
+ */
+export const ROOT_FLOOR_FILL = 0.4
+
+/* ───────────────────────────── the wheel's rate ──────────────────────────── */
+
+/**
+ * The wheel's exponent: `width *= exp(deltaY × κ)`.
+ *
+ * SET SO A 100px MOUSE NOTCH IS 1.15×, which is the sentence the number is
+ * derived from — `ln(1.15) / 100` — rather than a constant somebody tuned by
+ * feel and nobody can re-derive. Exponential because zoom is multiplicative:
+ * the same notch has to mean the same magnification at every distance, and a
+ * linear delta on a width would be a crawl at the far end of the dive and a
+ * lurch at the near one.
+ */
+export const WHEEL_KAPPA = Math.log(1.15) / 100
+
+/**
+ * `ctrl+wheel` — which is how macOS reports a TRACKPAD PINCH — takes the same
+ * path at three times the rate.
+ *
+ * Same path, because a pinch and a scroll are the same request at different
+ * speeds and a second code path would be a second set of bugs. Three times,
+ * because the browser reports a pinch as a small `deltaY` and a 1:1 rate makes
+ * the trackpad feel dead against the mouse.
+ */
+export const WHEEL_PINCH_RATE = 3
+
+/**
+ * `DOM_DELTA_LINE` is a count of LINES, not pixels. Firefox reports it for an
+ * ordinary mouse wheel, so without this the same wheel zooms sixteen times
+ * slower in one browser than in the other.
+ */
+export const WHEEL_LINE_PX = 16
 
 /* ─────────────────────────────── the shapes ──────────────────────────────── */
 
@@ -408,6 +514,279 @@ function geometric(a: number, b: number, k: number): number {
   return a * Math.pow(b / a, k)
 }
 
+/* ──────────────────── framing one world, and the occlusion ───────────────── */
+
+/** Finite or zero. A torn measurement must not reach the viewBox as a NaN. */
+function num(value: number): number {
+  return Number.isFinite(value) ? value : 0
+}
+
+/** A positive, finite size, or the fallback. */
+function size(value: number, fallback: number): number {
+  return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+/**
+ * CSS pixels of the stage something else is drawn over, at the two edges that
+ * can carry a panel.
+ *
+ * MEASURED by whatever is doing the covering — `MapPanel` and the phone sheet
+ * each report their own root through a `ResizeObserver` — and never assumed
+ * from a media query, because the panel's width is content-derived and a
+ * hard-coded guess is wrong at every breakpoint but one.
+ *
+ * `inlineEnd` is LOGICAL: in Arabic the covered pixels are on the physical left,
+ * and `FrameOptions.rtl` is what turns the logical edge into a sign.
+ */
+export interface Occlusion {
+  readonly inlineEnd: number
+  readonly blockEnd: number
+}
+
+export interface FrameOptions {
+  /** The CANVAS ELEMENT, in CSS px — the full stage, not the visible part. */
+  readonly viewport: { readonly width: number; readonly height: number }
+  /** `FRAME_FILL_PHONE` or `FRAME_FILL_DESKTOP`. */
+  readonly frameFill: number
+  readonly occlusion: Occlusion
+  readonly rtl: boolean
+}
+
+/**
+ * THE CAMERA THAT FRAMES ONE WORLD, and the ONE PLACE OCCLUSION ENTERS.
+ *
+ * ── TWO STEPS, AND THE SECOND ONE IS WHY THIS IS NOT A ONE-LINER ───────────
+ *
+ * The world's apparent diameter is set against the VISIBLE rectangle — the
+ * stage minus whatever is covering it — because that is the glass the reader can
+ * actually see through. But the camera itself spans the WHOLE element, because
+ * every pixel↔unit conversion in this map (the pan drag, the pinch midpoint, the
+ * overlay anchors) is `dx · camera.width / element.width`, which is exact only
+ * while the camera's aspect is the element's aspect. Fit to the shrunken
+ * rectangle instead and a reader's finger out-runs the map by the width of the
+ * panel.
+ *
+ * So: the visible rectangle sets the SCALE, and the centre SLIDES so the world
+ * lands in the middle of the part you can see.
+ *
+ * ── THE SIGN, DERIVED RATHER THAN GUESSED ─────────────────────────────────
+ *
+ * A drawing point `p` renders at `(p − viewBoxMin) · scale`, so RAISING
+ * `viewBoxMin` moves the content TOWARDS the start/top of the element. In `ltr`
+ * the panel covers the inline END, so the visible centre is start-ward of the
+ * element centre and the content must move that way: `cx` rises. `rtl` is the
+ * one flip, because there the covered pixels are at the physical start. The
+ * block axis never flips — a sheet covers the bottom in both directions — so the
+ * content moves up and `cy` rises.
+ *
+ * The design contract that preceded this had both signs backwards, which would
+ * push the drawing FURTHER under the panel. The arithmetic is short enough to
+ * settle here and it is settled here.
+ *
+ * ── AND THE RESTING CAMERA IS NEVER TOUCHED BY THIS ────────────────────────
+ *
+ * Occlusion reaches the camera on a FLY and nowhere else. Opening a panel must
+ * not move the map: that is the same teleport the whole design exists to
+ * prevent, arriving from the other side.
+ *
+ * Pure and TOTAL: a 0×0 viewport, a zero-diameter world, a negative fill or an
+ * occlusion wider than the stage all produce a finite camera rather than a
+ * viewBox of four NaNs and a blank screen.
+ */
+export function frameCamera(
+  world: { readonly worldX: number; readonly worldY: number; readonly worldD: number },
+  options: FrameOptions,
+): Camera {
+  const vw = size(options.viewport.width, 1)
+  const vh = size(options.viewport.height, 1)
+  // At least one pixel of glass is left, so `visible` can never be zero and the
+  // scale can never be infinite however wide a panel reports itself.
+  const occInline = Math.min(Math.max(0, num(options.occlusion.inlineEnd)), vw - 1)
+  const occBlock = Math.min(Math.max(0, num(options.occlusion.blockEnd)), vh - 1)
+  const visible = Math.min(vw - occInline, vh - occBlock)
+
+  const fill = size(options.frameFill, FRAME_FILL_DESKTOP)
+  const diameter = size(world.worldD, 1)
+  /** CSS pixels per drawing unit. */
+  const scale = (fill * visible) / diameter
+
+  return {
+    cx: num(world.worldX) + ((options.rtl ? -1 : 1) * (occInline / 2)) / scale,
+    cy: num(world.worldY) + occBlock / 2 / scale,
+    width: vw / scale,
+    height: vh / scale,
+  }
+}
+
+/* ─────────────────────── the anchor, which is the fix ────────────────────── */
+
+/**
+ * SCALE THE VIEW WHILE HOLDING ONE DRAWING POINT STILL — and this is the whole
+ * point of the unit.
+ *
+ * Every zoom in the map before this one resolved its centre to the FIT CENTRE,
+ * because `pan === null` meant "stay fitted" and three call sites had to turn
+ * that into a real point before they could move it. So every pinch anchored on
+ * the middle of the drawing rather than on the fingers, and the picture slid out
+ * from under the reader's hand on every gesture. That is the exact inverse of
+ * "the thing you zoom into becomes the whole frame".
+ *
+ * Four lines fix it, and they are what makes the reference's third property true
+ * with no target selection anywhere in the app: whatever is under your finger
+ * grows toward the frame BECAUSE IT IS PINNED THERE.
+ *
+ * `ratio` multiplies the WIDTH, so `ratio < 1` magnifies. The anchor's screen
+ * position is invariant for any finite positive ratio, which is asserted rather
+ * than asserted-in-a-comment: `(a − cx′)/w′ = (a − cx)/w` falls straight out of
+ * `cx′ = a + (cx − a)·r` and `w′ = w·r`.
+ */
+export function anchoredZoom(
+  camera: Camera,
+  anchor: { readonly x: number; readonly y: number },
+  ratio: number,
+): Camera {
+  if (!Number.isFinite(ratio) || ratio <= 0) return camera
+  const ax = num(anchor.x)
+  const ay = num(anchor.y)
+  return {
+    cx: ax + (camera.cx - ax) * ratio,
+    cy: ay + (camera.cy - ay) * ratio,
+    width: camera.width * ratio,
+    height: camera.height * ratio,
+  }
+}
+
+/* ──────────────────────── the two ends of the dive ───────────────────────── */
+
+export interface CameraBounds {
+  /** The widest view — the root world never falls below `ROOT_FLOOR_FILL × V`. */
+  readonly maxWidth: number
+  /** The narrowest — `D(deepest structural world) / ZOOM_HEADROOM`. */
+  readonly minWidth: number
+}
+
+/** The same camera at a different width, aspect held. */
+export function cameraAtWidth(camera: Camera, width: number): Camera {
+  if (!(camera.width > 0) || !Number.isFinite(width) || width <= 0) return camera
+  const k = width / camera.width
+  return { cx: camera.cx, cy: camera.cy, width, height: camera.height * k }
+}
+
+/**
+ * Hold the camera between the two ends of the dive. IDEMPOTENT: clamping a
+ * clamped camera returns it unchanged, which is what lets this run on every
+ * write without a settle loop.
+ *
+ * Aspect is preserved rather than each axis being clamped separately — a camera
+ * whose width was pulled in and whose height was not is a camera that does not
+ * match the element, and the map would letterbox.
+ *
+ * Total over a torn bounds: if the two ends have crossed (a degenerate tree
+ * where the deepest world is wider than the root) the pair is sorted rather than
+ * throwing, because a map that renders the wrong width is recoverable and one
+ * that renders nothing is not.
+ */
+export function clampCamera(camera: Camera, bounds: CameraBounds): Camera {
+  if (!(camera.width > 0)) return camera
+  const a = Number.isFinite(bounds.minWidth) && bounds.minWidth > 0 ? bounds.minWidth : 0
+  const b = Number.isFinite(bounds.maxWidth) && bounds.maxWidth > 0 ? bounds.maxWidth : Infinity
+  const low = Math.min(a, b)
+  const high = Math.max(a, b)
+  const width = Math.min(high, Math.max(low, camera.width))
+  return width === camera.width ? camera : cameraAtWidth(camera, width)
+}
+
+/**
+ * RESISTANCE PAST A BOUND — the width to DRAW, not the width to store.
+ *
+ * One expression covers both ends because it works on the RATIO: `limit ·
+ * (width/limit)^e`. Past a maximum the ratio is above 1 and `e < 1` pulls it
+ * back down; past a minimum the ratio is below 1 and the same exponent pulls it
+ * back up. Continuous at the limit — the ratio is exactly 1 there and the
+ * expression is exactly `limit` — and monotone in `width` on both sides, so the
+ * picture never reverses direction under a finger that has not.
+ *
+ * The SLOPE is discontinuous at the limit, and that is the entire feature: the
+ * gesture suddenly costs more, which is what a dead stop feels like.
+ */
+export function rubberBand(width: number, limit: number, exponent: number = RUBBER_EXPONENT): number {
+  if (!Number.isFinite(width) || width <= 0) return width
+  if (!Number.isFinite(limit) || limit <= 0) return width
+  const e = Number.isFinite(exponent) && exponent > 0 && exponent <= 1 ? exponent : RUBBER_EXPONENT
+  return limit * Math.pow(width / limit, e)
+}
+
+/** The camera to DRAW when the reader has pushed past an end of the dive. */
+export function rubberBandCamera(
+  camera: Camera,
+  bounds: CameraBounds,
+  exponent: number = RUBBER_EXPONENT,
+): Camera {
+  if (!(camera.width > 0)) return camera
+  if (Number.isFinite(bounds.maxWidth) && bounds.maxWidth > 0 && camera.width > bounds.maxWidth) {
+    return cameraAtWidth(camera, rubberBand(camera.width, bounds.maxWidth, exponent))
+  }
+  if (Number.isFinite(bounds.minWidth) && bounds.minWidth > 0 && camera.width < bounds.minWidth) {
+    return cameraAtWidth(camera, rubberBand(camera.width, bounds.minWidth, exponent))
+  }
+  return camera
+}
+
+/* ───────────────────────────── the dive rail ─────────────────────────────── */
+
+/**
+ * WHERE THE CAMERA IS ON THE DIVE, in octaves from the root world's framing.
+ *
+ * Zero when the root world's diameter exactly spans the stage's smaller
+ * dimension; one per doubling of magnification from there.
+ *
+ * `viewportMinPx` CANCELS, and it is worth saying so rather than leaving the
+ * argument looking load-bearing. The camera rect maps onto the element rect, so
+ * `scale = viewportMinPx / min(camera.width, camera.height)`; the root's
+ * apparent diameter is `rootD · scale`; and the octaves are
+ * `log2(apparent / viewportMinPx)`, in which the pixels divide out and leave
+ * `log2(rootD / min(width, height))`. The argument stays in the signature
+ * because it is the guard: a stage nobody has measured yet has no dive position
+ * at all, and answering 0 is more honest than answering from a fallback box.
+ */
+export function octavesOf(camera: Camera, rootD: number, viewportMinPx: number): number {
+  if (!Number.isFinite(viewportMinPx) || viewportMinPx <= 0) return 0
+  if (!Number.isFinite(rootD) || rootD <= 0) return 0
+  const span = Math.min(camera.width, camera.height)
+  if (!Number.isFinite(span) || span <= 0) return 0
+  return Math.log2(rootD / span)
+}
+
+/* ──────────────────────────────── the wheel ──────────────────────────────── */
+
+/**
+ * The width multiplier one wheel event asks for. PURE — the hook hands it three
+ * fields off the event and gets a number back, so the rate is testable without
+ * a browser and the handler that calls it is four lines.
+ *
+ * WHEEL IS ALWAYS ZOOM. This is a map, not a document: it does not scroll, the
+ * drag already pans, and a wheel that sometimes panned and sometimes zoomed
+ * would be a wheel nobody could predict. `ctrl` is not a modifier the reader
+ * chose — it is how macOS reports a trackpad pinch — so it takes the same path
+ * faster rather than a different path.
+ *
+ * Positive `deltaY` (scroll down/away, fingers pinching together) widens the
+ * view, which is zooming OUT.
+ */
+export function wheelRatio(event: {
+  readonly deltaY: number
+  readonly deltaMode?: number
+  readonly ctrlKey?: boolean
+}): number {
+  const raw = num(event.deltaY)
+  // 1 is DOM_DELTA_LINE, 2 is DOM_DELTA_PAGE. Named by number rather than by
+  // `WheelEvent.DOM_DELTA_LINE` because this module may not touch the DOM.
+  const lines = event.deltaMode === 1 ? WHEEL_LINE_PX : event.deltaMode === 2 ? WHEEL_LINE_PX * 24 : 1
+  const kappa = event.ctrlKey === true ? WHEEL_KAPPA * WHEEL_PINCH_RATE : WHEEL_KAPPA
+  const ratio = Math.exp(raw * lines * kappa)
+  return Number.isFinite(ratio) && ratio > 0 ? ratio : 1
+}
+
 /* ────────────────────────────── the tween ────────────────────────────────── */
 
 /**
@@ -425,8 +804,18 @@ export function tweenDurationFor(from: Camera, to: Camera): number {
   const screens = Math.hypot(dx, dy)
   const octaves =
     from.width > 0 && to.width > 0 ? Math.abs(Math.log2(to.width / from.width)) : 0
-  const trip = Math.min(1, (screens + octaves) / FULL_TRIP)
-  return Math.round(FLY_MIN_MS + (FLY_MAX_MS - FLY_MIN_MS) * trip)
+  // THE MAX, NOT THE SUM, and the choice is worth the sentence because the two
+  // answers differ by 200ms on the commonest move on this screen.
+  //
+  // A dive is ONE move in log space: the camera magnifies and slides toward the
+  // child world at the same time, so the two costs OVERLAP in the wall clock
+  // rather than queueing. Summing them prices a one-tier dive — 1.43 octaves
+  // plus roughly 0.6 screens, because a child world sits about 0.68 child
+  // diameters off its parent's centre — at 749ms, where the brief's own
+  // arithmetic says 570. The max prices it at 570 and still gives a PURE pan its
+  // honest length, which measuring octaves alone would not.
+  const trip = Math.max(screens, octaves)
+  return Math.round(Math.min(FLY_MAX_MS, FLY_MIN_MS + OCTAVE_MS * trip))
 }
 
 /**

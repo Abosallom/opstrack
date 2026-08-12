@@ -91,10 +91,10 @@ const frame = (props: { titleKey: string; wide?: boolean }, body = 'THE MODE'): 
     </MemoryRouter>,
   )
 
-const bar = (compact = false): string =>
+const bar = (compact = false, exporting = false): string =>
   renderToStaticMarkup(
     <MemoryRouter initialEntries={['/mindtree']}>
-      <MapModeBar compact={compact} />
+      <MapModeBar compact={compact} exporting={exporting} onExport={() => {}} />
     </MemoryRouter>,
   )
 
@@ -208,19 +208,35 @@ describe('ModeFrame — width and title', () => {
 /* ────────────────────────── the two entrances ───────────────────────── */
 
 describe('MapModeBar — the entrances that replace a tab slot', () => {
-  it('is one tap to meetings and one tap to the digest, at both widths', () => {
+  it('is one tap to meetings, and reaches the digest without a second component', () => {
     for (const compact of [false, true]) {
       const html = bar(compact)
       expect(html, String(compact)).toContain('href="/meetings"')
       expect(html, String(compact)).toContain('href="/digest"')
-      // Two links and no disclosure: a "More" menu here would make both two taps.
+      // Exactly two links and no more. MEETINGS IS THE ONE-TAP DESTINATION; the
+      // digest moved INSIDE the export disclosure when the redesign cut the
+      // persistent target count, so it costs two taps and says so here rather
+      // than in prose. Both are rendered in the static markup — a `<details>`
+      // hides its content with the platform, not by unmounting it.
       expect((html.match(/<a /g) ?? []).length, String(compact)).toBe(2)
     }
   })
 
-  it('keeps a 44px hit area on every target at every width', () => {
+  it('contributes exactly TWO persistent targets, whatever is inside the disclosure', () => {
+    // THE BUDGET THIS COMPONENT SPENDS OF THE SCREEN'S TWELVE. What a reader
+    // sees at rest is the Meetings link and the export summary; everything else
+    // is behind one press. A third persistent target here would have to be
+    // argued for against the map, which is what the whole row is covering.
     for (const compact of [false, true]) {
-      expect((bar(compact).match(/tap-44/g) ?? []).length, String(compact)).toBe(2)
+      const html = bar(compact)
+      const persistent = html.slice(0, html.indexOf('mmode-export-menu'))
+      expect((persistent.match(/tap-44/g) ?? []).length, String(compact)).toBe(2)
+    }
+  })
+
+  it('keeps a 44px hit area on every target at every width, menu included', () => {
+    for (const compact of [false, true]) {
+      expect((bar(compact).match(/tap-44/g) ?? []).length, String(compact)).toBe(3)
     }
   })
 

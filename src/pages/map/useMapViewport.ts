@@ -25,10 +25,23 @@
 // rather than a bad small map, which is the outcome the spec asked for when it
 // said to choose. `mindtree.mobileHint` says so on the screen.
 //
-// NINE THINGS BRANCH ON `compact` and they are all in one place for it —
-// useMapModel (collapse, openDepth, leaf threshold), useMapGeometry (node size,
-// depth limit, the fit floor), useMapKeyboard (the tap and the forward arrow)
-// and the toolbar (three hidden buttons). One boolean, read once, threaded.
+// ── AND THE MEASUREMENT ABOVE IS NOW HISTORY, WHICH IS WORTH SAYING ────────
+//
+// Everything above describes the LINEAR map fitted to a whole tree, where the
+// phone's problem was that three rings across 375px could not be legible and
+// the answer was to draw fewer of them (`useMapGeometry`'s old `depthLimit`,
+// pinned to 1 on a phone). The camera removes the requirement that generated
+// the pin: the phone does not need everything to fit, it needs the CURRENT
+// WORLD to fit, and a world is six to nine children on one ring at any depth in
+// the tree. So the phone now gets the FULL hierarchy with identical LOD
+// thresholds — the thresholds are in CSS pixels, and a CSS pixel is a CSS pixel.
+// The phone is not a reduced map; it is the same map with a smaller window.
+//
+// `useIsCompact` survives because ONE constant still branches on it —
+// `FRAME_FILL_PHONE` (mapMotion.ts), which deliberately overflows a small
+// screen so a framed world's children come up at CARD size rather than CHIP —
+// along with `useMapModel`'s collapse defaults and `useMapKeyboard`'s tap. One
+// boolean, read once, threaded.
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 

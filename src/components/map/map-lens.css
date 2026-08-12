@@ -1,4 +1,4 @@
-/* The lens chips and the ledger switch.
+/* The lens chips — a row on the desktop, THE PINNED RAIL on a phone.
 
    PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.mlens*` and styles nothing
    else. A prefix of its own rather than a slice of `.mtree-`, for the reason
@@ -35,18 +35,75 @@
   min-inline-size: 0;
 }
 
-.mlens-label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
+/* `.mlens-label` IS DELETED, span and rules together. It was `aria-hidden`, it
+   was already hidden at `[data-compact]`, and the group's own `aria-label` says
+   the same words to the readers who need them — so on the desktop it was a
+   small-caps heading spending width to repeat the chips beside it. The KEY
+   `mindtree.lensLabel` is NOT retired: it is that accessible name. */
 
-/* The label is decorative on a phone — the group already carries the same words
-   as its accessible name — and 375px is better spent on the chips themselves. */
-.mlens[data-compact] .mlens-label {
-  display: none;
+/* ═══════════════ THE PHONE RAIL — the fix for a map nobody could reach ═════
+
+   THE BUG, MEASURED. `DEFAULT_LENS = 'needs-me'` -> `phoneDetentFor({kind:
+   'needsMe'}) = 'full'` -> the sheet is `position: fixed`, z-index 70, capped by
+   `--map-shell-chrome-block-size` (the app header + 64px). That reservation is
+   supposed to leave "one lens row of live page" — but `.mtree-shellbar` is the
+   THIRD block in `.mtree`'s normal flow (the `<h1>` and the FilterBar come
+   first), so at scroll-top the reserved strip shows the FILTER BAR. The chips
+   render about 380px below the fold, underneath a fixed sheet. On a 375x812
+   phone that meant zero pixels of map and no control that could bring it back.
+   `pages/mindtree.css` says this against itself in the same breath as the
+   variable: "It does NOT put the lens chips in that window on its own."
+
+   THE FIX IS TO TAKE THE ROW OUT OF THE FLOW ENTIRELY. Fixed to the block end,
+   z-index 71 — ONE ABOVE THE SHEET'S 70, always — sitting on top of the composer
+   rather than under the fold, in the thumb zone.
+
+   map-panel.css's own comment considered a version of this ("carry the chips
+   into the sheet at `full`") and rejected it on three grounds. All three fail
+   against THIS version: the fix stays in CSS; there is NO second MapLensBar in
+   the DOM (the chips are MOVED, not duplicated — one `role="group"`, one
+   accessible name, one set of pressed states); and it repairs the whole problem
+   rather than the chips alone, because it is the ROW that leaves the flow.
+
+   THE RAIL IS 48px of content — 8px of scroller padding + a 32px chip + 8px —
+   plus the 1px hairline above it, so 49px of screen. `.mmode[data-compact]`
+   (map-mode.css) computes to the same 8 + 32 + 8 at its own inline end, which is
+   what makes the two fixed halves read as one row. Report the number to the
+   integrator — U6 publishes it as `--map-lens-rail-block-size` for
+   map-panel.css to subtract from the sheet, and collapses
+   `--map-shell-chrome-block-size` to the header + 8px, because it no longer has
+   to reserve a strip of page in the hope the chips are scrolled into it. */
+.mlens[data-compact] {
+  position: fixed;
+  inset-inline: 0;
+  /* Above the composer, which is fixed at the true block end and publishes its
+     own height (including the home-indicator inset) into this variable. */
+  inset-block-end: var(--map-composer-block-size, 0px);
+  z-index: 71;
+  /* OPAQUE, NOT OPTIONAL: the map is drawn directly underneath it. */
+  background: var(--bg-elev);
+  border-block-start: 1px solid var(--border);
+  flex-wrap: nowrap;
+  column-gap: 0;
+  padding-inline-start: 8px;
+  /* ROOM FOR THE MODES, WHICH ARE PINNED AT THIS RAIL'S INLINE END.
+     `.mmode[data-compact]` fixes itself to the same block position at the inline
+     end (map-mode.css) — Meetings must never be the half that scrolls
+     off-screen. THE TWO NUMBERS MUST AGREE: this padding and that element's
+     `max-inline-size` are the same 136px, stated in both files because a custom
+     property declared on one of two SIBLINGS cannot reach the other.
+
+       44  Meetings — icon-only here, its label kept in the accessible name by
+           `.sr-only` rather than by `display: none`, so the link is still
+           announced "Meetings Live"
+     + 34  the live pill, when a meeting is running. The worst case is what the
+           reserve has to be sized for; with no meeting running the cluster is
+           100px and the chips simply get 36px more to scroll in
+     +  4  the gap
+     + 44  the export disclosure
+     +  8  end padding
+     = 134 -> 136 on the 4px grid. */
+  padding-inline-end: 136px;
 }
 
 /* ---------- the five chips ---------- */
@@ -91,7 +148,16 @@
    for the same measured reason. `.tap-44`'s overlay is positioned against the
    PADDING box, so a 1px border eats 2px of it: 30px of border box is a 28px
    padding box and 28 + 14 = 42, two short. 32 - 2 = 30 and 30 + 14 = 44 exactly.
-   The chip still LOOKS 32px; only the invisible overlay grows. */
+   The chip still LOOKS 32px; only the invisible overlay grows.
+
+   THE TIERING, AND IT IS THE ANSWER TO "NOTHING LEADS THE EYE".
+   The border here is `transparent`, not `--border`. An unpressed chip is
+   borderless `--text-dim` TEXT; the pressed one is a filled pill. One filled
+   pill in a row of four labels is the whole difference between five equal
+   buttons and somewhere for the eye to land — and it is the only change on this
+   screen that costs nothing at all, because the border is still in the box
+   model (so the 32/30/44 arithmetic above is untouched) and the `.tap-44`
+   overlay is untouched with it. The targets do not shrink; only the ink does. */
 .mlens-chip {
   display: inline-flex;
   align-items: center;
@@ -101,9 +167,15 @@
   font-size: 13px;
   color: var(--text-dim);
   background: none;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: 999px;
   cursor: pointer;
+}
+
+/* Hover is ink only, for the same reason: an outline appearing under the pointer
+   would make a second chip look chosen. */
+.mlens-chip:hover {
+  color: var(--text);
 }
 
 .mlens-chip[aria-pressed='true'] {
@@ -123,39 +195,15 @@
   color: var(--accent);
 }
 
-/* ---------- the map / ledger switch ---------- */
+/* ---------- the map / ledger switch has left this file ----------
 
-.mlens-stages {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-inline-start: auto;
-  flex: 0 0 auto;
-}
-
-/* 32px for the reason `.mlens-chip` above states in full: this box also carries
-   a 1px border (transparent until it is pressed, but a border is a border to the
-   box model), so 30px would have made it a 42px target too. */
-.mlens-stage {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-block-size: 32px;
-  padding-inline: 10px;
-  font-size: 12.5px;
-  color: var(--text-dim);
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.mlens-stage[aria-pressed='true'] {
-  color: var(--text);
-  background: var(--bg-elev-2);
-  border-color: var(--border);
-  font-weight: 700;
-}
+   `.mlens-stages` and `.mlens-stage` are DELETED with the markup they styled.
+   Map|Table is the Table toggle at MapAltitude's foot now (`.malt-stop`,
+   map-altitude.css) — still ONE TAP, because the ledger is the low-motion,
+   drag-free reading mode and burying an accessibility mode behind a disclosure
+   is not available to us. It moved because the ladder is where "how much of the
+   tree, drawn how" now lives, and because this row had to become a rail narrow
+   enough for five chips and two modes on a 375px phone. */
 
 /* THE 44px CLAIM, WITH THE ARITHMETIC THAT MAKES IT TRUE.
    This footer used to read "30px + `.tap-44`'s ±7px = 44" and it was wrong by

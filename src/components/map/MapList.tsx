@@ -15,6 +15,22 @@
 // OWNS THE CHROME — the heading, the close button, the phone sheet's detents and
 // the persisted open state. This file renders the panel's BODY and nothing else.
 //
+// AND THE BODY IS NOW TWO ROWS OF CHROME FEWER. Opened on a phone at 375×812
+// this panel put SEVEN rows above its first line of content: the title, three
+// detent buttons, "Hide the panel", an Everyone/Mine pair, "0 items need
+// attention", "Refresh" and "Every track". Three of those were this file's.
+//   · THE COUNT FOLDED INTO THE TITLE. "What needs you" over "0 items need
+//     attention" is one sentence said twice; the shell now titles the panel with
+//     the count in it and this file draws no count line at all.
+//   · REFRESH RENDERS ONLY IN THE ERROR STATE, which is the only state where it
+//     means anything. Everywhere else it invited a tap to re-fetch a list that
+//     is already realtime, optimistic and outbox-backed — a control offering to
+//     fix a problem the reader does not have.
+//   · THE Everyone/Mine PAIR WENT TO THE SHELL. See `onFilter`.
+// "Every track" stays: it is the panel's SCOPE, a sentence rather than a
+// control, and it is replaced by the branch name the moment the map is drilled
+// into. Every remaining row aligns to one inline-start edge.
+//
 // IT OWNS NO DEFINITION OF "NEEDS ATTENTION". Every bucket comes out of
 // `lib/entrySections.bucketFollowUps`, which the board, the dashboard and the
 // digest also call, so this list and the digest can never disagree about what is
@@ -27,8 +43,11 @@
 //
 // A list that shows FEWER rows, or costs MORE taps, than yesterday's follow-ups
 // screen is a regression, not a feature:
-//   · Everyone ⇄ Mine — one tap, a segmented pair in this panel's tool row,
-//     never behind the filter disclosure. See `onFilter`.
+//   · Everyone ⇄ Mine — one tap, and NOT IN THIS COMPONENT any more: it is the
+//     `Mine` toggle in the shell's top-start rail, which is one tap at every
+//     lens including `shape`, where this panel does not exist at all. That is
+//     strictly more reach than the pair this file used to draw, which was only
+//     ever available while the panel was open. See `onFilter`.
 //   · Mark done — one tap, no confirm, undo in the toast, and the PREVIOUS
 //     status read before the write so undo cannot restore `new` on a blocked one.
 //   · Snooze +3d — one tap; `snoozeFollowUp` measures from TODAY.
@@ -71,7 +90,7 @@ import { IconCheck, IconPlus } from '../fields/glyphs'
 import { IconChecklist, IconClock, IconUser } from '../icons'
 import { EmptyState, Skeleton } from '../shared'
 import { toast } from '../toast'
-import { formatDate, formatRelativeTime } from '../../lib/dates'
+import { formatDate } from '../../lib/dates'
 import {
   isFilterEmpty,
   sortEntries,
@@ -91,7 +110,6 @@ import {
   refreshEntries,
   setStatus,
   snoozeFollowUp,
-  useEntriesCoverage,
   useEntriesError,
   useEntriesLoading,
   useFilterContext,
@@ -688,17 +706,25 @@ export interface MapListProps {
   /**
    * Write the map's filter — `useMapModel`'s `setFilter`.
    *
-   * OPTIONAL, and the Everyone ⇄ Mine pair renders only when it is supplied:
-   * that is a refusal, not an oversight. "Mine" is one fact about one filter, so
-   * a local copy here would be a SECOND control for it and the two would
-   * disagree the first time either was touched alone. Without this prop the
-   * shell's FilterBar still carries the Mine chip at one tap in its
-   * always-visible rail, so the axis is never behind a disclosure either way;
-   * with it, the pair sits where the list is and rides the filter's URL codec.
+   * ACCEPTED AND NOT RENDERED, which is the whole point of it still being here.
+   * This panel used to draw an Everyone ⇄ Mine pair whenever it was given a
+   * writer; `Mine` now lives in the shell's top-start rail as the SINGLE owner
+   * of that fact, visible at every lens including `shape`, where this panel does
+   * not exist. THERE MUST BE EXACTLY ONE CONTROL FOR ONE FACT: two `role="group"`s
+   * carrying one accessible name and two pressed states is a defect for a screen
+   * reader even when it looks right on the page, and it is a defect that only
+   * shows up once — the first time somebody touches one of the two alone.
+   *
+   * The prop stays in the type, optional, so the shell's call site keeps
+   * compiling either way and a later surface that genuinely owns a filter of its
+   * own has somewhere to write. Passing it changes nothing a reader can see.
    */
   onFilter?: (next: FilterState) => void
 }
 
+// `onFilter` is deliberately NOT destructured: it is part of the type and it is
+// not read, and taking it here would be an unused binding the linter is right
+// about. See MapListProps.
 export default function MapList({
   filter,
   scope,
@@ -706,7 +732,6 @@ export default function MapList({
   onFocus,
   compact,
   announce,
-  onFilter,
 }: MapListProps): ReactElement {
   const locale = useLocale()
   const { profile } = useAuth()
@@ -728,7 +753,6 @@ export default function MapList({
   const { rows: entries, health, sections, total } = useAttention(filter, scopeIds)
   const loading = useEntriesLoading()
   const error = useEntriesError()
-  const coverage = useEntriesCoverage()
   const slaDaysFor = useSlaDays()
   // Who work can be handed to. Warmed by Shell, so this is a read of a store
   // somebody else already filled; only the unassigned bucket consumes it.
@@ -858,6 +882,15 @@ export default function MapList({
     return close
   }, [])
 
+  /**
+   * THE ONLY PLACE THIS IS REACHABLE IS THE ERROR STATE, and that is the only
+   * state where it means anything: the store is realtime, optimistic and
+   * outbox-backed, so on any successful load a Refresh button offers to solve a
+   * problem the reader does not have — and it cost a whole row of a 375px
+   * screen to make the offer. A failed load is the one case where the rows on
+   * screen genuinely are not the rows on the server, and the retry inside that
+   * empty state is this function.
+   */
   const handleRefresh = (): void => {
     setRefreshing(true)
     // The nudge marks need nothing extra: `nudged_at`/`nudged_by` are columns on
@@ -869,15 +902,6 @@ export default function MapList({
       setRefreshing(false)
       toast(t('followups.refreshed'))
     })
-  }
-
-  /** Everyone ⇄ Mine — one write, to the map's one filter. See `onFilter`. */
-  const setMine = (mine: boolean): void => {
-    if (onFilter === undefined || mine === filter.mine) return
-    onFilter({ ...filter, mine })
-    announce(
-      t('map.showing', { label: t(mine ? 'followups.whoseMine' : 'followups.whoseAll') }),
-    )
   }
 
   const toggleFold = (key: SectionKey): void => {
@@ -907,51 +931,11 @@ export default function MapList({
 
   return (
     <div className="mtree-list" data-compact={compact ? '' : undefined}>
-      <div className="mtree-list-tools">
-        {onFilter !== undefined && (
-          // THE SCREEN'S PRIMARY AXIS, not a detail behind a disclosure — and a
-          // PAIR rather than one toggle, because "Mine is on" and "Everyone is
-          // off" are two different claims and a lone chip only makes the first.
-          <div className="chip-row mtree-list-seg" role="group" aria-label={t('followups.whose')}>
-            <button
-              type="button"
-              className="chip"
-              aria-pressed={!filter.mine}
-              onClick={() => setMine(false)}
-            >
-              {t('followups.whoseAll')}
-            </button>
-            <button
-              type="button"
-              className="chip"
-              aria-pressed={filter.mine}
-              onClick={() => setMine(true)}
-            >
-              {t('followups.whoseMine')}
-            </button>
-          </div>
-        )}
-
-        <span className="mtree-list-count tabular">{t('followups.total', { count: total })}</span>
-
-        <button
-          type="button"
-          className="btn btn-sm btn-ghost mtree-list-refresh"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          // The freshness of the list is a tooltip rather than a line of text: it
-          // is a reassurance someone reaches for, not a fact they scan.
-          title={
-            coverage.loadedAt === null
-              ? undefined
-              : t('followups.updatedAgo', {
-                  time: formatRelativeTime(new Date(coverage.loadedAt).toISOString(), locale),
-                })
-          }
-        >
-          {t('followups.refresh')}
-        </button>
-      </div>
+      {/* NO TOOL ROW. It held an Everyone/Mine pair (now the shell's, and the
+          single owner of that fact), the total (now folded into the panel's own
+          title — "Nothing needs you" is one sentence, not a heading over a
+          count) and an unconditional Refresh (now only in the error state).
+          The first row of this panel is what the panel is ABOUT. */}
 
       {/* What the list is about, and the way out. `role="status"` because this
           sentence is the ANSWER to a gesture made on the CANVAS: tapping a track
@@ -986,7 +970,10 @@ export default function MapList({
           title={t('followups.errLoad')}
           description={t('common.errorHint')}
           action={
-            <button type="button" className="btn" onClick={handleRefresh}>
+            // The one Refresh this panel still draws, and it is a RETRY: the
+            // rows on screen are genuinely not the rows on the server here, and
+            // nothing else on this surface can say so.
+            <button type="button" className="btn" onClick={handleRefresh} disabled={refreshing}>
               {t('common.retry')}
             </button>
           }

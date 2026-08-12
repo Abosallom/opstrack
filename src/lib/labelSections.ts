@@ -354,15 +354,25 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
     section: 'entryFields',
     where: 'terminology.where.mindtree',
     rules: [
-      { prefixes: ['subtitle', 'title'], section: 'screenTitles' },
+      // `subtitle` is gone with the drawn <h1> the app header already said in
+      // the same words one row above; `title` is still the route's own name.
+      { prefixes: ['title'], section: 'screenTitles' },
       // The four grouping axes and the state words the nodes carry. These are
       // the same vocabulary the board and follow-ups use, read off a picture.
       {
         prefixes: ['archived', 'breach', 'count', 'dim'],
         section: 'healthStates',
       },
-      // Everything a person presses: the toolbar, the zoom, the drill-in
-      // breadcrumb, the export menu, and the expand/collapse controls.
+      // Everything a person presses: the group-by menu, the DIVE RAIL, the
+      // breadcrumb and its elision, the export menu, and the node menu's own
+      // expand/collapse pair.
+      //
+      // `fit` and `zoom` are NOT here any more, and their absence is the shape
+      // of the redesign: "Fit to view", "Zoom in", "Zoom out" and "Zoom 100%"
+      // were four buttons answering one question — how much of the organisation
+      // am I looking at — and the wheel, the pinch and one continuous rail
+      // answer it now. `dive` is that rail; `crumb` is the truncation mark on
+      // the trail it shares the answer with.
       {
         prefixes: [
           'back',
@@ -371,13 +381,13 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'clear',
           'collapse',
           'copy',
+          'crumb',
+          'dive',
           'download',
           'expand',
           'export',
-          'fit',
           'focus',
           'table',
-          'zoom',
         ],
         section: 'actions',
       },

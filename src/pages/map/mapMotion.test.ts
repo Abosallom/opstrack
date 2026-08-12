@@ -22,26 +22,41 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  anchoredZoom,
   beginCameraTween,
+  cameraAtWidth,
   cameraEqual,
   cameraOf,
+  clampCamera,
   cubicBezierEase,
   FLY_MAX_MS,
   FLY_MIN_MS,
   flyToCamera,
   flyToNode,
+  FRAME_FILL_DESKTOP,
+  FRAME_FILL_PHONE,
+  frameCamera,
   lerpCamera,
   MAP_EASE,
   MAP_EASE_POINTS,
   MAP_TWEEN_MS,
+  octavesOf,
   retargetCameraTween,
+  RUBBER_EXPONENT,
+  rubberBand,
+  rubberBandCamera,
   sampleCamera,
   tweenDurationFor,
   tweenProgress,
   viewBoxOf,
+  wheelRatio,
+  ZOOM_HEADROOM,
   zoomForCamera,
   type Camera,
+  type CameraBounds,
+  type FrameOptions,
   type MotionBox,
+  type Occlusion,
 } from './mapMotion'
 
 /** A 960×520 window on the middle of a drawing — the desktop fallback box. */
@@ -261,11 +276,46 @@ describe('tweenDurationFor', () => {
     expect(near).toBe(far)
   })
 
-  it('counts zoom in octaves, so a 4x change is the full trip on its own', () => {
-    expect(tweenDurationFor(WIDE, camera({ width: 240, height: 130 }))).toBe(FLY_MAX_MS)
+  it('counts zoom in octaves at a CONSTANT RATE — 300ms each', () => {
+    // 960 → 240 is exactly two octaves: 140 + 2 × 300.
+    expect(tweenDurationFor(WIDE, camera({ width: 240, height: 130 }))).toBe(740)
     // …and reversing it costs the same, which a ratio does and a difference
     // does not.
-    expect(tweenDurationFor(camera({ width: 240, height: 130 }), WIDE)).toBe(FLY_MAX_MS)
+    expect(tweenDurationFor(camera({ width: 240, height: 130 }), WIDE)).toBe(740)
+    // One octave is half of that above the floor, which is what "constant rate
+    // of magnification" means as an assertion rather than as a comment.
+    expect(tweenDurationFor(WIDE, camera({ width: 480, height: 260 }))).toBe(440)
+  })
+
+  it('prices the move the whole design is about: a ONE-TIER DIVE', () => {
+    // A uniform six-wide tier packs its children at a parent/child diameter
+    // ratio of 2.69, so diving one department tier is log2(2.69) = 1.43
+    // octaves. The brief's own arithmetic says ~570ms and this is where that
+    // number has to come out.
+    const child = camera({ width: 960 / 2.69, height: 520 / 2.69 })
+    expect(tweenDurationFor(WIDE, child)).toBe(568)
+  })
+
+  it('takes the MAX of pan and zoom, not the sum — a dive is one move', () => {
+    // The child world sits off its parent's centre AND is smaller. Summing the
+    // two costs would price the commonest move on this screen at 200ms more
+    // than the rate the reference runs at; they overlap in the wall clock.
+    const dive = camera({ cx: 480 + 0.6 * (960 / 2.69), width: 960 / 2.69, height: 520 / 2.69 })
+    expect(tweenDurationFor(WIDE, dive)).toBe(tweenDurationFor(WIDE, camera({
+      width: 960 / 2.69,
+      height: 520 / 2.69,
+    })))
+  })
+
+  it('caps a four-tier surface, and 1100 is a MOVE where 420 was a cut', () => {
+    expect(FLY_MAX_MS).toBe(1100)
+    // The cap bites at (1100 − 140)/300 = 3.2 octaves.
+    expect(tweenDurationFor(WIDE, camera({ width: 960 / 2 ** 3.2, height: 520 / 2 ** 3.2 }))).toBe(
+      FLY_MAX_MS,
+    )
+    expect(tweenDurationFor(WIDE, camera({ width: 960 / 2 ** 3.1, height: 520 / 2 ** 3.1 }))).toBeLessThan(
+      FLY_MAX_MS,
+    )
   })
 })
 
@@ -543,6 +593,529 @@ describe('flyToNode', () => {
     const landed = sampleCamera(tween, tween.durationMs)
     expect(landed.done).toBe(true)
     expect(viewBoxOf(landed.camera)).toBe(viewBoxOf(to))
+  })
+})
+
+/* ───────────────────────── framing one world ─────────────────────────────── */
+
+const STAGE = { width: 1180, height: 835 }
+const PHONE = { width: 375, height: 587 }
+const CLEAR: Occlusion = { inlineEnd: 0, blockEnd: 0 }
+
+/** A world at the origin, 1000 units across. */
+const WORLD = { worldX: 0, worldY: 0, worldD: 1000 }
+
+function framed(over: Partial<FrameOptions> = {}): Camera {
+  return frameCamera(WORLD, {
+    viewport: STAGE,
+    frameFill: FRAME_FILL_DESKTOP,
+    occlusion: CLEAR,
+    rtl: false,
+    ...over,
+  })
+}
+
+/** The world's diameter in CSS px at a given camera — the LOD's `a`. */
+function apparent(cam: Camera, viewportWidth: number, worldD: number): number {
+  return (worldD * viewportWidth) / cam.width
+}
+
+describe('frameCamera', () => {
+  it('puts the world at FRAME_FILL of the stage’s SMALLER dimension', () => {
+    const cam = framed()
+    expect(apparent(cam, STAGE.width, WORLD.worldD)).toBeCloseTo(FRAME_FILL_DESKTOP * 835, 9)
+  })
+
+  it('centres the world exactly when nothing is covering the stage', () => {
+    const cam = framed()
+    expect(cam.cx).toBe(0)
+    expect(cam.cy).toBe(0)
+  })
+
+  it('keeps the CAMERA’s aspect equal to the ELEMENT’s, not the visible part’s', () => {
+    // Every pixel↔unit conversion in the map is `dx · width / box.width`, which
+    // is exact only while these agree. Fit to the shrunken rectangle instead and
+    // a reader's finger out-runs the map by the width of the panel.
+    const cam = framed({ occlusion: { inlineEnd: 416, blockEnd: 0 } })
+    expect(cam.width / cam.height).toBeCloseTo(STAGE.width / STAGE.height, 12)
+  })
+
+  it('MOVES THE CONTENT AWAY FROM THE PANEL, which is the sign that was backwards', () => {
+    // A drawing point p renders at (p − viewBoxMin)·scale, so RAISING viewBoxMin
+    // moves content toward the start. In ltr the panel covers the inline END, so
+    // the content must move start-ward: cx rises.
+    const clear = framed()
+    const covered = framed({ occlusion: { inlineEnd: 416, blockEnd: 0 } })
+    expect(covered.cx).toBeGreaterThan(clear.cx)
+  })
+
+  it('is the exact mirror in Arabic — the ONE flip on the inline axis', () => {
+    const ltr = framed({ occlusion: { inlineEnd: 416, blockEnd: 0 }, rtl: false })
+    const rtl = framed({ occlusion: { inlineEnd: 416, blockEnd: 0 }, rtl: true })
+    expect(rtl.cx).toBe(-ltr.cx)
+    expect(rtl.width).toBe(ltr.width)
+    expect(rtl.height).toBe(ltr.height)
+  })
+
+  it('does NOT flip the block axis — a sheet covers the bottom in both', () => {
+    const ltr = framed({ occlusion: { inlineEnd: 0, blockEnd: 320 }, rtl: false })
+    const rtl = framed({ occlusion: { inlineEnd: 0, blockEnd: 320 }, rtl: true })
+    expect(rtl.cy).toBe(ltr.cy)
+    expect(ltr.cy).toBeGreaterThan(0)
+  })
+
+  it('lands a child of the framed world at CARD size on BOTH widths — one constant', () => {
+    // The whole justification for FRAME_FILL_PHONE existing at all. A uniform
+    // six-wide tier has a parent/child diameter ratio of 2.69; the CARD band
+    // starts at 140 CSS px and ends at 380.
+    const childD = WORLD.worldD / 2.69
+    const desk = apparent(framed(), STAGE.width, childD)
+    const phone = apparent(
+      frameCamera(WORLD, {
+        viewport: PHONE,
+        frameFill: FRAME_FILL_PHONE,
+        occlusion: CLEAR,
+        rtl: false,
+      }),
+      PHONE.width,
+      childD,
+    )
+    expect(desk).toBeGreaterThan(140)
+    expect(desk).toBeLessThan(380)
+    expect(phone).toBeGreaterThan(140)
+    expect(phone).toBeLessThan(380)
+    // …and the phone's framed world genuinely OVERFLOWS, which is the trade.
+    expect(apparent(
+      frameCamera(WORLD, {
+        viewport: PHONE,
+        frameFill: FRAME_FILL_PHONE,
+        occlusion: CLEAR,
+        rtl: false,
+      }),
+      PHONE.width,
+      WORLD.worldD,
+    )).toBeGreaterThan(PHONE.width)
+  })
+
+  it('is TOTAL — no input produces a NaN in the viewBox', () => {
+    const torn: [string, Camera][] = [
+      ['zero viewport', frameCamera(WORLD, { viewport: { width: 0, height: 0 }, frameFill: 0.87, occlusion: CLEAR, rtl: false })],
+      ['zero world', frameCamera({ worldX: 0, worldY: 0, worldD: 0 }, { viewport: STAGE, frameFill: 0.87, occlusion: CLEAR, rtl: false })],
+      ['NaN world', frameCamera({ worldX: Number.NaN, worldY: Number.NaN, worldD: Number.NaN }, { viewport: STAGE, frameFill: 0.87, occlusion: CLEAR, rtl: false })],
+      ['negative fill', frameCamera(WORLD, { viewport: STAGE, frameFill: -2, occlusion: CLEAR, rtl: false })],
+      ['occlusion wider than the stage', frameCamera(WORLD, { viewport: STAGE, frameFill: 0.87, occlusion: { inlineEnd: 99999, blockEnd: 99999 }, rtl: false })],
+      ['NaN occlusion', frameCamera(WORLD, { viewport: STAGE, frameFill: 0.87, occlusion: { inlineEnd: Number.NaN, blockEnd: Number.NaN }, rtl: false })],
+    ]
+    for (const [name, cam] of torn) {
+      expect(viewBoxOf(cam), name).not.toContain('NaN')
+      expect(Number.isFinite(cam.cx) && Number.isFinite(cam.width), name).toBe(true)
+      expect(cam.width, name).toBeGreaterThan(0)
+    }
+  })
+
+  it('is PURE — the same arguments give the same answer', () => {
+    expect(framed()).toEqual(framed())
+  })
+})
+
+/* ─────────────────── the anchor, which is the bug this fixes ──────────────── */
+
+describe('anchoredZoom', () => {
+  /** Where a drawing point lands on screen, as a fraction of the window. */
+  function onScreen(cam: Camera, point: { x: number; y: number }): [number, number] {
+    return [(point.x - (cam.cx - cam.width / 2)) / cam.width, (point.y - (cam.cy - cam.height / 2)) / cam.height]
+  }
+
+  it('holds the anchor to 1e-9 for ANY finite positive ratio', () => {
+    const anchor = { x: 812, y: 133 }
+    const before = onScreen(WIDE, anchor)
+    for (const ratio of [0.001, 0.25, 0.5, 0.9999, 1, 1.15, 2, 37, 1e5]) {
+      const after = onScreen(anchoredZoom(WIDE, anchor, ratio), anchor)
+      expect(Math.abs(after[0] - before[0]), `ratio ${ratio}`).toBeLessThan(1e-9)
+      expect(Math.abs(after[1] - before[1]), `ratio ${ratio}`).toBeLessThan(1e-9)
+    }
+  })
+
+  it('holds an anchor OUTSIDE the window too — a cursor over the margin', () => {
+    const anchor = { x: -4000, y: 9000 }
+    const before = onScreen(WIDE, anchor)
+    const after = onScreen(anchoredZoom(WIDE, anchor, 0.4), anchor)
+    expect(Math.abs(after[0] - before[0])).toBeLessThan(1e-9)
+    expect(Math.abs(after[1] - before[1])).toBeLessThan(1e-9)
+  })
+
+  it('is NOT the same as zooming about the centre — which is the whole defect', () => {
+    // The bug: every pinch resolved `pan === null` to the fit centre, so the
+    // picture slid out from under the reader's fingers. If these two agreed,
+    // the fix would be cosmetic.
+    const anchor = { x: 900, y: 400 }
+    const centred = { ...WIDE, width: WIDE.width * 0.5, height: WIDE.height * 0.5 }
+    expect(anchoredZoom(WIDE, anchor, 0.5).cx).not.toBe(centred.cx)
+  })
+
+  it('anchoring on the centre IS the centred zoom, so the two agree where they should', () => {
+    const centre = { x: WIDE.cx, y: WIDE.cy }
+    expect(anchoredZoom(WIDE, centre, 0.5)).toEqual({
+      cx: WIDE.cx,
+      cy: WIDE.cy,
+      width: 480,
+      height: 260,
+    })
+  })
+
+  it('refuses a ratio that is not a magnification', () => {
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(anchoredZoom(WIDE, { x: 1, y: 2 }, bad)).toBe(WIDE)
+    }
+  })
+
+  it('composes: two zooms about one anchor are one zoom of the product', () => {
+    const anchor = { x: 300, y: 200 }
+    const twice = anchoredZoom(anchoredZoom(WIDE, anchor, 0.5), anchor, 0.5)
+    const once = anchoredZoom(WIDE, anchor, 0.25)
+    expect(twice.cx).toBeCloseTo(once.cx, 9)
+    expect(twice.width).toBeCloseTo(once.width, 9)
+  })
+})
+
+/* ──────────────────────── the two ends of the dive ───────────────────────── */
+
+describe('clampCamera', () => {
+  const bounds: CameraBounds = { minWidth: 100, maxWidth: 4000 }
+
+  it('is IDEMPOTENT, which is what lets it run on every write', () => {
+    for (const width of [10, 99, 100, 101, 2000, 3999, 4000, 4001, 90000]) {
+      const once = clampCamera(camera({ width, height: width / 2 }), bounds)
+      expect(clampCamera(once, bounds)).toEqual(once)
+    }
+  })
+
+  it('holds the aspect, so the map never letterboxes', () => {
+    const pulled = clampCamera(camera({ width: 40, height: 20 }), bounds)
+    expect(pulled.width / pulled.height).toBeCloseTo(2, 12)
+    expect(pulled.width).toBe(100)
+  })
+
+  it('never moves the centre — a clamp is not a pan', () => {
+    const held = clampCamera(camera({ cx: 77, cy: -3, width: 99999, height: 50000 }), bounds)
+    expect(held.cx).toBe(77)
+    expect(held.cy).toBe(-3)
+  })
+
+  it('returns the SAME OBJECT when there is nothing to do', () => {
+    const inside = camera({ width: 500, height: 270 })
+    expect(clampCamera(inside, bounds)).toBe(inside)
+  })
+
+  it('survives a torn bounds by sorting it rather than throwing', () => {
+    const crossed = clampCamera(camera({ width: 5000 }), { minWidth: 4000, maxWidth: 100 })
+    expect(crossed.width).toBe(4000)
+  })
+})
+
+describe('rubberBand', () => {
+  it('is CONTINUOUS at the limit — exactly the limit, not nearly', () => {
+    expect(rubberBand(220, 220)).toBe(220)
+    expect(rubberBand(1, 1)).toBe(1)
+  })
+
+  it('is MONOTONE on both sides, so the picture never reverses under a finger', () => {
+    let previous = 0
+    for (const width of [10, 50, 100, 199, 200, 201, 400, 4000, 40000]) {
+      const drawn = rubberBand(width, 200)
+      expect(drawn).toBeGreaterThan(previous)
+      previous = drawn
+    }
+  })
+
+  it('RESISTS — always closer to the limit than the request was', () => {
+    expect(rubberBand(800, 200)).toBeGreaterThan(200)
+    expect(rubberBand(800, 200)).toBeLessThan(800)
+    expect(rubberBand(50, 200)).toBeLessThan(200)
+    expect(rubberBand(50, 200)).toBeGreaterThan(50)
+  })
+
+  it('spends 0.35 exactly: 4x past a bound draws 1.6x past it', () => {
+    expect(rubberBand(800, 200)).toBeCloseTo(200 * Math.pow(4, RUBBER_EXPONENT), 9)
+    expect(Math.pow(4, RUBBER_EXPONENT)).toBeCloseTo(1.6, 1)
+  })
+
+  it('passes a torn width through rather than inventing one', () => {
+    expect(rubberBand(Number.NaN, 200)).toBeNaN()
+    expect(rubberBand(-5, 200)).toBe(-5)
+    expect(rubberBand(300, 0)).toBe(300)
+  })
+})
+
+describe('rubberBandCamera', () => {
+  const bounds: CameraBounds = { minWidth: 200, maxWidth: 2000 }
+
+  it('does nothing inside the dive', () => {
+    const inside = camera({ width: 900, height: 500 })
+    expect(rubberBandCamera(inside, bounds)).toBe(inside)
+  })
+
+  it('resists past the TERMINUS and the spring-back is the clamp', () => {
+    const past = camera({ width: 50, height: 27 })
+    const drawn = rubberBandCamera(past, bounds)
+    expect(drawn.width).toBeGreaterThan(50)
+    expect(drawn.width).toBeLessThan(200)
+    expect(clampCamera(drawn, bounds).width).toBe(200)
+  })
+
+  it('resists past the far end too', () => {
+    const drawn = rubberBandCamera(camera({ width: 32000, height: 17000 }), bounds)
+    expect(drawn.width).toBeLessThan(32000)
+    expect(drawn.width).toBeGreaterThan(2000)
+  })
+
+  it('holds the aspect while resisting', () => {
+    const drawn = rubberBandCamera(camera({ width: 50, height: 25 }), bounds)
+    expect(drawn.width / drawn.height).toBeCloseTo(2, 12)
+  })
+})
+
+/* ─────────────────────────── the terminus, priced ────────────────────────── */
+
+describe('ZOOM_HEADROOM is the owner’s correction made physical', () => {
+  it('leaves an Organization card comfortably readable at the stop', () => {
+    // The terminus is D(deepest department)/2.2. At that camera the deepest
+    // department's world is 2.2 windows across, so a leaf Org card inside it —
+    // one of six, at the 2.69 packing ratio — is well past the CARD floor.
+    const deepestD = 1000
+    const terminus: CameraBounds = { minWidth: deepestD / ZOOM_HEADROOM, maxWidth: 1e9 }
+    const at = cameraAtWidth(camera(), terminus.minWidth)
+    expect(apparent(at, STAGE.width, deepestD / 2.69)).toBeGreaterThan(380)
+  })
+
+  it('is a DEAD STOP, not a slow lane — past it the clamp does not move', () => {
+    const bounds: CameraBounds = { minWidth: 454, maxWidth: 1e9 }
+    expect(clampCamera(cameraAtWidth(camera(), 1), bounds).width).toBe(454)
+    expect(clampCamera(cameraAtWidth(camera(), 0.0001), bounds).width).toBe(454)
+  })
+})
+
+/* ─────────────────────────── the dive rail ───────────────────────────────── */
+
+describe('octavesOf', () => {
+  it('is ZERO when the root world exactly spans the stage’s smaller side', () => {
+    expect(octavesOf({ cx: 0, cy: 0, width: 2000, height: 1000 }, 1000, 835)).toBe(0)
+  })
+
+  it('counts ONE PER DOUBLING of magnification, and rises as you go in', () => {
+    expect(octavesOf({ cx: 0, cy: 0, width: 1000, height: 500 }, 1000, 835)).toBe(1)
+    expect(octavesOf({ cx: 0, cy: 0, width: 500, height: 250 }, 1000, 835)).toBe(2)
+    expect(octavesOf({ cx: 0, cy: 0, width: 4000, height: 2000 }, 1000, 835)).toBe(-1)
+  })
+
+  it('DOES NOT DEPEND ON THE PIXELS — they cancel, and that is asserted', () => {
+    const cam = { cx: 0, cy: 0, width: 1234, height: 567 }
+    expect(octavesOf(cam, 1000, 835)).toBe(octavesOf(cam, 1000, 375))
+  })
+
+  it('answers 0 rather than a fiction for a stage nobody has measured', () => {
+    expect(octavesOf(WIDE, 1000, 0)).toBe(0)
+    expect(octavesOf(WIDE, 0, 835)).toBe(0)
+    expect(octavesOf({ cx: 0, cy: 0, width: 0, height: 0 }, 1000, 835)).toBe(0)
+  })
+
+  it('a dive and its surface are exact inverses — the reference’s promise', () => {
+    // "Surfacing returns the camera to the identical framing it left, TO THE
+    // UNIT" — true because coordinates are absolute and the drawing is static.
+    const parent = framed()
+    const child = frameCamera({ worldX: 120, worldY: -60, worldD: 1000 / 2.69 }, {
+      viewport: STAGE,
+      frameFill: FRAME_FILL_DESKTOP,
+      occlusion: CLEAR,
+      rtl: false,
+    })
+    expect(viewBoxOf(parent)).toBe(viewBoxOf(framed()))
+    const down = octavesOf(child, 1000, 835) - octavesOf(parent, 1000, 835)
+    expect(down).toBeCloseTo(Math.log2(2.69), 12)
+  })
+})
+
+/* ──────────────────────────────── the wheel ──────────────────────────────── */
+
+describe('wheelRatio', () => {
+  it('makes a 100px mouse notch exactly 1.15x, which is where κ comes from', () => {
+    expect(wheelRatio({ deltaY: 100 })).toBeCloseTo(1.15, 12)
+    expect(wheelRatio({ deltaY: -100 })).toBeCloseTo(1 / 1.15, 12)
+  })
+
+  it('zooms OUT on a downward scroll — positive deltaY widens the view', () => {
+    expect(wheelRatio({ deltaY: 50 })).toBeGreaterThan(1)
+    expect(wheelRatio({ deltaY: -50 })).toBeLessThan(1)
+  })
+
+  it('is EXPONENTIAL, so a notch means the same magnification at every distance', () => {
+    // Two notches of 50 compose into one notch of 100 exactly.
+    expect(wheelRatio({ deltaY: 50 }) * wheelRatio({ deltaY: 50 })).toBeCloseTo(
+      wheelRatio({ deltaY: 100 }),
+      12,
+    )
+  })
+
+  it('converts DOM_DELTA_LINE at 16px a line, so Firefox is not 16x slower', () => {
+    expect(wheelRatio({ deltaY: 3, deltaMode: 1 })).toBeCloseTo(wheelRatio({ deltaY: 48 }), 12)
+  })
+
+  it('takes ctrl — the macOS trackpad pinch — down the SAME path at 3x', () => {
+    expect(wheelRatio({ deltaY: 10, ctrlKey: true })).toBeCloseTo(wheelRatio({ deltaY: 30 }), 12)
+  })
+
+  it('never answers a ratio that would blank the map', () => {
+    for (const deltaY of [Number.NaN, Number.POSITIVE_INFINITY, -1e9, 1e9]) {
+      const ratio = wheelRatio({ deltaY })
+      expect(Number.isFinite(ratio)).toBe(true)
+      expect(ratio).toBeGreaterThan(0)
+    }
+  })
+})
+
+/* ──────────── the byte-identity that keeps a frame loop honest ───────────── */
+
+describe('the loop’s last write and React’s next render are the SAME BYTES', () => {
+  it('holds across a whole tween, ending on the destination', () => {
+    // A frame loop writes `viewBox` behind React's back, and React only writes
+    // an attribute when the PROP changed between renders. If the loop's final
+    // frame is not byte-identical to what React would render for the settled
+    // camera, React sees no change, writes nothing, and the map is stuck where
+    // the loop left it until something else moves it.
+    const to = frameCamera({ worldX: 137.5, worldY: -62.25, worldD: 371.7 }, {
+      viewport: STAGE,
+      frameFill: FRAME_FILL_DESKTOP,
+      occlusion: { inlineEnd: 416, blockEnd: 0 },
+      rtl: false,
+    })
+    const tween = beginCameraTween(framed(), to, 0)
+    if (tween === null) throw new Error('expected a tween')
+    const lastFrame = sampleCamera(tween, tween.durationMs)
+    expect(lastFrame.done).toBe(true)
+    // The loop's write…
+    expect(viewBoxOf(lastFrame.camera)).toBe(viewBoxOf(to))
+    // …and React's, from the state the loop settles into. Same formatter, one
+    // formatter, so there is nothing to correct.
+    expect(viewBoxOf(lastFrame.camera)).toBe(viewBoxOf(clampCamera(to, { minWidth: 1, maxWidth: 1e12 })))
+  })
+})
+
+/* ─────────── the DAG, asserted against the hook’s own source text ────────── */
+
+// WHY SOURCE AND NOT A RENDER, stated where it can be checked rather than
+// assumed: vitest.config.ts pins `environment: 'node'` and neither jsdom nor a
+// React test renderer is in the dependency budget, so there is no way to render
+// this hook ten times and count anything. `pages/MindtreeShell.test.ts` opens
+// with the same admission and reads source for the same reason. A grep is a
+// weak assertion; it is stronger than the nothing that guarded the feedback
+// cycle when the map shipped with it in.
+//
+// Each assertion names the MEASURED defect it stands guard over.
+
+function hookSource(): string {
+  const src = readFileSync(new URL('./useMapGeometry.ts', import.meta.url), 'utf8')
+  if (src.trim() === '') throw new Error('useMapGeometry.ts is empty')
+  return src
+}
+
+/**
+ * Which hook-level binding each `layout.bounds` read lives inside.
+ *
+ * The two-space `const` is a declaration at the hook's own level; anything
+ * deeper is inside one of them. This is the assertion that the drawing's extent
+ * reaches exactly two expressions and neither is consulted per render by the
+ * camera.
+ */
+function boundsReaders(src: string): string[] {
+  const owners = new Set<string>()
+  for (const hit of src.matchAll(/layout\.bounds/g)) {
+    const declared = [...src.slice(0, hit.index).matchAll(/\n {2}const (\w+) = /g)].pop()
+    owners.add(declared?.[1] ?? '<top level>')
+  }
+  return [...owners]
+}
+
+/** Source with every block and line comment removed. */
+function code(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+}
+
+describe('the camera cannot feed the geometry — by construction, not by care', () => {
+  it('has NO import path to the layout module’s layout functions', () => {
+    // The named trap was depthLimit → layout → bounds → fit.scale → zoomBounds
+    // → heldZoom → depthLimit. It has no first link here because the hook
+    // cannot call a layout function at all: the drawing arrives as an argument.
+    const src = code(hookSource())
+    expect(src).not.toContain('layoutMindtreeRadial')
+    expect(src).not.toContain('layoutWorlds')
+    expect(src).not.toContain('ringsThatFit')
+    expect(src).not.toContain('depthLimit')
+  })
+
+  it('reads layout.bounds in exactly TWO places, and neither is on the camera path', () => {
+    // `initialCamera` — the one mount-time arrow, called from the `useState`
+    // initializer, from the revision guard and from the first-measurement
+    // correction, and from nowhere that a camera value can reach.
+    // `wholeMapFit`  — the EXPORT's frame, keyed on the layout and the element.
+    // Anything else reading the drawing's extent is the first link of the cycle
+    // growing back.
+    expect(boundsReaders(code(hookSource())).sort()).toEqual(['initialCamera', 'wholeMapFit'])
+    expect(code(hookSource())).toContain('useState<CameraState>(() => ({')
+  })
+
+  it('never reintroduces a multiplier of a moving fit', () => {
+    const src = code(hookSource())
+    for (const dead of ['heldZoom', 'zoomBounds', 'clampZoom', 'zoomLimits', 'setZoom', 'resetView', 'altitude']) {
+      expect(src, dead).not.toContain(dead)
+    }
+  })
+
+  it('holds ONE piece of view state — the camera, and nothing beside it', () => {
+    const src = code(hookSource())
+    expect(src.match(/useState[<(]/g) ?? []).toHaveLength(1)
+  })
+
+  it('attaches the wheel NON-PASSIVELY, which is what lets preventDefault run', () => {
+    // ctrl+wheel is how macOS reports a trackpad pinch, and its default action
+    // is to page-zoom the browser. A passive listener may not preventDefault,
+    // and React's root listeners are passive.
+    const src = code(hookSource())
+    expect(src).toContain("addEventListener('wheel', handler, { passive: false })")
+    expect(src).toContain('event.preventDefault()')
+  })
+
+  it('anchors every zoom on a point the READER chose — all three sites', () => {
+    const src = code(hookSource())
+    // The wheel and the pinch both go through anchoredZoom; the pan does not
+    // zoom at all, which is the third of the three sites that used to resolve
+    // `pan === null` to the fit centre.
+    expect((src.match(/anchoredZoom\(/g) ?? []).length).toBeGreaterThanOrEqual(2)
+    // The three retired spellings of "resolve `pan === null` to the fit centre",
+    // one per call site, quoted from the file this replaces.
+    expect(src).not.toContain('fit.x + fit.width / 2')
+    expect(src).not.toContain('setPan(')
+    expect(src).not.toMatch(/\bpan \?\?/)
+    expect(src).not.toMatch(/\bpan === null/)
+  })
+
+  it('takes reducedMotion as an ARGUMENT — no matchMedia in the camera', () => {
+    const src = code(hookSource())
+    expect(src).not.toContain('matchMedia')
+    expect(src).toContain('reducedMotion')
+  })
+
+  it('keeps mapMotion PURE — not one line of it touches a browser', () => {
+    const src = code(readFileSync(new URL('./mapMotion.ts', import.meta.url), 'utf8'))
+    for (const forbidden of [
+      'document',
+      'window.',
+      'requestAnimationFrame',
+      'matchMedia',
+      'performance.now',
+      'from \'react\'',
+    ]) {
+      expect(src, forbidden).not.toContain(forbidden)
+    }
   })
 })
 

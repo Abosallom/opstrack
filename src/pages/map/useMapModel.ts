@@ -27,6 +27,7 @@ import { isolate } from '../../lib/bidi'
 import type { FilterState } from '../../lib/entryFilter'
 import { t } from '../../lib/i18n'
 import { useTrackLabel } from '../../lib/labels'
+import { entityIdOf } from '../../lib/mapNodes'
 import {
   MIND_DIMENSIONS,
   ROOT_ID,
@@ -61,7 +62,7 @@ import {
   useMindSelectionCount,
   useMindView,
 } from '../../store/mindtree'
-import { useTracks } from '../../store/config'
+import { useMapNodeMap, useTracks } from '../../store/config'
 import { useMemberMap, useMembers, memberLabel } from '../../store/members'
 import { useVocabAll, useVocabLabel } from '../../store/vocab'
 import { useAuth } from '../../store/auth'
@@ -160,6 +161,15 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
   const health = useHealthMap()
   const entryById = useEntryMap()
   const tracks = useTracks()
+  /**
+   * The hierarchy rows behind the `entity` nodes — WHO RUNS EACH ORGANIZATION.
+   *
+   * Read here rather than inside a component because the second line an
+   * Organization draws at its deepest zoom is part of its VIEW MODEL: built once
+   * per tree in the same walk as the label and the accessible name, not
+   * re-resolved by a few hundred nodes on every pan frame.
+   */
+  const mapNodeById = useMapNodeMap()
   const members = useMembers()
   const memberById = useMemberMap()
   const ctx = useFilterContext()
@@ -368,6 +378,21 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
     const trail = (ancestry: readonly string[]): string =>
       ancestry.filter((text) => text !== '').map(isolate).join(sep)
 
+    /** An Organization's account manager and vendor, or null for everything else. */
+    const secondaryOf = (node: MindNodeModel): string | null => {
+      const nodeId = entityIdOf(node)
+      if (nodeId === null) return null
+      const row = mapNodeById.get(nodeId)
+      if (row === undefined) return null
+      const parts: string[] = []
+      if (row.account_manager_id !== null) {
+        parts.push(isolate(memberLabel(memberById, row.account_manager_id, null)))
+      }
+      const vendor = row.vendor.trim()
+      if (vendor !== '') parts.push(isolate(vendor))
+      return parts.length === 0 ? null : parts.join(sep)
+    }
+
     const visit = (node: MindNodeModel, ancestry: readonly string[]): void => {
       const raw = textOf(node.label)
       const stat = stats.get(node.id) ?? NO_STATS
@@ -426,6 +451,22 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
               ? t('mindtree.expandNode', { label: raw })
               : t('mindtree.collapseNode', { label: raw }),
         breachHint: node.health.slaBreached ? t('mindtree.breachHint') : null,
+        /**
+         * THE ORGANIZATION'S SECOND LINE — account manager, then vendor.
+         *
+         * Drawn in exactly one place: a terminal node past 380px, which is the
+         * only node with nothing beneath it competing for the room. Everything
+         * else about an Organization — the capabilities integrated, the
+         * outstanding issues, the matrix — belongs to the info sidebar and is
+         * one tap away. Null on every department, and null on an Organization
+         * with neither recorded, because an empty second line is a row of
+         * whitespace the drawing has to pay for.
+         *
+         * `isolate()`d per COMPONENT and not once over the join: the separator
+         * is the locale's own comma and belongs to the sentence, exactly as the
+         * fold's ancestry trail above does it.
+         */
+        secondary: secondaryOf(node),
       })
 
       // The root is the workspace and adds nothing to a fold's ancestry, so it
@@ -442,7 +483,7 @@ export function useMapModel(compact: boolean, locale: string, filter: FilterStat
     // an argument, so without it here a language switch would re-render the map
     // around a memo still holding English labels.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [tree, stats, entryById, memberById, vocabLabelOf, textOf, locale])
+  }, [tree, stats, entryById, memberById, mapNodeById, vocabLabelOf, textOf, locale])
 
   /* ── the summary, which is also the export's description ──────────────── */
 

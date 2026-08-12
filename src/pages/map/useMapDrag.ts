@@ -23,7 +23,7 @@
 import { useCallback, useRef } from 'react'
 import type { RefObject } from 'react'
 import { useMindDragLayer, type MindDragController } from '../../components/mindtree/DragLayer'
-import type { MindtreeLayout, PositionedNode } from '../../lib/mindtree/layout'
+import type { DrawnLayout, PositionedNode } from '../../lib/mindtree/layout'
 import type { MindDimension, MindNode as MindNodeModel } from '../../lib/mindtree/model'
 import type { MindLabel } from '../../lib/mindtree/model'
 import type { MindtreeView } from '../../store/mindtree'
@@ -31,7 +31,7 @@ import type { Entry, UserRole } from '../../types'
 
 export interface MapDragOptions {
   tree: MindNodeModel
-  layout: MindtreeLayout<MindNodeModel>
+  layout: DrawnLayout<MindNodeModel>
   dimension: MindDimension
   entryById: ReadonlyMap<string, Entry>
   meId: string | null

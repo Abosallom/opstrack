@@ -41,7 +41,7 @@ vi.hoisted(() => {
 
 const BreadcrumbModule = await import('./Breadcrumb')
 const Breadcrumb = BreadcrumbModule.default
-const { crumbTarget } = BreadcrumbModule
+const { crumbTarget, visibleCrumbs, CRUMB_LINKS_MAX } = BreadcrumbModule
 
 // Register the namespace, exactly as MindtreeTable.test.tsx does: `t()` resolves
 // against the bundle OBJECTS at call time, so this is precisely what
@@ -50,6 +50,18 @@ const { crumbTarget } = BreadcrumbModule
 const locales = await import('../../locales')
 Object.assign(locales.en, (await import('../../locales/en/mindtree.json')).default)
 Object.assign(locales.ar, (await import('../../locales/ar/mindtree.json')).default)
+
+// THE ONE KEY THIS UNIT ADDS HERE, STUBBED, AND THE STUB IS THE HANDOFF MADE
+// EXECUTABLE. `src/locales/{en,ar}/mindtree.json` belong to the integrator
+// (docs/MAP-ZOOM.md §12) and a unit may not edit them, so `localeReach.test.ts`
+// will name this key until it lands — which is the loudest possible handoff and
+// is deliberate. Stubbing it here tests the COMPONENT's promise (the elided
+// worlds are counted out loud rather than silently dropped) instead of testing
+// whether a JSON file has arrived. It is a PLURAL NODE, like `filter.activeCount`:
+// "1 more step" and "4 more steps" are different sentences in English and six
+// different ones in Arabic.
+const enMind = (locales.en as Record<string, Record<string, unknown>>).mindtree
+enMind.crumbElided ??= { one: '{count} more step above', other: '{count} more steps above' }
 
 function node(id: string, label: MindLabel, kind: MindNode['kind'] = 'track'): MindNode {
   return {
@@ -153,6 +165,88 @@ describe('Breadcrumb', () => {
     // The root crumb takes none: "All tracks" is already the whole sentence, and
     // a name that merely repeated it would be noise on every depth.
     expect(html).not.toContain('aria-label="Back to All tracks"')
+  })
+
+  it('TRUNCATES FROM THE START and keeps the root as the first press', () => {
+    // The trail is no longer bounded at four hops: `map_nodes` has a
+    // self-referencing `parent_id` with a depth cap of six, and the camera can
+    // sit at any world on the path. So the row is capped — and the direction of
+    // the cap is the decision. The NEAR end is what a reader who can be anywhere
+    // needs; the far end is one press away because the root is never dropped.
+    const deep = [
+      ROOT,
+      node('a', { kind: 'text', text: 'Alpha' }),
+      node('b', { kind: 'text', text: 'Bravo' }),
+      node('c', { kind: 'text', text: 'Charlie' }),
+      node('d', { kind: 'text', text: 'Delta' }),
+      node('e', { kind: 'text', text: 'Echo' }),
+      node('here', { kind: 'text', text: 'Riyadh Cluster' }),
+    ]
+    const html = renderToStaticMarkup(<Breadcrumb trail={deep} onFocus={() => {}} />)
+
+    // Root + two near hops = three links, whatever the depth.
+    expect(html.match(/<button/g)).toHaveLength(CRUMB_LINKS_MAX)
+    // The root survives, and it is FIRST.
+    expect(html.slice(html.indexOf('<button'))).toContain('All tracks')
+    // The near end survives.
+    expect(html).toContain('Delta')
+    expect(html).toContain('Echo')
+    expect(html).toContain('Riyadh Cluster')
+    // The far middle does not, and there is a mark saying so.
+    expect(html).not.toContain('Alpha')
+    expect(html).not.toContain('Bravo')
+    expect(html).toContain('mtree-crumbbar-gap')
+    // COUNTED OUT LOUD. The mark itself is `aria-hidden` — a bare "…" announces
+    // nothing — so the sentence beside it is the only thing that tells a screen
+    // reader the path is longer than the row.
+    // Six links (root, Alpha…Echo), three drawn, three elided: Alpha, Bravo,
+    // Charlie. The number is the count of worlds the ROW dropped, not of hops in
+    // the trail — a reader hearing "3 more steps above" can check it against the
+    // picture, which is why it is counted rather than said as "more".
+    expect(html).toContain('3 more steps above')
+  })
+
+  it('does not truncate — or draw the mark — when the whole trail fits', () => {
+    const html = renderToStaticMarkup(
+      <Breadcrumb trail={[ROOT, TRACK, GROUP]} onFocus={() => {}} />,
+    )
+    expect(html).not.toContain('mtree-crumbbar-gap')
+  })
+
+  describe('visibleCrumbs', () => {
+    const chain = (n: number) =>
+      Array.from({ length: n }, (_, i) => node(`n${i}`, { kind: 'text', text: `N${i}` }))
+
+    it('returns every link and elides nothing while the row fits', () => {
+      for (let len = 2; len <= CRUMB_LINKS_MAX + 1; len += 1) {
+        const { crumbs, elided } = visibleCrumbs(chain(len))
+        expect(crumbs).toHaveLength(len - 1)
+        expect(elided).toBe(0)
+      }
+    })
+
+    it('keeps the root at index 0 at every depth — the promise, as a property', () => {
+      for (let len = 2; len <= 40; len += 1) {
+        const { crumbs } = visibleCrumbs(chain(len))
+        expect(crumbs[0]?.at).toBe(0)
+        expect(crumbs.length).toBeLessThanOrEqual(CRUMB_LINKS_MAX)
+      }
+    })
+
+    it('carries the ORIGINAL trail index, which is what crumbTarget needs', () => {
+      // A drawn index would make the second visible crumb look like the root and
+      // clear the focus instead of flying to Delta — the exact bug truncation
+      // invites and the reason the pair is carried rather than recomputed.
+      const { crumbs, elided } = visibleCrumbs(chain(8))
+      expect(elided).toBe(4)
+      expect(crumbs.map((c) => c.at)).toEqual([0, 5, 6])
+      expect(crumbTarget(crumbs[1]!.at, crumbs[1]!.node)).toBe('n5')
+    })
+
+    it('is total over a degenerate trail', () => {
+      expect(visibleCrumbs([])).toEqual({ crumbs: [], elided: 0 })
+      expect(visibleCrumbs([ROOT])).toEqual({ crumbs: [], elided: 0 })
+    })
   })
 
   it('falls back to a readable label rather than an empty crumb', () => {

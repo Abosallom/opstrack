@@ -717,35 +717,83 @@ describe('MapList — holds no filter of its own', () => {
     expect(SOURCE).not.toMatch(/useState\(\{ \.\.\.EMPTY_FILTER/)
   })
 
-  it('writes Everyone ⇄ Mine straight through the caller’s setter', () => {
-    expect(SOURCE).toContain('onFilter({ ...filter, mine })')
+  it('draws no Everyone ⇄ Mine segment, WITH the writer or without it', () => {
+    // The pair is gone from this component and lives in the shell's top-start
+    // rail, which is one tap at every lens — including `shape`, where this panel
+    // does not exist at all. Two `role="group"`s carrying one accessible name
+    // and two pressed states is a defect for a screen reader even when it looks
+    // right, and it only shows up once: the first time somebody touches one of
+    // the two alone.
+    for (const html of [panel(), panel({ onFilter: () => {} })]) {
+      expect(html).not.toContain(esc(t('followups.whoseMine')))
+      expect(html).not.toContain(esc(t('followups.whoseAll')))
+      expect(html).not.toContain(esc(t('followups.whose')))
+      expect(html).not.toContain('mtree-list-seg')
+    }
   })
 
-  it('draws the segment as a PAIR, both chips carrying their own state', () => {
-    // "Mine is on" and "Everyone is off" are two different claims; a lone toggle
-    // makes only the first.
-    const html = panel({ onFilter: () => {} })
-    expect(html).toContain(`aria-pressed="true">${esc(t('followups.whoseAll'))}<`)
-    expect(html).toContain(`aria-pressed="false">${esc(t('followups.whoseMine'))}<`)
-
-    const mine = panel({ onFilter: () => {}, filter: { ...EMPTY_FILTER, mine: true } })
-    expect(mine).toContain(`aria-pressed="true">${esc(t('followups.whoseMine'))}<`)
-    expect(mine).toContain(`aria-pressed="false">${esc(t('followups.whoseAll'))}<`)
-  })
-
-  it('draws no segment at all when the caller cannot write the filter', () => {
-    // A control that writes to a second copy of `mine` would disagree with the
-    // shell's FilterBar the first time either was touched alone. Absent beats
-    // wrong: the FilterBar's own Mine chip is still one tap away in its
-    // always-visible rail.
-    const html = panel()
-    expect(html).not.toContain(esc(t('followups.whoseMine')))
+  it('keeps `onFilter` in the type so the shell’s call site stays stable', () => {
+    // Accepted and not read. The prop is what a later surface that genuinely
+    // owns a filter would write through, and removing it would break U6's call
+    // site for a change no reader can see.
+    expect(SOURCE).toContain('onFilter?: (next: FilterState) => void')
+    // …and it is not destructured, because an unused binding is a lint error and
+    // a lie about what this component does.
+    expect(SOURCE).not.toMatch(/^\s+onFilter,$/m)
   })
 
   it('pins scope: open outside the filter, so Clear-all cannot change it', () => {
     // Contract risk 9. The pin lives in the derived `applied` value and never in
     // `filter`, so the filter bar can never claim a facet nobody chose.
     expect(SOURCE).toContain("({ ...filter, scope: 'open' })")
+  })
+})
+
+/* ═════════════════ seven rows of chrome became two ═════════════════ */
+//
+// Opened on a phone at 375×812 this panel put SEVEN rows above its first line of
+// content — title, three detent buttons, "Hide the panel", Everyone/Mine, "0
+// items need attention", "Refresh", "Every track" — several of them raggedly
+// indented and not aligned to each other. Three of those rows were this
+// component's; MapPanel owns the rest. These are the three, asserted as
+// ABSENCES, because an absence is exactly the kind of claim that rots back in
+// silently.
+
+describe('MapList — the body opens on what it is about', () => {
+  it('draws no count line: the total is the panel’s own title now', () => {
+    // "What needs you" over "0 items need attention" is one sentence said twice.
+    const html = panel()
+    expect(html).not.toContain('mtree-list-count')
+    expect(html).not.toContain(esc(t('followups.total', { count: 6 })))
+  })
+
+  it('draws no unconditional Refresh', () => {
+    // The store is realtime, optimistic and outbox-backed: on a successful load
+    // this button offered to fix a problem the reader does not have, and spent a
+    // row of a 375px screen making the offer.
+    const html = panel()
+    expect(html).not.toContain(esc(t('followups.refresh')))
+    expect(html).not.toContain('mtree-list-refresh')
+  })
+
+  it('keeps Refresh where it means something — the failed load', () => {
+    fx.state.entries = fx.empty
+    fx.state.error = 'followups.errLoad'
+    try {
+      const html = panel()
+      expect(html).toContain(esc(t('common.retry')))
+    } finally {
+      fx.state.entries = fx.entries
+      fx.state.error = null
+    }
+  })
+
+  it('opens on the scope sentence, which is a sentence and not a control', () => {
+    // "Every track" stays: it says what the list is ABOUT, and it is replaced by
+    // the branch name the moment the map is drilled into.
+    const html = panel()
+    expect(html).toContain(esc(t('map.scopeWhole')))
+    expect(html.indexOf(esc(t('map.scopeWhole')))).toBeLessThan(html.indexOf('data-section='))
   })
 })
 

@@ -56,7 +56,7 @@
 
 import { DRAG_THRESHOLD_PX, HOLD_MS, HOLD_SLOP_PX, edgeScrollRange, holdDrag, moveDrag, startDrag } from '../dnd'
 import type { DndBox, DndSession, DndZone } from '../dnd'
-import type { LayoutInputNode, MindtreeLayout, Point, PositionedNode } from './layout'
+import type { DrawnLayout, LayoutInputNode, Point, PositionedNode } from './layout'
 
 // Re-exported rather than redeclared, so a surface tuning the hold (or a test
 // asserting on it) reaches the board's numbers and not a copy of them.
@@ -159,7 +159,7 @@ export interface MindDragSession {
  * decision in this directory ends in a deterministic tiebreak.
  */
 export function dropZonesFrom<N extends LayoutInputNode>(
-  layout: MindtreeLayout<N>,
+  layout: DrawnLayout<N>,
   accepts: (node: N, positioned: PositionedNode<N>) => boolean,
 ): MindDropZone[] {
   const zones: MindDropZone[] = []

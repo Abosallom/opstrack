@@ -8,7 +8,11 @@
    rule, and it is the same reason `ai-suggest.css` serves two consumers.
 
    Primitives it USES and never redeclares: `.btn`, `.btn-sm`, `.btn-ghost`,
-   `.tap-44`, `.pill`/`.pill.ok`. The live badge in particular is a `.pill.ok`
+   `.tap-44`, `.sr-only`, `.pill`/`.pill.ok`. `.sr-only` is applied from the CALL
+   SITE (MapModeBar swaps it onto `.mmode-text` at compact) rather than
+   reimplemented here as a clip block, which is the difference between a label
+   that leaves the rail and a label that leaves the accessibility tree.
+   The live badge in particular is a `.pill.ok`
    verbatim — global.css re-solved that green for the pill's own 12%-tint
    background in both themes, and a hand-rolled badge here would be the fifth
    place that measurement has to be repeated.
@@ -68,19 +72,171 @@
   font-size: 11px;
 }
 
-/* A PHONE KEEPS BOTH LABELS. The compaction available here is horizontal
-   padding and nothing else: dropping to icon-only would make two of the app's
-   five destinations unreadable to anyone who has not already learned them, and
-   `.tap-44` keeps the hit area at 44px regardless of how narrow the box gets —
-   which is the half of rule 4 that actually protects a thumb. */
+/* ── THE PHONE: PINNED AT THE LENS RAIL'S INLINE END ─────────────────────
+
+   `.mlens[data-compact]` (map-lens.css) leaves the document flow and fixes
+   itself to the block end, one z-index above the sheet, because the chips
+   otherwise render ~380px below the fold underneath a fixed panel — the measured
+   reason a 375x812 phone showed ZERO pixels of map and had no way back to it.
+   The modes have to travel with it: MAP-CONTRACT §2 prices Meetings at one tap
+   at every width, and a Meetings link left behind in the flow is a Meetings link
+   nobody can reach.
+
+   So this row fixes itself to the SAME block position at the inline end, one
+   layer above the rail so it is never the half that scrolls off. The chips'
+   scroller ends where this begins, because the rail reserves the width — see
+   `padding-inline-end` there.
+
+   THE ONE NUMBER THAT LIVES IN TWO FILES, and why it has to: `.mlens` and
+   `.mmode` are SIBLINGS, so a custom property declared on one cannot be read by
+   the other, and neither of them owns an ancestor to declare it on. 136px is
+   stated here and in map-lens.css, and each file names the other. If it changes,
+   it changes twice.
+     44 Meetings (icon-only) + 34 the live pill + 4 gap + 44 export + 8 = 134,
+     rounded to 136 on the 4px grid. */
+.mmode[data-compact] {
+  position: fixed;
+  inset-inline-end: 0;
+  inset-block-end: var(--map-composer-block-size, 0px);
+  /* 72: one above the lens rail's 71, which is one above the sheet's 70. */
+  z-index: 72;
+  max-inline-size: 136px;
+  justify-content: flex-end;
+  padding-inline-end: 8px;
+  /* OPAQUE, for the reason the rail is: the map is drawn underneath. */
+  background: var(--bg-elev);
+  border-block-start: 1px solid var(--border);
+  /* 8px of block padding, the same value and the same reason as the chip
+     scroller's: it holds `.tap-44`'s ±7px overlay clear of the rail's edge, and
+     it is what makes the rail exactly 8 + 32 + 8 = 48px tall in both halves. */
+  padding-block: 8px;
+}
+
+/* THE LABELS ARE CLIPPED, NOT HIDDEN, and the call site does it: MapModeBar
+   swaps in `.sr-only` on `.mmode-text`, so the words leave the 375px rail and
+   stay in the accessible name — the link is still announced "Meetings Live",
+   which is the whole reason the pill sits inside the link. A `display: none`
+   here would have taken the name with it. That distinction is why the rule this
+   replaces ("a phone keeps both labels") is satisfied rather than reversed: the
+   destinations are still named, in the one place a screen reader looks. */
 .mmode[data-compact] .mmode-item {
   padding-inline: 8px;
+  /* The inline axis carries its own 44 — `.tap-44` only grows the block axis,
+     and an icon is 16px wide. */
+  min-inline-size: 44px;
+  justify-content: center;
 }
 
 .mmode[data-compact] .mmode-live {
   /* The badge is the only thing on this row that can be sacrificed for width,
      and it is sacrificed to its own padding rather than to its text. */
   padding-inline: 6px;
+  /* It may shrink; it may not push the export target off the rail. */
+  min-inline-size: 0;
+  flex: 0 1 auto;
+}
+
+/* ══════════════ the export disclosure — re-homed from mindtree.css ═══════
+
+   WAS `.mtree-export*` IN pages/mindtree.css, styling markup that lived in
+   MapToolbar. Both moved here together: the toolbar is four group-by chips now,
+   and the export is one of the two things on this screen that produce something
+   you leave the app with, which is what this row is for. U6 deletes the old
+   rules. The `.mmode-` registry line already exists, so this needs no new one. */
+
+.mmode-export {
+  position: relative;
+}
+
+.mmode-export > summary {
+  /* A <summary> is a list-item box by default; the marker is replaced by the
+     button styling, which is why the ::marker is suppressed in both spellings —
+     Safari still only understands the -webkit- pseudo-element. */
+  list-style: none;
+  cursor: pointer;
+}
+
+.mmode-export > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* ANCHORED TO THE SUMMARY'S INLINE-END, which is where it can always open: this
+   row sits at the inline end of its island, so a menu pinned to that edge grows
+   toward the inline START — into the page, in both scripts, because the whole
+   row mirrors with the document. `max-inline-size` is the guard for a 320px
+   viewport at 400% zoom, where 15rem plus the gutters would not fit. */
+.mmode-export-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: calc(100% + 6px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  /* 16px, NOT THE 4px THIS MENU SHIPPED WITH, and it is a target fix rather than
+     a spacing preference. `.btn-sm` carries its own `::after` overlay at
+     `inset-block: -7px` — the same one `.tap-44` applies — so every row in this
+     column is a 32px box with a 44px hit area reaching 7px into its neighbours.
+     At a 4px gap those hit areas OVERLAPPED by 10px, and an overlap belongs to
+     whichever pseudo-element paints later: each row's effective target collapsed
+     to about 36px. 16px is the first value on the 4px grid that clears the
+     14px of overlay, and it is the floor `.row-actions` documents in global.css
+     for exactly this shape. The boxes still LOOK 32px; only the gap moved.
+
+     Raising the boxes to 44px instead would NOT have worked: the `::after` is
+     still ±7px, so 44px rows at a small gap overlap by the same 10px. The gap is
+     the only lever. */
+  gap: 16px;
+  min-inline-size: 15rem;
+  max-inline-size: calc(100dvw - 24px);
+  padding: 8px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+
+/* The digest is a destination, not an action on the picture. A hairline says so
+   without spending a heading on it. */
+.mmode-export-link {
+  justify-content: flex-start;
+  gap: 8px;
+  padding-block-end: 16px;
+  border-block-end: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.mmode-export-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-faint);
+}
+
+/* THE PHONE RE-ANCHOR, and it is the same class of fix mindtree.css documented
+   for the old menu — arrived at from the other side, because the row it hangs
+   off is now fixed to the BLOCK END of the screen rather than sitting in the
+   flow near the top.
+
+   Two changes, both forced:
+     · `position: static` on the <details> hands the containing block up to
+       `.mmode[data-compact]`, which is itself `position: fixed` and therefore a
+       containing block. That element is pinned to the viewport's inline end, so
+       a menu at `inset-inline-end: 0` grows 240px toward the inline start and
+       lands at 375 − 240 − 8 = 127px in LTR and the mirror of that in RTL. It
+       CANNOT leave the screen in either script.
+     · It opens UPWARD. `inset-block-start: calc(100% + 6px)` would put a 240px
+       menu below a rail that is already at the bottom of the phone — entirely
+       off-screen. `inset-block-end` is the only direction available and it is
+       stated rather than discovered. */
+@media (max-width: 767px) {
+  .mmode[data-compact] .mmode-export {
+    position: static;
+  }
+
+  .mmode[data-compact] .mmode-export-menu {
+    inset-block-start: auto;
+    inset-block-end: calc(100% + 6px);
+  }
 }
 
 /* ══════════════════ the frame — ModeFrame, on every mode route ══════════ */

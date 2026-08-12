@@ -139,6 +139,90 @@ function centerY(positioned: PositionedNode<TestNode>): number {
   return positioned.y + positioned.height / 2
 }
 
+// ── the pin ────────────────────────────────────────────────────────────────
+
+/**
+ * THE FIRST TEST WRITTEN FOR THE RADIAL WORK, AND IT IS ABOUT THE LINEAR ONE.
+ *
+ * radial.ts shares `buildLayoutNodes` and `resolveLayoutOptions` with this
+ * layout, which means the extraction touched the code path every existing
+ * Mindtree screen already renders from. Everything else in this file asserts a
+ * PROPERTY; this asserts the NUMBERS — every coordinate of a five-ring fixture,
+ * copied from the output of the commit before the extraction. A refactor that
+ * moved one pixel fails here by name instead of showing up as a screenshot
+ * nobody diffed.
+ *
+ * It also pins the three optional fields as ABSENT: the linear layout emits no
+ * `outward`, no `rings` and no `hub`, so a renderer's `pos.outward ?? …`
+ * fallback stays on its existing branch and every deep-equality assertion in
+ * this file keeps its meaning.
+ */
+describe("layoutMindtree — today's output, byte for byte", () => {
+  const pinned = node('root', [
+    node('a', [node('a1', [], { size: { width: 90, height: 30 } }), node('a2')]),
+    node('b', [node('b1', [node('b1x', [], { size: { width: 200, height: 70 } })])]),
+    node('c'),
+  ])
+
+  it('returns exactly the coordinates it returned before the shared build existed', () => {
+    const layout = layoutMindtree(pinned)
+
+    expect(layout.bounds).toEqual({
+      minX: 0,
+      minY: 0,
+      maxX: 872,
+      maxY: 198,
+      width: 872,
+      height: 198,
+    })
+    expect(layout.maxDepth).toBe(3)
+    expect(layout.nodes.map((p) => [p.id, p.depth, p.x, p.y, p.width, p.height])).toEqual([
+      ['root', 0, 0, 85.75, 168, 44],
+      ['a', 1, 224, 17.5, 168, 44],
+      ['a1', 2, 448, 0, 90, 30],
+      ['a2', 2, 448, 42, 168, 44],
+      ['b', 1, 224, 98, 168, 44],
+      ['b1', 2, 448, 98, 168, 44],
+      ['b1x', 3, 672, 85, 200, 70],
+      ['c', 1, 224, 154, 168, 44],
+    ])
+    expect(
+      layout.edges.map((e) => [
+        e.id,
+        e.start.x,
+        e.start.y,
+        e.c1.x,
+        e.c1.y,
+        e.c2.x,
+        e.c2.y,
+        e.end.x,
+        e.end.y,
+      ]),
+    ).toEqual([
+      ['root->a', 168, 107.75, 196, 107.75, 196, 39.5, 224, 39.5],
+      ['a->a1', 392, 39.5, 420, 39.5, 420, 15, 448, 15],
+      ['a->a2', 392, 39.5, 420, 39.5, 420, 64, 448, 64],
+      ['root->b', 168, 107.75, 196, 107.75, 196, 120, 224, 120],
+      ['b->b1', 392, 120, 420, 120, 420, 120, 448, 120],
+      ['b1->b1x', 616, 120, 644, 120, 644, 120, 672, 120],
+      ['root->c', 168, 107.75, 196, 107.75, 196, 176, 224, 176],
+    ])
+  })
+
+  it('emits no outward, no rings and no hub — those belong to the polar layout', () => {
+    const layout = layoutMindtree(pinned, { direction: 'rtl', depthLimit: 2 })
+
+    expect(layout.rings).toBeUndefined()
+    expect(layout.hub).toBeUndefined()
+    for (const positioned of layout.nodes) expect(positioned.outward).toBeUndefined()
+    // Not merely undefined — absent, so `Object.keys` and any structural
+    // equality a caller writes against a layout stay what they were.
+    expect(Object.hasOwn(layout, 'rings')).toBe(false)
+    expect(Object.hasOwn(layout, 'hub')).toBe(false)
+    expect(Object.hasOwn(layout.nodes[0], 'outward')).toBe(false)
+  })
+})
+
 // ── degenerate shapes ──────────────────────────────────────────────────────
 
 describe('layoutMindtree — the shapes that break layouts', () => {

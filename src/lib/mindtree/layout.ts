@@ -135,6 +135,22 @@ export interface LayoutOptions<N extends LayoutInputNode = LayoutInputNode> {
    */
   depthLimit?: number
   direction?: Direction
+  /**
+   * Lay out EVERY child, whatever the model says about `collapsed`.
+   *
+   * The containment layout (worlds.ts) is the only caller, and it is not a
+   * preference: MAP-ZOOM §2's one structural claim is that the geometry is a
+   * pure function of the tree and the reading direction and of NOTHING ELSE —
+   * "not the filter, not the level of detail, not the reader's collapse
+   * choices". A world's children are always in the drawing, waiting at their own
+   * distance; there is no fold to open. `collapsed` still rides through to
+   * `PositionedNode.collapsed` untouched, because `aria-expanded` and the
+   * accessible table still mean something by it.
+   *
+   * Defaults to false, so the linear layout and the concentric one behave at
+   * HEAD exactly as they do today.
+   */
+  expandAll?: boolean
 }
 
 export interface ResolvedLayoutOptions {
@@ -142,6 +158,9 @@ export interface ResolvedLayoutOptions {
   gap: Gap
   depthLimit: number
   direction: Direction
+  /** Only ever set by the containment layout. Absent means false, so the
+   *  resolved options of every existing caller are unchanged value-for-value. */
+  expandAll?: boolean
 }
 
 /**
@@ -180,6 +199,18 @@ export interface PositionedNode<N extends LayoutInputNode = LayoutInputNode> {
   readonly hiddenChildCount: number
   /** The model's own flag, passed through for `aria-expanded`. */
   readonly collapsed: boolean
+  /**
+   * THE CHEVRON ANCHOR: a point on the ray out of the hub, 9 units beyond this
+   * node's own edge, expressed RELATIVE to the node's top / inline-start corner
+   * and in the SAME (already-mirrored) space as `x`/`y`.
+   *
+   * Populated ONLY by radial.ts, where "away from the parent" is a different
+   * direction for every node and therefore cannot be a constant in the renderer.
+   * The LINEAR layout leaves it undefined and the renderer keeps its own
+   * inline-end expression as the fallback, so every existing deep-equality
+   * assertion about a linear layout is unaffected.
+   */
+  readonly outward?: Point
 }
 
 /**
@@ -210,7 +241,24 @@ export interface Bounds {
   readonly height: number
 }
 
-export interface MindtreeLayout<N extends LayoutInputNode = LayoutInputNode> {
+/**
+ * WHAT A RENDERER NEEDS FROM A DRAWING — and the exact set, so that the two
+ * drawings this app now produces can be handed to the same components.
+ *
+ * `MindtreeLayout` (the tidy tree and the ring) and `worlds.ts`'s `WorldLayout`
+ * (the containment drawing the camera dives through) both satisfy it. The one
+ * field they do NOT share is `options`: three suites deep-compare
+ * `layout.options` against a resolved-options object, and `layoutWorlds` does
+ * not publish one because the reader's collapse choices never reach it. So the
+ * shared surface is stated here rather than either shape being widened to meet
+ * the other, and every consumer that only paints — `MapCanvas`, `PulseLayer`,
+ * `DragLayer`, and the three page hooks — takes THIS.
+ *
+ * `readonly` arrays and `ReadonlyMap` are covariant in TypeScript, so a
+ * `WorldNode` layout is assignable wherever a `PositionedNode` one is, with no
+ * cast and no adapter.
+ */
+export interface DrawnLayout<N extends LayoutInputNode = LayoutInputNode> {
   /** PRE-ORDER: parent, then its subtree. The order `role="tree"` wants. */
   readonly nodes: readonly PositionedNode<N>[]
   /** For the keyboard walk, which asks "who is my parent" on every Left press.
@@ -222,6 +270,25 @@ export interface MindtreeLayout<N extends LayoutInputNode = LayoutInputNode> {
   /** Normalised: minX and minY are always 0. */
   readonly bounds: Bounds
   readonly maxDepth: number
+  /**
+   * Ring radii by DEPTH, hub-relative and in drawing units: `rings[d]` is the
+   * radius every node at depth `d` sits on. `rings[0]` is 0 — the hub is its own
+   * ring of one — so the index IS the depth and a renderer can hand it straight
+   * to a `data-depth`. Undefined from the linear layout, which has columns and
+   * not rings.
+   */
+  readonly rings?: readonly number[]
+  /**
+   * The hub's centre in DRAWING coordinates, after the mirror. Always the exact
+   * centre of `bounds`, because radial.ts pads the bounds symmetrically about it
+   * — which is what makes the RTL mirror an equality rather than an
+   * approximation. Undefined from the linear layout.
+   */
+  readonly hub?: Point
+}
+
+export interface MindtreeLayout<N extends LayoutInputNode = LayoutInputNode>
+  extends DrawnLayout<N> {
   readonly options: ResolvedLayoutOptions
 }
 
@@ -268,12 +335,12 @@ export function layoutMindtree<N extends LayoutInputNode>(
   root: N,
   options: LayoutOptions<N> = {},
 ): MindtreeLayout<N> {
-  const opts = resolveOptions(options)
+  const opts = resolveLayoutOptions(options)
 
-  // 1. BUILD
-  const work: WorkNode<N>[] = []
-  const seen = new Set<string>([root.id])
-  build(root, 0, null, 0, opts, options.sizeOf, seen, work)
+  // 1. BUILD — shared verbatim with radial.ts, which is the only reason the
+  //    `role="tree"` output cannot diverge by shape: pre-order, depth limit,
+  //    collapsed rule and hiddenChildCount all come from ONE function.
+  const work = buildLayoutNodes(root, opts, options.sizeOf)
 
   // 2. COLUMNS — x is a function of depth alone.
   const colWidth: number[] = []
@@ -372,15 +439,23 @@ export function layoutMindtree<N extends LayoutInputNode>(
 
 // ── 1. build ───────────────────────────────────────────────────────────────
 
-/** The mutable twin of PositionedNode, alive only inside one layout call. */
-interface WorkNode<N extends LayoutInputNode> {
+/**
+ * The mutable twin of PositionedNode, alive only inside one layout call.
+ *
+ * EXPORTED so radial.ts can share the build walk verbatim rather than writing a
+ * second one. The four packing fields (`localY`, `shift`, `frame`, and the
+ * column `x`) mean nothing to a polar layout and it leaves them at zero; what it
+ * is here for is `depth`, `parent`, `children`, `index` and `hiddenChildCount` —
+ * the fields the `role="tree"` markup is derived from.
+ */
+export interface LayoutWorkNode<N extends LayoutInputNode = LayoutInputNode> {
   source: N
   id: string
   depth: number
   width: number
   height: number
-  parent: WorkNode<N> | null
-  children: WorkNode<N>[]
+  parent: LayoutWorkNode<N> | null
+  children: LayoutWorkNode<N>[]
   index: number
   hiddenChildCount: number
   /** Top edge, in this subtree's own frame. */
@@ -391,6 +466,30 @@ interface WorkNode<N extends LayoutInputNode> {
   frame: number
   x: number
   y: number
+}
+
+/**
+ * STEP 1 OF EVERY LAYOUT, LINEAR OR POLAR: the source tree walked into a
+ * pre-order array, with the two reasons a child is not laid out at all applied
+ * (the parent is collapsed, or the depth limit stops here) and the cycle /
+ * duplicate-id guard closed.
+ *
+ * Exported because the alternative — radial.ts owning a second copy of this walk
+ * — is the one way the accessible tree and the drawn tree could come to disagree
+ * about what a node's `aria-posinset` is. They cannot disagree if there is only
+ * one walk. `layoutMindtree` calls this; `layoutMindtreeRadial` calls this; the
+ * pre-order equality between the two shapes is then a fact about the code rather
+ * than a coincidence two test suites have to keep checking.
+ */
+export function buildLayoutNodes<N extends LayoutInputNode>(
+  root: N,
+  opts: ResolvedLayoutOptions,
+  sizeOf?: (node: N, depth: number) => Partial<NodeSize> | undefined,
+): LayoutWorkNode<N>[] {
+  const out: LayoutWorkNode<N>[] = []
+  const seen = new Set<string>([root.id])
+  build(root, 0, null, 0, opts, sizeOf, seen, out)
+  return out
 }
 
 /**
@@ -406,18 +505,18 @@ function childrenOf<N extends LayoutInputNode>(node: N): readonly N[] {
 function build<N extends LayoutInputNode>(
   source: N,
   depth: number,
-  parent: WorkNode<N> | null,
+  parent: LayoutWorkNode<N> | null,
   index: number,
   opts: ResolvedLayoutOptions,
   sizeOf: ((node: N, depth: number) => Partial<NodeSize> | undefined) | undefined,
   seen: Set<string>,
-  out: WorkNode<N>[],
-): WorkNode<N> {
+  out: LayoutWorkNode<N>[],
+): LayoutWorkNode<N> {
   // The caller's encoding first, the model's own size second, the default last —
   // and each of the three sanitised, because the first two are arithmetic over
   // data and the third is the only one that cannot be NaN.
   const size = sanitizeSize(sizeOf?.(source, depth) ?? source.size, opts.nodeSize)
-  const node: WorkNode<N> = {
+  const node: LayoutWorkNode<N> = {
     source,
     id: source.id,
     depth,
@@ -438,7 +537,8 @@ function build<N extends LayoutInputNode>(
   out.push(node)
 
   const kids = childrenOf(source)
-  const laysOutChildren = depth < opts.depthLimit && source.collapsed !== true
+  const laysOutChildren =
+    depth < opts.depthLimit && (opts.expandAll === true || source.collapsed !== true)
   if (laysOutChildren) {
     for (const kid of kids) {
       // A duplicate id would silently overwrite a node in `byId` and a cycle
@@ -474,7 +574,7 @@ interface Contour {
   bottom: number[]
 }
 
-function pack<N extends LayoutInputNode>(node: WorkNode<N>, gapSibling: number): Contour {
+function pack<N extends LayoutInputNode>(node: LayoutWorkNode<N>, gapSibling: number): Contour {
   const kids = node.children
   if (kids.length === 0) {
     node.localY = 0
@@ -551,8 +651,13 @@ function pack<N extends LayoutInputNode>(node: WorkNode<N>, gapSibling: number):
  * `sizeOf` is deliberately NOT carried into the resolved options: the result of
  * a layout is a value — compared in tests, serialised by the SVG export — and a
  * closure inside it is neither.
+ *
+ * Exported for the same reason `buildLayoutNodes` is: a polar layout that
+ * resolved its own defaults would be one edit away from a different depth-limit
+ * or gap rule than the linear one, and the two shapes have to answer the same
+ * question the same way.
  */
-function resolveOptions<N extends LayoutInputNode>(
+export function resolveLayoutOptions<N extends LayoutInputNode>(
   options: LayoutOptions<N>,
 ): ResolvedLayoutOptions {
   const gap = options.gap ?? {}
@@ -574,6 +679,10 @@ function resolveOptions<N extends LayoutInputNode>(
         ? Math.max(0, limit)
         : Number.POSITIVE_INFINITY,
     direction: options.direction === 'rtl' ? 'rtl' : 'ltr',
+    // Written only when true. `layout.options` is a VALUE — deep-compared in
+    // three test suites and serialised by the export — so the resolved shape of
+    // every caller that does not ask for this is byte-for-byte what it was.
+    ...(options.expandAll === true ? { expandAll: true } : {}),
   }
 }
 

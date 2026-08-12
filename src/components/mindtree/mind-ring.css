@@ -1,0 +1,290 @@
+/* The radial map's ring guides — the faint circles the nodes sit on.
+   Rendered by components/map/MapCanvas.tsx, inside its `aria-hidden` edge
+   group, from `layout.rings` and `layout.hub`.
+
+   PREFIX REGISTRY (§1.0.7). This file owns exactly `.mring-*` and styles
+   nothing else. Report the line to the integrator for docs/EXECUTION-PLAN.md.
+
+   ITS OWN SHEET RATHER THAN A SLICE OF pages/mindtree.css, on the precedent
+   pulse-layer.css set: that sheet owns the things the map MEANS — a node's
+   fill, its outline, its two visual variables, every one of which is
+   information — and this file owns one thing that means nothing at all. The
+   distinction is load-bearing rather than tidy: the whole of the argument
+   below is "this mark is decoration, so it is allowed to be quiet", and that
+   argument must not end up file-adjacent to rules it does not cover.
+
+   WHAT THE GUIDES ARE FOR, stated plainly so a later reader can delete them
+   without archaeology: they turn a scatter of boxes into a drawing with a
+   centre. That is all. They carry NO information — a node's ring membership is
+   already in where the node is, in `aria-level` for a reader who is not
+   looking, and in the accessible table for a reader who wants it as rows. If
+   they cost anything at all — a contrast argument, a locale key, a paint that
+   shows up in a profile — they should go, and the drawing loses a picture and
+   nothing else.
+
+   CONTRAST. `--mtree-ink` here resolves through `--field-border`, because no
+   `--track-c-*` pair is in scope inside the edge group and a ring is not a
+   branch and has no hue to inherit. Measured (sRGB, WCAG 2.x, full alpha):
+
+     dark  #bdc5ce → 10.53 on --bg · 9.74 on --bg-elev · 8.43 on --bg-elev-2
+     light #383f49 →  9.81 on --bg · 10.63 on --bg-elev · 9.04 on --bg-elev-2
+
+   So the guides clear the 3:1 non-text floor by better than 2.8x against every
+   surface the map can put behind them, in both themes, and MAP-REDESIGN §U3's
+   "drop the circles rather than invent a colour" instruction does not fire.
+   NO NEW TOKEN AND NO NEW RECIPE: this is `.mtree-edge`'s own declaration,
+   scoped to this sheet's own class, which is the pattern pages/mindtree.css
+   documents for why the resolution must sit on the painted element rather than
+   on an ancestor.
+
+   AND NOT BY OPACITY. pages/mindtree.css's rule — "opacity is never used to
+   cue depth" — is inherited here without exception, and for the same reason:
+   fading a stroke composites it toward the canvas and hands its measured ratio
+   back. Depth is cued by STROKE WIDTH, which costs no contrast at all, and the
+   ladder below is the edge's own (2 / 1.5 / 1), so the guide is never louder
+   than the connectors crossing it.
+
+   LOGICAL PROPERTIES: there are none to use. Every rule here styles an SVG
+   <circle>, where there is no CSS box model and no inline axis — `cx`, `cy`
+   and `r` are geometry attributes written by the renderer from coordinates
+   lib/mindtree/radial.ts has ALREADY mirrored, so the guides are correct in
+   Arabic with nothing in this file doing anything about it. (A circle struck
+   from a mirrored centre is the same circle either way; it is the only mark on
+   the map for which that is trivially true.) `stroke-width` is an SVG geometry
+   property, not the physical `width` the standing grep looks for — the same
+   carve-out pulse-layer.css, charts.css and mindtree.css already record.
+
+   MOTION: none. The guides do not tween. `r` is not an animatable CSS property
+   anywhere this app runs, and a ring that snapped while the nodes on it glided
+   would read as a mistake — so the relayout is carried by the nodes, which is
+   where the eye is anyway. Nothing here needs a reduced-motion block. */
+
+.mring-guide {
+  /* pages/mindtree.css's own resolution, scoped to this sheet's own class. No
+     `--track-c-*` fallback chain: a ring belongs to no track, and inheriting
+     one branch's hue for a mark that spans all of them would be a lie about
+     what the circle covers. */
+  --track-color: var(--field-border);
+  --mtree-ink: color-mix(in srgb, var(--track-color) 35%, var(--text));
+
+  fill: none;
+  stroke: var(--mtree-ink);
+  stroke-width: 1.5;
+}
+
+/* The edge's own depth ladder, so the trunk ring reads first and the outer
+   rings recede — by width, never by ink. */
+.mring-guide[data-depth='1'] {
+  stroke-width: 2;
+}
+
+.mring-guide[data-depth='3'],
+.mring-guide[data-depth='4'] {
+  stroke-width: 1;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE LEVEL-OF-DETAIL MARKS — the drawings a node has at every OTHER distance
+   ══════════════════════════════════════════════════════════════════════════
+
+   Everything below paints a mark that components/mindtree/MindNode.tsx and
+   MindWorldRim.tsx draw for one of `lib/mindtree/lod.ts`'s bands. They live in
+   this sheet rather than pages/mindtree.css for the reason stated at the top of
+   this file — that sheet owns the things the map MEANS and this one owns the
+   ring's own furniture — and because pages/mindtree.css is the integrator's.
+
+   THE INK RESOLUTION IS A SCOPED COPY, NOT A NEW RECIPE. `--mtree-ink` and
+   `--mtree-fill` are declared here on `.mring-mark` for the same reason
+   pages/mindtree.css declares them on `.mtree-edge` and not on `.mtree-edges`: a
+   custom property inherits its COMPUTED value, so the `color-mix()` has to be
+   substituted on an element where the `--track-c-*` pair is actually in scope,
+   and MindNode writes that pair onto the mark's own <g>. Same two tokens, same
+   35% / 16% shares, same measured figures — no second recipe exists and none may
+   be added. Marks drawn INSIDE `.mtree-node` (the progress underscore, the
+   second line) inherit the resolution pages/mindtree.css already performed and
+   redeclare nothing.
+
+   CONTRAST, COMPUTED IN BOTH THEMES, over the FULL sRGB cube at 5/channel
+   (140,608 hues — `tracks.color` is a free hex an admin types), `color-mix(in
+   srgb, …)` modelled as the channel-wise blend of the gamma-encoded values,
+   which is what the engines do. Figures read dark / light and each names the
+   surface it was measured against. The sweep reproduces pages/mindtree.css's own
+   published figure for `--text-dim` on a 16% node fill (4.88 / 4.85) exactly,
+   which is the check that this table and that one are the same measurement.
+
+   TEXT — 4.5:1, all of it small text
+     rim label (--text), on the canvas --bg           15.74 / 16.44
+     …on --bg-elev / --bg-elev-2                      14.56 / 17.81 · 12.61 / 15.14
+     …over the worst 16% node fill it can cross        8.82 / 12.28
+     match count (--text), same surfaces               as above ← and see below
+     Organization second line (--text-dim),
+       on a 16% node fill, worst hue                   4.88 / 4.85  ← the floor
+
+   NON-TEXT — 3:1 (WCAG 1.4.11)
+     grain / state disc fill (16% track fill)
+       bounded by its own 1px outline ink, vs canvas   6.06 / 5.53
+     state rim + world rim (ink), vs the canvas        6.06 / 5.53
+     …vs a node fill                                   6.35 / 5.53
+     progress underscore (ink) on a node fill          6.35 / 5.53
+     state breach dot (--red) vs a node fill           4.07 / 4.45
+     match arc (--accent) on --bg / --bg-elev-2        5.63 / 12.57 · 4.51 / 11.57
+     …over the worst 16% node fill                     3.15 / 9.39  ← the floor
+
+   WHY THE MATCH COUNT IS `--text` AND THE ARC IS `--accent`. The last two rows
+   are the whole argument: 3.15 clears the 3:1 a non-text arc owes and misses the
+   4.5:1 a numeral owes. Painting the count in the accent because it counts the
+   accent would have been the "one hex, both jobs" mistake this sheet's parent
+   documents three times. The arc keeps the hue; the numeral takes the ink.
+
+   OPACITY IS NEVER A RESTING STATE, and this sheet declares none. The only
+   opacity in these marks is written inline by the components, from
+   `lod.bandBlend`, and resolves to fully opaque or fully absent within 0.3
+   octaves of apparent size — about 115ms at the dive's own rate. A mark in
+   MOTION is not a resting UI component under 1.4.11; a permanently half-faded
+   one is, and it would hand back every figure above. No `<text>` is ever faded
+   at all: names hand off at a band edge, instantly.
+
+   LOGICAL PROPERTIES: there are none to use. Every rule below styles an SVG
+   shape or text run, where there is no CSS box model — `cx`, `cy`, `r`, `x`, `y`
+   and the path data are geometry attributes written by the renderer from
+   coordinates lib/mindtree/radial.ts has already mirrored, and the two marks
+   with an inline origin of their own (the progress underscore, the second line)
+   mirror explicitly in MindNode.tsx's arithmetic. `stroke-width` is an SVG
+   geometry property, not the physical `width` the standing grep looks for — the
+   same carve-out this file already records for `.mring-guide`. */
+
+/* GRAIN and STATE: not controls, not in the tree, not targets. `pointer-events`
+   is stated here rather than on each mark so the guarantee is one line and
+   cannot be half-applied — WCAG 2.5.8 does not reach these marks precisely
+   because they take no pointer at all, and MindNode emits them with no `role`,
+   no `tabIndex` and no handlers to match. */
+.mring-mark {
+  --track-color: var(--track-c-dark, var(--field-border));
+  --mtree-ink: color-mix(in srgb, var(--track-color) 35%, var(--text));
+  --mtree-fill: color-mix(in srgb, var(--track-color) 16%, var(--bg-elev));
+
+  pointer-events: none;
+}
+
+[data-theme='light'] .mring-mark {
+  --track-color: var(--track-c-light, var(--track-c-dark, var(--field-border)));
+}
+
+/* THE VIDEO'S BLUE SMUDGE ON THE TONGUE. One filled disc, in this programme's
+   own colour, bounded by the outline ink so it is a mark rather than a wash.
+   Forty of them read as a dense arc and six as a constellation — that density
+   difference IS the information at this distance, and it is free, because it is
+   the fan-out the geometry already encoded. No text: at 7-26px a numeral is
+   3px of ink and a lie about legibility. */
+.mring-grain {
+  fill: var(--mtree-fill);
+  stroke: var(--mtree-ink);
+  stroke-width: 1;
+}
+
+/* STATE is a SMALLER disc inside its own rim, not a bigger grain — the first
+   invariant made visible. The mark changes KIND: "there is something here"
+   becomes "this is a place, and it has an edge". */
+.mring-state-disc {
+  fill: var(--mtree-fill);
+  stroke: none;
+}
+
+.mring-state-rim {
+  fill: none;
+  stroke: var(--mtree-ink);
+  stroke-width: 1;
+}
+
+/* The second and last thing this distance says. Same recipe as
+   pages/mindtree.css's `.mtree-breach circle`: the --bg-elev keyline is what
+   keeps the dot legible where it overlaps its own rim. */
+.mring-state-breach {
+  fill: var(--red);
+  stroke: var(--bg-elev);
+  stroke-width: 1.5;
+}
+
+/* A node one band below the eye's horizon: in the DOM so the `role="tree"` walk
+   is complete and the set is never renumbered by a cull, and drawn not at all.
+   `visibility`, never `opacity` — a hidden element paints nothing, where a
+   transparent one is still ink at a ratio nobody measured. */
+.mring-absent {
+  visibility: hidden;
+}
+
+/* THE PROGRESS UNDERSCORE. Length is the encoding; there is deliberately no
+   track behind the unfilled remainder, because the box's own PAD inset already
+   marks both ends and a diluted track would hand back the measured ratio. The
+   ink is the branch ink AT FULL STRENGTH — 6.35 / 5.53 on a node fill, already
+   in pages/mindtree.css's matrix. Inherited, not redeclared: this mark is drawn
+   inside `.mtree-node`, which resolved the pair. */
+.mring-progress {
+  fill: var(--mtree-ink);
+}
+
+/* An Organization's account manager and vendor — the only third text row on the
+   canvas, on the only node with nothing beneath it competing for the room.
+   --text-dim is the measured text floor (4.88 / 4.85 on a node fill) and is one
+   step quieter than the name above it, which is the whole point: the name is
+   what you are reading, this is what you are checking. */
+.mring-secondary {
+  fill: var(--text-dim);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ---------- the world rim ---------- */
+
+.mring-world {
+  --track-color: var(--track-c-dark, var(--field-border));
+  --mtree-ink: color-mix(in srgb, var(--track-color) 35%, var(--text));
+
+  pointer-events: none;
+}
+
+[data-theme='light'] .mring-world {
+  --track-color: var(--track-c-light, var(--track-c-dark, var(--field-border)));
+}
+
+/* 2 units, matching the `[data-current]` marker's weight: this is the boundary
+   of the place the reader is in, and it is the same statement one level up. */
+.mring-world-edge {
+  fill: none;
+  stroke: var(--mtree-ink);
+  stroke-width: 2;
+}
+
+/* "Three matches in there, that way." Drawn over each matching child's wedge,
+   4 units so it reads as an overlay on the rim rather than as the rim, and
+   round-capped so two adjacent wedges stay two marks. */
+.mring-world-match {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+/* THE NAME THE CARD USED TO CARRY. SVG font sizes are USER UNITS, so this scales
+   with the camera exactly like every other word in the drawing; a caller that
+   needs it pinned to a constant CSS size passes `--mring-rim-font` alongside the
+   colour pair (MindWorldRim's `ink` prop documents it). --text on the canvas is
+   15.74 / 16.44 and 12.61 / 15.14 on the darkest surface the map can put behind
+   it — this is the one mark on the map with headroom to spare. */
+.mring-world-label {
+  fill: var(--text);
+  font-family: var(--font);
+  font-size: var(--mring-rim-font, 13px);
+  font-weight: 700;
+  letter-spacing: -0.1px;
+}
+
+/* The count, in the ink rather than in the accent it counts — 3.15:1 dark is a
+   non-text pass and a text FAIL, and the sheet header shows the working. */
+.mring-world-matches {
+  fill: var(--text);
+  font-family: var(--font);
+  font-size: var(--mring-rim-font, 13px);
+  font-weight: 700;
+}

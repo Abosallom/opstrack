@@ -369,17 +369,6 @@ export default function FilterBar({
           </div>
         )}
 
-        {has('mine') && (
-          <button
-            type="button"
-            className="chip flt-mine"
-            aria-pressed={value.mine}
-            onClick={() => set('mine', !value.mine)}
-          >
-            {t('filter.mine')}
-          </button>
-        )}
-
         <button
           type="button"
           className="btn btn-sm flt-toggle"
@@ -423,6 +412,27 @@ export default function FilterBar({
       </div>
 
       <div id={panelId} className="flt-panel" hidden={!open}>
+        {/* MINE, FIRST, AND INSIDE THE PANEL — it was a chip on the rail.
+            Moving it is the difference between twelve persistent targets over
+            the map and thirteen, and it costs nothing that matters: it is the
+            same `has('mine')` guard, the same `set('mine', …)` write, the same
+            pressed state, now sitting with the eleven other facets instead of
+            beside a search box. First because it is the coarsest cut in the
+            list — "only my work" halves everything below it. */}
+        {has('mine') && (
+          <section className="flt-facet">
+            <h3 className="flt-facet-title">{t('filter.mine')}</h3>
+            <button
+              type="button"
+              className="chip flt-mine"
+              aria-pressed={value.mine}
+              onClick={() => set('mine', !value.mine)}
+            >
+              {t('filter.mine')}
+            </button>
+          </section>
+        )}
+
         {/* Rendered only when the workspace HAS groups. Before 0018 is applied —
             and on a build with no Supabase project at all — `useGroups()` is
             empty, and an empty facet is a heading over a single "Any group"

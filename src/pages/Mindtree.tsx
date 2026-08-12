@@ -8,10 +8,45 @@
 // WORKS in, so the daily job does not go on the canvas: a real-DOM list sits
 // BESIDE it, in one shell, at one URL.
 //
-//   HEADER    FilterBar · MapToolbar · MapLensBar · MapModeBar
 //   STAGE     map | board | numbers | table        PANEL   needsMe | branch |
 //                                                          changes | numbers
 //   COMPOSER  MapCapture — always mounted, never remounted
+//
+// THE SCREEN IS A STAGE, NOT A DOCUMENT COLUMN. It was measured at 1600×900
+// before this rewrite: three stacked rows of chrome — a title, a filter bar, a
+// lens row and a toolbar row — pushed the canvas to 54% down the viewport and a
+// docked rail took a quarter of what was left, so the drawing got 0.47M px² of a
+// 1.44M px² screen. At 375×812 it was worse than bad, it was ABSENT: the sheet
+// opens at `full` for `needs-me`, and the lens chips it was supposed to leave
+// visible were the THIRD block in this page's flow, ~380px below the fold under
+// a fixed sheet. A screen called Mindtree that showed no tree.
+//
+// So `.mtree` is now a fixed grid — `100dvh` minus the app header — with ONE
+// in-flow column of stage, caption and composer, and the whole of the chrome
+// lifted out of the flow into FOUR FLOATING ISLANDS over the picture:
+//
+//   top-start     the filter rail — search · Mine · Filter (n)
+//   top-end       the lens chips · Meetings · the export menu
+//   canvas-start  the group-by chips · the drill-in trail
+//   canvas-end    the altitude ladder — four stops · Fit · Table
+//
+// FLOATING CHROME OVER A CANVAS IS A HIT-TESTING AND FOCUS-ORDER HAZARD the old
+// column did not have, and it is handled rather than hoped away. `.mtree-isles`
+// is one `inset: 0` layer at `pointer-events: none` and every island inside it
+// turns pointers back on for itself, so the canvas underneath keeps every press
+// that is not on a control. And because visual order and DOM order now diverge,
+// the DOM order is islands-then-canvas-then-panel-then-composer, which makes the
+// Tab order search → Mine → Filter → lens chips → Meetings → export → group-by →
+// ladder → the tree's ONE stop → the panel → the composer. That order is
+// ASSERTED in MindtreeShell.test.ts rather than inherited from a layout.
+//
+// THE PHONE IS THE SAME IDEA WITH THE ROWS SWAPPED. `.mtree` is a `100dvh` grid
+// of `auto | 1fr | auto`, so the canvas is the largest region on the screen BY
+// CONSTRUCTION rather than by a `clamp()` a scroll position can defeat, and
+// `.mtree-shellbar` — the lens rail — leaves the flow for `position: fixed` at
+// z-index 71, ONE ABOVE the sheet's 70, in the thumb zone. That is the entire
+// fix for "no way back to the map": the sheet may own the screen and the five
+// destinations are still one tap away, always.
 //
 // THE PANEL IS A SIBLING OF THE CANVAS, NEVER A CHILD. `.mtree-canvas` is
 // `overflow: hidden; touch-action: none`, and `touch-action` intersects DOWN the
@@ -85,7 +120,17 @@
 //
 // It adds no dependency: the whole map is hand-rolled SVG.
 
-import { useCallback, useId, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactElement,
+  type ReactNode,
+} from 'react'
 import FilterBar, { type FilterFacet } from '../components/FilterBar'
 import { EmptyState, Skeleton } from '../components/shared'
 import MindtreeTable, {
@@ -95,13 +140,14 @@ import MindtreeTable, {
 import Breadcrumb from '../components/mindtree/Breadcrumb'
 import NodeMenu from '../components/mindtree/NodeMenu'
 import QuickAdd from '../components/mindtree/QuickAdd'
-import { useMindPulses } from '../components/mindtree/PulseLayer'
+import { useMindPulses, useReducedMotion } from '../components/mindtree/PulseLayer'
 import { MindDragLayer } from '../components/mindtree/DragLayer'
 import BoardStage from '../components/map/BoardStage'
 import MapBranch from '../components/map/MapBranch'
 import MapCanvas from '../components/map/MapCanvas'
 import MapCapture from '../components/map/MapCapture'
 import MapChanges, { useChangesCount } from '../components/map/MapChanges'
+import MapDiveRail, { type DiveRung } from '../components/map/MapDiveRail'
 import MapLensBar from '../components/map/MapLensBar'
 import MapList, { useAttentionCount } from '../components/map/MapList'
 import MapModeBar from '../components/map/MapModeBar'
@@ -112,13 +158,30 @@ import NumbersPanel from '../components/map/NumbersPanel'
 import NumbersStage from '../components/map/NumbersStage'
 import { EMPTY_FILTER, isFilterEmpty, type FilterState } from '../lib/entryFilter'
 import { t, useLocale } from '../lib/i18n'
-import type { MapLens, PanelSubject } from '../lib/mindtree/lens'
+import { findNode, trailTo } from '../lib/mindtree/focus'
+import {
+  allowedStages,
+  stageForLens,
+  subjectForLens,
+  type MapLens,
+  type PanelSubject,
+} from '../lib/mindtree/lens'
+import { ancestorWorlds, layoutWorlds, worldAt } from '../lib/mindtree/worlds'
+import type { MindNode as MindNodeModel } from '../lib/mindtree/model'
+import {
+  anchoredZoom,
+  cameraAtWidth,
+  frameCamera,
+  octavesOf,
+  FRAME_FILL_DESKTOP,
+  FRAME_FILL_PHONE,
+} from './map/mapMotion'
 import { refreshEntries } from '../store/entries'
 import { useMapLens } from './map/useMapLens'
 import { useMapCursor } from './map/useMapCursor'
 import { useMapDrag, useMapDragPressing } from './map/useMapDrag'
 import { useMapFocus } from './map/useMapFocus'
-import { useMapGeometry, ZOOM_STEP } from './map/useMapGeometry'
+import { useMapGeometry } from './map/useMapGeometry'
 import { useMapKeyboard } from './map/useMapKeyboard'
 import { useMapModel } from './map/useMapModel'
 import { useMapOverlays } from './map/useMapOverlays'
@@ -142,6 +205,17 @@ import './mindtree.css'
  */
 const FACETS: readonly FilterFacet[] = [
   'search',
+  /**
+   * `mine` IS STILL HERE, AND THE CHIP IT USED TO RENDER IS NOT.
+   *
+   * The redesign's handoff asked for this key to be deleted so that "only my
+   * work" stopped being one of ~20 same-weight persistent targets over the
+   * picture. Deleting it does not do that — it deletes the CAPABILITY, because
+   * `has('mine')` gates the control wherever it is drawn, panel included. What
+   * cuts the target count is where the control lives, so `FilterBar` moved it
+   * out of `.flt-rail` and into `.flt-panel` as its first facet, and this list
+   * is unchanged. One control, one fact, one fewer thing over the map.
+   */
   'mine',
   // Above `track`, per FilterBar's DEFAULT_FACETS. On this screen it is also the
   // cheapest way to halve the map: ring 1 is one node per track, so narrowing to
@@ -167,6 +241,19 @@ const FACETS: readonly FilterFacet[] = [
 const NUMBERS_FACETS: readonly FilterFacet[] = FACETS.filter(
   (facet) => facet !== 'status' && facet !== 'health',
 )
+
+/**
+ * How much of the stage the panel is covering, in CSS px.
+ *
+ * ONE FROZEN OBJECT rather than a fresh `{ inlineEnd: 0, blockEnd: 0 }` per
+ * reset: the value is a `useState` cell that `useMapGeometry` memoises the fit
+ * on, so handing it a new identity every render would recompute the fit — and
+ * therefore the viewBox — on every keystroke in the filter box.
+ */
+const NO_OCCLUSION: { readonly inlineEnd: number; readonly blockEnd: number } = Object.freeze({
+  inlineEnd: 0,
+  blockEnd: 0,
+})
 
 export default function Mindtree(): ReactElement {
   const locale = useLocale()
@@ -215,6 +302,29 @@ export default function Mindtree(): ReactElement {
 
   const model = useMapModel(compact, locale, filter)
 
+  /**
+   * The reader asked for less motion. Read ONCE, here, and threaded down —
+   * `PulseLayer` owns the one `matchMedia` subscription in this feature, and a
+   * second one would be a second source of truth for the same question.
+   */
+  const reducedMotion = useReducedMotion()
+
+  /**
+   * HOW MUCH OF THE STAGE THE PANEL IS COVERING, MEASURED — not assumed.
+   *
+   * The panel is a floating card over the canvas now, and the canvas is
+   * `inset: 0`, so `useBoxSize` measures a box that does NOT shrink when the
+   * panel opens. Without this the fit would centre the drawing in the element
+   * and the busiest branch would sit behind the card on every open; on a phone
+   * the ring would centre in the element and half of it would be behind the
+   * sheet. `MapPanel` reports its own root through a ResizeObserver, so the
+   * number is what is actually on the glass rather than what the CSS intended.
+   *
+   * NO FEEDBACK LOOP: this moves `fit` only, never `layout.bounds`, and the
+   * canvas it is subtracted from does not resize when the panel opens over it.
+   */
+  const [occlusion, setOcclusion] = useState(NO_OCCLUSION)
+
   const focus = useMapFocus({
     tree: model.tree,
     focusPref: model.focusPref,
@@ -224,15 +334,191 @@ export default function Mindtree(): ReactElement {
     setLive,
   })
 
-  const geo = useMapGeometry({
-    drawnRoot: focus.drawnRoot,
+  /**
+   * WHAT THE SHELL IS FOR — and, from it, which stage draws and what the panel
+   * is about.
+   *
+   * MOVED UP FROM BELOW THE TOOLBAR, and the move is forced rather than
+   * cosmetic: the keyboard's `dive.details` — the Organization tap that opens
+   * the info sidebar — has to call `lens.setSubject`, and `useMapKeyboard` is
+   * called several hooks above where this used to sit. Its own precondition is
+   * unchanged and still met: it needs `focus.focusView.focusId`, the drill-in as
+   * RESOLVED rather than as persisted, and `useMapFocus` is immediately above.
+   */
+  const lens = useMapLens({
+    focusNodeId: focus.focusView.focusId,
     compact,
-    density: model.density,
+    announce: setLive,
+  })
+
+  /**
+   * THE DRAWING. ONE ARROW, AND IT IS BUILT HERE RATHER THAN IN THE CAMERA.
+   *
+   * `layoutWorlds` takes no camera argument by construction, so there is no
+   * expression anywhere in this render path whose value depends on both the
+   * camera and the drawing's extent — which is the structural reason the old
+   * `depthLimit → layout → bounds → fit → zoom → depthLimit` cycle cannot come
+   * back. The geometry is a pure function of the DEPARTMENT TREE and the reading
+   * direction and of nothing else: not the zoom, not the viewport, not the
+   * panel, not the filter, not the reader's folds.
+   */
+  const layout = useMemo(
+    () => layoutWorlds<MindNodeModel>(focus.drawnRoot, { direction: rtl ? 'rtl' : 'ltr' }),
+    [focus.drawnRoot, rtl],
+  )
+
+  const geo = useMapGeometry({
+    layout,
+    focusWorldId: focus.focusView.node.id,
+    reducedMotion,
+    compact,
     rtl,
     svgRef,
-    setLive,
     isPressing,
+    occludeInline: occlusion.inlineEnd,
+    occludeBlockEnd: occlusion.blockEnd,
   })
+
+  /**
+   * DESTRUCTURED, and not for brevity: `geo` is a fresh object literal on every
+   * render, so a callback that closed over `geo` would be a new function on
+   * every render and the memoised `dive` below would be rebuilt on every render
+   * — which is exactly what its memo exists to prevent. `flyTo`, `setCamera` and
+   * `flyTo`'s siblings are `useCallback`s with stable identities; `camera` is
+   * the one that genuinely changes when the camera moves, and it is read where
+   * it is genuinely needed.
+   */
+  const { camera, flyTo, setCamera } = geo
+
+  /**
+   * V — THE SMALLER SIDE OF THE STAGE THE READER CAN ACTUALLY SEE THROUGH.
+   *
+   * The canvas is `inset: 0` and does not shrink when the panel floats over it,
+   * so the measured box is the ELEMENT and this is the WINDOW. It drives one
+   * question and one only — "is this world the frame" — which is the single
+   * level-of-detail edge that is relative rather than absolute: a 14-glyph label
+   * is 87px of ink on a phone and on a desktop alike, but whether a world fills
+   * the screen is a question about the screen.
+   */
+  const viewportMinPx = Math.max(
+    1,
+    Math.min(
+      Math.max(1, geo.box.width - occlusion.inlineEnd),
+      Math.max(1, geo.box.height - occlusion.blockEnd),
+    ),
+  )
+
+  /**
+   * WHICH WORLD THE CAMERA IS IN — derived, never stored.
+   *
+   * `worldAt` is a pure function of the camera and the drawing, so the crumb bar
+   * and the rail cannot drift from the picture: there is no state for them to
+   * drift from. It only ever answers with a STRUCTURAL node — a department tier
+   * — which is the owner's correction made mechanical. Null means the reader is
+   * above the workspace, and the drawn root is the honest answer there.
+   */
+  const framedWorld = worldAt(layout, camera, geo.scale, viewportMinPx)
+  const framedId = framedWorld?.id ?? focus.drawnRoot.id
+
+  /**
+   * THE PATH FROM THE WORKSPACE TO WHERE THE READER IS, root first and target
+   * last — `FocusView.trail`'s shape exactly, so `Breadcrumb` renders it with no
+   * adapter and nothing inside that component changes.
+   */
+  const diveWorlds = useMemo(() => ancestorWorlds(layout, framedId), [layout, framedId])
+  const diveTrail = useMemo(() => diveWorlds.map((w) => w.node), [diveWorlds])
+
+  /**
+   * Fly the camera to a world by id — the crumb, the rail's Home, and the
+   * keyboard's four dive verbs all end here. A world that is not in the drawing
+   * is a no-op rather than a guess.
+   */
+  const flyToId = useCallback(
+    (id: string | null) => {
+      const world = layout.byId.get(id ?? focus.drawnRoot.id)
+      if (world !== undefined) flyTo(world)
+    },
+    [layout, flyTo, focus.drawnRoot.id],
+  )
+
+  /**
+   * THE RAIL'S TICKS, AND THERE IS NO LADDER CONSTANT ANYWHERE.
+   *
+   * One rung per world on the current path, so the rail's LENGTH is the depth
+   * the admin configured: two tiers give two ticks, seven give seven. Each
+   * rung's position is where the camera would sit if that world were framed,
+   * expressed in the same zeroed octaves `geo.octaves` reports — a difference of
+   * two `octavesOf` readings rather than a second formula, so the tick and the
+   * fly cannot disagree about what an octave is.
+   *
+   * The label is the world's own name out of the database, resolved for the
+   * locale by `model.textOf`. It is `isolate()`d by the rail and must never be
+   * handed to `t()`.
+   */
+  const frameFill = compact ? FRAME_FILL_PHONE : FRAME_FILL_DESKTOP
+  const vMinRaw = Math.max(1, Math.min(geo.box.width, geo.box.height))
+  const octaveFloor = octavesOf(
+    cameraAtWidth(camera, geo.cameraBounds.maxWidth),
+    layout.rootD,
+    vMinRaw,
+  )
+  const diveRungs = useMemo<readonly DiveRung[]>(
+    () =>
+      diveWorlds.map((world) => ({
+        id: world.id,
+        label: model.textOf(world.node.label),
+        octaves:
+          octavesOf(
+            frameCamera(world, {
+              viewport: geo.box,
+              frameFill,
+              occlusion: { inlineEnd: occlusion.inlineEnd, blockEnd: occlusion.blockEnd },
+              rtl,
+            }),
+            layout.rootD,
+            vMinRaw,
+          ) - octaveFloor,
+      })),
+    // `model.textOf` and `geo.box` are the only two that move without the path
+    // moving; both are stable identities between resizes and locale switches.
+    [diveWorlds, model, geo.box, frameFill, occlusion, rtl, layout.rootD, vMinRaw, octaveFloor],
+  )
+
+  /**
+   * THE MATCH RIM — the one thing a containment drawing genuinely cannot do,
+   * answered as a signpost rather than as a set.
+   *
+   * WHAT COUNTS AS A MATCH HERE IS A BREACH, and the choice is argued rather
+   * than assumed: the tree is built FROM the filter (`useMapModel` takes it), so
+   * a rim counting "filter matches" would count every node in the drawing and
+   * say nothing. What the reader cannot see from a wide camera is WHERE THE
+   * TROUBLE IS — six items past their deadline scattered across five departments
+   * are six grains in five worlds, four octaves apart, and no single camera
+   * shows all six legibly. `model.stats` already carries a subtree roll-up of
+   * exactly that, so the arc costs one walk and no new read.
+   *
+   * The set question itself still belongs to the real-DOM list beside the
+   * canvas. This is a signpost — "three in there, that way" — and the difference
+   * between a map that has lost the set and a map that knows where it is.
+   */
+  const { matchesById, matchWedgesById } = useMemo(() => {
+    const matches = new Map<string, number>()
+    const wedges = new Map<string, readonly { start: number; end: number }[]>()
+    const breachedIn = (id: string): number => model.stats.get(id)?.breached ?? 0
+    for (const world of layout.nodes) {
+      const count = breachedIn(world.id)
+      if (count <= 0) continue
+      matches.set(world.id, count)
+      const marked: { start: number; end: number }[] = []
+      for (const childId of world.childIds) {
+        const child = layout.byId.get(childId)
+        if (child === undefined || breachedIn(childId) <= 0) continue
+        marked.push({ start: child.wedgeStart, end: child.wedgeEnd })
+      }
+      if (marked.length > 0) wedges.set(world.id, marked)
+    }
+    return { matchesById: matches, matchWedgesById: wedges }
+  }, [layout, model.stats])
 
   const cursor = useMapCursor({ layout: geo.layout, order: geo.order, svgRef })
 
@@ -306,6 +592,54 @@ export default function Mindtree(): ReactElement {
     openMenuFor: overlays.openMenuFor,
     textOf: model.textOf,
     setLive,
+    /**
+     * PARK AN ID THAT IS NOT IN THE DOM. An arrow onto a node past the DOM
+     * horizon asks the camera to open the way in and lands the tab stop on the
+     * commit that brings it back — never on "the nearest thing instead", which
+     * is how a keyboard reader loses their place.
+     */
+    requestPendingFocus: cursor.requestPendingFocus,
+    /** Escape's third rung. TRUE means "I closed something, stop here". */
+    closePanel: useCallback(
+      () => (lens.panelOpen ? (lens.setPanelOpen(false), true) : false),
+      [lens],
+    ),
+    /**
+     * THE CAMERA, AS SIX VERBS. Memoised because an unstable object would
+     * re-create `onKeyDown` on every render, and `onKeyDown` is a prop on the
+     * <svg> that every node lives under.
+     */
+    dive: useMemo(
+      () => ({
+        into: (id: string) => flyToId(id),
+        /**
+         * THE OWNER'S OWN CORRECTION. An Organization is a LEAF you arrive at,
+         * not a level you enter: the info sidebar opens beside the map and THE
+         * CAMERA DOES NOT MOVE BY ONE UNIT. No re-root, no zoom, no relayout.
+         */
+        details: (id: string) => {
+          lens.setSubject(subjectForLens('shape', id))
+          lens.setPanelOpen(true)
+        },
+        /**
+         * Focus moved — follow it by the MINIMUM MOVE. `flyTo` frames the
+         * world, and for a node already at least a card wide that is a pan of a
+         * few units at most.
+         */
+        follow: (id: string) => flyToId(id),
+        /** `+` / `-`, about the centre of the frame: a keyboard has no cursor. */
+        zoomBy: (ratio: number) =>
+          setCamera(anchoredZoom(camera, { x: camera.cx, y: camera.cy }, ratio)),
+        home: () => flyToId(null),
+        surface: (): boolean => {
+          const up = diveWorlds[diveWorlds.length - 2]
+          if (up === undefined) return false
+          flyTo(up)
+          return true
+        },
+      }),
+      [flyToId, lens, camera, setCamera, flyTo, diveWorlds],
+    ),
   })
 
   const { runMenu } = useMapWrites({
@@ -334,22 +668,6 @@ export default function Mindtree(): ReactElement {
     busiest: model.busiest,
     topGroup: model.topGroup,
     setLive,
-  })
-
-  /**
-   * WHAT THE SHELL IS FOR — and, from it, which stage draws and what the panel
-   * is about.
-   *
-   * Called HERE, between the toolbar and the pulses, and the position is
-   * argued rather than convenient: it needs `focus.focusView.focusId` — the
-   * drill-in as RESOLVED, not as persisted, so the branch panel can never
-   * address a node the canvas is not drawing — and the pulses below need the
-   * stage it derives. It reorders none of the eleven.
-   */
-  const lens = useMapLens({
-    focusNodeId: focus.focusView.focusId,
-    compact,
-    announce: setLive,
   })
 
   /**
@@ -452,6 +770,21 @@ export default function Mindtree(): ReactElement {
    * repair — and the panel needs the NODE, which only the focus hook holds.
    */
   const panel = ((): { title: string; body: ReactNode } | null => {
+    /**
+     * ONE EMPTY STATE, NOT TWO. A never-configured workspace used to answer a
+     * question nobody asked, twice and in two places: the canvas said "No
+     * tracks yet" and the panel said "Nothing needs you right now", side by
+     * side. There is nothing that CAN need you in a workspace with no tracks,
+     * so the panel does not render at all and the canvas gets one state across
+     * the whole stage.
+     *
+     * BEFORE the switch, deliberately: the exhaustive switch over
+     * `PanelSubject` has no `default:` and must keep having none, so a guard
+     * that belongs to the workspace rather than to the subject cannot live
+     * inside it.
+     */
+    if (noTracks) return null
+
     const subject: PanelSubject = lens.subject
     switch (subject.kind) {
       case 'none':
@@ -467,22 +800,38 @@ export default function Mindtree(): ReactElement {
               onFocus={focus.focusBranch}
               compact={compact}
               announce={setLive}
-              // WITHOUT THIS PROP THE PANEL HAS NO Everyone/Mine PAIR. MapList
-              // renders the segment only when it is given a writer, precisely so
-              // it can never hold a second, private copy of `mine` that would
-              // disagree with the FilterBar above it the first time either was
-              // touched alone. The shell owns the filter; the panel writes to it.
-              onFilter={setFilter}
+              // NO `onFilter`, AND THAT IS THE POINT. `Mine` used to exist twice
+              // — once in the FilterBar and once inside this list — which is two
+              // `role="group"`s with one accessible name and two pressed states
+              // for one fact: a defect for a screen reader even when it looks
+              // right. The single owner is now the filter rail's own chip, which
+              // is also reachable at `shape` with nothing focused, where there is
+              // no panel at all. One control, one fact.
             />
           ),
         }
-      case 'branch':
+      case 'branch': {
+        /**
+         * THE SUBJECT'S OWN NODE, RESOLVED AGAINST THE MODEL — not the drawn
+         * root.
+         *
+         * It used to read `focus.drawnRoot`, and that was correct exactly while
+         * the only way to open this panel was to DRILL IN, which made the two
+         * the same node by construction. The camera breaks that: tapping an
+         * Organization opens this panel and deliberately does NOT re-root the
+         * map, so the subject and the drawn root are now different nodes and
+         * reading the wrong one would show the workspace's detail under an
+         * Organization's name. Falls back to the drawn root when the node has
+         * left the tree between the tap and this render — a realtime close, a
+         * filter keystroke — which is the same node the panel used to show.
+         */
+        const node = findNode(model.tree, subject.nodeId) ?? focus.drawnRoot
         return {
-          title: t('mindtree.panelBranch', { label: model.textOf(focus.drawnRoot.label) }),
+          title: t('mindtree.panelBranch', { label: model.textOf(node.label) }),
           body: (
             <MapBranch
-              node={focus.drawnRoot}
-              path={focus.focusView.trail}
+              node={node}
+              path={trailTo(model.tree, node.id) ?? focus.focusView.trail}
               filter={filter}
               dimension={model.dimension}
               textOf={model.textOf}
@@ -492,6 +841,7 @@ export default function Mindtree(): ReactElement {
             />
           ),
         }
+      }
       case 'changes':
         return {
           title: t('mindtree.panelChanges'),
@@ -506,109 +856,186 @@ export default function Mindtree(): ReactElement {
   })()
 
   /**
-   * The open tree's own chrome — the toolbar, the trail and the bulk bar. None
-   * of the three means anything over a board or a chart: there is no ring to
-   * zoom, no branch to be inside, and nothing on those surfaces that the map's
-   * selection can carry.
+   * The open tree's own chrome — the group-by chips, the ladder, the trail and
+   * the bulk bar. None of the four means anything over a board or a chart:
+   * there is no ring to climb, no branch to be inside, and nothing on those
+   * surfaces that the map's selection can carry.
    */
   const onTree = lens.stage === 'map' || lens.stage === 'table'
 
+  /**
+   * The ladder carries the map⇄ledger toggle at its foot, so it renders wherever
+   * that toggle would have something to switch. `allowedStages` is asked rather
+   * than `onTree` being reused, because it is the same predicate `MapLensBar`
+   * used to gate the `Map | Table` pair this replaces — one question, one
+   * answer, and it stays right if a sixth lens ever earns a third stage.
+   */
+  const showLadder = onTree && allowedStages(lens.lens).length > 1
+
+  /**
+   * The occlusion is reported by the panel and RETRACTED here.
+   *
+   * `MapPanel` reports `{0,0}` when it unmounts, but it is also possible for it
+   * to stop being visible without unmounting — the reader closes it, the lens
+   * changes to one whose subject is `none`, the workspace turns out to have no
+   * tracks — and in each of those the last measurement would stand and the fit
+   * would keep reserving a card that is no longer on the glass. The identity
+   * check is what stops this being a render loop: `NO_OCCLUSION` is one frozen
+   * object, so the second pass is a no-op and React stops.
+   */
+  const panelVisible = panel !== null && lens.panelOpen
+  useEffect(() => {
+    if (panelVisible) return
+    setOcclusion((prev) => (prev === NO_OCCLUSION ? prev : NO_OCCLUSION))
+  }, [panelVisible])
+
   return (
-    <div className="mtree">
-      <header>
-        <h1 className="page-title">{t('mindtree.title')}</h1>
-        <p className="page-subtitle mtree-sub">{t('mindtree.subtitle')}</p>
-      </header>
+    <div
+      className="mtree"
+      /**
+       * THE LADDER'S OWN CLEARANCE, published rather than guessed. The ladder is
+       * pinned to the canvas's inline-end and the panel floats over the same
+       * edge, so the one number that keeps them apart is the width the panel is
+       * actually taking — which is measured, not a copy of `map-panel.css`'s
+       * `clamp(20rem, 26vw, 26rem)` that would drift the first time either side
+       * was retuned. 0 when there is no panel, and the ladder returns to the
+       * edge.
+       */
+      style={{ '--map-occlude-inline': `${occlusion.inlineEnd}px` } as CSSProperties}
+    >
+      {/* THE DOCUMENT OUTLINE SURVIVES AND THE PIXELS DO NOT. The app header
+          already says which screen this is, in the same words, one row above —
+          so a drawn `<h1>` plus a subtitle was 90px of viewport spent repeating
+          it. sr-only keeps the heading a screen reader and a landmark walk both
+          need; `page-subtitle` is deleted outright. */}
+      <h1 className="sr-only">{t('mindtree.title')}</h1>
 
-      <FilterBar
-        value={filter}
-        onChange={setFilter}
-        facets={lens.lens === 'numbers' ? NUMBERS_FACETS : FACETS}
-        tags={model.tags}
-        count={model.tree.count}
-        resultLabel={(n) => t('mindtree.countOpen', { count: n })}
-      />
+      {/* THE ISLAND LAYER. One `inset: 0` sheet over the stage at
+          `pointer-events: none`, with every island turning pointers back on for
+          itself — so the canvas beneath keeps every press that is not on a
+          control, and the drag/pan gesture is not quietly eaten by a transparent
+          box. On a phone this layer stops being a layer and becomes the top
+          rail: the grid's leading `auto` row. */}
+      <div className="mtree-isles">
+        {/* ISLAND 1, top-start: the filter rail. Its `Mine` chip is the SINGLE
+            owner of "only my work" now — MapList no longer renders a second one
+            — and its facets open as a panel over the picture rather than as a
+            row that pushes the picture down. */}
+        <div className="mtree-isle mtree-find">
+          <FilterBar
+            value={filter}
+            onChange={setFilter}
+            facets={lens.lens === 'numbers' ? NUMBERS_FACETS : FACETS}
+            tags={model.tags}
+            // A HOOK FOR ONE DECLARATION, and `className` is the prop that
+            // exists for exactly this: `.flt` carries a 14px `margin-block-end`
+            // that is right in a document and wrong inside a 44px island, where
+            // it measured as 14px of empty plate that pushed the rail into the
+            // group-by chips below it. See `.mtree-filter` in mindtree.css.
+            className="mtree-filter"
+          />
+        </div>
 
-      {/* THE FIVE DESTINATIONS AND THE TWO MODES, in one row, at every width and
-          never behind a disclosure. Each chip replaces a tab-bar slot, and a tab
-          tap costs one interaction — so must a chip. */}
-      <div className="mtree-shellbar">
-        <MapLensBar
-          lens={lens.lens}
-          onLens={lens.setLens}
-          stage={lens.stage}
-          onStage={lens.setStage}
-          compact={compact}
-          counts={{ 'needs-me': attentionCount, 'what-changed': changesCount }}
-        />
-        <MapModeBar compact={compact} />
+        {/* ISLAND 2, top-end: THE FIVE DESTINATIONS AND THE TWO MODES, in one
+            row, at every width and never behind a disclosure. Each chip replaces
+            a tab-bar slot, and a tab tap costs one interaction — so must a chip.
+            Below 768px this element leaves the flow entirely and becomes the
+            pinned rail at the block end, one z-index above the sheet. */}
+        <div className="mtree-shellbar">
+          <MapLensBar
+            lens={lens.lens}
+            onLens={lens.setLens}
+            compact={compact}
+            counts={{ 'needs-me': attentionCount, 'what-changed': changesCount }}
+          />
+          <MapModeBar
+            compact={compact}
+            exporting={toolbar.exporting}
+            onExport={toolbar.runExport}
+          />
+        </div>
+
+        {/* ISLAND 3, canvas-start: what the rings are made of, and where the
+            reader is inside them. The two belong together — the trail is the way
+            back OUT of a drill-in and the chips are what the drill-in is
+            partitioned by — and stacking them costs one island rather than two.
+            `truncated` rides along because it is a fact about the same drawing. */}
+        {(onTree || model.truncated) && (
+          <div className="mtree-isle mtree-work">
+            {onTree && (
+              <MapToolbar
+                dimension={model.dimension}
+                onDimension={toolbar.chooseDimension}
+                compact={compact}
+              />
+            )}
+
+            {/* THE TRAIL'S SOURCE IS THE CAMERA, NOT A DRILL-IN. `diveTrail` is
+                `ancestorWorlds(layout, worldAt(camera))` — root first, where you
+                are LAST, inclusive — which is `FocusView.trail`'s shape exactly,
+                so nothing inside the component changes. It is DERIVED, so it
+                cannot drift from the picture: there is no state for it to drift
+                from, and the name hands off from the rim label to the crumb at
+                the 0.85V crossing and at no other instant. A crumb press is a
+                fly, not a re-root. */}
+            {onMap && <Breadcrumb trail={diveTrail} onFocus={flyToId} />}
+
+            {model.truncated && <p className="mtree-note">{t('mindtree.truncated')}</p>}
+          </div>
+        )}
       </div>
 
-      {onTree && (
-        <MapToolbar
-          dimension={model.dimension}
-          onDimension={toolbar.chooseDimension}
-          view={model.view}
-          compact={compact}
-          density={model.density}
-          onDensity={toolbar.chooseDensity}
-          onExpandAll={toolbar.expandAll}
-          onCollapseAll={toolbar.collapseAll}
-          zoomPercent={geo.zoomPercent}
-          zoomStep={ZOOM_STEP}
-          onZoom={geo.zoomBy}
-          onFit={geo.resetView}
-          exporting={toolbar.exporting}
-          onExport={toolbar.runExport}
-        />
-      )}
+      {/* ISLAND 4, canvas inline-end: THE DIVE RAIL, which is what eleven
+          controls became. `Zoom −`, `Zoom 100%`, `Zoom +`, `Expand all`,
+          `Collapse all`, the four named altitude stops and `Fit to view` are all
+          answered here — as ONE continuous slider whose TICKS ARE THE ADMIN'S
+          OWN DEPARTMENT TIERS and whose `aria-valuetext` is the NAME of the
+          world the camera is framing. There is no ladder constant anywhere and
+          there must not be one: `rungs.length` is the depth of the configured
+          tree, so a workspace with two tiers gets two ticks and one with seven
+          gets seven.
 
-      {model.truncated && <p className="mtree-note">{t('mindtree.truncated')}</p>}
-
-      {/* The trail, INCLUSIVE of where you are — Breadcrumb renders the tail as
-          a heading and everything before it as links, and draws nothing at all
-          for a trail of one (the unfocused map). Only in map view: the table is
-          the whole workspace's ledger and is not drilled into. */}
-      {onMap && <Breadcrumb trail={focus.focusView.trail} onFocus={focus.focusBranch} />}
-
-      {/* THE BULK BAR, and it must not lie: `pruneMindSelection` has already
-          dropped anything the reader can no longer see, so this count is a count
-          of rows on the screen. It is the other half of the redistribution
-          gesture — tick six, then drag one and all six travel, or open the menu
-          on the person who should take them and apply. */}
-      {onMap && model.selectionCount > 0 && (
-        <div className="mtree-selbar" role="group" aria-label={t('mindtree.selectionLabel')}>
-          <span className="mtree-selbar-count tabular">
-            {t('mindtree.selectionCount', { count: model.selectionCount })}
-          </span>
-          <span className="mtree-selbar-hint">{t('mindtree.selectionHint')}</span>
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={keyboard.clearSelection}
-          >
-            {t('mindtree.clearSelection')}
-          </button>
+          A SIBLING OF THE ISLAND LAYER RATHER THAN A CHILD OF IT, and the
+          difference is not cosmetic: the rail positions ITSELF inside its
+          containing block, and on a phone the island layer is a horizontal
+          scroller, which would both clip it and give it the wrong shape.
+          `.mtree-ladder` is that containing block and nothing else: a
+          transparent frame, inset from the inline end by however much the panel
+          is measured to be covering. Its DOM position keeps the Tab order —
+          after the group-by chips, before the tree's single stop. */}
+      {showLadder && (
+        <div className="mtree-ladder">
+          <MapDiveRail
+            value={geo.octaves}
+            max={geo.octaveSpan}
+            rungs={diveRungs}
+            worldLabel={diveRungs[diveRungs.length - 1]?.label ?? t('app.name')}
+            // A RAIL DRAG IS A WIDTH, not a fly: the reader is holding the
+            // control, so the camera must follow the thumb rather than tween
+            // towards it. `maxWidth / 2^octaves` is the exact inverse of the
+            // reading `geo.octaves` published, so releasing the thumb where it
+            // was picked up moves nothing.
+            onChange={(octaves) =>
+              setCamera(cameraAtWidth(camera, geo.cameraBounds.maxWidth / 2 ** octaves))
+            }
+            // HOME IS FIT. It has to re-FRAME the root — a centre as well as a
+            // width — which a value write cannot say.
+            onHome={() => flyToId(null)}
+            table={lens.stage === 'table'}
+            // `stageForLens` and not the literal `'map'`: the lens decides what
+            // the open tree IS, and turning the ledger off has to return the
+            // reader to that rather than to a stage this call site guessed.
+            onTable={(next) => lens.setStage(next ? 'table' : stageForLens(lens.lens))}
+            compact={compact}
+          />
         </div>
-      )}
-
-      {/* THE PANEL IS OFFERED BACK IN ONE TAP. Closing it is how a reader gives
-          the picture the whole width; needing to hunt for the way back would
-          make that a decision rather than a glance. */}
-      {panel !== null && !lens.panelOpen && (
-        <button
-          type="button"
-          className="btn btn-sm btn-ghost mtree-panel-show"
-          onClick={() => lens.setPanelOpen(true)}
-        >
-          {t('mindtree.panelShow')}
-        </button>
       )}
 
       {/* THE SPLIT. The panel is a SIBLING of the canvas — `.mtree-canvas` is
           `overflow: hidden; touch-action: none`, and `touch-action` intersects
           down the ancestor chain, so a list rendered inside it could not be
-          scrolled with a finger at all. */}
+          scrolled with a finger at all. That is unchanged by the panel becoming
+          a floating card: it floats as a sibling, never as a child. */}
       <div className="mpan-split">
         <div className="mpan-stage">
           {lens.stage === 'board' ? (
@@ -663,6 +1090,15 @@ export default function Mindtree(): ReactElement {
               svgRef={svgRef}
               layout={geo.layout}
               order={geo.order}
+              // THE FOUR THE LEVEL-OF-DETAIL NEEDS. `scale` is the only thing
+              // that turns an authored world diameter into an apparent size, and
+              // therefore the only thing that decides which of the five drawings
+              // each node renders; `viewportMinPx` answers the one question that
+              // is about the window rather than about legibility.
+              scale={geo.scale}
+              viewportMinPx={viewportMinPx}
+              matchesById={matchesById}
+              matchWedgesById={matchWedgesById}
               views={model.views}
               viewBox={geo.viewBox}
               rtl={rtl}
@@ -697,7 +1133,9 @@ export default function Mindtree(): ReactElement {
         </div>
 
         {/* The dock. Rendered only when the subject is something — `shape` with
-            nothing focused is `none`, and the map takes the whole width. */}
+            nothing focused is `none`, and the map takes the whole width; and a
+            workspace with no tracks, where the canvas's own empty state is the
+            single answer. */}
         {panel !== null && (
           <MapPanel
             open={lens.panelOpen}
@@ -706,28 +1144,61 @@ export default function Mindtree(): ReactElement {
             onDetent={lens.setDetent}
             onClose={() => lens.setPanelOpen(false)}
             title={panel.title}
+            onOcclude={setOcclusion}
           >
             {panel.body}
           </MapPanel>
         )}
       </div>
 
-      <MapSummary
-        showMapChrome={onMap}
-        compact={compact}
-        hintId={hintId}
-        summary={model.summary}
-        busiest={model.busiest}
-        topGroup={model.topGroup}
-        live={live}
-      />
+      {/* THE BLOCK-END STRIP — the bulk bar and the caption, in the grid's own
+          `auto` row and never over the drawing.
+
+          The bulk bar is here rather than floating for the reason it has always
+          carried: it is the other half of the redistribution gesture, and a bar
+          that floats over a map you are dragging work across is a bar that
+          covers the branch you are aiming at. It must not lie either —
+          `pruneMindSelection` has already dropped anything the reader can no
+          longer see, so this is a count of rows on the screen. */}
+      <div className="mtree-foot">
+        {onMap && model.selectionCount > 0 && (
+          <div className="mtree-selbar" role="group" aria-label={t('mindtree.selectionLabel')}>
+            <span className="mtree-selbar-count tabular">
+              {t('mindtree.selectionCount', { count: model.selectionCount })}
+            </span>
+            <span className="mtree-selbar-hint">{t('mindtree.selectionHint')}</span>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={keyboard.clearSelection}
+            >
+              {t('mindtree.clearSelection')}
+            </button>
+          </div>
+        )}
+
+        <MapSummary
+          showMapChrome={onMap}
+          compact={compact}
+          hintId={hintId}
+          summary={model.summary}
+          busiest={model.busiest}
+          topGroup={model.topGroup}
+          // THE RESULT COUNT ARRIVES HERE instead of being a standalone chip in
+          // the header. It was one of ~20 same-weight controls in a row that had
+          // nothing to do with it; beside the summary sentences it is the same
+          // kind of statement as the ones either side of it.
+          countLabel={t('mindtree.countOpen', { count: model.tree.count })}
+          live={live}
+        />
+      </div>
 
       {/* THE GHOST, THE REASON AND THE DRAG'S OWN LIVE REGION — outside the
           <svg>, as a sibling of the canvas. `.mtree-canvas` is `overflow:
           hidden`, so a ghost drawn inside the drawing would be clipped at the
           exact moment a reader drags toward the edge to make the map auto-pan.
           It carries its own polite region rather than borrowing MapSummary's:
-          this screen's region is the map's commentary ("Zoom 140%") and a drag
+          this screen's region is the map's commentary ("Delivery") and a drag
           is a stream of short sentences that must arrive in order. */}
       {onMap && <MindDragLayer controller={dragController} />}
 

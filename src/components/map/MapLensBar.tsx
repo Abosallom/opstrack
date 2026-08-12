@@ -24,39 +24,37 @@
 // the visible badge is `aria-hidden`. `null`/absent means the count is not
 // computed for that lens — which is not the same as zero and must not draw a
 // zero badge implying an empty list.
+//
+// ── ONE FILLED PILL IN A ROW OF FOUR LABELS ────────────────────────────────
+//
+// The measured complaint about this screen was never the control COUNT: it was
+// that "every control is the same size, the same weight and the same colour, so
+// nothing leads the eye." Five equally-outlined chips are five equal buttons.
+// The pressed chip keeps the filled recipe; the other four lose their outline
+// and become `--text-dim` text (map-lens.css). Their `.tap-44` overlays are
+// untouched, so nothing about the targets changes — only what the eye lands on.
+//
+// ── THE MAP|TABLE PAIR HAS LEFT ────────────────────────────────────────────
+//
+// It is the Table toggle at MapAltitude's foot now — still one tap, because the
+// ledger is the low-motion, drag-free reading mode and burying an accessibility
+// mode is not available to us. `stage`/`onStage` are gone from the props; the
+// shell decides whether to render that toggle at all, from `allowedStages`.
 
 import { type ReactElement } from 'react'
 import { t } from '../../lib/i18n'
-import {
-  LENS_KEY,
-  MAP_LENSES,
-  STAGE_KEY,
-  allowedStages,
-  type MapLens,
-  type MapStage,
-} from '../../lib/mindtree/lens'
+import { LENS_KEY, MAP_LENSES, type MapLens } from '../../lib/mindtree/lens'
 import './map-lens.css'
 
 export interface MapLensBarProps {
   lens: MapLens
   onLens: (next: MapLens) => void
-  stage: MapStage
-  onStage: (next: MapStage) => void
   compact: boolean
   /** null = not computed for that lens. Rendered as a badge on the chip. */
   counts: Readonly<Partial<Record<MapLens, number>>>
 }
 
-export default function MapLensBar({
-  lens,
-  onLens,
-  stage,
-  onStage,
-  compact,
-  counts,
-}: MapLensBarProps): ReactElement {
-  const stages = allowedStages(lens)
-
+export default function MapLensBar({ lens, onLens, compact, counts }: MapLensBarProps): ReactElement {
   return (
     <div
       className="mlens"
@@ -66,9 +64,12 @@ export default function MapLensBar({
       // rather than a second breakpoint in CSS that could disagree with it.
       data-compact={compact ? '' : undefined}
     >
-      <span className="mlens-label" aria-hidden="true">
-        {t('mindtree.lensLabel')}
-      </span>
+      {/* The `.mlens-label` span that stood here is DELETED. It was already
+          `aria-hidden` and already hidden at `[data-compact]`, and the group's
+          own `aria-label` carries the same words to the same readers — so it
+          was a small-caps heading spending desktop width to repeat what the
+          chips beside it already say. `mindtree.lensLabel` is NOT retired: it is
+          this group's accessible name, above. */}
 
       {/* The scroller, on a phone only: five chips do not fit 375px, and the
           alternative — shrinking them — is the one thing rule 4 forbids. Every
@@ -98,25 +99,6 @@ export default function MapLensBar({
           )
         })}
       </div>
-
-      {/* Only where there is something to switch: the board and the numbers are
-          not the open tree and have no ledger form. Rendering a one-option
-          switch would be a control that cannot do anything. */}
-      {stages.length > 1 && (
-        <div className="mlens-stages" role="group" aria-label={t('mindtree.stageLabel')}>
-          {stages.map((value) => (
-            <button
-              key={value}
-              type="button"
-              className="mlens-stage tap-44"
-              aria-pressed={value === stage}
-              onClick={() => onStage(value)}
-            >
-              {t(STAGE_KEY[value])}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

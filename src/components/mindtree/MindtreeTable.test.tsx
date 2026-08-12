@@ -809,3 +809,50 @@ describe('the rendered table', () => {
     expect((html.match(/mtree-tbl-cellbtn/g) ?? []).length).toBe(3)
   })
 })
+
+/* ─────────────────────── the camera cannot reach this file ────────────────── */
+
+const NODE_FS = 'node:fs'
+const { readFileSync } = (await import(NODE_FS)) as {
+  readFileSync: (path: URL, encoding: 'utf8') => string
+}
+const SOURCE = readFileSync(new URL('./MindtreeTable.tsx', import.meta.url), 'utf8')
+
+describe('the table reads the MODEL, not the geometry', () => {
+  // WHY THIS GATE EXISTS AND WHY IT IS CHEAP. `docs/MAP-ZOOM.md` §9 names the
+  // continuous dive's own biggest weakness: a static geometry cannot bring a
+  // filtered SET together on the canvas — six at-risk Orgs across five
+  // departments are six grains in five worlds and no single camera shows all
+  // six. The mitigation is this file. It stays the full-depth sortable ledger at
+  // every camera position, at every level of detail and on every device, with
+  // the drag layer off and the motion off, which it can only do while it does
+  // not know where the camera is.
+  //
+  // A grep and not a behaviour, deliberately: the failure mode is an IMPORT.
+  // The day somebody reaches for `bandFor` to grey out a row the camera cannot
+  // see, the table stops being the answer to a set question and every test above
+  // still passes. This one does not.
+  //
+  // The `node:fs` specifier is held in a VARIABLE and the read is at module
+  // scope: tsconfig.app.json pins `types: ["vite/client"]`, so a literal
+  // `node:fs` would need "node" in that array and leak node globals into every
+  // app file's type space (styles/contrast.test.ts's header has the argument).
+  it('imports nothing from worlds.ts, lod.ts or the camera', () => {
+    expect(SOURCE.trim()).not.toBe('')
+    const specs = [...SOURCE.matchAll(/from '([^']+)'/g)].map((m) => m[1] as string)
+    expect(specs.length).toBeGreaterThan(0)
+    for (const spec of specs) {
+      expect(spec, `MindtreeTable must not import ${spec}`).not.toMatch(
+        /mindtree\/worlds|mindtree\/lod|mapMotion|useMapGeometry|useMapViewport|useMapCursor/,
+      )
+    }
+  })
+
+  it('takes no camera, no band and no viewport in its props', () => {
+    const props = SOURCE.slice(
+      SOURCE.indexOf('export interface MindtreeTableProps'),
+      SOURCE.indexOf('export default function MindtreeTable'),
+    )
+    expect(props).not.toMatch(/\b(camera|band|scale|viewBox|worldD|apparent)\b/)
+  })
+})

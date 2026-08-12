@@ -146,7 +146,7 @@ import {
 } from '../../lib/mindtree/dropRules'
 import { MIND_BULK_CONFIRM_AT } from '../../lib/mindtree/actions'
 import { trailTo } from '../../lib/mindtree/focus'
-import type { MindtreeLayout, PositionedNode } from '../../lib/mindtree/layout'
+import type { DrawnLayout, PositionedNode } from '../../lib/mindtree/layout'
 import type { MindDimension, MindNode } from '../../lib/mindtree/model'
 import {
   beginMindDrag,
@@ -205,7 +205,7 @@ export interface MindDragLayerOptions {
    */
   root: MindNode
   /** The drawn layout: the drop zones, and the keyboard's candidate order. */
-  layout: MindtreeLayout<MindNode>
+  layout: DrawnLayout<MindNode>
   dimension: MindDimension
   entryById: ReadonlyMap<string, Entry>
   /** `null` when signed out — never a stand-in id. See pages/Board.tsx. */

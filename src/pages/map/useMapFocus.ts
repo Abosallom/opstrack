@@ -16,6 +16,25 @@
 //   3. every user gesture — `focusBranch`, the toolbar's dimension trim, the
 //      tap on the drawn root, Escape.
 // Drop any one guard and the three fight.
+//
+// ── WHAT THE CAMERA CHANGES HERE: NOTHING IN THIS FILE ─────────────────────
+//
+// `docs/MAP-ZOOM.md §5` gives the camera one mount-time input, and it is
+// `focusView.node` — the world the initial framing is struck around. That is a
+// new READER of this hook's output, not a new writer of its state, and the
+// three-writer convergence above is untouched by it. It is recorded here
+// because the tempting shortcut is to have the camera re-derive the drill-in
+// itself ("it only needs an id"), which would make a fourth writer out of a
+// second resolver and put this file's fallback and that copy's fallback one
+// refactor away from disagreeing.
+//
+// AND THE STANDING CONSTRAINT, stated where a future feature will read it: the
+// URL carries the WORLD's node id — `?focus=` — and NEVER the camera's
+// coordinates. The whole geometry is a pure function of the department tree, so
+// an admin adding a department shifts every radius and makes any remembered
+// coordinate stale, while the id still names the same place. `useMapUrl`
+// already works this way; a "save my camera position" feature must not quietly
+// change it.
 
 import { useCallback, useEffect, useMemo } from 'react'
 import { t } from '../../lib/i18n'

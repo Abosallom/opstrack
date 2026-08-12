@@ -34,6 +34,24 @@ export interface MindEdgeProps {
    * because it is about the CURSOR rather than about the data.
    */
   active?: boolean
+  /**
+   * The connector's own opacity, 0..1 — the band cross-fade, handed down from
+   * `lod.bandBlend` by the page, defaulting to a fully drawn edge.
+   *
+   * A CONNECTOR IS ONLY WORTH DRAWING WHERE THE THINGS IT CONNECTS ARE BOXES.
+   * Below CHIP a node is a grain on a ring inside its parent's world, and
+   * containment has ALREADY said which parent it belongs to — far more plainly
+   * than a line could, because the line would have to cross every sibling to get
+   * there. So the page fades connectors out as their child drops below CHIP and
+   * this component draws nothing at all at 0: a fully transparent path is ink at
+   * a ratio nobody measured, and it is one more thing for the rasteriser to walk
+   * on every frame of a pinch.
+   *
+   * IT IS NEVER A RESTING HALF-VALUE. Like every other fade in this drawing it
+   * resolves inside 0.3 octaves of apparent size, so an edge at rest is either
+   * fully drawn — at the 6.06 / 5.53 mindtree.css measured — or absent.
+   */
+  fade?: number
 }
 
 /**
@@ -42,13 +60,19 @@ export interface MindEdgeProps {
  * straight out of the layout memo and are reference-stable between those
  * renders, so the default shallow compare is exactly right here.
  */
-export const MindEdge = memo(function MindEdge({ edge, active = false }: MindEdgeProps): ReactElement {
+export const MindEdge = memo(function MindEdge({
+  edge,
+  active = false,
+  fade = 1,
+}: MindEdgeProps): ReactElement | null {
+  if (!(fade > 0)) return null
   return (
     <path
       className="mtree-edge"
       d={edgePath(edge)}
       data-depth={edge.depth}
       data-active={active ? '' : undefined}
+      opacity={fade >= 1 ? undefined : fade}
     />
   )
 })
