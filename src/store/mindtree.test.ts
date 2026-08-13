@@ -184,9 +184,23 @@ describe('readMindtreePrefs — every field validated', () => {
     // bounds the same ids arriving by a different door, so both assertions here
     // are on one constant: the id must survive as a COLLAPSE entry and as the
     // FOCUS, which are validated by two different functions.
-    const deep = `root/track:UHR/${Array.from({ length: 6 }, (_, i) => `entity:${'L'.repeat(80)}${i}`).join('/')}/group:blocked`
-    expect(deep.length).toBeGreaterThan(512)
-    expect(deep.length).toBeLessThan(1024)
+    //
+    // WAVE 6 MOVED IT AGAIN, 1024 → 4096, and this id is why. `?by=` inserts
+    // `cohort:` segments between a structural node and the organizations under
+    // it, and the grouping ladder can nest four of them at each of the seven
+    // grouping sites — 28 segments of ~62 characters on top of the eleven the
+    // schema already allowed. The id below carries a modest eight of them and
+    // already clears 1024, so at the old number an account manager who
+    // collapsed a branch inside their own cohort ring lost the preference on
+    // every reload. The bound below 4096 is the assertion that the constant did
+    // not simply become "no cap".
+    const cohorts = Array.from(
+      { length: 8 },
+      (_, i) => `cohort:${encodeURIComponent(`cohort:manager:${'d'.repeat(36 - String(i).length)}${i}`)}`,
+    ).join('/')
+    const deep = `root/track:UHR/${Array.from({ length: 6 }, (_, i) => `entity:${'L'.repeat(80)}${i}`).join('/')}/${cohorts}/group:blocked`
+    expect(deep.length).toBeGreaterThan(1024)
+    expect(deep.length).toBeLessThan(4096)
     install({ [KEY]: JSON.stringify({ collapsed: { status: [deep] }, focus: deep }) })
     const prefs = (await load()).readMindtreePrefs()
     expect(prefs.collapsed.status).toEqual([deep])

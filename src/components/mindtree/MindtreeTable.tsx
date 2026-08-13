@@ -422,6 +422,18 @@ export function buildTableRows(
       // A structural node's own bucket key is its map-node id; it inherits the
       // one above it only if it somehow has none, so `nodeKey` is always the
       // DEEPEST answer to "which Org is this row under".
+      //
+      // ⚠ EXCEPT A COHORT, WHOSE KEY IS NOT A ROW. `?by=` puts a `cohort` step
+      // between a track and its organizations, and its `bucketKey` is
+      // `cohortKeyOf`'s synthetic `cohort:manager:<uuid>`. `filterForCell`
+      // writes `nodeKey` into `FilterState.mapNodeIds`, which is documented
+      // there as `map_nodes.id`, so taking it would scope a drill-in to a node
+      // that does not exist. A cohort is TRANSPARENT here for the same reason
+      // `dropRules.foldPath` and `actions.branchRefAt` skip it. Today no row
+      // escapes with one — `groupEntities` only ever buckets ENTITY plans, so
+      // every cohort has entity children that overwrite the key one step later
+      // — but that is a guarantee held in another module and defended by
+      // nothing here.
       // `retired || child.retired` — the flag ACCUMULATES down the path: an
       // archived Org inside a live programme marks its own rows, and a live Org
       // under an archived track keeps its track's mark.
@@ -429,7 +441,7 @@ export function buildTableRows(
         child,
         track,
         [...parts, labelText(child.label)],
-        child.bucketKey ?? nodeKey,
+        child.kind === 'cohort' ? nodeKey : (child.bucketKey ?? nodeKey),
         retired || child.retired,
       )
       emitted = true

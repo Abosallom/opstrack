@@ -57,6 +57,7 @@
 
 import {
   isMindDimension,
+  KIND_ROLE,
   ROOT_ID,
   visibleChildren,
   type MindDimension,
@@ -191,12 +192,39 @@ export function canFocus(node: MindNode): boolean {
 }
 
 /**
- * Node kinds that are PLACES — see `canFocus`. Narrowed to `MindNodeKind` so a
- * rename of the kind reds this function rather than silently switching the
- * exception off.
+ * Node kinds that are PLACES — see `canFocus`.
+ *
+ * A TOTAL RECORD RATHER THAN A COMPARISON, and that is the wave-6 lesson written
+ * into the smallest function it applies to. `kind === 'entity'` absorbs every
+ * kind that is ever added and switches the exception off for it in silence; a
+ * `Record<MindNodeKind, …>` is a compile error until somebody decides. The union
+ * grew by one this wave and this is the shape that made the decision unavoidable
+ * rather than the shape that would have hidden it.
+ *
+ * ⚠ NOT `KIND_ROLE[kind] === 'place'`, and the difference is the question. The
+ * role table answers "is this structure, may the camera frame it", which is true
+ * of the ROOT and of a TRACK as well — and neither belongs in this exception.
+ * This asks the narrower one `canFocus` needs: "does framing this node still
+ * answer something when it holds nothing". An Organization does (an account
+ * manager, a vendor, a capability matrix). A COHORT does too, one ring out —
+ * "the 41 organizations on Integrating" is an answer whether or not any work is
+ * filed under them, and the cohort ring is the picture of it. A `track` does not
+ * (model.ts draws an empty one so that "which track has nothing on it" is
+ * visible ON the map, which is a different claim from "make it the screen"), and
+ * the root is the workspace rather than a place in it.
  */
+const ANSWERS_WHEN_EMPTY: Readonly<Record<MindNodeKind, boolean>> = Object.freeze({
+  root: false,
+  track: false,
+  entity: true,
+  cohort: true,
+  group: false,
+  more: false,
+  entry: false,
+})
+
 function isPlaceKind(kind: MindNodeKind): boolean {
-  return kind === 'entity'
+  return ANSWERS_WHEN_EMPTY[kind]
 }
 
 // ── where the map opens ────────────────────────────────────────────────────
@@ -232,11 +260,36 @@ function isPlaceKind(kind: MindNodeKind): boolean {
  * because the two are answering different questions off the same list: worlds.ts
  * asks "may the camera stop here", this asks "is this a ring of the workspace or
  * content drawn inside one". They agree today and a divergence would be a
- * defect, which is why the set is spelled the same way and why `MindNodeKind`
- * narrows it — a new kind is a compile error here rather than a silent `false`.
+ * defect, which is why the set is spelled the same way.
+ *
+ * ── AND IT IS NOW `KIND_ROLE`, WHICH IS WHAT THE ROLE TABLE IS FOR ──────────
+ *
+ * `kind === 'root' || kind === 'track' || kind === 'entity'` was one of the
+ * twenty-seven `===` chains wave 6 converted, and it was among the worst of
+ * them: it does not red when the union grows, it answers `false` for the new
+ * kind, and `false` here means a cohort ring the camera cannot stop on, a
+ * breadcrumb that skips it, and a `?focus=` that climbs past it — the whole
+ * feature, silently absent. `KIND_ROLE`'s `'place'` IS this list (model.ts says
+ * so where it declares the table), so this is now one lookup that cannot be
+ * forgotten instead of three comparisons that were.
+ *
+ * A `cohort` IS ENTERED. "The 96 organizations Sara manages" is a ring of the
+ * workspace: the camera stops on it, the breadcrumb names it, and the dive goes
+ * through it to the organizations inside. That is the entire argument for the
+ * kind existing — see worlds.ts's `STRUCTURAL_KINDS` and the design's §1.6.
+ *
+ * ⚠ DIVEABLE IS NOT FILEABLE. `dropRules.isFilingKind` is the narrower table —
+ * `track` and `entity`, the two kinds whose `bucketKey` is a row id — and a
+ * cohort is the node that proves the two questions are different: you may fly
+ * into one and you may not file anything on one.
+ *
+ * Exported for `pages/map/useMapKeyboard.isDiveTarget`, which asked the same
+ * question with a third copy of the comparison and would have been a third site
+ * to forget. It stays a FUNCTION rather than a re-export of the table so this
+ * file keeps naming the question it is asking.
  */
-function isStructuralKind(kind: MindNodeKind): boolean {
-  return kind === 'root' || kind === 'track' || kind === 'entity'
+export function isStructuralKind(kind: MindNodeKind): boolean {
+  return KIND_ROLE[kind] === 'place'
 }
 
 /**
@@ -489,10 +542,27 @@ export function dimensionStableId(id: string | null): string | null {
   const parts = id.split('/')
   const kept: string[] = []
   for (const part of parts) {
-    // `root`, `track:` and `entity:` are axis-independent — they are the tree's
-    // SHAPE. `group:`, `more` and `entry:` are not: a group IS the axis, and
-    // both of the others are drawn inside one.
-    if (part !== ROOT_ID && !part.startsWith('track:') && !part.startsWith('entity:')) break
+    // `root`, `track:`, `entity:` and `cohort:` are axis-independent — they are
+    // the tree's SHAPE. `group:`, `more` and `entry:` are not: a group IS the
+    // axis, and both of the others are drawn inside one.
+    //
+    // A COHORT IS CUT BY `?by=`, WHICH THIS CHIP DOES NOT TOUCH. Flipping
+    // Status → Owner re-buckets the ENTRIES under an organization and leaves
+    // every cohort ring exactly where it was, so breaking at one throws an
+    // account manager standing in their own book back to the track — past their
+    // cohort, past the type ring, past the organization. Three rings, and
+    // silently: trimming reports no fallback (that is the point of trimming
+    // rather than leaning on `resolveFocus`), so nothing on screen would say the
+    // reader had been moved. At 400 organizations every focus below the track
+    // ring has a `cohort:` segment in it, so this is the ordinary case.
+    if (
+      part !== ROOT_ID &&
+      !part.startsWith('track:') &&
+      !part.startsWith('entity:') &&
+      !part.startsWith('cohort:')
+    ) {
+      break
+    }
     kept.push(part)
   }
   if (kept.length <= 1) return null
@@ -662,9 +732,21 @@ export function viewFromParams(p: URLSearchParams): MindtreeUrlView {
  * fold is identified by its position, not by a key — and `.../more` is the id
  * model.ts actually mints. Nothing about the hierarchy changes that.
  *
- * The character class is exactly what `encodeURIComponent` can emit.
+ * `cohort:` IS HERE BECAUSE A COHORT IS A WORLD, AND A WORLD IS SHAREABLE. This
+ * is the one line without which wave 6 would have shipped a silent defect: a
+ * cohort is in `STRUCTURAL_KINDS`, so the camera stops on one and `useMapUrl`
+ * mirrors it into `?focus=` — and a grammar that did not know the word would
+ * have rejected the id on the way back in, which does not fall back loudly. It
+ * fails to `wholeMap` with `missingId` NEVER SET (a rejected id never reaches
+ * `resolveFocus`), so the link somebody pasted opens the whole map with nothing
+ * on screen saying why. Exactly the shipping bug `MAX_SEGMENTS` was raised from
+ * 6 to fix, one grammar rule further out.
+ *
+ * The character class is exactly what `encodeURIComponent` can emit — so a
+ * cohort's key may carry its axis and its value in one segment
+ * (`cohort:manager%3A<uuid>`) without a new rule here.
  */
-const SEGMENT = /^(?:(?:track|entity|group|entry):[A-Za-z0-9\-_.!~*'()%]*|more)$/
+const SEGMENT = /^(?:(?:track|entity|cohort|group|entry):[A-Za-z0-9\-_.!~*'()%]*|more)$/
 
 /**
  * THE TWO BOUNDS ARE ONE DECISION, and the decision is the database's.
@@ -676,7 +758,7 @@ const SEGMENT = /^(?:(?:track|entity|group|entry):[A-Za-z0-9\-_.!~*'()%]*|more)$
  *     ─┬──   ──┬───   ───┬────     ──┬───   ─┬──   ──┬───
  *      1   +   1    +    6      +    1    +  1   +   1     = 11 segments
  *
- * `MAX_SEGMENTS = 12` is that plus one, so the parser rejects only ids the
+ * That plus one was `MAX_SEGMENTS = 12`, so the parser rejects only ids the
  * schema could not have produced. THE OLD VALUE OF 6 WAS A SHIPPING BUG, not a
  * conservative margin: Aziz's own example path,
  * `root/track:UHR/entity:OB/entity:Org1/group:blocked/entry:X`, is EXACTLY six,
@@ -684,17 +766,38 @@ const SEGMENT = /^(?:(?:track|entity|group|entry):[A-Za-z0-9\-_.!~*'()%]*|more)$
  * rejected id never reaches `resolveFocus`, so `missingId` is never set and the
  * shared link opens the whole map with nothing on screen saying why.
  *
+ * ── AND WAVE 6 ADDED A SECOND TERM, WHICH IS WHY THIS NUMBER MOVED AGAIN ────
+ *
+ * `groupEntities` inserts `cohort:` segments between a structural node and the
+ * organizations under it, and it RECURSES: a bucket still over the ring cap is
+ * re-cut by the next key in the grouping ladder. The ladder is four keys long
+ * (stage · manager · type · vendor), each spendable once, so one grouping site
+ * can nest at most four cohorts — and there is a grouping site at the track and
+ * at each of the six entity levels the depth trigger allows:
+ *
+ *     7 grouping sites × 4 ladder keys = 28 cohort segments, worst case
+ *
+ * 11 + 28 = 39, plus one, is 40. It takes only 25 organizations that agree on
+ * all four keys to exhaust the ladder at one site, so this is not a decorative
+ * margin — it is the same rule as before ("reject only what the schema could not
+ * have produced") applied to a schema that now has cohorts in it. The cost of
+ * being wrong in this direction is a shared link that silently opens the whole
+ * map; the cost of being wrong in the other is an ancestor walk over 40 short
+ * strings.
+ *
  * The length follows from the same arithmetic. The widest segment is a `group:`
  * carrying a percent-encoded owner name (`group:` + up to ~3× a display name);
- * twelve segments of a uuid-bearing worst case is ~520 characters, so 1 024
- * leaves a clear factor of two while still being short enough that a
- * pathological query string cannot make the ancestor walk interesting.
+ * twelve segments of a uuid-bearing worst case was ~520 characters, and a cohort
+ * segment measures 62 at its widest axis word: `cohort:` plus `cohortKeyOf`'s own `cohort:<axis>:<uuid>`
+ * with its colons percent-encoded (model.ts:746, `nodeId` at :789). 28 of those
+ * is ~1 740, for ~2 260 all told. 4 096 keeps the same clear factor of two while
+ * still being far too short for a query string to make the walk interesting.
  *
  * `store/mindtree.ts`'s `MAX_NODE_ID` is the same number for the same reason —
  * it bounds persisted collapse ids, which are these ids. Move them together.
  */
-const MAX_FOCUS_LEN = 1024
-const MAX_SEGMENTS = 12
+const MAX_FOCUS_LEN = 4096
+const MAX_SEGMENTS = 40
 
 function parseFocusId(raw: string | null): string | null {
   if (raw === null || raw === '' || raw.length > MAX_FOCUS_LEN) return null

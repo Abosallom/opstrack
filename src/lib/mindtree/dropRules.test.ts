@@ -706,16 +706,105 @@ describe('the target', () => {
     }
   })
 
-  it('arms exactly the three branch kinds as zones', () => {
+  it('arms exactly the four branch kinds as zones', () => {
     expect(
-      (['root', 'track', 'entity', 'group', 'entry', 'more'] as const).filter(isDropZoneKind),
-    ).toEqual(['track', 'entity', 'group'])
+      (['root', 'track', 'entity', 'cohort', 'group', 'entry', 'more'] as const).filter(
+        isDropZoneKind,
+      ),
+    ).toEqual(['track', 'entity', 'cohort', 'group'])
   })
 
   it('arms the health ring even though every drop on it is refused', () => {
     // The refusal has to be reachable to be read. A ring excluded from the hit
     // test is a ring that explains nothing.
     expect(isDropZoneKind('group')).toBe(true)
+  })
+})
+
+// ── the cohort ring: hoverable, and never a destination ────────────────────
+//
+// `?by=manager` puts a cohort between the track and its organizations, so this
+// ring is BOTH the biggest thing a dragging pointer crosses and a thing no drop
+// may ever land on. The three tests below are the three ways that could go
+// wrong, and the second is the one that would have shipped silently.
+
+const COHORT_KEY = 'cohort:manager:5f2c1a90-0000-4000-8000-000000000001'
+
+describe('a cohort is a zone that always refuses', () => {
+  it('refuses a drop ONTO a cohort with the derived-ring sentence, under every dimension', () => {
+    // `whyDerived` and not a new key: a cohort is worked out from a column the
+    // organizations already carry, which is exactly what that sentence says, and
+    // lib/labelSections.test.ts fails on two keys carrying one string.
+    for (const dimension of ALL_DIMENSIONS) {
+      expect(drop(branch('cohort', COHORT_KEY), dimension), dimension).toEqual({
+        kind: 'refused',
+        reasonKey: 'mindtree.whyDerived',
+      })
+    }
+  })
+
+  it('refuses BEFORE the fold — a cohort must not resolve to its ancestors', () => {
+    // THE ONE THAT WOULD HAVE SHIPPED SILENTLY. `foldPath` skips cohorts, so a
+    // drop that ended on one would have folded root → track and succeeded:
+    // "this track, under no organization". Dropping an issue on "Sara's book"
+    // would have quietly taken it out of Org1 and filed it on the track — a
+    // drag doing something other than what it looked like, which is worse than
+    // one that is refused. The row below is INSIDE Org1, so the folded patch
+    // would have been a real change rather than a no-op.
+    const row = entry({ id: 'e1', track_id: 'trk-1', node_id: 'org-1' })
+    const path = [ROOT, branch('track', 'trk-1'), branch('cohort', COHORT_KEY)]
+    expect(dropAt(path, 'status', row)).toEqual({
+      kind: 'refused',
+      reasonKey: 'mindtree.whyDerived',
+    })
+  })
+
+  it('is TRANSPARENT on the way through: grouping on or off writes the same patch', () => {
+    // The grouping is a lens over one hierarchy, so the same drop onto the same
+    // Organization must write the same two columns whichever chip is lit. A URL
+    // parameter that changed what a drag DOES is the defect `?by=` exists to
+    // avoid.
+    const row = entry({ id: 'e1', track_id: 'trk-0', node_id: null })
+    const ungrouped = [ROOT, branch('track', 'trk-1'), branch('entity', 'org-1')]
+    const grouped = [
+      ROOT,
+      branch('track', 'trk-1'),
+      branch('cohort', COHORT_KEY),
+      branch('entity', 'org-1'),
+    ]
+    expect(dropAt(grouped, 'status', row)).toEqual(dropAt(ungrouped, 'status', row))
+    expect(dropAt(grouped, 'status', row)).toEqual({
+      kind: 'patch',
+      entryId: 'e1',
+      field: 'mapNodeId',
+      value: 'org-1',
+      patch: { trackId: 'trk-1', mapNodeId: 'org-1' },
+    })
+  })
+
+  it('never lets a cohort key reach a DIMENSION column', () => {
+    // The subtler half of the fold guard. `foldPath`'s last arm is `applyGroup`,
+    // so a cohort that got past the filing-kind test would have had its cut key
+    // read as a dimension value — `status = 'cohort:manager:<uuid>'`, the trap
+    // model.ts's `'cohort'` note is written against. Asserted on the PATCH
+    // itself rather than on the verdict, because the verdict would still have
+    // said "patch".
+    const row = entry({ id: 'e1', track_id: 'trk-1' })
+    const path = [ROOT, branch('track', 'trk-1'), branch('cohort', COHORT_KEY), branch('group', 'blocked')]
+    const out = dropAt(path, 'status', row)
+    expect(out.kind).toBe('patch')
+    if (out.kind !== 'patch') return
+    expect(out.patch.status).toBe('blocked')
+    for (const value of Object.values(out.patch)) {
+      expect(String(value ?? '')).not.toContain('cohort:')
+    }
+  })
+
+  it('is refused even when the cohort is the whole path', () => {
+    expect(dropAt([branch('cohort', COHORT_KEY)], 'owner')).toEqual({
+      kind: 'refused',
+      reasonKey: 'mindtree.whyDerived',
+    })
   })
 })
 

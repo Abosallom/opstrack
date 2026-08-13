@@ -709,6 +709,12 @@ export default function MapBranch({
   const selectedCount = selected.size
   // The band's scope, named so "As it stands today" cannot be read against the
   // wrong thing: the whole workspace at the root, otherwise the track.
+  //
+  // KINDS BY NAME, NOT `KIND_ROLE[kind] === 'place'`, and a COHORT is the reason
+  // to say so out loud. A cohort is a `place` — the camera stops on one, the dive
+  // enters one — but it has no `map_nodes` row for the band to read, so it takes
+  // the track arm exactly as a `group` does. Widening this to the role row would
+  // scope "outstanding issues" to a node that does not exist.
   const bandScope =
     node.kind === 'root' || node.kind === 'entity'
       ? node

@@ -185,7 +185,11 @@ import {
   type PanelSubject,
 } from '../lib/mindtree/lens'
 import { ancestorWorlds, layoutWorlds, worldAt } from '../lib/mindtree/worlds'
-import type { MindNode as MindNodeModel } from '../lib/mindtree/model'
+import {
+  MIND_GROUPINGS,
+  type MindGrouping,
+  type MindNode as MindNodeModel,
+} from '../lib/mindtree/model'
 import {
   anchoredZoom,
   cameraAtWidth,
@@ -201,7 +205,12 @@ import { useMapDrag, useMapDragPressing } from './map/useMapDrag'
 import { useMapFocus } from './map/useMapFocus'
 import { useMapGeometry } from './map/useMapGeometry'
 import { isDiveTarget, useMapKeyboard } from './map/useMapKeyboard'
-import { useMapModel, type MapProgressSource } from './map/useMapModel'
+import {
+  BY_FOR_GROUPING,
+  CANVAS_GROUPINGS,
+  useMapModel,
+  type MapProgressSource,
+} from './map/useMapModel'
 import { useMapOverlays } from './map/useMapOverlays'
 import { useMapToolbarActions } from './map/useMapToolbar'
 import { useMapUrl, useMapUrlFilter, useMapUrlPortfolio } from './map/useMapUrl'
@@ -430,7 +439,11 @@ export default function Mindtree(): ReactElement {
     void loadPortfolio(portfolioIds)
   }, [portfolioIds])
 
-  const model = useMapModel(compact, locale, filter, progressSource)
+  // `portfolio.by` IS THE FIFTH ARGUMENT, and it is the whole of this wave's
+  // shell work: the same value the table's rows are built from decides what the
+  // rings are made of. One reading, two consumers — never two `useSearchParams()`
+  // that can disagree about which question the reader is asking.
+  const model = useMapModel(compact, locale, filter, progressSource, portfolio.by)
   // TWO TRUNCATIONS, TWO SENTENCES, and they are not the same fact. `model.truncated`
   // is the ENTRIES clamp (useMapModel.ts:187's `useEntriesTruncated()`) — the work
   // filed under the map is a window, so the counts are low. This one is the
@@ -870,6 +883,50 @@ export default function Mindtree(): ReactElement {
   })
 
   /**
+   * THE GROUPING CHIP'S WRITE — one tap, one `setParams`, and the table follows.
+   *
+   * It lives here rather than in `useMapToolbarActions` because that hook's
+   * verbs all write the STORE (`setMindDimension`, `setMindFocus`, the density),
+   * and this one writes the ADDRESS BAR: `?by=` has no store by design, and the
+   * setter it needs is the shell's own `useMapUrlPortfolio`. Putting a URL write
+   * inside a store-writing hook would give that hook a router dependency its
+   * suite (node environment, no router) cannot mount.
+   *
+   * `BY_FOR_GROUPING` IS TOTAL OVER WHAT THE TOOLBAR OFFERS — the chips are
+   * built from `CANVAS_GROUPINGS`, which is defined as the groupings that have
+   * a `?by=` spelling — so the `undefined` arm is unreachable and returns
+   * without writing rather than writing a default. A chip that silently moved
+   * the reader to a different grouping than the one they pressed is worse than
+   * one that does nothing, and the compiler cannot rule it out through a
+   * `Partial` record.
+   *
+   * NO FOCUS TRIM HERE, unlike `chooseDimension`. A drill-in below a cohort is
+   * an id with a `cohort:` segment in it and the regroup invalidates it; the
+   * trim is pure string arithmetic over the id grammar, which lives in
+   * lib/mindtree/focus.ts and is wave 6's model unit — see the seam note in the
+   * handoff. Until it lands, `resolveFocus` recovers the reader to the nearest
+   * surviving ancestor, which is correct and merely less quiet.
+   */
+  const chooseGrouping = useCallback(
+    (next: MindGrouping) => {
+      const by = BY_FOR_GROUPING[next]
+      if (by === undefined) return
+      setPortfolio({ ...portfolio, by })
+      // The live region gets the STATE, not the button: "no longer grouped" is
+      // what changed about the picture, where "grouped by None" is a sentence
+      // about a chip. MapToolbar's summary draws the same distinction.
+      setLive(
+        next === 'none'
+          ? t('mindtree.groupingNoneChanged')
+          : t('mindtree.groupingChanged', {
+              label: t(MIND_GROUPINGS.find((g) => g.key === next)?.labelKey ?? 'common.none'),
+            }),
+      )
+    },
+    [portfolio, setPortfolio, setLive],
+  )
+
+  /**
    * The two badges on the chips, from the units that own the panels behind
    * them. Both are hooks over the entries and notifications stores, so they are
    * called unconditionally and at the top level, like everything else here.
@@ -1257,6 +1314,14 @@ export default function Mindtree(): ReactElement {
               <MapToolbar
                 dimension={model.dimension}
                 onDimension={toolbar.chooseDimension}
+                grouping={model.grouping}
+                onGrouping={chooseGrouping}
+                /* NULL WHEN THERE IS NOTHING TO GROUP — a workspace with no
+                   organizations drawn gets the one control it has always had.
+                   `hasEntities` is counted off the tree as drawn, so a filter
+                   that hides every organization takes the chip with it rather
+                   than leaving a control that changes nothing. */
+                groupings={model.hasEntities ? CANVAS_GROUPINGS : null}
                 compact={compact}
               />
             </div>

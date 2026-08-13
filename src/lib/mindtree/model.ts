@@ -50,6 +50,24 @@
 //     `count` exceed the sum of its children's, and there is no version of that
 //     which is not a lie.
 //
+//  4. A COHORT REGROUPS THE RING; IT NEVER SHORTENS IT. Four hundred
+//     organizations under one phase is a legal tree and an illegible picture —
+//     the canvas's own packing arithmetic puts the 400th sibling at 4.2 px, one
+//     hair above the DOM horizon. So past a cap the ring is BUCKETED (by account
+//     manager, by kind, by stage, by integrator) into `cohort` nodes, and the
+//     entities move down one ring rather than out of the tree.
+//
+//     THE COHORT IS NOT A THIRD CATEGORY OF THING. Rule 1 holds — nothing is
+//     dropped, and a ladder that cannot get a ring under the cap returns the
+//     wide ring untouched rather than hiding a row. Rule 2 holds — a cohort's
+//     `count` is the sum of the entities inside it, computed off the subtree it
+//     actually built. Rule 3 holds in the shape it was written: a cohort exists
+//     only because it holds entities, so an empty one is never drawn, and no
+//     organization ever stops being drawn because a cohort appeared above it.
+//     And which entities land in which cohort is READ FROM THE DATA, never
+//     configured: `MindGrouping` is a reader's choice of axis, exactly like
+//     `MindDimension` one ring further down.
+//
 // COLOUR IS INHERITED, NEVER PICKED. A node carries `colourVars` — the custom
 // property pair from `trackVars()` — and every descendant of a track carries the
 // same pair, so a whole branch reads as one colour family. There is no JS colour
@@ -101,6 +119,135 @@ export function isMindDimension(v: unknown): v is MindDimension {
   return MIND_DIMENSIONS.some((d) => d.key === v)
 }
 
+// ── the second axis: what a RING of entities is cut by ─────────────────────
+//
+//   MindDimension  buckets ENTRIES   under a structural node  (status|owner|…)
+//   MindGrouping   buckets ENTITIES  under a structural node  (stage|manager|…)
+//
+// Two axes, one file, for `MIND_DIMENSIONS`' own reason: the union, the row list
+// and the bucketing pass have to agree, and keeping them within a screen of each
+// other is what makes a fourth member impossible to half-add.
+
+/**
+ * Ring N's cut — how the ORGANIZATIONS under a node are grouped when there are
+ * too many of them to name individually.
+ *
+ * `none` is a real member and the identity: it means "show me the organizations
+ * themselves", produces no cohort at any fan-out, and is what every caller that
+ * predates this axis gets by omission. It is a member rather than an
+ * `undefined` because the reader can ASK for it from the toolbar, and an
+ * affordance whose value cannot be represented is an affordance that cannot be
+ * turned off.
+ *
+ * `type` is the node's KIND (`map_nodes.kind_id` — Organization, Phase, and
+ * whatever else the workspace named), not the entry type. `vendor` is
+ * `map_nodes.vendor`, free text by 0023's decision, which is why it is the only
+ * key here with no declared order.
+ */
+export type MindGrouping = 'none' | 'stage' | 'manager' | 'type' | 'vendor'
+
+/** Every grouping that actually buckets. `none` is the absence of one. */
+export type MindCohortKey = Exclude<MindGrouping, 'none'>
+
+/**
+ * The switcher's rows, in reading order, with their labels — `MIND_DIMENSIONS`'
+ * twin, and for the same three reasons stated there.
+ *
+ * THE LABELS ARE THE PORTFOLIO'S OWN WORDS, deliberately reused rather than
+ * restated. `?by=` drives the portfolio table and this ring from one parameter
+ * (ease-of-use budget E5), and two chips reading "Team" on one screen and
+ * "Account manager" on the other would be two vocabularies for one control.
+ * `structure.kind` and `common.none` are borrowed for the same reason: the words
+ * already exist and already mean this.
+ */
+export const MIND_GROUPINGS: readonly { key: MindGrouping; labelKey: string }[] = [
+  { key: 'none', labelKey: 'common.none' },
+  { key: 'stage', labelKey: 'mindtree.portfolioByStage' },
+  { key: 'manager', labelKey: 'mindtree.portfolioByManager' },
+  { key: 'type', labelKey: 'structure.kind' },
+  { key: 'vendor', labelKey: 'mindtree.portfolioByVendor' },
+]
+
+/**
+ * The guard a persisted preference or a URL parameter must pass.
+ *
+ * ⚠ `?by=` IS SHARED WITH THE PORTFOLIO LENS AND THE TWO UNIONS ARE NOT EQUAL.
+ * `PortfolioBy` (lib/mindtree/lens.ts) holds `phase`, which is a table grouping
+ * with no meaning on a canvas that already draws phases as rings, and it has no
+ * `none`, because a table with no grouping is just its rows. So a canvas reading
+ * `?by=phase` degrades to the default here rather than rendering an empty axis —
+ * which is exactly what this guard is for, and the same thing it does for a
+ * stale `by=wave` written by a future build.
+ */
+export function isMindGrouping(v: unknown): v is MindGrouping {
+  return MIND_GROUPINGS.some((g) => g.key === v)
+}
+
+/**
+ * THE ORDER THE OVERFLOW FALLS THROUGH, and it is the org chart, not a
+ * preference.
+ *
+ * When the reader's chosen key still leaves a cohort too wide, the next key is
+ * spent on it: an account manager's book divides into kinds, a kind divides into
+ * stages, a stage divides by integrator. Manager leads because it is the
+ * division the team actually works in — an AM's ring IS their book — and vendor
+ * trails because it is free text with no declared order and no guarantee that
+ * two spellings of one company are one bucket.
+ *
+ * A key is spent AT MOST ONCE on any path down the tree, and that is a BOUND
+ * rather than a correctness guard: everything inside a `manager:` cohort shares
+ * that manager, so re-cutting by manager beneath it produces one bucket holding
+ * everything, which `groupRing`'s "at least two buckets" rule already refuses.
+ * Dropping the spent key from the list makes the same tree — it just stops the
+ * recursion from re-bucketing four hundred organizations to learn that. What
+ * the filter DOES buy is a depth this module can state: at most one ring per
+ * ladder key, so the tree cannot grow a tier for every retry.
+ */
+export const GROUPING_LADDER: readonly MindCohortKey[] = ['manager', 'type', 'stage', 'vendor']
+
+/**
+ * HOW MANY SIBLINGS A RING MAY HOLD BEFORE IT MUST BE GROUPED — the canvas's
+ * number, re-derived from its own packing constants rather than picked.
+ *
+ * `packRing`'s ratio (lib/mindtree/radial.ts) says a parent framed on a
+ * 1600×900 stage comes up at ~726 CSS px, and a child at `726 / ratio(n)`: at
+ * n = 9 that is 143 px (a named card), at n = 24 it is 64 px (a chip), at
+ * n = 25..60 it is a ringed dot that renders NO TEXT by design, and at n = 400
+ * it is 4.2 px. 24 is the last fan-out at which a sibling is still a MARK the
+ * reader can aim at and dive into, rather than one of sixty dots.
+ *
+ * ⚠ IT IS NOT THE LAST FAN-OUT AT WHICH EVERY SIBLING CARRIES A NAME, and an
+ * earlier draft of this paragraph said it was. `MindNode` draws words at the
+ * `card` band and at a holding terminal, and NOWHERE ELSE — wave 5 removed the
+ * chip's outside label rather than keeping it, because a name there is
+ * 3.25-9.8 px, which is the same lie about legibility the `state` band already
+ * refuses to tell (MindNode.tsx's `showText`, lod.ts's header). So the cap is a
+ * floor on POINTABILITY, not on legibility: whether a given ring's marks land
+ * in `card` or in `chip` depends on the camera and on how big each child's own
+ * world is, which is a question this module has no way to ask.
+ *
+ * The render gate measures the consequence at 400 organizations rather than
+ * leaving it to prose (`mapRender.test.tsx`, the `large-grouped` fixture): at
+ * `?by=stage` the desktop opening camera frames eight stage cohorts, and only
+ * the widest of them lands in `card` — the other seven are named on the rim
+ * when the reader flies to them and are unnamed marks until then. That is a
+ * cost of the AXIS, not of the cap; it is why `RING_CAP` is not the whole
+ * legibility story and why the gate keeps a picture of it.
+ *
+ * IT IS AN INPUT, NOT A CONSTANT READ HERE. Which of the two numbers applies is
+ * a question about a viewport, and this module has no viewport, no clock and no
+ * device — the caller passes `ringCap: compact ? RING_CAP_COMPACT : RING_CAP`
+ * exactly as it already passes `leafThreshold`.
+ */
+export const RING_CAP = 24
+
+/**
+ * The same arithmetic at 375 px: the ring's last pointable chip lands at n = 16,
+ * so a phone groups eight organizations sooner than a desktop does. "Compact" is
+ * the caller's word for its own viewport; nothing here asks what it means.
+ */
+export const RING_CAP_COMPACT = 16
+
 // ── the node ───────────────────────────────────────────────────────────────
 
 /**
@@ -112,8 +259,71 @@ export function isMindDimension(v: unknown): v is MindDimension {
  * for an organization would make the commonest drag on the new hierarchy write
  * `track_id = <org uuid>`: an FK violation on a good day, and a row filed under
  * the wrong track on a bad one.
+ *
+ * `cohort` IS ITS OWN KIND FOR THE SAME REASON, and the two kinds it could have
+ * reused are both wrong in a way that writes to the database.
+ *
+ * NOT `group`. A cohort must be DIVEABLE — flying into "Sara's organizations"
+ * is the gesture the whole grouping exists for — so `group` would have to join
+ * `worlds.ts`' STRUCTURAL_KINDS, which would make every status bucket in the
+ * workspace a place the dive can enter and contradict that constant's own rule.
+ * And `dropRules` sets the DIMENSION'S VALUE from a drop on a group: dragging an
+ * entry onto a cohort labelled with a person's name would write
+ * `status = '<a synthetic cohort key>'`.
+ *
+ * NOT `entity`. That is the symmetric failure to the paragraph above:
+ * `bucketKey` on an `entity` IS a `map_nodes.id`
+ * (lib/mapNodes.entityIdOf), and a cohort's key is synthetic — it would reach
+ * `api/map.ts` and the organization sidebar as if a row existed for it. The
+ * synthetic keys are minted with a `cohort:` prefix a uuid cannot hold, so the
+ * failure is refused twice: by the kind, and by the shape of the key.
  */
-export type MindNodeKind = 'root' | 'track' | 'group' | 'entry' | 'more' | 'entity'
+export type MindNodeKind = 'root' | 'track' | 'group' | 'entry' | 'more' | 'entity' | 'cohort'
+
+/**
+ * WHAT A KIND IS FOR, as three answers instead of seven names.
+ *
+ *  · `place`  — has an identity of its own and a world the dive may enter. The
+ *               root, a track, an organization, a cohort. `worlds.ts`'
+ *               STRUCTURAL_KINDS and `focus.ts`' `isStructuralKind` are this
+ *               row, exactly. `focus.ts`' `isPlaceKind` is NOT: that one is
+ *               `canFocus`'s narrower exception — "does framing this node still
+ *               answer something when it holds nothing" — which is `entity` and
+ *               `cohort` and deliberately not `root` or `track`. An empty track
+ *               is drawn so "which track has nothing on it" is visible, which is
+ *               a different claim from "make it the screen".
+ *  · `bucket` — drawn as CONTENT inside its owner's world and never framed: a
+ *               dimension bucket, and the "+N more" fold that holds a bucket's
+ *               tail.
+ *  · `leaf`   — an entry. The only kind that carries an `entryId`.
+ *
+ * WHY A TABLE AND NOT A PREDICATE PER QUESTION. About twenty-seven places in
+ * this app ask a kind question by writing `kind === 'track' || kind === 'entity'`
+ * — an `===` chain, which is exactly the shape the compiler cannot help with:
+ * adding `'cohort'` to the union above red-lines NOTHING, and every one of those
+ * sites silently answers "no" for the new kind. A `Record` over the union does
+ * not compile until the new member has an answer, so the next kind is a build
+ * error at every site that reads this instead of a bug at every site that
+ * forgot.
+ *
+ * ⚠ IT IS NOT A SUBSTITUTE FOR THE EXACT KIND WHERE THE EXACT KIND IS WHAT GETS
+ * WRITTEN. A drop on a `track` writes `track_id = bucketKey` and a drop on an
+ * `entity` writes `node_id = bucketKey`; both are `place`, and treating them as
+ * one is the FK violation this file's `'entity'` paragraph exists to prevent.
+ * The role answers "may I frame it / is it structure"; it never answers "what
+ * column does its key belong in".
+ */
+export type MindNodeRole = 'place' | 'bucket' | 'leaf'
+
+export const KIND_ROLE: Readonly<Record<MindNodeKind, MindNodeRole>> = Object.freeze({
+  root: 'place',
+  track: 'place',
+  entity: 'place',
+  cohort: 'place',
+  group: 'bucket',
+  more: 'bucket',
+  entry: 'leaf',
+})
 
 /**
  * A node's label is EITHER an i18n key the renderer passes through `t()`, OR a
@@ -193,11 +403,16 @@ export interface MindNode {
   depth: number
   /** `kind: 'entry'` only — the id `openEntry()` wants. Null everywhere else. */
   entryId: string | null
-  /** The raw bucket value behind a track, entity or group node (a track id, a
-   *  map-node id, a status key, an owner key). Null for root, entry and more.
+  /** The raw bucket value behind a track, entity, cohort or group node (a track
+   *  id, a map-node id, a synthetic `cohort:<axis>:<value>` key, a status key, an
+   *  owner key). Null for root, entry and more.
    *  Lets a caller turn a clicked branch into a filter facet without parsing the
    *  id back apart. WHICH of those it is comes from `kind`, never from the shape
-   *  of the string — two uuids are indistinguishable. */
+   *  of the string — two uuids are indistinguishable. A cohort's key is the one
+   *  exception and it is belt-and-braces rather than a licence: it carries a
+   *  prefix no uuid column can hold, so a site that forgot to check `kind` fails
+   *  loudly at the database instead of quietly against the wrong row. Read it
+   *  through `cohortOf()`, never by slicing the string. */
   bucketKey: string | null
   /**
    * `kind: 'entity'` only — which KIND of thing this node is (Programme, Phase,
@@ -333,6 +548,57 @@ export interface MindMember {
   displayName: string
 }
 
+/**
+ * THE FOUR COLUMNS A COHORT IS CUT ON, AND NOTHING ELSE — one row per node of
+ * the hierarchy, in any order.
+ *
+ * A SEPARATE LIST FROM `entities`, and the separation is the performance
+ * contract rather than tidiness. `MindEntity` deliberately does NOT carry
+ * `vendor` or `account_manager_id` (useMapModel's own note: "a model that
+ * carried it would invalidate the whole tree every time somebody typed a
+ * character into that field"), and that reason survives here: the caller
+ * memoises this array on these five columns ALONE, so editing an organization's
+ * description rebuilds nothing.
+ *
+ * PLAIN DATA, KEYS NOT WORDS. `stageId` is `map_node_progress.stage_id`,
+ * `typeKey` is `map_nodes.kind_id`, `managerId` is `map_nodes.account_manager_id`
+ * — ids, because a label is a locale's business and this module resolves none.
+ * The words come from `stages`, `kinds` and `members` below, in the workspace's
+ * own order; a key nothing declares still gets a bucket, marked retired, for the
+ * reason every other unexplained value in this file does (rule 1: a row is never
+ * dropped because its label went missing).
+ *
+ * `vendor` IS THE EXCEPTION AND IT IS FREE TEXT (0023's decision, restated in
+ * lib/entryFilter's owner matching): the string IS the key and the label, two
+ * spellings of one company stay two cohorts, and this module guesses nothing.
+ */
+export interface MindEntityFacet {
+  /** `map_nodes.id` — the row in `entities` this describes. */
+  id: string
+  managerId: string | null
+  typeKey: string | null
+  vendor: string | null
+  stageId: string | null
+}
+
+/**
+ * One DECLARED bucket for a grouping axis, already resolved for the locale —
+ * a stage rung, a node kind. `MindVocabOption` is assignable as-is, and
+ * `useStages()`/`useKinds()` rows are after the small mapping the page performs.
+ *
+ * The list's ORDER is the workspace's order (`sort_order`), and it is the
+ * cohort ring's order — the same contract `vocab` holds one ring down, for the
+ * same reason: a workspace that dragged its stage ladder into a new shape sees
+ * that shape on the map.
+ */
+export interface MindFacetOption {
+  key: string
+  /** `lib/labels` against `name`/`name_ar` — never the raw column. */
+  label: string
+  /** A rung the admin retired. Drawn when populated, marked; never dropped. */
+  hidden?: boolean
+}
+
 export interface MindtreeInput {
   /** The RAW working set — `useEntryList()`. Filtering happens here (rule 1). */
   entries: Entry[]
@@ -355,9 +621,45 @@ export interface MindtreeInput {
   entities: readonly MindEntity[]
   /** The active dimension's options, or `[]` for owner and health. */
   vocab: readonly MindVocabOption[]
-  /** The roster, in display order — `useMembers()`. */
+  /** The roster, in display order — `useMembers()`. It orders the `manager`
+   *  cohort ring as well as the owner buckets: one roster, one order, and a
+   *  person in the same place on both rings. */
   members: readonly MindMember[]
   dimension: MindDimension
+  /**
+   * How the ENTITY ring is cut. Omit it (or pass `none`) and no cohort is ever
+   * built at any fan-out, which is byte-for-byte the tree this module produced
+   * before the axis existed.
+   *
+   * OPTIONAL, UNLIKE `entities`, and the difference is the same one drawn there:
+   * `entities` is the FEATURE and a caller who forgot it would ship a map
+   * missing a whole hierarchy with nothing to show for it, while this is a
+   * PREFERENCE — the reader's `?by=`, one chip away, whose omission produces
+   * exactly the picture the reader asked for by not asking.
+   */
+  grouping?: MindGrouping
+  /**
+   * The grouping columns, one row per hierarchy node. Required in practice
+   * whenever `grouping` is not `none`, and OPTIONAL in the type because the
+   * honest degradation already exists: with no facets every entity holds the
+   * same "not recorded" value, one bucket holds everything, and a ring that
+   * holds everything is refused as saying nothing — so the ladder falls through
+   * to the next key and, failing that, to the wide ring. A missing memo shows up
+   * as ungrouped organizations, never as 400 rows behind one cohort.
+   */
+  entityFacets?: readonly MindEntityFacet[]
+  /** `map_node_stages` in `sort_order`, labels resolved — the `stage` ring's
+   *  order. Omitted, every stage id reads as an undeclared value. */
+  stages?: readonly MindFacetOption[]
+  /** `map_node_kinds` in `sort_order`, labels resolved — the `type` ring's. */
+  kinds?: readonly MindFacetOption[]
+  /**
+   * How many entities a ring may hold before it is grouped —
+   * `compact ? RING_CAP_COMPACT : RING_CAP`, threaded exactly as
+   * `leafThreshold` already is. Defaults to `RING_CAP`; a non-finite or
+   * sub-1 value falls back to it rather than grouping a ring of one.
+   */
+  ringCap?: number
   filter: FilterState
   /**
    * `me` and `today`, the two values a filter needs and cannot know. Present
@@ -420,6 +722,76 @@ const HEALTH_LABEL: Readonly<Record<HealthLevel, string>> = {
   stale: 'health.stale',
   overdue: 'health.overdue',
   critical: 'health.critical',
+}
+
+/**
+ * THE PREFIX THAT MAKES A COHORT'S KEY UNMISTAKABLE.
+ *
+ * Every id in this schema is a uuid, and a uuid is 32 hex digits and four
+ * hyphens — it cannot contain a colon. So `cohort:manager:<uuid>` is a string no
+ * `map_nodes.id` column, no `entries.node_id` and no PostgREST filter can ever
+ * accept: a site that reads `bucketKey` without checking `kind` gets a 22P02
+ * from the database rather than a row belonging to somebody else. That is the
+ * SECOND guard; the first is `kind !== 'entity'`, which `entityIdOf` enforces.
+ */
+const COHORT_PREFIX = 'cohort:'
+
+/** The "not recorded" bucket's label, per axis. Written as a table rather than
+ *  `mindtree.cohortNo${key}` so localeReach.test.ts can see all four. */
+const COHORT_NO_VALUE_LABEL: Readonly<Record<MindCohortKey, string>> = {
+  // "Nobody has said" is a FILING GAP, so it trails the declared rungs exactly
+  // as the untracked pile trails the real tracks in ring 1.
+  stage: 'mindtree.portfolioUnstaged',
+  // An organization with no account manager is UNCLAIMED WORK, which is the
+  // single most actionable thing on this screen — so it LEADS, for the reason
+  // `ownerGroups` puts Unassigned first and the untracked pile last.
+  manager: 'filter.managerNone',
+  type: 'structure.kindNone',
+  vendor: 'mindtree.portfolioNoVendor',
+}
+
+/** A key no declared option explains — a deleted stage, a member off the roster. */
+const COHORT_UNKNOWN_LABEL: Readonly<Record<MindCohortKey, string>> = {
+  stage: 'mindtree.unknownGroup',
+  manager: 'mindtree.unknownOwner',
+  type: 'mindtree.unknownGroup',
+  // Unreachable — `vendor` declares no options, so it has no undeclared values.
+  // Present because the table is total over the union, which is what makes a
+  // fifth axis a compile error here instead of a blank label on the glass.
+  vendor: 'mindtree.unknownGroup',
+}
+
+/**
+ * The one place a cohort's key is MINTED, and the one place it is read back.
+ *
+ * `lib/mapNodes.entityIdOf`'s argument, applied to the other synthetic key in
+ * this tree: two callers needing the same answer is two chances to disagree
+ * about it, and string surgery on a key that contains free-text vendor names —
+ * which may themselves contain a colon — is exactly where that disagreement
+ * would land. `value` is everything after the second colon, so it round-trips
+ * whatever the vendor column held.
+ */
+export function cohortKeyOf(grouping: MindCohortKey, value: string): string {
+  return `${COHORT_PREFIX}${grouping}:${value}`
+}
+
+/** What a cohort node is a cohort OF, or null when the node is not one. */
+export interface MindCohort {
+  grouping: MindCohortKey
+  /** The facet value — a stage id, a member id, a kind id, a vendor's name.
+   *  The empty string is "not recorded", `NO_VALUE`'s meaning everywhere else. */
+  value: string
+}
+
+export function cohortOf(node: Pick<MindNode, 'kind' | 'bucketKey'>): MindCohort | null {
+  const key = node.bucketKey
+  if (node.kind !== 'cohort' || key === null || !key.startsWith(COHORT_PREFIX)) return null
+  const rest = key.slice(COHORT_PREFIX.length)
+  const cut = rest.indexOf(':')
+  if (cut < 0) return null
+  const grouping = rest.slice(0, cut)
+  if (!isMindGrouping(grouping) || grouping === 'none') return null
+  return { grouping, value: rest.slice(cut + 1) }
 }
 
 // ── small helpers ──────────────────────────────────────────────────────────
@@ -502,6 +874,23 @@ function rollUp(children: readonly MindNode[]): MindHealth {
  */
 function clampThreshold(n: number): number {
   return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0
+}
+
+/**
+ * The ring cap, defaulted and floored at ONE.
+ *
+ * `clampThreshold`'s reasoning with a different floor. A NaN — which is what a
+ * viewport measurement divided by nothing produces — would make every
+ * comparison in `groupRing` false and quietly draw four hundred siblings; a
+ * zero or a negative would try to group a ring of one, which cannot terminate
+ * usefully and can only add tiers to reach a single organization. 1 is the
+ * smallest cap that still means something ("group as soon as there are two"),
+ * and the default is the desktop's, because a caller that says nothing about
+ * its viewport is not on a phone.
+ */
+function clampRingCap(n: number | undefined): number {
+  if (n === undefined || !Number.isFinite(n)) return RING_CAP
+  return Math.max(1, Math.floor(n))
 }
 
 /**
@@ -709,6 +1098,204 @@ function planEntities(entities: readonly MindEntity[]): EntityForest {
   }
 
   return { roots, placed }
+}
+
+// ── the cohort ring: grouping the entities under one node ──────────────────
+//
+// `groupsFor` below buckets ENTRIES by the dimension; this buckets ENTITIES by
+// the grouping. It is that function's twin one ring up, and it runs at exactly
+// one point — where `structuralNode` walks its `plans` — so a cohort can only
+// ever appear where an organization would have.
+
+/** One bucket of entities, before it becomes a node. */
+interface CohortBucket {
+  /** `cohortKeyOf(axis, value)` — synthetic, uuid-proof, minted once. */
+  key: string
+  label: MindLabel
+  retired: boolean
+  plans: EntityPlan[]
+}
+
+/** A cohort and what it holds: entities, or narrower cohorts still. */
+interface CohortDef {
+  key: string
+  label: MindLabel
+  retired: boolean
+  ring: EntityRing
+}
+
+/**
+ * What one structural node's entity ring IS — the entities themselves, or the
+ * cohorts they were bucketed into.
+ *
+ * A DISCRIMINATED UNION rather than "cohorts, possibly empty", because the
+ * ungrouped case is not a degenerate grouping: it is the case rule 4 promises
+ * (≤ cap resolves to organizations and draws no cohort at all), and a renderer
+ * or a test that has to tell "no cohorts" from "no entities" by inspecting an
+ * array's length is a renderer that will eventually get it wrong.
+ */
+type EntityRing =
+  | { readonly grouped: false; readonly plans: readonly EntityPlan[] }
+  | { readonly grouped: true; readonly cohorts: readonly CohortDef[] }
+
+/** Which value of the active axis one entity holds. `NO_VALUE` for "not
+ *  recorded", which is a bucket like any other and never a reason to drop. */
+function facetValue(axis: MindCohortKey, facet: MindEntityFacet | undefined): string {
+  if (facet === undefined) return NO_VALUE
+  if (axis === 'stage') return facet.stageId ?? NO_VALUE
+  if (axis === 'manager') return facet.managerId ?? NO_VALUE
+  if (axis === 'type') return facet.typeKey ?? NO_VALUE
+  // Free text, so it is TRIMMED before it becomes a key — "Acme" and "Acme "
+  // are one company and a whitespace-only cell is nothing recorded, which is
+  // the same normalisation `ownerBucket` applies to `owner_name`.
+  const vendor = (facet.vendor ?? '').trim()
+  return vendor === '' ? NO_VALUE : vendor
+}
+
+/**
+ * The declared buckets for an axis, in the workspace's own order.
+ *
+ * `manager` reads the ROSTER rather than a list of its own: `members` is
+ * already here, already in display order, and already the order the owner
+ * buckets read in one ring down. Two orders for one set of people is the sort
+ * of difference nobody notices until they are looking for a name.
+ */
+function declaredOptions(axis: MindCohortKey, input: MindtreeInput): readonly MindFacetOption[] {
+  if (axis === 'stage') return input.stages ?? []
+  if (axis === 'type') return input.kinds ?? []
+  if (axis === 'manager') {
+    return input.members.map((member) => ({ key: member.id, label: member.displayName }))
+  }
+  // `vendor` declares nothing — see MindEntityFacet.
+  return []
+}
+
+/**
+ * Bucket one ring of entities by one axis, in that axis's own order.
+ *
+ * THE ORDER IS THE AXIS'S, NOT THE DATA'S, for `vocabGroups`' reason: the
+ * admin's sequence is the sequence every picker and every column in the app
+ * reads in, and a ring that sorted itself by size would put the stage ladder in
+ * a different order on every workspace and after every write.
+ *
+ * `vendor` is the one axis with no declared order, so it takes the only total
+ * one available: most organizations first (the cohort question IS "which
+ * integrator unblocks the most"), tied on the FOLDED name so two spellings sort
+ * together, tied again on the raw key so the result never depends on the host's
+ * collation (lib/entryFilter's title sort documents the same choice).
+ */
+function bucketBy(axis: MindCohortKey, plans: readonly EntityPlan[], ctx: BuildContext): CohortBucket[] {
+  const held = new Map<string, EntityPlan[]>()
+  for (const plan of plans) push(held, facetValue(axis, ctx.facets.get(plan.entity.id)), plan)
+
+  const defs: CohortBucket[] = []
+  const bucket = (value: string, label: MindLabel, retired: boolean): void => {
+    const plansHeld = held.get(value)
+    if (!plansHeld) return
+    held.delete(value)
+    defs.push({ key: cohortKeyOf(axis, value), label, retired, plans: plansHeld })
+  }
+  const notRecorded = (): void => bucket(NO_VALUE, keyLabel(COHORT_NO_VALUE_LABEL[axis]), false)
+
+  if (axis === 'manager') notRecorded()
+
+  if (axis === 'vendor') {
+    const rest = [...held.keys()].filter((key) => key !== NO_VALUE)
+    rest.sort((a, b) => {
+      const byCount = (held.get(b)?.length ?? 0) - (held.get(a)?.length ?? 0)
+      if (byCount !== 0) return byCount
+      const x = normalizeSearch(a)
+      const y = normalizeSearch(b)
+      return x < y ? -1 : x > y ? 1 : a < b ? -1 : a > b ? 1 : 0
+    })
+    for (const value of rest) bucket(value, textLabel(value), false)
+  } else {
+    for (const option of declaredOptions(axis, ctx.input)) {
+      const name = option.label.trim()
+      // A blank name falls through to "Unknown" rather than rendering a
+      // name-shaped hole — `ownerGroups` makes the same call for the same
+      // half-provisioned account.
+      const label = name === '' ? keyLabel(COHORT_UNKNOWN_LABEL[axis]) : textLabel(name)
+      bucket(option.key, label, option.hidden === true)
+    }
+  }
+
+  if (axis !== 'manager') notRecorded()
+
+  // Values nothing declared: a stage the admin deleted, an account manager who
+  // left the workspace. Marked retired and drawn, never dropped — rule 1, and
+  // store/vocab's frozen "hiding an option must never hide data" from the other
+  // side. Sorted so a build that produces two of them renders them the same way
+  // twice in a row.
+  for (const value of [...held.keys()].sort()) {
+    bucket(value, keyLabel(COHORT_UNKNOWN_LABEL[axis]), true)
+  }
+
+  return defs
+}
+
+/**
+ * THE GROUPING PASS. One ring of entities in, the same entities out — regrouped
+ * if that makes the ring legible, untouched if it cannot.
+ *
+ * The four steps, and every one of them is rule 4 of the header:
+ *
+ *  1. `plans.length <= cap` → the entities, unchanged. A ring small enough to
+ *     name is never bucketed, at any grouping: the reader asked for
+ *     organizations and there is room to draw organizations.
+ *  2. Otherwise the active axis is tried, then the ladder's, skipping any
+ *     already spent on this path. An axis is ACCEPTED when it produces at least
+ *     two buckets (one holding everything is a ring that says nothing) and
+ *     fewer buckets than there were entities (one bucket per entity renames the
+ *     ring and adds a tier to reach it). The first accepted axis that lands at
+ *     or under the cap wins outright.
+ *  3. Every cohort still over the cap recurses with the axes that are left.
+ *  4. Ladder exhausted with nothing under the cap → the NARROWEST acceptable
+ *     cut, and if there was none, the wide ring itself. Thirty named vendor
+ *     cohorts is not legible at a cap of 24, and it is thirty marks instead of
+ *     four hundred, each carrying a name and a number. Dropping a row to make
+ *     the picture fit is the one thing rule 1 forbids outright.
+ */
+function groupEntities(plans: readonly EntityPlan[], ctx: BuildContext): EntityRing {
+  const grouping = ctx.input.grouping ?? 'none'
+  // `none` is the reader's explicit "show me the organizations". At 400 that is
+  // a dense ring, and it is the ring they asked for; the toolbar's other four
+  // chips are one tap away and the ladder is not entered behind their back.
+  if (grouping === 'none') return { grouped: false, plans }
+  const axes = [grouping, ...GROUPING_LADDER.filter((axis) => axis !== grouping)]
+  return groupRing(plans, axes, ctx)
+}
+
+function groupRing(
+  plans: readonly EntityPlan[],
+  axes: readonly MindCohortKey[],
+  ctx: BuildContext,
+): EntityRing {
+  if (plans.length <= ctx.ringCap || axes.length === 0) return { grouped: false, plans }
+
+  let chosen: { at: number; buckets: CohortBucket[] } | null = null
+  for (let i = 0; i < axes.length; i += 1) {
+    const buckets = bucketBy(axes[i], plans, ctx)
+    if (buckets.length < 2 || buckets.length >= plans.length) continue
+    if (buckets.length <= ctx.ringCap) {
+      chosen = { at: i, buckets }
+      break
+    }
+    if (chosen === null || buckets.length < chosen.buckets.length) chosen = { at: i, buckets }
+  }
+  if (chosen === null) return { grouped: false, plans }
+
+  const spent = chosen.at
+  const rest = axes.filter((_, i) => i !== spent)
+  return {
+    grouped: true,
+    cohorts: chosen.buckets.map((bucket) => ({
+      key: bucket.key,
+      label: bucket.label,
+      retired: bucket.retired,
+      ring: groupRing(bucket.plans, rest, ctx),
+    })),
+  }
 }
 
 // ── ring 2: the dimension ──────────────────────────────────────────────────
@@ -932,7 +1519,21 @@ export function buildMindtree(input: MindtreeInput): MindNode {
     }
   }
 
-  const ctx: BuildContext = { input, forest, byNode, direct }
+  // First row wins on a duplicated id, which is the rule `planEntities` applies
+  // to the entities themselves — the two lists are indexed the same way so a
+  // stale cache cannot make an organization draw under one cohort and count
+  // under another.
+  const facets = new Map<string, MindEntityFacet>()
+  for (const facet of input.entityFacets ?? []) if (!facets.has(facet.id)) facets.set(facet.id, facet)
+
+  const ctx: BuildContext = {
+    input,
+    forest,
+    byNode,
+    direct,
+    facets,
+    ringCap: clampRingCap(input.ringCap),
+  }
   const children = trackDefs(input.tracks, byTrack).map((def) => trackNode(def, ctx))
 
   return {
@@ -972,6 +1573,11 @@ interface BuildContext {
   byNode: ReadonlyMap<string, Entry[]>
   /** Track key → the entries filed at track level, on no node at all. */
   direct: ReadonlyMap<string, Entry[]>
+  /** Node id → its four grouping columns. Indexed once; `bucketBy` runs on
+   *  every overflowing ring and a linear scan per entity would be O(n²). */
+  facets: ReadonlyMap<string, MindEntityFacet>
+  /** `input.ringCap`, already defaulted and floored — see `clampRingCap`. */
+  ringCap: number
 }
 
 /**
@@ -1026,9 +1632,16 @@ export function groupTotals(root: MindNode): MindGroupTotal[] {
   // IT DOES NOT DESCEND INTO A GROUP. A group's children are entries and folds,
   // never groups, and stopping there is what keeps the walk O(branches) instead
   // of O(every entry in the workspace).
+  //
+  // IT ASKS FOR THE ROLE, NOT THE KIND, and that is what made cohorts free here:
+  // the walk descends through every PLACE — root, track, organization, cohort —
+  // and totals every bucket it meets, so a table under a grouped map carries the
+  // same numbers as a table under an ungrouped one. Written as `kind !== 'group'`
+  // this would have been correct too, by luck; written as the role it stays
+  // correct when the next place kind arrives.
   const collect = (node: MindNode): void => {
     for (const child of node.children) {
-      if (child.kind !== 'group') {
+      if (KIND_ROLE[child.kind] === 'place') {
         collect(child)
         continue
       }
@@ -1099,14 +1712,14 @@ interface StructuralDef {
  * tautological.
  */
 function structuralNode(def: StructuralDef, ctx: BuildContext): MindNode {
-  const children: MindNode[] = []
-  let nested = 0
-  for (const plan of def.plans) {
-    const node = entityNode(plan, def.id, def.depth + 1, def.vars, ctx)
-    if (node === null) continue
-    children.push(node)
-    nested += node.count
-  }
+  // THE GROUPING PASS RUNS HERE AND NOWHERE ELSE. Every entity ring in the tree
+  // is walked through this one call, so "a cohort can only appear where an
+  // organization would have" is a property of the code's shape rather than a
+  // rule somebody has to remember.
+  const ring = groupEntities(def.plans, ctx)
+  const nestedRing = ringChildren(ring, def.id, def.depth + 1, def.vars, ctx)
+  const children: MindNode[] = nestedRing.children
+  const nested = nestedRing.count
   if (def.direct.length > 0) {
     for (const group of groupsFor(def.direct, ctx.input)) {
       children.push(groupNode(group, def.id, def.depth + 1, def.vars, ctx.input))
@@ -1147,6 +1760,99 @@ function trackNode(def: TrackDef, ctx: BuildContext): MindNode {
     },
     ctx,
   )
+}
+
+/**
+ * One entity ring, built — whichever of its two shapes it took.
+ *
+ * ONE FUNCTION FOR BOTH BECAUSE THE COUNT MUST BE ACCUMULATED ONCE. Its second
+ * return value is what `structuralNode` adds to `direct.length` and what a
+ * cohort's own `count` IS, and it is summed off the nodes this pass actually
+ * BUILT — never off the plans it was handed. That distinction is the whole
+ * safety of the grouping: an entity that failed to place, or an archived empty
+ * that was dropped, changes this number and therefore changes its ancestors',
+ * so the root — whose count is `entries.length`, computed independently — stops
+ * matching the sum of its children and the invariant test reds.
+ */
+function ringChildren(
+  ring: EntityRing,
+  parentId: string,
+  depth: number,
+  vars: CSSProperties,
+  ctx: BuildContext,
+): { children: MindNode[]; count: number } {
+  const children: MindNode[] = []
+  let count = 0
+  if (ring.grouped) {
+    for (const def of ring.cohorts) {
+      const node = cohortNode(def, parentId, depth, vars, ctx)
+      if (node === null) continue
+      children.push(node)
+      count += node.count
+    }
+  } else {
+    for (const plan of ring.plans) {
+      const node = entityNode(plan, parentId, depth, vars, ctx)
+      if (node === null) continue
+      children.push(node)
+      count += node.count
+    }
+  }
+  return { children, count }
+}
+
+/**
+ * One cohort — "Sara's organizations", "Integrating", "Not recorded" — or null
+ * when it holds nothing that is drawn.
+ *
+ * AN EMPTY COHORT IS NOT DRAWN, and that is the one place a cohort parts
+ * company with the entity beside it. An Organization with nothing on it is a
+ * FACT the map exists to report (rule 3); a cohort is not a thing anybody
+ * configured — it exists only because entities landed in it, so a cohort whose
+ * every member was an archived empty is a ring that summarises nothing. It can
+ * only arise that way: `bucketBy` never mints a bucket for zero entities.
+ *
+ * ITS COUNT IS THE SUBTREE'S, exactly like a track's and an organization's. A
+ * cohort has no `direct` half — nothing is filed ON a cohort, because there is
+ * no row to file it on — so `0 + nested` is the same arithmetic
+ * `structuralNode` does, and `groupTotals` and the accessible table therefore
+ * reconcile straight through it.
+ *
+ * IT IS NOT `structuralNode`. That builder's job is to walk `plans` THROUGH the
+ * grouping pass, and a cohort's ring has already been through it; routing one
+ * back in would re-cut a ring by an axis it was already cut by.
+ */
+function cohortNode(
+  def: CohortDef,
+  parentId: string,
+  depth: number,
+  vars: CSSProperties,
+  ctx: BuildContext,
+): MindNode | null {
+  const id = nodeId(parentId, 'cohort', def.key)
+  const { children, count } = ringChildren(def.ring, id, depth + 1, vars, ctx)
+  if (children.length === 0) return null
+  return {
+    id,
+    kind: 'cohort',
+    label: def.label,
+    count,
+    // COLOUR IS INHERITED, at every depth and by a synthetic node too: a cohort
+    // sits inside a track's branch and reads as part of it. There is no cohort
+    // hue and there must not be one — the map's two visual variables are spent.
+    colourVars: vars,
+    health: rollUp(children),
+    children,
+    collapsed: startsCollapsed(ctx.input, id, depth, true),
+    depth,
+    entryId: null,
+    bucketKey: def.key,
+    // A cohort has no kind. `map_node_kinds` describes rows in `map_nodes`, and
+    // there is no row behind this node — which is the point of the whole
+    // `'cohort'` kind argument above.
+    entityType: null,
+    retired: def.retired,
+  }
 }
 
 /**

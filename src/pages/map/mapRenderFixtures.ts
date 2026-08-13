@@ -131,6 +131,37 @@ function orgs(prefix: string, from: number, n: number): MindNode[] {
   return out
 }
 
+/**
+ * THE SEVEN STAGES 0026 SEEDS, plus the pile of organizations nobody has staged.
+ *
+ * The eighth entry is `''` — `NO_VALUE`, the key `model.ts` buckets "not
+ * recorded" under — and it TRAILS the declared rungs exactly as `bucketBy` puts
+ * it: an unset stage is a filing gap and filing gaps go last.
+ */
+const STAGES = [
+  'Not started',
+  'Kickoff',
+  'Integrating',
+  'Testing/UAT',
+  'Go-live ready',
+  'Live',
+  'Paused',
+  'Unstaged',
+] as const
+
+/**
+ * The three account managers, plus the organizations no AM has claimed.
+ *
+ * FIRST NAMES, unlike `largeTree`'s full ones, and the reason is the glyph
+ * budget rather than realism: a book cohort is a card INSCRIBED in its
+ * children's ring (`room` ≈ 66 units, ~13 glyphs), and it has to carry a stage
+ * prefix as well because thirty-two of these labels have to be distinct inside
+ * one picture. "S3 Sara Al-Otaibi" clips to "S3 Sara Al-…" and the committed
+ * picture stops being one a reviewer can read. `largeTree` already carries the
+ * long-label truncation case; this fixture's job is the RING.
+ */
+const BOOKS_BY_NAME = ['Unclaimed', 'Sara', 'Faisal', 'Nouf'] as const
+
 /** THE 19-ORGANIZATION WORKSPACE — what Aziz has on the live project today. */
 function smallTree(): MindNode {
   let serial = 1
@@ -198,6 +229,105 @@ function largeTree(): MindNode {
     label: 'NphiesCore',
     colourVars: {},
     children: [node({ id: 'track:ob', kind: 'track', label: 'Onboarding', children: ads })],
+  })
+}
+
+/**
+ * THE SAME 400 ORGANIZATIONS UNDER `?by=stage` — the shape `groupEntities`
+ * actually produces, drawn so that the wave's rings can be LOOKED AT.
+ *
+ * ── WHY A FOURTH FIXTURE AND NOT A RELABELLING OF `large` ──────────────────
+ *
+ * `large` is the hierarchy an admin CONFIGURED: two Associate Directors, three
+ * account managers, six kinds, every tier a real `map_nodes` row. This one is
+ * what the reader gets when they press a grouping chip, and its rings are
+ * SYNTHETIC — `kind: 'cohort'`, no row behind them. The two are different
+ * pictures of one portfolio and the gate has to measure both, because the
+ * numbers differ in the one direction that matters: eight stage cohorts and
+ * four books is a ring of 8 over a ring of 4, where `large` is 2 over 3 over 6.
+ * A ring's width is what sets its children's apparent size, so a floor that
+ * holds at 6 is not evidence about 13.
+ *
+ * ── THE SHAPE IS THE MODEL'S, TAKEN FROM THE MODEL ─────────────────────────
+ *
+ * `model.test.ts`'s 400-organization portfolio under `grouping: 'stage'` at
+ * `RING_CAP` produces exactly this: the phase's ring is cut by stage (seven
+ * declared rungs plus the unstaged pile), every one of those is still over the
+ * cap, so the ladder spends `manager` on each — three account managers plus the
+ * unclaimed pile — and the books land at 12-13 organizations, under the cap and
+ * named. Two cohort rings, organizations at depth 5. The numbers here are that
+ * tree's numbers; the assertion that they stay that tree's numbers lives in
+ * `model.test.ts` (`the ring cap holds over EVERY axis and BOTH devices`),
+ * because that is a claim about the MODEL and this file must not turn red when
+ * the model changes shape — the header's first argument.
+ *
+ * ── WHAT IT IS EXPECTED TO SHOW, AND WHY THAT IS NOT A DEFECT ──────────────
+ *
+ * The opening camera does NOT land on an account manager's book here, and it is
+ * the grouping that decides that rather than a miss: `defaultFocusFor` descends
+ * while one child holds every mark the reader owns, and under `?by=stage` an
+ * AM's organizations are scattered across all eight stage rings. So it stops at
+ * the phase and the reader opens one ring wider — on the whole stage ladder,
+ * which is the picture `?by=stage` was pressed to see. Under `?by=manager` the
+ * same walk descends into the reader's own cohort, because every mark is in it.
+ */
+function groupedTree(): MindNode {
+  // 400 organizations over eight stages and four books, RAGGED ON PURPOSE: the
+  // real ladder has a fat middle (most work is Integrating) and a thin top, and
+  // a fixture that divided 400 by 32 would draw a ring of identical marks and
+  // hide the case where one cohort's children are twice another's.
+  // Unclaimed · Sara · Faisal · Nouf, per rung. They sum to 400, and the widest
+  // book is 24 — the cap EXACTLY, which is the ring `model.ts` leaves as
+  // organizations rather than cutting again ("a small group never cohorts"), so
+  // this fixture draws the boundary case rather than a comfortable margin.
+  const PER_STAGE: readonly (readonly number[])[] = [
+    [4, 12, 12, 12], // Not started      40
+    [3, 14, 15, 13], // Kickoff          45
+    [6, 24, 24, 24], // Integrating      78 — the fat rung, and the cap exactly
+    [6, 19, 18, 17], // Testing/UAT      60
+    [4, 13, 12, 11], // Go-live ready    40
+    [4, 18, 18, 17], // Live             57
+    [1, 9, 8, 7], //    Paused           25
+    [10, 16, 15, 14], // Unstaged        55 — the filing gap, and it is not small
+  ]
+  let serial = 1
+  const stages = STAGES.map((stage, stageIndex) => {
+    const books = BOOKS_BY_NAME.map((book, bookIndex) => {
+      const count = PER_STAGE[stageIndex]?.[bookIndex] ?? 0
+      // THE STAGE NUMBER LEADS EVERY LABEL, for `largeTree`'s reason spelled
+      // out there: `MindNode` truncates by GLYPH COUNT, so "Sara" under eight
+      // different stages would clip to eight identical strings and the
+      // double-label check — which has only the text to go on — would report a
+      // defect the drawing does not have. The distinguishing characters go
+      // FIRST, and here that is the rung the book is standing on.
+      const prefix = `cohort:st:${stageIndex}:mgr:${bookIndex}`
+      const kids = orgs(prefix, serial, count)
+      serial += count
+      return node({
+        id: prefix,
+        kind: 'cohort',
+        label: `S${stageIndex + 1} ${book}`,
+        children: kids,
+      })
+    })
+    return node({
+      id: `cohort:st:${stageIndex}`,
+      kind: 'cohort',
+      label: `${stageIndex + 1}. ${stage}`,
+      children: books,
+    })
+  })
+  // THE PHASE IS STILL AN `entity`, and that is the seam this fixture is for:
+  // a cohort ring hangs off a REAL node, so the drawing has to carry both kinds
+  // in one branch. `groupEntities` runs at `structuralNode`'s plans walk, which
+  // is every structural node, so a cohort's parent is always one of these.
+  const phase = node({ id: 'ob', kind: 'entity', label: 'Onboarding', children: stages })
+  return node({
+    id: 'root',
+    kind: 'root',
+    label: 'NphiesCore',
+    colourVars: {},
+    children: [node({ id: 'track:ob', kind: 'track', label: 'Onboarding programme', children: [phase] })],
   })
 }
 
@@ -310,10 +440,17 @@ export interface Fixture {
 }
 
 /**
- * The three workspaces. `large-rtl` is `large`'s TREE — the identical object
+ * The four workspaces. `large-rtl` is `large`'s TREE — the identical object
  * graph, built twice from the same builder — laid out with `direction: 'rtl'`,
  * so any difference the gate finds between them is the mirror and cannot be the
  * data.
+ *
+ * `large-grouped` IS THE SAME 400 ORGANIZATIONS UNDER `?by=stage` — wave 6's
+ * ring, with `kind: 'cohort'` tiers where `large` has configured ones. It is a
+ * fourth workspace rather than a fifth camera on `large` because the TREE is
+ * what differs: eight stage cohorts over four books is a different packing from
+ * two directorates over three managers over six kinds, and a floor that holds
+ * at a fan-out of 6 is not evidence about one of 13.
  */
 export function fixtures(): readonly Fixture[] {
   const small = smallTree()
@@ -338,6 +475,41 @@ export function fixtures(): readonly Fixture[] {
       orgCount: 400,
       tree: largeTree(),
       anchors: { reader: 'am:1', dived: 'ad:0', org: 'am:1:type:0:org:134' },
+    },
+    {
+      id: 'large-grouped',
+      rtl: false,
+      orgCount: 400,
+      tree: groupedTree(),
+      // `reader` IS THE PHASE, not a book, and that is the fixture's own
+      // finding rather than a shortcut: under `?by=stage` an account manager's
+      // organizations are spread across all eight rungs, so `defaultFocusFor`
+      // finds no single child holding every mark and stops one ring out. The
+      // opening camera lands here, on the whole ladder — see `groupedTree`.
+      // `dived` is the fat rung, which is where a reader goes first; `org` is
+      // one organization inside Sara's book on it.
+      anchors: {
+        reader: 'ob',
+        dived: 'cohort:st:2',
+        org: 'cohort:st:2:mgr:1:org:92',
+      },
+    },
+    {
+      // The same grouped tree in Arabic. `large-rtl` proves the mirror over a
+      // CONFIGURED hierarchy; this one proves it over a SYNTHETIC ring, which is
+      // a different claim only because nothing should make it one — `worlds.ts`
+      // reads `kind` in exactly one place (`STRUCTURAL_KINDS`, which admits a
+      // cohort) and the mirror is arithmetic below that. Asserting it is how
+      // "nothing should" stops being an argument.
+      id: 'large-grouped-rtl',
+      rtl: true,
+      orgCount: 400,
+      tree: groupedTree(),
+      anchors: {
+        reader: 'ob',
+        dived: 'cohort:st:2',
+        org: 'cohort:st:2:mgr:1:org:92',
+      },
     },
   ]
 }

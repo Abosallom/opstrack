@@ -831,16 +831,30 @@ if (env?.LOOKAT === '1') {
   const style = withoutImports(`${sheet('../../styles/global.css')}\n${MINDTREE_RAW}\n${RING_RAW}`)
   const written: string[] = []
   for (const m of ALL) {
-    // ONLY THE 400-ORGANIZATION WORKSPACE IS COMMITTED, plus its Arabic opening.
-    // The pictures are review evidence, and six diffs a human will actually look
-    // at beat fifteen nobody opens. `small` is still rendered and still measured
-    // — it is in the stat lines above, and it is what catches a fix that only
-    // works at 400.
+    // ONLY THE 400-ORGANIZATION WORKSPACE IS COMMITTED, plus its Arabic opening
+    // and the two cameras that show wave 6's cohort rings. The pictures are
+    // review evidence, and eight diffs a human will actually look at beat twenty
+    // nobody opens. `small` is still rendered and still measured — it is in the
+    // stat lines above, and it is what catches a fix that only works at 400.
+    //
+    // `large-grouped` COMMITS THREE OF ITS FIVE, and the choice is the wave's
+    // own question rather than a size budget: `opening` is what a reader gets
+    // when they press the Stage chip, `dived-two` is what they get one dive in
+    // (the rung's books, named) — the two halves of "is this legible" — and
+    // `phone` is where the ring cap is 16 and both floors are closest. Its
+    // `zoomed-in` is 450 KB of one organization and says nothing about the
+    // grouping that `large`'s does not already say.
     const wanted =
       m.render.fixture.id === 'large' ||
-      (m.render.fixture.id === 'large-rtl' && m.render.camera.id === 'opening')
+      (m.render.fixture.id === 'large-rtl' && m.render.camera.id === 'opening') ||
+      (m.render.fixture.id === 'large-grouped' &&
+        (m.render.camera.id === 'opening' ||
+          m.render.camera.id === 'dived-two' ||
+          m.render.camera.id === 'phone')) ||
+      (m.render.fixture.id === 'large-grouped-rtl' && m.render.camera.id === 'opening')
     if (!wanted) continue
-    const name = `${m.render.camera.id}${m.render.fixture.rtl ? '-rtl' : ''}.svg`
+    const suffix = m.render.fixture.id.startsWith('large-grouped') ? '-grouped' : ''
+    const name = `${m.render.camera.id}${suffix}${m.render.fixture.rtl ? '-rtl' : ''}.svg`
     const open = m.render.svg.indexOf('<svg')
     const close = m.render.svg.lastIndexOf('</svg>') + '</svg>'.length
     const body = m.render.svg.slice(open, close).replace(
@@ -1099,6 +1113,135 @@ describe('an organization nobody has filed anything under is still a mark', () =
   })
 })
 
+/**
+ * WAVE 6 — A COHORT RING IS A RING OF NAMES, and it is measured here rather
+ * than argued.
+ *
+ * `model.ts` promises that no ring is ever wider than the cap and that no row is
+ * ever dropped to keep it; `model.test.ts` holds that promise over the model.
+ * This block holds the DRAWING's half of it, which is a different claim and the
+ * one the reader actually experiences: a ring at the cap has to arrive on the
+ * glass as marks that carry names. A grouping that met the cap and rendered
+ * thirteen unnamed dots would satisfy every assertion in `model.test.ts`.
+ */
+describe('the cohort rings `?by=` draws are legible where the reader lands', () => {
+  const GROUPED = 'large-grouped'
+
+  it('never packs a ring wider than the desktop cap, anywhere in the grouped tree', () => {
+    // THE FIXTURE'S OWN CONTRACT, and it is asserted because everything below it
+    // is conditional on it: a fixture that quietly grew a ring of sixty would
+    // make "the floors hold at 400 grouped organizations" a claim about a
+    // workspace nobody ships. `RING_CAP` is not imported — this file is the
+    // RENDERER's gate and must not turn red on a model constant — so the number
+    // is stated, with the model's own name for it beside it.
+    const CAP = 24 // model.ts's RING_CAP
+    const widest: { id: string; n: number } = { id: '', n: 0 }
+    const walk = (n: MindNodeModel): void => {
+      if (n.children.length > widest.n) {
+        widest.id = n.id
+        widest.n = n.children.length
+      }
+      for (const child of n.children) walk(child)
+    }
+    const grouped = fixtures().find((f) => f.id === GROUPED) as Fixture
+    walk(grouped.tree)
+    expect(widest.n, `widest ring is ${widest.id}`).toBeLessThanOrEqual(CAP)
+    // …and it REACHES the cap, so the assertion above is about the boundary
+    // rather than about a comfortable fixture.
+    expect(widest.n).toBe(CAP)
+  })
+
+  it('names every ring the camera frames — no child falls to `absent`', () => {
+    // `absent` is the band at which `MindNode` draws NOTHING. A framed ring with
+    // one child in it is a ring the reader is looking at and cannot read, which
+    // is defect 1 of the fifteen and the reason the cap exists at all. Asserted
+    // at every camera of the grouped workspace, not only the opening one: the
+    // phone's cap is 16 and its ring is the tightest picture this gate has.
+    for (const m of ALL) {
+      if (m.render.fixture.id !== GROUPED) continue
+      // `zoomed-in` frames one organization, which has no children by
+      // construction — there is no ring to be legible.
+      if (m.childCount === 0) continue
+      expect(m.childBands.get('absent') ?? 0, statLine(m)).toBe(0)
+    }
+  })
+
+  it('opens on the whole stage ladder, as eight named marks', () => {
+    // WHAT `?by=stage` ACTUALLY SHOWS AT 400 ORGANIZATIONS, pinned as the number
+    // it is. Eight rungs — seven the admin declared plus the pile nobody has
+    // staged — every one of them a card or a chip with its name and its count,
+    // at a camera the reader did not have to touch.
+    //
+    // AND IT IS NOT THE READER'S OWN BOOK, which is the honest consequence of
+    // the axis rather than a miss: `defaultFocusFor` descends only while ONE
+    // child holds every mark the reader owns, and grouping by stage scatters an
+    // account manager's organizations across all eight rungs. So the map opens
+    // one ring wider than it does under `?by=manager`, on the ladder that was
+    // asked for. `mapRenderFixtures.groupedTree` argues it at length.
+    const opening = at(GROUPED, 'opening')
+    expect(opening.render.framedId).toBe('ob')
+    expect(opening.childCount).toBe(8)
+    expect(opening.childBands.get('absent') ?? 0).toBe(0)
+    expect((opening.childBands.get('chip') ?? 0) + (opening.childBands.get('card') ?? 0)).toBe(8)
+    const phone = at(GROUPED, 'phone')
+    expect(phone.childCount).toBe(8)
+    expect((phone.childBands.get('chip') ?? 0) + (phone.childBands.get('card') ?? 0)).toBe(8)
+  })
+
+  it('names ONE of those eight, and that is the measured cost of the axis', () => {
+    // ⚠ THE NUMBER THIS BLOCK EXISTS TO MAKE VISIBLE, pinned so that a change to
+    // it lands in a diff instead of in a screenshot nobody took.
+    //
+    // A chip draws NO WORDS. `MindNode`'s `showText` is `band === 'card' ||
+    // holding` and wave 5 removed the chip's outside label deliberately (a name
+    // there is 3.25-9.8 px). So a ring whose children land in `chip` is a ring of
+    // unnamed marks — pointable, diveable, counted on the rim once you fly to
+    // one, and anonymous until then.
+    //
+    // At `?by=stage` on 400 organizations exactly one cohort — the fat rung — is
+    // wide enough for its world to reach `card`. The ungrouped workspace beside
+    // it names all six of its children at the same camera, because the reader
+    // lands one ring deeper. THIS IS A COST OF THE AXIS, not a defect in the
+    // cap: `?by=manager` puts every mark the reader owns inside one cohort, so
+    // `defaultFocusFor` descends into it and the six type cards come back
+    // (`focus.test.ts`, "where the map opens depends on which axis `?by=` cut").
+    //
+    // It is asserted as `toBe` rather than as a floor on purpose. A wave that
+    // improved it — a bigger `frameFill`, a size encoding, a chip label at a
+    // measured size — SHOULD turn this red and rewrite the number.
+    const grouped = at(GROUPED, 'opening')
+    expect(grouped.childBands.get('card') ?? 0).toBe(1)
+    expect(grouped.childBands.get('chip') ?? 0).toBe(7)
+    // The ungrouped 400-organization workspace, at the same camera, for contrast
+    // — and it is the frozen wave-5 floor, restated here as the comparison.
+    const plain = at('large', 'opening')
+    expect(plain.childBands.get('card') ?? 0).toBe(6)
+    expect(plain.childBands.get('chip') ?? 0).toBe(0)
+  })
+
+  it('draws a cohort as a node of its own kind, so the sheet can see it', () => {
+    // `MindNode` writes `data-kind={node.kind}` and nothing in the drawing
+    // branches on the value today. That is the POINT of asserting it: the kind
+    // reaches the DOM, so a later wave that wants a cohort to read differently
+    // has a hook, and a refactor that dropped `data-kind` would take the hook
+    // with it silently. It also proves the fixture's cohorts survived layout as
+    // cohorts rather than being flattened into their organizations.
+    const opening = at(GROUPED, 'opening')
+    const kinds = new Set(
+      opening.marks.map((mark) => mark.attrs.get('data-kind')).filter((k) => k !== undefined),
+    )
+    expect(kinds.has('cohort')).toBe(true)
+    // …and the ungrouped workspace still draws none, so the attribute is
+    // reporting the tree rather than being written unconditionally.
+    const plain = at('large', 'opening')
+    const plainKinds = new Set(
+      plain.marks.map((mark) => mark.attrs.get('data-kind')).filter((k) => k !== undefined),
+    )
+    expect(plainKinds.has('cohort')).toBe(false)
+    expect(plainKinds.has('entity')).toBe(true)
+  })
+})
+
 describe('a name is drawn once', () => {
   it('never emits one node’s label as both a card and a rim', () => {
     // DEFECT 7, AND WHY IT IS DETECTED BY TEXT RATHER THAN BY ID. `MapCanvas`
@@ -1235,10 +1378,19 @@ describe('Arabic is the exact mirror of English', () => {
   const MIRROR_EPS = 1e-9
 
   it('mirrors every node’s box about the hub, at every camera', () => {
+    // TWO PAIRS, and the second is wave 6's: `large`/`large-rtl` is the mirror
+    // over a hierarchy the admin CONFIGURED, and `large-grouped`/…`-rtl` is the
+    // same mirror over the SYNTHETIC ring `?by=` cuts. The pairing is a list
+    // rather than two literals so a third workspace joins by naming its twin.
+    const PAIRS: readonly (readonly [string, string])[] = [
+      ['large', 'large-rtl'],
+      ['large-grouped', 'large-grouped-rtl'],
+    ]
     const failures: string[] = []
+    for (const [ltrId, rtlId] of PAIRS)
     for (const camera of CAMERAS) {
-      const ltr = at('large', camera.id)
-      const rtl = at('large-rtl', camera.id)
+      const ltr = at(ltrId, camera.id)
+      const rtl = at(rtlId, camera.id)
       const width = ltr.render.layout.bounds.width
       expect(rtl.render.layout.bounds.width, 'the two layouts must be the same size').toBe(width)
 
@@ -1290,9 +1442,15 @@ describe('Arabic is the exact mirror of English', () => {
 })
 
 describe('the gate itself', () => {
-  it('rendered all fifteen pictures, and read a real stylesheet to do it', () => {
+  it('rendered all twenty-five pictures, and read a real stylesheet to do it', () => {
     expect(ALL.length).toBe(fixtures().length * CAMERAS.length)
-    expect(ALL.length).toBe(15)
+    // FIVE FIXTURES × FIVE CAMERAS. It was fifteen until wave 6 added
+    // `large-grouped` and its Arabic twin — the same 400 organizations under
+    // `?by=stage`, with `kind: 'cohort'` rings where `large` has configured
+    // ones. The literal is spelled out rather than derived so that a fixture
+    // SILENTLY DROPPED is a red gate: the product above it would happily agree
+    // with itself at three.
+    expect(ALL.length).toBe(25)
     // If the sheets ever stop declaring what this gate measures, `declaration`
     // throws at import and the suite fails to collect. These four are the ones a
     // reviewer should see the value of when that happens.

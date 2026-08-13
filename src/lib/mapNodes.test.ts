@@ -38,6 +38,7 @@ import {
   useCaseProgress as progressOf,
   type StageIndex,
 } from './mapNodes'
+import { cohortKeyOf, type MindNodeKind } from './mindtree/model'
 import type { MapNode, MapNodeStage, MapNodeUseCase, UseCase, UseCaseStatus } from '../types'
 
 /* ────────────────────────────── fixtures ────────────────────────────── */
@@ -284,6 +285,39 @@ describe('entityIdOf', () => {
 
   it('answers null for an entity with no key rather than inventing one', () => {
     expect(entityIdOf({ kind: 'entity', bucketKey: null })).toBeNull()
+  })
+
+  it('REFUSES A COHORT, whose key is synthetic and would reach api/map.ts as a uuid', () => {
+    // The failure model.ts's `'cohort'` paragraph is written to prevent, tested
+    // at the one door between a `MindNode` and `entries.node_id`. `cohortKeyOf`
+    // mints these, `MapBranch` mounts the org sidebar on this function's answer,
+    // and `api/map.ts` sends it at a uuid column: `22P02 invalid input syntax
+    // for type uuid`, after the panel has already opened.
+    const key = cohortKeyOf('manager', '5f2c1a90-0000-4000-8000-000000000001')
+    expect(entityIdOf({ kind: 'cohort', bucketKey: key })).toBeNull()
+    // And the key really is a thing a uuid column cannot hold, which is the
+    // SECOND of the two refusals — by the kind here, and by the shape there.
+    expect(key).toContain('cohort:')
+  })
+
+  it('answers over the WHOLE kind union, so a new kind cannot default to a node id', () => {
+    // `Record<MindNodeKind, …>` rather than a list of the kinds anybody thought
+    // of: adding a member to the union reds this line until somebody decides
+    // whether its `bucketKey` is a `map_nodes.id`. `'entity'` is the only true,
+    // and every other kind — including the two `'place'` kinds that are not
+    // organizations — must answer null.
+    const expected: Readonly<Record<MindNodeKind, boolean>> = {
+      root: false,
+      track: false,
+      entity: true,
+      cohort: false,
+      group: false,
+      more: false,
+      entry: false,
+    }
+    for (const kind of Object.keys(expected) as MindNodeKind[]) {
+      expect(entityIdOf({ kind, bucketKey: 'x' }), kind).toBe(expected[kind] ? 'x' : null)
+    }
   })
 })
 

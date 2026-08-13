@@ -65,12 +65,14 @@ vi.hoisted(() => {
 
 import { DEFAULT_NODE_SIZE, type NodeSize } from '../../lib/mindtree/layout'
 import type { UseCaseProgress } from '../../lib/mapNodes'
-import type { MindNode } from '../../lib/mindtree/model'
+import { MIND_GROUPINGS, cohortKeyOf, type MindNode } from '../../lib/mindtree/model'
+import { PORTFOLIO_BYS } from '../../lib/mindtree/lens'
 import type { MapNodeUseCase, UseCase, UseCaseStatus } from '../../types'
 
 // Types are erased, so they come through static `import type` while the VALUES
 // arrive after the shims above have run.
-const { collectProgress, collectSizes } = await import('./useMapModel')
+const { BY_FOR_GROUPING, CANVAS_GROUPINGS, GROUPING_FOR_BY, collectProgress, collectSizes, collectStats } =
+  await import('./useMapModel')
 
 /* ────────────────────────────── fixtures ────────────────────────────── */
 
@@ -122,6 +124,20 @@ function node(over: Partial<MindNode> & Pick<MindNode, 'id' | 'kind'>): MindNode
 /** An Organization: `entityIdOf` answers its `bucketKey`, which is its node id. */
 function org(id: string, count: number, children: MindNode[] = []): MindNode {
   return node({ id, kind: 'entity', bucketKey: id, count, children })
+}
+
+/**
+ * A cohort, minted the way `bucketBy` mints one — through `cohortKeyOf`, so the
+ * key under test is the shipped spelling and not a string this file invented.
+ */
+function cohort(id: string, value: string, count: number, children: MindNode[]): MindNode {
+  return node({
+    id,
+    kind: 'cohort',
+    bucketKey: cohortKeyOf('stage', value),
+    count,
+    children,
+  })
 }
 
 function byNode(links: readonly MapNodeUseCase[]): Map<string, MapNodeUseCase[]> {
@@ -367,5 +383,181 @@ describe('collectProgress — the roll-up, in one post-order pass', () => {
     expect(out.get('root')).toMatchObject({ done: 3, total: 12 })
     expect(out.get('t1')).toMatchObject({ done: 2, total: 6 })
     expect(out.get('t2')).toMatchObject({ done: 1, total: 6 })
+  })
+})
+
+/* ────────────────── the cohort's other number ────────────────── */
+//
+// A cohort announces TWO counts and they are different facts: "37 open" is the
+// work beneath it (the model's `count`, computed off entries and the subtree)
+// and "14 organizations" is how many members the ring has. Reading the first
+// where the second belongs is a silent, plausible, wrong number in front of a
+// director — the ONE failure mode a synthetic ring introduces that the tree
+// never had — so the number the spoken name uses is pinned here.
+
+describe('collectStats — how many organizations are under a node', () => {
+  /** Two stage cohorts under one track: 3 organizations and 1. */
+  function grouped(): MindNode {
+    return node({
+      id: 'root',
+      kind: 'root',
+      count: 40,
+      children: [
+        node({
+          id: 'track',
+          kind: 'track',
+          count: 40,
+          children: [
+            cohort('c-live', 'stage-live', 30, [org('a', 10), org('b', 12), org('c', 8)]),
+            cohort('c-new', 'stage-new', 10, [org('d', 10)]),
+          ],
+        }),
+      ],
+    })
+  }
+
+  it('counts the members of a cohort, and never the cohort itself', () => {
+    const out = new Map<string, ReturnType<typeof collectStats>>()
+    collectStats(grouped(), new Map(), () => false, out)
+
+    expect(out.get('c-live')?.orgs).toBe(3)
+    expect(out.get('c-new')?.orgs).toBe(1)
+    // THE COHORTS THEMSELVES ARE NOT ORGANIZATIONS. `entityIdOf` refuses a
+    // synthetic `cohort:` key — a count that trusted `kind !== 'entry'` would
+    // read 6 here (4 organizations + 2 rings) and the ring would announce two
+    // organizations that do not exist.
+    expect(out.get('track')?.orgs).toBe(4)
+    expect(out.get('root')?.orgs).toBe(4)
+  })
+
+  it('is not the same number as `count`, which is the work beneath', () => {
+    const out = new Map<string, ReturnType<typeof collectStats>>()
+    const tree = grouped()
+    collectStats(tree, new Map(), () => false, out)
+    // 30 open items, 3 organizations. The two are read from different places
+    // and the spoken name says both; a fixture where they happened to be equal
+    // could not fail if the sentence read the wrong one.
+    expect(tree.children[0]?.children[0]?.count).toBe(30)
+    expect(out.get('c-live')?.orgs).toBe(3)
+  })
+
+  it('gives an entry no organizations of its own', () => {
+    const out = new Map<string, ReturnType<typeof collectStats>>()
+    const tree = node({
+      id: 'root',
+      kind: 'root',
+      count: 1,
+      children: [org('a', 1, [node({ id: 'e1', kind: 'entry', entryId: 'e1', count: 1 })])],
+    })
+    collectStats(tree, new Map(), () => false, out)
+    expect(out.get('e1')?.orgs).toBe(0)
+    // The organization counts ITSELF, which is what makes a ring of one read
+    // "1 organization" rather than "0".
+    expect(out.get('a')?.orgs).toBe(1)
+  })
+})
+
+/* ─────────────── the roll-up reaches through a cohort ─────────────── */
+
+describe('collectProgress — a cohort is a place, a fold is not', () => {
+  const cat = catalogue()
+
+  it('puts the fraction on the cohort as well as on the ring above it', () => {
+    const tree = node({
+      id: 'root',
+      kind: 'root',
+      children: [
+        node({
+          id: 'track',
+          kind: 'track',
+          children: [cohort('c', 'stage-live', 0, [org('a', 0), org('b', 0)])],
+        }),
+      ],
+    })
+    const out = new Map<string, UseCaseProgress>()
+    collectProgress(tree, cat, 'live', byNode([link('a', 'adt', 'live')]), out)
+
+    // 2 organizations x 3 capabilities = 6, one of them live. The cohort is the
+    // ring an account manager actually looks at, so "1 of 6 live" has to be
+    // true OF IT — this is the assertion that fails if the guard tests kinds
+    // instead of roles and forgets the new one.
+    expect(out.get('c')).toMatchObject({ done: 1, total: 6 })
+    expect(out.get('track')).toMatchObject({ done: 1, total: 6 })
+  })
+
+  it('still refuses a fold, which is a control and not a place', () => {
+    // `more` is a BUCKET in KIND_ROLE, not a leaf, so the negative predicate
+    // (`!== 'leaf'`) would start announcing "0 of 3 live" on a "+N more" button.
+    // It holds an organization here precisely so the `nodeIds` guard cannot be
+    // what saves it.
+    const tree = node({
+      id: 'root',
+      kind: 'root',
+      children: [
+        node({
+          id: 'more',
+          kind: 'more',
+          collapsed: true,
+          children: [org('a', 0)],
+        }),
+      ],
+    })
+    const out = new Map<string, UseCaseProgress>()
+    collectProgress(tree, cat, 'live', byNode([link('a', 'adt', 'live')]), out)
+    expect(out.has('a')).toBe(true)
+    expect(out.has('more')).toBe(false)
+    expect(out.get('root')).toMatchObject({ done: 1, total: 3 })
+  })
+})
+
+/* ───────────── one `?by=`, two readers, and it round-trips ───────────── */
+//
+// The picture and the table are cut by ONE value in the address bar. These
+// cases are the whole of that claim: every value the URL can carry means
+// something to the canvas, every chip the canvas offers can be written back,
+// and the two directions are inverses. A regression here is a chip that cannot
+// light after a reload, or a reader who taps Team on the table and finds the
+// map grouped by something else.
+
+describe('the `?by=` bridge', () => {
+  it('is total over every value the URL can carry', () => {
+    for (const by of PORTFOLIO_BYS) {
+      expect(GROUPING_FOR_BY[by]).toBeDefined()
+      expect(MIND_GROUPINGS.some((g) => g.key === GROUPING_FOR_BY[by])).toBe(true)
+    }
+  })
+
+  it('round-trips every grouping the toolbar offers, chip → ?by= → chip', () => {
+    expect(CANVAS_GROUPINGS.length).toBeGreaterThan(0)
+    for (const grouping of CANVAS_GROUPINGS) {
+      const by = BY_FOR_GROUPING[grouping]
+      expect(by).toBeDefined()
+      expect(GROUPING_FOR_BY[by as (typeof PORTFOLIO_BYS)[number]]).toBe(grouping)
+    }
+  })
+
+  it('offers no chip for a grouping the URL cannot spell', () => {
+    // `type` is a rung of the OVERFLOW LADDER, reached by the model when an
+    // account manager's own cohort is still over the cap. Nothing in `?by=`
+    // names it, so a chip for it would go dark on the next reload.
+    expect(MIND_GROUPINGS.some((g) => g.key === 'type')).toBe(true)
+    expect(CANVAS_GROUPINGS).not.toContain('type')
+    expect(BY_FOR_GROUPING.type).toBeUndefined()
+  })
+
+  it('offers them in the model’s own order, not the URL’s', () => {
+    const declared = MIND_GROUPINGS.map((g) => g.key).filter((k) => CANVAS_GROUPINGS.includes(k))
+    expect([...CANVAS_GROUPINGS]).toEqual(declared)
+  })
+
+  it('reads the portfolio’s progress question as “no cohorts”, deliberately', () => {
+    // On the table `by=phase` asks how far along the programme is; on the canvas
+    // the phases ARE rings the reader is standing in, so grouping by them again
+    // would draw a ring named after its own parent. The progress underscore is
+    // the canvas's answer, and it is drawn under every grouping.
+    expect(GROUPING_FOR_BY.phase).toBe('none')
+    expect(GROUPING_FOR_BY.stage).toBe('stage')
+    expect(GROUPING_FOR_BY.manager).toBe('manager')
+    expect(GROUPING_FOR_BY.vendor).toBe('vendor')
   })
 })

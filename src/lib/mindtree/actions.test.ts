@@ -1362,3 +1362,126 @@ describe('the structural verbs on a node', () => {
     expect(with_.filter((k) => k !== 'addBranch' && k !== 'archiveBranch')).toEqual(without)
   })
 })
+
+/* ────────────────────── the cohort ring, and the audit ──────────────────── */
+//
+// `?by=manager` inserts a `cohort` node between a structural node and the
+// organizations under it. Two questions follow, and they have opposite answers:
+//
+//   AS A TARGET  a cohort is a CUT, not a place. No "add an item", no "add a
+//                branch", no archive, no bulk apply — only the two navigation
+//                verbs, focus and collapse.
+//   AS A STEP    a cohort is TRANSPARENT. Every verb on the Organization INSIDE
+//                one has to behave exactly as it did with grouping off, because
+//                the grouping is a lens over the same hierarchy.
+//
+// The second is the regression this block exists for: `branchRefAt`'s loop
+// refuses any step it does not recognise, so a cohort falling into that arm
+// would have made "Add a branch" and the whole QuickAdd composer VANISH from
+// every Organization the moment a reader lit a grouping chip — silently, because
+// a null there is rendered as an absent verb rather than as an error.
+
+/** UHR ▸ { Org1, Org2, Org3 }, grouped by manager at a cap of two. */
+function cohortTree(over: Partial<MindtreeInput> = {}): MindNode {
+  return build({
+    entries: [
+      entry({ id: 'a', track_id: 't-1', node_id: 'org-1', created_by: 'me-1' }),
+      entry({ id: 'b', track_id: 't-1', node_id: 'org-2', created_by: 'me-1' }),
+      entry({ id: 'c', track_id: 't-1', node_id: 'org-3', created_by: 'me-1' }),
+    ],
+    tracks: [UHR_TRACK],
+    vocab: statusVocab(),
+    entities: [
+      ent({ id: 'org-1' }),
+      ent({ id: 'org-2', sortOrder: 1 }),
+      ent({ id: 'org-3', sortOrder: 2 }),
+    ],
+    grouping: 'manager',
+    entityFacets: [
+      { id: 'org-1', managerId: 'sara', typeKey: 'Organization', vendor: null, stageId: null },
+      { id: 'org-2', managerId: 'sara', typeKey: 'Organization', vendor: null, stageId: null },
+      { id: 'org-3', managerId: 'omar', typeKey: 'Organization', vendor: null, stageId: null },
+    ],
+    // Three organizations over a cap of two is the smallest tree that groups.
+    ringCap: 2,
+    ...over,
+  })
+}
+
+function cohortPath(over: Partial<MindtreeInput> = {}): MindNode[] {
+  return findPath(cohortTree(over), (n) => n.kind === 'cohort')
+}
+
+/** The path to an Org that now sits INSIDE a cohort. */
+function groupedOrgPath(id: string): MindNode[] {
+  return findPath(cohortTree(), (n) => n.kind === 'entity' && n.bucketKey === id)
+}
+
+describe('a cohort as a TARGET — navigation verbs only', () => {
+  it('is actually in the fixture, with organizations under it', () => {
+    // Guard on the fixture itself: every assertion below is vacuous if the
+    // grouping never fired.
+    const cohort = cohortPath()[cohortPath().length - 1]
+    expect(cohort.kind).toBe('cohort')
+    expect(cohort.children.every((c) => c.kind === 'entity')).toBe(true)
+    expect(groupedOrgPath('org-1').map((n) => n.kind)).toEqual(['root', 'track', 'cohort', 'entity'])
+  })
+
+  it('offers focus and collapse and NOTHING else, even to an admin', () => {
+    expect(kinds(mindActionsFor(cohortPath(), admin()))).toEqual(['focus', 'collapse'])
+  })
+
+  it('names no place, so neither structural verb can be built', () => {
+    // A cohort is `KIND_ROLE`'s `'place'` — the camera may frame it — and it is
+    // NOT a filing kind, because its `bucketKey` is synthetic. This is the line
+    // where those two facts have to disagree.
+    expect(branchRefAt(cohortPath())).toBeNull()
+    expect(branchAddRefusal(cohortPath(), 'me-1')).toBe(WHY_EMPTY_BRANCH)
+  })
+
+  it('seeds no draft — "add an item to Sara\'s book" names no organization', () => {
+    expect(draftAt(cohortPath(), 'status')).toBeNull()
+  })
+})
+
+describe('a cohort as a STEP — the verbs on the Org inside it are unchanged', () => {
+  it('still names the Organization it wraps, at the same level', () => {
+    // THE VANISHING-COMPOSER REGRESSION. Ungrouped, `root ▸ UHR ▸ Org1` is
+    // level 1; grouped, the path gains a cohort and must still be level 1,
+    // because a cohort is not a row in `map_nodes` and the depth trigger does
+    // not count it.
+    expect(branchRefAt(groupedOrgPath('org-1'))).toEqual({
+      trackId: 't-1',
+      nodeId: 'org-1',
+      level: 1,
+      retired: false,
+    })
+    expect(branchAddRefusal(groupedOrgPath('org-1'), 'me-1')).toBeNull()
+  })
+
+  it('offers both structural verbs on the grouped Org, ENABLED', () => {
+    const offered = mindActionsFor(groupedOrgPath('org-1'), admin())
+    expect(kinds(offered)).toEqual(expect.arrayContaining(['addBranch', 'archiveBranch']))
+    // `enabled`, not merely present: a `branchRefAt` that refused the cohort
+    // step would leave both rows on the menu and grey them out with "this
+    // branch stands for no place" — which is a sentence about a bug.
+    expect(byKind(offered, 'addBranch').enabled).toBe(true)
+    expect(byKind(offered, 'addBranch').reasonKey).toBeNull()
+    expect(byKind(offered, 'archiveBranch').enabled).toBe(true)
+  })
+
+  it('seeds the same draft through the cohort as without it', () => {
+    expect(draftAt(groupedOrgPath('org-1'), 'status')).toEqual({
+      trackId: 't-1',
+      mapNodeId: 'org-1',
+    })
+  })
+
+  it('offers the same verbs on a grouped Org as on an ungrouped one', () => {
+    // The whole claim, in one equality: lighting a grouping chip changes the
+    // PICTURE and changes nothing a reader may do to an organization.
+    const grouped = kinds(mindActionsFor(groupedOrgPath('org-1'), admin()))
+    const plain = kinds(mindActionsFor(orgPath('org-1'), admin()))
+    expect(grouped).toEqual(plain)
+  })
+})

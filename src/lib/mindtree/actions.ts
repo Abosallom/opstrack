@@ -72,6 +72,7 @@ import {
   NO_VALUE,
   closesEntry,
   evaluateDrop,
+  isFilingKind,
   type DropOutcome,
 } from './dropRules'
 import { ROOT_ID } from './model'
@@ -293,7 +294,15 @@ export const WHY_GONE = 'entry.errNotFound'
 export function draftAt(path: readonly MindNode[], dimension: MindDimension): EntryPatch | null {
   const node = path[path.length - 1]
   if (node === undefined) return null
-  if (node.kind !== 'track' && node.kind !== 'entity' && node.kind !== 'group') return null
+  // A TABLE, NOT TWO `!==` COMPARISONS — `dropRules.isFilingKind`, which is
+  // total over `MindNodeKind` so the next kind is a build error here instead of
+  // a silent "no". A filing kind is a node whose `bucketKey` is a row id (a
+  // track or an Organization) and a `group` is the dimension's own bucket;
+  // between them they are every ring a NEW item can be seeded from. A COHORT is
+  // neither: it is a CUT of the organizations, so "add an item to the 96
+  // organizations Sara manages" names none of them to file under, and the answer
+  // is that the reader dives one ring and picks one.
+  if (!isFilingKind(node.kind) && node.kind !== 'group') return null
 
   const patch: EntryPatch = {}
   for (const step of path) {
@@ -327,6 +336,11 @@ export function draftAt(path: readonly MindNode[], dimension: MindDimension): En
       patch.mapNodeId = step.bucketKey
       continue
     }
+    // The root, and every `cohort` step `?by=` put on the path. SKIPPED, and
+    // transparently: a cohort is a lens over the same hierarchy, so a draft
+    // seeded under an Organization must carry the same fields whether the reader
+    // has grouping on or off — `dropRules.foldPath` skips them for the same
+    // reason and with the longer argument.
     if (step.kind !== 'group') continue
     // A hidden vocabulary option, or an owner the roster has forgotten.
     // store/vocab.ts's frozen rule is that hiding an option must never hide
@@ -386,10 +400,7 @@ export function draftRefusal(path: readonly MindNode[], dimension: MindDimension
   const node = path[path.length - 1]
   if (node === undefined) return WHY_EMPTY_BRANCH
   if (
-    path.some(
-      (step) =>
-        (step.kind === 'track' || step.kind === 'entity' || step.kind === 'group') && step.retired,
-    )
+    path.some((step) => (isFilingKind(step.kind) || step.kind === 'group') && step.retired)
   ) {
     return WHY_RETIRED
   }
@@ -466,18 +477,36 @@ export interface MindBranchRef {
  * rather than something the reader discovers on submit.
  *
  * NULL HAS FOUR CAUSES and all four are structural rather than permissive: the
- * node is not a track or an entity (a group, a leaf, a "+N more" and the root
- * are not places in `map_nodes`); a `group` or `entry` step sits ABOVE the node,
- * which no tree this app draws produces and which would make the level count a
- * fiction; a track whose bucket key is missing or empty; an entity whose bucket
- * key is missing or empty, which is a malformed node rather than a bucket — the
- * same `NO_VALUE` refusal `draftAt` makes one ring out, and for its reason:
- * there is no "no organization" node.
+ * node is not a track or an entity (a group, a leaf, a "+N more", a cohort and
+ * the root are not places in `map_nodes`); a `group` or `entry` step sits ABOVE
+ * the node, which no tree this app draws produces and which would make the level
+ * count a fiction; a track whose bucket key is missing or empty; an entity whose
+ * bucket key is missing or empty, which is a malformed node rather than a bucket
+ * — the same `NO_VALUE` refusal `draftAt` makes one ring out, and for its
+ * reason: there is no "no organization" node.
+ *
+ * ── THE COHORT STEP IS TRANSPARENT, AND THAT IS THE BUG THIS WAVE ALMOST SHIPPED
+ *
+ * The loop below refuses any step it does not recognise, because a `group` or an
+ * `entry` above the node would make the level count a fiction. A `cohort` is NOT
+ * that: `?by=manager` puts one between the track and the organizations, so the
+ * path to every Org on the map grows a step the moment the reader taps a
+ * grouping chip. Falling into the refusal would have made "Add a branch" and the
+ * whole QuickAdd composer VANISH from every Organization whenever grouping was
+ * on — silently, because a null here is rendered as an absent verb rather than
+ * as an error. It is skipped like the root, and for the root's reason: it is not
+ * a level of `map_nodes`, so the depth the database is about to check does not
+ * count it.
  */
 export function branchRefAt(path: readonly MindNode[]): MindBranchRef | null {
   const node = path[path.length - 1]
   if (node === undefined) return null
-  if (node.kind !== 'track' && node.kind !== 'entity') return null
+  // A filing kind is exactly "this node's `bucketKey` is a row id". A cohort is
+  // not one — it is `KIND_ROLE`'s `'place'`, which is a different question (may
+  // the camera frame it) with a different answer — and it is refused HERE as a
+  // TARGET even though it is skipped as a STEP just below: you may fly into
+  // Sara's book, and you may not hang a `map_nodes` row off it.
+  if (!isFilingKind(node.kind)) return null
 
   let trackId: string | null = null
   let nodeId: string | null = null
@@ -485,7 +514,7 @@ export function branchRefAt(path: readonly MindNode[]): MindBranchRef | null {
   let retired = false
 
   for (const step of path) {
-    if (step.kind === 'root') continue
+    if (step.kind === 'root' || step.kind === 'cohort') continue
     if (step.kind === 'track') {
       if (step.bucketKey === null || step.bucketKey === NO_VALUE) return null
       trackId = step.bucketKey
@@ -628,12 +657,14 @@ function branchActions(
   // wrapper in 0009), so any signed-in member may create — the only refusal is
   // being signed out, and the only PRODUCT refusal is a branch that cannot hold
   // new work.
-  if (
-    node.kind === 'track' ||
-    node.kind === 'entity' ||
-    node.kind === 'group' ||
-    node.kind === 'root'
-  ) {
+  //
+  // A COHORT IS THE ONE BRANCH THAT IS NOT ON THIS LIST, and its absence is a
+  // category error rather than a refusal — the distinction this function already
+  // draws twice below. "Add an item to the 96 organizations Sara manages" names
+  // no organization to file it under; the reader dives one ring and picks one,
+  // which is one tap and unambiguous. So a cohort's menu carries the two
+  // NAVIGATION verbs and nothing else: focus, and collapse.
+  if (isFilingKind(node.kind) || node.kind === 'group' || node.kind === 'root') {
     const draft = node.kind === 'root' ? EMPTY_PATCH : draftAt(path, ctx.dimension)
     const why =
       ctx.meId === null
@@ -657,11 +688,20 @@ function branchActions(
     })
   }
 
-  // The bulk verb, only where a drop would be legal. Absent rather than disabled
-  // on the root and on a "+N more" fold, because "apply the selection to a fold"
-  // is not a refusal, it is a category error — the same three kinds
-  // `dropRules.isDropZoneKind` declines to build a zone for.
-  if (node.kind === 'track' || node.kind === 'entity' || node.kind === 'group') {
+  // The bulk verb, only where a drop could LAND. Absent rather than disabled on
+  // the root and on a "+N more" fold, because "apply the selection to a fold" is
+  // not a refusal, it is a category error.
+  //
+  // ⚠ THIS IS NOT `isDropZoneKind` ANY MORE, and the divergence is deliberate
+  // rather than drift. A zone is about the POINTER — a cohort arms so that a
+  // drag crossing the biggest ring on the screen gets a sentence instead of
+  // nothing (see that function). A menu is about a DELIBERATE ACT on a named
+  // node, and every drop onto a cohort is refused, so offering "Move 12 items
+  // here" greyed out would be a row that can never be anything else. The two
+  // surfaces agree about what LANDS — `evaluateDrop` decides that for both — and
+  // differ about what is worth showing, which is the difference between hovering
+  // something on your way past it and choosing it.
+  if (isFilingKind(node.kind) || node.kind === 'group') {
     out.push(selectionAction(path, node, ctx))
   }
 
@@ -734,13 +774,22 @@ function structuralActions(
   ctx: MindActionCtx,
 ): readonly MindAction[] {
   if (ctx.canEditStructure !== true) return EMPTY_ACTIONS
-  // A status bucket, an owner bucket and the root are drawn branches that are
-  // not PLACES: a group stands for a value inside its Org, and the root stands
-  // for the workspace. Hanging a `map_nodes` row off one is a category error
-  // rather than a refusal, so neither verb appears — the same distinction
-  // `branchActions` already makes for `applySelection`, one ring out. "Add an
-  // ITEM here" is still offered on all three, and that is the difference.
-  if (node.kind !== 'track' && node.kind !== 'entity') return EMPTY_ACTIONS
+  // A status bucket, an owner bucket, a COHORT and the root are drawn branches
+  // that are not PLACES: a group stands for a value inside its Org, a cohort
+  // stands for a CUT of the organizations, and the root stands for the
+  // workspace. Hanging a `map_nodes` row off one is a category error rather than
+  // a refusal, so neither verb appears — the same distinction `branchActions`
+  // already makes for `applySelection`, one ring out. "Add an ITEM here" is
+  // still offered on the first and the last, and that is the difference.
+  //
+  // `isFilingKind` IS THE WORD FOR THIS, and this function is the sharpest
+  // reason the audit needed a predicate narrower than `KIND_ROLE`: "`bucketKey`
+  // is a row id" is the precondition BOTH verbs here have — `addBranch` hangs a
+  // child off it, `archiveBranch` writes `archived` on it — and a cohort is a
+  // `'place'` with no row. Reading the role here would have put "Add a branch"
+  // on every cohort ring, pointed at the parent Org, one refactor after the kind
+  // landed.
+  if (!isFilingKind(node.kind)) return EMPTY_ACTIONS
 
   const ref = branchRefAt(path)
   const out: MindAction[] = []
@@ -823,7 +872,7 @@ function structuralActions(
  * ring is, one grain finer.
  */
 function selectionLabel(node: MindNode, dimension: MindDimension): string {
-  if (node.kind === 'track' || node.kind === 'entity') return 'mindtree.actMoveHere'
+  if (isFilingKind(node.kind)) return 'mindtree.actMoveHere'
   if (dimension === 'owner') return 'mindtree.actAssignHere'
   if (dimension === 'priority') return 'mindtree.actPriorityHere'
   if (dimension === 'status') return 'mindtree.actStatusHere'

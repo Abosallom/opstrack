@@ -222,13 +222,25 @@ export const HOLE_FRACTION = 0.34
  * different question. This is the owner's own correction — "the leveling for
  * department wise not org and info side bar" — made mechanical.
  *
+ * A `cohort` IS ONE OF THEM, and that is the whole reason it is its own kind.
+ * A cohort ring — "the 96 organizations Sara manages", "the 41 on Integrating" —
+ * is a ring of the workspace rather than content drawn inside one, so the camera
+ * must be able to stop on it, the breadcrumb must be able to name it and the
+ * dive must be able to enter it. A `group` could not be given that without
+ * giving it to every status bucket on the map, which is the argument the design
+ * makes at length and the reason the union grew instead.
+ *
  * Read structurally, never imported from model.ts: this module is the lower
  * layer and a geometry that imported the semantics above it could not be tested
  * without building one. A node with no `kind` at all is structural, so a plain
  * tree dives all the way down and a caller who is not the map model owes this
- * module nothing.
+ * module nothing. THAT IS ALSO WHY `KIND_ROLE` IS NOT READ HERE: the role table
+ * lives in model.ts beside the union it partitions, and importing it would buy
+ * one string in exchange for the layering this file's header is built on. The
+ * two are kept in step by focus.ts, which restates this set against
+ * `MindNodeKind` and reds when a kind is added without a decision.
  */
-const STRUCTURAL_KINDS: ReadonlySet<string> = new Set(['root', 'track', 'entity'])
+const STRUCTURAL_KINDS: ReadonlySet<string> = new Set(['root', 'track', 'entity', 'cohort'])
 
 /** A node's world: where it is, how big it is, and whether the dive may enter. */
 export interface WorldNode<N extends LayoutInputNode = LayoutInputNode>
@@ -238,7 +250,7 @@ export interface WorldNode<N extends LayoutInputNode = LayoutInputNode>
   readonly worldY: number
   /** Diameter of this node's world, drawing units. */
   readonly worldD: number
-  /** `kind` is 'root' | 'track' | 'entity'. Only a structural node may be framed. */
+  /** `kind` is 'root' | 'track' | 'entity' | 'cohort'. Only a structural node may be framed. */
   readonly structural: boolean
   /**
    * How much bigger than a leaf card's this node's authored drawing is —
@@ -301,6 +313,52 @@ export interface WorldOptions<N extends LayoutInputNode = LayoutInputNode>
    * model carries, and to `true` when it has none.
    */
   structuralOf?: (node: N, depth: number) => boolean
+  /**
+   * SIZE AS A LINEAR MULTIPLE OF THIS NODE'S WORLD — the size encoding, at the
+   * only altitude where it does not cost the reader a word.
+   *
+   * ⚠ THIS IS NOT `sizeOf`, AND THE DIFFERENCE IS THE WHOLE POINT. `sizeOf`
+   * (layout.ts) authors a BIGGER BOX: a 400-item Organization comes back 252
+   * units wide instead of 168. `MindNode` authors every mark it draws — the
+   * 12.5-unit label, the count, the box stroke, the chevron — in the units of a
+   * 168-wide leaf and carries them on the single `scale(cardScale)` transform
+   * wave 1 introduced, so a box widened behind its back draws its label at
+   * 168/252 = 0.667x the share of its own card the contract owes. Wave 5
+   * measured that, refused the wiring, and named this seam as the fix:
+   * Mindtree.tsx's `layout` memo and `useMapModel.collectSizes` both carry the
+   * note. `pos.width / cardScale === leafSize.width` — worlds.test.ts's
+   * round-trip — is the assertion that cannot survive `sizeOf` and is exactly
+   * what this preserves.
+   *
+   * WHAT IT DOES INSTEAD. It multiplies the node's OWN WORLD (`ownD`), leaving
+   * the authored card box alone. A bigger world takes a bigger share of its
+   * parent's ring, and the two card rules then carry the card and every mark
+   * inside it out with it, because `cardScale` is measured against the world
+   * this node's card ALONE would need rather than against the world it got. So
+   * the legend "size = open items" is true of the world, of the card, of the
+   * label and of the 44px target simultaneously, and no glyph pays for it.
+   *
+   * ON A BRANCH IT IS A FLOOR, AND THAT IS NOT A GAP. A branch's world is
+   * `max(its own, the world its children's ring needs)`, and the ring almost
+   * always wins — so a hint on a department usually changes nothing. It does not
+   * need to: a branch's world is ALREADY the size of what is inside it, which is
+   * the same magnitude the hint would have encoded, drawn by containment for
+   * free. The hint is therefore load-bearing exactly where containment says
+   * nothing — a LEAF, which is every Organization at the altitude the reader
+   * asks "who is busiest".
+   *
+   * A LINEAR FACTOR, NOT AN AREA. `1.5` is a card 1.5x wider and 1.5x taller —
+   * 2.25x the area, which is the band `useMapModel.MAX_NODE_SIZE` already
+   * measured and defended. The POLICY (which counts map to which factors, and
+   * whether the ring's busiest sibling or the whole tree sets the scale) belongs
+   * to the caller; this module only owes it geometry that stays legal.
+   *
+   * Anything not finite and positive is 1 — the same "sanitise, never throw"
+   * bargain `buildLayoutNodes` strikes with a NaN out of an area encoding. Pure
+   * and called once per node per layout, for `sizeOf`'s reason: a hint that
+   * consulted a clock would make the drawing a function of when it was drawn.
+   */
+  sizeHintOf?: (node: N, depth: number) => number | undefined
 }
 
 // ── the entry point ────────────────────────────────────────────────────────
@@ -346,13 +404,33 @@ export function layoutWorlds<N extends LayoutInputNode>(
   // A card's world is proportional to its DIAGONAL, so a size encoding that
   // grows a card by area grows its world by area too and the legend — "size =
   // open items" — stays true of the world as well as of the box.
+  //
+  // TWO NUMBERS, NOT ONE, AND THE SECOND IS THE SIZE ENCODING. `cardD` is the
+  // world THIS NODE'S CARD ALONE would need; `ownD` is the world it asks for.
+  // They differ by `sizeHintOf` and by nothing else, so with no hint every
+  // number below is the one it was before the option existed — which is what
+  // lets the encoding land without moving a committed SVG until a caller opts
+  // in. See `WorldOptions.sizeHintOf` for why the hint may not touch the
+  // authored box.
   const leafDiag = Math.max(Math.hypot(leaf.width, leaf.height), 1e-6)
   const ownDiag: number[] = new Array<number>(count).fill(leafDiag)
+  const cardD: number[] = new Array<number>(count).fill(D_LEAF)
   const ownD: number[] = new Array<number>(count).fill(D_LEAF)
+  const hintOf = options.sizeHintOf
+  // Null when nobody asked, so a layout with no encoding mixes nothing extra
+  // into `revision` and hashes to the byte it hashed to before this option
+  // existed — which is what lets the committed SVGs stay committed.
+  const hints: number[] | null = hintOf === undefined ? null : new Array<number>(count).fill(1)
   for (let i = 0; i < count; i += 1) {
     const node = work[i]
     ownDiag[i] = Math.hypot(node.width, node.height)
-    ownD[i] = Math.max(1e-6, (D_LEAF * ownDiag[i]) / leafDiag)
+    cardD[i] = Math.max(1e-6, (D_LEAF * ownDiag[i]) / leafDiag)
+    if (hints === null) {
+      ownD[i] = cardD[i]
+      continue
+    }
+    hints[i] = sizeHint(hintOf?.(node.source, node.depth))
+    ownD[i] = Math.max(1e-6, cardD[i] * hints[i])
   }
 
   // ── OUTWARD FROM THE LEAVES ─────────────────────────────────────────────
@@ -404,9 +482,18 @@ export function layoutWorlds<N extends LayoutInputNode>(
     // otherwise carry a 0.68·worldD diagonal into a 0.36·worldD hole and put
     // defect 6 straight back. Below the leaf it is the design's formula
     // unchanged, so a smaller authored card yields a proportionally smaller one.
+    //
+    // AND `cardD` RATHER THAN `ownD` IS WHAT MAKES THE HINT CARRY THE MARKS. A
+    // leaf's world IS its `ownD`, so dividing by `ownD` would answer 1 for every
+    // leaf however big a hint it was given — a bigger empty world around the
+    // same 168-unit card. Measuring against the world the card ALONE would need
+    // makes the scale the hint itself, so the card, its label, its stroke and
+    // its 44px target all come out `hint` times bigger and `pos.width /
+    // cardScale` is still the authored leaf. With no hint the two are equal and
+    // this is the line it has always been.
     const scale =
       work[i].children.length === 0
-        ? worldD[i] / ownD[i]
+        ? worldD[i] / cardD[i]
         : (HOLE_FRACTION * worldD[i]) / Math.max(leafDiag, ownDiag[i])
     cardScaleOf[i] = scale
     cardW[i] = work[i].width * scale
@@ -555,7 +642,7 @@ export function layoutWorlds<N extends LayoutInputNode>(
     bounds,
     maxDepth: work.length === 0 ? 0 : maxDepthOf(work),
     rootD,
-    revision: revisionOf(work, opts.direction, leaf),
+    revision: revisionOf(work, opts.direction, leaf, hints),
   }
 }
 
@@ -796,6 +883,14 @@ function revisionOf<N extends LayoutInputNode>(
   work: readonly LayoutWorkNode<N>[],
   direction: string,
   leaf: NodeSize,
+  /**
+   * The size hints, or null when the caller gave none. MIXED IN, because a hint
+   * is geometry — a ring whose busiest sibling changed count is a different
+   * drawing and the camera's one mount-time read of `bounds` is keyed on this
+   * string alone. Null rather than an array of ones so a caller who never asked
+   * for the encoding hashes exactly what it hashed before the option existed.
+   */
+  hints: readonly number[] | null,
 ): string {
   let h = 0x811c9dc5
   const mix = (v: number): void => {
@@ -808,14 +903,45 @@ function revisionOf<N extends LayoutInputNode>(
   }
   mixText(direction)
   mixText(`${leaf.width}x${leaf.height}`)
-  for (const node of work) {
+  for (let i = 0; i < work.length; i += 1) {
+    const node = work[i]
     mixText(node.id)
     mix(node.depth)
     mix(node.children.length)
     mix(node.hiddenChildCount)
     mixText(`${node.width}x${node.height}`)
+    // ONLY WHEN IT IS NOT 1, so `revision` keeps its actual contract: it
+    // changes iff the DRAWING changed. A hint of 1 draws what no hint draws, so
+    // a caller who wired the encoding and a caller who did not must hash alike
+    // — otherwise the camera's one mount-time read of `bounds` re-fires the
+    // frame the first time an encoding answers "no opinion" for every node.
+    if (hints !== null && hints[i] !== 1) mixText(`h${hints[i]}`)
   }
   return `w1.${work.length}.${h.toString(36)}`
+}
+
+/**
+ * A size hint, made safe — see `WorldOptions.sizeHintOf`.
+ *
+ * SANITISED RATHER THAN VALIDATED, which is `buildLayoutNodes`' bargain with the
+ * same class of caller: an area encoding that divided by a zero denominator
+ * hands this a NaN, and a drawing that throws is worse than a drawing that draws
+ * the node at its floor. `undefined` is the encoding declining to speak about
+ * this node, which is a legitimate answer and the same one `sizeOf` gives.
+ *
+ * CAPPED, and the cap is about containment rather than taste. A world is placed
+ * in its parent's ring by `packRing`, which handles any finite diameter, so a
+ * pathological hint cannot break the invariant — it can only spend the whole
+ * drawing on one node, pushing every sibling below the DOM horizon to say one
+ * thing loudly. `MAX_SIZE_HINT` is `useMapModel.MAX_NODE_SIZE`'s 1.5 with a
+ * factor of four of headroom for a caller with a wider band and a measured
+ * reason, and the number the packing math was published against.
+ */
+const MAX_SIZE_HINT = 6
+
+function sizeHint(raw: number | undefined): number {
+  if (raw === undefined || !Number.isFinite(raw) || raw <= 0) return 1
+  return Math.min(raw, MAX_SIZE_HINT)
 }
 
 function isStructural<N extends LayoutInputNode>(

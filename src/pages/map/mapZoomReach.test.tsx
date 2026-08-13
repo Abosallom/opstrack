@@ -297,6 +297,18 @@ describe('the keyboard dives', () => {
     const deeper = node('org', 'entity', [node('sub', 'entity', []), BUCKET])
     expect(isDiveTarget(deeper)).toBe(true)
 
+    // A COHORT IS A WORLD YOU FLY INTO, not a leaf that opens the sidebar.
+    // `?by=` puts one between a department and its organizations, and it is the
+    // BIGGEST ring on a grouped screen — under the old three-way `root|track|
+    // entity` comparison it answered false, so Enter on it called
+    // `dive.details()` and handed `cohort:manager:<uuid>` to a panel whose id is
+    // a `map_nodes` uuid. Structural in, structural children: both halves.
+    const COHORT = node('cohort:cohort%3Amanager%3Asara', 'cohort', [ORG])
+    expect(isDiveTarget(COHORT)).toBe(true)
+    const cohort = spyDive()
+    harness({ dive: cohort.dive }).activate(COHORT)
+    expect(cohort.calls).toEqual(['into:cohort:cohort%3Amanager%3Asara'])
+
     // And it is not reading `entityType`. model.ts forbids it by name: "what a
     // Phase shows and what an Org shows is configuration, not code."
     expect(source('./useMapKeyboard.ts')).not.toMatch(/\.entityType/)

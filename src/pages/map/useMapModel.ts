@@ -16,6 +16,15 @@
 // newer build's state, and it clears on sign-out, which a module-level
 // `readPrefs()` in a page could never do.
 //
+// TWO AXES ARRIVE FROM TWO PLACES, and the asymmetry is the point. `dimension`
+// — what the ENTRIES bucket by — is a persisted preference and comes from the
+// store above. `grouping` — what the ORGANIZATIONS bucket by — is `?by=`, which
+// lives only in the address bar because it is which question the reader is
+// asking right now rather than how they like their map (useMapUrl.ts's "the
+// portfolio half of the codec" argues it in full). So it arrives as an argument,
+// from the one shell reading that the portfolio's table also uses: one value,
+// two readers, and the picture and the table can never be cut two ways at once.
+//
 // WHAT IT DOES NOT DO. It reads the entries store like every other screen and
 // never runs its own query, so PostgREST's 1000-row clamp is honoured by
 // inheritance and the truncation notice is the store's own flag. It picks no
@@ -26,7 +35,7 @@ import type { MindNodeView } from '../../components/mindtree/MindNode'
 import { isolate } from '../../lib/bidi'
 import type { FilterState } from '../../lib/entryFilter'
 import { t } from '../../lib/i18n'
-import { useKindLabel, useNodeLabel, useTrackLabel } from '../../lib/labels'
+import { useKindLabel, useNodeLabel, useStageLabel, useTrackLabel } from '../../lib/labels'
 // ALIASED, for the reason MapBranchDetail.tsx and lib/mapNodes.test.ts both
 // state at their own imports: `useCaseProgress` is a PURE FUNCTION whose name
 // matches oxlint's Hook heuristic (`use` + a capital), so calling it from the
@@ -37,13 +46,20 @@ import {
   useCaseProgress as computeUseCaseProgress,
   type UseCaseProgress,
 } from '../../lib/mapNodes'
+import type { PortfolioBy } from '../../lib/mindtree/lens'
 import { DEFAULT_NODE_SIZE, sizeForCount, type NodeSize } from '../../lib/mindtree/layout'
 import {
+  KIND_ROLE,
   MIND_DIMENSIONS,
+  MIND_GROUPINGS,
+  RING_CAP,
+  RING_CAP_COMPACT,
   ROOT_ID,
   buildMindtree,
   groupTotals,
   type MindEntity,
+  type MindEntityFacet,
+  type MindGrouping,
   type MindLabel,
   type MindNode as MindNodeModel,
   type MindTrack,
@@ -77,7 +93,9 @@ import {
   useAllUseCases,
   useMapNodeKinds,
   useMapNodeMap,
+  useMapNodeStages,
   useMapNodes,
+  useNodeProgress,
   useTracks,
 } from '../../store/config'
 import { useMemberMap, useMembers, memberLabel } from '../../store/members'
@@ -87,13 +105,28 @@ import type { MapNodeUseCase, UseCase, UseCaseStatus, UserRole } from '../../typ
 
 /* ───────────────────────────────── the tree ──────────────────────────────── */
 
-/** The two counts the model does not carry, derived once for both views. */
+/** The three counts the model does not carry, derived once for both views. */
 export interface NodeStats {
   breached: number
   unassigned: number
+  /**
+   * HOW MANY ORGANIZATIONS SIT AT OR BELOW THIS NODE — and it is NOT `count`.
+   *
+   * `MindNode.count` is the open WORK beneath a node (entries plus subtree), and
+   * model.ts computes it that way for every structural node including a cohort,
+   * which is what keeps the partition invariant non-tautological. A cohort's own
+   * sentence needs the other number: "Stage: Integrating, 14 organizations" is a
+   * fact about the ring's MEMBERS, and reading `count` for it would announce the
+   * issue backlog as if it were the book.
+   *
+   * Counted here rather than in a second walk because this pass already visits
+   * every node once and already exists for exactly this reason — two arithmetics
+   * over one tree is two answers that disagree under the conditions nobody tests.
+   */
+  orgs: number
 }
 
-export const NO_STATS: NodeStats = Object.freeze({ breached: 0, unassigned: 0 })
+export const NO_STATS: NodeStats = Object.freeze({ breached: 0, unassigned: 0, orgs: 0 })
 
 /**
  * Roll `breached` and `unassigned` up the tree, in one post-order pass.
@@ -119,18 +152,29 @@ export function collectStats(
     const stats: NodeStats = {
       breached: node.health.slaBreached ? 1 : 0,
       unassigned: id !== null && entryById.has(id) && isUnassigned(id) ? 1 : 0,
+      orgs: 0,
     }
     out.set(node.id, stats)
     return stats
   }
   let breached = 0
   let unassigned = 0
+  /**
+   * `entityIdOf`, NOT `kind === 'entity'`, and the difference is the whole point
+   * of the synthetic kind. A cohort is a structural node holding organizations,
+   * so a `kind`-shaped test here would have to name every kind that is NOT one;
+   * lib/mapNodes.ts's `entityIdOf` answers the narrower question this count is
+   * actually asking — is there a `map_nodes` row behind this node — and it is
+   * the one function that may ever turn a node into a real id.
+   */
+  let orgs = entityIdOf(node) === null ? 0 : 1
   for (const child of node.children) {
     const stats = collectStats(child, entryById, isUnassigned, out)
     breached += stats.breached
     unassigned += stats.unassigned
+    orgs += stats.orgs
   }
-  const stats: NodeStats = { breached, unassigned }
+  const stats: NodeStats = { breached, unassigned, orgs }
   out.set(node.id, stats)
   return stats
 }
@@ -300,7 +344,21 @@ export function collectProgress(
     for (const id of below.nodeIds) nodeIds.push(id)
   }
 
-  if (nodeIds.length > 0 && node.kind !== 'entry' && node.kind !== 'more') {
+  // KIND_ROLE, NOT TWO `!==` COMPARISONS, and this is one of the sites wave 6
+  // converted for one reason: a new `MindNodeKind` has to be a COMPILE error
+  // everywhere the kinds are read, and `kind !== 'entry' && kind !== 'more'`
+  // silently absorbs every kind that is ever added.
+  //
+  // `=== 'place'` AND NOT `!== 'leaf'`, which are different predicates and only
+  // one of them preserves the behaviour this line shipped with: `more` is a
+  // `'bucket'`, not a `'leaf'`, so the negative form would start drawing a
+  // fraction on a "+N more" fold — a control, announcing "3 of 9 live" about a
+  // list it is hiding. The question is the positive one anyway: a fraction
+  // belongs to a PLACE — the workspace, a track, an organization, a cohort of
+  // them — and a cohort earns it here, which is what makes "6 of 9 live" true of
+  // an account manager's whole book. Buckets of entries never hold an
+  // organization, so the `nodeIds.length > 0` guard already excluded them.
+  if (nodeIds.length > 0 && KIND_ROLE[node.kind] === 'place') {
     // THE FOURTH ARGUMENT IS THE POPULATION, and this is the line the seam note
     // above was about: `nodeIds` is every Organization beneath this branch,
     // including the ones that have recorded nothing, so a Phase of forty where
@@ -323,6 +381,69 @@ export function collectProgress(
   }
   return { links, nodeIds }
 }
+
+/* ────────────────────── one `?by=`, two things to draw ────────────────────── */
+//
+// THE PICTURE AND THE TABLE READ ONE VALUE, and the value is the address bar's.
+//
+// `?by=` is the portfolio's control (lib/mindtree/lens.ts's `PortfolioBy`) and it
+// is ALSO the canvas's cohort key. Two unions describe it because the two
+// surfaces can answer different questions with it — a table can group rows by
+// "Progress" where a ring cannot, and the model's ladder reaches for `type` on
+// overflow where no chip ever asks for it — so what unifies them is a TOTAL
+// MAPPING rather than a shared union. One value, two readers: a reader who taps
+// Team on the table and switches to the map finds the AM rings already drawn.
+//
+// `phase` → `'none'` IS THE ONE INTERESTING ROW and it is not a shrug. On the
+// table, `by=phase` asks how far along the programme is; on the canvas that
+// question is ALREADY the drawing — phases are real `map_nodes` and they are
+// rings the reader is standing in — so there is nothing left for a synthetic
+// cohort to add. Grouping by it a second time would draw a ring named after the
+// ring it sits inside. The progress underscore is the canvas's answer to that
+// question and it is drawn on every card regardless of `?by=`.
+//
+// `type` HAS NO CHIP AND THAT IS DELIBERATE. It is a LADDER key: `groupEntities`
+// reaches for it when an AM's own cohort is still over the cap, which is how 400
+// organizations become "6 named type cards, one dive to 22 named orgs". Nothing
+// in the URL asks for it, so nothing in the toolbar offers it — a control for a
+// state the URL cannot spell is a control whose chip cannot light after a
+// reload.
+
+/**
+ * What each `?by=` means to the DRAWING. Total over `PortfolioBy`, so a value
+ * parsed out of a hostile address bar always names a grouping.
+ */
+export const GROUPING_FOR_BY: Readonly<Record<PortfolioBy, MindGrouping>> = Object.freeze({
+  stage: 'stage',
+  manager: 'manager',
+  vendor: 'vendor',
+  phase: 'none',
+})
+
+/**
+ * The inverse, INVERTED RATHER THAN WRITTEN OUT — which is what makes the
+ * round-trip (chip → `?by=` → chip) true by construction instead of by review.
+ * A grouping the URL cannot spell is simply absent, and `CANVAS_GROUPINGS` below
+ * is defined as "the ones this map has".
+ */
+export const BY_FOR_GROUPING: Readonly<Partial<Record<MindGrouping, PortfolioBy>>> = Object.freeze(
+  Object.fromEntries(
+    Object.entries(GROUPING_FOR_BY).map(([by, grouping]) => [grouping, by as PortfolioBy]),
+  ) as Partial<Record<MindGrouping, PortfolioBy>>,
+)
+
+/**
+ * The groupings the toolbar may offer, IN `MIND_GROUPINGS` ORDER — the model's
+ * own order, so the chips read in the order the axis is declared rather than in
+ * the order the URL happens to list its values.
+ *
+ * Derived rather than listed for the same reason `BY_FOR_GROUPING` is inverted:
+ * a sixth grouping that the URL can carry appears here on its own, and one that
+ * the URL cannot carry never does.
+ */
+export const CANVAS_GROUPINGS: readonly MindGrouping[] = Object.freeze(
+  MIND_GROUPINGS.filter((g) => BY_FOR_GROUPING[g.key] !== undefined).map((g) => g.key),
+)
 
 /** One frozen empty set, so the memo below has a stable reference to return. */
 const EMPTY_IDS: ReadonlySet<string> = new Set<string>()
@@ -355,6 +476,19 @@ export function useMapModel(
    * argument instead of being fetched here.
    */
   progressSource: MapProgressSource | null,
+  /**
+   * `?by=`, EXACTLY AS THE PORTFOLIO READ IT — a parameter for the same reason
+   * `filter` is one. It lives only in the address bar (useMapUrl.ts's "the
+   * portfolio half of the codec" says why it has no store), the shell already
+   * holds it because the lens chip's badge is counted at that level, and a
+   * second `useSearchParams()` reading inside this hook would be a second
+   * chance to disagree with the table about what the reader asked for.
+   *
+   * It arrives as `PortfolioBy` rather than as a `MindGrouping` so that the
+   * mapping happens ONCE, here, and `grouping` comes back out of this hook as
+   * the single answer the toolbar lights its chip from.
+   */
+  by: PortfolioBy,
 ) {
   /* ── the persisted half, from the store ───────────────────────────────── */
 
@@ -408,6 +542,20 @@ export function useMapModel(
    * — and only the LINKS are the read that has to be paid for.
    */
   const catalogue = useAllUseCases()
+  /**
+   * WHERE EACH ORGANIZATION HAS GOT TO — `map_node_progress`, keyed by node id.
+   *
+   * One of the five columns the cohort pass groups by, and the only one that is
+   * not on the `map_nodes` row itself: 0026 put the stage on a member-writable
+   * side table so an account manager can move an organization without holding
+   * `structure.edit`. `undefined` for a node nobody has said anything about is
+   * the answer, not a miss — store/config's own ⚠ — and it travels into the
+   * model as `stage: null`, where it becomes a cohort of its own rather than
+   * being quietly filed under the first rung.
+   */
+  const progressByNodeId = useNodeProgress()
+  /** The ladder itself, in `sort_order` — the `by=stage` ring's order. */
+  const mapNodeStages = useMapNodeStages()
   const members = useMembers()
   const memberById = useMemberMap()
   const ctx = useFilterContext()
@@ -423,6 +571,7 @@ export function useMapModel(
   const trackLabelOf = useTrackLabel()
   const nodeLabelOf = useNodeLabel()
   const kindLabelOf = useKindLabel()
+  const stageLabelOf = useStageLabel()
   const vocabLabelOf = useVocabLabel()
   const { profile } = useAuth()
   /**
@@ -503,6 +652,87 @@ export function useMapModel(
     })
   }, [mapNodes, nodeKinds, nodeLabelOf, kindLabelOf])
 
+  /**
+   * THE FIVE COLUMNS A COHORT MAY BE CUT ALONG, and not a sixth.
+   *
+   * A SEPARATE MEMO FROM `mindEntities`, AND THE SPLIT IS THE POINT. That memo's
+   * own header refuses to carry `vendor` and `account_manager_id` — "a model
+   * that carried it would invalidate the whole tree every time somebody typed a
+   * character into that field" — and the refusal still stands for the SHAPE of a
+   * node. What changed in wave 6 is that those two columns became the shape of a
+   * RING: `?by=vendor` groups organizations by the string. So they arrive as
+   * facets, in their own object, listed one by one:
+   *
+   *   id · account_manager_id · kind (as a caption) · vendor · stage
+   *
+   * Five fields, enumerated rather than spread, so that `notes`, `external_url`,
+   * `synced_at` and every column 0028 adds next cannot reach model.ts by
+   * accident. The model can only ever branch on what it was handed, which is
+   * what makes "grouping is a model.ts concern" a claim with a boundary rather
+   * than a preference — and a description edit rewrites no field on this list.
+   *
+   * `typeKey` IS A CAPTION AND NOTHING MAY BRANCH ON ITS WORDS — the same
+   * sentence `mindEntities` writes above it, and here it has teeth: two kinds
+   * that a translator gives one name to are ONE cohort, which is the honest
+   * behaviour (the reader is grouping by what the chip says), and a kind that
+   * was deleted reads as null, which is its own cohort rather than a crash.
+   *
+   * EVERY VALUE HERE IS AN ID OR RAW TEXT, NEVER A RESOLVED WORD — which is the
+   * one way this memo differs from `mindEntities` beside it, and it is forced by
+   * the model rather than chosen. `bucketBy` matches a facet's value against the
+   * `key` of a DECLARED option (`stages`, `kinds`, the roster) to find the
+   * cohort's label and its place in the ring; feeding it a localised caption
+   * would match nothing, and every organization would land in the "a value
+   * nothing declared" bucket — 400 rows under one grey cohort called Unknown,
+   * in one language and not the other.
+   *
+   * So `typeKey` is `kind_id` and `stageId` is the rung's id, and the WORDS for
+   * both travel separately, in `facetOptions` below. `vendor` is the exception
+   * because it declares nothing: free text is its own key (0023 froze the
+   * column that way), and the model trims it into one.
+   */
+  const entityFacets = useMemo<MindEntityFacet[]>(
+    () =>
+      mapNodes.map((node) => ({
+        id: node.id,
+        managerId: node.account_manager_id,
+        typeKey: node.kind_id,
+        vendor: node.vendor,
+        stageId: progressByNodeId.get(node.id)?.stage_id ?? null,
+      })),
+    [mapNodes, progressByNodeId],
+  )
+
+  /**
+   * THE WORDS AND THE ORDER for the two declared axes — the stage ladder and
+   * the kinds — resolved for the locale exactly once.
+   *
+   * ONE MEMO FOR BOTH because they are one idea and they are consumed by one
+   * argument list: a cohort ring reads in the WORKSPACE's order (`sort_order`,
+   * which both stores already hold their rows in), which is the same contract
+   * `vocab` holds one ring down for the status buckets. A ring that sorted
+   * itself by size would put the ladder in a different order after every write.
+   *
+   * HIDDEN RUNGS ARE PASSED, NOT FILTERED. `map_node_stages.hidden` takes a rung
+   * out of the PICKERS; it never un-stages the organizations standing on it, and
+   * dropping it here would move fourteen of them into "a value nothing
+   * declared". The model draws it, marks it retired, and keeps it in its place.
+   * `map_node_kinds` has no hidden column at all, so the flag is simply absent.
+   *
+   * Rebuilt on a locale change, like every other label memo on this screen, and
+   * on nothing else: the two lists are ~7 and ~3 rows.
+   */
+  const facetOptions = useMemo(() => {
+    return {
+      stages: mapNodeStages.map((stage) => ({
+        key: stage.id,
+        label: stageLabelOf(stage),
+        hidden: stage.hidden,
+      })),
+      kinds: nodeKinds.map((kind) => ({ key: kind.id, label: kindLabelOf(kind) })),
+    }
+  }, [mapNodeStages, nodeKinds, stageLabelOf, kindLabelOf])
+
   const vocab = useMemo<readonly MindVocabOption[]>(() => {
     // Owner and health have no vocabulary: the roster and the four computed
     // levels are the axis, and model.ts takes an empty list for both.
@@ -546,6 +776,34 @@ export function useMapModel(
    */
   const leafThreshold = compact ? 3 : 6
 
+  /**
+   * HOW MANY ORGANIZATIONS A RING MAY HOLD BEFORE IT IS CUT INTO COHORTS.
+   *
+   * Threaded beside `leafThreshold` and spelled the same way for the same
+   * reason: it is a property of the SCREEN, not of the data, and the model has
+   * no business reading a media query.
+   *
+   * 24 AND 16 ARE MEASURED, from worlds.ts's own packing constants rather than
+   * from taste. A ring of n siblings puts each child at 1/n of the parent's
+   * angular room; run the repo's own numbers out and the 24th sibling is the
+   * last one that still draws as a NAMED CHIP (44x44 with its name outside along
+   * the ray) at a desktop's framed size, while the 25th falls into the `state`
+   * band, which renders no text at all by design (MindNode.tsx: "STILL NO
+   * TEXT"). On a 375px phone the same crossing happens at 16. Past the cap a
+   * ring has stopped being a list of names and become a texture, which is
+   * exactly when a cohort — one named card standing for fourteen — says more
+   * than the fourteen do.
+   *
+   * A CAP IS NOT A LIMIT ON WHAT IS DRAWN. `groupEntities` never drops a row: at
+   * or under the cap the organizations are drawn unchanged (a small group NEVER
+   * becomes a cohort), and past it they are re-bucketed and then re-bucketed
+   * again down the ladder, with an honest wide ring as the last resort.
+   */
+  const ringCap = compact ? RING_CAP_COMPACT : RING_CAP
+
+  /** The cohort key the reader asked for, mapped from the one `?by=`. */
+  const grouping = GROUPING_FOR_BY[by]
+
   const tree = useMemo(
     () =>
       buildMindtree({
@@ -559,6 +817,24 @@ export function useMapModel(
         // the running app, and with it the dive past the track ring, the Org
         // leaf and the whole detail panel.
         entities: mindEntities,
+        /**
+         * THE COHORT PASS'S FIVE ARGUMENTS, and they are five rather than one
+         * object because each answers to a different owner: `grouping` is the
+         * reader's (the address bar), `entityFacets` is the database's, `stages`
+         * and `kinds` are the admin's (the words and the order), and `ringCap`
+         * is the screen's.
+         *
+         * THE IDS AND THE WORDS TRAVEL SEPARATELY, which is the shape the whole
+         * pass turns on: a facet carries a `stage_id`, and `stages` says what
+         * that id is CALLED and where it sits on the ladder. Fold the two
+         * together — a facet carrying a resolved stage name — and the ring loses
+         * its order, because `sort_order` is not recoverable from a word.
+         */
+        grouping,
+        entityFacets,
+        stages: facetOptions.stages,
+        kinds: facetOptions.kinds,
+        ringCap,
         vocab,
         members,
         dimension,
@@ -577,6 +853,10 @@ export function useMapModel(
       health,
       mindTracks,
       mindEntities,
+      grouping,
+      entityFacets,
+      facetOptions,
+      ringCap,
       vocab,
       members,
       dimension,
@@ -642,6 +922,20 @@ export function useMapModel(
 
   const dimensionLabel = t(
     MIND_DIMENSIONS.find((d) => d.key === dimension)?.labelKey ?? 'mindtree.dimStatus',
+  )
+
+  /**
+   * The active grouping as a WORD — "Stage", "Team", "Vendors".
+   *
+   * Read off `MIND_GROUPINGS` rather than off a table in this file, because the
+   * model owns the axis and the chip, the announcement and every cohort's spoken
+   * name all have to say the same word. It is a fallback rather than a `?.`
+   * because `MindGrouping` is closed: the `??` arm is unreachable and exists so
+   * a future member that nobody added a row for degrades to "no grouping"
+   * instead of rendering `undefined`.
+   */
+  const groupingLabel = t(
+    MIND_GROUPINGS.find((g) => g.key === grouping)?.labelKey ?? 'common.none',
   )
 
   /**
@@ -739,7 +1033,31 @@ export function useMapModel(
             : t('mindtree.showFewer', { label: trail(ancestry) }),
         })
       } else {
-        const detail = [t('mindtree.countOpen', { count: node.count })]
+        const detail: string[] = []
+        /**
+         * A COHORT SAYS WHAT IT IS A COHORT OF, AND HOW MANY ARE IN IT.
+         *
+         * "Stage: Integrating, 14 organizations, 37 open, 2 past deadline."
+         *
+         * Both clauses are load-bearing and neither is available anywhere else
+         * on the drawing. The DISPLAY label is the bucket's own name — the rung,
+         * the person, the vendor — and read alone, "Integrating" is a word with
+         * no subject; the ring it sits in is a picture, and a picture cannot be
+         * announced. The count is the ring's SIZE, which the sighted reader gets
+         * from the card's own area (`sizeForCount`) and nobody else gets at all.
+         *
+         * The number is `stat.orgs` and NEVER `node.count` — see `NodeStats`.
+         * `count` is the open work under the cohort and is appended below with
+         * every other branch's, in the same words, so the two numbers can never
+         * be read as one.
+         *
+         * The grouping word comes from the ACTIVE axis rather than from the node
+         * because a cohort has no idea which key cut it — and it cannot: the
+         * whole tree is cut by one key at a time, and that key is `grouping`.
+         */
+        const cohort = node.kind === 'cohort'
+        if (cohort) detail.push(t('mindtree.cohortOrgs', { count: stat.orgs }))
+        detail.push(t('mindtree.countOpen', { count: node.count }))
         if (stat.breached > 0) detail.push(t('mindtree.countBreached', { count: stat.breached }))
         if (stat.unassigned > 0) {
           detail.push(t('mindtree.countUnassigned', { count: stat.unassigned }))
@@ -771,7 +1089,20 @@ export function useMapModel(
         }
         // Nothing about expansion is appended: `aria-expanded` on the treeitem
         // already announces it, and a name that repeated it would say it twice.
-        name = t('mindtree.nodeName', { label: raw, detail: detail.join(sep) })
+        //
+        // `cohortName` IS `nodeName` WITH ONE MORE SLOT, not a second sentence
+        // shape: "⁨{by}⁩: ⁨{label}⁩, {detail}". It is a separate key rather than a
+        // `by`-prefixed `label` composed here because the colon, the order and
+        // the two isolate pairs are all the LOCALE's business — Arabic puts the
+        // qualifier the other way round in the RTL run, and a string built with
+        // `+` in this file cannot be translated at all.
+        name = cohort
+          ? t('mindtree.cohortName', {
+              by: groupingLabel,
+              label: raw,
+              detail: detail.join(sep),
+            })
+          : t('mindtree.nodeName', { label: raw, detail: detail.join(sep) })
       }
 
       out.set(node.id, {
@@ -841,6 +1172,9 @@ export function useMapModel(
     mapNodeById,
     vocabLabelOf,
     textOf,
+    // A STRING, so it compares by value: the cohort clause is rebuilt when the
+    // axis changes and not when the object holding it does.
+    groupingLabel,
     locale,
   ])
 
@@ -925,6 +1259,17 @@ export function useMapModel(
     views,
     textOf,
     dimensionLabel,
+    /** The cohort key the picture is cut by — the toolbar lights its chip from it. */
+    grouping,
+    groupingLabel,
+    /**
+     * IS THERE ANYTHING TO GROUP? Counted off the roll-up rather than off
+     * `mapNodes`, so it answers about the tree as DRAWN: a workspace whose
+     * organizations are all archived, or all filtered out, has nothing for a
+     * cohort chip to do, and a control that changes nothing visible is a control
+     * that reads as broken. The root's `orgs` is that number by construction.
+     */
+    hasEntities: (stats.get(ROOT_ID) ?? NO_STATS).orgs > 0,
     summary,
     busiest,
     topGroup,

@@ -241,9 +241,11 @@ export interface DropQuery {
    * whole path. `[root, track]` for a track branch, `[root, track, group]` for a
    * group, and `[root, track, entity…, group]` once the hierarchy has entities
    * under the track — arbitrarily many `entity` steps, because the tree beneath
-   * a track is recursive. The root contributes nothing and may be omitted; steps
-   * that are none of track, entity or group are skipped by the fold, and only
-   * the LAST element decides whether the drop has a legal destination at all.
+   * a track is recursive, and `cohort` steps interleaved with them once `?by=`
+   * is on. The root contributes nothing and may be omitted; steps that are none
+   * of track, entity or group — the root and every cohort — are skipped by the
+   * fold, and only the LAST element decides whether the drop has a legal
+   * destination at all.
    */
   readonly path: readonly DropTargetNode[]
   readonly dimension: MindDimension
@@ -400,9 +402,29 @@ type FoldResult =
  * a track, an entity and a group write different keys — so the result names the
  * deepest step while carrying the whole write.
  *
- * Steps that are none of the three (the root) are skipped rather than refused:
- * the caller is allowed to hand over the path exactly as the tree gives it,
- * without slicing the root off first.
+ * Steps that are none of the three (the root, and a `cohort`) are skipped rather
+ * than refused: the caller is allowed to hand over the path exactly as the tree
+ * gives it, without slicing the root off first.
+ *
+ * ── A COHORT IS SKIPPED, AND SKIPPING IT IS THE FEATURE ─────────────────────
+ *
+ * With `?by=manager` on, the path to an Organization runs
+ * `root → track → cohort:manager:<uuid> → entity:<uuid>`, so this loop sees a
+ * cohort on the way to almost every legal drop the map has. It must be
+ * TRANSPARENT: the grouping is a lens over the same hierarchy, the same drop
+ * onto the same Org has to write the same two columns whether the reader has
+ * grouping on or off, and a URL that changes what a drag DOES would be the
+ * defect the whole `?by=` design exists to avoid.
+ *
+ * And it must never write. `isFilingKind` is the guard rather than three `!==`
+ * comparisons precisely here: it answers "is this node's `bucketKey` a row id
+ * anything may put in a column", a cohort's synthetic key is not one, and the
+ * failure it prevents is subtler than a wrong uuid — the loop's last arm is
+ * `applyGroup`, so a cohort that got past this line would have its cut key read
+ * as a DIMENSION VALUE and land as `status = 'cohort:manager:<uuid>'`. That is
+ * `dropRules`' oldest documented trap (the `'group'` paragraph in model.ts's
+ * `'cohort'` note) arriving through a new door. Dropping ONTO a cohort is
+ * refused one level up, by name, in `evaluateDrop`.
  *
  * ROOT-FIRST IS WHAT MAKES THE TRACK ARM'S `mapNodeId: null` SAFE. It fires on
  * every path, including the ones that go on to pass through three entity rings —
@@ -416,7 +438,7 @@ function foldPath(path: readonly DropTargetNode[], dimension: MindDimension): Fo
   let value: string | null = null
 
   for (const step of path) {
-    if (step.kind !== 'track' && step.kind !== 'entity' && step.kind !== 'group') continue
+    if (!isFilingKind(step.kind) && step.kind !== 'group') continue
     // model.ts always sets `bucketKey` on a track, entity or group node, so a
     // null here is a malformed node rather than a real bucket — refuse rather
     // than write a column to null by accident.
@@ -555,9 +577,80 @@ function changesRow(patch: EntryPatch, row: DropEntryRow): boolean {
  * that makes health hoverable-but-refused makes this one unarguable: the entity
  * ring would otherwise be the only ring on the map you cannot drop on, which
  * reads as a broken drag rather than as a rule.
+ *
+ * A COHORT IS A ZONE AND EVERY DROP ON ONE IS REFUSED — health's arrangement
+ * exactly, for health's reason. With `?by=manager` on, a cohort is the BIGGEST
+ * ring on the screen and the one a dragging pointer crosses on its way to
+ * anything; a ring that cannot be hovered cannot explain itself, and a pointer
+ * that finds nothing armed over the largest thing on the map reads as a broken
+ * drag. So it arms, and `evaluateDrop` answers `whyDerived` by name: a cohort is
+ * a CUT of the organizations, not a column — "Sara's book" is `?by=manager`
+ * grouping what `account_manager_id` already says, and dropping an ISSUE on it
+ * would have to mean reassigning the ORGANIZATION, which is a different gesture
+ * on a different noun (the design parks it, with this refusal as its placeholder
+ * — §7's "Parked").
+ *
+ * ⚠ WHY `KIND_ROLE` IS NOT THE WHOLE ANSWER HERE. Three of these four kinds are
+ * roles apart: `track`/`entity` are `'place'`, `group`/`cohort` are `'bucket'`.
+ * The role table answers "may a column be written from this node's key", and a
+ * zone is a question about the POINTER — what is under it, and whether the map
+ * owes it a sentence. The two questions have different answers on a cohort by
+ * design, which is why this stays its own list and why the list is now spelled
+ * against `MindNodeKind` as a total record.
  */
+/**
+ * IS THIS NODE'S `bucketKey` A ROW WORK CAN BE FILED UNDER?
+ *
+ * THE PREDICATE THE 27-SITE AUDIT ACTUALLY NEEDED, and it is deliberately not
+ * `KIND_ROLE[kind] === 'place'`. model.ts's own warning on that table says why
+ * in one sentence — *"The role answers 'may I frame it / is it structure'; it
+ * never answers 'what column does its key belong in'"* — and `'place'` is four
+ * kinds, of which only these two have a row:
+ *
+ *     track   `bucketKey` is a `tracks.id`      → `track_id`
+ *     entity  `bucketKey` is a `map_nodes.id`   → `node_id`
+ *     root    no key at all; it is the workspace
+ *     cohort  a SYNTHETIC key `groupEntities` minted from a column the
+ *             organizations already carry — `cohort:manager:<uuid>`
+ *
+ * Writing a cohort's key into either column is the exact failure model.ts's
+ * `'entity'` and `'cohort'` paragraphs are written to prevent, and reading the
+ * ROLE here instead of this table is how it would have happened anyway, one
+ * refactor after the kind landed. So the audit's answer at these six sites is a
+ * table of its own, total over `MindNodeKind` — a new kind is a build error here
+ * as well, and its safe default is the one this predicate gives it.
+ *
+ * `actions.ts` imports it rather than restating it: `draftAt`, `branchRefAt`,
+ * `structuralActions` and `selectionLabel` are asking this question, and a
+ * second copy of it is how a create and a drop start disagreeing about what a
+ * branch is.
+ */
+const FILING_KIND: Readonly<Record<MindNodeKind, boolean>> = Object.freeze({
+  root: false,
+  track: true,
+  entity: true,
+  cohort: false,
+  group: false,
+  more: false,
+  entry: false,
+})
+
+export function isFilingKind(kind: MindNodeKind): boolean {
+  return FILING_KIND[kind]
+}
+
+const DROP_ZONE: Readonly<Record<MindNodeKind, boolean>> = Object.freeze({
+  root: false,
+  track: true,
+  entity: true,
+  cohort: true,
+  group: true,
+  more: false,
+  entry: false,
+})
+
 export function isDropZoneKind(kind: MindNodeKind): boolean {
-  return kind === 'track' || kind === 'entity' || kind === 'group'
+  return DROP_ZONE[kind]
 }
 
 /**
@@ -603,6 +696,27 @@ export function evaluateDrop(q: DropQuery): DropOutcome {
   // a LEVEL, not a column value, and any attempt to read it as one is the bug
   // this arm exists to prevent.
   if (target.kind === 'group' && dimension === 'health') {
+    return { kind: 'refused', reasonKey: 'mindtree.whyDerived' }
+  }
+
+  // A COHORT, AND FOR THE LINE ABOVE'S REASON RATHER THAN A NEW ONE — which is
+  // why it borrows that sentence rather than minting a locale key. A cohort's
+  // key is a CUT (`manager:<uuid>`, `stage:<uuid>`), derived by `groupEntities`
+  // from columns the organizations already carry; there is no column on an ENTRY
+  // that it names, and `whyDerived` — "this ring is worked out from the data,
+  // there is nothing to set" — is exactly true of it. lib/labelSections.test.ts
+  // fails on two keys carrying one string, so a second sentence saying this
+  // would have been a gate failure as well as a translation nobody needed.
+  //
+  // BEFORE THE FOLD, deliberately and not merely for symmetry. `foldPath` SKIPS
+  // cohorts — they are transparent, so the same drop writes the same columns
+  // with grouping on or off — and a drop that ENDED on one would therefore fold
+  // its ANCESTORS and succeed: `root → track → cohort` folds to "this track,
+  // under no organization", so dropping an issue on "Sara's book" would silently
+  // take it out of the Org it was in and file it on the track. A drag that
+  // quietly does something other than what it looked like is worse than one that
+  // is refused, and this arm is the reason it cannot happen.
+  if (target.kind === 'cohort') {
     return { kind: 'refused', reasonKey: 'mindtree.whyDerived' }
   }
 

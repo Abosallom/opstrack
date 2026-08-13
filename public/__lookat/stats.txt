@@ -13,3 +13,13 @@ large-rtl  dived-two    scale=3.530e-2  marks=  921  minText= 13.000px  minStrok
 large-rtl  phone        scale=5.660e-2  marks=  916  minText= 13.000px  minStroke=  1.729px  framed=am:1                    children[6]: chip=6
 large-rtl  zoomed-out   scale=3.048e-3  marks=   66  minText= 19.205px  minStroke=  0.801px  framed=root                    children[1]: chip=1
 large-rtl  zoomed-in    scale=2.589e+0  marks= 2953  minText= 28.474px  minStroke=  2.589px  framed=am:1:type:0:org:134     children[0]: 
+large-grouped opening      scale=2.963e-2  marks=  980  minText= 10.932px  minStroke=  0.760px  framed=ob                      children[8]: chip=7 card=1
+large-grouped dived-two    scale=1.132e-1  marks= 1104  minText=  9.354px  minStroke=  0.813px  framed=cohort:st:2             children[4]: chip=1 card=3
+large-grouped phone        scale=1.912e-2  marks=  144  minText= 13.000px  minStroke=  0.767px  framed=ob                      children[8]: chip=8
+large-grouped zoomed-out   scale=2.815e-3  marks=   64  minText= 19.205px  minStroke=  0.995px  framed=root                    children[1]: chip=1
+large-grouped zoomed-in    scale=2.589e+0  marks= 2613  minText= 13.000px  minStroke=  2.000px  framed=cohort:st:2:mgr:1:org:92  children[0]: 
+large-grouped-rtl opening      scale=2.963e-2  marks=  980  minText= 10.932px  minStroke=  0.760px  framed=ob                      children[8]: chip=7 card=1
+large-grouped-rtl dived-two    scale=1.132e-1  marks= 1104  minText=  9.354px  minStroke=  0.813px  framed=cohort:st:2             children[4]: chip=1 card=3
+large-grouped-rtl phone        scale=1.912e-2  marks=  144  minText= 13.000px  minStroke=  0.767px  framed=ob                      children[8]: chip=8
+large-grouped-rtl zoomed-out   scale=2.815e-3  marks=   64  minText= 19.205px  minStroke=  0.995px  framed=root                    children[1]: chip=1
+large-grouped-rtl zoomed-in    scale=2.589e+0  marks= 2613  minText= 13.000px  minStroke=  2.000px  framed=cohort:st:2:mgr:1:org:92  children[0]: 

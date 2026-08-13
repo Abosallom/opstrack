@@ -135,7 +135,9 @@ const MAX_DIMS = 16
  *
  * `root/track:UHR/entity:OB/entity:Org1/group:blocked/entry:X` is a real id, and
  * 0023 caps the hierarchy at six levels below the track, so eleven segments is
- * the deepest the schema can produce. THE SAME NUMBER AS
+ * the deepest the schema can produce — AND WAVE 6 ADDED `cohort:` SEGMENTS ON
+ * TOP OF THOSE ELEVEN, up to 28 of them at ~62 characters each (the arithmetic
+ * is written out at `lib/mindtree/focus.MAX_FOCUS_LEN`). THE SAME NUMBER AS
  * `lib/mindtree/focus.MAX_FOCUS_LEN`, deliberately and not by coincidence: that
  * constant bounds the id arriving from the URL and this one bounds the id
  * arriving from `localStorage`, and they are the same ids. A device that
@@ -147,7 +149,7 @@ const MAX_DIMS = 16
  * Still a cap rather than no cap: `localStorage` is user-writable and this value
  * is read synchronously before the first frame.
  */
-const MAX_NODE_ID = 1024
+const MAX_NODE_ID = 4096
 
 export interface MindtreePrefs {
   dimension: MindDimension

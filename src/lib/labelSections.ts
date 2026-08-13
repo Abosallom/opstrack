@@ -369,8 +369,17 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       // interpolated from `mapnode.wordLive`, which already has its own row and
       // its own `terminology.where.mindtreeProgress` note, and a second editable
       // copy of one word is exactly the drift the where-notes exist to prevent.
+      //
+      // WAVE 6 ADDS `cohort*` TO THIS LIST, and it belongs beside `count` rather
+      // than beside the controls: a cohort's spoken name is built from the same
+      // counted sentence the three `count*` keys carry, one ring up ("Stage:
+      // Integrating, 14 organizations, 37 open"). The WORDS its axis is named
+      // with are not new keys at all — `MIND_GROUPINGS` reuses the portfolio's
+      // `portfolioBy*` and `common.none`, because the chips on the map and the
+      // chips on the table are one control asking one question, and a second
+      // vocabulary for it would be two rows in Terminology for one idea.
       {
-        prefixes: ['archived', 'breach', 'count', 'dim'],
+        prefixes: ['archived', 'breach', 'cohort', 'count', 'dim'],
         section: 'healthStates',
       },
       // Everything a person presses: the group-by menu, the DIVE RAIL, the
@@ -397,6 +406,12 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
           'expand',
           'export',
           'focus',
+          // `grouping*` — the second menu's own chrome: the group's name, the
+          // summary that says which grouping is on, and the sentence the live
+          // region reads after a chip is pressed. The WORDS the chips carry are
+          // `by*` above; these three are the control around them, which is what
+          // puts them here and not there.
+          'grouping',
           'table',
         ],
         section: 'actions',

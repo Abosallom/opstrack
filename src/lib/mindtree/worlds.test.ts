@@ -918,6 +918,163 @@ describe('worldAt — the breadcrumb, derived', () => {
     const l = layoutWorlds(workspace(), { structuralOf: (n) => n.id === 'root' })
     expect(l.nodes.filter((n) => n.structural).map((n) => n.id)).toEqual(['root'])
   })
+
+  it('FRAMES A COHORT — the ring `?by=` draws is a place, not content', () => {
+    // The whole argument for the kind existing. "The 96 organizations Sara
+    // manages" is a ring of the workspace: the camera stops on it, the crumb
+    // names it, and the dive goes through it to the organizations inside. A
+    // `group` could not be given that without giving it to every status bucket
+    // on the map — which is the sentence STRUCTURAL_KINDS is written against.
+    const tree = node('root', [
+      node('t', [
+        node('t/sara', [node('t/sara/org1', [], { kind: 'entity' })], { kind: 'cohort' }),
+        node('t/bucket', [], { kind: 'group' }),
+      ], { kind: 'track' }),
+    ], { kind: 'root' })
+    const l = layoutWorlds(tree)
+    expect(l.byId.get('t/sara')?.structural).toBe(true)
+    expect(l.byId.get('t/bucket')?.structural).toBe(false)
+
+    // And the camera really does stop there rather than naming the track.
+    const cohort = l.byId.get('t/sara') as WorldNode<TestNode>
+    const scale = (FRAME_FRACTION * 835) / cohort.worldD
+    expect(worldAt(l, { cx: cohort.worldX, cy: cohort.worldY }, scale, 835)?.id).toBe('t/sara')
+  })
+})
+
+// ── the size encoding, at the altitude that does not cost a word ───────────
+//
+// `sizeHintOf` multiplies a node's own WORLD and leaves its authored card box
+// alone, which is the difference between this and `sizeOf`. Wave 5 measured what
+// `sizeOf` costs — `MindNode` authors every mark in the units of a 168-wide leaf,
+// so a box widened behind its back draws its label at 168/252 of the share it
+// was authored at, and the phone's framed ring loses one organization's NAME in
+// three — refused the wiring, and named this seam as the fix. The round-trip
+// assertion below is the one that cannot survive `sizeOf` and is the whole point
+// of the hint.
+
+describe('sizeHintOf — the size encoding grows the WORLD, not the box', () => {
+  const hinted = (hints: Readonly<Record<string, number>>, tree: TestNode = fan(6)) =>
+    layoutWorlds(tree, { sizeHintOf: (n) => hints[n.id] })
+
+  it('changes NOTHING when no caller asks, and nothing when one asks for nothing', () => {
+    // The committed SVGs and every number this suite already pins depend on the
+    // first. The second is `revision`'s own contract — it changes iff the
+    // DRAWING changed — and an encoding with no opinion about any node draws
+    // exactly what no encoding draws, so it must hash alike too.
+    const plain = layoutWorlds(workspace())
+    for (const noop of [() => undefined, () => 1]) {
+      const l = layoutWorlds(workspace(), { sizeHintOf: noop })
+      expect(l.revision).toBe(plain.revision)
+      expect(everyNumber(l)).toEqual(everyNumber(plain))
+    }
+  })
+
+  it('grows the hinted leaf\'s world by the factor, and its card WITH it', () => {
+    const l = hinted({ k0: 1.5 })
+    const big = l.byId.get('k0') as WorldNode<TestNode>
+    const same = l.byId.get('k1') as WorldNode<TestNode>
+    expect(big.worldD / same.worldD).toBeCloseTo(1.5, 9)
+    expect(big.width / same.width).toBeCloseTo(1.5, 9)
+    expect(big.height / same.height).toBeCloseTo(1.5, 9)
+    expect(big.cardScale / same.cardScale).toBeCloseTo(1.5, 9)
+  })
+
+  it('KEEPS THE ROUND-TRIP `width / cardScale === leafSize.width`', () => {
+    // THE ASSERTION `sizeOf` CANNOT PASS, and the reason this option exists. It
+    // is `MindNode`'s contract: a mark drawn inside `scale(cardScale)` is
+    // authored in LEAF units, so the 12.5-unit label is the same fraction of a
+    // hinted card as of an unhinted one and nothing pays for the magnitude.
+    const leaf: NodeSize = { width: 168, height: 44 }
+    const l = layoutWorlds(fan(6), { leafSize: leaf, sizeHintOf: (n) => (n.id === 'k0' ? 1.5 : 1) })
+    for (const n of l.nodes) {
+      if (n.node.children?.length ?? 0) continue
+      expect(n.width / n.cardScale).toBeCloseTo(leaf.width, 6)
+      expect(n.height / n.cardScale).toBeCloseTo(leaf.height, 6)
+    }
+    // And `sizeOf` really does break it, which is why the two are different
+    // mechanisms rather than two spellings of one.
+    const viaSize = layoutWorlds(fan(6), {
+      leafSize: leaf,
+      sizeOf: (n) => (n.id === 'k0' ? { width: 252, height: 66 } : undefined),
+    })
+    const grown = viaSize.byId.get('k0') as WorldNode<TestNode>
+    expect(grown.width / grown.cardScale).toBeCloseTo(252, 6)
+  })
+
+  it('keeps containment and disjointness at every hint', () => {
+    for (const hint of [0.5, 1, 1.5, 3, 6]) {
+      const l = hinted({ k0: hint, k3: 1 / hint }, uniform(3, 4))
+      expectFinite(l)
+      for (const parent of l.nodes) {
+        for (const child of childrenOf(l, parent.id)) {
+          // A child's whole world sits inside its parent's.
+          expect(distance(parent, child) + child.worldD / 2).toBeLessThanOrEqual(
+            parent.worldD / 2 + EPS,
+          )
+        }
+        const kids = childrenOf(l, parent.id)
+        for (let i = 0; i < kids.length; i += 1) {
+          for (let k = i + 1; k < kids.length; k += 1) {
+            expect(distance(kids[i], kids[k])).toBeGreaterThanOrEqual(
+              (kids[i].worldD + kids[k].worldD) / 2 - EPS,
+            )
+          }
+        }
+      }
+    }
+  })
+
+  it('mirrors exactly in Arabic, hints and all', () => {
+    const hints = { 'p0/d0/org0': 1.5, 'p2/d5/org8': 3 }
+    const ltr = layoutWorlds(workspace(), { sizeHintOf: (n) => hints[n.id as keyof typeof hints] })
+    const rtl = layoutWorlds(workspace(), {
+      direction: 'rtl',
+      sizeHintOf: (n) => hints[n.id as keyof typeof hints],
+    })
+    expect(rtl.bounds).toEqual(ltr.bounds)
+    expect(rtl.nodes[0].worldX).toBe(ltr.nodes[0].worldX) // the hub, byte-exact
+    for (const n of ltr.nodes) {
+      const m = rtl.byId.get(n.id) as WorldNode<TestNode>
+      // The same one-ULP statement the mirror block above makes and for its
+      // reason: `hubX + x` and `hubX - x` are two roundings of two exactly
+      // negated offsets. A hint moves the drawing; it does not add a second
+      // reflection, so the residue is the same size it always was.
+      expect(Math.abs(n.worldX + m.worldX - ltr.bounds.width)).toBeLessThanOrEqual(
+        Number.EPSILON * ltr.bounds.width,
+      )
+      expect(m.worldY).toBe(n.worldY)
+      expect(m.worldD).toBe(n.worldD)
+      expect(m.cardScale).toBe(n.cardScale)
+    }
+  })
+
+  it('sanitises what an area encoding can actually hand it', () => {
+    // `buildLayoutNodes`' bargain: a divide-by-zero in a count→area encoding
+    // produces NaN, and a drawing that throws is worse than one that draws the
+    // node at its floor.
+    const plain = layoutWorlds(fan(6))
+    for (const bad of [Number.NaN, 0, -2, Number.POSITIVE_INFINITY, undefined]) {
+      const l = layoutWorlds(fan(6), { sizeHintOf: () => bad })
+      expect(everyNumber(l)).toEqual(everyNumber(plain))
+    }
+    // And an absurd hint is capped rather than allowed to spend the whole
+    // drawing on one node.
+    const capped = hinted({ k0: 1e9 })
+    const floor = layoutWorlds(fan(6))
+    const ratio =
+      (capped.byId.get('k0') as WorldNode<TestNode>).worldD /
+      (floor.byId.get('k0') as WorldNode<TestNode>).worldD
+    expect(ratio).toBeLessThanOrEqual(6 + EPS)
+  })
+
+  it('puts the hint in `revision`, because a hint is geometry', () => {
+    // The camera reads `bounds` once per revision. A ring whose busiest sibling
+    // changed count is a different drawing, and a revision that did not move
+    // would leave the camera framed on the old one.
+    expect(hinted({ k0: 1.5 }).revision).not.toBe(hinted({ k0: 1.25 }).revision)
+    expect(hinted({ k0: 1.5 }).revision).toBe(hinted({ k0: 1.5 }).revision)
+  })
 })
 
 describe('ancestorWorlds — root first, target last, inclusive', () => {

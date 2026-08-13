@@ -133,6 +133,26 @@ export interface UseCaseProgress {
  * `track` node and a status key on a `group` node — indistinguishable from a
  * node id by shape, which is exactly why model.ts publishes `kind` alongside it
  * and why nothing may read one without the other.
+ *
+ * ── AND IT IS THE GATE A COHORT'S KEY MUST NEVER PASS ──────────────────────
+ *
+ * `'entity'` BY NAME, not `KIND_ROLE[kind] === 'place'`, and the difference is
+ * the whole of the design's §1.6 argument written as one comparison. A cohort
+ * carries a SYNTHETIC key — `manager:<uuid>`, `stage:<uuid>`, `vendor:acme` —
+ * minted by `groupEntities` from columns the organizations already hold. It is
+ * not a row in `map_nodes`, and this function is the ONLY door between a
+ * `MindNode` and the `node_id` that goes to `api/map.ts`: `MapBranch` mounts the
+ * org sidebar on it, `useMapModel` counts capabilities by it, `portfolio/rows`
+ * builds a row per it. A cohort's key reaching any of them is `22P02 invalid
+ * input syntax for type uuid` at best and a read scoped to a node that does not
+ * exist at worst.
+ *
+ * A `'place'` is a track OR an Organization, and a TRACK's key is a `tracks` id
+ * — already the wrong uuid for this column, which is why the role table is not
+ * the test here and why model.ts's `'entity'` note says the same thing from the
+ * other side. Every kind that is not `'entity'` answers null, including every
+ * kind added after this line was written; `mapNodes.test.ts` proves it over the
+ * whole union rather than over the two kinds anybody thought of.
  */
 export function entityIdOf(node: Pick<MindNode, 'kind' | 'bucketKey'>): string | null {
   return node.kind === 'entity' ? node.bucketKey : null

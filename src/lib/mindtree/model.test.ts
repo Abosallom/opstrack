@@ -17,14 +17,26 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_FILTER, type FilterContext, type FilterState } from '../entryFilter'
 import {
+  GROUPING_LADDER,
+  KIND_ROLE,
+  MIND_GROUPINGS,
+  RING_CAP,
+  RING_CAP_COMPACT,
   ROOT_ID,
   buildMindtree,
+  cohortKeyOf,
+  cohortOf,
   groupTotals,
   isMindDimension,
+  isMindGrouping,
   visibleChildren,
+  type MindCohortKey,
   type MindEntity,
+  type MindEntityFacet,
+  type MindGrouping,
   type MindMember,
   type MindNode,
+  type MindNodeKind,
   type MindTrack,
   type MindVocabOption,
   type MindtreeInput,
@@ -1566,5 +1578,727 @@ describe('isMindDimension', () => {
     for (const junk of ['track', 'assignee', '', null, undefined, 3, {}]) {
       expect(isMindDimension(junk)).toBe(false)
     }
+  })
+})
+
+// ── the cohort ring ────────────────────────────────────────────────────────
+//
+// Everything below builds a portfolio too wide to name and then asks the two
+// questions rule 4 of model.ts's header answers: is the picture legible, and is
+// every organization still in it. The second one is the important one — a
+// grouping pass that made the ring narrow by losing rows would satisfy every
+// count assertion in this file except the partition below, which is why the
+// partition is asserted directly against the input list rather than inferred.
+
+function facetOf(over: Partial<MindEntityFacet> & Pick<MindEntityFacet, 'id'>): MindEntityFacet {
+  return { managerId: null, typeKey: null, vendor: null, stageId: null, ...over }
+}
+
+function ofKind(root: MindNode, kind: MindNodeKind): MindNode[] {
+  return nodes(root).filter((n) => n.kind === kind)
+}
+
+/**
+ * EVERY ORGANIZATION HANDED IN IS DRAWN EXACTLY ONCE.
+ *
+ * The counts cannot see this on their own: an entity holding no open work has a
+ * count of 0, so dropping it leaves every sum in the tree exactly as it was.
+ * "Four hundred organizations, twenty-two drawn, and the arithmetic agrees" is
+ * the failure this function exists to make impossible, and it is asserted
+ * against the INPUT list rather than against another walk of the output.
+ */
+function assertEveryEntityDrawn(root: MindNode, entities: readonly MindEntity[]): void {
+  const drawn = ofKind(root, 'entity').map((n) => n.bucketKey)
+  expect(new Set(drawn).size, 'an organization drawn twice').toBe(drawn.length)
+  expect([...drawn].sort()).toEqual(entities.map((e) => e.id).sort())
+}
+
+/** The widest ENTITY ring anywhere in the tree — cohorts and organizations, the
+ *  siblings the packing has to fit. Dimension buckets ride beside them. */
+function widestRing(root: MindNode): number {
+  let widest = 0
+  for (const node of nodes(root)) {
+    const ring = node.children.filter((c) => c.kind === 'entity' || c.kind === 'cohort').length
+    if (ring > widest) widest = ring
+  }
+  return widest
+}
+
+function cohortKeys(node: MindNode): string[] {
+  return node.children.filter((c) => c.kind === 'cohort').map((c) => c.bucketKey ?? '')
+}
+
+const AMS: MindMember[] = [1, 2, 3].map((n) => ({ id: `am-${n}`, displayName: `AM ${n}` }))
+/** `map_node_stages` in ladder order — the seven rungs 0026 seeds. */
+const STAGES = Array.from({ length: 7 }, (_, i) => ({ key: `st-${i}`, label: `Stage ${i}` }))
+/** `map_node_kinds` in sort_order. */
+const KINDS = Array.from({ length: 6 }, (_, i) => ({ key: `kd-${i}`, label: `Kind ${i}` }))
+const VENDORS = Array.from({ length: 11 }, (_, i) => `Vendor ${String.fromCharCode(65 + i)}`)
+
+/**
+ * THE 400-ORGANIZATION PORTFOLIO — the shape the revamp was ordered against: one
+ * onboarding phase, three account managers, six kinds, seven stages, eleven
+ * integrators, and a hole in every column because real data has holes.
+ *
+ * DETERMINISTIC BY INDEX, with no clock and no random: `i % 37` is why eleven
+ * organizations have nobody on them, and it will be the same eleven on every
+ * machine and in every run, which is what lets the assertions below name exact
+ * numbers instead of ranges.
+ */
+function portfolio(count: number): {
+  entities: MindEntity[]
+  facets: MindEntityFacet[]
+  entries: Entry[]
+} {
+  const entities: MindEntity[] = [
+    entityOf({ id: 'ob', trackId: 'uhr', label: 'Onboarding', typeKey: 'Phase' }),
+  ]
+  const facets: MindEntityFacet[] = []
+  const entries: Entry[] = []
+  for (let i = 0; i < count; i += 1) {
+    const id = `org-${String(i).padStart(3, '0')}`
+    entities.push(
+      entityOf({
+        id,
+        trackId: 'uhr',
+        parentId: 'ob',
+        label: `Org ${i}`,
+        sortOrder: i,
+        typeKey: 'Organization',
+      }),
+    )
+    facets.push(
+      facetOf({
+        id,
+        managerId: i % 37 === 0 ? null : AMS[i % 3].id,
+        // `i / 3` rather than `i`, and the reason is the fixture's own honesty:
+        // `KINDS[i % 6]` would be perfectly correlated with `AMS[i % 3]`, so
+        // every account manager would hold exactly two kinds and the second
+        // rung of the ladder would look narrower than it is.
+        typeKey: KINDS[Math.floor(i / 3) % 6].key,
+        stageId: i % 23 === 0 ? null : STAGES[i % 7].key,
+        vendor: i % 13 === 0 ? null : VENDORS[i % 11],
+      }),
+    )
+    if (i % 3 === 0) {
+      entries.push(
+        entry({
+          id: `e-${id}`,
+          track_id: 'uhr',
+          node_id: id,
+          status: i % 6 === 0 ? 'new' : 'blocked',
+        }),
+      )
+    }
+  }
+  return { entities, facets, entries }
+}
+
+const UHR = [track({ id: 'uhr', label: 'UHR' })]
+
+function grouped(count: number, over: Partial<MindtreeInput> = {}): MindNode {
+  const { entities, facets, entries } = portfolio(count)
+  return build({
+    tracks: UHR,
+    entities,
+    entries,
+    entityFacets: facets,
+    members: AMS,
+    stages: STAGES,
+    kinds: KINDS,
+    grouping: 'manager',
+    ...over,
+  })
+}
+
+describe('the cohort ring — a ring too wide to name is regrouped, never shortened', () => {
+  it('leaves a ring AT the cap as organizations — a small group never cohorts', () => {
+    const root = grouped(RING_CAP)
+    expect(ofKind(root, 'cohort')).toEqual([])
+    expect(ofKind(root, 'entity')).toHaveLength(RING_CAP + 1) // the orgs, plus the phase
+    assertSound(root)
+  })
+
+  it('buckets the ring ONE organization past the cap, and moves nobody out of it', () => {
+    const { entities } = portfolio(RING_CAP + 1)
+    const root = grouped(RING_CAP + 1)
+    expect(ofKind(root, 'cohort').length).toBeGreaterThan(0)
+    assertEveryEntityDrawn(root, entities)
+    assertSound(root)
+  })
+
+  it('turns 400 organizations into two named rings — the AM book, then the kinds', () => {
+    const { entities } = portfolio(400)
+    const root = grouped(400)
+    const phase = find(root, 'root/track:uhr/entity:ob')
+
+    // Three account managers and the unclaimed pile. This IS the §1.7 shape:
+    // one dive to a manager's book, one more to a kind, and the organizations
+    // are named chips — never four hundred marks on one ring.
+    expect(cohortKeys(phase)).toEqual([
+      cohortKeyOf('manager', ''),
+      cohortKeyOf('manager', 'am-1'),
+      cohortKeyOf('manager', 'am-2'),
+      cohortKeyOf('manager', 'am-3'),
+    ])
+    const book = child(phase, 1)
+    expect(cohortKeys(book)).toEqual(KINDS.map((k) => cohortKeyOf('type', k.key)))
+    expect(book.children.every((c) => c.kind === 'cohort')).toBe(true)
+    expect(child(book, 0).children.every((c) => c.kind === 'entity')).toBe(true)
+
+    // The whole point, in one number: no ring anywhere is wider than the cap.
+    expect(widestRing(root)).toBeLessThanOrEqual(RING_CAP)
+    assertEveryEntityDrawn(root, entities)
+    assertSound(root)
+  })
+
+  it('reads the stage ring in the LADDER’s order, with "no stage" after the rungs', () => {
+    const root = grouped(400, { grouping: 'stage' })
+    const phase = find(root, 'root/track:uhr/entity:ob')
+    expect(cohortKeys(phase)).toEqual([
+      ...STAGES.map((s) => cohortKeyOf('stage', s.key)),
+      // Nobody has SAID what stage these are at. That is a filing gap, and a
+      // filing gap trails the real rungs exactly as the untracked pile does.
+      cohortKeyOf('stage', ''),
+    ])
+    expect(labels(phase)).toEqual([...STAGES.map((s) => s.label), 'mindtree.portfolioUnstaged'])
+  })
+
+  it('leads the manager ring with the unclaimed pile, then the roster’s order', () => {
+    const root = grouped(400)
+    const phase = find(root, 'root/track:uhr/entity:ob')
+    // `ownerGroups`' rule one ring down, restated here: unclaimed work is the
+    // most actionable thing on the screen and does not get buried behind names.
+    expect(labels(phase)).toEqual(['filter.managerNone', 'AM 1', 'AM 2', 'AM 3'])
+  })
+
+  it('orders the vendor ring by size, then by the FOLDED name', () => {
+    // Free text has no declared order, so the cohort question — "which
+    // integrator unblocks the most" — sets it.
+    const entities = Array.from({ length: 30 }, (_, i) =>
+      entityOf({ id: `o${i}`, trackId: 'uhr', sortOrder: i }),
+    )
+    const facets = entities.map((e, i) =>
+      facetOf({ id: e.id, vendor: i < 20 ? 'Acme' : i < 25 ? 'zeta' : 'Zebra' }),
+    )
+    const root = build({ tracks: UHR, entities, entityFacets: facets, grouping: 'vendor' })
+    const trackNode = find(root, 'root/track:uhr')
+    expect(labels(trackNode)).toEqual(['Acme', 'Zebra', 'zeta'])
+    expect(cohortKeys(trackNode)).toEqual([
+      cohortKeyOf('vendor', 'Acme'),
+      cohortKeyOf('vendor', 'Zebra'),
+      cohortKeyOf('vendor', 'zeta'),
+    ])
+  })
+
+  it('spends the NEXT ladder key on a cohort that is still too wide', () => {
+    // 60 organizations, two managers: `manager` gets the ring to 2 and each of
+    // those is still 30 wide, so `type` is spent inside them. (That the spent
+    // key is also REMOVED from the list is a bound on the recursion, not a
+    // behaviour: re-cutting a manager cohort by manager yields one bucket, and
+    // one bucket is already refused. There is no tree that tells the two apart,
+    // which is why nothing here claims one.)
+    const entities = Array.from({ length: 60 }, (_, i) =>
+      entityOf({ id: `o${i}`, trackId: 'uhr', sortOrder: i }),
+    )
+    const facets = entities.map((e, i) =>
+      facetOf({ id: e.id, managerId: AMS[i % 2].id, typeKey: KINDS[Math.floor(i / 2) % 4].key }),
+    )
+    const root = build({
+      tracks: UHR,
+      entities,
+      entityFacets: facets,
+      members: AMS,
+      kinds: KINDS,
+      grouping: 'manager',
+    })
+    const trackNode = find(root, 'root/track:uhr')
+    expect(cohortKeys(trackNode)).toEqual([
+      cohortKeyOf('manager', 'am-1'),
+      cohortKeyOf('manager', 'am-2'),
+    ])
+    for (const book of trackNode.children) {
+      expect(cohortKeys(book)).toEqual(KINDS.slice(0, 4).map((k) => cohortKeyOf('type', k.key)))
+    }
+    assertEveryEntityDrawn(root, entities)
+    assertSound(root)
+  })
+
+  it('refuses an axis that puts everybody in one bucket and takes the next one', () => {
+    const entities = Array.from({ length: 30 }, (_, i) =>
+      entityOf({ id: `o${i}`, trackId: 'uhr', sortOrder: i }),
+    )
+    // One manager for all thirty: a cohort ring of one is a ring that says
+    // nothing, so `type` is spent instead.
+    const facets = entities.map((e, i) =>
+      facetOf({ id: e.id, managerId: 'am-1', typeKey: KINDS[i % 3].key }),
+    )
+    const root = build({
+      tracks: UHR,
+      entities,
+      entityFacets: facets,
+      members: AMS,
+      kinds: KINDS,
+      grouping: 'manager',
+    })
+    expect(cohortKeys(find(root, 'root/track:uhr'))).toEqual(
+      KINDS.slice(0, 3).map((k) => cohortKeyOf('type', k.key)),
+    )
+  })
+
+  it('refuses an axis that gives one bucket per organization', () => {
+    // Thirty vendors for thirty organizations renames the ring and charges a
+    // tap to reach each one. With nothing else recorded the ladder runs out,
+    // and the honest answer is the wide ring itself.
+    const entities = Array.from({ length: 30 }, (_, i) =>
+      entityOf({ id: `o${i}`, trackId: 'uhr', sortOrder: i }),
+    )
+    const facets = entities.map((e, i) => facetOf({ id: e.id, vendor: `V${i}` }))
+    const root = build({ tracks: UHR, entities, entityFacets: facets, grouping: 'vendor' })
+    expect(ofKind(root, 'cohort')).toEqual([])
+    expect(find(root, 'root/track:uhr').children).toHaveLength(30)
+    assertEveryEntityDrawn(root, entities)
+  })
+
+  it('keeps every organization when the ladder is exhausted — rule 1 outranks the cap', () => {
+    const entities = Array.from({ length: 400 }, (_, i) =>
+      entityOf({ id: `o${i}`, trackId: 'uhr', sortOrder: i }),
+    )
+    // No facets at all: every axis holds "not recorded" for everybody.
+    const root = build({ tracks: UHR, entities, grouping: 'manager' })
+    expect(ofKind(root, 'cohort')).toEqual([])
+    assertEveryEntityDrawn(root, entities)
+    assertSound(root)
+  })
+
+  it('takes the NARROWEST cut on offer when nothing gets under the cap', () => {
+    // 60 organizations: 30 vendors, 26 managers. Neither fits, and 26 named
+    // cohorts is not legible — but it is 26 marks instead of 60, each with a
+    // name and a number, which is the honest failure rather than a lie.
+    const entities = Array.from({ length: 60 }, (_, i) =>
+      entityOf({ id: `o${i}`, trackId: 'uhr', sortOrder: i }),
+    )
+    const members: MindMember[] = Array.from({ length: 26 }, (_, i) => ({
+      id: `m-${String(i).padStart(2, '0')}`,
+      displayName: `M ${i}`,
+    }))
+    const facets = entities.map((e, i) =>
+      facetOf({ id: e.id, vendor: `V${i % 30}`, managerId: members[i % 26].id }),
+    )
+    const root = build({
+      tracks: UHR,
+      entities,
+      entityFacets: facets,
+      members,
+      grouping: 'vendor',
+    })
+    const ring = cohortKeys(find(root, 'root/track:uhr'))
+    expect(ring).toHaveLength(26)
+    expect(ring.every((k) => k.startsWith('cohort:manager:'))).toBe(true)
+    assertEveryEntityDrawn(root, entities)
+    assertSound(root)
+  })
+
+  it('never groups at all under `none`, whatever the fan-out', () => {
+    const { entities } = portfolio(400)
+    const root = grouped(400, { grouping: 'none' })
+    expect(ofKind(root, 'cohort')).toEqual([])
+    assertEveryEntityDrawn(root, entities)
+    // …and omitting the field entirely is the same tree, which is what keeps
+    // every caller written before this axis existed correct.
+    const silent = grouped(400, { grouping: undefined })
+    expect(ids(silent)).toEqual(ids(root))
+  })
+
+  it('never folds an organization behind a "+N more" — that fold is for entries', () => {
+    const root = grouped(400, { leafThreshold: 1 })
+    for (const fold of ofKind(root, 'more')) {
+      expect(fold.children.every((c) => c.kind === 'entry')).toBe(true)
+    }
+    expect(ofKind(root, 'entity')).toHaveLength(401)
+  })
+})
+
+describe('the cohort node — synthetic, diveable, and unmistakable for a row', () => {
+  const entities = Array.from({ length: 30 }, (_, i) =>
+    entityOf({ id: `o${i}`, trackId: 'uhr', sortOrder: i, typeKey: 'Organization' }),
+  )
+  const facets = entities.map((e, i) => facetOf({ id: e.id, stageId: STAGES[i % 4].key }))
+  const byStage = (over: Partial<MindtreeInput> = {}): MindNode =>
+    build({
+      tracks: UHR,
+      entities,
+      entityFacets: facets,
+      stages: STAGES,
+      grouping: 'stage',
+      ...over,
+    })
+
+  it('carries a key no `map_nodes.id` column could ever hold', () => {
+    const cohort = child(find(byStage(), 'root/track:uhr'), 0)
+    expect(cohort.kind).toBe('cohort')
+    // Every id in this schema is a uuid, and a uuid cannot contain a colon. So
+    // a site that read `bucketKey` without checking `kind` gets a 22P02 from
+    // the database instead of somebody else's organization.
+    expect(cohort.bucketKey).toBe('cohort:stage:st-0')
+    expect(cohort.bucketKey).toContain(':')
+    expect(cohortOf(cohort)).toEqual({ grouping: 'stage', value: 'st-0' })
+  })
+
+  it('is not an entity, a track or a group — the three kinds it could have leaked into', () => {
+    const root = byStage()
+    const cohort = child(find(root, 'root/track:uhr'), 0)
+    expect(KIND_ROLE[cohort.kind]).toBe('place')
+    expect(cohort.entityType).toBeNull()
+    expect(cohort.entryId).toBeNull()
+    // And the reader is one-way: nothing that is not a cohort answers to it.
+    expect(cohortOf(find(root, 'root/track:uhr'))).toBeNull()
+    expect(cohortOf(child(cohort, 0))).toBeNull()
+    expect(cohortOf({ kind: 'entity', bucketKey: 'cohort:stage:st-0' })).toBeNull()
+    expect(cohortOf({ kind: 'cohort', bucketKey: 'st-0' })).toBeNull()
+  })
+
+  it('builds ids that are safe as DOM ids and cannot forge a path', () => {
+    // A vendor is arbitrary user text: a name with a slash would otherwise mint
+    // an id that collides with a real node's path.
+    const wild = [1, 2, 3].map((n) => entityOf({ id: `o${n}`, trackId: 'uhr', sortOrder: n }))
+    const root = build({
+      tracks: UHR,
+      entities: wild,
+      entityFacets: [
+        facetOf({ id: 'o1', vendor: 'a/b:c d' }),
+        facetOf({ id: 'o2', vendor: 'other' }),
+        facetOf({ id: 'o3', vendor: 'other' }),
+      ],
+      grouping: 'vendor',
+      ringCap: 1,
+    })
+    // The two-organization cohort leads (size first), so the wild name is second.
+    const cohort = child(find(root, 'root/track:uhr'), 1)
+    expect(cohort.id).toBe('root/track:uhr/cohort:cohort%3Avendor%3Aa%2Fb%3Ac%20d')
+    expect(cohort.id.split('/')).toHaveLength(3)
+    // The key itself round-trips whatever the free-text column held, colons and
+    // all — which is why it is read through `cohortOf` and never by slicing.
+    expect(cohortOf(cohort)).toEqual({ grouping: 'vendor', value: 'a/b:c d' })
+    assertSound(root)
+  })
+
+  it('inherits the branch colour and never picks one', () => {
+    const root = byStage()
+    const trackNode = find(root, 'root/track:uhr')
+    for (const cohort of ofKind(root, 'cohort')) {
+      expect(cohort.colourVars).toEqual(trackNode.colourVars)
+    }
+  })
+
+  it('marks a cohort retired when its rung was retired, and drops nobody', () => {
+    const root = byStage({
+      stages: STAGES.map((s, i) => (i === 1 ? { ...s, hidden: true } : s)),
+    })
+    const ring = find(root, 'root/track:uhr').children
+    expect(ring.map((c) => c.retired)).toEqual([false, true, false, false])
+    // store/vocab's frozen rule from the other side: hiding an option emptied it
+    // from every picker, and the organizations standing on it are still drawn.
+    expect(ring[1].count + ring[1].children.length).toBeGreaterThan(0)
+    assertSound(root)
+  })
+
+  it('gives a value nothing declares a bucket of its own, marked and last', () => {
+    const root = byStage({ stages: STAGES.slice(0, 2) })
+    const ring = find(root, 'root/track:uhr')
+    expect(labels(ring)).toEqual(['Stage 0', 'Stage 1', 'mindtree.unknownGroup', 'mindtree.unknownGroup'])
+    expect(ring.children.map((c) => c.retired)).toEqual([false, false, true, true])
+    assertEveryEntityDrawn(root, entities)
+  })
+
+  it('rolls the health split and the SLA breach up through the cohort ring', () => {
+    const { entities: orgs, facets: cols } = portfolio(30)
+    const root = build({
+      tracks: UHR,
+      entities: orgs,
+      entityFacets: cols,
+      members: AMS,
+      grouping: 'manager',
+      entries: [
+        entry({ id: 'x1', track_id: 'uhr', node_id: 'org-001' }),
+        entry({ id: 'x2', track_id: 'uhr', node_id: 'org-004' }),
+      ],
+      health: healthMap(health('x1', 'critical', true), health('x2', 'stale')),
+    })
+    // org-001 and org-004 are both AM 2's (`i % 3`), so one cohort carries both.
+    const book = find(root, 'root/track:uhr/entity:ob').children.find(
+      (c) => c.bucketKey === cohortKeyOf('manager', 'am-2'),
+    )
+    expect(book).toBeDefined()
+    expect(book?.count).toBe(2)
+    expect(book?.health.levels).toEqual({ ok: 0, stale: 1, overdue: 0, critical: 1 })
+    // A breach behind a cohort still marks it — rule 2: an escalation only
+    // visible once you dive is an escalation nobody sees.
+    expect(book?.health.slaBreached).toBe(true)
+    assertSound(root)
+  })
+
+  it('is not drawn when everything in it was an archived empty', () => {
+    // An Organization with nothing on it is a FACT worth drawing. A cohort is
+    // not a thing anybody configured, so one that summarises nothing goes.
+    const orgs = [
+      entityOf({ id: 'live-1', trackId: 'uhr', sortOrder: 0 }),
+      entityOf({ id: 'live-2', trackId: 'uhr', sortOrder: 1 }),
+      entityOf({ id: 'live-3', trackId: 'uhr', sortOrder: 2 }),
+      entityOf({ id: 'gone', trackId: 'uhr', sortOrder: 3, archived: true }),
+    ]
+    const root = build({
+      tracks: UHR,
+      entities: orgs,
+      entityFacets: [
+        facetOf({ id: 'live-1', managerId: 'am-1' }),
+        facetOf({ id: 'live-2', managerId: 'am-1' }),
+        facetOf({ id: 'live-3', managerId: 'am-2' }),
+        facetOf({ id: 'gone', managerId: 'am-3' }),
+      ],
+      members: AMS,
+      grouping: 'manager',
+      ringCap: 1,
+    })
+    expect(cohortKeys(find(root, 'root/track:uhr'))).toEqual([
+      cohortKeyOf('manager', 'am-1'),
+      cohortKeyOf('manager', 'am-2'),
+    ])
+    assertSound(root)
+  })
+
+  it('puts the organizations one ring deeper per cohort the ladder spent', () => {
+    const root = grouped(400)
+    const at = (id: string): number | undefined =>
+      ofKind(root, 'entity').find((n) => n.bucketKey === id)?.depth
+    // root → track → phase → AM's book → its kinds → the organization.
+    expect(at('org-001')).toBe(5)
+    // org-000 is one of the eleven with nobody on them, and eleven fits under
+    // the cap — so that cohort resolves straight to organizations and costs one
+    // ring, not two. The ladder spends only what the ring needs.
+    expect(at('org-000')).toBe(4)
+    expect(ofKind(root, 'cohort').every((n) => n.depth >= 3)).toBe(true)
+  })
+})
+
+describe('the count invariant, THROUGH cohorts', () => {
+  it('still sums to the root at 400 organizations', () => {
+    const { entities, entries } = portfolio(400)
+    const root = grouped(400)
+    // The root's count is `entries.length`, computed independently of the walk
+    // — so this is the assertion a cohort that swallowed a subtree would fail.
+    expect(root.count).toBe(entries.length)
+    expect(entries.length).toBe(134)
+    assertCountsRollUp(root)
+    assertLevelsSum(root)
+    assertEveryEntityDrawn(root, entities)
+  })
+
+  it('reconciles `groupTotals` through cohorts — the table cannot disagree with the map', () => {
+    const counts = (root: MindNode): Record<string, number> =>
+      Object.fromEntries(groupTotals(root).map((g) => [g.key, g.count]))
+    const flat = grouped(400, { grouping: 'none' })
+    const byManager = grouped(400)
+    const byStage = grouped(400, { grouping: 'stage' })
+    // The same work, cut three ways, totalled identically. The walk descends
+    // through every PLACE, so a cohort is transparent to it.
+    //
+    // COUNTS, NOT THE WHOLE ROWS: `order` is first-appearance in the tree's own
+    // reading order, and regrouping legitimately changes which of two buckets
+    // holding SIXTY-SEVEN each is met first. The numbers are the promise; the
+    // tiebreak between two equal ones is not.
+    expect(counts(byManager)).toEqual(counts(flat))
+    expect(counts(byStage)).toEqual(counts(flat))
+    expect(groupTotals(byManager).reduce((n, g) => n + g.count, 0)).toBe(byManager.count)
+  })
+
+  it('is deterministic — the same portfolio builds a byte-identical tree twice', () => {
+    expect(digest(grouped(400))).toEqual(digest(grouped(400)))
+  })
+
+  it('takes the first facet row for a duplicated id, as `planEntities` does', () => {
+    const orgs = [1, 2, 3].map((n) => entityOf({ id: `o${n}`, trackId: 'uhr', sortOrder: n }))
+    const root = build({
+      tracks: UHR,
+      entities: orgs,
+      entityFacets: [
+        facetOf({ id: 'o1', managerId: 'am-1' }),
+        facetOf({ id: 'o1', managerId: 'am-2' }),
+        facetOf({ id: 'o2', managerId: 'am-3' }),
+        facetOf({ id: 'o3', managerId: 'am-3' }),
+      ],
+      members: AMS,
+      grouping: 'manager',
+      ringCap: 1,
+    })
+    expect(cohortKeys(find(root, 'root/track:uhr'))).toEqual([
+      cohortKeyOf('manager', 'am-1'),
+      cohortKeyOf('manager', 'am-3'),
+    ])
+  })
+})
+
+describe('the ring cap — an input, never a device', () => {
+  it('defaults to the desktop number when the caller says nothing', () => {
+    expect(RING_CAP).toBe(24)
+    expect(RING_CAP_COMPACT).toBe(16)
+    expect(ofKind(grouped(RING_CAP), 'cohort')).toEqual([])
+    expect(ofKind(grouped(RING_CAP + 1), 'cohort').length).toBeGreaterThan(0)
+  })
+
+  it('groups eight organizations sooner on a phone', () => {
+    expect(ofKind(grouped(20, { ringCap: RING_CAP_COMPACT }), 'cohort').length).toBeGreaterThan(0)
+    expect(ofKind(grouped(20), 'cohort')).toEqual([])
+  })
+
+  it('refuses a NaN rather than drawing four hundred siblings', () => {
+    // The number reaches here from a viewport measurement, and a NaN would make
+    // every comparison in the pass false — the silent failure this file spends
+    // its comments avoiding.
+    expect(ids(grouped(400, { ringCap: Number.NaN }))).toEqual(ids(grouped(400)))
+  })
+
+  it('floors at one rather than grouping a ring of one', () => {
+    const one = build({
+      tracks: UHR,
+      entities: [entityOf({ id: 'o1', trackId: 'uhr' })],
+      entityFacets: [facetOf({ id: 'o1', managerId: 'am-1' })],
+      members: AMS,
+      grouping: 'manager',
+      ringCap: 0,
+    })
+    expect(ofKind(one, 'cohort')).toEqual([])
+    expect(ofKind(one, 'entity')).toHaveLength(1)
+  })
+})
+
+describe('MindGrouping — the second axis', () => {
+  it('accepts its five members and refuses what the OTHER `?by=` can hold', () => {
+    for (const key of ['none', 'stage', 'manager', 'type', 'vendor']) {
+      expect(isMindGrouping(key)).toBe(true)
+    }
+    // `phase` is `PortfolioBy`'s member and not this union's: the two surfaces
+    // share one URL parameter and do not share one axis, so the canvas has to
+    // degrade rather than render a cut it cannot make.
+    for (const junk of ['phase', 'wave', 'owner', '', null, undefined, 3, {}]) {
+      expect(isMindGrouping(junk)).toBe(false)
+    }
+  })
+
+  it('lists every member exactly once, with a label key each', () => {
+    const keys: MindGrouping[] = ['none', 'stage', 'manager', 'type', 'vendor']
+    expect(MIND_GROUPINGS.map((g) => g.key)).toEqual(keys)
+    for (const row of MIND_GROUPINGS) expect(row.labelKey).toMatch(/^[a-z]+\.[A-Za-z]+$/)
+  })
+
+  it('ladders every bucketing axis exactly once, and never `none`', () => {
+    const ladder: MindCohortKey[] = ['manager', 'type', 'stage', 'vendor']
+    expect(GROUPING_LADDER).toEqual(ladder)
+    expect(new Set(GROUPING_LADDER).size).toBe(GROUPING_LADDER.length)
+    expect(MIND_GROUPINGS.filter((g) => g.key !== 'none').map((g) => g.key).sort()).toEqual(
+      [...GROUPING_LADDER].sort(),
+    )
+  })
+})
+
+describe('KIND_ROLE — so the NEXT kind is a compile error, not a silent "no"', () => {
+  it('answers for every kind the tree can build', () => {
+    const roles: Record<MindNodeKind, string> = {
+      root: 'place',
+      track: 'place',
+      entity: 'place',
+      cohort: 'place',
+      group: 'bucket',
+      more: 'bucket',
+      entry: 'leaf',
+    }
+    expect(KIND_ROLE).toEqual(roles)
+  })
+
+  it('agrees with the tree it describes', () => {
+    const root = grouped(400, { leafThreshold: 1 })
+    for (const node of nodes(root)) {
+      const role = KIND_ROLE[node.kind]
+      // Only a leaf carries an entry id; only a place may hold a place.
+      expect(role === 'leaf').toBe(node.entryId !== null)
+      if (role === 'place') {
+        expect(node.children.every((c) => KIND_ROLE[c.kind] !== 'leaf')).toBe(true)
+      }
+    }
+  })
+})
+
+/**
+ * ── THE PERMANENT RING-CAP PROPERTY ────────────────────────────────────────
+ *
+ * The wave's one measurable promise, asserted as a PROPERTY over every axis and
+ * both devices rather than as a spot check on the axis somebody happened to
+ * try. Rule 4 of the header is "past the cap, group" and the cap is the last
+ * fan-out at which a sibling still carries a name (`RING_CAP`'s own derivation
+ * from `packRing`); a ring one over it is a ring of unnamed dots, which is the
+ * defect the whole cohort design was ordered against.
+ *
+ * IT IS A PROPERTY AND NOT A NUMBER because the tree it holds over is not one
+ * tree: `groupEntities` picks a different axis at every site depending on what
+ * the data there actually divides into, recurses on the overflow, and stops
+ * when the ladder runs out. A single `expect(widest).toBe(22)` would pass while
+ * a nested ring three levels down held sixty — and the nested rings are exactly
+ * where the recursion can go wrong.
+ *
+ * `none` IS EXCLUDED, and its exclusion is the feature rather than a hole. It
+ * is the reader's explicit "show me the organizations": four hundred marks on
+ * one ring is what they asked for, the ladder is not entered behind their back,
+ * and the assertion below states that too so nobody later "fixes" it.
+ */
+describe('the ring cap holds over EVERY axis and BOTH devices, at 400 organizations', () => {
+  const AXES: MindCohortKey[] = ['stage', 'manager', 'type', 'vendor']
+
+  it('never draws a ring wider than the cap it was given', () => {
+    for (const grouping of AXES) {
+      for (const ringCap of [RING_CAP, RING_CAP_COMPACT]) {
+        const root = grouped(400, { grouping, ringCap })
+        expect(widestRing(root), `${grouping} at cap ${ringCap}`).toBeLessThanOrEqual(ringCap)
+      }
+    }
+  })
+
+  it('draws all four hundred and keeps the count, at every one of those eight', () => {
+    // The cap is not a limit on what is DRAWN, and this is the assertion that
+    // says so: a pass that met the cap by dropping rows would satisfy the one
+    // above and fail here. Both halves — every organization present, and the
+    // root still equal to the entries — because a count can reconcile while a
+    // zero-count Org has silently vanished (`assertEveryEntityDrawn`'s own
+    // paragraph) and an Org can be present while the arithmetic has drifted.
+    const { entities } = portfolio(400)
+    for (const grouping of AXES) {
+      for (const ringCap of [RING_CAP, RING_CAP_COMPACT]) {
+        const root = grouped(400, { grouping, ringCap })
+        assertEveryEntityDrawn(root, entities)
+        assertSound(root)
+      }
+    }
+  })
+
+  it('leaves `by=none` its four hundred siblings, deliberately', () => {
+    // The reader asked for organizations. The toolbar's other chips are one tap
+    // away and the ladder is not entered behind their back — so this is the one
+    // configuration where the widest ring is the entity count itself, and it is
+    // pinned here so a later wave cannot quietly "fix" it into a grouping.
+    expect(widestRing(grouped(400, { grouping: 'none' }))).toBe(400)
+    expect(widestRing(grouped(400, { grouping: 'none', ringCap: RING_CAP_COMPACT }))).toBe(400)
+    expect(ofKind(grouped(400, { grouping: 'none' }), 'cohort')).toEqual([])
+  })
+
+  it('costs the phone more rings than the desktop for the same portfolio', () => {
+    // The phone's cap is eight lower, so the ladder is spent further down and
+    // the tree grows a tier. THAT IS THE `openDepth` SEAM, stated here as a
+    // number so the surfaces that still honour `collapsed` — MindtreeTable and
+    // export.ts — have something to be measured against: a grouped map is
+    // DEEPER than an ungrouped one, so "open to depth N" does not mean the same
+    // ring under `?by=stage` as it does under `?by=none`.
+    const depthOf = (root: MindNode): number => Math.max(...nodes(root).map((n) => n.depth))
+    expect(depthOf(grouped(400, { grouping: 'none' }))).toBe(5)
+    expect(depthOf(grouped(400, { grouping: 'stage' }))).toBe(7)
+    expect(depthOf(grouped(400, { grouping: 'stage', ringCap: RING_CAP_COMPACT }))).toBe(8)
   })
 })

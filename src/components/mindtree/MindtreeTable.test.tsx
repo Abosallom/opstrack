@@ -452,6 +452,64 @@ describe('buildTableRows at arbitrary depth', () => {
     expect(rows.map((r) => r.trackKey)).toEqual(['t-net', 't-net', 't-net', 't-net', 't-pmo'])
   })
 
+  it('never carries a COHORT key down as the node key — it is not a `map_nodes.id`', () => {
+    // WAVE 6, AND THE DEFENCE IS HERE RATHER THAN IN THE MODULE THAT MINTS THE
+    // KEY. `?by=` puts a `cohort` between a structural node and the
+    // organizations under it, and its `bucketKey` is `cohortKeyOf`'s synthetic
+    // `cohort:manager:<uuid>`. `filterForCell` writes `nodeKey` straight into
+    // `FilterState.mapNodeIds`, documented in entryFilter.ts as `map_nodes.id`,
+    // so a row that took one would drill into a node that does not exist —
+    // silent, and shaped exactly like "the count says 3 and the list shows 0".
+    //
+    // In today's trees no row can escape with one, because `groupEntities`
+    // buckets ENTITY plans only and every cohort therefore has an entity child
+    // that overwrites the key one step later. That is a guarantee held in
+    // another module. The cohort below has a group directly under it — a shape
+    // model.ts does not mint — precisely so this assertion is about THIS walk.
+    const cohort = node({
+      id: 'root/track:t-net/cohort:cohort%3Amanager%3Asara',
+      kind: 'cohort',
+      label: { kind: 'text', text: 'Sara' },
+      bucketKey: 'cohort:manager:sara',
+      count: 2,
+      children: [
+        groupNode('root/track:t-net/cohort:c/group:new', 'new', 'New', [leafNode('e1'), leafNode('e2')]),
+        entityNode('root/track:t-net/cohort:c/entity:n-org1', 'n-org1', 'Org1', [
+          groupNode('root/track:t-net/cohort:c/entity:n-org1/group:blocked', 'blocked', 'Blocked', [
+            leafNode('e4', true),
+          ]),
+        ]),
+      ],
+    })
+    const root = node({
+      id: 'root',
+      kind: 'root',
+      label: { kind: 'key', key: 'app.name' },
+      colourVars: {},
+      count: 3,
+      children: [
+        node({
+          id: 'root/track:t-net',
+          kind: 'track',
+          label: { kind: 'text', text: 'UHR' },
+          bucketKey: 't-net',
+          count: 3,
+          children: [cohort],
+        }),
+      ],
+    })
+
+    const rows = buildTableRows(root, ENTRY_MAP, TODAY)
+    expect(rows.every((r) => r.nodeKey === null || !r.nodeKey.startsWith('cohort:'))).toBe(true)
+    // The bucket hanging off the cohort inherits the TRACK's answer — null,
+    // "no organization narrows this" — and the org below it still names itself.
+    expect(rows.map((r) => r.nodeKey)).toEqual([null, 'n-org1'])
+    // The cohort is TRANSPARENT, not skipped: its rows are still emitted, still
+    // under the track, and the count still reconciles through it.
+    expect(rows.reduce((n, r) => n + r.count, 0)).toBe(root.count)
+    expect(rows.map((r) => r.trackKey)).toEqual(['t-net', 't-net'])
+  })
+
   it('totals the ownership and breach facts off the leaves under an Org', () => {
     const rows = buildTableRows(deepTree(), ENTRY_MAP, TODAY)
     // e1 is unassigned and was raised 30 days before TODAY; e2 has an owner.

@@ -36,6 +36,7 @@ import {
   findNode,
   nearestId,
   refocusTarget,
+  isStructuralKind,
   resolveFocus,
   trailTo,
   viewFromParams,
@@ -46,6 +47,9 @@ import {
   buildMindtree,
   type MindDimension,
   type MindNode,
+  type MindEntity,
+  type MindEntityFacet,
+  type MindNodeKind,
   type MindTrack,
   type MindVocabOption,
   type MindtreeInput,
@@ -551,8 +555,10 @@ describe('the URL round-trip', () => {
   })
 
   it('drops a pathologically long focus id', () => {
-    const long = `${ROOT_ID}/track:${'a'.repeat(1200)}`
-    expect(long.length).toBeGreaterThan(1024)
+    // 4 096 since wave 6 — a cohort segment is 63 characters and a worst-case
+    // grouped path carries 28 of them. See MAX_FOCUS_LEN's arithmetic.
+    const long = `${ROOT_ID}/track:${'a'.repeat(4200)}`
+    expect(long.length).toBeGreaterThan(4096)
     expect(viewFromParams(new URLSearchParams(`focus=${long}`)).focusId).toBeNull()
   })
 
@@ -560,8 +566,8 @@ describe('the URL round-trip', () => {
     // Just under the cap. A real hierarchy id is nowhere near this, but the
     // failure mode of a too-tight bound is a silently dead link (see below), so
     // the headroom is worth an assertion of its own.
-    const long = `${ROOT_ID}/track:${'a'.repeat(1000)}`
-    expect(long.length).toBeLessThan(1024)
+    const long = `${ROOT_ID}/track:${'a'.repeat(4000)}`
+    expect(long.length).toBeLessThan(4096)
     expect(viewFromParams(new URLSearchParams(`focus=${encodeURIComponent(long)}`)).focusId).toBe(long)
   })
 
@@ -634,16 +640,69 @@ describe('parseFocusId — the bounds are the database\'s', () => {
     expect(parses(deepest)).toBe(true)
   })
 
+  it('accepts a cohort segment — WITHOUT THIS LINE `?by=` HAS NO SHAREABLE LINK', () => {
+    // THE REGRESSION WAVE 6 WOULD OTHERWISE HAVE SHIPPED. A cohort is in
+    // STRUCTURAL_KINDS, so the camera stops on one and `useMapUrl` mirrors its
+    // id into `?focus=`; a grammar that did not know the word rejects it coming
+    // back — and a REJECTED id never reaches `resolveFocus`, so `missingId` is
+    // never set and the pasted link opens the whole map saying nothing.
+    //
+    // The exact string model.ts mints: `nodeId(parent, 'cohort', key)` with
+    // `cohortKeyOf('manager', <uuid>)` inside it, so the segment carries its own
+    // `cohort:` prefix percent-encoded — see model.ts:746 and :789.
+    const key = encodeURIComponent('cohort:manager:5f2c1a90-0000-4000-8000-000000000001')
+    const id = `${ROOT_ID}/track:UHR/cohort:${key}/entity:Org1`
+    expect(parses(id)).toBe(true)
+    // And the length arithmetic MAX_FOCUS_LEN is written against.
+    expect(`cohort:${key}`).toHaveLength(62)
+  })
+
+  it('accepts the deepest GROUPED id: six entity levels, each cut by the whole ladder', () => {
+    // 0023 caps the hierarchy at six levels below the track, and `groupEntities`
+    // may insert one cohort per ladder key (four) at the track and at each of
+    // those six levels. 7 x 4 = 28 cohort segments on top of the 11 the schema
+    // could already produce. It takes only 25 organizations agreeing on all four
+    // keys to exhaust the ladder at one site, so this is a shape the data can
+    // reach — not a decorative margin.
+    const ladder = ['stage', 'manager', 'type', 'vendor']
+    const cut = (at: string): string =>
+      ladder.map((k) => `cohort:${encodeURIComponent(`cohort:${k}:${at}`)}`).join('/')
+    const levels = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6']
+    const deepest = [
+      ROOT_ID,
+      'track:UHR',
+      cut('t'),
+      ...levels.map((l) => `${cut(l)}/entity:${l}`),
+      'group:blocked',
+      'more',
+      'entry:X',
+    ].join('/')
+    expect(deepest.split('/')).toHaveLength(39)
+    expect(deepest.length).toBeLessThan(4096)
+    expect(parses(deepest)).toBe(true)
+  })
+
   it('still refuses a path deeper than the schema could produce', () => {
-    const entities = Array.from({ length: 12 }, (_, i) => `entity:L${i}`).join('/')
+    // Past 40 segments. `groupEntities` cannot recurse a fifth time — the ladder
+    // is four keys and each is spent once — so nothing beyond this is mintable.
+    const entities = Array.from({ length: 40 }, (_, i) => `entity:L${i}`).join('/')
     const absurd = `${ROOT_ID}/track:UHR/${entities}/group:blocked/entry:X`
-    expect(absurd.split('/').length).toBeGreaterThan(12)
+    expect(absurd.split('/').length).toBeGreaterThan(40)
     expect(parses(absurd)).toBe(false)
   })
 
   it('refuses a segment kind that is not in the grammar', () => {
-    // The regex widened by exactly one keyword and no more.
-    for (const bogus of ['root/org:Org1', 'root/entity', 'root/entities:x', 'root/Entity:x']) {
+    // The regex widened by exactly one keyword and no more. `cohorts:` and
+    // `Cohort:` are the near-misses that would silently kill a shared link.
+    for (const bogus of [
+      'root/org:Org1',
+      'root/entity',
+      'root/entities:x',
+      'root/Entity:x',
+      'root/cohorts:x',
+      'root/Cohort:x',
+      'root/cohort',
+    ]) {
       expect(parses(bogus)).toBe(false)
     }
   })
@@ -749,6 +808,26 @@ describe('dimensionStableId', () => {
     // An entity focus is already stable — nothing to trim.
     expect(dimensionStableId(ORG1)).toBe(ORG1)
     expect(dimensionStableId(OB)).toBe(OB)
+  })
+
+  it('KEEPS every cohort segment — `?by=` is a different chip from the dimension', () => {
+    // REGRESSION, and the wave-6 twin of the entity case above. A cohort ring is
+    // cut by `?by=`, which the DIMENSION chip does not touch: flipping Status →
+    // Owner re-buckets the entries under an organization and leaves every cohort
+    // ring exactly where it was. Breaking at `cohort:` would throw an account
+    // manager standing in their own book back to the track — past their cohort,
+    // past the type ring, past the organization — and silently, because trimming
+    // reports no fallback. At 400 organizations every focus below the track ring
+    // has a `cohort:` segment in it, so this is the ordinary case.
+    const byManager = `${UHR}/cohort:${encodeURIComponent('cohort:manager:sara')}`
+    const byType = `${byManager}/cohort:${encodeURIComponent('cohort:type:hospital')}`
+    const org = `${byType}/entity:Org1`
+    expect(dimensionStableId(byManager)).toBe(byManager)
+    expect(dimensionStableId(byType)).toBe(byType)
+    expect(dimensionStableId(org)).toBe(org)
+    // ...and the axis's own segments still go, from underneath a cohort.
+    expect(dimensionStableId(`${org}/group:blocked`)).toBe(org)
+    expect(dimensionStableId(`${org}/group:blocked/entry:X`)).toBe(org)
   })
 
   it('stops at the FIRST group segment even when entities follow it', () => {
@@ -1059,5 +1138,201 @@ describe('defaultFocusFor — the map opens on the reader’s own world', () => 
     )
     // A manager map that answers null for everything is the same as none.
     expect(defaultFocusFor('am-sara', 'member', tree, () => null)).toBe(AM_SARA)
+  })
+})
+
+/* ─────────────────────── the cohort ring, once it is real ───────────────── */
+//
+// Wave 5's `defaultFocusFor` tests stand in for `?by=manager` with an `am:`
+// ENTITY tier, and both of them say so in their own comments. Wave 6 mints the
+// real thing: a `cohort` node whose `bucketKey` is `cohort:manager:<uuid>`. The
+// three questions below are the three this file owns about it — may the camera
+// stop there, does the reader's own ring still find them, and does a link to one
+// come back.
+
+const COHORT_KEY = 'cohort:manager:sara-uuid'
+const COHORT_ID = `${OB_TRACK}/cohort:${encodeURIComponent(COHORT_KEY)}`
+
+/** ob ▸ (Sara's cohort ▸ two orgs) ▸ an ungrouped org. */
+function cohortTree(): MindNode {
+  const orgs = [
+    node(COHORT_ID, 'entity', 'org-1'),
+    node(COHORT_ID, 'entity', 'org-2'),
+  ]
+  const cohort = node(OB_TRACK, 'cohort', COHORT_KEY, orgs, { bucketKey: COHORT_KEY })
+  return node(null, 'root', 'root', [node(ROOT_ID, 'track', 'ob', [cohort])])
+}
+
+describe('a cohort is a place the camera may stop on', () => {
+  it('is in the dive set, and a group and a fold still are not', () => {
+    // `isStructuralKind` IS `KIND_ROLE`'s `'place'` row, and worlds.ts's
+    // STRUCTURAL_KINDS is the same list spelled as strings one layer down. This
+    // is the assertion that reds if the two ever disagree about a kind.
+    const roles: Readonly<Record<MindNodeKind, boolean>> = {
+      root: true,
+      track: true,
+      entity: true,
+      cohort: true,
+      group: false,
+      more: false,
+      entry: false,
+    }
+    for (const kind of Object.keys(roles) as MindNodeKind[]) {
+      expect(isStructuralKind(kind), kind).toBe(roles[kind])
+    }
+  })
+
+  it('may be focused even with nothing under it', () => {
+    // `canFocus`'s exception of KIND rather than of degree. A cohort with no
+    // organizations cannot be built by `groupEntities` — but the rule is about
+    // what the node MEANS, and "the 41 on Integrating" is an answer whether or
+    // not any work is filed under them.
+    expect(canFocus(node(OB_TRACK, 'cohort', COHORT_KEY, [], { bucketKey: COHORT_KEY }))).toBe(true)
+    // The kinds that are still refused when empty, unchanged.
+    expect(canFocus(node(ROOT_ID, 'track', 'empty'))).toBe(false)
+    expect(canFocus(node(OB_TRACK, 'group', 'blocked'))).toBe(false)
+  })
+
+  it('resolves a link to a cohort rather than climbing past it', () => {
+    const tree = cohortTree()
+    const view = resolveFocus(tree, COHORT_ID)
+    expect(view.focusId).toBe(COHORT_ID)
+    expect(view.missingId).toBeNull()
+    expect(view.node.kind).toBe('cohort')
+    // And the id survives the URL codec, which is the other half of the link.
+    expect(viewFromParams(new URLSearchParams(`focus=${encodeURIComponent(COHORT_ID)}`)).focusId)
+      .toBe(COHORT_ID)
+  })
+
+  it('opens an account manager on their real cohort, by `bucketKey === meId`', () => {
+    // Wave 5 wrote "this is what wave 6's `?by=manager` cohort node will be".
+    // It is now that node, and `owns()` finds it because `isStructuralKind`
+    // admits the kind — with the old three-way comparison it would have answered
+    // false and the AM would have opened on the whole workspace.
+    expect(defaultFocusFor(COHORT_KEY, 'member', cohortTree())).toBe(COHORT_ID)
+  })
+})
+
+/**
+ * ── THE SEAM WAVE 6 CREATED BETWEEN `?by=` AND THE OPENING CAMERA ──────────
+ *
+ * `defaultFocusFor` descends only while ONE child holds every mark the reader
+ * owns. Wave 5 built it against a tree whose shape came from the ADMIN, where
+ * an account manager's organizations sit under one configured node. Wave 6 lets
+ * the READER re-cut that ring from the address bar, and the two axes answer this
+ * question differently:
+ *
+ *   `?by=manager` — every mark is inside one cohort, so the walk descends into
+ *                   it and the AM opens on their own book, which is the whole of
+ *                   wave 5's headline.
+ *   `?by=stage`   — the same organizations are scattered across every rung, so
+ *                   no single child holds them all and the walk stops one ring
+ *                   OUT, on the phase.
+ *
+ * BOTH ARE CORRECT and neither is a fallback: the second is what "group by
+ * stage" MEANS. It is pinned here because it is a cross-unit consequence nobody
+ * chose — `DEFAULT_PORTFOLIO_BY` is `'stage'` (lib/mindtree/lens.ts, picked for
+ * the TABLE's morning answer) and `pages/Mindtree.tsx` hands the same value to
+ * the canvas — so the default map at 400 organizations opens on the ladder
+ * rather than on the reader's book. Changing that is a decision about the
+ * product; noticing it silently change is what this test prevents.
+ *
+ * `managerOf` IS THE REAL MECHANISM, and it is passed here for that reason.
+ * `owns()` also tests `bucketKey === meId`, which a cohort's synthetic
+ * `cohort:manager:<uuid>` never satisfies — `useMapFocus` builds `managerOf`
+ * from `map_nodes.account_manager_id`, so it is the ORGANIZATIONS that carry the
+ * ownership and the cohort that inherits it by holding them.
+ */
+describe('where the map opens depends on which axis `?by=` cut', () => {
+  const AM = 'am-1'
+  const MEMBERS = [
+    { id: AM, displayName: 'Sara' },
+    { id: 'am-2', displayName: 'Faisal' },
+  ]
+  const STAGES = Array.from({ length: 4 }, (_, i) => ({ key: `st-${i}`, label: `Stage ${i}` }))
+
+  /**
+   * 40 organizations under one phase: two managers, four stages, no holes.
+   *
+   * FORTY, so that BOTH axes land under the cap in ONE cut and the two trees
+   * differ only in which axis was spent — two books of 20, or four rungs of 10.
+   * A fixture where one axis had to recurse would confound "the walk stopped
+   * here" with "the ladder went further".
+   *
+   * The stage runs on `i / 2` rather than on `i`, and that is the fixture's one
+   * piece of care: `MEMBERS[i % 2]` with `STAGES[i % 4]` correlates the two
+   * perfectly, so an account manager would hold exactly two stages and the
+   * scatter this test is about would be half as wide as the real thing.
+   */
+  function portfolio(): {
+    entities: MindtreeInput['entities']
+    facets: NonNullable<MindtreeInput['entityFacets']>
+  } {
+    const entities: MindEntity[] = [
+      { id: 'ob', trackId: 'ob', parentId: null, label: 'Onboarding', typeKey: null, sortOrder: 0, archived: false },
+    ]
+    const facets: MindEntityFacet[] = []
+    for (let i = 0; i < 40; i += 1) {
+      const id = `org-${i}`
+      entities.push({
+        id,
+        trackId: 'ob',
+        parentId: 'ob',
+        label: `Org ${i}`,
+        typeKey: null,
+        sortOrder: i,
+        archived: false,
+      })
+      facets.push({
+        id,
+        managerId: MEMBERS[i % 2].id,
+        typeKey: null,
+        vendor: null,
+        stageId: STAGES[Math.floor(i / 2) % 4].key,
+      })
+    }
+    return { entities, facets }
+  }
+
+  function treeBy(grouping: 'manager' | 'stage'): MindNode {
+    const { entities, facets } = portfolio()
+    return build({
+      tracks: [track('ob', { label: 'Onboarding' })],
+      entities,
+      entityFacets: facets,
+      members: MEMBERS,
+      stages: STAGES,
+      grouping,
+    })
+  }
+
+  /** `useMapFocus`'s own memo: `map_nodes.id` → `account_manager_id`. */
+  const managerOf = (bucketKey: string): string | null => {
+    const { facets } = portfolio()
+    return facets.find((f) => f.id === bucketKey)?.managerId ?? null
+  }
+
+  it('lands an account manager INSIDE their own book under `?by=manager`', () => {
+    const tree = treeBy('manager')
+    const id = defaultFocusFor(AM, 'member', tree, managerOf)
+    const landed = findNode(tree, id ?? '')
+    expect(landed?.kind).toBe('cohort')
+    expect(landed?.bucketKey).toBe('cohort:manager:am-1')
+    // Their whole book and nobody else's, resolved straight to organizations —
+    // twenty is under the cap, so a small group never cohorts (rule 4).
+    expect(landed?.children).toHaveLength(20)
+    expect(landed?.children.every((c) => c.kind === 'entity')).toBe(true)
+  })
+
+  it('stops one ring OUT under `?by=stage`, because the book is spread over four', () => {
+    const tree = treeBy('stage')
+    const id = defaultFocusFor(AM, 'member', tree, managerOf)
+    const landed = findNode(tree, id ?? '')
+    // The phase, not a cohort: four stage rings, each holding a quarter of the
+    // reader's organizations, so no child holds them all.
+    expect(landed?.kind).toBe('entity')
+    expect(landed?.bucketKey).toBe('ob')
+    expect(landed?.children).toHaveLength(4)
+    expect(landed?.children.every((c) => c.kind === 'cohort')).toBe(true)
   })
 })

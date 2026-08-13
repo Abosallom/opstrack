@@ -82,7 +82,10 @@
 // The owner's correction is that the dive steps through DEPARTMENTS and that an
 // Organization is a LEAF you arrive at, with its detail in the sidebar. The
 // mechanical form of that is `isDiveTarget` below: a node is a department iff it
-// has at least one child that is itself structural (`track` or `entity`). It is
+// has at least one child that is itself structural — asked through
+// `focus.isStructuralKind`, which is the ONE list of the kinds the dive enters
+// (`root`, `track`, `entity` and, since wave 6, `cohort`) rather than a third
+// copy of it here. It is
 // NOT `entityType`, and model.ts forbids reading it — "what a Phase shows and
 // what an Org shows is configuration, not code". A workspace whose admin adds a
 // tier gets one more dive level for free, which is the whole point of the
@@ -105,12 +108,14 @@ import { isMenuKey } from '../../components/mindtree/NodeMenu'
 import { t } from '../../lib/i18n'
 import { canEditEntry } from '../../lib/permissions'
 import { WHY_GONE, WHY_NOT_YOURS, WHY_SIGNED_OUT } from '../../lib/mindtree/actions'
+import { isStructuralKind } from '../../lib/mindtree/focus'
 import type { FocusView } from '../../lib/mindtree/focus'
 import type { PositionedNode } from '../../lib/mindtree/layout'
 import {
   ROOT_ID,
   type MindLabel,
   type MindNode as MindNodeModel,
+  type MindNodeKind,
 } from '../../lib/mindtree/model'
 import { openEntry } from '../../store/entrySheet'
 import {
@@ -227,12 +232,39 @@ export interface MapKeyboardOptions {
  * adds a tier gets one more dive level with no code change, and the number of
  * levels is the depth of the tree rather than four frozen English words.
  *
+ * A COHORT IS A DEPARTMENT FOR THIS PURPOSE, on both halves of the test: you
+ * dive INTO "the 96 organizations Sara manages", and an Organization holding a
+ * cohort under it is still a world rather than a leaf. Both halves now read
+ * `focus.isStructuralKind` rather than a third copy of the same three-way
+ * comparison — that copy is exactly what would have been missed, because it
+ * fails SILENTLY (a cohort would have been treated as a leaf you select, so a
+ * tap on the biggest ring on the screen would have opened a sidebar for a thing
+ * with no `map_nodes` row).
+ *
  * Exported so the test can drive it against real trees rather than through six
  * layers of hook.
  */
 export function isDiveTarget(node: MindNodeModel): boolean {
-  if (node.kind !== 'root' && node.kind !== 'track' && node.kind !== 'entity') return false
-  return node.children.some((kid) => kid.kind === 'track' || kid.kind === 'entity')
+  if (!isStructuralKind(node.kind)) return false
+  return node.children.some((kid) => isStructuralKind(kid.kind))
+}
+
+/**
+ * A world the camera can be sent TO — structural, and not the workspace itself.
+ *
+ * THE ROOT IS THE ONE SUBTRACTION, and it is subtracted rather than absent from
+ * `isStructuralKind` because the two questions differ by exactly it: the root IS
+ * a world (the dive steps out to it, `worldAt` names it, the crumb ends there)
+ * and it is never a thing you press ENTER ON to go somewhere — you are already
+ * inside it, "out" is what the backward key is for, and handing it to
+ * `dive.details` would open the organization sidebar on the workspace.
+ *
+ * A COHORT IS IN. That is the whole of `?by=` on the keyboard: Enter on "the 96
+ * organizations Sara manages" flies into her ring, exactly as Enter on a Phase
+ * flies into its departments, with no branch here that knows the word "cohort".
+ */
+function isFlyableKind(kind: MindNodeKind): boolean {
+  return kind !== 'root' && isStructuralKind(kind)
 }
 
 export function useMapKeyboard({
@@ -389,8 +421,16 @@ export function useMapKeyboard({
       // reached only when `isDiveTarget` is FALSE — an Organization — and that
       // is exactly the case Mindtree.tsx titles with `panelOrg` rather than
       // `panelBranch`: you ARRIVE AT an Organization, you are not inside it.
-      if (dive !== undefined && (node.kind === 'track' || node.kind === 'entity')) {
-        if (isDiveTarget(node)) dive.into(node.id)
+      //
+      // A COHORT TAKES THE FIRST ARM UNCONDITIONALLY. `groupEntities` only ever
+      // mints one over organizations, so `isDiveTarget` is already true of every
+      // cohort that exists — but the second arm hands its id to the org sidebar,
+      // and a cohort's key is synthetic (`entityIdOf` refuses it by
+      // construction). Naming the kind here costs one comparison and makes the
+      // one path that could send `manager:<uuid>` at a uuid column impossible
+      // rather than merely unreachable.
+      if (dive !== undefined && isFlyableKind(node.kind)) {
+        if (isDiveTarget(node) || node.kind === 'cohort') dive.into(node.id)
         else {
           dive.details(node.id)
           setLive(t('mindtree.panelOrg', { label: textOf(node.label) }))
@@ -678,7 +718,7 @@ export function useMapKeyboard({
           // so "toward the children" is a fly, not a state change. `reach`
           // handles the rest, including the child that is still below the DOM
           // horizon.
-          else if (dive !== undefined && (node.kind === 'track' || node.kind === 'entity'))
+          else if (dive !== undefined && isFlyableKind(node.kind))
             reach(pos.childIds[0] ?? node.children[0]?.id)
           else if (compact) focusBranch(node.id)
           else setMindCollapsed(node.id, false)
@@ -695,7 +735,7 @@ export function useMapKeyboard({
           // Same argument, inverted: with a camera there is nothing to close,
           // and "away from the children" is a step OUT to the parent world —
           // which is where `reach` was already taking a leaf.
-          else if (dive !== undefined && (node.kind === 'track' || node.kind === 'entity'))
+          else if (dive !== undefined && isFlyableKind(node.kind))
             reach(pos.parentId ?? undefined)
           else setMindCollapsed(node.id, true)
         } else if (pos.parentId !== null) {

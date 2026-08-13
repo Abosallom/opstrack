@@ -42,6 +42,11 @@
     "clearFilters": "Clear the filters",
     "clearFocus": "Show every track",
     "clearSelection": "Clear the selection",
+    "cohortName": "⁨{by}⁩: ⁨{label}⁩, {detail}",
+    "cohortOrgs": {
+      "one": "{count} organization",
+      "other": "{count} organizations"
+    },
     "colBlock": "One fix unblocks",
     "colBreached": "Past deadline",
     "colBucket": "Portfolio group",
@@ -164,6 +169,10 @@
     "groupBy": "Group by",
     "groupByCurrent": "Grouped by ⁨{label}⁩",
     "groupChanged": "Grouped by ⁨{label}⁩.",
+    "groupingChanged": "Organizations grouped by ⁨{label}⁩.",
+    "groupingCurrent": "Organizations by ⁨{label}⁩",
+    "groupingNone": "Organizations not grouped",
+    "groupingNoneChanged": "Organizations are no longer grouped.",
     "keyboardHint": "With a node focused: the up and down arrows move between neighbours, the right arrow opens a branch and the left arrow closes it, Enter opens an item, and Home and End jump to the first node and the last.",
     "leafBreached": "past deadline",
     "leafName": "⁨{title}⁩, {detail}",
