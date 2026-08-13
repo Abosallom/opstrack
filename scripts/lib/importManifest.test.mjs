@@ -627,6 +627,22 @@ const DEMO_USE_CASES = [
   'Clinical Notes',
 ]
 
+/**
+ * 0026's seven seeded rungs. The demo file names stages on most of its rows, so
+ * a workspace without this list refuses every one of them by name — which is
+ * the correct behaviour against a project that has not run 0026, and useless
+ * here, where the subject is the manifest.
+ */
+const DEMO_STAGES = [
+  { id: 'st-1', name: 'Not started', name_ar: '', sort_order: 1, hidden: false },
+  { id: 'st-2', name: 'Kickoff', name_ar: '', sort_order: 2, hidden: false },
+  { id: 'st-3', name: 'Integrating', name_ar: '', sort_order: 3, hidden: false },
+  { id: 'st-4', name: 'Testing/UAT', name_ar: '', sort_order: 4, hidden: false },
+  { id: 'st-5', name: 'Go-live ready', name_ar: '', sort_order: 5, hidden: false },
+  { id: 'st-6', name: 'Live', name_ar: '', sort_order: 6, hidden: false },
+  { id: 'st-7', name: 'Paused', name_ar: '', sort_order: 7, hidden: false },
+]
+
 /** The live workspace as measured on 2026-08-12. */
 const demoWorkspace = () => ({
   tracks: [{ id: 't-uhr', name: 'UHR', name_ar: 'السجل الصحي الموحد', archived: false }],
@@ -657,6 +673,9 @@ const demoWorkspace = () => ({
     { id: 'p-nasser', display_name: 'Nasser Alabri', username: 'nasser', email: 'nasser@opstrack.internal' },
   ],
   useCases: DEMO_USE_CASES.map((name, i) => ({ id: `u-${i}`, name, sort_order: i + 1 })),
+  stages: DEMO_STAGES,
+  progress: [],
+  goals: [],
 })
 
 /**
@@ -678,7 +697,17 @@ function importDemo() {
   // The demo only ever CREATES. Asserted rather than assumed, because the whole
   // exactness claim below rests on it: a file that updated a pre-existing node
   // would need `updatedNodes` records too, and this harness writes none.
-  expect(plan.actions.every((a) => a.kind === 'create-node' || a.kind === 'set-use-case')).toBe(true)
+  //
+  // ⚠ THE STAGE AND GOAL WRITES ARE OUT OF SCOPE HERE AND THAT IS DELIBERATE.
+  // The demo file names a stage on 280 of its rows and carries 40 goals, and
+  // both are reversed by their own manifest sections, pinned in `undoing a
+  // stage this run recorded` and the goal blocks below against fixtures that
+  // can state the three-state progress row exactly. What this block joins is
+  // the OTHER pair — real node ids flowing out of an apply and back into a
+  // delete — so the harness executes the two action kinds that produce ids and
+  // asserts the rest are only ever these four.
+  const SCOPED = new Set(['create-node', 'set-use-case', 'set-stage', 'create-goal'])
+  expect(plan.actions.every((a) => SCOPED.has(a.kind))).toBe(true)
 
   const live = {
     ...workspace,
@@ -719,6 +748,7 @@ function importDemo() {
       })
       continue
     }
+    if (action.kind !== 'set-use-case') continue
     const nodeId = action.nodeId ?? idByKey.get(action.key)
     const useCaseId = action.useCaseId ?? live.useCases.find((u) => u.name === action.useCase).id
     live.nodes.find((n) => n.id === nodeId).map_node_use_cases.push({ use_case_id: useCaseId, status: action.status })
@@ -800,10 +830,30 @@ function runUndo(live, plan) {
 }
 
 describe('THE ROUND TRIP — import the demo file, then take it back', () => {
-  it('imports 22 nodes and 67 links, and records every one of them', () => {
-    const { manifest: m } = importDemo()
-    expect(m.createdNodes).toHaveLength(22)
-    expect(m.setUseCases).toHaveLength(67)
+  // ⚠ NOT ONE NUMBER AND NOT ONE NAME IS HARDCODED BELOW, and that is a
+  // consequence of the demo file being GENERATED. It is four hundred
+  // organizations written by `scripts/make-demo-400.mjs` from a seed, and it is
+  // regenerated whenever its shape is retuned. The earlier version of this
+  // block read `toHaveLength(22)` and named `Nawras General Hospital`,
+  // `Sarab Group` and `Wave 1` — every one of which is a fact about a file that
+  // no longer exists, and none of which was ever the property under test. What
+  // IS under test is set equality between the manifest and the undo, so the
+  // subjects are located BY SHAPE: the deepest created node, the one implied
+  // node, an organization the import wrote no links on. Those exist in any
+  // regeneration; `Nawras General Hospital` does not.
+  const DEEPEST = (m) => [...m.createdNodes].sort((a, b) => b.depth - a.depth || a.id.localeCompare(b.id))[0]
+  const IMPLIED = (m) => m.createdNodes.filter((n) => n.implied)
+  const nameOf = (n) => n.path[n.path.length - 1]
+
+  it('records every node and every link it created, and nothing else', () => {
+    const { manifest: m, plan } = importDemo()
+    expect(m.createdNodes).toHaveLength(plan.summary.create)
+    expect(m.setUseCases).toHaveLength(plan.summary.setLinks)
+    // The file is worth this size: an undo of twenty rows proves nothing about
+    // an undo of four hundred, and the ordering property below is the one that
+    // only fails at depth.
+    expect(m.createdNodes.length).toBeGreaterThan(400)
+    expect(m.setUseCases.length).toBeGreaterThan(400)
     expect(m.updatedNodes).toEqual([])
     expect(m.clearedUseCases).toEqual([])
     // Every recorded node is inside the one branch that IS the reset story.
@@ -817,7 +867,13 @@ describe('THE ROUND TRIP — import the demo file, then take it back', () => {
     const before = live.nodes.map((n) => n.id).sort()
     const plan = planUndo({ manifest: m, ...probe(live, m) })
 
-    expect(plan.summary).toMatchObject({ remove: 22, refused: 0, archive: 0, alreadyGone: 0, clearLinks: 67 })
+    expect(plan.summary).toMatchObject({
+      remove: m.createdNodes.length,
+      refused: 0,
+      archive: 0,
+      alreadyGone: 0,
+      clearLinks: m.setUseCases.length,
+    })
     // Set equality both ways: nothing the manifest names survives, and nothing
     // it does not name is touched.
     expect(kinds(plan, 'delete-node').map((a) => a.nodeId).sort()).toEqual(m.createdNodes.map((n) => n.id).sort())
@@ -835,10 +891,11 @@ describe('THE ROUND TRIP — import the demo file, then take it back', () => {
     expect(before).toContain('n-ob')
   })
 
-  it('deletes children before parents, across all twenty-two', () => {
+  it('deletes children before parents, across all four hundred and thirty-eight', () => {
     const { live, manifest: m } = importDemo()
     const plan = planUndo({ manifest: m, ...probe(live, m) })
     const deletes = kinds(plan, 'delete-node')
+    expect(deletes).toHaveLength(m.createdNodes.length)
     expect(deletes.map((a) => a.depth)).toEqual([...deletes.map((a) => a.depth)].sort((a, b) => b - a))
     // The ordering property stated the other way round, and the one that
     // actually matters: no node is deleted before something below it.
@@ -854,7 +911,7 @@ describe('THE ROUND TRIP — import the demo file, then take it back', () => {
 
   it('REFUSES a demo node somebody has put their own child under, and its ancestors with it', () => {
     const { live, manifest: m } = importDemo()
-    const org = m.createdNodes.find((n) => n.path[n.path.length - 1] === 'Nawras General Hospital')
+    const org = DEEPEST(m)
     live.nodes.push({
       id: 'n-real-dept',
       parent_id: org.id,
@@ -872,31 +929,43 @@ describe('THE ROUND TRIP — import the demo file, then take it back', () => {
     })
 
     const plan = planUndo({ manifest: m, ...probe(live, m) })
-    const at = (name) => plan.nodeStates.find((s) => s.path[s.path.length - 1] === name)
-    expect(at('Nawras General Hospital').disposition).toBe('refused')
-    expect(at('Nawras General Hospital').reasons[0].message).toMatch(/Emergency Department/u)
+    const at = (id) => plan.nodeStates.find((s) => s.id === id)
+    expect(at(org.id).disposition).toBe('refused')
+    expect(at(org.id).reasons[0].message).toMatch(/Emergency Department/u)
     // Every ancestor is kept too — a node with a child cannot be deleted, so
-    // saying so beats a raw `map_node_in_use` from the database three times.
-    expect(at('Wave 1').disposition).toBe('refused')
-    expect(at('Demo Portfolio').disposition).toBe('refused')
-    // …and everything NOT above it still goes. 22 minus the three kept.
-    expect(plan.summary).toMatchObject({ remove: 19, refused: 3 })
-    // The refused nodes still lose their demo capability rows, so nothing is
-    // left claiming an integration this import invented.
-    expect(kinds(plan, 'remove-links').some((a) => a.nodeId === org.id)).toBe(true)
+    // saying so beats a raw `map_node_in_use` from the database five times.
+    const ancestors = []
+    for (let cursor = org; cursor && cursor.parentId; ) {
+      const parent = m.createdNodes.find((n) => n.id === cursor.parentId)
+      if (!parent) break
+      ancestors.push(parent)
+      cursor = parent
+    }
+    expect(ancestors.length).toBe(org.path.length - 2)
+    for (const a of ancestors) expect(at(a.id).disposition).toBe('refused')
+    // …and everything NOT above it still goes.
+    expect(plan.summary).toMatchObject({
+      remove: m.createdNodes.length - (ancestors.length + 1),
+      refused: ancestors.length + 1,
+    })
+    // The refused node still loses its demo capability rows, so nothing is left
+    // claiming an integration this import invented.
+    if (m.setUseCases.some((l) => l.nodeId === org.id)) {
+      expect(kinds(plan, 'remove-links').some((a) => a.nodeId === org.id)).toBe(true)
+    }
     expect(() => runUndo(live, plan)).not.toThrow()
-    expect(live.nodes.map((n) => n.name).sort()).toEqual([
-      'Demo Portfolio',
-      'Emergency Department',
-      'Nawras General Hospital',
-      'OB',
-      'Wave 1',
-    ])
+    expect(live.nodes.map((n) => n.name).sort()).toEqual(
+      ['OB', 'Emergency Department', nameOf(org), ...ancestors.map(nameOf)].sort(),
+    )
   })
 
   it('REFUSES a demo node somebody has recorded a real integration status on', () => {
     const { live, manifest: m } = importDemo()
-    const org = live.nodes.find((n) => n.name === 'Shurooq Medical Complex')
+    // An organization the import wrote NO links on — 45% of the file is in that
+    // state, which is the point of it.
+    const linked = new Set(m.setUseCases.map((l) => l.nodeId))
+    const bare = m.createdNodes.find((n) => !n.implied && !linked.has(n.id) && n.depth === 5)
+    const org = live.nodes.find((n) => n.id === bare.id)
     // The one thing this app exists for: a person opens a demo Organization and
     // says "Lab Results is live here". The manifest has never heard of that row
     // — the import wrote no links at all on this node — so before the fifth
@@ -918,21 +987,27 @@ describe('THE ROUND TRIP — import the demo file, then take it back', () => {
 
   it('REFUSES the whole subtree below a demo node somebody has moved', () => {
     const { live, manifest: m } = importDemo()
-    const group = live.nodes.find((n) => n.name === 'Sarab Group')
-    // Dragged out of Wave 1 and filed under the real node. Its three demo
+    // The one node the file leaves IMPLIED — it has no row of its own and was
+    // created from the paths beneath it, which is also the shape somebody is
+    // most likely to drag somewhere else.
+    const [impliedRecord] = IMPLIED(m)
+    const group = live.nodes.find((n) => n.id === impliedRecord.id)
+    // Dragged out of its book and filed under the real node. Its demo
     // Organizations come WITH it, so their own `parent_id` still matches the
     // manifest exactly — which is precisely why they used to be deleted out from
     // under a placement somebody had made on purpose.
     group.parent_id = 'n-ob'
 
     const plan = planUndo({ manifest: m, ...probe(live, m) })
-    const at = (name) => plan.nodeStates.find((s) => s.path[s.path.length - 1] === name)
-    expect(at('Sarab Group').reasons.map((r) => r.code)).toContain('moved')
-    for (const child of ['Ghadeer Family Medicine Centre', 'Areej Day Surgery Unit', 'Falak Imaging Centre']) {
-      expect(at(child).disposition).toBe('refused')
-      expect(at(child).reasons.map((r) => r.code)).toContain('ancestor-moved')
+    const at = (id) => plan.nodeStates.find((s) => s.id === id)
+    expect(at(group.id).reasons.map((r) => r.code)).toContain('moved')
+    const children = m.createdNodes.filter((n) => n.parentId === group.id)
+    expect(children.length).toBeGreaterThan(1)
+    for (const child of children) {
+      expect(at(child.id).disposition).toBe('refused')
+      expect(at(child.id).reasons.map((r) => r.code)).toContain('ancestor-moved')
     }
-    expect(kinds(plan, 'delete-node').map((a) => a.path.join(' > ')).some((p) => p.includes('Sarab Group'))).toBe(false)
+    expect(kinds(plan, 'delete-node').map((a) => a.nodeId)).not.toContain(group.id)
   })
 
   it('REFUSES a top-level demo node moved to another TRACK, where parent_id never changes', () => {
@@ -957,7 +1032,13 @@ describe('THE ROUND TRIP — import the demo file, then take it back', () => {
 
     const second = planUndo({ manifest: m, ...probe(live, m) })
     expect(second.actions).toEqual([])
-    expect(second.summary).toMatchObject({ remove: 0, refused: 0, alreadyGone: 22, clearLinks: 0, goneLinks: 67 })
+    expect(second.summary).toMatchObject({
+      remove: 0,
+      refused: 0,
+      alreadyGone: m.createdNodes.length,
+      clearLinks: 0,
+      goneLinks: m.setUseCases.length,
+    })
     expect(second.summary.partial).toBe(false)
     expect(renderUndoPlan(second, { manifest: m })).not.toMatch(/THIS UNDO IS PARTIAL/u)
   })
@@ -968,12 +1049,12 @@ describe('THE ROUND TRIP — import the demo file, then take it back', () => {
     // Stop after the link removals and the four deepest deletes — a dropped
     // connection mid-run, which is the failure the CLI's own printout tells him
     // to recover by re-running.
-    let budget = first.actions.filter((a) => a.kind === 'remove-links').length + 4
+    const budget = first.actions.filter((a) => a.kind === 'remove-links').length + 4
     runUndo(live, { actions: first.actions.slice(0, budget) })
 
     const second = planUndo({ manifest: m, ...probe(live, m) })
     expect(second.summary.refused).toBe(0)
-    expect(second.summary.remove + second.summary.alreadyGone).toBe(22)
+    expect(second.summary.remove + second.summary.alreadyGone).toBe(m.createdNodes.length)
     runUndo(live, second)
     expect(live.nodes.map((n) => n.id)).toEqual(['n-ob'])
   })
@@ -987,8 +1068,11 @@ describe('THE ROUND TRIP — import the demo file, then take it back', () => {
       }),
     )
     expect(text).toMatch(/Demo Portfolio {3}DELETE/u)
-    expect(text).toMatch(/Sarab Group {3}DELETE \(implied — it had no row of its own\)/u)
-    expect(text).toMatch(/22 node\(s\) to remove · 0 to archive · 0 refused/u)
+    const implied = nameOf(IMPLIED(m)[0])
+    expect(text).toContain(`${implied}   DELETE (implied — it had no row of its own)`)
+    expect(text).toMatch(
+      new RegExp(`${m.createdNodes.length} node\\(s\\) to remove · 0 to archive · 0 refused`, 'u'),
+    )
     expect(text).not.toMatch(/n-demo-|u-\d|t-uhr/u)
   })
 })
