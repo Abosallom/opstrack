@@ -253,13 +253,14 @@ describe('collectProgress — the roll-up, in one post-order pass', () => {
     // The `testing` row is linked and not done.
     expect(out.get('b')).toMatchObject({ done: 1, total: 3 })
 
-    // THE TRACK. Two organizations speak (`c` has no links at all), so `nodes` is
-    // 2 and the unit is capability x organization: 4 of 6, not 4 of 9. That
-    // shrink-by-silence is `useCaseProgress`'s own stated limit and the reason
-    // its required 4th argument belongs to wave 3 — the seam is named at both
-    // ends, and this assertion is what will change when it lands.
-    expect(out.get('track')).toMatchObject({ done: 4, total: 6 })
-    expect(out.get('root')).toMatchObject({ done: 4, total: 6 })
+    // THE TRACK, AND THIS IS THE ASSERTION WAVE 3 CHANGED. Three organizations
+    // are beneath it and `c` has no links at all, so the unit is capability ×
+    // organization over the POPULATION: 4 of 9, not 4 of 6. The old number was
+    // `useCaseProgress`' shrink-by-silence — the organization that recorded
+    // nothing was invisible to the denominator, which is exactly the
+    // organization a reader is looking for. `nodeIds` is now the 4th argument.
+    expect(out.get('track')).toMatchObject({ done: 4, total: 9 })
+    expect(out.get('root')).toMatchObject({ done: 4, total: 9 })
   })
 
   it('leaves a branch with no organization beneath it out entirely', () => {
@@ -315,9 +316,9 @@ describe('collectProgress — the roll-up, in one post-order pass', () => {
     const out = new Map<string, UseCaseProgress>()
     collectProgress(portfolio(), cat, 'running', byNode(links), out)
     // Same links, a status word nothing carries: the numerator collapses and the
-    // denominator does not. "0 of 6" is visibly wrong on the first paint, which
+    // denominator does not. "0 of 9" is visibly wrong on the first paint, which
     // is the failure the parameter is shaped for (lib/mapNodes.ts:11-19).
-    expect(out.get('track')).toMatchObject({ done: 0, total: 6 })
+    expect(out.get('track')).toMatchObject({ done: 0, total: 9 })
   })
 
   it('consults the link index once per organization, never once per node', () => {

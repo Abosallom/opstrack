@@ -711,3 +711,148 @@
   white-space: nowrap;
   color: var(--text-dim);
 }
+
+/* ---------- what this branch promised (0027) ---------- */
+
+/* `.mbr-goals` carries no rule of its own and must not be swept away for that:
+   like `.mbr-detail`, `.mbr-work` and `.mbr-history` it is an IDENTITY, the
+   handle a test slices the rendered panel at. `.mbr-band` above already gives it
+   the column and the gap; an empty rule here would be a lie about what it does.
+
+   THE BAND IS DOM BESIDE THE SVG, never inside it. Nothing here is measured by
+   `mapRender.test.tsx` — the render gate reads marks off the canvas — and
+   nothing here may grow a rule that reaches into `.mtree-*`. */
+
+/* The one control on the band head. `.mbr-band-count` already claims the
+   inline-end edge for the count chips one band up, and this button takes the
+   same corner on a band that has no count to show. */
+.mbr-goal-add {
+  margin-inline-start: auto;
+}
+
+/* The async sentence — loading, or an error that is not "0027 is not applied
+   here". Sized with `.mbr-uc-head` so the two bands' status lines are one
+   typographic idea rather than two. */
+.mbr-goal-head {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.mbr-goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+}
+
+/* One commitment. WRAPS rather than truncating: a goal's sentence is the whole
+   content of the row — "6 of 40 at Go-live ready or beyond by 31/12/2026" — and
+   an ellipsis through the middle of it hides the number it exists to show. */
+.mbr-goal {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-block: 8px;
+  padding-inline: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+/* The editor takes the whole row and stacks, so the form is never a column
+   inside a flex row that was laid out for a sentence and two buttons. */
+.mbr-goal-editing {
+  display: block;
+}
+
+.mbr-goal-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* `min-inline-size: 0` is what actually lets a long sentence wrap inside a
+     flex row instead of pushing the clock chip off the panel. */
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+.mbr-goal-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.mbr-goal-say {
+  font-size: 14px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* The shortfall, in the amber that means "true, with a caveat" everywhere else
+   in this sheet (`.mbr-note`). Not red: being behind on a date that has not
+   passed is a fact to act on, not a breach. */
+.mbr-goal-behind {
+  color: var(--yellow);
+  font-weight: 700;
+}
+
+/* "380 with no stage recorded" — the clause that stops "0 of 40" being read as
+   forty organizations that got nowhere. Quieter than the sentence above it
+   because it qualifies that sentence rather than competing with it. */
+.mbr-goal-unstaged {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* The days-left chip, at the far edge whichever way the page runs. `.pill`
+   supplies the shape; this supplies the tone and the promise that the number
+   never wraps mid-chip. */
+.mbr-goal-clock {
+  margin-inline-start: auto;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+/* PAST ITS DATE IS THE ONE RED ON THIS BAND. `--red` is the token the stats
+   band's danger tiles already use, so "overdue" reads the same in both places;
+   the tone lives on the chip AND on the row so the whole line can be scanned
+   without reading it. */
+.mbr-goal-clock[data-tone='over'] {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.mbr-goal-clock[data-tone='due'] {
+  color: var(--yellow);
+  font-weight: 700;
+}
+
+.mbr-goal[data-tone='over'] {
+  border-color: var(--red);
+}
+
+.mbr-goal-acts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+/* The editor. One column at every width: two label fields, a rung, a number and
+   a date read as a sequence of decisions, and a two-column grid on a 320px
+   panel puts the Arabic name beside the English one where the two are hardest
+   to tell apart. */
+.mbr-goal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.mbr-goal-form-acts {
+  display: flex;
+  gap: 8px;
+}

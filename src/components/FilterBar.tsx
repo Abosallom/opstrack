@@ -79,6 +79,7 @@ import { IconChevronDown } from './fields/glyphs'
 import { t, useLocale, type Locale } from '../lib/i18n'
 import { trackVars } from '../lib/trackStyle'
 import { normalizeSearch } from '../lib/text'
+import { foldVendors } from '../lib/mapNodes'
 import { countActiveFacets, EMPTY_FILTER, type FilterState } from '../lib/entryFilter'
 import { useGroups, useMapNodeMap, useMapNodes } from '../store/config'
 import { useMembers } from '../store/members'
@@ -251,38 +252,27 @@ export default function FilterBar({
   /**
    * The integrators the workspace actually has, one option each.
    *
-   * DEDUPED BY THE FOLDED SPELLING, KEYED BY A REAL ONE. lib/entryFilter matches
-   * vendors folded, so 'Acme' on one organization and 'acme ' on the next are
-   * one integrator and must not be two chips that select identical rows; the
-   * label and the stored key are the first spelling seen, because that is what
-   * somebody typed and what a shared URL should read.
+   * THE FOLD IS lib/mapNodes.ts's, NOT THIS FILE'S, AND THAT IS THE POINT. It
+   * used to be four lines here — dedupe by the folded spelling, keep the first
+   * real one, skip archived nodes and vendors that fold to nothing — and wave 3
+   * needed the same four lines to COUNT a cohort ("one fix unblocks 9
+   * organizations"). Two copies of a rule about free text (0023:359 keeps
+   * `vendor` free text on purpose) is how the picker comes to offer "Acme" while
+   * the count beside it describes a different set. `foldVendors` is now the only
+   * place that decides, and both surfaces read it.
    *
-   * ARCHIVED NODES ARE SKIPPED. A vendor that survives only on organizations
-   * somebody put away is not a choice the workspace still has, and offering it
-   * would put a chip in front of every reader that selects nothing they can see.
-   * The filter itself is unaffected — `vendorOfNode` is built over every node,
-   * so a link naming that vendor still resolves.
+   * The option's KEY is the first spelling seen, because that is what somebody
+   * typed and what a shared URL should read; lib/entryFilter matches vendors
+   * folded, so any spelling in the cohort selects the same rows.
+   *
+   * ARCHIVED NODES ARE SKIPPED — see `foldVendorInto`. The filter itself is
+   * unaffected: `vendorOfNode` is built over every node, so a link naming an
+   * archived organization's vendor still resolves.
    */
-  const vendorOptions = useMemo<PickerOption[]>(() => {
-    const byFold = new Map<string, string>()
-    for (const node of mapNodes) {
-      if (node.archived) continue
-      const vendor = node.vendor.trim()
-      if (vendor === '') continue
-      const fold = normalizeSearch(vendor)
-      // A vendor that folds to nothing — punctuation alone — would be a chip
-      // with no label that matches every other such row.
-      if (fold === '' || byFold.has(fold)) continue
-      byFold.set(fold, vendor)
-    }
-    // Sorted on the FOLDED key and compared by code point, never through
-    // localeCompare: lib/entryFilter's `title` sort gives the reason — the order
-    // has to be identical in the test runner and in the browser, and folding is
-    // what makes code-point order sane in both languages.
-    return [...byFold.entries()]
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([, vendor]) => ({ key: vendor, label: vendor }))
-  }, [mapNodes])
+  const vendorOptions = useMemo<PickerOption[]>(
+    () => foldVendors(mapNodes).map((cohort) => ({ key: cohort.label, label: cohort.label })),
+    [mapNodes],
+  )
 
   // The chosen vendor as this control can address it. A filter restored from a
   // URL carries a SPELLING, not an id, so it is matched against the options the

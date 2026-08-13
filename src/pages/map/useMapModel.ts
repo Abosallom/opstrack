@@ -271,14 +271,12 @@ export interface MapProgressSource {
  * one panel's zero reads as `0 of 9`. That floor is right for a panel and wrong
  * for a track that has no organizations to be at zero.
  *
- * ⚠ SEAM, 2026-08-13 — THE THIRD ARGUMENT, NOT THE FOURTH. `useCaseProgress`'s
- * header names its one limit: `nodes` is counted off the LINKS, so an
- * Organization with no links at all shrinks the denominator instead of adding a
- * column of zeroes to it. The fix is the required 4th argument, and the plan
- * assigns it to WAVE 3 together with the store that feeds this source — one
- * change, one commit, one call-site edit in MapBranchDetail.tsx. `nodeIds` below
- * is already the argument that wave will pass; it is computed here today because
- * it is also the guard above, and computing it twice is how the two would drift.
+ * THE DENOMINATOR IS THE POPULATION, NOT THE LINKS — `useCaseProgress`' fourth
+ * argument, landed in wave 3 with the store that feeds this source. `nodeIds` is
+ * every Organization beneath the node, so one that has recorded nothing adds a
+ * column of zeroes instead of shrinking the number. It is computed here anyway
+ * because it is also the guard below, and computing it twice is how the two
+ * would drift.
  */
 export function collectProgress(
   node: MindNodeModel,
@@ -303,7 +301,25 @@ export function collectProgress(
   }
 
   if (nodeIds.length > 0 && node.kind !== 'entry' && node.kind !== 'more') {
-    out.set(node.id, computeUseCaseProgress(catalogue, links, terminalKey))
+    // THE FOURTH ARGUMENT IS THE POPULATION, and this is the line the seam note
+    // above was about: `nodeIds` is every Organization beneath this branch,
+    // including the ones that have recorded nothing, so a Phase of forty where
+    // three have rows reads `18 of 400` instead of `18 of 27`.
+    //
+    // Mapped to `{ id }` here rather than carried that way through the walk: the
+    // ids are also the guard on the line above and the accumulator two lines
+    // down, and one shape for both is what stops the two from drifting. The
+    // allocation is bounded by the frozen depth cap — each id is re-wrapped once
+    // per ancestor, at most six.
+    out.set(
+      node.id,
+      computeUseCaseProgress(
+        catalogue,
+        links,
+        terminalKey,
+        nodeIds.map((id) => ({ id })),
+      ),
+    )
   }
   return { links, nodeIds }
 }

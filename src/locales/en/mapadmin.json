@@ -24,7 +24,7 @@
     "errNodeGone": "That organization was deleted while this was open, so there is nothing to record a stage against.",
     "errStageReorderDenied": "Reordering the stage ladder needs the structure permission, which this account doesn't have.",
     "errGoalTarget": "A goal has to name a positive number of organizations, or no number at all.",
-    "errGoalLabelLength": "A goal's name has to be between 1 and 60 characters.",
+    "errGoalLabelLength": "A goal's name can be at most 60 characters.",
     "errGoalLabelArLength": "A goal's Arabic name can be at most 60 characters."
   }
 }

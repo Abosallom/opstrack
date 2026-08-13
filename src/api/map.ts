@@ -43,6 +43,7 @@ import type {
   MapNodeKind,
   MapNodeKindInput,
   MapNodeMoveResult,
+  MapNodeOpenCounts,
   MapNodeProgress,
   MapNodeStage,
   MapNodeStageInput,
@@ -1211,4 +1212,39 @@ export async function setNodeStage(
     .single()
   if (error) return fail(pgErrorKey(error))
   return { ok: true, data: data as unknown as MapNodeProgress }
+}
+
+
+/**
+ * The per-node open counts — `v_map_node_open_counts` (0027), and the first read
+ * in this file that answers with FACTS rather than with rows to fold.
+ *
+ * ⚠ THE VIEW DOES NOT EXIST UNTIL 0027 IS APPLIED BY HAND, so this answers
+ *   PGRST205 (`common.errMissingTable`) on every call until Aziz's sitting.
+ *   store/portfolio.ts treats that as "no counts yet" and renders nothing —
+ *   never an error — because on that side of the sitting nothing is wrong.
+ *
+ * NOT ON BOOT, for `listNodeUseCasesFor`'s reason one level up: the portfolio
+ * surface opens it deliberately. It is cheap (one row per node) but it is the
+ * same KIND of fact, and store/config.ts's header draws the line at data.
+ *
+ * PAGED and ordered by `node_id`, which is unique in this view by construction
+ * (`group by n.id`), so `.range()` can neither drop nor duplicate a row.
+ *
+ * SELECTED BY NAME so `MapNodeOpenCounts` cannot drift from the view — 0027's
+ * probe 1 asserts the same five column names from the other side, because a
+ * rename here is a silent `undefined` in a panel rather than an error.
+ */
+export async function listMapNodeOpenCounts(): Promise<ApiResult<Loaded<MapNodeOpenCounts>>> {
+  if (!supabase) return notConfigured()
+  const client = supabase
+  return await fetchAllPages<MapNodeOpenCounts>(
+    (from, to) =>
+      client
+        .from('v_map_node_open_counts')
+        .select('node_id, open, overdue, breached, unassigned')
+        .order('node_id', { ascending: true })
+        .range(from, to),
+    MAX_PAGES,
+  )
 }

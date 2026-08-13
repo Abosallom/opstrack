@@ -27,6 +27,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { MapNode, MapNodeUseCase, UseCase, UseCaseStatus } from '../../types'
+import type { MapNodeGoal } from '../../api/goals'
 
 const fx = vi.hoisted(() => {
   // lib/i18n reads localStorage and store/config adds a window listener, both at
@@ -77,7 +78,8 @@ vi.mock('../../store/members', () => ({
 }))
 
 const MapBranchDetail = (await import('./MapBranchDetail')).default
-const { DetailBand, localName, managerLabel } = await import('./MapBranchDetail')
+const { DetailBand, GoalBand, goalClock, localName, managerLabel } =
+  await import('./MapBranchDetail')
 const { useCaseProgress: progressOf } = await import('../../lib/mapNodes')
 const { setLocale, t } = await import('../../lib/i18n')
 const { phoneDetentFor: phoneDetent } = await import('../../lib/mindtree/lens')
@@ -167,7 +169,7 @@ function band({
       kindName={kindName}
       manager={manager}
       vendor={vendor}
-      progress={progressOf(rows, links, terminal)}
+      progress={progressOf(rows, links, terminal, [{ id: 'org-1' }])}
       labelOf={(useCase) => localName(useCase, getLocale())}
       loading={loading}
       error={error}
@@ -176,6 +178,72 @@ function band({
 }
 
 const { getLocale } = await import('../../lib/i18n')
+
+/* ─────────────────────────── the goal band ───────────────────────────── */
+
+/**
+ * One commitment, in 0027's commonest count form: "40 of them, by 31 Dec".
+ *
+ * The row type comes from api/goals.ts rather than being restated here, so a
+ * column rename in 0027's client half is a compile error in this fixture rather
+ * than a test that keeps passing about a shape the app no longer holds.
+ */
+function goal(over: Partial<MapNodeGoal> = {}): MapNodeGoal {
+  return {
+    id: 'g1',
+    node_id: 'org-1',
+    label: 'Phase 2 go-live',
+    label_ar: '',
+    stage_id: null,
+    target: 40,
+    target_date: '2026-12-31',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    created_by: null,
+    updated_by: null,
+    ...over,
+  }
+}
+
+interface GoalBandOptions {
+  goals?: MapNodeGoal[]
+  readings?: Map<string, { reached: number; unstaged: number }>
+  canEdit?: boolean
+  loading?: boolean
+  error?: string | null
+}
+
+/**
+ * `now` IS INJECTED, and that is the whole reason `GoalBand` takes one: every
+ * days-left assertion below would otherwise be true for exactly one day and then
+ * start failing on a machine nobody changed. 1 Dec 2026 against a 31 Dec date is
+ * 30 days, forever.
+ */
+function goalBand({
+  goals = [goal()],
+  readings,
+  canEdit = true,
+  loading = false,
+  error = null,
+}: GoalBandOptions = {}): string {
+  return renderToStaticMarkup(
+    <GoalBand
+      nodeId="org-1"
+      name="King Fahad Medical City"
+      goals={goals}
+      readings={readings}
+      stageNameOf={(stageId) => (stageId === null ? null : 'Go-live ready')}
+      pickable={() => []}
+      canEdit={canEdit}
+      busy={false}
+      loading={loading}
+      error={error}
+      onSave={async () => true}
+      onDelete={async () => {}}
+      now={new Date('2026-12-01T00:00:00.000Z')}
+    />,
+  )
+}
 
 // The sheet as text. Eager + `?raw`, the mechanism MapCapture.test.tsx and
 // localeReach.test.ts both use to read a file in a node test — `node:fs` is not
@@ -250,6 +318,31 @@ describe('every class this band renders has a rule in map-branch.css', () => {
     // which is there so a test can slice the panel at this band. An empty rule
     // for it would be a lie about what it does.
     rendered.delete('mbr-detail')
+    const unstyled = [...rendered]
+      .filter((name) => !new RegExp(`\\.${name}(?![a-z-])`).test(SHEET))
+      .sort()
+    expect(unstyled).toEqual([])
+  })
+
+  it('names nothing the sheet was not written against, in the GOAL band either', () => {
+    // The band above and this one share a prefix and a stylesheet but not a
+    // render, so the slice above cannot see a single `.mbr-goal*` name. Every
+    // state that owns a class of its own is rendered here — the row, the
+    // shortfall clause, the unstaged clause, the editor's controls and the empty
+    // state — because a name that only appears in a branch nobody renders is a
+    // name this gate is blind to.
+    const rendered = new Set(
+      [
+        goalBand({ readings: new Map([['g1', { reached: 6, unstaged: 380 }]]) }),
+        goalBand({ goals: [] }),
+        goalBand({ loading: true }),
+      ]
+        .join(' ')
+        .match(/mbr-[a-z-]+/g) ?? [],
+    )
+    // `.mbr-goals` is an IDENTITY, not a style — the twin of `.mbr-detail` one
+    // gate up, there so a test can slice the panel at this band.
+    rendered.delete('mbr-goals')
     const unstyled = [...rendered]
       .filter((name) => !new RegExp(`\\.${name}(?![a-z-])`).test(SHEET))
       .sort()
@@ -555,5 +648,100 @@ describe('a11y', () => {
     expect(html).not.toContain('<input')
     expect(html).not.toContain('<select')
     expect(html).not.toContain('<a ')
+  })
+})
+
+/* ────────────────────────── the goal band ─────────────────────────────── */
+
+describe('the goal band', () => {
+  it('renders the promise with an em-dash where no fold has run, never a zero', () => {
+    // NOTHING PASSES `readings` TODAY (MapBranch.tsx says why), so this is the
+    // state every reader is actually in. "0 of 40" would report forty
+    // organizations as having got nowhere on the strength of an arithmetic that
+    // has not run — the one number this band must never print.
+    const html = goalBand()
+    expect(html).toContain('40')
+    expect(html).not.toContain('0 of 40')
+    expect(html).toContain('—')
+    // The dash is for the eye; the ear gets the word, because a dash inside an
+    // interpolation is announced as nothing and would leave "of 40 arrived by…".
+    expect(html).toContain(esc(t('mapnode.notRecorded')))
+    expect(html).toContain(esc(t('mapnode.goalLeft', { count: 30 })))
+  })
+
+  it('turns a reading into the number, the shortfall and the unstaged clause', () => {
+    const html = goalBand({ readings: new Map([['g1', { reached: 6, unstaged: 380 }]]) })
+    expect(html).toContain(
+      esc(t('mapnode.goalCount', { reached: '6', target: 40, date: '31/12/2026' })),
+    )
+    expect(html).toContain(esc(t('mapnode.goalBehind', { count: 34 })))
+    expect(html).toContain(esc(t('mapnode.goalUnstaged', { count: 380 })))
+    // Once the fold has spoken there is nothing left unknown to stand in for.
+    expect(html).not.toContain(esc(t('mapnode.notRecorded')))
+  })
+
+  it('reads an overdue goal as a positive number of days, never a minus sign', () => {
+    const html = goalBand({ goals: [goal({ target_date: '2026-11-01' })] })
+    expect(html).toContain(esc(t('mapnode.goalOverdue', { count: 30 })))
+    expect(html).not.toContain('-30')
+    expect(html).toContain('data-tone="over"')
+  })
+
+  it('gives a member no editing affordance at all — absent, not disabled', () => {
+    // `structure.edit` is the ADs'; the three account managers read this band.
+    // A DISABLED control would be a promise the database refuses to keep, and
+    // `disabled` is one attribute away from being edited back in.
+    const html = goalBand({ canEdit: false })
+    expect(html).not.toContain('<button')
+    expect(html).not.toContain(esc(t('mapnode.goalAdd')))
+    // The AD sees both, which is what makes the assertion above about
+    // permission rather than about a band that renders no controls at all.
+    const ad = goalBand()
+    expect(ad).toContain(esc(t('mapnode.goalAdd')))
+    expect(ad).toContain(esc(t('mapnode.goalEditOne', { goal: 'Phase 2 go-live' })))
+  })
+
+  it('renders a missing table as the empty state, and every other failure as a note', () => {
+    // ⚠ THE PRE-MIGRATION STATE, WHICH IS EVERY READER UNTIL AZIZ RUNS 0027.
+    // `map_node_goals` does not exist, so `listGoals` answers PGRST205 on every
+    // open — and a table that does not exist holds no goals, which is
+    // indistinguishable from a branch nobody has promised anything about.
+    const missing = goalBand({ goals: [], error: 'common.errMissingTable' })
+    expect(missing).toContain(esc(t('mapnode.goalsNone')))
+    expect(missing).not.toContain(esc(t('common.errMissingTable')))
+    // Any OTHER failure is a fact the reader needs, so it is not swallowed —
+    // without this half the assertion above would pass on a band that hid
+    // everything.
+    const refused = goalBand({ goals: [], error: 'common.error' })
+    expect(refused).toContain(esc(t('common.error')))
+    expect(refused).not.toContain(esc(t('mapnode.goalsNone')))
+  })
+
+  it('says all four of 0027s sentences, in Arabic, with no raw key left on screen', () => {
+    setLocale('ar')
+    try {
+      const html = goalBand({
+        goals: [
+          goal({ id: 'g1', label_ar: 'التشغيل الثاني' }),
+          goal({ id: 'g2', stage_id: 's1' }),
+          goal({ id: 'g3', target: null }),
+          goal({ id: 'g4', target: null, stage_id: 's1' }),
+        ],
+        readings: new Map([['g1', { reached: 6, unstaged: 0 }]]),
+      })
+      expect(html.match(/mbr-goal"/g)).toHaveLength(4)
+      expect(html).not.toContain('mapnode.')
+      expect(html).toContain('⁨التشغيل الثاني⁩')
+    } finally {
+      setLocale('en')
+    }
+  })
+
+  it('goalClock has three arms, and the middle one is a day nobody can round away', () => {
+    // Zero is neither "0 days left" nor "0 days overdue" — both read as "nothing
+    // is happening" on the single day when the opposite is true.
+    expect(goalClock(30)).toEqual({ key: 'mapnode.goalLeft', count: 30, tone: 'ahead' })
+    expect(goalClock(0)).toEqual({ key: 'mapnode.goalDue', count: 0, tone: 'due' })
+    expect(goalClock(-3)).toEqual({ key: 'mapnode.goalOverdue', count: 3, tone: 'over' })
   })
 })

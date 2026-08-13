@@ -155,6 +155,9 @@ import { useMindPulses, useReducedMotion } from '../components/mindtree/PulseLay
 import { MindDragLayer } from '../components/mindtree/DragLayer'
 import BoardStage from '../components/map/BoardStage'
 import MapBranch from '../components/map/MapBranch'
+// The terminal capability status, imported from the ONE place that owns the
+// literal — lib/mapNodes.ts's header refuses a second copy of `'live'`.
+import { TERMINAL_STATUS } from '../components/map/MapBranchDetail'
 import MapCanvas from '../components/map/MapCanvas'
 import MapCapture from '../components/map/MapCapture'
 import MapChanges, { useChangesCount } from '../components/map/MapChanges'
@@ -186,7 +189,8 @@ import {
   octavesOf,
 } from './map/mapMotion'
 import { refreshEntries } from '../store/entries'
-import { useMapNodesTruncated } from '../store/config'
+import { useMapNodes, useMapNodesTruncated } from '../store/config'
+import { loadPortfolio, usePortfolioLinks } from '../store/portfolio'
 import { useMapLens } from './map/useMapLens'
 import { useMapCursor } from './map/useMapCursor'
 import { useMapDrag, useMapDragPressing } from './map/useMapDrag'
@@ -311,43 +315,69 @@ export default function Mindtree(): ReactElement {
   const { filter, setFilter } = useMapUrlFilter()
 
   /**
-   * ⚠ SEAM, 2026-08-13 — THE PROGRESS UNDERSCORE HAS NO SOURCE YET, AND `null`
-   * IS THE HONEST WAY TO SAY SO.
+   * THE PROGRESS UNDERSCORE'S SOURCE — the one read wave 5 left unwired, and the
+   * decision it was waiting on.
    *
-   * `useMapModel`'s roll-up, the `progress` field on every view model and the
-   * `{done} of {total} live` clause in every accessible name are all built and
-   * tested; what is missing is the ONE read that feeds them, and it is missing
-   * on purpose. `map_node_use_cases` is 400 organizations x ~10 capabilities =
-   * ~4,000 rows, store/config.ts's header refuses it ("That is DATA, not
-   * configuration") and api/map.ts's `listNodeUseCasesFor` says outright: "NOT ON
-   * BOOT ... The portfolio surface opens it deliberately (`src/store/portfolio.ts`,
-   * wave 3) and pays for it." This screen is where the app lands, so a read fired
-   * from here IS boot, and firing it anyway would be this wave overruling a
-   * decision the wave before it wrote down.
+   * `map_node_use_cases` is 400 organizations × ~10 capabilities ≈ 4,000 rows,
+   * which store/config.ts refuses to hold ("That is DATA, not configuration")
+   * and api/map.ts's `listNodeUseCasesFor` refuses to fire on boot. This screen
+   * IS where the app lands, so the honest reading of "not on boot" here is not
+   * "never" — it is "not on the path that gates first paint, and not from a
+   * store that every other screen pays for".
    *
-   * An empty array would be the WRONG stand-in and that is the reason this is
-   * typed as nullable at all: `[]` means "no organization has integrated
-   * anything", which would draw an empty underscore on every card and announce
-   * "0 of 90 live" on every branch. `null` means "nobody has looked", and the
-   * mark and the clause are both absent.
+   * SO IT IS AN EFFECT, AFTER PAINT, THROUGH A LAZY STORE. The map draws its
+   * first frame from store/config alone; the links land a moment later and the
+   * underscore appears on the repaint. store/portfolio.ts fetches nothing until
+   * somebody calls it, and this is the caller — the canvas wants EVERY
+   * organization's links (the mark is on every card and rolls up every ring),
+   * unlike the branch panel, which reads one node's on open and is unaffected.
    *
-   * WAVE 3 FLIPS THIS LINE and nothing else on this screen:
+   * `null` UNTIL THEY LAND, NEVER `[]`. An empty array means "no organization
+   * has integrated anything", which draws an empty underscore on every card and
+   * announces "0 of 90 live"; null means nobody has looked and both the mark and
+   * its spoken clause are absent. That is why `MapProgressSource` is nullable.
    *
-   *     const links = usePortfolioLinks()      // store/portfolio.ts
-   *     const progressSource = useMemo(
-   *       () => (links === null ? null : { links, terminalKey: TERMINAL_STATUS,
-   *                                        terminalWordKey: 'mapnode.wordLive' }),
-   *       [links],
-   *     )
-   *
-   * — memoised, because the object's identity is a dependency of the roll-up,
-   * and `TERMINAL_STATUS` IMPORTED from MapBranchDetail.tsx (which has to gain
-   * an `export`), never restated: lib/mapNodes.ts's header is explicit that the
-   * literal lives at one call site. That same wave gives `useCaseProgress` its
-   * required 4th argument, which is what stops a link-less organization from
-   * shrinking the denominator instead of adding zeroes to it.
+   * Memoised because the object's identity is a dependency of the roll-up, and
+   * `TERMINAL_STATUS` is IMPORTED rather than restated: lib/mapNodes.ts's header
+   * is explicit that the literal `'live'` lives at exactly one call site.
    */
-  const progressSource: MapProgressSource | null = null
+  const portfolioLinks = usePortfolioLinks()
+  const progressSource = useMemo<MapProgressSource | null>(
+    () =>
+      portfolioLinks === null
+        ? null
+        : {
+            links: portfolioLinks,
+            terminalKey: TERMINAL_STATUS,
+            terminalWordKey: 'mapnode.wordLive',
+          },
+    [portfolioLinks],
+  )
+
+  /**
+   * WHICH ORGANIZATIONS TO ASK ABOUT — every active node, because the mark is on
+   * every card and a ring's roll-up sums the ones beneath it.
+   *
+   * Archived nodes are left out: they are absent from the tree the canvas draws
+   * (store/config's `mapChildren` drops them), so their links would be rows
+   * nothing could render.
+   *
+   * THE EMPTY LIST IS NOT A LOAD. `mapNodes` is empty for the first tick of
+   * every cold start, and `loadPortfolio` refuses that call rather than stamping
+   * its clock on an answer about nothing — otherwise the map would keep the
+   * underscore off until the tab was reopened.
+   */
+  const mapNodes = useMapNodes()
+  const portfolioIds = useMemo(
+    () => mapNodes.filter((node) => !node.archived).map((node) => node.id),
+    [mapNodes],
+  )
+  useEffect(() => {
+    // Unawaited on purpose: this must not block the frame it is fired from, and
+    // loadPortfolio never rejects. A second call while one is in flight awaits
+    // the first rather than issuing a second 4,000-row read.
+    void loadPortfolio(portfolioIds)
+  }, [portfolioIds])
 
   const model = useMapModel(compact, locale, filter, progressSource)
   // TWO TRUNCATIONS, TWO SENTENCES, and they are not the same fact. `model.truncated`

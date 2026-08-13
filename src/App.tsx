@@ -35,6 +35,7 @@ import { loadConfig } from './store/config'
 import { loadTrackSlas, resetEntries, startEntriesRealtime } from './store/entries'
 import { loadMembers, resetMembers } from './store/members'
 import { resetMeetings } from './store/meetings'
+import { resetPortfolio } from './store/portfolio'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
 import { resetAi } from './store/ai'
 import { resetNudges } from './store/nudges'
@@ -431,6 +432,11 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // call above, the store only filled when a sheet was opened, so the leak
       // needed a coincidence; now it is guaranteed without this line.
       resetMembers()
+      // Portfolio is the sixth, and it is CONFIDENTIALITY like the first three
+      // rather than staleness: it holds every organization's capability links
+      // and every node's open counts, which is the whole map's data for one
+      // workspace. store/signOutReset.test.ts fails until this line exists.
+      resetPortfolio()
       // Meetings is the fifth, and the argument for it is STALENESS rather than
       // confidentiality — `meetings_select` and `meeting_lines_select` are both
       // `is_member()`, so every teammate may read every meeting anyway. What

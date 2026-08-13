@@ -1202,6 +1202,103 @@ export interface MapNodeProgress {
 }
 
 /**
+ * map_node_goals — one commitment about one node (0027).
+ *
+ * ⚠ THE TWO NULLABLE COLUMNS ARE THE WHOLE VOCABULARY. There is deliberately no
+ *   `metric` column and no frozen union: `stage_id` and `target` between them
+ *   say which of the four things a goal is, and adding a fifth phrasing is a
+ *   sentence in the UI rather than a coded value in the schema.
+ *
+ *   | stage_id | target | reads as                                              |
+ *   |----------|--------|-------------------------------------------------------|
+ *   | null     | null   | this node reaches a terminal stage by `target_date`    |
+ *   | null     | 40     | 40 beneath it are at a terminal stage by `target_date` |
+ *   | a rung   | 40     | 40 beneath it are at that rung OR BEYOND               |
+ *   | a rung   | null   | this node reaches that rung or beyond                  |
+ *
+ * NOT UNIQUE ON ANYTHING: two goals with one date and two rungs describe one
+ * ramp at two altitudes, and 0027's probe 1 asserts the primary key is the only
+ * unique index precisely so half of somebody's ramp cannot be silently refused.
+ */
+export interface MapNodeGoal {
+  id: string
+  node_id: string
+  /**
+   * "Phase 2 go-live". `not null default ''`, and `''` IS A GOOD GOAL — the date
+   * and the target already say what it is. Empty string rather than null for
+   * `map_nodes.vendor`'s reason (0023:359): a three-state string/null/'' is a bug
+   * waiting for the first filter.
+   */
+  label: string
+  label_ar: string
+  /** NULL means "a terminal stage", never "no rung". See the table above. */
+  stage_id: string | null
+  /** NULL = a date goal about this node. A positive int = a count of descendants. Never 0. */
+  target: number | null
+  /**
+   * The calendar day the commitment names. `date`, not `timestamptz`: giving a
+   * go-live date a time zone makes "31 Dec" render as 30 Dec for somebody.
+   */
+  target_date: string
+  created_at: string
+  updated_at: string
+  created_by: string | null
+  updated_by: string | null
+}
+
+/**
+ * What a caller hands in to create or patch a goal — camelCase, columns out.
+ *
+ * `MapNodeStageInput`'s shape and its reason: the column names are the api
+ * layer's business, and a screen that built a row literal would be a screen that
+ * can send `created_by`. `Partial<MapNodeGoalInput>` is what `updateGoal` takes,
+ * where an ABSENT key means "leave it alone" and an explicit `null` on
+ * `stageId`/`target` is a real instruction — "this goal names no rung" / "this is
+ * a date goal now". The `!== undefined` test below is what keeps those apart.
+ */
+export interface MapNodeGoalInput {
+  nodeId: string
+  label: string
+  labelAr: string
+  stageId: string | null
+  target: number | null
+  targetDate: string
+}
+
+/**
+ * v_map_node_open_counts — one row per map node, DIRECT counts of the open work
+ * filed on it (0027). The first aggregate VIEW this schema has.
+ *
+ * ⚠ THE BOUNDARY RULE THIS TYPE EXISTS TO KEEP, in 0027's own words:
+ *
+ *     A NUMBER A HUMAN READS AS A FACT COMES FROM THE SERVER AGGREGATE.
+ *     A SIZE A HUMAN READS AS A SHAPE COMES FROM THE WORKING SET.
+ *
+ * Past 1,000 open entries the client's working set is clipped by PostgREST and
+ * every count folded from it is silently low — a correct-looking wrong number in
+ * front of an executive. So the panel's "12 open · 3 overdue" reads THIS; the
+ * canvas's size-encoding keeps reading the (truncated, flagged) working set,
+ * because a 10% error is invisible at grain size.
+ *
+ * NOT ROLLED UP. The server does the expensive join over thousands of entries;
+ * the client rolls ~400 rows up in the O(n) pass it already runs.
+ *
+ * EVERY NODE GETS A ROW, including one with no entries at all (0027's LEFT
+ * JOIN). A MISSING row therefore means the read did not reach that node, and the
+ * client renders an em-dash rather than 0 — "this node has zero open items" and
+ * "nobody has looked" are different facts.
+ */
+export interface MapNodeOpenCounts {
+  node_id: string
+  open: number
+  overdue: number
+  /** Open entries whose SLA is breached — `v_entry_health.sla_breached`. */
+  breached: number
+  /** Open entries with neither `owner_id` nor a non-blank `owner_name`. */
+  unassigned: number
+}
+
+/**
  * What retiring a rung would cost, for the delete confirmation — `MapNodeUsage`'s
  * job one table over.
  *

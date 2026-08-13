@@ -82,7 +82,7 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import MapBranchHistory from './MapBranchHistory'
-import MapBranchDetail from './MapBranchDetail'
+import MapBranchDetail, { MapBranchGoals } from './MapBranchDetail'
 import Breadcrumb from '../mindtree/Breadcrumb'
 import { EntryRow, TrackDot, type EntryRowShow } from '../entry'
 import { IconChevronDown } from '../fields/glyphs'
@@ -737,6 +737,28 @@ export default function MapBranch({
           empty band above the stats teaches nothing. `entityIdOf` reads
           `bucketKey` WITH `kind`, which is the only safe way to read it. */}
       <MapBranchDetail nodeId={entityId} kindName={node.entityType} />
+
+      {/* WHAT THIS BRANCH PROMISED, under what it IS and above what is open on
+          it — the order a reader asks in.
+
+          GATED HERE RATHER THAN INSIDE, unlike the detail band one line up, and
+          the difference is a fetch: this band opens a request on mount, and
+          goals hang off a map node, so mounting it for a track or a status
+          bucket would be one request per focus change that can never return a
+          row. `MapBranchDetail` decides internally because it is cheap to
+          decide there and the two bands share nothing but the id.
+
+          `readings` IS NOT PASSED, AND THE REASON IS NOT A MISSING READ.
+          `goalProgress` (lib/mapNodes.ts) needs the stage ladder and the
+          descendant walk, and both are in store/config already — what this
+          component does not have is the GOALS. The band fetches them itself,
+          `readings` is keyed by goal id, and lifting that fetch up here so a
+          parent could key a map by it would make the panel read one node's
+          goals twice. So the fold belongs where the portfolio's own goal read
+          lands (wave 4), and until then every goal renders its promise with an
+          em-dash where the number goes — which is "nobody has folded this", a
+          different fact from zero. See `GoalReading` in MapBranchDetail.tsx. */}
+      {entityId !== null && <MapBranchGoals nodeId={entityId} />}
 
       {(trackId !== null || node.kind === 'root') && (
         <section className="mbr-band mbr-stats" aria-label={t('track.now')}>
