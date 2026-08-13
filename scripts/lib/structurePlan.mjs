@@ -30,8 +30,10 @@
 //
 // ═══ THE FILE CONTRACT THIS IMPLEMENTS ═══
 //
-// One row per node. Seven fixed columns, in this order, then one column per use
-// case:
+// One row per node. The fixed columns, in this order — `FIXED_COLUMNS` below is
+// the list, and no prose here counts them, because the count has changed once
+// already and a written number rots into a lie the day it does (the same hazard
+// `structure.depthCap` was rewritten to avoid) — then one column per use case:
 //
 //   path             THE WHOLE PATH INCLUDING THE TRACK — `UHR > Onboarding > Riyadh Care`.
 //                    First segment is a TRACK and must already exist (this
@@ -44,6 +46,15 @@
 //   vendor           free text, the integrator. Blank = '' = "not recorded".
 //   description      blank legal.
 //   description_ar   blank legal.
+//   stage            map_node_stages.name — where this node HAS GOT TO. Written
+//                    to `map_node_progress`, not to `map_nodes`. Blank leaves
+//                    the stage exactly as it is; see the blank rule below.
+//   target_date      ISO `YYYY-MM-DD`, and the date of the ONE goal this row may
+//                    carry. Blank = no goal.
+//   target           a positive count of organizations beneath this node that
+//                    must be at a terminal stage by `target_date`. Blank with a
+//                    date = "THIS node reaches a terminal stage by then"
+//                    (0027's first row shape). A target with no date is refused.
 //   <use case>…      one column per use_cases.name, cell ∈ { blank, planned, testing, live }.
 //
 // A BLANK USE-CASE CELL IS NOT A FOURTH STATUS. `UseCaseStatus` has three
@@ -57,14 +68,31 @@
 // a person who lists every level and a person who lists only leaves must end up
 // with the same tree. Both do; see `desiredNodes()`.
 //
-// AN EXPLICIT ROW IS AUTHORITATIVE FOR ITS OWN SEVEN FIELDS, blanks included.
-// The contract fixes the meaning of a blank for three of them ("no Arabic name",
-// "unassigned", "not recorded"), and applying a different rule to the other four
-// would make the file mean two things at once. So a row whose `vendor` is blank
-// CLEARS a vendor that is set in the app — and the plan prints that as
-// `vendor: "Acme" -> (blank)` rather than burying it, because it is the one
-// surprise in the contract. An IMPLIED node speaks about nothing and is never
-// updated.
+// AN EXPLICIT ROW IS AUTHORITATIVE FOR ITS OWN NAME-AND-TEXT FIELDS, blanks
+// included. The contract fixes the meaning of a blank for three of them ("no
+// Arabic name", "unassigned", "not recorded"), and applying a different rule to
+// the others would make the file mean two things at once. So a row whose
+// `vendor` is blank CLEARS a vendor that is set in the app — and the plan prints
+// that as `vendor: "Acme" -> (blank)` rather than burying it, because it is the
+// one surprise in the contract. An IMPLIED node speaks about nothing and is
+// never updated.
+//
+// ⚠ AND `stage`, `target_date` AND `target` ARE THE EXCEPTION, DELIBERATELY. A
+// BLANK IN ANY OF THE THREE CHANGES NOTHING AT ALL.
+//
+// The three columns above record a JUDGEMENT somebody made — "this hospital is
+// integrating", "we promised forty of them live by December" — and the file is
+// filled in by whoever has the spreadsheet open, over months, mostly in the
+// columns they care about that week. Under the clearing rule, one colleague who
+// fills in vendors and leaves `stage` alone would silently return four hundred
+// organizations to "nobody has said", destroying every `stage_changed_at` with
+// them: 0026's stamp trigger is the only writer of that column and it re-stamps
+// on the way back, so time-in-stage cannot be recovered by re-typing the stage.
+// A blank cell is not a statement that nothing is true. The way to take a stage
+// back off a node is the app, where it asks you.
+//
+// A stage IS therefore write-only from this file, and that is the trade: the
+// import can move a node forward, and only a person can move it back to nothing.
 //
 // THE FILE IS NOT AUTHORITATIVE FOR DELETION, and that asymmetry is deliberate.
 // A node in the app that is missing from the file is REPORTED and left exactly
@@ -79,7 +107,14 @@
 //   a spreadsheet column. A path naming a track that does not exist is a refusal
 //   that says so and points at Settings › Tracks.
 // * IT ARCHIVES AND DELETES NOTHING. Every action it can emit is a create, a
-//   field update, or a use-case link set/cleared.
+//   field update, a use-case link set/cleared, a stage recorded, or a goal
+//   written.
+// * IT CREATES NO STAGES, for the reason it creates no tracks and refuses an
+//   unknown capability column: the rungs of the ladder are a configured list
+//   with an ORDER, a `terminal` flag, a `paused` flag and a stalled threshold
+//   (0026), none of which fit in a cell — and every count-form goal in the
+//   workspace is restated by where a new rung lands. So a stage this workspace
+//   does not have is a refusal that names the nearest rung it does have.
 // * IT NEVER GUESSES A PERSON. An account manager matching no member is a
 //   refusal; matching two is a refusal that NAMES BOTH. Silently preferring one
 //   is how the wrong person ends up accountable for an organization.
@@ -120,7 +155,18 @@ export function formatPath(segments) {
 /** ` > ` — space, greater-than, space. Surrounding whitespace is tolerated. */
 export const PATH_SEPARATOR = ' > '
 
-/** The seven fixed columns, in order. Everything after them is a use case. */
+/**
+ * The fixed columns, in order. Everything after them is a use case.
+ *
+ * ⚠ THE THREE WAVE-8 COLUMNS ARE APPENDED, NEVER INSERTED, and that is a
+ * compatibility decision rather than a tidiness one. A file somebody filled in
+ * last month has the first seven in exactly these positions; appending means
+ * every one of its rows still means what it meant, and the only thing wrong with
+ * it is that it is three columns short — which the header check catches at
+ * column 8, by name, before a single value is read. INSERTING `stage` at column
+ * 3 instead would leave that file parsing perfectly with `Organization` filed as
+ * a stage and every use-case status shifted three columns to the right.
+ */
 export const FIXED_COLUMNS = [
   'path',
   'name_ar',
@@ -129,6 +175,9 @@ export const FIXED_COLUMNS = [
   'vendor',
   'description',
   'description_ar',
+  'stage',
+  'target_date',
+  'target',
 ]
 
 /**
@@ -148,6 +197,26 @@ export const MAX_NODE_DEPTH = 6
 
 /** `map_nodes_name_len_chk` — 1..60 on the BTRIMMED value. */
 export const MAX_NAME_LENGTH = 60
+
+/**
+ * The largest count a `target` cell may hold.
+ *
+ * ⚠ NOT A MIRROR OF A DATABASE BOUND, BECAUSE THERE IS NO UPPER ONE. 0027's only
+ * check is `target is null or target > 0` (`map_node_goals_target_chk`), so a
+ * five-digit target is stored happily and renders as a commitment nobody made.
+ * The lower half of this rule IS the mirror and is refused with 0027's own
+ * argument: a goal of zero reads as permanently met.
+ *
+ * The ceiling exists for one shape in particular. Excel writes a date-formatted
+ * cell back as its SERIAL NUMBER — 45,000-odd for the years this workspace lives
+ * in, which is exactly what lands in `target` when somebody types a date into
+ * the wrong one of two adjacent date-ish columns. `looksDateShaped` already
+ * flags `4[0-6]\d{3}` in a name; here it is a refusal rather than a note,
+ * because a number is not a name and there is no legitimate reading of it. Ten
+ * thousand is far above anything this workspace can hold (four hundred
+ * organizations) and far below the serials.
+ */
+export const MAX_TARGET = 10000
 
 // ── text hygiene ────────────────────────────────────────────────────────────
 //
@@ -313,8 +382,8 @@ export class CsvError extends Error {
  *
  * THIS IS THE PARSER THE WHOLE FILE FORMAT RESTS ON, so it is worth being
  * explicit about what `split(',')` would do instead of failing: nothing. A row
- * reading `UHR > OB > Ministry of Health, Riyadh,,Organization,…` becomes eight
- * fields where seven were meant, every column right of the comma shifts one to
+ * reading `UHR > OB > Ministry of Health, Riyadh,,Organization,…` gains a field
+ * the header never named, every column right of the comma shifts one to
  * the left, the row still imports, `Organization` lands in `account_manager`,
  * and the only symptom is a tree that is subtly wrong. There is no error to see.
  *
@@ -458,10 +527,17 @@ export function parseStructureCsv(text) {
   const header = meaningful[0]
   const headerCells = header.cells.map((c) => clean(c))
 
-  // The seven fixed columns, in order and by name. A file whose columns have
-  // been reordered is a file whose every row means something else, so this is a
+  // The fixed columns, in order and by name. A file whose columns have been
+  // reordered is a file whose every row means something else, so this is a
   // refusal rather than a remap: remapping would quietly accept a file somebody
   // built by hand from a half-remembered spec.
+  //
+  // ⚠ THE COUNT IS INTERPOLATED, NOT TYPED. This message said "the first seven
+  // columns are fixed" for as long as there were seven, and the sentence a
+  // reader trusts most is the one naming the number. It is now the one message
+  // a pre-wave-8 file reaches — at column 8, `stage`, missing — so a stale
+  // number here would tell somebody holding exactly that file that his header is
+  // already complete.
   for (let i = 0; i < FIXED_COLUMNS.length; i += 1) {
     const want = FIXED_COLUMNS[i]
     const got = headerCells[i]
@@ -470,7 +546,7 @@ export function parseStructureCsv(text) {
         refuse(
           'header_columns',
           header.line,
-          `column ${i + 1} of the header should be \`${want}\` and reads \`${got ?? '(missing)'}\`${describeOddCharacters(header.cells[i] ?? '')}. The first seven columns are fixed and ordered: ${FIXED_COLUMNS.join(', ')}. Start from docs/templates/structure.csv rather than rebuilding the header by hand.`,
+          `column ${i + 1} of the header should be \`${want}\` and reads \`${got ?? '(missing)'}\`${describeOddCharacters(header.cells[i] ?? '')}. The first ${FIXED_COLUMNS.length} columns are fixed and ordered: ${FIXED_COLUMNS.join(', ')}. Start from docs/templates/structure.csv rather than rebuilding the header by hand.`,
         ),
       )
       return { rows: [], useCaseColumns: [], refusals }
@@ -576,6 +652,11 @@ export function parseStructureCsv(text) {
       vendor: clean(at(4)),
       description: cleanText(at(5)),
       descriptionAr: cleanText(at(6)),
+      // Resolved in `planStructure` against the ladder the DATABASE holds —
+      // there is no list of stage names in this file. See `stageByName` there.
+      stage: clean(at(7)),
+      targetDate: clean(at(8)),
+      target: clean(at(9)),
       cells: [],
       // EVERY use-case column this row sat under, valid cell or not.
       //
@@ -681,10 +762,102 @@ export function parseStructureCsv(text) {
       continue
     }
 
+    // ── the goal, checked for shape ──
+    //
+    // The STAGE cell is not checked here: it names a rung of a list only the
+    // database holds, and the parser has no database. These two do have a shape
+    // that is right or wrong on its own, and both wrong shapes arrive from
+    // Excel rather than from a person.
+    const goalProblem = checkGoalCells(row, record.line)
+    if (goalProblem) {
+      refusals.push(goalProblem)
+      continue
+    }
+
     rows.push(row)
   }
 
   return { rows, useCaseColumns: useCaseColumns.filter((c) => c !== null), refusals }
+}
+
+/** `2026-12-31` and nothing else, and the day has to exist. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/u
+
+/**
+ * Is this an ISO date that names a real day?
+ *
+ * ⚠ THE SECOND HALF IS NOT PEDANTRY. `new Date('2026-02-30')` does not throw; it
+ * rolls forward to 2 March, and Postgres does NOT — `date '2026-02-30'` is
+ * `22008 date/time field value out of range`, raised mid-batch, after the nodes
+ * have landed. So a day that does not exist is refused here, where it costs a
+ * line number instead of a half-written import.
+ */
+export function isIsoDate(value) {
+  if (!ISO_DATE.test(value)) return false
+  const [y, m, d] = value.split('-').map(Number)
+  if (m < 1 || m > 12 || d < 1) return false
+  const stamp = new Date(Date.UTC(y, m - 1, d))
+  return stamp.getUTCFullYear() === y && stamp.getUTCMonth() === m - 1 && stamp.getUTCDate() === d
+}
+
+/**
+ * The two goal cells, checked for shape. Returns a refusal or null.
+ *
+ * ⚠ THE DD/MM/YYYY TRAP IS NAMED IN THE MESSAGE, and it is the whole reason this
+ * refusal is worth writing carefully. Excel formats a date cell in the LOCALE OF
+ * THE MACHINE, and on a machine set to en-GB — which is what a Saudi PMO laptop
+ * usually is — `2026-12-01` is displayed and SAVED BACK as `01/12/2026`. Half
+ * the year that string is also a valid US date meaning a different month, so
+ * accepting it would silently move a commitment from December to January. There
+ * is no way to tell the two apart from the string, so neither is accepted, and
+ * the message says which one to type and why the cell has to be Text.
+ */
+function checkGoalCells(row, line) {
+  const { targetDate, target } = row
+
+  if (targetDate && !isIsoDate(targetDate)) {
+    return refuse(
+      'target_date_shape',
+      line,
+      `\`${targetDate}\`${describeOddCharacters(targetDate)} is not a date this file accepts, on ${describePath(row.segments)}. Write it as \`YYYY-MM-DD\` — \`2026-12-31\` — and nothing else. ⚠ IF THIS READS AS \`31/12/2026\` OR \`12/31/2026\`, EXCEL WROTE IT, NOT YOU: a cell formatted as Date is saved back in the machine's own locale, and \`03/04/2026\` means March in one country and April in the next. There is no way to tell them apart from the file, so neither is accepted. Format the \`target_date\` column as TEXT before you type, then retype the date.`,
+    )
+  }
+
+  if (!target) return null
+
+  if (!/^\d+$/u.test(target)) {
+    return refuse(
+      'target_not_a_number',
+      line,
+      `the \`target\` on ${describePath(row.segments)} reads \`${target}\`${describeOddCharacters(target)}, and a target is a plain whole number of organizations — \`40\`, not \`40 orgs\` and not \`40%\`. Leave it BLANK for a goal about this node itself ("it reaches a terminal stage by the date"), which is the commonest one.`,
+    )
+  }
+
+  const n = Number(target)
+  if (n === 0) {
+    return refuse(
+      'target_zero',
+      line,
+      `the \`target\` on ${describePath(row.segments)} is 0, and 0027 refuses that (\`map_node_goals_target_chk\`) for a reason worth keeping: a goal of zero is met the moment it is written and stays met forever, so it reports success at every altitude while nothing happens. Leave the cell blank instead — blank is "this node itself reaches a terminal stage by the date".`,
+    )
+  }
+  if (n > MAX_TARGET) {
+    return refuse(
+      'target_too_large',
+      line,
+      `the \`target\` on ${describePath(row.segments)} is ${n}, past the ${MAX_TARGET} this importer accepts.${n >= 40000 && n <= 49999 ? ' A number in the forty-thousands is what Excel writes when a DATE is typed into this column: it stores the date as a serial number and saves that back. Check whether `target_date` and `target` are the right way round.' : ''} A target counts organizations beneath this node, and this workspace holds hundreds, not thousands.`,
+    )
+  }
+
+  if (!targetDate) {
+    return refuse(
+      'target_without_date',
+      line,
+      `${describePath(row.segments)} has a \`target\` of ${n} and no \`target_date\`. A count with no date is not a commitment — "forty of them, eventually" is what every plan already says. \`map_node_goals.target_date\` is \`not null\` for the same reason. Put the date in, or clear the target.`,
+    )
+  }
+
+  return null
 }
 
 // ── the planner ─────────────────────────────────────────────────────────────
@@ -705,6 +878,12 @@ export function parseStructureCsv(text) {
  * @param {object[]} input.kinds           `{ id, name }`
  * @param {object[]} input.members         `{ id, display_name, username, email }`
  * @param {object[]} input.useCases        `{ id, name, sort_order }`
+ * @param {object[]} [input.stages]        `map_node_stages` — `{ id, name, name_ar, sort_order, hidden }`
+ * @param {object[]} [input.progress]      `map_node_progress` — `{ node_id, stage_id }`
+ * @param {object[]} [input.goals]         `map_node_goals` — `{ id, node_id, label, stage_id, target, target_date }`
+ * @param {object}   [input.schema]        which of 0026/0027 this project actually has:
+ *                                         `{ stages: boolean, goals: boolean }`. Both default
+ *                                         true; the CLI probes and passes what it found.
  * @param {boolean}  [input.addUseCases]   `--add-use-cases`: create unknown columns
  *                                         instead of refusing them.
  * @returns {{ actions: object[], refusals: object[], notes: object[], summary: object }}
@@ -716,6 +895,10 @@ export function planStructure({
   kinds = [],
   members = [],
   useCases = [],
+  stages = [],
+  progress = [],
+  goals = [],
+  schema = { stages: true, goals: true },
   addUseCases = false,
 } = {}) {
   const refusals = []
@@ -1034,7 +1217,7 @@ export function planStructure({
     const name = want.segments[want.segments.length - 1]
     const parentKeyForSort = want.parentKey ?? keyOf(want.track.id, [])
 
-    // The seven fields the file speaks about, resolved. An implied node speaks
+    // The name-and-text fields the file speaks about, resolved. An implied node speaks
     // about nothing and gets the column defaults.
     const fields = want.row
       ? resolveFields(want.row, { kindByName, members, refusals })
@@ -1146,6 +1329,199 @@ export function planStructure({
         useCaseId: useCase.id,
         status: cell.status,
         from: current ?? null,
+      })
+    }
+  }
+
+  // ── the stage each row records, and the goal it may carry ─────────────────
+  //
+  // ⚠ THE LADDER IS READ FROM THE DATABASE, AND THERE IS NO LIST OF STAGE NAMES
+  // ANYWHERE IN THIS REPOSITORY'S SCRIPTS. That is a deliberate absence and it
+  // is worth a paragraph, because a `STAGE_NAMES` constant is the obvious thing
+  // to write and it would be wrong in a way nothing catches. 0026 SEEDS seven
+  // rungs and every one of them is renameable — the whole point of the
+  // configurable list is that Aziz names them in his own words, in his own
+  // language, on the day he looks at them. A constant here would go stale on the
+  // first rename and then refuse `Integration` as unknown while the app draws it
+  // on every row; worse, it could match a name the workspace no longer has and
+  // write a stage_id from a stale copy. The disposition he audits is the one the
+  // database holds, so it is the one this reads.
+  //
+  // THE PRE-MIGRATION REFUSAL LIVES HERE TOO, and it fires only when the file
+  // actually speaks about a stage or a goal: a file with those three columns
+  // blank imports perfectly against a project where 0026 and 0027 have not been
+  // run, which is exactly the state the workspace may still be in.
+  const stageByName = indexBy(stages, (s) => nameKey(s.name))
+  const stageByNameAr = indexBy(
+    stages.filter((s) => clean(s.name_ar) !== ''),
+    (s) => nameKey(s.name_ar),
+  )
+  const stageById = new Map(stages.map((s) => [s.id, s]))
+  const progressByNode = new Map(progress.map((p) => [p.node_id, p]))
+
+  const rowsWithStage = placed.filter((e) => e.row.stage !== '')
+  const rowsWithGoal = placed.filter((e) => e.row.targetDate !== '')
+
+  if (rowsWithStage.length && !schema.stages) {
+    refusals.push(
+      refuse(
+        'stage_tables_missing',
+        rowsWithStage[0].row.line,
+        `${rowsWithStage.length} row(s) name a \`stage\`, and this project has no \`map_node_stages\`/\`map_node_progress\` tables — 0026 HAS NOT BEEN RUN AGAINST IT. Run it first: docs/RUN-0026-0027-0028.md walks the whole sitting, and every table this import needs is created by 0026 and 0027 together. Nothing has been read out of the file beyond this point and nothing would be written. A file whose \`stage\`, \`target_date\` and \`target\` columns are all blank imports normally against the schema as it stands today.`,
+      ),
+    )
+  }
+  if (rowsWithGoal.length && !schema.goals) {
+    refusals.push(
+      refuse(
+        'goal_table_missing',
+        rowsWithGoal[0].row.line,
+        `${rowsWithGoal.length} row(s) carry a \`target_date\`, and this project has no \`map_node_goals\` table — 0027 HAS NOT BEEN RUN AGAINST IT. Run 0026 and 0027 first: docs/RUN-0026-0027-0028.md. A file whose \`stage\`, \`target_date\` and \`target\` columns are all blank imports normally against the schema as it stands today.`,
+      ),
+    )
+  }
+
+  if (schema.stages) {
+    for (const entry of rowsWithStage) {
+      if (unresolved.has(entry.key)) continue
+      const raw = entry.row.stage
+      const byName = stageByName.get(nameKey(raw)) ?? []
+      const byAr = stageByNameAr.get(nameKey(raw)) ?? []
+      const found = byName.length ? byName : byAr
+      if (found.length !== 1) {
+        const names = stages.map((s) => s.name)
+        const near = nearestName(raw, names)
+        refusals.push(
+          refuse(
+            found.length ? 'stage_ambiguous' : 'stage_unknown',
+            entry.row.line,
+            found.length
+              ? `\`${raw}\` matches ${found.length} stages. Two rungs of one ladder cannot share a name — rename one in Settings › Catalogue.`
+              : `no stage named \`${raw}\`${describeOddCharacters(raw)} on ${describePath(entry.row.segments)}.${near ? ` Did you mean \`${near}\`?` : ''} The ladder is: ${names.join(' → ') || '(no stages configured)'}. This script does NOT create stages — a rung carries an order, a terminal flag, a paused flag and a stalled threshold, and adding one restates every count-form goal in the workspace. Add it in Settings › Catalogue, or leave the cell blank, which changes nothing.`,
+          ),
+        )
+        continue
+      }
+      const stage = found[0]
+      if (byName.length === 0 && byAr.length === 1) {
+        notes.push(
+          note(
+            'stage_matched_ar',
+            `line ${entry.row.line}: \`${raw}\` matched the ARABIC name of the stage \`${stage.name}\`.`,
+          ),
+        )
+      }
+      if (stage.hidden) {
+        // A NOTE AND NOT A REFUSAL. A hidden rung is one taken out of the
+        // picker, not one deleted — a node can legitimately still be sitting on
+        // it, and refusing would make a workspace un-importable because of a
+        // rung somebody retired last month. But it will not be offered in the
+        // app, so somebody reading the map cannot move the node off it without
+        // unhiding the rung first, and that is worth saying once.
+        notes.push(
+          note(
+            'stage_hidden',
+            `line ${entry.row.line}: the stage \`${stage.name}\` is HIDDEN in Settings › Catalogue, so it is not offered in the app. This import can still record it, but nobody will be able to move ${describePath(entry.row.segments)} off it from the stage picker until the rung is unhidden.`,
+          ),
+        )
+      }
+
+      const existing = existingByKey.get(entry.key)
+      const current = existing ? progressByNode.get(existing.id) : undefined
+      const from = current ? (current.stage_id ?? null) : null
+      if (current && from === stage.id) continue // already says exactly this
+      actions.push({
+        kind: 'set-stage',
+        key: entry.key,
+        path: [entry.track.name, ...entry.nodeSegments],
+        depth: entry.nodeSegments.length,
+        line: entry.row.line,
+        nodeId: existing ? existing.id : null,
+        stageId: stage.id,
+        stageName: stage.name,
+        from,
+        fromLabel: from ? (stageById.get(from)?.name ?? '') : '',
+        // ⚠ THE UNDO NEEDS THIS AND NOTHING ELSE CARRIES IT. `map_node_progress`
+        // has three states, not two: NO ROW ("nobody has said"), a row with a
+        // null stage ("somebody looked and cleared it") and a row with a stage.
+        // Reversing a write that CREATED the row means DELETING it; reversing
+        // one that changed an existing row means putting the old stage back.
+        // From the far side they are indistinguishable, so the fact is recorded
+        // at the moment it is still known.
+        hadRow: Boolean(current),
+      })
+    }
+  }
+
+  // ── the goals ──
+  //
+  // ONE GOAL PER ROW, AND IT IS THE ROW'S OWN. A spreadsheet column cannot
+  // express the ramp 0027 supports (two goals, one date, two stages), so this
+  // writes the shape it can say honestly and no other: `stage_id` null, `label`
+  // '' — "this node, or N beneath it, at a terminal stage by this date".
+  //
+  // MATCHED SO A SECOND RUN IS EMPTY. The importer's own goal on a node is the
+  // unlabelled, stage-less one; a goal an AD wrote in the app has a label or a
+  // stage and is never touched by this file. Without that match, every re-run
+  // would add another identical commitment and the panel would fill with copies
+  // of one promise — and 0027 carries NO unique index to stop it, on purpose.
+  const goalsByNode = new Map()
+  for (const g of goals) {
+    const list = goalsByNode.get(g.node_id) ?? []
+    list.push(g)
+    goalsByNode.set(g.node_id, list)
+  }
+  const importerGoal = (nodeId) =>
+    (goalsByNode.get(nodeId) ?? []).filter(
+      (g) => clean(g.label ?? '') === '' && (g.stage_id ?? null) === null,
+    )
+
+  if (schema.goals) {
+    for (const entry of rowsWithGoal) {
+      if (unresolved.has(entry.key)) continue
+      const existing = existingByKey.get(entry.key)
+      const wantTarget = entry.row.target === '' ? null : Number(entry.row.target)
+      const wantDate = entry.row.targetDate
+      const path = [entry.track.name, ...entry.nodeSegments]
+      const mine = existing ? importerGoal(existing.id) : []
+      if (mine.length > 1) {
+        refusals.push(
+          refuse(
+            'goal_ambiguous',
+            entry.row.line,
+            `${describePath(path)} already carries ${mine.length} goals with no label and no stage, and this file can only speak about one of them. Two unlabelled commitments on one node cannot both be the one this row means, and picking either would rewrite a date somebody set in the app. Open the node's panel, give them labels or delete the one that is stale, then run this again.`,
+          ),
+        )
+        continue
+      }
+      const current = mine[0]
+      if (current) {
+        const sameTarget = (current.target ?? null) === wantTarget
+        const sameDate = String(current.target_date ?? '') === wantDate
+        if (sameTarget && sameDate) continue
+        actions.push({
+          kind: 'update-goal',
+          key: entry.key,
+          path,
+          depth: entry.nodeSegments.length,
+          line: entry.row.line,
+          nodeId: existing.id,
+          goalId: current.id,
+          target: wantTarget,
+          targetDate: wantDate,
+          from: { target: current.target ?? null, targetDate: String(current.target_date ?? '') },
+        })
+        continue
+      }
+      actions.push({
+        kind: 'create-goal',
+        key: entry.key,
+        path,
+        depth: entry.nodeSegments.length,
+        line: entry.row.line,
+        nodeId: existing ? existing.id : null,
+        target: wantTarget,
+        targetDate: wantDate,
       })
     }
   }
@@ -1265,6 +1641,9 @@ export function planStructure({
     setLinks: actions.filter((a) => a.kind === 'set-use-case').length,
     clearLinks: actions.filter((a) => a.kind === 'clear-use-case').length,
     newUseCases: actions.filter((a) => a.kind === 'create-use-case').length,
+    stages: actions.filter((a) => a.kind === 'set-stage').length,
+    newGoals: actions.filter((a) => a.kind === 'create-goal').length,
+    movedGoals: actions.filter((a) => a.kind === 'update-goal').length,
     refusals: refusals.length,
     notInFile: notes.filter((n) => n.kind === 'not_in_file').length,
   }
@@ -1340,13 +1719,27 @@ function editDistance(a, b) {
  *      parent has nothing to point at, and 0023's derive trigger raises
  *      `map_node_missing` rather than inventing one.
  *   3. set-use-case / clear-use-case — every node they name exists by now.
+ *   4. set-stage, then the goals — both hang off a `node_id` that has to exist,
+ *      and both are in tables 0026/0027 created. They come after the links
+ *      rather than beside them because they are the two writes that touch a
+ *      table this script did not write to before: if a run dies here, every
+ *      map_nodes row and every capability statement is already in, and the
+ *      re-run picks up exactly the remainder.
  *
  * Within a rank, by path, so two runs of the same file print the same lines in
  * the same order and a diff of two plans is readable.
  */
 export function compareActions(a, b) {
   const rank = (x) =>
-    x.kind === 'create-use-case' ? 0 : x.kind === 'create-node' || x.kind === 'update-node' ? 1 : 2
+    x.kind === 'create-use-case'
+      ? 0
+      : x.kind === 'create-node' || x.kind === 'update-node'
+        ? 1
+        : x.kind === 'set-use-case' || x.kind === 'clear-use-case'
+          ? 2
+          : x.kind === 'set-stage'
+            ? 3
+            : 4
   if (rank(a) !== rank(b)) return rank(a) - rank(b)
   if (rank(a) === 0) return a.sortOrder - b.sortOrder
   if (rank(a) === 1 && a.depth !== b.depth) return a.depth - b.depth
@@ -1416,6 +1809,9 @@ export function renderPlan({ actions, refusals, notes, summary }, meta = {}) {
   // ── the tree ──
   const nodeActions = actions.filter((a) => a.kind === 'create-node' || a.kind === 'update-node')
   const linkActions = actions.filter((a) => a.kind === 'set-use-case' || a.kind === 'clear-use-case')
+  const sideActions = actions.filter(
+    (a) => a.kind === 'set-stage' || a.kind === 'create-goal' || a.kind === 'update-goal',
+  )
 
   if (!summary.rows) {
     // ⚠ NOT "NOTHING TO DO". A header with no rows under it is not a workspace
@@ -1428,7 +1824,7 @@ export function renderPlan({ actions, refusals, notes, summary }, meta = {}) {
     say('  If you expected rows here: check you saved the sheet you filled in, and')
     say('  that Excel saved it as CSV UTF-8 rather than a workbook.')
     say('')
-  } else if (!nodeActions.length && !linkActions.length) {
+  } else if (!nodeActions.length && !linkActions.length && !sideActions.length) {
     say('  NOTHING TO DO — the workspace already says exactly what the file says.')
     say('  (That is the answer a second run of the same file should give.)')
     say('')
@@ -1440,13 +1836,14 @@ export function renderPlan({ actions, refusals, notes, summary }, meta = {}) {
     const at = (path) => {
       const k = path.join('\u0000')
       if (!byPath.has(k)) {
-        byPath.set(k, { path, node: null, links: [] })
+        byPath.set(k, { path, node: null, links: [], side: [] })
         order.push(k)
       }
       return byPath.get(k)
     }
     for (const a of nodeActions) at(a.path).node = a
     for (const a of linkActions) at(a.path).links.push(a)
+    for (const a of sideActions) at(a.path).side.push(a)
     // Ancestors with no action of their own still appear, unmarked, so the
     // indentation is a tree and not a ladder of orphans.
     for (const k of [...order]) {
@@ -1493,6 +1890,24 @@ export function renderPlan({ actions, refusals, notes, summary }, meta = {}) {
           say(`  ${indent}      ${c.field}: ${valueLabel(c.fromLabel)} -> ${valueLabel(c.toLabel)}`)
         }
       }
+      // ── the stage and the goal, printed as sentences ──
+      //
+      // `(nobody had said)` rather than `(blank)`, because the three states of
+      // `map_node_progress` are the feature: no row at all is "nobody has looked
+      // at this yet", which is the first number the directors ask for. Reading
+      // it as a blank field is how somebody concludes the stage was cleared.
+      for (const s of entry.side) {
+        if (s.kind === 'set-stage') {
+          say(`  ${indent}      stage: ${s.from ? isolate(s.fromLabel) : '(nobody had said)'} -> ${isolate(s.stageName)}`)
+        } else if (s.kind === 'create-goal') {
+          say(`  ${indent}      goal: ${describeGoal(s.target, s.targetDate)}`)
+        } else {
+          say(
+            `  ${indent}      goal: ${describeGoal(s.from.target, s.from.targetDate)} -> ${describeGoal(s.target, s.targetDate)}`,
+          )
+        }
+      }
+
       for (const link of entry.links.sort((x, y) => String(x.useCase).localeCompare(String(y.useCase)))) {
         if (link.kind === 'set-use-case') {
           say(
@@ -1544,11 +1959,22 @@ export function renderPlan({ actions, refusals, notes, summary }, meta = {}) {
     `  Summary: ${summary.create} node(s) to create (${summary.createImplied} implied) · ` +
       `${summary.update} to update · ${summary.setLinks} use-case link(s) to set · ` +
       `${summary.clearLinks} to clear · ${summary.newUseCases} new capabilit${summary.newUseCases === 1 ? 'y' : 'ies'} · ` +
-      `${summary.refusals} refusal(s)`,
+      `${summary.stages ?? 0} stage(s) to record · ${summary.newGoals ?? 0} goal(s) to write · ` +
+      `${summary.movedGoals ?? 0} to move · ${summary.refusals} refusal(s)`,
   )
   say('')
 
   return out.join('\n')
+}
+
+/**
+ * `40 organizations by 2026-12-31`, or `by 2026-12-31` for the shape 0027 calls
+ * a pure date goal — "THIS node reaches a terminal stage by then".
+ */
+function describeGoal(target, targetDate) {
+  return target === null || target === undefined
+    ? `by ${targetDate}`
+    : `${target} organization(s) by ${targetDate}`
 }
 
 function describeCreate(a) {
@@ -1604,7 +2030,13 @@ function wrap(text, width) {
 // ── field resolution ────────────────────────────────────────────────────────
 
 /**
- * The seven columns of one row, resolved against the workspace.
+ * The name-and-text columns of one row, resolved against the workspace.
+ *
+ * NOT the stage and not the goal: those two are written to `map_node_progress`
+ * and `map_node_goals` rather than to `map_nodes`, they are resolved against
+ * tables this function is not handed, and a blank in either changes nothing —
+ * three differences from every column below, which is why they are decided in
+ * `planStructure` and never enter the PATCH this builds.
  *
  * Returns null when something could not be resolved — a refusal has been pushed
  * and the node cannot be placed. A partially-resolved node is never emitted:

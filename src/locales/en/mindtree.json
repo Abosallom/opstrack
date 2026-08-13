@@ -25,7 +25,17 @@
     "archived": "Archived",
     "backTo": "Back to ⁨{label}⁩",
     "backToRoot": "All tracks",
-    "branchArchived": "Archived ⁨{label}⁩. It and everything beneath it have left the map.",
+    "branchArchived": "Archived ⁨{label}⁩.",
+    "branchArchivedBranches": {
+      "one": "{count} branch beneath it was archived with it.",
+      "other": "{count} branches beneath it were archived with it."
+    },
+    "branchArchivedGone": "Nothing was filed on it, so it has left the map.",
+    "branchArchivedItems": {
+      "one": "{count} item is filed on it.",
+      "other": "{count} items are filed on it."
+    },
+    "branchArchivedStays": "It stays on the map, marked, for as long as open work is filed beneath it.",
     "branchEmpty": "All clear",
     "breachHint": "Something under this branch is past its service deadline.",
     "breadcrumb": "Where you are in the map",
@@ -66,14 +76,15 @@
     "colVendor": "Integrator",
     "collapseNode": "Collapse ⁨{label}⁩",
     "collapsedAll": "Every branch is closed.",
-    "confirmArchiveBody": "It leaves the map, and so does everything beneath it. Nothing is deleted.",
+    "confirmArchiveBody": "It is marked archived wherever it appears and stops taking new work. Nothing is deleted.",
     "confirmArchiveBranches": {
-      "one": "{count} branch directly beneath it goes with it.",
-      "other": "{count} branches directly beneath it go with it."
+      "one": "{count} branch directly beneath it is archived with it, and it stays on the map, marked, for as long as it holds open work.",
+      "other": "{count} branches directly beneath it are archived with it, and each stays on the map, marked, for as long as it holds open work."
     },
+    "confirmArchiveEmpty": "Nothing is filed on it and nothing sits beneath it, so it leaves the map as soon as you confirm.",
     "confirmArchiveItems": {
-      "one": "{count} item filed on it stops appearing on the map.",
-      "other": "{count} items filed on it stop appearing on the map."
+      "one": "{count} item is filed on it, so this branch stays on the map, marked, for as long as that item is open.",
+      "other": "{count} items are filed on it, so this branch stays on the map, marked, for as long as any of them is open."
     },
     "confirmArchiveOk": "Archive",
     "confirmArchiveTitle": "Archive ⁨{label}⁩?",

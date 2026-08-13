@@ -1214,6 +1214,50 @@ export async function setNodeStage(
   return { ok: true, data: data as unknown as MapNodeProgress }
 }
 
+/**
+ * Return one node to "NOBODY HAS SAID" — the third state, and the only verb that
+ * can reach it.
+ *
+ * ⚠ THIS IS THE ONE `setNodeStage` REFUSES TO BE, and the refusal above is what
+ *   makes this function necessary rather than redundant. The table carries three
+ *   facts, not two:
+ *
+ *     no row                  nobody has said anything about this organization.
+ *                             Renders as an em-dash, counts into the `unstaged`
+ *                             bucket, and has no clock — `stage_changed_at`
+ *                             does not exist, so time-in-stage is unanswerable
+ *                             rather than zero.
+ *     row, `stage_id` null    somebody looked and CLEARED it. A person, a time
+ *                             and an author; the clock was stopped by hand.
+ *     row, a `stage_id`       where it got to.
+ *
+ *   0026 ships no backfill precisely so the first of those survives day one
+ *   (`listMapNodeProgress`'s own ⚠ says it), and an UNDO that cannot restore it
+ *   is an undo that quietly moves an organization from "never touched" to
+ *   "touched and cleared" — a fact nobody stated, written by a button labelled
+ *   "undo". So the portfolio's undo calls THIS when the row it is undoing did
+ *   not exist a moment ago, and `setNodeStage(id, null)` when it did.
+ *
+ * DELETING A ROW THAT IS NOT THERE IS SUCCESS, not a 404: PostgREST answers a
+ * `delete` matching zero rows with 204 and no error, which is the right answer
+ * for an undo racing a second tab's own undo. Both readers end at the same
+ * state, and only one of them wrote it.
+ *
+ * NO `select()`. There is no row to hand back — that is the whole point — so the
+ * caller republishes by RETRACTING rather than by publishing, which is why this
+ * returns `void` where `setNodeStage` returns the stored row.
+ *
+ * The 0026 cascade (`node_id references map_nodes on delete cascade`) already
+ * removes the row when the organization goes; this is the same deletion asked
+ * for deliberately, and the RLS policy is the same member-write one — a delete
+ * here is fieldwork being taken back, not configuration being changed.
+ */
+export async function deleteNodeProgress(nodeId: string): Promise<ApiResult<void>> {
+  if (!supabase) return notConfigured()
+  const { error } = await supabase.from('map_node_progress').delete().eq('node_id', nodeId)
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: undefined }
+}
 
 /**
  * The per-node open counts — `v_map_node_open_counts` (0027), and the first read

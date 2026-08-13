@@ -46,14 +46,22 @@
      table row + current tick (--text) on the plate                14.56 / 17.81
 
    THE ONE FIGURE THAT FAILED, AND THE RULE THAT CAME OUT OF IT. The thumb
-   painted directly against the track measures **1.38 / 3.73** — `--accent` on
+   painted directly against the track measures **1.42 / 3.74** — `--accent` on
    `--field-border` — which misses 3:1 in the dark theme outright. A thumb whose
    only boundary is the track it slides on is therefore not compliant, and no
    amount of size fixes it. So the thumb carries a 2px ring in the PLATE's own
-   colour: its adjacent colour is `--bg-elev` on every side (5.20 / 13.62), the
+   colour: its adjacent colour is `--bg-elev` on every side (5.34 / 13.65), the
    track's adjacent colour is also `--bg-elev` (3.77 / 3.65), and the two marks
    never touch. Both boundaries are measured and both pass. This is the only new
    structural decision in the file and it came from a measurement, not a taste.
+
+   ⚠ THOSE TWO PAIRS WERE STALE UNTIL WAVE 8, and the verdict never moved, which
+     is precisely why nobody noticed: 1.38 / 3.73 and 5.20 / 13.62 were measured
+     against an older `--accent`, and both a failing figure and a passing one
+     stayed failing and passing across the repaint. Re-derived here against
+     `--accent: #9884d6` / `#322067`. The lesson this file inherits from
+     pages/mindtree.css: a certification that only gets checked when it changes
+     its mind is not a certification.
 
    OPACITY IS NEVER A RESTING STATE, per mindtree.css: fading a stroke
    composites it toward its backdrop and hands the measured ratio back. Nothing
@@ -348,9 +356,9 @@
 
 /* THE 2px RING IS THE MEASUREMENT, NOT A HIGHLIGHT. `--accent` against
    `--field-border` — the thumb painted straight onto its own track — measures
-   1.38 / 3.73 and FAILS 1.4.11 in the dark theme. The ring is the plate's own
-   colour, so the thumb's adjacent colour is `--bg-elev` on every side (5.20 /
-   13.62) and the two marks never touch. See this file's header. */
+   1.42 / 3.74 and FAILS 1.4.11 in the dark theme. The ring is the plate's own
+   colour, so the thumb's adjacent colour is `--bg-elev` on every side (5.34 /
+   13.65) and the two marks never touch. See this file's header. */
 .mdive-range::-webkit-slider-thumb {
   appearance: none;
   -webkit-appearance: none;

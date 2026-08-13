@@ -75,8 +75,22 @@ So the new accent was solved for the *old relative luminance*, hue rotated under
 | dark on `--bg-elev-2` | 4.51 | 4.63 | +0.12 |
 | light on `--bg-elev-2` | 11.57 | 11.60 | +0.03 |
 
-Every derived figure in those five sheets therefore stays true to within ~0.15. The light theme
-in particular keeps *exactly* the weight and authority the navy gave it — only the hue changed.
+Every figure derived **from the accent's luminance on a bare surface** therefore stays true to
+within ~0.15, and the two rows above are the whole of what was re-verified at the time. The light
+theme in particular keeps *exactly* the weight and authority the navy gave it — only the hue
+changed.
+
+> **The claim was once broader than that, and it was wrong.** It read "every derived figure in
+> those five sheets stays true to within ~0.15", which is a promise about rows nobody re-ran. A
+> differential review found four of them drifting 0.68–4.30 — the accent over a 16% node fill
+> (3.15 → 3.24 dark, 9.39 → 9.41 light), the same accent over the 22% hover fill (certified as a
+> passing 3.29 while actually sitting at **2.61**, under WCAG 1.4.11's 3:1), the dive-rail thumb
+> on its own track (1.38 → 1.42), and the thumb on the plate (5.20 → 13.62 → 5.34 / 13.65).
+> Holding luminance protects a ratio measured against a FIXED colour; it protects nothing
+> measured against a *blend* of the accent's own hue with a track colour an admin types in. All
+> four were re-derived in wave 8 and corrected at source. The lesson is the narrow one: a
+> derived figure is only as fresh as its last recomputation, and "the hue moved but the
+> luminance did not" is an argument about two rows, not about five sheets.
 
 ### `--accent-ink` was re-derived, not carried over
 

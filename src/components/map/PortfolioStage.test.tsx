@@ -27,7 +27,7 @@
 // answers accessibly; the arithmetic behind them has its own suite, and mocking
 // the builder as well would leave nothing under test.
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactElement, ReactNode } from 'react'
 import type { Entry, MapNode, MapNodeProgress, MapNodeStage, UseCase } from '../../types'
@@ -66,6 +66,11 @@ const fx = vi.hoisted(() => {
     truncated: false,
     catalogue: [] as UseCase[],
     entries: new Map<string, Entry>(),
+    /** Every api/map write this suite provoked, in order. */
+    writes: [] as [string, string, string | null][],
+    deleteFails: false,
+    /** How many times the undo path reached for the whole-workspace refetch. */
+    invalidated: 0,
   }
   return { state }
 })
@@ -77,6 +82,9 @@ vi.mock('../../store/config', () => ({
   useMapNodeMap: () => fx.state.nodes,
   useAllUseCases: () => fx.state.catalogue,
   publishNodeProgress: () => {},
+  invalidateConfig: () => {
+    fx.state.invalidated += 1
+  },
 }))
 
 vi.mock('../../store/entries', () => ({
@@ -112,7 +120,16 @@ vi.mock('../../store/portfolio', () => ({
 }))
 
 vi.mock('../../api/map', () => ({
-  setNodeStage: () => Promise.resolve({ ok: true, data: {} }),
+  setNodeStage: (nodeId: string, stageId: string | null) => {
+    fx.state.writes.push(['setNodeStage', nodeId, stageId])
+    return Promise.resolve({ ok: true, data: { node_id: nodeId, stage_id: stageId } })
+  },
+  deleteNodeProgress: (nodeId: string) => {
+    fx.state.writes.push(['deleteNodeProgress', nodeId, null])
+    return fx.state.deleteFails
+      ? Promise.resolve({ ok: false, error: 'admin.errForbidden' })
+      : Promise.resolve({ ok: true, data: undefined })
+  },
 }))
 
 // `<Link>` needs a router context that `renderToStaticMarkup` has no way to
@@ -126,7 +143,7 @@ vi.mock('react-router-dom', () => ({
   ),
 }))
 
-const { default: PortfolioStage } = await import('./PortfolioStage')
+const { default: PortfolioStage, undoStage } = await import('./PortfolioStage')
 const { EMPTY_FILTER } = await import('../../lib/entryFilter')
 const { t } = await import('../../lib/i18n')
 
@@ -577,5 +594,57 @@ describe('the table is reachable without a pointer', () => {
     // the default screen inside the progressive-disclosure budget.
     expect((html.match(/class="pf-chip[^"]*"/g) ?? []).length).toBe(5)
     expect(html).not.toContain('pf-bulk')
+  })
+})
+
+/* ══════════════ the undo, and the third state it has to reach ══════════════ */
+//
+// "No row" and "a row holding null" render as the SAME em-dash, so this
+// difference cannot be caught by looking at the screen — which is exactly why it
+// shipped wrong and why the assertions below are about the REQUEST rather than
+// about the markup. `undoStage` is exported for this: `environment: 'node'`
+// gives the suite no button to press.
+
+describe('undoStage', () => {
+  beforeEach(() => {
+    fx.state.writes = []
+    fx.state.deleteFails = false
+    fx.state.invalidated = 0
+  })
+
+  it('writes the previous rung back when the row already existed', async () => {
+    const ok = await undoStage('n1', 's1', true)
+    expect(ok).toBe(true)
+    expect(fx.state.writes).toEqual([['setNodeStage', 'n1', 's1']])
+    // The heavy refetch belongs to the retraction alone; an ordinary undo
+    // publishes the one row the database handed back.
+    expect(fx.state.invalidated).toBe(0)
+  })
+
+  it('writes a NULL rung back when the row existed and held one', async () => {
+    // "Somebody looked and cleared it" is a real prior state, and undoing back
+    // ONTO it must not delete the row that records who cleared it.
+    await undoStage('n1', null, true)
+    expect(fx.state.writes).toEqual([['setNodeStage', 'n1', null]])
+  })
+
+  it('DELETES the row when this write was the first anybody ever recorded', async () => {
+    const ok = await undoStage('n2', null, false)
+    expect(ok).toBe(true)
+    // Not `setNodeStage(n2, null)` — that would leave a row saying somebody
+    // looked and cleared it, on an organization nobody has ever touched.
+    expect(fx.state.writes).toEqual([['deleteNodeProgress', 'n2', null]])
+    // There is no row to publish, so the store is told to look again.
+    expect(fx.state.invalidated).toBe(1)
+  })
+
+  it('reports a refused delete rather than claiming the row is gone', async () => {
+    fx.state.deleteFails = true
+    const ok = await undoStage('n2', null, false)
+    expect(ok).toBe(false)
+    expect(fx.state.writes).toEqual([['deleteNodeProgress', 'n2', null]])
+    // A failed retraction must not tell the rest of the app that anything
+    // changed: the row is still there and the store still has it right.
+    expect(fx.state.invalidated).toBe(0)
   })
 })

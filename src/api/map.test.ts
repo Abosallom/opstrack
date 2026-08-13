@@ -450,3 +450,41 @@ describe('setNodeStage', () => {
     expect(result).toEqual({ ok: false, error: 'mapadmin.errStageAlreadyRecorded' })
   })
 })
+
+describe('deleteNodeProgress', () => {
+  it('DELETES the row rather than upserting a null, and matches on the key alone', async () => {
+    const api = await loadApi()
+    answers = [{ data: null, error: null }]
+    const result = await api.deleteNodeProgress('n1')
+
+    const call = callsTo('map_node_progress')[0]
+    // The whole reason this verb exists beside `setNodeStage`: an upsert of
+    // `stage_id: null` writes "somebody looked and cleared it", which is a fact
+    // nobody stated. Only a delete returns the node to "nobody has said".
+    expect(names(call)).toContain('delete')
+    expect(names(call)).not.toContain('upsert')
+    expect(names(call)).not.toContain('insert')
+    expect(argsOf(call, 'eq')).toEqual(['node_id', 'n1'])
+    // No `select()`: there is no row to hand back, so the caller retracts rather
+    // than publishes.
+    expect(names(call)).not.toContain('select')
+    expect(result).toEqual({ ok: true, data: undefined })
+  })
+
+  it('reads a delete that matched nothing as success, not as a failure', async () => {
+    const api = await loadApi()
+    // PostgREST's answer to a `delete` matching zero rows: 204, no error. Two
+    // tabs undoing the same first-ever stage must both end at "nobody has said".
+    answers = [{ data: [], error: null }]
+    expect(await api.deleteNodeProgress('n1')).toEqual({ ok: true, data: undefined })
+  })
+
+  it('maps a refusal to an i18n key instead of Postgres English', async () => {
+    const api = await loadApi()
+    answers = [{ error: { code: '42501', message: 'permission denied for table' } }]
+    expect(await api.deleteNodeProgress('n1')).toEqual({
+      ok: false,
+      error: 'admin.errForbidden',
+    })
+  })
+})

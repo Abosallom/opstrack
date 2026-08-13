@@ -128,6 +128,38 @@ export function panelSubjectFor(
   return subjectForLens(lens, selectedNodeId ?? focusNodeId)
 }
 
+/**
+ * IS THERE A PANEL TO BE OPEN — the flag reconciled with what it claims to be
+ * about, and the fix for a flag that could say yes about nothing.
+ *
+ * ── THE PHANTOM ────────────────────────────────────────────────────────────
+ *
+ * `mindtree.panelOpen` is a persisted preference and `DEFAULT_PREFS.panelOpen`
+ * is `true`, so a FRESH workspace already holds `panelOpen === true` while
+ * `subjectForLens('shape', null)` is `{kind:'none'}` and `Mindtree` renders no
+ * panel at all. Every reader of the raw flag then believed a panel was on
+ * screen: Escape's third rung consumed the press and announced "The panel is
+ * hidden" about a panel nobody could see, so a keyboard reader who had dived
+ * with the camera had to press Escape twice to surface, and a screen-reader
+ * reader heard a sentence that was simply false. `applyLens` widened it — it
+ * wrote `true` unconditionally, including for lenses that resolve to `none`.
+ *
+ * useMapUrl.ts:414 already guarded the OTHER writer with exactly this test
+ * (`mapLensOpensPanel`), with a comment explaining the hazard. One of the two
+ * writers was guarded and one was not, and no test spanned them — so the flag is
+ * now RECONCILED on the way out as well as guarded on the way in. A stale `true`
+ * held over from a lens that had a subject cannot outlive the subject.
+ *
+ * IT IS NOT THE WHOLE ANSWER AND DOES NOT PRETEND TO BE. `Mindtree` can decline
+ * to render a panel for reasons this hook cannot see — a workspace with no
+ * tracks is one — so the page reconciles once more against the panel it actually
+ * built. Two guards, because they answer two different questions: "is there a
+ * subject" and "did anything get drawn".
+ */
+export function panelOpenFor(open: boolean, subject: PanelSubject): boolean {
+  return open && subject.kind !== 'none'
+}
+
 export interface MapLensState {
   readonly lens: MapLens
   readonly stage: MapStage
@@ -155,7 +187,7 @@ export function useMapLens(options: {
 
   const lens = useMindLens()
   const table = useMindView() === 'table'
-  const panelOpen = useMindPanelOpen()
+  const storedPanelOpen = useMindPanelOpen()
 
   const stage = stageWithTable(lens, table)
 
@@ -192,6 +224,15 @@ export function useMapLens(options: {
     () => panelSubjectFor(lens, selected, focusNodeId),
     [lens, selected, focusNodeId],
   )
+
+  /**
+   * THE FLAG, RECONCILED WITH WHAT IT IS ABOUT. See `panelOpenFor`: the stored
+   * preference defaults to `true`, and a `none` subject means there is nothing
+   * for it to be true OF. Derived rather than written back into the store,
+   * deliberately — the reader's preference is "I like the panel open", and
+   * standing on a lens that has no panel is not them changing their mind.
+   */
+  const panelOpen = panelOpenFor(storedPanelOpen, subject)
 
   const [detent, setDetentState] = useState<PanelDetent>(() => phoneDetentFor(subject))
 
@@ -234,18 +275,25 @@ export function useMapLens(options: {
   const applyLens = useCallback(
     (next: MapLens, pick: string | null) => {
       setMindLens(next)
+      const wanted = panelSubjectFor(next, pick, focusNodeId)
       /**
        * A CHIP MEANS "SHOW ME THIS", so it re-opens a dock the reader closed.
        * Closing the panel is how you give the picture the whole width; tapping a
        * lens is how you ask for the list back, and needing two taps for it would
        * put the day's most common act behind a disclosure.
+       *
+       * GUARDED ON THERE BEING SOMETHING TO SHOW, which useMapUrl's inbound
+       * write has always been (`mapLensOpensPanel`) and this one was not. A lens
+       * resolving to `none` — `shape` with no drill-in, which is the workspace's
+       * own opening state — wrote "the panel is open" about a panel that renders
+       * nothing, and Escape then had a rung to spend on it. See `panelOpenFor`.
        */
-      setMindPanelOpen(true)
+      if (wanted.kind !== 'none') setMindPanelOpen(true)
       // Set here as well as in the adjustment above, and it is not redundant:
       // this one runs inside the TAP, so the sheet opens at the right height
       // even for a chip whose subject kind does not change (branch → branch on
       // another node), where the adjustment has nothing to react to.
-      setDetentState(phoneDetentFor(panelSubjectFor(next, pick, focusNodeId)))
+      setDetentState(phoneDetentFor(wanted))
     },
     [focusNodeId],
   )

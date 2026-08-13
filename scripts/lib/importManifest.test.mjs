@@ -23,10 +23,15 @@ import { describe, it, expect } from 'vitest'
 import { parseStructureCsv, planStructure, mergeRefusals, keyOf } from './structurePlan.mjs'
 import {
   MANIFEST_VERSION,
+  PROGRESS_TABLE,
+  READABLE_MANIFEST_VERSIONS,
+  STAGE_CLOCK_WARNING,
   buildManifest,
   manifestFileName,
+  manifestGoalIds,
   manifestIsEmpty,
   manifestNodeIds,
+  manifestProgressNodeIds,
   parseManifest,
   planUndo,
   renderUndoPlan,
@@ -985,5 +990,259 @@ describe('THE ROUND TRIP — import the demo file, then take it back', () => {
     expect(text).toMatch(/Sarab Group {3}DELETE \(implied — it had no row of its own\)/u)
     expect(text).toMatch(/22 node\(s\) to remove · 0 to archive · 0 refused/u)
     expect(text).not.toMatch(/n-demo-|u-\d|t-uhr/u)
+  })
+})
+
+// ── MANIFEST v2: the stage and the goals ────────────────────────────────────
+//
+// Wave 8 gave the importer three new columns, and two of them write to tables
+// that are NOT `map_nodes`. The manifest had to learn to record those writes,
+// and — the part with teeth — the undo had to learn that reversing a stage is
+// sometimes a DELETE and not a PATCH. These tests pin the version handshake and
+// both reversals.
+
+const STAGE_CHANGE = (over = {}) => ({
+  column: 'stage_id',
+  from: null,
+  to: 's-live',
+  fromLabel: '',
+  toLabel: 'Live',
+  table: PROGRESS_TABLE,
+  hadRow: false,
+  ...over,
+})
+
+/** A manifest whose only write is a stage recorded on the PRE-EXISTING node. */
+const stageManifest = (change = {}) =>
+  manifest({
+    createdNodes: [],
+    setUseCases: [],
+    updatedNodes: [{ id: OB, path: ['UHR', 'OB'], changes: [STAGE_CHANGE(change)] }],
+  })
+
+/** The live world for a stage manifest: OB exists, and its progress row says X. */
+const stageLive = (stageId = 's-live') => ({
+  nodes: [
+    {
+      id: OB,
+      parent_id: null,
+      track_id: 't-uhr',
+      name: 'OB',
+      name_ar: '',
+      description: '',
+      description_ar: '',
+      account_manager_id: null,
+      vendor: '',
+      archived: false,
+    },
+  ],
+  children: [],
+  entries: [],
+  links: [],
+  useCases: [],
+  useCaseLinks: [],
+  progress: stageId === null ? [] : [{ node_id: OB, stage_id: stageId }],
+  goals: [],
+})
+
+describe('the manifest version, and the run that is already applied', () => {
+  it('is version 2, and reads both 2 and the version already on disk', () => {
+    expect(MANIFEST_VERSION).toBe(2)
+    expect(READABLE_MANIFEST_VERSIONS).toEqual([1, 2])
+  })
+
+  // ⚠ THE COMMITTED RUN MUST STAY UNDOABLE. A v1 manifest is sitting in
+  // docs/EVIDENCE/import-runs/ describing 22 live nodes, and it is the ONLY
+  // record of which rows came from the demo file. A reader that refused it
+  // would strand them.
+  it('still plans an undo from a v1 manifest, which has no stage or goal sections at all', () => {
+    const v1 = { ...manifest(), manifestVersion: 1 }
+    delete v1.createdGoals
+    delete v1.updatedGoals
+    const { manifest: back, errors } = parseManifest(JSON.stringify(v1))
+    expect(errors).toEqual([])
+    expect(back.manifestVersion).toBe(1)
+    const plan = planUndo({ manifest: back, ...untouched(back) })
+    expect(kinds(plan, 'delete-node').length).toBe(3)
+    expect(plan.summary.refused).toBe(0)
+  })
+
+  // A v1 file names no stage, so the undo must never READ map_node_progress —
+  // 0026 may not have been run against the project it is being undone in.
+  it('asks for no progress rows at all from a v1 manifest', () => {
+    const v1 = { ...manifest(), manifestVersion: 1 }
+    expect(manifestProgressNodeIds(v1)).toEqual([])
+    expect(manifestGoalIds(v1)).toEqual([])
+  })
+
+  it('names the node whose progress row it wrote, and only that one', () => {
+    expect(manifestProgressNodeIds(stageManifest())).toEqual([OB])
+    // A plain field update is a `map_nodes` change and must not drag the side
+    // table into the read.
+    const fieldOnly = manifest({
+      updatedNodes: [{ id: OB, path: ['UHR', 'OB'], changes: [{ column: 'vendor', from: '', to: 'Acme' }] }],
+    })
+    expect(manifestProgressNodeIds(fieldOnly)).toEqual([])
+  })
+
+  it('refuses a manifest from a NEWER build rather than half-understanding it', () => {
+    const { manifest: m, errors } = parseManifest(JSON.stringify({ ...manifest(), manifestVersion: 3 }))
+    expect(m).toBe(null)
+    expect(errors.join(' ')).toMatch(/version 3/u)
+    expect(errors.join(' ')).toMatch(/1, 2/u)
+  })
+})
+
+describe('undoing a stage this run recorded', () => {
+  // ⚠ THE ONE THAT MATTERS. This run CREATED the progress row, so putting the
+  // stage "back" means the row goes. Writing `stage_id: null` instead would
+  // leave behind "somebody looked at this organization and cleared its stage" —
+  // a human judgement nobody made — and would keep the node out of the
+  // `unstaged` bucket the directors read.
+  it('DELETES the progress row when the import created it, rather than nulling the stage', () => {
+    const m = stageManifest({ hadRow: false })
+    const plan = planUndo({ manifest: m, ...stageLive('s-live') })
+    const [action] = kinds(plan, 'revert-progress')
+    expect(action.nodeId).toBe(OB)
+    expect(action.deleteRow).toBe(true)
+  })
+
+  it('PATCHES the old stage back when the row was already there', () => {
+    const m = stageManifest({ hadRow: true, from: 's-kickoff', fromLabel: 'Kickoff' })
+    const plan = planUndo({ manifest: m, ...stageLive('s-live') })
+    const [action] = kinds(plan, 'revert-progress')
+    expect(action.deleteRow).toBe(false)
+    expect(action.patch).toEqual({ stage_id: 's-kickoff' })
+  })
+
+  // An account manager moving an organization along the ladder is the sentence
+  // they are paid to write. Taking it back is not an undo — it is an edit.
+  it('leaves a stage somebody has moved since, and says who to ask', () => {
+    const m = stageManifest({ hadRow: false })
+    const plan = planUndo({ manifest: m, ...stageLive('s-closed') })
+    expect(kinds(plan, 'revert-progress')).toEqual([])
+    const printed = plain(renderUndoPlan(plan, { manifest: m }))
+    expect(printed).toMatch(/stage: edited since the import — left alone/u)
+    // And the cost is not charged: nothing is written, so no clock is reset.
+    expect(printed).not.toContain(STAGE_CLOCK_WARNING)
+  })
+
+  // The progress row is simply gone — this run's write is already reversed.
+  it('says nothing at all when the progress row has since been deleted', () => {
+    const m = stageManifest({ hadRow: false })
+    const plan = planUndo({ manifest: m, ...stageLive(null) })
+    expect(kinds(plan, 'revert-progress')).toEqual([])
+  })
+
+  // ⚠ THE CLOCK IS THE COST, AND IT IS PRINTED. 0026's stamp trigger re-stamps
+  // `stage_changed_at` on ANY write, including this one, so a node put back on
+  // `Kickoff` reads "in this stage since today" afterwards. The tree is
+  // restored; the history of how long it sat there is not, and the person
+  // running the undo is told before they type --apply.
+  it('warns that time-in-stage is reset, in the printout, before anything is written', () => {
+    const m = stageManifest({ hadRow: true, from: 's-kickoff', fromLabel: 'Kickoff' })
+    const printed = plain(renderUndoPlan(planUndo({ manifest: m, ...stageLive('s-live') }), { manifest: m }))
+    expect(printed).toContain(STAGE_CLOCK_WARNING)
+    // The names, not the uuids — this printout is read by a Director.
+    expect(printed).toMatch(/stage: "Live" -> "Kickoff"/u)
+    expect(printed).not.toMatch(/s-live|s-kickoff/u)
+  })
+
+  it('says the row is deleted, not just put back, when that is what happens', () => {
+    const m = stageManifest({ hadRow: false })
+    const printed = plain(renderUndoPlan(planUndo({ manifest: m, ...stageLive('s-live') }), { manifest: m }))
+    expect(printed).toMatch(/the progress row is deleted/u)
+    expect(printed).toContain(STAGE_CLOCK_WARNING)
+  })
+})
+
+describe('undoing the goals this run wrote', () => {
+  const goalLive = (rows) => ({ ...stageLive('s-live'), goals: rows })
+
+  const goalManifest = (over = {}) =>
+    manifest({ createdNodes: [], setUseCases: [], updatedNodes: [], ...over })
+
+  it('deletes a goal the import created', () => {
+    const m = goalManifest({
+      createdGoals: [{ id: 'g-1', nodeId: OB, path: ['UHR', 'OB'], target: 40, targetDate: '2026-12-31' }],
+    })
+    const plan = planUndo({
+      manifest: m,
+      ...goalLive([{ id: 'g-1', node_id: OB, label: '', stage_id: null, target: 40, target_date: '2026-12-31' }]),
+    })
+    expect(kinds(plan, 'delete-goal').map((a) => a.goalId)).toEqual(['g-1'])
+  })
+
+  // A goal the import MOVED belonged to somebody before the run. Deleting it
+  // would destroy a commitment the import never made.
+  it('puts a moved goal back where it was, instead of deleting it', () => {
+    const m = goalManifest({
+      updatedGoals: [
+        {
+          id: 'g-1',
+          nodeId: OB,
+          path: ['UHR', 'OB'],
+          target: 40,
+          targetDate: '2026-12-31',
+          previousTarget: 25,
+          previousTargetDate: '2026-06-30',
+        },
+      ],
+    })
+    const plan = planUndo({
+      manifest: m,
+      ...goalLive([{ id: 'g-1', node_id: OB, label: '', stage_id: null, target: 40, target_date: '2026-12-31' }]),
+    })
+    expect(kinds(plan, 'delete-goal')).toEqual([])
+    const [action] = kinds(plan, 'revert-goal')
+    expect(action.patch).toEqual({ target: 25, target_date: '2026-06-30' })
+  })
+
+  // Somebody re-made the promise after the import. That is a decision, and this
+  // script does not get to unmake it.
+  it('leaves a goal somebody has moved since the import', () => {
+    const m = goalManifest({
+      createdGoals: [{ id: 'g-1', nodeId: OB, path: ['UHR', 'OB'], target: 40, targetDate: '2026-12-31' }],
+    })
+    const plan = planUndo({
+      manifest: m,
+      ...goalLive([{ id: 'g-1', node_id: OB, label: '', stage_id: null, target: 40, target_date: '2027-03-31' }]),
+    })
+    expect(kinds(plan, 'delete-goal')).toEqual([])
+  })
+
+  it('refuses to record a goal with no id, because nothing could ever name it', () => {
+    expect(() =>
+      buildManifest({ createdGoals: [{ nodeId: OB, path: ['UHR', 'OB'], targetDate: '2026-12-31' }] }),
+    ).toThrow(/could never be undone/u)
+  })
+
+  // ⚠ `map_node_goals.node_id` IS `on delete cascade`. A commitment an
+  // Associate Director typed into the panel of a demo organization leaves with
+  // the node, silently, and nothing ever names it. The undo has to see the row
+  // it never wrote — which only the LIVE read can show it.
+  it('REFUSES a created node somebody has since filed their own goal on', () => {
+    const m = manifest()
+    const live = untouched(m)
+    const plan = planUndo({
+      manifest: m,
+      ...live,
+      goals: [{ id: 'g-theirs', node_id: 'n-org1', label: 'Board commitment', stage_id: null, target: 5, target_date: '2027-01-31' }],
+    })
+    expect(state(plan, 'n-org1').disposition).toBe('refused')
+    const printed = plain(renderUndoPlan(plan, { manifest: m }))
+    expect(printed).toMatch(/goal\(s\) this import never wrote are recorded on it/u)
+  })
+
+  // The same argument for the stage: a stage recorded by hand on a demo node is
+  // work, and the node cannot be deleted out from under it.
+  it('REFUSES a created node somebody has since recorded a stage on', () => {
+    const m = manifest()
+    const plan = planUndo({
+      manifest: m,
+      ...untouched(m),
+      progress: [{ node_id: 'n-org1', stage_id: 's-live' }],
+    })
+    expect(state(plan, 'n-org1').disposition).toBe('refused')
   })
 })

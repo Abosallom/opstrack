@@ -251,6 +251,18 @@ value and printed as `edited since the import — left alone`. A status somebody
 has moved since is left alone too — and, as the table above says, it now also
 stops the node being deleted.
 
+**It puts stages and goals back too.** A stage the import recorded is set back
+to whatever was there before it — and where the import created the record from
+nothing ("nobody had said"), the undo removes the record rather than leaving a
+blank one behind, so the node goes back to genuinely unrecorded. A goal the
+import wrote is deleted; a goal it *moved* is moved back.
+
+> **⚠ Putting a stage back resets its clock.** The database re-stamps the
+> arrival time on any write, including this one, so a node the undo returns to
+> `Integration` will read *"in this stage since today"*. The plan says
+> `time-in-stage is reset by this undo` beside every stage it touches. The tree
+> is restored; the history of how long it sat there is not.
+
 Two things it genuinely cannot do:
 
 * **A capability created by `--add-use-cases` stays in the catalogue** if
@@ -294,11 +306,91 @@ One row per node. The columns are, in this order:
 | `vendor` | legal | The integrator doing this organization's work. Free text — type the company name. Blank means *not recorded*. |
 | `description` | legal | Free text. |
 | `description_ar` | legal | Free text, Arabic. |
+| `stage` | legal | Which rung of the onboarding ladder this node has got to — `Kickoff`, `Testing/UAT`, `Live`, whatever is in **Settings › Catalogue**. Blank **leaves the stage exactly as it is.** See [Stages and goals](#stages-and-goals). |
+| `target_date` | legal | `YYYY-MM-DD`, and the date of the one goal this row may carry. Blank means no goal. |
+| `target` | legal | A whole number of organizations beneath this node that must reach a terminal stage by `target_date`. Blank **with** a date means "*this* node gets there by then". A number with no date is refused. |
 | …then **one column per use case** | legal | `ADT`, `Medication Prescribe V1`, … See [Use cases](#the-use-case-columns). |
 
 **Blank is legal everywhere except `path`.** Nothing here has to be filled in on
 the first pass — put the tree in, apply it, and add account managers and vendors
 in a later edit of the same file.
+
+**`stage`, `target_date` and `target` are the exception to "a blank cell is a
+statement", and deliberately so** — see the next section for why.
+
+---
+
+## Stages and goals
+
+These three columns arrived after the first seven and they behave differently
+from all of them. Read this once before you use them.
+
+### A blank `stage` changes nothing
+
+Everywhere else in this file a blank cell is a statement: clear the vendor, drop
+the capability. **A blank `stage` is not.** It leaves whatever is recorded
+exactly where it is.
+
+The reason is a one-way door. The database stamps the moment a node arrives on a
+rung, and that stamp is what every "stalled since" and "time in stage" reading
+is computed from. It is re-stamped on the way *back*, so a file that blanked a
+stage and then put it back would leave four hundred organizations reading *"in
+this stage since today"* — and there is no way to recover the real dates. A file
+that a colleague filled in for vendors, with the `stage` column left empty,
+would have silently done exactly that.
+
+So the trade is: **a stage is write-only from this file.** You can set one, you
+can move one along, and you cannot clear one here. Clearing a stage is done in
+the app, on the node, where it asks you first.
+
+### The stages themselves are not created here
+
+The `stage` cell names a rung that must already exist in **Settings ›
+Catalogue**. A rung is not just a label — it carries an order, a terminal flag, a
+paused flag and a stalled threshold, and adding one restates every count-form
+goal in the workspace. A stage this workspace does not have is refused, with the
+nearest rung it *does* have suggested:
+
+```
+no stage named `Tesing/UAT` on UHR > Onboarding > Al Faridah General Hospital.
+Did you mean `Testing/UAT`? The ladder is: Kickoff → Integration → Testing/UAT
+→ Live → Closed.
+```
+
+Matching is case-insensitive, and the Arabic name of a rung matches too — the
+plan tells you when that is what happened.
+
+### One goal per row
+
+A row may carry **at most one** goal, and it is a goal about that row's own
+node. The two shapes:
+
+| `target_date` | `target` | What it means |
+|---|---|---|
+| `2026-09-30` | *blank* | **This node** reaches a terminal stage by 30 September 2026. |
+| `2026-12-31` | `40` | **Forty organizations beneath this node** reach a terminal stage by 31 December 2026. |
+| *blank* | `40` | **Refused.** A count with no date is not a commitment. |
+
+Re-running the file **moves** that goal rather than adding a second one, so the
+panel does not fill up with copies of one promise. A goal somebody wrote in the
+app — those carry a label, or name a specific stage — is never touched by this
+file.
+
+### Before either column can do anything
+
+Stages and goals live in tables created by migrations `0026` and `0027`. If
+those have not been run against your project yet, a file that names a stage or a
+date is **refused by name, before anything is written**:
+
+```
+3 row(s) name a `stage`, and this project has no
+`map_node_stages`/`map_node_progress` tables — 0026 HAS NOT BEEN RUN AGAINST
+IT. Run it first: docs/RUN-0026-0027-0028.md
+```
+
+A file whose `stage`, `target_date` and `target` columns are **all blank**
+imports normally either way, so nothing about the older schema is broken by the
+three new columns being present in your sheet.
 
 ---
 
@@ -430,8 +522,11 @@ whole truth of your workspace:
 
 * **It does not create tracks.** The first segment of every path must already
   exist as a track.
-* **It does not create kinds or capabilities.** Both are managed in **Settings ›
-  Catalogue**. A `kind` or a column header that does not match one is refused.
+* **It does not create kinds, capabilities or stages.** All three are managed in
+  **Settings › Catalogue**. A `kind`, a `stage`, or a column header that does not
+  match one is refused, with the nearest match suggested.
+* **It does not clear a stage.** Blank leaves it alone; see
+  [Stages and goals](#stages-and-goals).
 * **It does not create people.** `account_manager` must match a member who
   already has an account (`scripts/provision-people.mjs` creates those).
 * **It does not delete.** A node you removed from the file stays in the app.
@@ -477,15 +572,51 @@ columns, then **Home › Number Format › Text**, before entering data.
 The dry run flags cells that look date-shaped where a name is expected, but it
 cannot recover what Excel already threw away — so do this first.
 
-### 3. The header row: the first seven are fixed, the rest are yours to delete
+**⚠ This trap has a second mouth, and `target_date` is standing in it.** A cell
+formatted as *Date* is saved back in **the machine's own locale**. You type
+`2026-03-04`, Excel shows you `04/03/2026`, and that is what lands on disk — and
+`03/04/2026` means March in one country and April in the next. Nothing in the
+file records which machine wrote it, so there is no way to tell the two apart
+afterwards and **neither is accepted**:
+
+```
+`31/12/2026` is not a date this file accepts, on UHR > Onboarding. Write it as
+`YYYY-MM-DD` — `2026-12-31` — and nothing else. ⚠ IF THIS READS AS `31/12/2026`
+OR `12/31/2026`, EXCEL WROTE IT, NOT YOU […] Format the `target_date` column as
+TEXT before you type, then retype the date.
+```
+
+Format `target_date` as **Text** before you type in it. The same slip in the
+other direction is caught too: a date typed into the `target` column is stored
+by Excel as a five-digit serial number, so a target in the forty-thousands is
+refused with that explanation attached rather than being read as a commitment to
+forty thousand organizations.
+
+### 3. The header row: the first ten are fixed, the rest are yours to delete
 
 The two halves of the header behave differently, and the difference is worth
 knowing before you start deleting things.
 
-**The first seven columns** — `path`, `name_ar`, `kind`, `account_manager`,
-`vendor`, `description`, `description_ar` — are fixed in **name, order and lower
-case**, and are matched by *position*. Renaming one, reordering two, or
-translating any of them is refused, by column number. Do not touch them.
+**The first ten columns** — `path`, `name_ar`, `kind`, `account_manager`,
+`vendor`, `description`, `description_ar`, `stage`, `target_date`, `target` —
+are fixed in **name, order and lower case**, and are matched by *position*.
+Renaming one, reordering two, or translating any of them is refused, by column
+number. Do not touch them.
+
+**If you are holding a file from before the stage columns existed**, it has
+seven fixed columns and it will be refused at column 8 — the three new ones were
+*appended* to the fixed block rather than inserted into it, precisely so that an
+old file fails loudly on the header instead of quietly writing every use-case
+status three columns to the left:
+
+```
+column 8 of the header should be `stage` and reads `ADT`. The first 10 columns
+are fixed and ordered: path, name_ar, kind, account_manager, vendor,
+description, description_ar, stage, target_date, target. Start from
+docs/templates/structure.csv rather than rebuilding the header by hand.
+```
+
+Copy your rows into a fresh `structure.csv` and they will line up.
 
 **The use case columns** are matched by *name*, and **you may delete any of them
 freely.** This is the rule that matters most on a sparse sheet, and it is

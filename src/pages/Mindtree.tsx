@@ -364,7 +364,7 @@ export default function Mindtree(): ReactElement {
    * It holds no effect (see its header), so calling it here reorders none of the
    * eleven hooks below.
    */
-  const { portfolio, setPortfolio } = useMapUrlPortfolio()
+  const { portfolio, chosen, setPortfolio } = useMapUrlPortfolio()
 
   /**
    * THE PROGRESS UNDERSCORE'S SOURCE — the one read wave 5 left unwired, and the
@@ -439,11 +439,70 @@ export default function Mindtree(): ReactElement {
     void loadPortfolio(portfolioIds)
   }, [portfolioIds])
 
-  // `portfolio.by` IS THE FIFTH ARGUMENT, and it is the whole of this wave's
-  // shell work: the same value the table's rows are built from decides what the
-  // rings are made of. One reading, two consumers — never two `useSearchParams()`
-  // that can disagree about which question the reader is asking.
-  const model = useMapModel(compact, locale, filter, progressSource, portfolio.by)
+  /**
+   * ── THE CANVAS DOES NOT GROUP UNTIL SOMEBODY ASKS IT TO ───────────────────
+   *
+   * `portfolio.by` is the ONE control both surfaces read, and it defaults to
+   * `stage` because the table's default is the morning question. Handed straight
+   * to the canvas that default scattered the opening picture, and the collision
+   * is measured rather than argued — both fixtures, opening camera, 1600×835:
+   *
+   *     large           (?by= unset → none)   scale 0.0877   44 text marks
+   *                                           camera lands on `am:1`
+   *     large-grouped   (?by=stage)           scale 0.0296    6 text marks
+   *                                           camera lands on `ob`
+   *
+   * Three times the scale and seven times the readable text, from a parameter
+   * nobody typed. The cause is `defaultFocusFor`: it descends while ONE child
+   * holds every mark the reader owns, and under `?by=stage` an account manager's
+   * organizations are spread over eight stage rings, so the walk stops at the
+   * phase and the reader opens on the whole ladder instead of on their own book.
+   * `mapRenderFixtures.ts` already states that as expected FOR A READER WHO
+   * PRESSED THE CHIP; what it must not be is what a reader gets for pressing
+   * nothing.
+   *
+   * SO THE DEFAULT DIFFERS BY SURFACE, AND ONLY THE DEFAULT. Unchosen, the table
+   * still groups by stage (its own morning question) and the canvas groups by
+   * nothing (`by=phase` is the value that spells `MindGrouping.none`, see
+   * `GROUPING_FOR_BY`). The moment the reader presses ANY grouping chip — on
+   * either surface — the choice applies to both, because there is still exactly
+   * one `?by=` and one grouping.
+   *
+   * THE ALTERNATIVES, MEASURED AND REJECTED:
+   *   (ii) make `?by=` default to `phase` for both surfaces — cheapest, and it
+   *        costs the portfolio its stalled-by-stage opening, which is budget E1
+   *        and the reason the lens exists.
+   *  (iii) keep the grouping and open the camera wider — trades one defect for
+   *        another: 6 text marks at 0.0296 is the LOD band that draws no text at
+   *        all, so widening makes the picture emptier, not fuller.
+   *   (iv) group the canvas but re-aim `defaultFocusFor` at the reader's own
+   *        cohort — a grouping-dependent camera rule, i.e. a second place that
+   *        decides where the map opens, which is the drift wave 5 removed.
+   *
+   * THE CHOICE SURVIVES A RELOAD, and it took a codec change to make that true.
+   * `?by=stage` used to be suppressed as the URL's default, so "the reader chose
+   * stage" and "the reader chose nothing" were one address and a pressed `Stage`
+   * chip died on refresh — a miss against budget E9. useMapUrl.ts now spells
+   * `?by=` ALWAYS and reports whether it was spelled (`chosen`), so the two
+   * sources below answer the same question at two lifetimes: `chosen` is the
+   * address bar's answer and survives a paste, `groupingChosen` is this render
+   * tree's and covers the instant between the chip press and the `replace` write
+   * landing. Either one is a choice; neither is redundant.
+   */
+  const [groupingChosen, setGroupingChosen] = useState(false)
+  // `BY_FOR_GROUPING.none` IS `phase` BY CONSTRUCTION — `GROUPING_FOR_BY`
+  // inverted — and is read back rather than written as a literal so the two
+  // cannot drift. The `??` is unreachable while that spelling exists, and if it
+  // ever stops existing it degrades to today's behaviour (the reader's own
+  // `?by=`) rather than to a guess.
+  const canvasBy =
+    chosen || groupingChosen ? portfolio.by : (BY_FOR_GROUPING.none ?? portfolio.by)
+
+  // `canvasBy` IS THE FIFTH ARGUMENT, and it is the whole of this wave's shell
+  // work: the same value the table's rows are built from decides what the rings
+  // are made of. One reading, two consumers — never two `useSearchParams()` that
+  // can disagree about which question the reader is asking.
+  const model = useMapModel(compact, locale, filter, progressSource, canvasBy)
   // TWO TRUNCATIONS, TWO SENTENCES, and they are not the same fact. `model.truncated`
   // is the ENTRIES clamp (useMapModel.ts:187's `useEntriesTruncated()`) — the work
   // filed under the map is a window, so the counts are low. This one is the
@@ -778,6 +837,17 @@ export default function Mindtree(): ReactElement {
   })
   attach(dragController)
 
+  /**
+   * IS THE PANEL ACTUALLY ON THE GLASS — for Escape's third rung, which is
+   * assembled here and answered from a fact computed near the end of this
+   * component. See `closePanel` below and the effect that writes it.
+   *
+   * `false` TO START, deliberately: before the first commit nothing has been
+   * drawn, so a rung that fired then would be closing a panel that does not
+   * exist yet — which is the whole defect, in miniature.
+   */
+  const panelVisibleRef = useRef(false)
+
   const keyboard = useMapKeyboard({
     dragController,
     order: geo.order,
@@ -807,9 +877,28 @@ export default function Mindtree(): ReactElement {
      * is how a keyboard reader loses their place.
      */
     requestPendingFocus: cursor.requestPendingFocus,
-    /** Escape's third rung. TRUE means "I closed something, stop here". */
+    /**
+     * Escape's third rung. TRUE means "I closed something, stop here".
+     *
+     * ⚠ IT ASKS WHAT IS ON THE GLASS, NOT WHAT THE STORE PREFERS. The rung used
+     *   to read `lens.panelOpen` alone, and this screen computes a SECOND fact
+     *   below — `panelVisible`, which is `panel !== null && lens.panelOpen` —
+     *   because a panel is also absent when this component declined to build one
+     *   (a workspace with no tracks is the standing case). On that combination
+     *   Escape was consumed by a panel nobody could see: `dive.surface()` never
+     *   ran, so a keyboard reader had to press it twice to come up one world,
+     *   and the live region announced "The panel is hidden" about a panel that
+     *   was never showing. `useMapLens` now reconciles the flag with its subject;
+     *   this closes the other half, the one only the page can see.
+     *
+     *   THROUGH A REF, because `panel` is built four hundred lines below this
+     *   call and the keyboard hook's options object is assembled here. The ref
+     *   is written in the effect that already watches `panelVisible`, so it is
+     *   current before any keypress can be handled — effects flush on commit,
+     *   and a key event is a later task.
+     */
     closePanel: useCallback(
-      () => (lens.panelOpen ? (lens.setPanelOpen(false), true) : false),
+      () => (panelVisibleRef.current ? (lens.setPanelOpen(false), true) : false),
       [lens],
     ),
     /**
@@ -911,7 +1000,13 @@ export default function Mindtree(): ReactElement {
     (next: MindGrouping) => {
       const by = BY_FOR_GROUPING[next]
       if (by === undefined) return
-      setPortfolio({ ...portfolio, by })
+      // A CHIP PRESS IS THE CHOICE — including a press on `Stage`, which used to
+      // be the one value the URL could not spell (see `canvasBy` above). The
+      // `true` writes it into the address bar so it survives a reload; the state
+      // flag covers the frame before the `replace` lands, in which the chip would
+      // otherwise light and snap back to `None`.
+      setGroupingChosen(true)
+      setPortfolio({ ...portfolio, by }, true)
       // The live region gets the STATE, not the button: "no longer grouped" is
       // what changed about the picture, where "grouped by None" is a sentence
       // about a chip. MapToolbar's summary draws the same distinction.
@@ -1181,6 +1276,11 @@ export default function Mindtree(): ReactElement {
    */
   const panelVisible = panel !== null && lens.panelOpen
   useEffect(() => {
+    // ESCAPE'S RUNG READS THIS, through the ref declared beside the keyboard
+    // options — see `closePanel` above. Written here rather than during the
+    // render so the value is committed rather than speculative, and written
+    // before the early return so it is kept current in BOTH directions.
+    panelVisibleRef.current = panelVisible
     if (panelVisible) return
     setOcclusion((prev) => (prev === NO_OCCLUSION ? prev : NO_OCCLUSION))
   }, [panelVisible])
@@ -1437,7 +1537,18 @@ export default function Mindtree(): ReactElement {
               filter={filter}
               onNarrow={setFilter}
               view={portfolio}
-              onView={setPortfolio}
+              /* THE TABLE'S CHIPS ARE THE SAME CHOICE, and pressing one settles
+                 the canvas too — one `?by=`, one grouping, both surfaces. Only a
+                 press that MOVES the grouping counts: `onView` also carries the
+                 risk toggle, and toggling the exception cut is not an opinion
+                 about how the rings should be cut. A press on the chip that is
+                 already lit changes nothing on either surface, which is why it
+                 is not treated as a choice either. */
+              onView={(next) => {
+                const chose = next.by !== portfolio.by
+                if (chose) setGroupingChosen(true)
+                setPortfolio(next, chose)
+              }}
               textOf={model.textOf}
               // THE TWO POLICIES THE TABLE MUST NOT OWN, handed down from the
               // one place that already holds them. `TERMINAL_STATUS` is

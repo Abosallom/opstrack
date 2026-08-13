@@ -1,1 +1,1 @@
-﻿path,name_ar,kind,account_manager,vendor,description,description_ar,ADT,Medication Prescribe V1,Medication Prescribe V2,Medication Dispense V1,Medication Dispense V2,Radiology Order,Radiology Report,Lab Order,Lab Results,Clinical Notes
+﻿path,name_ar,kind,account_manager,vendor,description,description_ar,stage,target_date,target,ADT,Medication Prescribe V1,Medication Prescribe V2,Medication Dispense V1,Medication Dispense V2,Radiology Order,Radiology Report,Lab Order,Lab Results,Clinical Notes

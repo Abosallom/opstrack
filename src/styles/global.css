@@ -66,8 +66,20 @@
      27 sheets, and five of them (charts.css's color-mix ladder, mindtree.css,
      drag-layer.css, mind-ring.css, map-altitude.css) quote DERIVED ratios in
      prose that were computed from the old value. Rotating hue at constant
-     relative luminance moves every one of those figures by <0.15, so the
-     derived contrast estimates stay true instead of silently rotting. */
+     relative luminance holds a ratio measured against a FIXED surface: this
+     token on --bg / --bg-elev / --bg-elev-2 moved +0.12 and +0.03, which is the
+     whole of what "<0.15" was ever verified over.
+
+     ⚠ IT DOES NOT HOLD FOR A RATIO MEASURED AGAINST A BLEND, and the broader
+       claim this comment used to make ("every one of those figures") was false.
+       Where the backdrop is `color-mix(track-hue N%, --bg-elev)` the accent's
+       HUE is part of the arithmetic, so four such rows drifted 0.68–4.30 across
+       the repaint and one of them — the focus stroke over the 22% hover fill —
+       was certified as a passing 3.29 while actually sitting at 2.61, under
+       WCAG 1.4.11. All four were re-derived and corrected in wave 8;
+       pages/mindtree.css holds the working, and that sheet now RE-DERIVES the
+       rows it used to quote. Rotate this token again and those blends must be
+       swept again — holding luminance buys nothing there. */
   --accent: #9884d6; /* 5.78 / 5.34 / 4.63 on bg / elev / elev-2 — AA on all three */
   --accent-hover: #a894de; /* 5.57 worst surface */
   --accent-soft: rgba(152, 132, 214, 0.16);

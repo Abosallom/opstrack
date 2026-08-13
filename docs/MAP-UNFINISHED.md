@@ -494,3 +494,135 @@ and both are cheap to avoid:
   by deletion rather than by wiring: the FAB is gone and the composer's input is
   itself the one-tap target, mounted on the landing route. The `c` hotkey and the
   palette now call `focusMapCapture()` with no navigation at all.
+
+---
+
+# Wave 8 — seam fixes, the importer's three columns, and one dead unit
+
+Appended by the wave-8 gate. Wave 8 shipped as **two** units where the plan
+scheduled three; the third never delivered, and the paragraph below is its
+journal rather than a footnote, because two other units' work assumed it.
+
+**Gates at this commit**, all run from this worktree:
+`npx tsc -b` clean · `npx oxlint` exit 0, **0 errors** (101 warnings, all
+`react(only-export-components)` and one pre-existing `exhaustive-deps` in
+`MapCapture.tsx` — unchanged in kind from HEAD) · `npx vitest run`
+**5,093 pass, 1 todo, 153 files, 0 failures** · `npm run build` succeeds ·
+the render gate **22 pass across 5 fixtures, floors untouched** ·
+`node scripts/lookat.mjs` regenerated (see below).
+
+## THE DEAD UNIT: `w8-demo` — the 400-organization demo CSV was never generated
+
+The plan's wave 8 says "400-org demo CSV generated, dry-run, applied (Aziz
+watching), old 22-node demo undone via its manifest". **None of that happened.**
+No handoff came back for that unit and `docs/templates/structure.demo.csv` was
+untouched in the working tree. What the file holds today is still the ORIGINAL
+demo: 21 data rows — 1 Programme, 4 Phases, **16 Organizations** — across 2
+account managers and 4 vendors, with every `stage`, `target_date` and `target`
+cell blank. It is not the ~400-organization portfolio with the brief's
+distributions, and nothing in this commit pretends it is.
+
+Two consequences, both real:
+
+1. **`w8-importer` shipped 23 red tests that were not its fault.** Its suite
+   asserts that all three templates carry a byte-identical header, and the demo
+   file was three columns short. The gate applied that unit's integrator diff
+   itself — `stage,target_date,target` spliced in at positions **8/9/10**, empty
+   on every data row, BOM and LF preserved — and the suite went green. That is
+   the only edit made to the demo file. The importer's tests assert nothing
+   about demo stage/goal CONTENT, so blank cells are sufficient and, with 0026
+   unapplied, are also the only safe cells (see below).
+2. **The wave's live half is still owed.** The re-import, the undo of the 22-node
+   run through its v1 manifest, and Aziz's watching sitting are all still ahead.
+
+## The live workspace has NOT had 0026/0027/0028 run against it
+
+Confirmed by a read-only dry run at this commit, and the importer says so by
+name rather than by a Postgres error code:
+
+```
+stages: 0026 HAS NOT BEEN RUN HERE — the `stage` column can do nothing yet
+        (docs/RUN-0026-0027-0028.md)
+```
+
+A file that actually NAMES a stage is refused wholesale, before a single row is
+read, with `[stage_tables_missing]` — verified against the live project by
+dry-running a copy of the demo with one `Integrating` cell in it. No `42P01`
+reaches an owner. **So the demo re-import must either use a stage-free file or
+wait for the sitting**; a stage-bearing demo applied first would be refused, not
+half-applied.
+
+## Residual defects found by the gate, not by a unit
+
+**The archive announcement's `stays` clause was still false for a third shape.**
+Wave 8 fixed Fable #3 (the copy claimed a populated archived branch leaves the
+map, which `model.ts:1910` contradicts) and Fable #10 (`usage` populated and read
+by nothing). Both guards choose between `branchArchivedGone` and
+`branchArchivedStays` on the DIRECT counts — and `usage.children > 0` does not
+imply the branch survives: 0023's cascade archives every descendant and the
+model then drops each EMPTY archived one bottom-up, so an Organization with three
+departments and no work anywhere under it leaves the map exactly as an empty one
+does. `branchArchivedStays` said "until the work beneath it moves or closes",
+which is a promise about a branch that is no longer there. Both bundles now carry
+the condition instead ("for as long as open work is filed beneath it" / "ما دام
+تحته عمل مفتوح"), and `NodeMenu.test.tsx` pins the third shape by running
+`buildMindtree` on it. The assertion was proven to fail against the old string
+before the fix was kept.
+
+## The four integrator diffs the gate applied
+
+1. **`useMapUrl.ts` — the grouping choice now survives a reload (budget E9).**
+   `?by=` is spelled ALWAYS, `?risk=` still is not, and `mapPortfolioChosen`
+   reports whether it was spelled. `Mindtree.tsx`'s `canvasBy` reads
+   `chosen || groupingChosen`. **The diff as handed over would have shipped a
+   regression** and this is worth remembering: `mapParamsForFilterWrite` round-
+   trips the portfolio through a TOTAL reader, so always-spelling would have made
+   one character typed into the search box write `by=stage` and drop 400
+   organizations into stage rings nobody asked for. The keystroke writer now
+   carries the raw pair (`carryPortfolioParams`), the setter takes a required
+   `chose` boolean so a risk toggle cannot invent a grouping, and both hazards
+   have their own named test.
+2. **`mind-ring.css`** — match arc over the worst 16% node fill, `3.15 / 9.39` →
+   `3.24 / 9.41`, and the paragraph deferring the correction is gone.
+3. **`map-altitude.css`** — thumb on its own track `1.38 / 3.73` → `1.42 / 3.74`,
+   thumb on the plate `5.20 / 13.62` → `5.34 / 13.65`.
+4. **`global.css` + `BRAND-NPHIES.md`** — the `<0.15 drift` claim is narrowed to
+   what it actually covers. Holding the accent's luminance protects a ratio
+   measured against a FIXED surface; it protects nothing measured against a
+   `color-mix` of the accent's own hue with a track colour an admin types in,
+   which is why four such rows drifted 0.68–4.30 and one of them certified a
+   2.61:1 focus indicator as passing 3:1.
+
+**All four contrast figures were re-derived a third time by the gate**, from
+`global.css`'s hexes alone, with an independent implementation of the sweep
+(140,608 hues, gamma-encoded channel-wise blend): `1.42 / 3.74`, `5.34 / 13.65`,
+`3.24 / 9.41`, `2.61 / 8.07`. Every one reproduces to the digit. The worst hue is
+`rgb(255,255,255)` dark and `rgb(0,0,0)` light, which is the near-white track the
+sheets' prose names.
+
+## The committed SVG snapshots changed, and the change is CSS only
+
+`public/__lookat/*.svg` gained 120 lines and lost none. Every added line is part
+of the new hover-suppression rule (`svg:has(.mtree-drag-overlay) …`) that
+`mindtree.css` grew this wave and that the snapshots inline. **No geometry moved**
+— the render gate's numbers are identical. Eyeballed: the ungrouped 400-org
+opening frames `am:1` (Sara Al-Otaibi's own book) with her six organization-type
+rings at 10.7px minimum text, which is the picture the canvas default was changed
+to produce; the grouped opening still frames the whole programme with seven stage
+chips.
+
+## Still owed after this commit
+
+- **The 400-organization demo file** and everything downstream of it.
+- **A browser look at the hover-suppression rule.** `svg:has(.mtree-drag-overlay)`
+  is asserted by arithmetic and by DOM structure; the suite is `environment:
+  'node'` and evaluates no selector. Tab to a node under the pointer, then start
+  a drag: the card's tint must stay at its resting 16% in both.
+- **The undo's delete path, live.** `deleteNodeProgress` is proven at the
+  request-shape level against a recording fake, both branches. The round trip
+  against `map_node_progress` needs 0026 applied and one real tap: set a
+  first-ever stage on an organization, press Undo, then confirm in SQL that the
+  ROW IS GONE rather than holding a null `stage_id` with a stamped `updated_by`.
+- **`src/store/config.ts`'s missing `retractNodeProgress`.** `PortfolioStage`'s
+  retraction falls back to `invalidateConfig()` because the store has a publisher
+  and no retractor. Documented in that file's header; optional, and not done.

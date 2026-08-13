@@ -54,6 +54,8 @@ vi.hoisted(() => {
 const {
   MENU_MARGIN_PX,
   NodeMenuPanel,
+  archiveAnnouncement,
+  archiveConfirmCopy,
   chooseOutcome,
   confirmFor,
   isMenuKey,
@@ -69,6 +71,10 @@ const {
 } = await import('./NodeMenu')
 
 const { NO_VALUE, NAME_PREFIX } = await import('../../lib/mindtree/dropRules')
+// `t` and `setLocale` by name: the archive-copy block below reads the same keys
+// the source does, in both bundles, rather than restating an English sentence a
+// translator is free to change.
+const { t, setLocale } = await import('../../lib/i18n')
 const { mindActionsFor } = await import('../../lib/mindtree/actions')
 
 /* ────────────────────────────── fixtures ─────────────────────────────────── */
@@ -762,5 +768,230 @@ describe('needsConfirm sees a closing bulk apply', () => {
 
   it('still does not ask for an ordinary three-row move', () => {
     expect(needsConfirm(bulk({}), null)).toBe(false)
+  })
+})
+
+/* ═══════ the archive copy, checked against what the map actually does ═══════ */
+//
+// THE TEST THE OLD COPY NEVER HAD, and its absence is why the dialog spent a
+// wave saying the opposite of the truth for the branch a reader is most likely
+// to archive. The claim under test is not "the sentence is nice"; it is that the
+// sentence agrees with `lib/mindtree/model.ts`'s one-line rule:
+//
+//   if (entity.archived && node.count === 0 && node.children.length === 0)
+//     return null
+//
+// — populated archived branch: STILL DRAWN, marked retired. Empty archived
+// branch: dropped. So the dialog may promise "it leaves the map" in exactly one
+// of those cases, and it is the case the old copy guard-suppressed.
+//
+// `buildMindtree` is imported and RUN below rather than described in a comment,
+// because a copy test that quotes the rule from memory is the same failure one
+// layer up: this asserts the model's own answer for both shapes and then asserts
+// the sentence against it.
+
+describe('archiveConfirmCopy / archiveAnnouncement', () => {
+  const usage = (entries: number, children: number) => ({ entries, children, useCases: 0 })
+
+  it('promises the branch LEAVES only when nothing is filed and nothing is beneath', async () => {
+    setLocale('en')
+    const empty = archiveConfirmCopy('Riyadh General', usage(0, 0))
+    expect(empty.body).toContain('leaves the map')
+    // And the model agrees: an archived entity with no count and no children is
+    // the one shape `entityNode` returns null for.
+    expect(empty.body).toContain(t('mindtree.confirmArchiveEmpty'))
+  })
+
+  it('says the populated branch STAYS, marked — the model keeps drawing it', async () => {
+    setLocale('en')
+    const held = archiveConfirmCopy('Riyadh General', usage(12, 3))
+    // The exact inversion the review found: these two clauses render ONLY when
+    // the branch holds work, which is precisely when "it leaves the map" is
+    // false. They must now carry the opposite claim.
+    expect(held.body).toContain('stays on the map')
+    expect(held.body).not.toContain('leaves the map')
+    expect(held.body).not.toContain(t('mindtree.confirmArchiveEmpty'))
+    expect(held.body).toContain('12')
+    expect(held.body).toContain('3')
+  })
+
+  it('never claims a branch holding items disappears, in EITHER locale', async () => {
+    for (const locale of ['en', 'ar'] as const) {
+      setLocale(locale)
+      const held = archiveConfirmCopy('منشأة الرياض', usage(12, 0))
+      const gone = t('mindtree.confirmArchiveEmpty')
+      expect(held.body).not.toContain(gone)
+      expect(archiveAnnouncement('منشأة الرياض', usage(12, 0))).not.toContain(
+        t('mindtree.branchArchivedGone'),
+      )
+      // …and the empty branch is still told the truth, in the same language.
+      expect(archiveConfirmCopy('منشأة الرياض', usage(0, 0)).body).toContain(gone)
+    }
+    setLocale('en')
+  })
+
+  it('inflects both counts, in both locales, with no raw placeholder left', async () => {
+    for (const locale of ['en', 'ar'] as const) {
+      setLocale(locale)
+      for (const n of [1, 2, 3, 11]) {
+        const body = archiveConfirmCopy('Riyadh General', usage(n, n)).body
+        const said = archiveAnnouncement('Riyadh General', usage(n, n))
+        for (const text of [body, said]) {
+          expect(text).not.toContain('{count}')
+          expect(text).not.toContain('{label}')
+          // The DIGIT is only owed where the form carries `{count}`: Arabic's
+          // `one` and `two` spell the number as a word ("بند واحد", "بندان"),
+          // which is correct Arabic and the convention the whole tree uses.
+          if (locale === 'en' || n > 2) expect(text).toContain(String(n))
+        }
+      }
+      // A ZERO IS NEVER SPOKEN. English has no `zero` form, so an unguarded
+      // count would render "0 items are filed on it" in the one dialog that has
+      // to be read.
+      expect(archiveConfirmCopy('Riyadh General', usage(0, 0)).body).not.toContain('0')
+      expect(archiveAnnouncement('Riyadh General', usage(0, 0))).not.toContain('0')
+    }
+    setLocale('en')
+  })
+
+  it('speaks the counts the dialog showed — the wired `usage` field', () => {
+    // Fable #10: the field was populated, documented as "what makes the act
+    // audible", and read by nothing. A blind reader confirmed a dialog naming 3
+    // branches and 12 items and heard neither.
+    const said = archiveAnnouncement('Riyadh General', usage(12, 3))
+    expect(said).toContain('12')
+    expect(said).toContain('3')
+    expect(said).toContain(t('mindtree.branchArchivedStays'))
+    expect(said).not.toContain(t('mindtree.branchArchivedGone'))
+  })
+
+  it('says only that it was archived when nobody counted', () => {
+    // `usage` is optional on the run, so "we did not ask" has to stay
+    // representable — and a guess would be the whole defect again, quieter.
+    expect(archiveAnnouncement('Riyadh General', null)).toBe(
+      t('mindtree.branchArchived', { label: 'Riyadh General' }),
+    )
+  })
+
+  it('agrees with what buildMindtree actually draws for both shapes', async () => {
+    const { buildMindtree } = await import('../../lib/mindtree/model')
+    const { EMPTY_FILTER } = await import('../../lib/entryFilter')
+    setLocale('en')
+
+    /** Is the archived Org still on the map when it holds `open` items? */
+    const drawn = (open: number): boolean => {
+      const root = buildMindtree({
+        entries: Array.from({ length: open }, (_, i) =>
+          entry({ id: `e${i}`, title: `Item ${i}`, track_id: 't-net', node_id: 'org-1' }),
+        ),
+        health: new Map(),
+        tracks: [
+          {
+            id: 't-net',
+            label: 'Network',
+            color: '#06b6d4',
+            colorLight: '#0a7d94',
+            sortOrder: 1,
+            archived: false,
+          },
+        ],
+        entities: [
+          {
+            id: 'org-1',
+            trackId: 't-net',
+            parentId: null,
+            label: 'Riyadh General',
+            sortOrder: 0,
+            archived: true,
+            typeKey: 'org',
+          },
+        ],
+        vocab: [],
+        members: [],
+        dimension: 'status',
+        filter: EMPTY_FILTER,
+        ctx: { meId: 'me', today: '2026-07-30' },
+        collapsedIds: new Set<string>(),
+        leafThreshold: 100,
+      })
+      return JSON.stringify(root).includes('Riyadh General')
+    }
+
+    // The rule, from the model's own mouth: populated STAYS, empty goes.
+    expect(drawn(12)).toBe(true)
+    expect(drawn(0)).toBe(false)
+    // …and the copy says exactly that, on the same two shapes.
+    expect(archiveConfirmCopy('Riyadh General', usage(12, 0)).body).toContain('stays on the map')
+    expect(archiveConfirmCopy('Riyadh General', usage(0, 0)).body).toContain('leaves the map')
+  })
+
+  it('⚠ THE THIRD SHAPE: branches beneath, no work anywhere — and it still leaves', async () => {
+    // FABLE #3, ONE LEVEL FURTHER IN. `usage.children > 0` picks the `stays`
+    // clause, but 0023's cascade archives every descendant and model.ts drops
+    // each EMPTY archived one bottom-up — so the parent's `children.length`
+    // falls to 0 too and the whole subtree leaves the map. An unconditional
+    // "it stays until the work beneath it moves or closes" is FALSE here.
+    const { buildMindtree } = await import('../../lib/mindtree/model')
+    const { EMPTY_FILTER } = await import('../../lib/entryFilter')
+    setLocale('en')
+
+    const root = buildMindtree({
+      entries: [],
+      health: new Map(),
+      tracks: [
+        {
+          id: 't-net',
+          label: 'Network',
+          color: '#06b6d4',
+          colorLight: '#0a7d94',
+          sortOrder: 1,
+          archived: false,
+        },
+      ],
+      // The cascade's own outcome: parent and child both archived, nothing filed.
+      entities: [
+        {
+          id: 'org-1',
+          trackId: 't-net',
+          parentId: null,
+          label: 'Riyadh General',
+          sortOrder: 0,
+          archived: true,
+          typeKey: 'org',
+        },
+        {
+          id: 'dep-1',
+          trackId: 't-net',
+          parentId: 'org-1',
+          label: 'Cardiology',
+          sortOrder: 0,
+          archived: true,
+          typeKey: 'dept',
+        },
+      ],
+      vocab: [],
+      members: [],
+      dimension: 'status',
+      filter: EMPTY_FILTER,
+      ctx: { meId: 'me', today: '2026-07-30' },
+      collapsedIds: new Set<string>(),
+      leafThreshold: 100,
+    })
+    const drawn = JSON.stringify(root)
+    expect(drawn).not.toContain('Riyadh General')
+    expect(drawn).not.toContain('Cardiology')
+
+    // The announcement for that shape picks `stays` — so `stays` has to be a
+    // sentence that survives the branch having left. It is conditional in both
+    // bundles; nothing in it promises the branch is on the map right now.
+    const said = archiveAnnouncement('Riyadh General', usage(0, 1))
+    expect(said).toContain(t('mindtree.branchArchivedStays'))
+    expect(said).not.toContain(t('mindtree.branchArchivedGone'))
+    for (const locale of ['en', 'ar'] as const) {
+      setLocale(locale)
+      // The condition, not the promise: no bundle may state the outcome flatly.
+      expect(t('mindtree.branchArchivedStays'), locale).toMatch(/for as long as|ما دام/u)
+    }
+    setLocale('en')
   })
 })

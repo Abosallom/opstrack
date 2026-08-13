@@ -128,7 +128,7 @@
      progress underscore (ink) on a node fill          6.35 / 5.53
      state breach dot (--red) vs a node fill           4.07 / 4.45
      match arc (--accent) on --bg / --bg-elev-2        5.78 / 12.60 · 4.63 / 11.60
-     …over the worst 16% node fill                     3.15 / 9.39  ← the floor
+     …over the worst 16% node fill                     3.24 / 9.41  ← the floor
 
    ── APPENDED: THE BAND-DEPENDENT FILL SHARE (44% at grain/state) ───────────
 
@@ -176,18 +176,18 @@
    moves after the nodes, these two numbers become live and this certification
    is void.
 
-   AND ONE CORRECTION TO THE TABLE ABOVE, rather than a stale figure left to
-   rot. Re-running the sweep reproduces every published row exactly — 4.88/4.85,
-   8.82/12.28, 6.35/5.53, 6.06/5.53, 4.07/4.45 — except the accent floor, which
-   comes out 3.24 / 9.39 against today's `--accent: #9884d6`, not 3.15. The
-   3.15 was measured against the accent this app carried before the purple
-   joined the ladder. The claim it supports is unchanged (a non-text pass, a
-   text fail), and the row is left as published only until the wholesale
-   recomputation this repo has already scheduled; it is named here so the next
-   reader inherits the discrepancy rather than the confidence.
+   THE ACCENT FLOOR WAS CORRECTED IN WAVE 8, and the correction is worth one
+   sentence rather than a silent edit. Re-running the sweep reproduces every
+   other published row exactly — 4.88/4.85, 8.82/12.28, 6.35/5.53, 6.06/5.53,
+   4.07/4.45 — but the accent floor was published as 3.15 / 9.39, measured
+   against the accent this app carried before the purple joined the ladder, and
+   against today's `--accent: #9884d6` / `#322067` it is 3.24 / 9.41. The claim
+   it supports never moved (a non-text pass, a text fail); the figure did, and it
+   was a QUOTED figure that made the drift invisible for two repaints. Which is
+   why pages/mindtree.css now RE-DERIVES this row instead of quoting it.
 
    WHY THE MATCH COUNT IS `--text` AND THE ARC IS `--accent`. The last two rows
-   are the whole argument: 3.15 clears the 3:1 a non-text arc owes and misses the
+   are the whole argument: 3.24 clears the 3:1 a non-text arc owes and misses the
    4.5:1 a numeral owes. Painting the count in the accent because it counts the
    accent would have been the "one hex, both jobs" mistake this sheet's parent
    documents three times. The arc keeps the hue; the numeral takes the ink.
@@ -378,9 +378,8 @@
   letter-spacing: calc(-0.1px * var(--mring-px, 1));
 }
 
-/* The count, in the ink rather than in the accent it counts — 3.15:1 dark is a
-   non-text pass and a text FAIL, and the sheet header shows the working (and
-   the correction: 3.24 against today's accent). */
+/* The count, in the ink rather than in the accent it counts — 3.24:1 dark is a
+   non-text pass and a text FAIL, and the sheet header shows the working. */
 .mring-world-matches {
   fill: var(--text);
   font-family: var(--font);

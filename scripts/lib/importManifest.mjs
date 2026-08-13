@@ -86,8 +86,29 @@ import { isolate, comparePaths } from './structurePlan.mjs'
  * Bumped when the SHAPE changes in a way an older reader would misread. A reader
  * that does not recognise the version refuses the file rather than guessing:
  * guessing here means deleting the wrong uuid.
+ *
+ * 2 — the importer learned `stage`, `target_date` and `target`. A v2 manifest
+ * can carry `createdGoals`, `updatedGoals`, and `updatedNodes` changes tagged
+ * `table: 'map_node_progress'`.
  */
-export const MANIFEST_VERSION = 1
+export const MANIFEST_VERSION = 2
+
+/**
+ * The versions THIS build can reverse, and the asymmetry is the whole rule.
+ *
+ * OLDER IS ACCEPTED, NEWER IS REFUSED. A v1 manifest names nothing a v2 reader
+ * does not understand — the two sections it lacks read as empty and every
+ * `updatedNodes` change with no `table` is a `map_nodes` change, which is what
+ * v1 meant by it. Refusing it would strand the run that is ALREADY APPLIED to
+ * the live workspace and whose file is already committed: the undo he was
+ * promised would stop existing at the moment this file was edited.
+ *
+ * A version this build has never heard of is still refused outright. It may
+ * record a section with rows in a table nothing here would name, and undoing
+ * the recognised half leaves the rest behind with no file that still describes
+ * it — the one failure mode a manifest exists to make impossible.
+ */
+export const READABLE_MANIFEST_VERSIONS = [1, 2]
 
 /** Relative to the repo root. The CLI resolves it against `process.cwd()`. */
 export const MANIFEST_DIR = 'docs/EVIDENCE/import-runs'
@@ -99,7 +120,54 @@ export const MANIFEST_SECTIONS = [
   'updatedNodes',
   'setUseCases',
   'clearedUseCases',
+  'createdGoals',
+  'updatedGoals',
 ]
+
+/**
+ * ⚠ A STAGE IS NOT A SECTION, AND THAT IS DELIBERATE.
+ *
+ * A stage write lands in `map_node_progress`, a table keyed on `node_id` with at
+ * most one row per node — so it is not a thing this run CREATED beside a node,
+ * it is a field of that node that this run OVERWROTE, and `updatedNodes` is
+ * already the section for "what did this run overwrite, and what was there
+ * before". Giving it a section of its own would mean two lists that must agree
+ * about which node was touched, and the undo would have to reconcile them.
+ *
+ * So a stage rides in `updatedNodes.changes` with two extra keys:
+ *
+ *   table   'map_node_progress' — the undo PATCHes the right table. Absent means
+ *           `map_nodes`, which is what every v1 change was.
+ *   hadRow  false when this run CREATED the progress row. The undo then DELETEs
+ *           it rather than writing `stage_id: null`, and those are two different
+ *           facts on this table: no row is "nobody has said anything about this
+ *           organization", a row with a null stage is "somebody looked and
+ *           cleared it". Writing the second where the first belongs invents a
+ *           human judgement, and it moves the node out of the `unstaged` bucket
+ *           the directors read on day one.
+ *
+ * `fromLabel`/`toLabel` carry the stage NAMES, because a uuid in a printout is
+ * unreadable and the ladder is renameable — a name resolved at undo time could
+ * be a rung that no longer says what it said when the import ran.
+ */
+export const PROGRESS_TABLE = 'map_node_progress'
+
+/**
+ * The one sentence a stage undo must never leave unsaid.
+ *
+ * `map_node_progress_stage_stamp()` (0026) is the ONLY writer of
+ * `stage_changed_at`, and it re-stamps on every `is distinct from` change —
+ * including the one this undo makes putting the old stage back. So the stage is
+ * restored and the CLOCK IS NOT: an organization that had been sitting on
+ * `Integrating` for eleven weeks comes back reading eleven weeks of nothing, and
+ * the Stalled lens — whose whole job is to compare that clock against the
+ * stage's `expected_days` — goes quiet about it.
+ *
+ * There is no way to avoid it from here (the column refuses a client value on
+ * purpose) and no way to detect it afterwards, so the only honest thing is to
+ * say it BEFORE, in the dry run, next to the line it applies to.
+ */
+export const STAGE_CLOCK_WARNING = 'time-in-stage is reset by this undo'
 
 // ── writing one ─────────────────────────────────────────────────────────────
 
@@ -141,6 +209,8 @@ export function buildManifest(
     updatedNodes = [],
     setUseCases = [],
     clearedUseCases = [],
+    createdGoals = [],
+    updatedGoals = [],
   } = {},
   onUnusable = null,
 ) {
@@ -214,6 +284,13 @@ export function buildManifest(
         to: c.to ?? null,
         fromLabel: c.fromLabel ?? null,
         toLabel: c.toLabel ?? null,
+        // ⚠ WRITTEN ONLY FOR THE SIDE TABLE, and absent for everything else on
+        // purpose. A v1 manifest has no `table` key anywhere, and a v1 change
+        // WAS a `map_nodes` change — so "absent means map_nodes" is not a
+        // default chosen for tidiness, it is what those files already say. A
+        // reader that required the key would refuse the run that is applied to
+        // the live workspace today.
+        ...(c.table === PROGRESS_TABLE ? { table: PROGRESS_TABLE, hadRow: Boolean(c.hadRow) } : {}),
       })),
     })),
 
@@ -238,6 +315,36 @@ export function buildManifest(
       path: [...(l.path ?? [])].map(String),
       useCase: String(l.useCase ?? ''),
       previousStatus: l.previousStatus ?? null,
+    })),
+
+    // ── the goals ──
+    //
+    // `id` IS THE WHOLE RECORD, because `map_node_goals` has no natural key:
+    // 0027 carries NO unique index on purpose (a node may hold a ramp of
+    // several goals), so the row this run wrote can only ever be named by the
+    // uuid the database handed back. A goal recorded without one could not be
+    // undone, and `need` refuses it rather than writing a line nothing can act
+    // on.
+    createdGoals: usable(createdGoals, (g) => ({
+      id: need(g.id, 'id', `a goal on ${(g.path ?? []).join(' > ')}`),
+      nodeId: need(g.nodeId, 'node id', `a goal on ${(g.path ?? []).join(' > ')}`),
+      path: [...(g.path ?? [])].map(String),
+      target: g.target ?? null,
+      targetDate: String(g.targetDate ?? ''),
+    })),
+
+    // `previousTarget`/`previousTargetDate` ARE THE UNDO, exactly as
+    // `previousStatus` is for a link: this run MOVED a commitment somebody had
+    // already made, and putting the old date back is the only reversal that is
+    // not itself an edit.
+    updatedGoals: usable(updatedGoals, (g) => ({
+      id: need(g.id, 'id', `a moved goal on ${(g.path ?? []).join(' > ')}`),
+      nodeId: need(g.nodeId, 'node id', `a moved goal on ${(g.path ?? []).join(' > ')}`),
+      path: [...(g.path ?? [])].map(String),
+      target: g.target ?? null,
+      targetDate: String(g.targetDate ?? ''),
+      previousTarget: g.previousTarget ?? null,
+      previousTargetDate: String(g.previousTargetDate ?? ''),
     })),
   }
 }
@@ -291,12 +398,14 @@ export function parseManifest(text) {
       `this manifest was written by \`${String(raw.tool ?? '(nothing)')}\`, not by import-structure. Nothing here can undo it.`,
     )
   }
-  if (raw.manifestVersion !== MANIFEST_VERSION) {
-    // ⚠ REFUSE, DO NOT ADAPT. A future manifest may record a section this build
-    // has never heard of; undoing the parts it recognises would leave the rest
-    // behind with nothing left to name it.
+  if (!READABLE_MANIFEST_VERSIONS.includes(raw.manifestVersion)) {
+    // ⚠ REFUSE A NEWER ONE, DO NOT ADAPT. A future manifest may record a
+    // section this build has never heard of; undoing the parts it recognises
+    // would leave the rest behind with nothing left to name it. An OLDER one is
+    // accepted — see READABLE_MANIFEST_VERSIONS for why refusing it would be
+    // the more destructive choice.
     errors.push(
-      `manifest version ${String(raw.manifestVersion)} — this build understands version ${MANIFEST_VERSION} only. Use the build that wrote it.`,
+      `manifest version ${String(raw.manifestVersion)} — this build understands version(s) ${READABLE_MANIFEST_VERSIONS.join(', ')}. Use the build that wrote it.`,
     )
   }
   if (!raw.projectRef) {
@@ -332,6 +441,15 @@ export function parseManifest(text) {
       errors.push('a use-case entry is missing its node id or capability id.')
     } else needsPath(l, `the use-case entry on \`${l.nodeId}\``)
   }
+  for (const g of [...list('createdGoals'), ...list('updatedGoals')]) {
+    // BOTH IDS. `id` names the goal row to delete or move back; `nodeId` is
+    // what the live re-read is keyed on and what puts the goal under the right
+    // line of the printed tree. A record missing either is a row that would be
+    // acted on blind, or one that would never be printed at all.
+    if (!g || typeof g.id !== 'string' || !g.id || typeof g.nodeId !== 'string' || !g.nodeId) {
+      errors.push('a goal entry is missing its goal id or node id.')
+    } else needsPath(g, `the goal entry \`${g.id}\``)
+  }
   if (errors.length) return { manifest: null, errors }
 
   return {
@@ -364,6 +482,22 @@ export function parseManifest(text) {
         ...l,
         path: Array.isArray(l.path) ? l.path.map(String) : [],
       })),
+      // A v1 file has neither key; `list` answers `[]` and every loop below
+      // reads as "this run wrote no goals", which is exactly true of it.
+      createdGoals: list('createdGoals').map((g) => ({
+        ...g,
+        path: Array.isArray(g.path) ? g.path.map(String) : [],
+        target: g.target ?? null,
+        targetDate: String(g.targetDate ?? ''),
+      })),
+      updatedGoals: list('updatedGoals').map((g) => ({
+        ...g,
+        path: Array.isArray(g.path) ? g.path.map(String) : [],
+        target: g.target ?? null,
+        targetDate: String(g.targetDate ?? ''),
+        previousTarget: g.previousTarget ?? null,
+        previousTargetDate: String(g.previousTargetDate ?? ''),
+      })),
     },
     errors: [],
   }
@@ -376,6 +510,36 @@ export function manifestNodeIds(manifest) {
   for (const n of manifest.updatedNodes ?? []) ids.add(n.id)
   for (const l of manifest.setUseCases ?? []) ids.add(l.nodeId)
   for (const l of manifest.clearedUseCases ?? []) ids.add(l.nodeId)
+  // A goal may sit on a node this run neither created nor edited — one row of
+  // the file carrying nothing but a `target_date`. Without these two lines that
+  // node is never re-read, so the printout has no line to hang the goal under
+  // and `planUndo` cannot see that it is gone.
+  for (const g of manifest.createdGoals ?? []) ids.add(g.nodeId)
+  for (const g of manifest.updatedGoals ?? []) ids.add(g.nodeId)
+  return [...ids].filter(Boolean)
+}
+
+/** Every goal row id a manifest names — the live re-read is keyed on these. */
+export function manifestGoalIds(manifest) {
+  const ids = new Set()
+  for (const g of manifest.createdGoals ?? []) ids.add(g.id)
+  for (const g of manifest.updatedGoals ?? []) ids.add(g.id)
+  return [...ids].filter(Boolean)
+}
+
+/**
+ * Every node whose `map_node_progress` row this run wrote.
+ *
+ * SEPARATE FROM `manifestNodeIds` on purpose: that list is what gets re-read
+ * out of `map_nodes`, and this one decides whether `map_node_progress` is read
+ * AT ALL. A v1 manifest returns nothing here, so an undo of the run that is
+ * already applied never touches a table 0026 may not have created yet.
+ */
+export function manifestProgressNodeIds(manifest) {
+  const ids = new Set()
+  for (const n of manifest.updatedNodes ?? []) {
+    if ((n.changes ?? []).some((c) => c.table === PROGRESS_TABLE)) ids.add(n.id)
+  }
   return [...ids].filter(Boolean)
 }
 
@@ -401,6 +565,16 @@ const norm = (v) => (v === null || v === undefined ? '' : String(v))
  * @param {object[]} input.links           live `map_node_use_cases` rows on those nodes
  * @param {object[]} input.useCases        live `use_cases` rows for capabilities this run created
  * @param {object[]} input.useCaseLinks    every live link referencing one of those capabilities
+ * @param {object[]} [input.progress]      live `map_node_progress` rows `{ node_id, stage_id }`
+ *                                         for those nodes. EMPTY when 0026 is not applied —
+ *                                         which is correct, because a manifest written before
+ *                                         it names no stage either.
+ * @param {object[]} [input.goals]         live `map_node_goals` rows
+ *                                         `{ id, node_id, label, stage_id, target, target_date }`
+ *                                         for those nodes — every goal on them, not only the
+ *                                         ones this run wrote: a goal an AD added by hand is
+ *                                         work, and it is invisible to every loop that walks
+ *                                         the manifest.
  * @param {boolean}  [input.archiveRefused] archive a refused node INSTEAD of leaving it,
  *                                          allowed only where the archive cascade cannot reach
  *                                          a child. Opt-in; see the header.
@@ -413,6 +587,8 @@ export function planUndo({
   links = [],
   useCases = [],
   useCaseLinks = [],
+  progress = [],
+  goals = [],
   archiveRefused = false,
 } = {}) {
   const actions = []
@@ -574,34 +750,204 @@ export function planUndo({
   }
 
   // ── ② the fields this run overwrote ───────────────────────────────────────
+  //
+  // TWO TABLES, ONE SECTION. A change tagged `table: 'map_node_progress'` is a
+  // stage; everything else is a column of `map_nodes`, which is what every
+  // change in a v1 file was. They are separated here rather than at write time
+  // because one row of the CSV can legitimately do both — set a vendor AND move
+  // an organization up the ladder — and the two reversals go to different
+  // tables by different verbs.
+  const progressByNode = new Map(progress.map((p) => [p.node_id, p]))
   const fieldStates = []
   for (const rec of manifest.updatedNodes ?? []) {
     const live = liveById.get(rec.id)
-    if (!live) {
-      fieldStates.push({ ...rec, disposition: 'already-gone', changes: [] })
+    const all = rec.changes ?? []
+    const nodeChanges = all.filter((c) => c.table !== PROGRESS_TABLE)
+    const stageChanges = all.filter((c) => c.table === PROGRESS_TABLE)
+
+    if (nodeChanges.length || !all.length) {
+      if (!live) {
+        fieldStates.push({ ...rec, table: 'map_nodes', disposition: 'already-gone', changes: [] })
+      } else {
+        const revert = []
+        const skipped = []
+        for (const c of nodeChanges) {
+          if (norm(live[c.column]) !== norm(c.to)) {
+            skipped.push({ ...c, current: live[c.column] ?? null })
+            continue
+          }
+          revert.push(c)
+        }
+        if (revert.length || skipped.length) {
+          fieldStates.push({
+            ...rec,
+            table: 'map_nodes',
+            disposition: revert.length ? 'revert' : 'edited-since',
+            changes: revert,
+            skipped,
+          })
+          if (revert.length) {
+            const patch = {}
+            for (const c of revert) patch[c.column] = c.from ?? null
+            actions.push({ kind: 'revert-node', nodeId: rec.id, path: rec.path, patch, changes: revert })
+          }
+        }
+      }
+    }
+
+    if (!stageChanges.length) continue
+
+    // ── the stage ──
+    //
+    // THE ROW ITSELF IS THE THIRD STATE. `map_node_progress` says one of three
+    // things about a node: no row ("nobody has said"), a row with a null stage
+    // ("somebody looked and cleared it"), or a row with a stage. So a live row
+    // that is simply ABSENT is not "the stage is null" — it is this run's write
+    // already gone, and there is nothing left to put back.
+    const liveProgress = progressByNode.get(rec.id)
+    if (!live || !liveProgress) {
+      fieldStates.push({ ...rec, table: PROGRESS_TABLE, disposition: 'already-gone', changes: [] })
       continue
     }
+    const current = liveProgress.stage_id ?? null
     const revert = []
     const skipped = []
-    for (const c of rec.changes ?? []) {
-      if (norm(live[c.column]) !== norm(c.to)) {
-        skipped.push({ ...c, current: live[c.column] ?? null })
+    for (const c of stageChanges) {
+      if (norm(current) !== norm(c.to)) {
+        skipped.push({ ...c, current })
         continue
       }
       revert.push(c)
     }
+    if (skipped.length) {
+      // Somebody moved this organization up (or back down) the ladder after the
+      // import. That is the sentence an account manager is paid to write, and
+      // taking it back is not an undo — it is an edit made by a script.
+      noteHand(
+        rec.id,
+        `its stage has been changed since the import — it no longer reads ${skipped.map((c) => c.toLabel || c.to).join(', ')}`,
+      )
+    }
     if (!revert.length && !skipped.length) continue
     fieldStates.push({
       ...rec,
+      table: PROGRESS_TABLE,
       disposition: revert.length ? 'revert' : 'edited-since',
       changes: revert,
       skipped,
+      // ⚠ THE CHOICE BETWEEN A PATCH AND A DELETE, DECIDED FROM THE RECORD AND
+      // NEVER FROM THE LIVE ROW. `hadRow: false` means this run CREATED the
+      // progress row, so reversing it means the row goes: writing `stage_id:
+      // null` instead would leave behind "somebody looked at this organization
+      // and cleared its stage", a human judgement nobody made, and would keep
+      // the node out of the `unstaged` bucket the directors read.
+      deleteRow: revert.length > 0 && revert.every((c) => c.hadRow === false),
     })
     if (revert.length) {
       const patch = {}
       for (const c of revert) patch[c.column] = c.from ?? null
-      actions.push({ kind: 'revert-node', nodeId: rec.id, path: rec.path, patch, changes: revert })
+      actions.push({
+        kind: 'revert-progress',
+        nodeId: rec.id,
+        path: rec.path,
+        patch,
+        deleteRow: revert.every((c) => c.hadRow === false),
+        changes: revert,
+      })
     }
+  }
+
+  // ── ②b the goals this run wrote or moved ──────────────────────────────────
+  //
+  // MATCHED BY ID AND BY VALUE, both. The id says which row; the value says
+  // whether it is still the row we wrote. 0027 gives `map_node_goals` no unique
+  // index at all — a node may carry a ramp of several commitments — so the id
+  // is the only handle, and a date somebody has since moved is a promise
+  // somebody re-made, which this script does not get to unmake.
+  const goalStates = []
+  const liveGoalById = new Map(goals.map((g) => [g.id, g]))
+  const sameGoal = (live, target, targetDate) =>
+    norm(live.target) === norm(target) && norm(live.target_date) === norm(targetDate)
+
+  for (const rec of manifest.createdGoals ?? []) {
+    const live = liveGoalById.get(rec.id)
+    if (!live) {
+      goalStates.push({ ...rec, kind: 'created', disposition: 'already-gone' })
+      continue
+    }
+    if (!sameGoal(live, rec.target, rec.targetDate)) {
+      goalStates.push({
+        ...rec,
+        kind: 'created',
+        disposition: 'changed-since',
+        current: { target: live.target ?? null, targetDate: String(live.target_date ?? '') },
+      })
+      noteHand(rec.nodeId, `the goal this import wrote has been moved to ${describeGoal(live.target ?? null, String(live.target_date ?? ''))}`)
+      continue
+    }
+    goalStates.push({ ...rec, kind: 'created', disposition: 'delete' })
+    actions.push({
+      kind: 'delete-goal',
+      goalId: rec.id,
+      nodeId: rec.nodeId,
+      path: rec.path,
+      target: rec.target ?? null,
+      targetDate: rec.targetDate,
+    })
+  }
+
+  for (const rec of manifest.updatedGoals ?? []) {
+    const live = liveGoalById.get(rec.id)
+    if (!live) {
+      goalStates.push({ ...rec, kind: 'updated', disposition: 'already-gone' })
+      continue
+    }
+    if (!sameGoal(live, rec.target, rec.targetDate)) {
+      goalStates.push({
+        ...rec,
+        kind: 'updated',
+        disposition: 'edited-since',
+        current: { target: live.target ?? null, targetDate: String(live.target_date ?? '') },
+      })
+      continue
+    }
+    goalStates.push({ ...rec, kind: 'updated', disposition: 'revert' })
+    actions.push({
+      kind: 'revert-goal',
+      goalId: rec.id,
+      nodeId: rec.nodeId,
+      path: rec.path,
+      patch: { target: rec.previousTarget ?? null, target_date: rec.previousTargetDate },
+      target: rec.previousTarget ?? null,
+      targetDate: rec.previousTargetDate,
+      from: { target: rec.target ?? null, targetDate: rec.targetDate },
+    })
+  }
+
+  // ── ②c WHAT A PERSON HAS SINCE PLANNED ON A DEMO NODE ────────────────────
+  //
+  // The same argument as ①b, one table over, and the failure is worse because
+  // it is quieter: `map_node_goals.node_id` is `on delete cascade` (0027), so a
+  // commitment an Associate Director typed into the panel of a demo
+  // organization leaves with the node and nothing ever names it. Both loops
+  // walk the LIVE read, which is the only place a row the manifest never heard
+  // of can appear.
+  const recordedGoalIds = new Set(manifestGoalIds(manifest))
+  const unrecordedGoals = new Map()
+  for (const g of goals) {
+    if (!createdIds.has(g.node_id)) continue
+    if (recordedGoalIds.has(g.id)) continue
+    unrecordedGoals.set(g.node_id, (unrecordedGoals.get(g.node_id) ?? 0) + 1)
+  }
+  for (const [nodeId, n] of unrecordedGoals) {
+    noteHand(nodeId, `${n} goal(s) this import never wrote are recorded on it`)
+  }
+  const recordedProgressNodes = new Set(manifestProgressNodeIds(manifest))
+  for (const p of progress) {
+    if (!createdIds.has(p.node_id)) continue
+    if (recordedProgressNodes.has(p.node_id)) continue
+    if (!p.stage_id) continue
+    noteHand(p.node_id, 'somebody has recorded a stage on it that this import never wrote')
   }
 
   // ── ③ the nodes, DEEPEST FIRST ────────────────────────────────────────────
@@ -760,13 +1106,26 @@ export function planUndo({
   // Deletes deepest first among themselves. `actions` is built in the loop's
   // order, which is already deepest-first, but sorting the emitted list makes
   // the property readable from the plan itself rather than from this comment.
-  const rank = (a) =>
-    a.kind === 'remove-links' ? 0
-      : a.kind === 'restore-link' ? 1
-        : a.kind === 'revert-node' ? 2
-          : a.kind === 'delete-node' ? 3
-            : a.kind === 'archive-node' ? 4
-              : 5
+  //
+  // THE TWO SIDE TABLES GO BACK BEFORE THE NODES DO, and that is not
+  // decoration. `map_node_progress.node_id` and `map_node_goals.node_id` are
+  // both `on delete cascade`, so a node deleted first takes its own progress
+  // row and its own goals with it — and a `revert-progress` issued afterwards
+  // would PATCH zero rows and report success. Reversing the side tables while
+  // their node is still there means every action in this list either does what
+  // it says or fails loudly.
+  const RANKS = {
+    'remove-links': 0,
+    'restore-link': 1,
+    'revert-node': 2,
+    'revert-progress': 3,
+    'revert-goal': 4,
+    'delete-goal': 5,
+    'delete-node': 6,
+    'archive-node': 7,
+    'delete-use-case': 8,
+  }
+  const rank = (a) => RANKS[a.kind] ?? 9
   actions.sort((a, b) => {
     if (rank(a) !== rank(b)) return rank(a) - rank(b)
     if (a.kind === 'delete-node' || a.kind === 'archive-node') {
@@ -802,6 +1161,11 @@ export function planUndo({
   }
 
   const count = (list, d) => list.filter((s) => s.disposition === d).length
+  // `map_nodes` changes and stage changes are counted APART. "3 field(s) to put
+  // back" covering two vendors and a stage would hide the one of the three that
+  // costs a clock nobody can restore.
+  const nodeFields = fieldStates.filter((f) => f.table !== PROGRESS_TABLE)
+  const stageFields = fieldStates.filter((f) => f.table === PROGRESS_TABLE)
   const summary = {
     remove: count(nodeStates, 'delete'),
     archive: count(nodeStates, 'archive'),
@@ -811,14 +1175,25 @@ export function planUndo({
     restoreLinks: count(linkStates, 'restore'),
     skippedLinks: count(linkStates, 'changed-since') + count(linkStates, 'already-there'),
     goneLinks: count(linkStates, 'already-gone'),
-    revertFields: fieldStates.reduce((n, f) => n + f.changes.length, 0),
-    skippedFields: fieldStates.reduce((n, f) => n + (f.skipped?.length ?? 0), 0),
+    revertFields: nodeFields.reduce((n, f) => n + f.changes.length, 0),
+    skippedFields: nodeFields.reduce((n, f) => n + (f.skipped?.length ?? 0), 0),
+    revertStages: stageFields.reduce((n, f) => n + f.changes.length, 0),
+    skippedStages: stageFields.reduce((n, f) => n + (f.skipped?.length ?? 0), 0),
+    removeGoals: count(goalStates, 'delete'),
+    revertGoals: count(goalStates, 'revert'),
+    skippedGoals: count(goalStates, 'changed-since') + count(goalStates, 'edited-since'),
     removeUseCases: count(useCaseStates, 'delete'),
     keptUseCases: count(useCaseStates, 'kept'),
   }
-  summary.partial = summary.refused > 0 || summary.skippedLinks > 0 || summary.skippedFields > 0 || summary.keptUseCases > 0
+  summary.partial =
+    summary.refused > 0 ||
+    summary.skippedLinks > 0 ||
+    summary.skippedFields > 0 ||
+    summary.skippedStages > 0 ||
+    summary.skippedGoals > 0 ||
+    summary.keptUseCases > 0
 
-  return { actions, nodeStates, linkStates, fieldStates, useCaseStates, notes, summary }
+  return { actions, nodeStates, linkStates, fieldStates, goalStates, useCaseStates, notes, summary }
 }
 
 // ── the printout ────────────────────────────────────────────────────────────
@@ -833,7 +1208,7 @@ export function planUndo({
  * already learned to read one of these.
  */
 export function renderUndoPlan(plan, meta = {}) {
-  const { nodeStates, linkStates, fieldStates, useCaseStates, notes, summary } = plan
+  const { nodeStates, linkStates, fieldStates, goalStates = [], useCaseStates, notes, summary } = plan
   const out = []
   const say = (line = '') => out.push(line)
 
@@ -851,6 +1226,13 @@ export function renderUndoPlan(plan, meta = {}) {
         `${(m.clearedUseCases ?? []).length} cleared · ${(m.updatedNodes ?? []).length} node(s) updated · ` +
         `${(m.createdUseCases ?? []).length} capabilit${(m.createdUseCases ?? []).length === 1 ? 'y' : 'ies'} created`,
     )
+    const goalCount = (m.createdGoals ?? []).length + (m.updatedGoals ?? []).length
+    const stageCount = (m.updatedNodes ?? []).filter((n) =>
+      (n.changes ?? []).some((c) => c.table === PROGRESS_TABLE),
+    ).length
+    if (goalCount || stageCount) {
+      say(`            ${stageCount} stage(s) recorded · ${goalCount} goal(s) written or moved`)
+    }
   }
   say('')
 
@@ -865,14 +1247,20 @@ export function renderUndoPlan(plan, meta = {}) {
   const at = (path) => {
     const k = path.join('\u0000')
     if (!byPath.has(k)) {
-      byPath.set(k, { path, node: null, links: [], fields: null })
+      byPath.set(k, { path, node: null, links: [], fields: [], goals: [] })
       order.push(k)
     }
     return byPath.get(k)
   }
   for (const s of nodeStates) at(s.path).node = s
   for (const s of linkStates) at(s.path).links.push(s)
-  for (const s of fieldStates) at(s.path).fields = s
+  // ⚠ A LIST, NOT ONE SLOT. One row of the CSV can change a vendor AND move an
+  // organization up the ladder, and those arrive as two states on one path
+  // because they reverse into two different tables by two different verbs.
+  // Assigning rather than appending drops whichever came first — a revert that
+  // would still be EXECUTED, having never appeared in the list somebody read.
+  for (const s of fieldStates) at(s.path).fields.push(s)
+  for (const s of goalStates) at(s.path).goals.push(s)
   for (const k of [...order]) {
     const { path } = byPath.get(k)
     for (let d = 1; d < path.length; d += 1) at(path.slice(0, d))
@@ -902,7 +1290,10 @@ export function renderUndoPlan(plan, meta = {}) {
       // An ancestor with no disposition of its own is unmarked — UNLESS it is
       // carrying changes, in which case an unmarked line with edits indented
       // under it reads as scaffolding rather than as the node being edited.
-      const edited = (entry.fields?.changes?.length ?? 0) > 0 || entry.links.some((l) => l.disposition === 'remove' || l.disposition === 'restore')
+      const edited =
+        entry.fields.some((f) => (f.changes?.length ?? 0) > 0) ||
+        entry.goals.some((g) => g.disposition === 'delete' || g.disposition === 'revert') ||
+        entry.links.some((l) => l.disposition === 'remove' || l.disposition === 'restore')
       say(`  ${indent}${edited ? '~' : ' '} ${name}${edited ? '   KEPT, edits put back' : ''}`)
     } else if (s.disposition === 'delete') {
       // WHICH ONE, PER NODE, BEFORE IT HAPPENS. Delete and archive are not the
@@ -929,12 +1320,43 @@ export function renderUndoPlan(plan, meta = {}) {
       }
     }
 
-    if (entry.fields) {
-      for (const c of entry.fields.changes ?? []) {
-        say(`  ${indent}      ${c.column}: ${label(c.toLabel ?? c.to)} -> ${label(c.fromLabel ?? c.from)}  (put back)`)
+    for (const f of entry.fields) {
+      const isStage = f.table === PROGRESS_TABLE
+      for (const c of f.changes ?? []) {
+        if (!isStage) {
+          say(`  ${indent}      ${c.column}: ${label(c.toLabel ?? c.to)} -> ${label(c.fromLabel ?? c.from)}  (put back)`)
+          continue
+        }
+        // ⚠ THE STAGE LINE SAYS WHAT IT COSTS, ON THE LINE. `stage_changed_at`
+        // is written only by 0026's stamp trigger and it re-stamps on the way
+        // back, so an organization that had been sitting on this rung for
+        // eleven weeks comes back reading zero — and the stalled list, which is
+        // the first thing anybody looks at in the morning, goes quiet about it.
+        // Said here rather than only in a footer because this is the line a
+        // reader stops on.
+        const back = c.from ? label(c.fromLabel ?? c.from) : '(nobody had said)'
+        say(
+          `  ${indent}      stage: ${label(c.toLabel ?? c.to)} -> ${back}  (put back${f.deleteRow ? ', the progress row is deleted' : ''} — ${STAGE_CLOCK_WARNING})`,
+        )
       }
-      for (const c of entry.fields.skipped ?? []) {
-        say(`  ${indent}      ${c.column}: edited since the import — left alone`)
+      for (const c of f.skipped ?? []) {
+        say(`  ${indent}      ${isStage ? 'stage' : c.column}: edited since the import — left alone`)
+      }
+    }
+
+    for (const g of entry.goals) {
+      const mine = describeGoal(g.target, g.targetDate)
+      if (g.disposition === 'delete') say(`  ${indent}      goal: ${mine} -> (deleted, this import wrote it)`)
+      else if (g.disposition === 'revert') {
+        say(`  ${indent}      goal: ${mine} -> ${describeGoal(g.previousTarget ?? null, g.previousTargetDate)}  (put back)`)
+      } else if (g.disposition === 'already-gone') say(`  ${indent}      goal: already gone`)
+      else {
+        // The date has MOVED since the import. Whoever moved it re-made the
+        // commitment, and a promise somebody re-made in a meeting is not this
+        // script's to withdraw.
+        say(
+          `  ${indent}      goal: now reads ${describeGoal(g.current?.target ?? null, g.current?.targetDate ?? '')}, the import wrote ${mine} — left alone`,
+        )
       }
     }
 
@@ -981,9 +1403,24 @@ export function renderUndoPlan(plan, meta = {}) {
       `${summary.refused} refused because work is attached · ${summary.alreadyGone} already gone · ` +
       `${summary.clearLinks} link(s) to clear · ${summary.restoreLinks} to put back · ` +
       `${summary.skippedLinks} left alone · ${summary.revertFields} field(s) to put back · ` +
+      `${summary.revertStages ?? 0} stage(s) to put back · ` +
+      `${summary.removeGoals ?? 0} goal(s) to remove · ${summary.revertGoals ?? 0} to put back · ` +
       `${summary.removeUseCases} capabilit${summary.removeUseCases === 1 ? 'y' : 'ies'} to remove`,
   )
   say('')
+
+  if (summary.revertStages) {
+    // ⚠ REPEATED AT THE FOOT, WHERE THE DECISION IS MADE. The per-line note is
+    // read while scanning a tree; this one is read while deciding. Time in
+    // stage is the number the stalled list is built from, and it is the one
+    // thing this undo cannot give back.
+    say(`  ⚠ ${summary.revertStages} STAGE(S) GO BACK, AND THE CLOCK DOES NOT.`)
+    say('  0026 stamps `stage_changed_at` on every change, including the one this')
+    say('  undo makes — so each of those organizations comes back on the right rung')
+    say('  reading zero time in stage, and the stalled list forgets it was stuck.')
+    say('  The rung is recoverable; how long it has been there is not.')
+    say('')
+  }
 
   if (summary.partial) {
     // SAID AT THE END, WHERE THE EYE LANDS. A partial undo that reads as a
@@ -1002,6 +1439,11 @@ export function renderUndoPlan(plan, meta = {}) {
       say(`  ${summary.skippedLinks} link(s) and ${summary.skippedFields} field(s) have been edited since the import.`)
       say('  This script only takes back what still looks exactly like what it wrote.')
     }
+    if (summary.skippedStages || summary.skippedGoals) {
+      say(`  ${summary.skippedStages ?? 0} stage(s) and ${summary.skippedGoals ?? 0} goal(s) have moved since the import.`)
+      say('  Where an organization has got to, and what was promised for it, are the')
+      say('  two sentences a person writes in this app. Neither is taken back here.')
+    }
     if (summary.keptUseCases) {
       say(`  ${summary.keptUseCases} capabilit(ies) are still referenced by links this import did not set.`)
     }
@@ -1015,6 +1457,19 @@ export function renderUndoPlan(plan, meta = {}) {
   }
 
   return out.join('\n')
+}
+
+/**
+ * `40 organizations by 2026-12-31`, or `by 2026-12-31` for a pure date goal.
+ *
+ * The same sentence `renderPlan` prints on the way in, deliberately: the undo
+ * is read by somebody holding the import's own printout, and two spellings of
+ * one commitment is two things to reconcile at the moment he is deciding
+ * whether the two lines describe the same row.
+ */
+function describeGoal(target, targetDate) {
+  const when = targetDate ? String(targetDate) : '(no date)'
+  return target === null || target === undefined ? `by ${when}` : `${target} organization(s) by ${when}`
 }
 
 function label(value) {

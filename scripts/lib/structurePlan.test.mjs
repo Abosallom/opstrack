@@ -65,6 +65,27 @@ const USE_CASES = [
   { id: 'u-lab-results', name: 'Lab Results', sort_order: 9 },
 ]
 
+/**
+ * 0026's seven seeded rungs, verbatim and in its order.
+ *
+ * ⚠ A FIXTURE, NEVER A CONSTANT THE PLANNER READS. The whole point of the stage
+ * column is that the ladder comes out of the DATABASE — every one of these is
+ * renameable in Settings › Catalogue, and a `STAGE_NAMES` list inside
+ * structurePlan.mjs would refuse `Integration` as unknown the day Aziz renamed
+ * `Integrating`. So this list lives here, in the test, standing in for what a
+ * live read returns, and `structurePlan.mjs` contains no stage name at all.
+ * (That absence is asserted below — see "no stage name is written down".)
+ */
+const STAGES = [
+  { id: 's-not-started', name: 'Not started', name_ar: '', sort_order: 1, hidden: false },
+  { id: 's-kickoff', name: 'Kickoff', name_ar: '', sort_order: 2, hidden: false },
+  { id: 's-integrating', name: 'Integrating', name_ar: 'قيد التكامل', sort_order: 3, hidden: false },
+  { id: 's-testing', name: 'Testing/UAT', name_ar: '', sort_order: 4, hidden: false },
+  { id: 's-ready', name: 'Go-live ready', name_ar: '', sort_order: 5, hidden: false },
+  { id: 's-live', name: 'Live', name_ar: '', sort_order: 6, hidden: false },
+  { id: 's-paused', name: 'Paused', name_ar: '', sort_order: 7, hidden: false },
+]
+
 const HEADER = `${FIXED_COLUMNS.join(',')},ADT,Lab Order,Lab Results`
 
 /** A workspace with nothing under any track — Aziz's, today. */
@@ -74,6 +95,12 @@ const emptyWorkspace = () => ({
   kinds: KINDS,
   members: MEMBERS,
   useCases: USE_CASES,
+  // 0026 and 0027 applied, the ladder seeded, nobody placed on it yet and
+  // nothing promised. `schema` is left at its default — both true — because
+  // that is the state of the live project once he has run the two migrations.
+  stages: STAGES,
+  progress: [],
+  goals: [],
 })
 
 // THROUGH `mergeRefusals`, exactly as `import-structure.mjs` does. A helper that
@@ -151,7 +178,7 @@ describe('parseCsv — RFC 4180 and the shapes Excel actually writes', () => {
 describe('parseStructureCsv — the header contract', () => {
   it('accepts the shipped header and reads the use-case columns', () => {
     const { rows, useCaseColumns, refusals } = parseStructureCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,,,,,live,,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,,,,,,,,live,,`,
     )
     expect(refusals).toEqual([])
     expect(useCaseColumns).toEqual(['ADT', 'Lab Order', 'Lab Results'])
@@ -175,7 +202,7 @@ describe('parseStructureCsv — the header contract', () => {
 
   it('refuses a row with more fields than the header — the unquoted-comma symptom', () => {
     const { refusals } = parseStructureCsv(
-      `${HEADER}\nUHR > OB > Ministry of Health, Riyadh,,Organization,,,,,live,,`,
+      `${HEADER}\nUHR > OB > Ministry of Health, Riyadh,,Organization,,,,,,,,live,,`,
     )
     expect(refusals.map((r) => r.code)).toEqual(['row_too_wide'])
   })
@@ -199,23 +226,23 @@ describe('parseStructureCsv — the header contract', () => {
     // this parsed clean, with `Riyadh` filed as the description and `live`
     // relocated one capability to the right. There was no error to see.
     const { refusals } = parseStructureCsv(
-      `${HEADER}\nUHR > Onboarding > Org A,,Organization,,Mirqab Integration Co., Riyadh,,live`,
+      `${HEADER}\nUHR > Onboarding > Org A,,Organization,,Mirqab Integration Co., Riyadh,,,,,live`,
     )
     expect(refusals.map((r) => r.code)).toEqual(['row_too_narrow'])
   })
 
   it('says "stray trailing comma" when the extra field is empty, and not otherwise', () => {
-    const trailing = parseStructureCsv(`${HEADER}\nUHR > A,,,,,,,,,,`)
+    const trailing = parseStructureCsv(`${HEADER}\nUHR > A,,,,,,,,,,,,,`)
     expect(trailing.refusals.map((r) => r.code)).toEqual(['row_too_wide'])
     expect(trailing.refusals[0].message).toContain('stray extra comma')
 
-    const shifted = parseStructureCsv(`${HEADER}\nUHR > A,,,,Acme, Riyadh,,,,,live`)
+    const shifted = parseStructureCsv(`${HEADER}\nUHR > A,,,,Acme, Riyadh,,,,,,,,live`)
     expect(shifted.refusals.map((r) => r.code)).toEqual(['row_too_wide'])
     expect(shifted.refusals[0].message).toContain('has to be quoted')
   })
 
   it('ignores blank lines, which Excel leaves at the end of a file', () => {
-    const { rows, refusals } = parseStructureCsv(`${HEADER}\r\nUHR > A,,,,,,,,,\r\n\r\n,,,,,,,,,\r\n`)
+    const { rows, refusals } = parseStructureCsv(`${HEADER}\r\nUHR > A,,,,,,,,,,,,\r\n\r\n,,,,,,,,,,,,\r\n`)
     expect(refusals).toEqual([])
     expect(rows).toHaveLength(1)
   })
@@ -223,14 +250,14 @@ describe('parseStructureCsv — the header contract', () => {
 
 describe('parseStructureCsv — the cell rules', () => {
   it('refuses a status that is not one of the three, and says blank is not a fourth', () => {
-    const { refusals } = parseStructureCsv(`${HEADER}\nUHR > A,,,,,,,done,,`)
+    const { refusals } = parseStructureCsv(`${HEADER}\nUHR > A,,,,,,,,,,done,,`)
     expect(refusals.map((r) => r.code)).toEqual(['status_unknown'])
     expect(refusals[0].message).toMatch(/planned, testing, live/u)
     expect(refusals[0].message).toMatch(/not a fourth status/u)
   })
 
   it('accepts the three statuses in any case, and treats blank as null', () => {
-    const { rows, refusals } = parseStructureCsv(`${HEADER}\nUHR > A,,,,,,,LIVE, Testing ,`)
+    const { rows, refusals } = parseStructureCsv(`${HEADER}\nUHR > A,,,,,,,,,,LIVE, Testing ,`)
     expect(refusals).toEqual([])
     const byColumn = Object.fromEntries(rows[0].cells.map((c) => [c.column, c.status]))
     expect(byColumn).toEqual({ ADT: 'live', 'Lab Order': 'testing', 'Lab Results': null })
@@ -238,35 +265,35 @@ describe('parseStructureCsv — the cell rules', () => {
 
   it('refuses a path deeper than the database will accept, naming the path', () => {
     const deep = ['UHR', ...Array.from({ length: MAX_NODE_DEPTH + 1 }, (_, i) => `L${i}`)].join(' > ')
-    const { refusals } = parseStructureCsv(`${HEADER}\n${deep},,,,,,,,,`)
+    const { refusals } = parseStructureCsv(`${HEADER}\n${deep},,,,,,,,,,,,`)
     expect(refusals.map((r) => r.code)).toEqual(['path_too_deep'])
     expect(refusals[0].message).toContain(String(MAX_NODE_DEPTH))
   })
 
   it('accepts a path exactly at the cap', () => {
     const atCap = ['UHR', ...Array.from({ length: MAX_NODE_DEPTH }, (_, i) => `L${i}`)].join(' > ')
-    const { refusals, rows } = parseStructureCsv(`${HEADER}\n${atCap},,,,,,,,,`)
+    const { refusals, rows } = parseStructureCsv(`${HEADER}\n${atCap},,,,,,,,,,,,`)
     expect(refusals).toEqual([])
     expect(rows).toHaveLength(1)
   })
 
   it('refuses a name past 60 characters — map_nodes_name_len_chk', () => {
-    const { refusals } = parseStructureCsv(`${HEADER}\nUHR > ${'x'.repeat(61)},,,,,,,,,`)
+    const { refusals } = parseStructureCsv(`${HEADER}\nUHR > ${'x'.repeat(61)},,,,,,,,,,,,`)
     expect(refusals.map((r) => r.code)).toEqual(['name_too_long'])
   })
 
   it('refuses a track-only path', () => {
-    const { refusals } = parseStructureCsv(`${HEADER}\nUHR,,,,,,,,,`)
+    const { refusals } = parseStructureCsv(`${HEADER}\nUHR,,,,,,,,,,,,`)
     expect(refusals.map((r) => r.code)).toEqual(['path_track_only'])
   })
 
   it('refuses an empty segment in the middle of a path', () => {
-    const { refusals } = parseStructureCsv(`${HEADER}\nUHR >  > Riyadh Care,,,,,,,,,`)
+    const { refusals } = parseStructureCsv(`${HEADER}\nUHR >  > Riyadh Care,,,,,,,,,,,,`)
     expect(refusals.map((r) => r.code)).toEqual(['path_segment_empty'])
   })
 
   it('drops a trailing separator rather than refusing it', () => {
-    const { rows, refusals } = parseStructureCsv(`${HEADER}\nUHR > Onboarding > ,,,,,,,,,`)
+    const { rows, refusals } = parseStructureCsv(`${HEADER}\nUHR > Onboarding > ,,,,,,,,,,,,`)
     expect(refusals).toEqual([])
     expect(rows[0].segments).toEqual(['UHR', 'Onboarding'])
   })
@@ -285,7 +312,7 @@ describe('invisible characters — trap 5', () => {
   it('a path pasted with a no-break space still finds its track', () => {
     // The whole point: ` ` is not ` `, so a naive matcher tells him there
     // is no track called UHR while UHR is sitting on his screen.
-    const result = planCsv(`${HEADER}\nUHR > Onboarding,,Phase,,,,,,,`)
+    const result = planCsv(`${HEADER}\nUHR > Onboarding,,Phase,,,,,,,,,,`)
     expect(codes(result)).toEqual([])
     expect(pathsOf(result, 'create-node')).toEqual(['UHR > Onboarding'])
   })
@@ -305,7 +332,7 @@ describe('invisible characters — trap 5', () => {
     expect(describeOddCharacters('UHR ')).toBe('')
     expect(describeOddCharacters(' UHR')).toBe('')
     expect(describeOddCharacters('King  Faisal')).toBe('')
-    const result = planCsv(`${HEADER}\nNope > A,,,,,,,,,`)
+    const result = planCsv(`${HEADER}\nNope > A,,,,,,,,,,,,`)
     expect(result.refusals[0].code).toBe('track_missing')
     expect(result.refusals[0].message).not.toContain('space')
   })
@@ -313,7 +340,7 @@ describe('invisible characters — trap 5', () => {
   it('a track that genuinely does not exist is refused with the note attached', () => {
     // The refusal has to distinguish "you typed a track that does not exist"
     // from "you typed a track that exists and has a stray character in it".
-    const result = planCsv(`${HEADER}\nUH​Z > Onboarding,,,,,,,,,`)
+    const result = planCsv(`${HEADER}\nUH​Z > Onboarding,,,,,,,,,,,,`)
     expect(codes(result)).toEqual(['track_missing'])
     expect(result.refusals[0].message).toContain('zero-width space')
     expect(result.refusals[0].message).toContain('stripped before this lookup')
@@ -339,7 +366,7 @@ describe('date-shaped values — trap 4', () => {
   })
 
   it('WARNS about a date-shaped vendor without refusing it', () => {
-    const result = planCsv(`${HEADER}\nUHR > A,,,,2024-01-02,,,,,`)
+    const result = planCsv(`${HEADER}\nUHR > A,,,,2024-01-02,,,,,,,,`)
     expect(codes(result)).toEqual([])
     expect(result.notes.some((n) => n.kind === 'date_shaped')).toBe(true)
     expect(pathsOf(result, 'create-node')).toEqual(['UHR > A'])
@@ -350,7 +377,7 @@ describe('date-shaped values — trap 4', () => {
 
 describe('the account manager is never guessed', () => {
   it('matches a username first and says so', () => {
-    const result = planCsv(`${HEADER}\nUHR > A,,,sara.alsaab,,,,,,`)
+    const result = planCsv(`${HEADER}\nUHR > A,,,sara.alsaab,,,,,,,,,`)
     const create = result.actions.find((a) => a.kind === 'create-node')
     expect(create.values.account_manager_id).toBe('p-sara')
     expect(create.values.amMatchedBy).toBe('username')
@@ -368,7 +395,7 @@ describe('the account manager is never guessed', () => {
   it('REFUSES two people sharing a display name, naming both', () => {
     // provision-people.mjs's roster has three Ahmeds. Silently preferring one
     // is how the wrong person ends up accountable for an organization.
-    const result = planCsv(`${HEADER}\nUHR > A,,,Ahmed Alnaji,,,,,,`)
+    const result = planCsv(`${HEADER}\nUHR > A,,,Ahmed Alnaji,,,,,,,,,`)
     expect(codes(result)).toEqual(['member_ambiguous'])
     expect(result.refusals[0].message).toContain('ahmed.alnaji')
     expect(result.refusals[0].message).toContain('ahmed.alkanhal')
@@ -376,12 +403,12 @@ describe('the account manager is never guessed', () => {
   })
 
   it('refuses a name that matches nobody', () => {
-    const result = planCsv(`${HEADER}\nUHR > A,,,someone.else,,,,,,`)
+    const result = planCsv(`${HEADER}\nUHR > A,,,someone.else,,,,,,,,,`)
     expect(codes(result)).toEqual(['member_unknown'])
   })
 
   it('leaves a blank account manager unassigned rather than refusing', () => {
-    const result = planCsv(`${HEADER}\nUHR > A,,,,,,,,,`)
+    const result = planCsv(`${HEADER}\nUHR > A,,,,,,,,,,,,`)
     expect(codes(result)).toEqual([])
     expect(result.actions[0].values.account_manager_id).toBeNull()
   })
@@ -389,32 +416,32 @@ describe('the account manager is never guessed', () => {
 
 describe('tracks, kinds and capabilities', () => {
   it('refuses a missing track and says this script does not create one', () => {
-    const result = planCsv(`${HEADER}\nAyenati > A,,,,,,,,,`)
+    const result = planCsv(`${HEADER}\nAyenati > A,,,,,,,,,,,,`)
     expect(codes(result)).toEqual(['track_missing'])
     expect(result.refusals[0].message).toMatch(/does NOT create tracks/u)
     expect(result.refusals[0].message).toContain('UHR')
   })
 
   it('refuses an archived track', () => {
-    const result = planCsv(`${HEADER}\nClarification > A,,,,,,,,,`)
+    const result = planCsv(`${HEADER}\nClarification > A,,,,,,,,,,,,`)
     expect(codes(result)).toEqual(['track_archived'])
   })
 
   it('matches a track by its Arabic name and says which name matched', () => {
-    const result = planCsv(`${HEADER}\nالسجل الصحي الموحد > A,,,,,,,,,`)
+    const result = planCsv(`${HEADER}\nالسجل الصحي الموحد > A,,,,,,,,,,,,`)
     expect(codes(result)).toEqual([])
     expect(result.notes.some((n) => n.kind === 'track_matched_ar')).toBe(true)
   })
 
   it('refuses an unknown kind and lists the ones that exist', () => {
-    const result = planCsv(`${HEADER}\nUHR > A,,Hospital,,,,,,,`)
+    const result = planCsv(`${HEADER}\nUHR > A,,Hospital,,,,,,,,,,`)
     expect(codes(result)).toEqual(['kind_unknown'])
     expect(result.refusals[0].message).toContain('Programme, Phase, Organization')
   })
 
   it('refuses an unknown use-case column and lists the catalogue', () => {
     const result = planCsv(
-      `${FIXED_COLUMNS.join(',')},ADT,Radiolegy Report\nUHR > A,,,,,,,live,live`,
+      `${FIXED_COLUMNS.join(',')},ADT,Radiolegy Report\nUHR > A,,,,,,,,,,live,live`,
     )
     expect(codes(result)).toContain('use_case_unknown')
     expect(result.refusals[0].message).toContain('Lab Results')
@@ -423,7 +450,7 @@ describe('tracks, kinds and capabilities', () => {
 
   it('--add-use-cases turns that refusal into a create, and prints what it would add', () => {
     const result = planCsv(
-      `${FIXED_COLUMNS.join(',')},ADT,Prior Authorisation\nUHR > A,,,,,,,live,planned`,
+      `${FIXED_COLUMNS.join(',')},ADT,Prior Authorisation\nUHR > A,,,,,,,,,,live,planned`,
       emptyWorkspace(),
       { addUseCases: true },
     )
@@ -441,7 +468,7 @@ describe('tracks, kinds and capabilities', () => {
 
 describe('implied intermediate nodes', () => {
   it('creates the ancestors a leaf implies', () => {
-    const result = planCsv(`${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,,,,,live,,`)
+    const result = planCsv(`${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,,,,,,,,live,,`)
     expect(codes(result)).toEqual([])
     expect(pathsOf(result, 'create-node')).toEqual(['UHR > Onboarding', 'UHR > Onboarding > Riyadh Care'])
     const implied = result.actions.find((a) => a.path.join(' > ') === 'UHR > Onboarding')
@@ -453,10 +480,10 @@ describe('implied intermediate nodes', () => {
     // The contract's promise. Both files have to build the same shape, or a
     // colleague's half-filled sheet quietly means something else.
     const leavesOnly = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,,,,,live,,\nUHR > Onboarding > Jeddah Clinic,,Organization,,,,,,planned,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,,,,,,,,live,,\nUHR > Onboarding > Jeddah Clinic,,Organization,,,,,,,,,planned,`,
     )
     const everyLevel = planCsv(
-      `${HEADER}\nUHR > Onboarding,,Phase,,,,,,,\nUHR > Onboarding > Riyadh Care,,Organization,,,,,live,,\nUHR > Onboarding > Jeddah Clinic,,Organization,,,,,,planned,`,
+      `${HEADER}\nUHR > Onboarding,,Phase,,,,,,,,,,\nUHR > Onboarding > Riyadh Care,,Organization,,,,,,,,live,,\nUHR > Onboarding > Jeddah Clinic,,Organization,,,,,,,,,planned,`,
     )
     expect(pathsOf(leavesOnly, 'create-node')).toEqual(pathsOf(everyLevel, 'create-node'))
     // The one difference is the one the contract promises: an explicit row is
@@ -469,7 +496,7 @@ describe('implied intermediate nodes', () => {
 
   it('an explicit row wins wherever it appears in the file', () => {
     const after = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,,,,,,,\nUHR > Onboarding,مرحلة,Phase,,,,,,,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,,,,,,,,,,\nUHR > Onboarding,مرحلة,Phase,,,,,,,,,,`,
     )
     const phase = after.actions.find((a) => a.path.join(' > ') === 'UHR > Onboarding')
     expect(phase.implied).toBe(false)
@@ -481,7 +508,7 @@ describe('implied intermediate nodes', () => {
     // A child written first has no parent to point at, and 0023's derive
     // trigger raises rather than guessing.
     const result = planCsv(
-      `${HEADER}\nUHR > A > B > C,,,,,,,,,\nUHR > A,,Programme,,,,,,,\nUHR > A > B,,Phase,,,,,,,`,
+      `${HEADER}\nUHR > A > B > C,,,,,,,,,,,,\nUHR > A,,Programme,,,,,,,,,,\nUHR > A > B,,Phase,,,,,,,,,,`,
     )
     const depths = result.actions.filter((a) => a.kind === 'create-node').map((a) => a.depth)
     expect(depths).toEqual([...depths].sort((x, y) => x - y))
@@ -489,7 +516,7 @@ describe('implied intermediate nodes', () => {
   })
 
   it('refuses two rows for one node rather than letting file order decide', () => {
-    const result = planCsv(`${HEADER}\nUHR > A,,Phase,,,,,,,\nuhr > a,,Programme,,,,,,,`)
+    const result = planCsv(`${HEADER}\nUHR > A,,Phase,,,,,,,,,,\nuhr > a,,Programme,,,,,,,,,,`)
     expect(codes(result)).toEqual(['duplicate_path'])
   })
 
@@ -497,7 +524,7 @@ describe('implied intermediate nodes', () => {
     // Not alphabetical: he typed Zulfi first because Zulfi came first, and a
     // map that silently re-alphabetises his list is a map he has to re-read.
     const result = planCsv(
-      `${HEADER}\nUHR > Onboarding > Zulfi,,,,,,,,,\nUHR > Onboarding > Abha,,,,,,,,,`,
+      `${HEADER}\nUHR > Onboarding > Zulfi,,,,,,,,,,,,\nUHR > Onboarding > Abha,,,,,,,,,,,,`,
     )
     const orders = Object.fromEntries(
       result.actions
@@ -552,7 +579,7 @@ function populated() {
 describe('updates carry only the fields that actually differ', () => {
   it('says nothing when the file says what the workspace already says', () => {
     const result = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,testing,,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,,,,testing,,`,
       populated(),
     )
     expect(codes(result)).toEqual([])
@@ -562,7 +589,7 @@ describe('updates carry only the fields that actually differ', () => {
 
   it('emits one change per differing field, with old -> new', () => {
     const result = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,مركز الرياض,Organization,nada.alsuwaida,Beta,,,testing,,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,مركز الرياض,Organization,nada.alsuwaida,Beta,,,,,,testing,,`,
       populated(),
     )
     const update = result.actions.find((a) => a.kind === 'update-node')
@@ -579,7 +606,7 @@ describe('updates carry only the fields that actually differ', () => {
     // The one surprise in the contract, so it is printed rather than buried:
     // blank means "not recorded", which is a value.
     const result = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,,,,testing,,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,,,,,,,testing,,`,
       populated(),
     )
     const update = result.actions.find((a) => a.kind === 'update-node')
@@ -591,7 +618,7 @@ describe('updates carry only the fields that actually differ', () => {
 
   it('an IMPLIED node is never updated — it speaks about nothing', () => {
     const result = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,testing,,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,,,,testing,,`,
       populated(),
     )
     expect(result.actions.filter((a) => a.path.join(' > ') === 'UHR > Onboarding')).toEqual([])
@@ -601,7 +628,7 @@ describe('updates carry only the fields that actually differ', () => {
     // map_nodes_sibling_name_uidx is lower(btrim(name)). Matching any other way
     // would emit a create the database then refuses as a duplicate.
     const result = planCsv(
-      `${HEADER}\n uhr  >  ONBOARDING  >  riyadh care ,,Organization,sara.alsaab,Acme,,,testing,,`,
+      `${HEADER}\n uhr  >  ONBOARDING  >  riyadh care ,,Organization,sara.alsaab,Acme,,,,,,testing,,`,
       populated(),
     )
     expect(kinds(result)).toEqual([])
@@ -613,7 +640,7 @@ describe('updates carry only the fields that actually differ', () => {
 describe('the use-case matrix', () => {
   it('sets a link that is not there, and changes one that says something else', () => {
     const result = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,live,planned,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,,,,live,planned,`,
       populated(),
     )
     const sets = result.actions.filter((a) => a.kind === 'set-use-case')
@@ -625,7 +652,7 @@ describe('the use-case matrix', () => {
 
   it('A BLANK CELL CLEARS AN EXISTING LINK — absence is not a fourth status', () => {
     const result = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,,,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,,,,,,`,
       populated(),
     )
     const clears = result.actions.filter((a) => a.kind === 'clear-use-case')
@@ -636,7 +663,7 @@ describe('the use-case matrix', () => {
 
   it('a blank cell where there is no link is a no-op, not a delete', () => {
     const result = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,testing,,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,,,,testing,,`,
       populated(),
     )
     expect(result.actions.filter((a) => a.kind === 'clear-use-case')).toEqual([])
@@ -644,14 +671,14 @@ describe('the use-case matrix', () => {
 
   it('never emits a status that is not one of the three', () => {
     const result = planCsv(
-      `${HEADER}\nUHR > A,,,,,,,live,testing,planned`,
+      `${HEADER}\nUHR > A,,,,,,,,,,live,testing,planned`,
     )
     const statuses = result.actions.filter((a) => a.kind === 'set-use-case').map((a) => a.status)
     expect(statuses.sort()).toEqual(['live', 'planned', 'testing'])
   })
 
   it('links are ordered after every node create', () => {
-    const result = planCsv(`${HEADER}\nUHR > A > B,,,,,,,live,,`)
+    const result = planCsv(`${HEADER}\nUHR > A > B,,,,,,,,,,live,,`)
     const order = kinds(result)
     expect(order.lastIndexOf('create-node')).toBeLessThan(order.indexOf('set-use-case'))
   })
@@ -661,7 +688,7 @@ describe('the use-case matrix', () => {
 
 describe('the file is not authoritative for deletion', () => {
   it('reports a node that is in the app and not in the file, and plans nothing for it', () => {
-    const result = planCsv(`${HEADER}\nUHR > Onboarding,,Phase,,,,,,,`, populated())
+    const result = planCsv(`${HEADER}\nUHR > Onboarding,,Phase,,,,,,,,,,`, populated())
     const missing = result.notes.filter((n) => n.kind === 'not_in_file')
     expect(missing).toHaveLength(1)
     expect(missing[0].path).toEqual(['UHR', 'Onboarding', 'Riyadh Care'])
@@ -669,7 +696,7 @@ describe('the file is not authoritative for deletion', () => {
   })
 
   it('says so in the PRINTOUT, not only in a comment', () => {
-    const printed = renderPlan(planCsv(`${HEADER}\nUHR > Onboarding,,Phase,,,,,,,`, populated()), {})
+    const printed = renderPlan(planCsv(`${HEADER}\nUHR > Onboarding,,Phase,,,,,,,,,,`, populated()), {})
     expect(printed).toContain('IN THE APP BUT NOT IN THIS FILE')
     expect(printed).toMatch(/NOT archived/u)
   })
@@ -692,7 +719,7 @@ describe('the file is not authoritative for deletion', () => {
       map_node_use_cases: [],
     })
     const result = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,testing,,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,,,,testing,,`,
       workspace,
     )
     expect(result.notes.filter((n) => n.kind === 'not_in_file')).toEqual([])
@@ -703,13 +730,13 @@ describe('the file is not authoritative for deletion', () => {
 
 describe('the printout is the product', () => {
   it('isolates a mixed Arabic/Latin path so a terminal cannot reorder it', () => {
-    const result = planCsv(`${HEADER}\nUHR > مستشفى الملك > Clinic,,,,,,,,,`)
+    const result = planCsv(`${HEADER}\nUHR > مستشفى الملك > Clinic,,,,,,,,,,,,`)
     const printed = renderPlan(result, { file: 'docs/templates/structure.csv' })
     expect(printed).toContain(`${FSI}مستشفى الملك${PDI}`)
     // The whole-path form used in refusals and notes wraps in LRI…PDI, because
     // `A > B > C` is left-to-right whatever the names are.
     const refused = planCsv(
-      `${HEADER}\nUHR > مستشفى > A > B > C > D > E > F,,,,,,,,,`,
+      `${HEADER}\nUHR > مستشفى > A > B > C > D > E > F,,,,,,,,,,,,`,
     )
     expect(refused.refusals[0].code).toBe('path_too_deep')
     expect(refused.refusals[0].message).toContain(LRI)
@@ -717,14 +744,14 @@ describe('the printout is the product', () => {
   })
 
   it('says all-or-nothing whenever there is a refusal', () => {
-    const printed = renderPlan(planCsv(`${HEADER}\nNope > A,,,,,,,,,`), {})
+    const printed = renderPlan(planCsv(`${HEADER}\nNope > A,,,,,,,,,,,,`), {})
     expect(printed).toContain('REFUSALS')
     expect(printed).toMatch(/--apply DOES NOTHING AT ALL/u)
   })
 
   it('ends with the one-line reconciliation', () => {
     const result = planCsv(
-      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,nada.alsuwaida,Acme,,,live,,`,
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,nada.alsuwaida,Acme,,,,,,live,,`,
       populated(),
     )
     expect(renderPlan(result, {})).toMatch(
@@ -733,13 +760,13 @@ describe('the printout is the product', () => {
   })
 
   it('marks a dry run and an apply run differently, in the first three lines', () => {
-    const result = planCsv(`${HEADER}\nUHR > A,,,,,,,,,`)
+    const result = planCsv(`${HEADER}\nUHR > A,,,,,,,,,,,,`)
     expect(renderPlan(result, { apply: false })).toContain('dry run — nothing will be written')
     expect(renderPlan(result, { apply: true })).toContain('*** --apply: THIS RUN WRITES ***')
   })
 
   it('shows an implied node as implied, so nobody wonders where it came from', () => {
-    const printed = renderPlan(planCsv(`${HEADER}\nUHR > Onboarding > Riyadh Care,,,,,,,,,`), {})
+    const printed = renderPlan(planCsv(`${HEADER}\nUHR > Onboarding > Riyadh Care,,,,,,,,,,,,`), {})
     expect(printed).toContain('(implied — no row of its own)')
   })
 })
@@ -756,6 +783,12 @@ function applyToSnapshot(workspace, actions) {
     ...workspace,
     nodes: workspace.nodes.map((n) => ({ ...n, map_node_use_cases: [...(n.map_node_use_cases ?? [])] })),
     useCases: [...workspace.useCases],
+    // The two side tables 0026 and 0027 add. Kept as their own arrays here for
+    // the same reason they are their own tables there: a stage is not a column
+    // of `map_nodes`, and a round trip that folded it into one would prove the
+    // planner agrees with a shape the database does not have.
+    progress: (workspace.progress ?? []).map((p) => ({ ...p })),
+    goals: (workspace.goals ?? []).map((g) => ({ ...g })),
   }
   // Keyed through the module's own `keyOf`, exactly as `import-structure.mjs`
   // does. That function is the ONE place the key format lives — the first draft
@@ -802,6 +835,35 @@ function applyToSnapshot(workspace, actions) {
     }
     const node = next.nodes.find((n) => n.id === (action.nodeId ?? idByKey.get(action.key)))
     if (!node) throw new Error(`applyToSnapshot: no node for ${action.path.join(' > ')}`)
+    if (action.kind === 'set-stage') {
+      // UPSERT ON node_id — `map_node_progress`'s primary key. `stage_changed_at`
+      // is not modelled here at all, because the client never writes it: 0026's
+      // stamp trigger is its only writer.
+      const row = next.progress.find((p) => p.node_id === node.id)
+      if (row) row.stage_id = action.stageId
+      else next.progress.push({ node_id: node.id, stage_id: action.stageId })
+      continue
+    }
+    if (action.kind === 'create-goal') {
+      next.goals.push({
+        id: `new-goal-${(seq += 1)}`,
+        node_id: node.id,
+        // The importer's own shape, and the reason a second run finds this row
+        // instead of writing another beside it.
+        label: '',
+        stage_id: null,
+        target: action.target,
+        target_date: action.targetDate,
+      })
+      continue
+    }
+    if (action.kind === 'update-goal') {
+      const goal = next.goals.find((g) => g.id === action.goalId)
+      if (!goal) throw new Error(`applyToSnapshot: no goal ${action.goalId}`)
+      goal.target = action.target
+      goal.target_date = action.targetDate
+      continue
+    }
     if (action.kind === 'update-node') {
       for (const change of action.changes) {
         if (change.field === 'kind') node.kind_id = change.to
@@ -826,13 +888,13 @@ function applyToSnapshot(workspace, actions) {
 describe('RE-RUNNABLE — plan, apply, re-plan, and the second plan is empty', () => {
   const FILE = [
     HEADER,
-    'UHR > Onboarding,التسجيل,Phase,,,The onboarding programme,,,,',
-    'UHR > Onboarding > Riyadh Care,مركز الرياض,Organization,sara.alsaab,Acme Integrations,,,live,planned,',
+    'UHR > Onboarding,التسجيل,Phase,,,The onboarding programme,,,,,,,',
+    'UHR > Onboarding > Riyadh Care,مركز الرياض,Organization,sara.alsaab,Acme Integrations,,,,,,live,planned,',
     // The WHOLE cell is quoted, which is what Excel writes for a value with a
     // comma in it — not a quoted fragment in the middle of an unquoted field.
-    '"UHR > Onboarding > Ministry of Health, Riyadh",,Organization,@nada.alsuwaida,,,,testing,,live',
-    'UHR > Onboarding > Jeddah Clinic > North Wing,,Organization,,Beta Systems,,,,,',
-    'Network > Core,,Programme,,,,,,,',
+    '"UHR > Onboarding > Ministry of Health, Riyadh",,Organization,@nada.alsuwaida,,,,,,,testing,,live',
+    'UHR > Onboarding > Jeddah Clinic > North Wing,,Organization,,Beta Systems,,,,,,,,',
+    'Network > Core,,Programme,,,,,,,,,,',
   ].join('\r\n')
 
   it('lands the whole file on an empty workspace and then has nothing left to do', () => {
@@ -932,6 +994,34 @@ describe('the shipped templates', () => {
     expect(printed).toContain('THE FILE HAS NO ROWS')
     expect(printed).not.toContain('NOTHING TO DO')
   })
+
+  // ⚠ THE PROSE IS PINNED TO THE CONSTANT, because this is the drift that
+  // already happened once: `FIXED_COLUMNS` grew from seven to ten and the
+  // README went on telling him "the first seven columns are fixed" — the same
+  // failure mode as a hand-typed depth cap. A count typed into a sentence is a
+  // second source of truth, and the file a Director reads is the one that has
+  // to be right. Appending an eleventh fixed column fails HERE, next to the
+  // constant, rather than in a PMO's inbox.
+  it('the README documents every fixed column, in the order the parser wants them', () => {
+    const readme = readFileSync(new URL('README.md', TEMPLATE_DIR), 'utf8')
+    // Prose wraps and the constant does not, so the comparison is made on
+    // whitespace-normalised text rather than forcing a 100-character line.
+    const flowed = readme.replace(/\s+/gu, ' ')
+    // The ordered list, exactly as the header refusal prints it.
+    expect(flowed).toContain(FIXED_COLUMNS.join(', '))
+    // And each one has a row of its own in THE COLUMN TABLE — scoped to that
+    // section, because `| \`target\` |` also occurs in the goal-shape table
+    // further down, and an unscoped search let a deleted row pass.
+    const columnSection = readme.slice(readme.indexOf('\n## The columns'))
+    const table = columnSection.slice(0, columnSection.indexOf('\n## ', 1))
+    expect(table).not.toBe('')
+    for (const column of FIXED_COLUMNS) {
+      expect(table).toContain(`| \`${column}\` |`)
+    }
+    // No stale count. "the first seven columns" was true for two waves and is
+    // now a lie about the file that ships beside it.
+    expect(readme).not.toMatch(/first seven columns/iu)
+  })
 })
 
 /** A workspace shaped for the example file: one track, the kinds, 0024's ten. */
@@ -947,6 +1037,9 @@ const exampleWorkspace = () => ({
     { id: 'p-s2', display_name: 'Another Sample', username: 'another.sample', email: 'sample.member@example.com' },
   ],
   useCases: SEEDED_USE_CASES.map((name, i) => ({ id: `u-${i}`, name, sort_order: i + 1 })),
+  stages: STAGES,
+  progress: [],
+  goals: [],
 })
 
 describe('THE ROUND TRIP, on the file that ships — plan, apply, re-plan, empty', () => {
@@ -1064,6 +1157,9 @@ const demoWorkspace = () => ({
     { id: 'p-nasser', display_name: 'Nasser Alabri', username: 'nasser', email: 'nasser@opstrack.internal' },
   ],
   useCases: SEEDED_USE_CASES.map((name, i) => ({ id: `u-${i}`, name, sort_order: i + 1 })),
+  stages: STAGES,
+  progress: [],
+  goals: [],
 })
 
 describe('THE DEMO FILE, against the live workspace it is meant for', () => {
@@ -1229,8 +1325,8 @@ describe('THE DEMO FILE, against the live workspace it is meant for', () => {
 describe('a column of your own is named as such, not as nine bad statuses', () => {
   const CSV = [
     `${FIXED_COLUMNS.join(',')},ADT,Outstanding issue`,
-    'UHR > A,,,,,,,live,Waiting on vendor',
-    'UHR > B,,,,,,,live,Waiting on vendor',
+    'UHR > A,,,,,,,,,,live,Waiting on vendor',
+    'UHR > B,,,,,,,,,,live,Waiting on vendor',
   ].join('\n')
 
   it('refuses the COLUMN once and suppresses the per-row status noise', () => {
@@ -1240,13 +1336,13 @@ describe('a column of your own is named as such, not as nine bad statuses', () =
   })
 
   it('still refuses a genuinely mistyped status under a REAL capability', () => {
-    const plan = planCsv(`${HEADER}\nUHR > A,,,,,,,in progress,,`)
+    const plan = planCsv(`${HEADER}\nUHR > A,,,,,,,,,,in progress,,`)
     expect(codes(plan)).toEqual(['status_unknown'])
   })
 
   it('offers the nearest catalogue name before it offers --add-use-cases', () => {
     const plan = planCsv(
-      [`${FIXED_COLUMNS.join(',')},Radiolegy Report`, 'UHR > A,,,,,,,live'].join('\n'),
+      [`${FIXED_COLUMNS.join(',')},Radiolegy Report`, 'UHR > A,,,,,,,,,,live'].join('\n'),
       { ...emptyWorkspace(), useCases: [...USE_CASES, { id: 'u-rr', name: 'Radiology Report', sort_order: 7 }] },
     )
     const message = plan.refusals[0].message
@@ -1266,8 +1362,8 @@ describe('two siblings cannot share an Arabic name — 0023 would raise mid-appl
     const plan = planCsv(
       [
         HEADER,
-        'UHR > OB > One,عيادة الروضة,Organization,,,,,,,',
-        'UHR > OB > Two,عيادة الروضة,Organization,,,,,,,',
+        'UHR > OB > One,عيادة الروضة,Organization,,,,,,,,,,',
+        'UHR > OB > Two,عيادة الروضة,Organization,,,,,,,,,,',
       ].join('\n'),
     )
     expect(codes(plan)).toEqual(['duplicate_sibling_name_ar'])
@@ -1279,7 +1375,7 @@ describe('two siblings cannot share an Arabic name — 0023 would raise mid-appl
     workspace.nodes = [
       { id: 'n-1', parent_id: null, track_id: 't-uhr', name: 'Existing', name_ar: 'مركز', map_node_use_cases: [] },
     ]
-    const plan = planCsv(`${HEADER}\nUHR > Other,مركز,Organization,,,,,,,`, workspace)
+    const plan = planCsv(`${HEADER}\nUHR > Other,مركز,Organization,,,,,,,,,,`, workspace)
     expect(codes(plan)).toEqual(['duplicate_sibling_name_ar'])
   })
 
@@ -1288,12 +1384,12 @@ describe('two siblings cannot share an Arabic name — 0023 would raise mid-appl
     workspace.nodes = [
       { id: 'n-1', parent_id: null, track_id: 't-uhr', name: 'Existing', name_ar: 'مركز', map_node_use_cases: [] },
     ]
-    expect(codes(planCsv(`${HEADER}\nUHR > Existing,مركز,,,,,,,,`, workspace))).toEqual([])
+    expect(codes(planCsv(`${HEADER}\nUHR > Existing,مركز,,,,,,,,,,,`, workspace))).toEqual([])
   })
 
   it('ignores blanks — the index is PARTIAL on btrim(name_ar) <> \'\'', () => {
     const plan = planCsv(
-      [HEADER, 'UHR > OB > One,,Organization,,,,,,,', 'UHR > OB > Two,,Organization,,,,,,,'].join('\n'),
+      [HEADER, 'UHR > OB > One,,Organization,,,,,,,,,,', 'UHR > OB > Two,,Organization,,,,,,,,,,'].join('\n'),
     )
     expect(codes(plan)).toEqual([])
   })
@@ -1314,7 +1410,7 @@ describe('NFC — a decomposed paste must not become a second organization', () 
     ]
     const nfd = 'أحد'.normalize('NFD')
     expect(nfd).not.toBe('أحد'.normalize('NFC')) // the fixture is only useful if these differ
-    const plan = planCsv(`${HEADER}\nUHR > ${nfd},,,,,,,,,`, workspace)
+    const plan = planCsv(`${HEADER}\nUHR > ${nfd},,,,,,,,,,,,`, workspace)
     expect(plan.actions).toEqual([])
     expect(plan.notes.filter((n) => n.kind === 'not_in_file')).toEqual([])
   })
@@ -1322,7 +1418,7 @@ describe('NFC — a decomposed paste must not become a second organization', () 
 
 describe('a repaired path says so, even when nothing is refused', () => {
   it('notes a zero-width space that joined two words', () => {
-    const plan = planCsv(`${HEADER}\nUHR > Riyadh​Care,,,,,,,,,`)
+    const plan = planCsv(`${HEADER}\nUHR > Riyadh​Care,,,,,,,,,,,,`)
     const repaired = plan.notes.filter((n) => n.kind === 'repaired_path')
     expect(repaired).toHaveLength(1)
     expect(repaired[0].message).toContain('zero-width space')
@@ -1330,7 +1426,7 @@ describe('a repaired path says so, even when nothing is refused', () => {
   })
 
   it('says NOTHING on an ordinary path — a note on every row is a note nobody reads', () => {
-    const plan = planCsv(`${HEADER}\nUHR > Onboarding > Riyadh Care,,,,,,,,,`)
+    const plan = planCsv(`${HEADER}\nUHR > Onboarding > Riyadh Care,,,,,,,,,,,,`)
     expect(plan.notes.filter((n) => n.kind === 'repaired_path')).toEqual([])
   })
 })
@@ -1342,7 +1438,7 @@ describe('a move is a duplicate, and the plan says so before it happens', () => 
       { id: 'n-ob', parent_id: null, track_id: 't-uhr', name: 'Onboarding', name_ar: '', map_node_use_cases: [] },
       { id: 'n-rc', parent_id: 'n-ob', track_id: 't-uhr', name: 'Riyadh Care', name_ar: '', map_node_use_cases: [] },
     ]
-    const plan = planCsv(`${HEADER}\nUHR > Ops > Riyadh Care,,,,,,,live,,`, workspace)
+    const plan = planCsv(`${HEADER}\nUHR > Ops > Riyadh Care,,,,,,,,,,live,,`, workspace)
     const move = plan.notes.find((n) => n.kind === 'looks_like_a_move')
     expect(move).toBeTruthy()
     expect(move.message).toContain('Onboarding')
@@ -1353,9 +1449,9 @@ describe('a move is a duplicate, and the plan says so before it happens', () => 
 describe('the vendors are rolled up, because the filter groups on the exact string', () => {
   const CSV = [
     HEADER,
-    'UHR > A,,,,Mirqab Integration Co.,,,,,',
-    'UHR > B,,,,"Mirqab Integration Co., Riyadh",,,,,',
-    'UHR > C,,,,Mirqab Integration Co.,,,,,',
+    'UHR > A,,,,Mirqab Integration Co.,,,,,,,,',
+    'UHR > B,,,,"Mirqab Integration Co., Riyadh",,,,,,,,',
+    'UHR > C,,,,Mirqab Integration Co.,,,,,,,,',
   ].join('\n')
 
   it('counts each distinct spelling and prints them together', () => {
@@ -1387,7 +1483,7 @@ describe('the printout cannot be moved by a value inside it', () => {
         map_node_use_cases: [],
       },
     ]
-    const plan = planCsv(`${HEADER}\nUHR > A,,,,,"line one\r\nline two",,,,`, workspace)
+    const plan = planCsv(`${HEADER}\nUHR > A,,,,,"line one\r\nline two",,,,,,,`, workspace)
     // Identical after folding, so there is NO update at all — the old behaviour
     // emitted one whose two sides printed the same and PATCHed a \r into the row.
     expect(plan.actions).toEqual([])
@@ -1398,7 +1494,7 @@ describe('the printout cannot be moved by a value inside it', () => {
     workspace.nodes = [
       { id: 'n-1', parent_id: null, track_id: 't-uhr', name: 'A', name_ar: '', description: 'old', map_node_use_cases: [] },
     ]
-    const plan = planCsv(`${HEADER}\nUHR > A,,,,,"new\r\nsecond line",,,,`, workspace)
+    const plan = planCsv(`${HEADER}\nUHR > A,,,,,"new\r\nsecond line",,,,,,,`, workspace)
     expect(renderPlan(plan, {}).includes('\r')).toBe(false)
   })
 })
@@ -1406,7 +1502,7 @@ describe('the printout cannot be moved by a value inside it', () => {
 describe('the plan shows the position the map will draw in', () => {
   it('prints [position N] beside each new node, taken from FILE order', () => {
     const printed = renderPlan(
-      planCsv([HEADER, 'UHR > Zulu,,,,,,,,,', 'UHR > Alpha,,,,,,,,,'].join('\n')),
+      planCsv([HEADER, 'UHR > Zulu,,,,,,,,,,,,', 'UHR > Alpha,,,,,,,,,,,,'].join('\n')),
       {},
     )
     // Alphabetical in the printout, file order in the position — which is the
@@ -1419,11 +1515,398 @@ describe('the plan shows the position the map will draw in', () => {
 
 describe('the kind refusal points at the screen that can fix it', () => {
   it('says Settings › Catalogue, which is where kinds live', () => {
-    const plan = planCsv(`${HEADER}\nUHR > A,,Organisation,,,,,,,`)
+    const plan = planCsv(`${HEADER}\nUHR > A,,Organisation,,,,,,,,,,`)
     expect(codes(plan)).toEqual(['kind_unknown'])
     expect(plan.refusals[0].message).toContain('Settings › Catalogue')
     expect(plan.refusals[0].message).not.toContain('Settings › Structure')
     expect(plan.refusals[0].message).toContain('Did you mean `Organization`?')
+  })
+})
+
+// ── wave 8: the stage and the goal ──────────────────────────────────────────
+//
+// THREE COLUMNS, AND EVERY ONE OF THEM BREAKS A RULE THE OTHER SEVEN KEEP.
+// `vendor` blank CLEARS a vendor; `stage` blank changes NOTHING. That asymmetry
+// is the single most destructive thing in this file if it is ever quietly
+// reversed — one colleague filling in vendors and leaving `stage` alone would
+// return four hundred organizations to "nobody has said" and destroy every
+// `stage_changed_at` with them, which 0026's stamp trigger cannot give back.
+// So it is asserted first, and from both directions.
+
+/** The same fixed columns with the wave-8 three named, for readability. */
+const rowWith = ({ path, stage = '', targetDate = '', target = '', ...rest }) =>
+  [
+    path,
+    rest.nameAr ?? '',
+    rest.kind ?? '',
+    rest.am ?? '',
+    rest.vendor ?? '',
+    '',
+    '',
+    stage,
+    targetDate,
+    target,
+    rest.adt ?? '',
+    '',
+    '',
+  ].join(',')
+
+describe('the stage column reads the ladder out of the DATABASE', () => {
+  it('records a stage on a node that had none, and says nobody had said before', () => {
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > Onboarding > Riyadh Care', stage: 'Integrating' })}`,
+      populated(),
+    )
+    expect(codes(result)).toEqual([])
+    const stage = result.actions.find((a) => a.kind === 'set-stage')
+    expect(stage).toMatchObject({ stageId: 's-integrating', stageName: 'Integrating', from: null, hadRow: false })
+    expect(renderPlan(result, {})).toContain('(nobody had said)')
+  })
+
+  it('matches the rung case-insensitively and through an NFD paste', () => {
+    const workspace = populated()
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > Onboarding > Riyadh Care', stage: '  gO-LIVE ready ' })}`,
+      workspace,
+    )
+    expect(codes(result)).toEqual([])
+    expect(result.actions.find((a) => a.kind === 'set-stage').stageId).toBe('s-ready')
+  })
+
+  it('matches the ARABIC name of a rung and says which name matched', () => {
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > Onboarding > Riyadh Care', stage: 'قيد التكامل' })}`,
+      populated(),
+    )
+    expect(codes(result)).toEqual([])
+    expect(result.notes.some((n) => n.kind === 'stage_matched_ar')).toBe(true)
+    expect(result.actions.find((a) => a.kind === 'set-stage').stageId).toBe('s-integrating')
+  })
+
+  it('⚠ A BLANK STAGE CHANGES NOTHING — it is never written as "Not started"', () => {
+    // The whole argument in one test. `vendor` blank clears; `stage` blank is
+    // silence, and silence is not a statement that nothing is true.
+    const workspace = populated()
+    workspace.progress = [{ node_id: 'n-rc', stage_id: 's-integrating' }]
+    const result = planCsv(
+      `${HEADER}\nUHR > Onboarding > Riyadh Care,,Organization,sara.alsaab,Acme,,,,,,testing,,`,
+      workspace,
+    )
+    expect(codes(result)).toEqual([])
+    expect(result.actions.filter((a) => a.kind === 'set-stage')).toEqual([])
+    expect(renderPlan(result, {})).not.toContain('Not started')
+  })
+
+  it('says nothing when the node is already on that rung — the re-run property', () => {
+    const workspace = populated()
+    workspace.progress = [{ node_id: 'n-rc', stage_id: 's-live' }]
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > Onboarding > Riyadh Care', stage: 'Live', kind: 'Organization', am: 'sara.alsaab', vendor: 'Acme', adt: 'testing' })}`,
+      workspace,
+    )
+    expect(result.actions).toEqual([])
+  })
+
+  it('carries the PREVIOUS rung by name, and hadRow, so the undo can tell the two apart', () => {
+    const workspace = populated()
+    workspace.progress = [{ node_id: 'n-rc', stage_id: 's-kickoff' }]
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > Onboarding > Riyadh Care', stage: 'Live' })}`,
+      workspace,
+    )
+    const stage = result.actions.find((a) => a.kind === 'set-stage')
+    // `hadRow: true` is what makes the undo PATCH rather than DELETE — a row
+    // with a null stage says "somebody looked and cleared it", which is a
+    // sentence nobody said.
+    expect(stage).toMatchObject({ from: 's-kickoff', fromLabel: 'Kickoff', hadRow: true })
+    expect(renderPlan(result, {})).toContain('Kickoff')
+  })
+
+  it('refuses a rung this workspace does not have, and names the nearest one it does', () => {
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > Onboarding > Riyadh Care', stage: 'Integraton' })}`,
+      populated(),
+    )
+    expect(codes(result)).toEqual(['stage_unknown'])
+    const message = result.refusals[0].message
+    expect(message).toContain('Did you mean `Integrating`?')
+    // The whole ladder, in its order, so a person can see what he may type.
+    expect(message).toContain('Not started → Kickoff → Integrating')
+    expect(message).toContain('does NOT create stages')
+    expect(result.actions.filter((a) => a.kind === 'set-stage')).toEqual([])
+  })
+
+  it('notes a HIDDEN rung rather than refusing it — a node can legitimately sit there', () => {
+    const workspace = populated()
+    workspace.stages = STAGES.map((s) => (s.id === 's-paused' ? { ...s, hidden: true } : s))
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > Onboarding > Riyadh Care', stage: 'Paused' })}`,
+      workspace,
+    )
+    expect(codes(result)).toEqual([])
+    expect(result.notes.some((n) => n.kind === 'stage_hidden')).toBe(true)
+    expect(result.actions.some((a) => a.kind === 'set-stage')).toBe(true)
+  })
+
+  it('NO STAGE NAME IS WRITTEN DOWN IN THE PLANNER — the ladder is renameable', () => {
+    // A `STAGE_NAMES` constant is the obvious thing to write and it is wrong in
+    // a way nothing catches: 0026 SEEDS these seven and every one is renameable
+    // in Settings › Catalogue, so a copy here would refuse a rung the app draws
+    // on every row. The disposition Aziz audits is the one the database holds.
+    const source = readFileSync(new URL('./structurePlan.mjs', import.meta.url), 'utf8')
+    for (const rung of ['Kickoff', 'Testing/UAT', 'Go-live ready']) {
+      expect(source).not.toContain(rung)
+    }
+  })
+})
+
+describe('the goal columns — at most one goal per row, and it is the row’s own', () => {
+  // The row as `populated()` already holds it, so the ONLY thing any of these
+  // plans can contain is what the goal columns caused. A row that also cleared
+  // the vendor would pass the same assertions for the wrong reason.
+  const goalRow = (over) =>
+    rowWith({
+      path: 'UHR > Onboarding > Riyadh Care',
+      kind: 'Organization',
+      am: 'sara.alsaab',
+      vendor: 'Acme',
+      adt: 'testing',
+      ...over,
+    })
+
+  it('a date with no target is "this node is there by then"', () => {
+    const result = planCsv(`${HEADER}\n${goalRow({ targetDate: '2026-12-31' })}`, populated())
+    expect(codes(result)).toEqual([])
+    expect(result.actions.find((a) => a.kind === 'create-goal')).toMatchObject({
+      target: null,
+      targetDate: '2026-12-31',
+      nodeId: 'n-rc',
+    })
+    expect(renderPlan(result, {})).toContain('goal: by 2026-12-31')
+  })
+
+  it('a date with a target is a count of organizations beneath it', () => {
+    const result = planCsv(`${HEADER}\n${goalRow({ targetDate: '2026-12-31', target: '40' })}`, populated())
+    expect(result.actions.find((a) => a.kind === 'create-goal').target).toBe(40)
+    expect(renderPlan(result, {})).toContain('40 organization(s) by 2026-12-31')
+  })
+
+  it('⚠ REFUSES A DD/MM/YYYY DATE AND NAMES EXCEL AS THE AUTHOR', () => {
+    // `01/12/2026` is December in Riyadh and January in San Francisco, and the
+    // file cannot say which. Accepting either silently moves a commitment by
+    // eleven months.
+    const result = planCsv(`${HEADER}\n${goalRow({ targetDate: '01/12/2026' })}`, populated())
+    expect(codes(result)).toEqual(['target_date_shape'])
+    const message = result.refusals[0].message
+    expect(message).toContain('EXCEL WROTE IT')
+    expect(message).toContain('YYYY-MM-DD')
+    expect(message).toContain('TEXT')
+  })
+
+  it('refuses a day that does not exist, where it costs a line number and not a batch', () => {
+    // `new Date('2026-02-30')` rolls forward to 2 March and Postgres raises
+    // 22008 — mid-apply, after the nodes have landed.
+    expect(codes(planCsv(`${HEADER}\n${goalRow({ targetDate: '2026-02-30' })}`, populated()))).toEqual([
+      'target_date_shape',
+    ])
+    expect(codes(planCsv(`${HEADER}\n${goalRow({ targetDate: '2026-02-28' })}`, populated()))).toEqual([])
+  })
+
+  it('refuses a target with no date, a zero target, and a five-digit one', () => {
+    expect(codes(planCsv(`${HEADER}\n${goalRow({ target: '40' })}`, populated()))).toEqual(['target_without_date'])
+    expect(
+      codes(planCsv(`${HEADER}\n${goalRow({ targetDate: '2026-12-31', target: '0' })}`, populated())),
+    ).toEqual(['target_zero'])
+    const serial = planCsv(`${HEADER}\n${goalRow({ targetDate: '2026-12-31', target: '46022' })}`, populated())
+    expect(codes(serial)).toEqual(['target_too_large'])
+    // The number Excel writes when a DATE lands in this column.
+    expect(serial.refusals[0].message).toContain('forty-thousands')
+  })
+
+  it('refuses `40 orgs` rather than reading the number out of it', () => {
+    expect(
+      codes(planCsv(`${HEADER}\n${goalRow({ targetDate: '2026-12-31', target: '40 orgs' })}`, populated())),
+    ).toEqual(['target_not_a_number'])
+  })
+
+  it('MOVES ITS OWN GOAL RATHER THAN ADDING A SECOND — 0027 has no unique index', () => {
+    const workspace = populated()
+    workspace.goals = [
+      { id: 'g-1', node_id: 'n-rc', label: '', stage_id: null, target: null, target_date: '2026-06-30' },
+    ]
+    const result = planCsv(`${HEADER}\n${goalRow({ targetDate: '2026-12-31' })}`, workspace)
+    expect(kinds(result)).toEqual(['update-goal'])
+    expect(result.actions[0]).toMatchObject({
+      goalId: 'g-1',
+      targetDate: '2026-12-31',
+      from: { target: null, targetDate: '2026-06-30' },
+    })
+    expect(renderPlan(result, {})).toContain('by 2026-06-30 -> by 2026-12-31')
+  })
+
+  it('never touches a goal an Associate Director labelled or narrowed to a stage', () => {
+    const workspace = populated()
+    workspace.goals = [
+      { id: 'g-ad', node_id: 'n-rc', label: 'Phase 2 go-live', stage_id: null, target: null, target_date: '2026-06-30' },
+      { id: 'g-stage', node_id: 'n-rc', label: '', stage_id: 's-ready', target: 5, target_date: '2026-07-31' },
+    ]
+    const result = planCsv(`${HEADER}\n${goalRow({ targetDate: '2026-12-31' })}`, workspace)
+    // A CREATE, beside both of them: this file can only speak about the
+    // unlabelled, stage-less one, and neither of those is it.
+    expect(kinds(result)).toEqual(['create-goal'])
+  })
+
+  it('refuses when two unlabelled goals could each be the one this row means', () => {
+    const workspace = populated()
+    workspace.goals = [
+      { id: 'g-1', node_id: 'n-rc', label: '', stage_id: null, target: null, target_date: '2026-06-30' },
+      { id: 'g-2', node_id: 'n-rc', label: '', stage_id: null, target: 10, target_date: '2026-09-30' },
+    ]
+    expect(codes(planCsv(`${HEADER}\n${goalRow({ targetDate: '2026-12-31' })}`, workspace))).toEqual([
+      'goal_ambiguous',
+    ])
+  })
+
+  it('says nothing when the goal already reads exactly this', () => {
+    const workspace = populated()
+    workspace.goals = [
+      { id: 'g-1', node_id: 'n-rc', label: '', stage_id: null, target: 40, target_date: '2026-12-31' },
+    ]
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > Onboarding > Riyadh Care', kind: 'Organization', am: 'sara.alsaab', vendor: 'Acme', adt: 'testing', targetDate: '2026-12-31', target: '40' })}`,
+      workspace,
+    )
+    expect(result.actions).toEqual([])
+  })
+})
+
+describe('the pre-migration refusal — 0026/0027 are applied by hand, and may not be', () => {
+  const noSchema = () => ({ ...emptyWorkspace(), stages: [], progress: [], goals: [] })
+
+  it('refuses BY NAME when a row names a stage and the tables are not there', () => {
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > A', stage: 'Integrating' })}`,
+      noSchema(),
+      { schema: { stages: false, goals: false } },
+    )
+    expect(codes(result)).toContain('stage_tables_missing')
+    const message = result.refusals.find((r) => r.code === 'stage_tables_missing').message
+    expect(message).toContain('0026 HAS NOT BEEN RUN')
+    expect(message).toContain('docs/RUN-0026-0027-0028.md')
+    // NOT a raw Postgres code. The point of the whole probe is that nobody ever
+    // reads `42P01` out of the middle of a batch.
+    expect(message).not.toContain('42P01')
+  })
+
+  it('refuses by name for a goal against a project without 0027', () => {
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > A', targetDate: '2026-12-31' })}`,
+      noSchema(),
+      { schema: { stages: true, goals: false } },
+    )
+    expect(codes(result)).toContain('goal_table_missing')
+    expect(result.refusals[0].message).toContain('0027 HAS NOT BEEN RUN')
+  })
+
+  it('⚠ AND A STAGE-FREE FILE IMPORTS PERFECTLY AGAINST THE OLD SCHEMA', () => {
+    // The property that lets him land the real structure before he finds a
+    // free hour for the SQL Editor.
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > A', kind: 'Organization', adt: 'live' })}`,
+      noSchema(),
+      { schema: { stages: false, goals: false } },
+    )
+    expect(codes(result)).toEqual([])
+    expect(kinds(result)).toEqual(['create-node', 'set-use-case'])
+  })
+})
+
+describe('the header check catches a pre-wave-8 file at column 8, by name', () => {
+  it('names the column, the count and the template — and the count is INTERPOLATED', () => {
+    const old = ['path', 'name_ar', 'kind', 'account_manager', 'vendor', 'description', 'description_ar']
+    const { refusals } = parseStructureCsv(`${old.join(',')},ADT\nUHR > A,,,,,,,live`)
+    expect(refusals.map((r) => r.code)).toEqual(['header_columns'])
+    const message = refusals[0].message
+    expect(message).toContain('column 8 of the header should be `stage`')
+    expect(message).toContain('reads `ADT`')
+    // ⚠ THE COUNT COMES FROM FIXED_COLUMNS.length. It read "seven" for as long
+    // as there were seven, and this is now the ONE message a pre-wave-8 file
+    // reaches: a stale number here would tell the person holding exactly that
+    // file that his header is already complete.
+    expect(message).toContain(`The first ${FIXED_COLUMNS.length} columns are fixed`)
+    expect(message).not.toContain('seven')
+    expect(message).toContain('docs/templates/structure.csv')
+  })
+})
+
+describe('the stage and the goals are written LAST, after every node and link', () => {
+  it('orders set-stage and the goals after the use-case links', () => {
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > A > B', stage: 'Kickoff', targetDate: '2026-12-31', adt: 'live' })}`,
+    )
+    const order = kinds(result)
+    expect(order.lastIndexOf('create-node')).toBeLessThan(order.indexOf('set-use-case'))
+    expect(order.indexOf('set-use-case')).toBeLessThan(order.indexOf('set-stage'))
+    expect(order.indexOf('set-stage')).toBeLessThan(order.indexOf('create-goal'))
+  })
+
+  it('counts them in the reconciliation line', () => {
+    const result = planCsv(
+      `${HEADER}\n${rowWith({ path: 'UHR > A', stage: 'Kickoff', targetDate: '2026-12-31', target: '9' })}`,
+    )
+    expect(renderPlan(result, {})).toMatch(/1 stage\(s\) to record · 1 goal\(s\) to write/u)
+  })
+})
+
+describe('RE-RUNNABLE WITH STAGES AND GOALS — the second plan is still empty', () => {
+  const FILE = [
+    HEADER,
+    rowWith({ path: 'UHR > Onboarding', kind: 'Phase', targetDate: '2026-12-31', target: '40' }),
+    rowWith({
+      path: 'UHR > Onboarding > Riyadh Care',
+      kind: 'Organization',
+      am: 'sara.alsaab',
+      stage: 'Integrating',
+      targetDate: '2026-09-30',
+      adt: 'live',
+    }),
+    rowWith({ path: 'UHR > Onboarding > Jeddah Clinic', kind: 'Organization', stage: 'Kickoff' }),
+  ].join('\r\n')
+
+  it('lands the stages and the goals, then has nothing left to do', () => {
+    const before = emptyWorkspace()
+    const first = planCsv(FILE, before)
+    expect(codes(first)).toEqual([])
+    expect(first.summary.stages).toBe(2)
+    expect(first.summary.newGoals).toBe(2)
+
+    const after = applyToSnapshot(before, first.actions)
+    expect(after.progress.map((p) => p.stage_id).sort()).toEqual(['s-integrating', 's-kickoff'])
+    expect(after.goals).toHaveLength(2)
+
+    const second = planCsv(FILE, after)
+    expect(codes(second)).toEqual([])
+    expect(second.actions).toEqual([])
+    expect(renderPlan(second, {})).toContain('NOTHING TO DO')
+  })
+
+  it('re-runs after moving one date, planning only that move', () => {
+    const before = emptyWorkspace()
+    const after = applyToSnapshot(before, planCsv(FILE, before).actions)
+    const moved = FILE.replace('2026-09-30', '2026-10-31')
+    const plan = planCsv(moved, after)
+    expect(codes(plan)).toEqual([])
+    expect(kinds(plan)).toEqual(['update-goal'])
+    expect(plan.actions[0].targetDate).toBe('2026-10-31')
+  })
+
+  it('re-runs after moving one organization up the ladder, planning only that', () => {
+    const before = emptyWorkspace()
+    const after = applyToSnapshot(before, planCsv(FILE, before).actions)
+    const promoted = FILE.replace(',Integrating,', ',Go-live ready,')
+    const plan = planCsv(promoted, after)
+    expect(kinds(plan)).toEqual(['set-stage'])
+    expect(plan.actions[0]).toMatchObject({ stageId: 's-ready', from: 's-integrating', hadRow: true })
   })
 })
 

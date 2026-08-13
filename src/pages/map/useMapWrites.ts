@@ -21,7 +21,12 @@
 
 import { useCallback } from 'react'
 import { toast } from '../../components/toast'
-import type { MindMenuRun } from '../../components/mindtree/NodeMenu'
+// THE SENTENCE COMES FROM WHERE THE QUESTION CAME FROM. `archiveAnnouncement` is
+// `archiveConfirmCopy`'s twin and lives beside it: the dialog and the live region
+// describe ONE act, and the defect they were both part of was exactly a drift
+// between two files each of which assumed the other was speaking. One module owns
+// both sentences, so a change to the map's rule has one place to land.
+import { archiveAnnouncement, type MindMenuRun } from '../../components/mindtree/NodeMenu'
 import type { QuickAddMode } from '../../components/mindtree/QuickAdd'
 import { setMapNodeArchived } from '../../api/map'
 import { t } from '../../lib/i18n'
@@ -135,10 +140,10 @@ export function useMapWrites({
               return
             }
             // `map_nodes` writes go through api/, so nothing else would tell the
-            // picture the tree changed. This is what takes the branch off the
-            // map.
+            // picture the tree changed. This is what makes the branch redraw as
+            // archived — and take it off the map, IF the model's rule drops it.
             invalidateConfig()
-            setLive(t('mindtree.branchArchived', { label }))
+            setLive(archiveAnnouncement(label, run.usage ?? null))
           })()
           return
         }

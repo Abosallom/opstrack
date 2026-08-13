@@ -78,6 +78,7 @@ const {
   mapParamsForFilterWrite,
   mapParamsForLens,
   mapParamsForPortfolio,
+  mapPortfolioChosen,
   mapPortfolioFromParams,
   mapPortfolioKey,
   mapUrlInbound,
@@ -554,27 +555,35 @@ describe('mapPortfolioFromParams', () => {
 })
 
 describe('mapParamsForPortfolio', () => {
-  it('never spells out a default, and always spells out an opinion', () => {
-    // `mapParamsForLens`'s rule for `?stage=`, applied to both controls: the
-    // default state IS the chip's own state, so writing it would put two
-    // redundant params in front of every reader.
-    expect(mapParamsForPortfolio(params(''), { by: 'stage', risk: true }).toString()).toBe('')
+  it('never spells out a default RISK, and always spells out an opinion', () => {
+    // `mapParamsForLens`'s rule for `?stage=` — but for `?risk=` only. `?by=` is
+    // the exception, and the case below is why.
+    expect(mapParamsForPortfolio(params(''), { by: 'stage', risk: true }).toString()).toBe(
+      'by=stage',
+    )
     expect(mapParamsForPortfolio(params(''), { by: 'manager', risk: true }).toString()).toBe(
       'by=manager',
     )
-    expect(mapParamsForPortfolio(params(''), { by: 'stage', risk: false }).toString()).toBe('risk=0')
+    expect(mapParamsForPortfolio(params(''), { by: 'stage', risk: false }).toString()).toBe(
+      'by=stage&risk=0',
+    )
     const both = mapParamsForPortfolio(params(''), { by: 'vendor', risk: false })
     expect(both.get('by')).toBe('vendor')
     expect(both.get('risk')).toBe('0')
   })
 
-  it('clears a param that has gone back to its default', () => {
-    // The reader taps Vendors, then taps Stage again. Leaving `by=vendor` on the
-    // URL would hand the next person to open the link a view the sender is not
-    // looking at.
-    const back = mapParamsForPortfolio(params('by=vendor&risk=0'), { by: 'stage', risk: true })
-    expect(back.has('by')).toBe(false)
-    expect(back.has('risk')).toBe(false)
+  it('⚠ ALWAYS spells `?by=`, because a pressed chip must survive a reload', () => {
+    // BUDGET E9, AND THE THIRD STATE THAT MAKES IT NON-OBVIOUS. Suppressing
+    // `by=stage` as "the default" made "the reader pressed Stage" and "the
+    // reader pressed nothing" one address — and the canvas answers those two
+    // differently (stage rings vs ungrouped, see Mindtree.tsx's `canvasBy`). So
+    // the writer that a chip press goes through spells the value even when it
+    // equals the default. `mapPortfolioChosen` is the reader of that difference.
+    const pressed = mapParamsForPortfolio(params('by=vendor&risk=0'), { by: 'stage', risk: true })
+    expect(pressed.get('by')).toBe('stage')
+    expect(mapPortfolioChosen(pressed)).toBe(true)
+    // …and the risk half still clears, so the two controls are not symmetric.
+    expect(pressed.has('risk')).toBe(false)
   })
 
   it('carries every other param through — one write, the whole address bar', () => {
@@ -670,6 +679,53 @@ describe('the writers that could drop the portfolio, and do not', () => {
     })
     expect(plain.has('by')).toBe(false)
     expect(plain.has('risk')).toBe(false)
+  })
+
+  it('⚠ a keystroke must not INVENT a grouping choice — the always-spell trap', () => {
+    // THE REGRESSION THE `?by=` CHANGE WOULD OTHERWISE HAVE SHIPPED.
+    // `mapPortfolioFromParams` is total: on a URL with no `?by=` it answers
+    // `stage`. Writing that answer back through `mapParamsForPortfolio` — which
+    // now always spells — would tell the canvas the reader had pressed `Stage`,
+    // and one character typed into the search box would drop 400 organizations
+    // into stage rings nobody asked for. `carryPortfolioParams` copies the raw
+    // absence instead.
+    const typed = mapParamsForFilterWrite(
+      params('lens=portfolio'),
+      filter({ search: 'a' }),
+      NO_VIEW,
+      { lens: 'portfolio', stage: 'portfolio' },
+    )
+    expect(mapPortfolioChosen(typed)).toBe(false)
+    // A choice already made is carried through the same keystroke untouched.
+    const kept = mapParamsForFilterWrite(params('by=stage'), filter({ search: 'a' }), NO_VIEW, {
+      lens: 'portfolio',
+      stage: 'portfolio',
+    })
+    expect(kept.get('by')).toBe('stage')
+    expect(mapPortfolioChosen(kept)).toBe(true)
+  })
+})
+
+describe('mapPortfolioChosen — the third state', () => {
+  it('tells a spelled grouping apart from a defaulted one', () => {
+    // `mapPortfolioFromParams` cannot answer this: it is total and says `stage`
+    // for both. The canvas needs the difference, and only the raw param has it.
+    expect(mapPortfolioChosen(params(''))).toBe(false)
+    expect(mapPortfolioChosen(params('lens=portfolio&risk=0'))).toBe(false)
+    expect(mapPortfolioChosen(params('by=stage'))).toBe(true)
+    expect(mapPortfolioChosen(params('by=vendor'))).toBe(true)
+    expect(mapPortfolioChosen(params('by=phase'))).toBe(true)
+  })
+
+  it('a hostile or blank value is NOT a choice, and reads back as the default', () => {
+    // The same predicate the reader uses to accept the value, so the pair cannot
+    // disagree about what counts as spelled: a pasted `?by=owner` lands the
+    // reader on the stalled table AND on an ungrouped canvas, which is exactly
+    // where pressing nothing lands them.
+    for (const bad of ['', 'Stage', 'stages', 'owner', 'toString', '__proto__']) {
+      expect(mapPortfolioChosen(params(`by=${bad}`)), bad).toBe(false)
+      expect(mapPortfolioFromParams(params(`by=${bad}`)).by, bad).toBe('stage')
+    }
   })
 })
 

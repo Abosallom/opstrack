@@ -36,9 +36,27 @@
 //
 // ═══ WHAT THIS SCRIPT IS ALLOWED TO DO ═══
 //
-// CREATE map_nodes · UPDATE the seven fields of a map_node the file names ·
-// SET or CLEAR a row of map_node_use_cases · and, only with --add-use-cases,
-// CREATE a use_cases row. That is the whole list.
+// CREATE map_nodes · UPDATE the map_nodes fields the file names · SET or CLEAR
+// a row of map_node_use_cases · RECORD a stage in map_node_progress · WRITE or
+// MOVE one goal per row in map_node_goals · and, only with --add-use-cases,
+// CREATE a use_cases row. That is the whole list. (The count of columns is not
+// written down here on purpose — `FIXED_COLUMNS` in scripts/lib/structurePlan.mjs
+// is the list, it has grown once already, and a number in prose rots into a lie
+// on the day it does.)
+//
+// IT CREATES NO STAGES. The `stage` cell names a rung of `map_node_stages`,
+// which is a configured ladder with an ORDER, a terminal flag, a paused flag
+// and a stalled threshold — and adding a rung restates every count-form goal in
+// the workspace. An unknown stage is a refusal that names the nearest rung this
+// project actually has. A BLANK stage changes nothing at all: the three wave-8
+// columns are the one place in this file where a blank is not a statement, for
+// the reason spelled out at length in structurePlan.mjs.
+//
+// AND IT REFUSES BY NAME AGAINST A PROJECT THAT HAS NOT RUN 0026/0027. The
+// migrations are applied by hand; a file that speaks about a stage or a goal
+// meets a refusal naming the migration and docs/RUN-0026-0027-0028.md, before
+// any write, rather than a raw `42P01` from the middle of a batch. A file whose
+// three new columns are blank imports normally against the older schema.
 //
 // IT CREATES NO TRACKS. The first segment of every path is a track and it must
 // already exist. A track carries a colour, a light-mode colour, an icon, a
@@ -126,13 +144,16 @@ import {
 import {
   buildManifest,
   manifestFileName,
+  manifestGoalIds,
   manifestIsEmpty,
   manifestNodeIds,
+  manifestProgressNodeIds,
   parseManifest,
   planUndo,
   renderUndoPlan,
   serializeManifest,
   MANIFEST_DIR,
+  PROGRESS_TABLE,
 } from './lib/importManifest.mjs'
 
 // ── arguments ───────────────────────────────────────────────────────────────
@@ -438,8 +459,58 @@ async function readIn(table, column, ids, select, key = 'id') {
   return rows
 }
 
+/** `readIn`, for a table 0026 or 0027 may not have created yet. See `readOptional`. */
+async function readInOptional(table, column, ids, select, key = 'id') {
+  try {
+    return { rows: await readIn(table, column, ids, select, key), present: true }
+  } catch (e) {
+    if (tableIsAbsent(e)) return { rows: [], present: false }
+    throw e
+  }
+}
+
 /** `map_node_use_cases` is keyed on the pair, not on an id. See `restAll`. */
 const LINK_KEY = 'node_id,use_case_id'
+
+/**
+ * IS THIS FAILURE "THE TABLE IS NOT THERE"?
+ *
+ * ⚠ THE WHOLE PRE-MIGRATION REFUSAL RESTS ON THIS PREDICATE, and it takes four
+ * shapes rather than one because PostgREST has changed its mind twice about how
+ * to say it. Postgres raises `42P01 undefined_table`; older PostgREST forwards
+ * that code; newer versions answer from their own schema cache instead and say
+ * `PGRST205` (unknown table) or `PGRST202`/`PGRST106` (unknown schema or
+ * function) with a 404. Matching only one of them means the other arrives at
+ * the reader as a raw error code in the middle of a batch — precisely the
+ * failure the named refusal exists to replace.
+ *
+ * ⚠ AND `.status === 404` IS NOT ENOUGH ON ITS OWN, so it is not used alone: a
+ * proxy that is up but has lost the upstream answers 404 with an HTML body, and
+ * reading that as "0026 has not been run" would tell somebody to run a
+ * migration he ran last week.
+ */
+function tableIsAbsent(e) {
+  if (!e) return false
+  if (e.code === '42P01' || e.code === 'PGRST205' || e.code === 'PGRST202' || e.code === 'PGRST106') return true
+  return e.status === 404 && /does not exist|schema cache|could not find/iu.test(String(e.message ?? ''))
+}
+
+/**
+ * Read a table that may not exist yet, and say WHICH of the two happened.
+ *
+ * Returns `{ rows, present }`. `present: false` is a fact about the schema and
+ * never an empty read: an empty `map_node_progress` means nobody has recorded a
+ * stage, and a missing one means 0026 has not been run, and the two lead to
+ * completely different sentences on the screen.
+ */
+async function readOptional(path, key = 'id') {
+  try {
+    return { rows: await restAll(path, key), present: true }
+  } catch (e) {
+    if (tableIsAbsent(e)) return { rows: [], present: false }
+    throw e
+  }
+}
 
 // ── UNDO ────────────────────────────────────────────────────────────────────
 //
@@ -530,9 +601,31 @@ if (UNDO) {
   // removed is what is true at the moment of the undo.
   const nodeIds = manifestNodeIds(manifest)
   const useCaseIds = (manifest.createdUseCases ?? []).map((u) => u.id)
+  // What this manifest says about the two tables 0026 and 0027 create. A v1
+  // file says nothing about either, which is why an undo of the run that is
+  // already applied never asks for them.
+  const namesStages = manifestProgressNodeIds(manifest).length > 0
+  const namesGoals = manifestGoalIds(manifest).length > 0
   let probe
+  let sideTables = { progress: true, goals: true }
   try {
+    // ── THE SIDE TABLES ARE READ FOR EVERY NODE, NOT ONLY THE RECORDED ONES ──
+    //
+    // A stage an account manager set by hand on a demo organization, or a goal
+    // an Associate Director typed into its panel, is invisible to every loop
+    // that walks the manifest — and both go out silently through
+    // `on delete cascade` when the node is deleted. `planUndo` can only refuse
+    // a delete over work it can SEE, so the read is by node, not by id.
+    const progressRead = nodeIds.length
+      ? await readInOptional(PROGRESS_TABLE, 'node_id', nodeIds, 'node_id,stage_id', 'node_id')
+      : { rows: [], present: true }
+    const goalsRead = nodeIds.length
+      ? await readInOptional('map_node_goals', 'node_id', nodeIds, 'id,node_id,label,stage_id,target,target_date')
+      : { rows: [], present: true }
+    sideTables = { progress: progressRead.present, goals: goalsRead.present }
     probe = {
+      progress: progressRead.rows,
+      goals: goalsRead.rows,
       nodes: nodeIds.length
         ? await readIn(
             'map_nodes',
@@ -562,6 +655,29 @@ if (UNDO) {
     out('  not complete, and an undo that cannot see the workspace does not proceed.')
     out('')
     process.exit(1)
+  }
+
+  // ── THE MIRROR OF THE IMPORT'S PRE-MIGRATION REFUSAL ──
+  //
+  // A manifest that recorded stages or goals against a project whose 0026/0027
+  // tables are now gone is a manifest that cannot be reversed: the rows it
+  // names are unreachable, and undoing everything ELSE would leave the file
+  // reading as spent while half of what it recorded is still out there. Refused
+  // by name, before anything is removed.
+  if ((namesStages && !sideTables.progress) || (namesGoals && !sideTables.goals)) {
+    out('')
+    out('  NphiesCore — undo a structure import')
+    out(`  Manifest: ${TARGET}`)
+    out('')
+    out('  THIS MANIFEST RECORDS STAGES OR GOALS AND THE TABLES ARE NOT THERE.')
+    if (namesStages && !sideTables.progress) out(`    - ${PROGRESS_TABLE} is missing — 0026 has not been run against this project`)
+    if (namesGoals && !sideTables.goals) out('    - map_node_goals is missing — 0027 has not been run against this project')
+    out('')
+    out('  Nothing has been removed. Run the migrations first (docs/RUN-0026-0027-0028.md)')
+    out('  and undo again, or check that SUPABASE_URL points at the project this run')
+    out('  was actually applied to.')
+    out('')
+    process.exit(2)
   }
 
   const undo = planUndo({ manifest, ...probe, archiveRefused: ARCHIVE_REFUSED })
@@ -619,6 +735,40 @@ if (UNDO) {
           body: JSON.stringify(action.patch),
         })
         done.push(`${action.changes.map((c) => c.column).join(', ')} put back on ${action.path.join(' > ')}`)
+      } else if (action.kind === 'revert-progress') {
+        // ⚠ DELETE OR PATCH, AND THE PLAN ALREADY DECIDED WHICH. `deleteRow`
+        // means this import CREATED the progress row, and the reversal of a
+        // created row is its absence — writing `stage_id: null` instead would
+        // leave "somebody looked at this and cleared it", a sentence nobody
+        // said, and would keep the node out of the unstaged bucket. This script
+        // does not re-decide it here; it executes the line that was printed.
+        if (action.deleteRow) {
+          await rest(`/rest/v1/${PROGRESS_TABLE}?node_id=eq.${encodeURIComponent(action.nodeId)}`, {
+            method: 'DELETE',
+            headers: { Prefer: 'return=minimal' },
+          })
+          done.push(`stage row removed from ${action.path.join(' > ')} (time-in-stage is reset by this undo)`)
+        } else {
+          await rest(`/rest/v1/${PROGRESS_TABLE}?node_id=eq.${encodeURIComponent(action.nodeId)}`, {
+            method: 'PATCH',
+            headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify(action.patch),
+          })
+          done.push(`stage put back on ${action.path.join(' > ')} (time-in-stage is reset by this undo)`)
+        }
+      } else if (action.kind === 'revert-goal') {
+        await rest(`/rest/v1/map_node_goals?id=eq.${encodeURIComponent(action.goalId)}`, {
+          method: 'PATCH',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify(action.patch),
+        })
+        done.push(`goal put back on ${action.path.join(' > ')}`)
+      } else if (action.kind === 'delete-goal') {
+        await rest(`/rest/v1/map_node_goals?id=eq.${encodeURIComponent(action.goalId)}`, {
+          method: 'DELETE',
+          headers: { Prefer: 'return=minimal' },
+        })
+        done.push(`goal removed from ${action.path.join(' > ')}`)
       } else if (action.kind === 'delete-node') {
         const blocker = undeleted.find(
           (p) => p.length > action.path.length && p.slice(0, action.path.length).join('\u0000') === action.path.join('\u0000'),
@@ -691,8 +841,22 @@ if (UNDO) {
 
 // ── read the workspace ──────────────────────────────────────────────────────
 
-let snapshot = { tracks: [], nodes: [], kinds: [], members: [], useCases: [] }
+let snapshot = { tracks: [], nodes: [], kinds: [], members: [], useCases: [], stages: [], progress: [], goals: [] }
 let live = false
+
+/**
+ * Which of 0026/0027 this project actually has.
+ *
+ * ⚠ PROBED, NOT ASSUMED, AND THE ANSWER GOES INTO THE PLAN. The migrations are
+ * committed in this repository and applied by hand, in the SQL Editor, by one
+ * person — so "the file is in git" and "the table is in the database" are two
+ * different facts and the gap between them is measured in days. Without this
+ * probe a file with a `stage` column meets a project without 0026 as a raw
+ * `42P01` from inside the read (or, worse, from inside the apply, after the
+ * nodes have landed), which names a Postgres error class rather than the one
+ * thing to do about it.
+ */
+let schema = { stages: true, goals: true }
 
 if (URL_BASE && SERVICE_KEY) {
   try {
@@ -715,6 +879,24 @@ if (URL_BASE && SERVICE_KEY) {
     // member's JWT. With the service role the admin API is the door, and it is
     // the same one provision-people.mjs uses. Emails and usernames are read into
     // memory for MATCHING ONLY; nothing prints them.
+    // ── the ladder, where each node stands on it, and what was promised ──
+    //
+    // THREE OPTIONAL READS, and each one answers "present or absent" rather
+    // than "empty or not". An empty `map_node_progress` is a workspace where
+    // nobody has recorded a stage yet; a missing one is a workspace where 0026
+    // has not been run, and the second is a sentence about a migration while
+    // the first is a sentence about the work.
+    //
+    // `map_node_stages` and `map_node_progress` are both 0026's, so the pair is
+    // reported together: a project with one and not the other has a half-run
+    // migration, and the honest answer there is the same "run 0026 first".
+    const [stagesRead, progressRead, goalsRead] = await Promise.all([
+      readOptional('/rest/v1/map_node_stages?select=id,name,name_ar,sort_order,hidden&order=sort_order'),
+      readOptional(`/rest/v1/${PROGRESS_TABLE}?select=node_id,stage_id`, 'node_id'),
+      readOptional('/rest/v1/map_node_goals?select=id,node_id,label,stage_id,target,target_date'),
+    ])
+    schema = { stages: stagesRead.present && progressRead.present, goals: goalsRead.present }
+
     const users = await readAuthUsers()
     const byId = new Map(users.map((u) => [u.id, u]))
     snapshot = {
@@ -722,6 +904,9 @@ if (URL_BASE && SERVICE_KEY) {
       nodes,
       kinds,
       useCases,
+      stages: stagesRead.rows,
+      progress: progressRead.rows,
+      goals: goalsRead.rows,
       members: profiles.map((p) => {
         const u = byId.get(p.id)
         const email = String(u?.email ?? '')
@@ -741,8 +926,13 @@ if (URL_BASE && SERVICE_KEY) {
       out('  That key was rejected. SUPABASE_SERVICE_ROLE_KEY must be the service_role')
       out('  key from Project Settings › API — the anon key cannot read profiles.')
     }
-    if (e.code === '42P01') {
+    if (tableIsAbsent(e)) {
+      // NOT 0026/0027 — those three reads are optional and answer "absent"
+      // instead of throwing. Reaching here means one of the tables this script
+      // has always needed is not there.
       out('  A table is missing. 0023, 0024 and 0025 must all be applied first.')
+      out('  (0026 and 0027 are NOT required to get this far: a file whose `stage`,')
+      out('  `target_date` and `target` columns are blank imports without them.)')
     }
     out('')
     process.exit(1)
@@ -827,6 +1017,14 @@ const plan = planStructure({
   kinds: snapshot.kinds,
   members: snapshot.members,
   useCases: snapshot.useCases,
+  stages: snapshot.stages,
+  progress: snapshot.progress,
+  goals: snapshot.goals,
+  // What the probe found, not what this repository's migrations folder holds.
+  // A file whose stage/goal columns are blank plans and applies perfectly
+  // against a project where 0026 and 0027 have not been run; one that speaks
+  // about a stage meets a refusal that names the migration and the runbook.
+  schema,
   addUseCases: ADD_USE_CASES,
 })
 
@@ -845,6 +1043,18 @@ const summary = { ...plan.summary, rows: parsed.rows.length, refusals: refusals.
 out(renderPlan({ ...plan, refusals, summary }, { apply: APPLY, file: positionals[0] }))
 
 out(`  Project: ${refLabel(projectRef(URL_BASE))} · ${snapshot.tracks.length} track(s) · ${snapshot.nodes.length} existing node(s) · ${snapshot.useCases.length} use case(s)`)
+// SAID EVERY RUN, NOT ONLY WHEN A ROW TRIPS OVER IT. "The ladder has 7 rungs"
+// is how a reader confirms his `stage` cells have something to match; "0026 has
+// not been run here" is how he understands why the three new columns did
+// nothing on a file where he left them blank.
+out(
+  schema.stages
+    ? `           stages: ${snapshot.stages.length} rung(s) · ${snapshot.progress.length} node(s) already placed on one${schema.goals ? ` · ${snapshot.goals.length} goal(s)` : ''}`
+    : '           stages: 0026 HAS NOT BEEN RUN HERE — the `stage` column can do nothing yet (docs/RUN-0026-0027-0028.md)',
+)
+if (schema.stages && !schema.goals) {
+  out('           goals: 0027 HAS NOT BEEN RUN HERE — `target_date` and `target` can do nothing yet')
+}
 out('')
 
 if (refusals.length) {
@@ -911,7 +1121,15 @@ const failures = []
 // reason. A half-applied import is the case with no other record: the CSV
 // describes a tree that is not there and the plan is gone with the process.
 const RUN_STARTED_AT = new Date().toISOString()
-const wrote = { createdUseCases: [], createdNodes: [], updatedNodes: [], setUseCases: [], clearedUseCases: [] }
+const wrote = {
+  createdUseCases: [],
+  createdNodes: [],
+  updatedNodes: [],
+  setUseCases: [],
+  clearedUseCases: [],
+  createdGoals: [],
+  updatedGoals: [],
+}
 
 /**
  * The planner's field names -> the columns a PATCH names. One mapping, used by
@@ -1239,6 +1457,135 @@ if (!aborted) {
       failures.push(
         `${action.path.join(' > ')} / ${action.useCase}: clear failed — ${e.message}${e.code ? ` [${e.code}]` : ''}`,
       )
+    }
+  }
+}
+
+// ⑤ the stages. ONE UPSERT, keyed on `node_id`, which is the primary key of
+// `map_node_progress` (0026) — so `merge-duplicates` is an update for a node
+// already on the ladder and an insert for one nobody had placed, in one call.
+//
+// ⚠ `stage_changed_at` IS NOT SENT, AND MUST NOT BE. 0026's stamp trigger is
+// the only writer of that column and it overrules a client value rather than
+// rejecting it; sending one would be a line of code that appears to work and
+// silently does nothing. `updated_by` is left null for the same honesty the
+// node creates use: the service role has no `auth.uid()`, and a stage recorded
+// by an import was recorded by nobody in particular.
+if (!aborted) {
+  const stageActions = plan.actions.filter((a) => a.kind === 'set-stage')
+  const stageRows = stageActions.map((a) => ({
+    node_id: a.nodeId ?? idByKey.get(a.key),
+    stage_id: a.stageId,
+  }))
+  const unplaceable = stageActions.filter((_, i) => !stageRows[i].node_id)
+  if (unplaceable.length) {
+    failures.push(`internal: ${unplaceable.length} stage(s) could not be resolved to a node id.`)
+  }
+  const readyStages = stageRows.filter((r) => r.node_id)
+  const readyStageActions = stageActions.filter((_, i) => stageRows[i].node_id)
+  if (readyStages.length) {
+    try {
+      await rest(`/rest/v1/${PROGRESS_TABLE}`, {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(readyStages),
+      })
+      readyStageActions.forEach((a, i) => {
+        // ⚠ RECORDED AS AN `updatedNodes` CHANGE, TAGGED WITH ITS TABLE. See
+        // importManifest's PROGRESS_TABLE note: a stage is a field of a node
+        // this run overwrote, and `hadRow` is the one fact the undo cannot
+        // recover afterwards — it decides between putting the old stage back
+        // and deleting a row that was not there before this run.
+        wrote.updatedNodes.push({
+          id: readyStages[i].node_id,
+          path: a.path,
+          changes: [
+            {
+              column: 'stage_id',
+              from: a.from ?? null,
+              to: a.stageId,
+              fromLabel: a.fromLabel || null,
+              toLabel: a.stageName,
+              table: PROGRESS_TABLE,
+              hadRow: Boolean(a.hadRow),
+            },
+          ],
+        })
+      })
+      landed.push(`${readyStages.length} stage(s) recorded`)
+    } catch (e) {
+      failures.push(
+        `stages: ${e.message}${e.code ? ` [${e.code}]` : ''} — none of the ${readyStages.length} were recorded`,
+      )
+    }
+  }
+}
+
+// ⑥ the goals. One POST for the new ones (their ids come back and the manifest
+// cannot name them any other way — 0027 has no unique index to re-find them
+// by), then one PATCH each for the moved ones.
+if (!aborted) {
+  const goalCreates = plan.actions.filter((a) => a.kind === 'create-goal')
+  const goalRows = goalCreates.map((a) => ({
+    node_id: a.nodeId ?? idByKey.get(a.key),
+    // '' AND NULL, DELIBERATELY, AND THIS SHAPE IS WHAT MAKES A RE-RUN EMPTY.
+    // The planner finds "the goal this file wrote" by looking for the one with
+    // no label and no stage; writing anything else here would make the next run
+    // add a second identical commitment beside the first, forever.
+    label: '',
+    label_ar: '',
+    stage_id: null,
+    target: a.target,
+    target_date: a.targetDate,
+  }))
+  const homeless = goalCreates.filter((_, i) => !goalRows[i].node_id)
+  if (homeless.length) failures.push(`internal: ${homeless.length} goal(s) could not be resolved to a node id.`)
+  const readyGoals = goalRows.filter((r) => r.node_id)
+  const readyGoalActions = goalCreates.filter((_, i) => goalRows[i].node_id)
+  if (readyGoals.length) {
+    try {
+      const { payload } = await rest('/rest/v1/map_node_goals', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(readyGoals),
+      })
+      const created = Array.isArray(payload) ? payload : [payload]
+      created.forEach((row, i) => {
+        wrote.createdGoals.push({
+          id: row?.id,
+          nodeId: readyGoals[i].node_id,
+          path: readyGoalActions[i].path,
+          target: readyGoalActions[i].target,
+          targetDate: readyGoalActions[i].targetDate,
+        })
+      })
+      landed.push(`${readyGoals.length} goal(s) written`)
+    } catch (e) {
+      failures.push(`goals: ${e.message}${e.code ? ` [${e.code}]` : ''} — none of the ${readyGoals.length} were written`)
+    }
+  }
+
+  for (const action of plan.actions.filter((a) => a.kind === 'update-goal')) {
+    try {
+      await rest(`/rest/v1/map_node_goals?id=eq.${encodeURIComponent(action.goalId)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ target: action.target, target_date: action.targetDate }),
+      })
+      wrote.updatedGoals.push({
+        id: action.goalId,
+        nodeId: action.nodeId,
+        path: action.path,
+        target: action.target,
+        targetDate: action.targetDate,
+        // The commitment as it stood BEFORE this run. Without these two the
+        // undo could only delete a goal somebody else had made.
+        previousTarget: action.from?.target ?? null,
+        previousTargetDate: action.from?.targetDate ?? '',
+      })
+      landed.push(`goal moved on ${action.path.join(' > ')}`)
+    } catch (e) {
+      failures.push(`${action.path.join(' > ')}: goal update failed — ${e.message}${e.code ? ` [${e.code}]` : ''}`)
     }
   }
 }

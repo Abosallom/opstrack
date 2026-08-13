@@ -1,7 +1,7 @@
-﻿path,name_ar,kind,account_manager,vendor,description,description_ar,ADT,Medication Prescribe V1,Medication Prescribe V2,Medication Dispense V1,Medication Dispense V2,Radiology Order,Radiology Report,Lab Order,Lab Results,Clinical Notes
-UHR > Onboarding,الانضمام,Programme,,,Bringing provider organizations onto the Unified Health Record.,,,,,,,,,,,
-UHR > Onboarding > Wave 1 Hospitals,مستشفيات الموجة الأولى,Phase,,,Tertiary hospitals in the first onboarding wave.,,,,,,,,,,,
-UHR > Onboarding > Wave 1 Hospitals > Al Faridah General Hospital,مستشفى الفريدة العام,Organization,sample.username,Sahab Health Systems,Flagship site; live since the pilot.,الموقع الرئيسي؛ يعمل منذ المرحلة التجريبية.,live,live,testing,live,,testing,testing,live,live,planned
-UHR > Onboarding > Wave 1 Hospitals > Nakhil Specialist Hospital,,Organization,sample.member@example.com,"Mirqab Integration Co., Riyadh",Two sites behind one integration: Nakhil North and Nakhil South.,,testing,planned,,,,,,planned,planned,
-UHR > Onboarding > Wave 2 Clinics > Rawdah Family Clinic,عيادة الروضة للأسرة,Organization,,,"The ""Wave 2 Clinics"" level has no row of its own and is created for us.",,planned,,,,,,,,,
-UHR > Onboarding > Wave 2 Clinics > Sadeem Medical Centre,,,Sample Member,Sahab Health Systems,,,planned,,,,,,,,,
+﻿path,name_ar,kind,account_manager,vendor,description,description_ar,stage,target_date,target,ADT,Medication Prescribe V1,Medication Prescribe V2,Medication Dispense V1,Medication Dispense V2,Radiology Order,Radiology Report,Lab Order,Lab Results,Clinical Notes
+UHR > Onboarding,الانضمام,Programme,,,Bringing provider organizations onto the Unified Health Record.,,,2026-12-31,40,,,,,,,,,,
+UHR > Onboarding > Wave 1 Hospitals,مستشفيات الموجة الأولى,Phase,,,Tertiary hospitals in the first onboarding wave.,,,2026-06-30,12,,,,,,,,,,
+UHR > Onboarding > Wave 1 Hospitals > Al Faridah General Hospital,مستشفى الفريدة العام,Organization,sample.username,Sahab Health Systems,Flagship site; live since the pilot.,الموقع الرئيسي؛ يعمل منذ المرحلة التجريبية.,Live,,,live,live,testing,live,,testing,testing,live,live,planned
+UHR > Onboarding > Wave 1 Hospitals > Nakhil Specialist Hospital,,Organization,sample.member@example.com,"Mirqab Integration Co., Riyadh",Two sites behind one integration: Nakhil North and Nakhil South.,,Testing/UAT,2026-09-30,,testing,planned,,,,,,planned,planned,
+UHR > Onboarding > Wave 2 Clinics > Rawdah Family Clinic,عيادة الروضة للأسرة,Organization,,,"The ""Wave 2 Clinics"" level has no row of its own and is created for us.",,Kickoff,,,planned,,,,,,,,,
+UHR > Onboarding > Wave 2 Clinics > Sadeem Medical Centre,,,Sample Member,Sahab Health Systems,,,,,,planned,,,,,,,,,

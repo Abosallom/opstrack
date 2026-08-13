@@ -93,10 +93,31 @@
    an admin types into TrackEditor and the guarantee has to hold for all of them,
    not for the five seeded hues somebody looked at. `color-mix(in srgb, …)` is
    modelled as the channel-wise blend of the gamma-encoded values, which is what
-   the engines do. The quoted number is the WORST over the whole sweep.
+   the engines do. The quoted number is the WORST over the whole sweep, and where
+   a figure is instead the worst over a NAMED PALETTE the row says so — mixing
+   the two bases silently is how three of these went wrong.
 
    Figures read dark / light. Every one names the surface it was measured
    against, because a ratio without its background is not a measurement.
+
+   ⚠ RE-DERIVED WHOLESALE against `--accent` = #9884d6 dark / #322067 light.
+     Every accent row in this file previously reproduced bit-exact for #58a6ff —
+     the accent TWO generations ago — because the pass that repainted the theme
+     updated only the figures that MATCHED the accent it was replacing, and rows
+     stale since an earlier repaint matched nothing it was looking for. The
+     recompute below is unconditional: every number in this header and in the
+     rules beneath it was re-run, including the ones that turned out to be right,
+     because "it looks plausible" is exactly the check that failed. Rows that did
+     not move are still measurements; they are just measurements of tokens the
+     accent never touched.
+
+     The rows that DID move: the focus stroke's three (4.07/4.36 · 3.29/3.74 ·
+     6.72/6.32 → 3.24/9.41 · 2.61/8.07 · 5.34/13.65), and the match arc's
+     over-a-fill row (3.15/9.39 → 3.24/9.41). The second of those was certified
+     as "the non-text floor" at 3.29 while actually sitting at 2.61 — UNDER
+     WCAG 1.4.11's 3:1 — which is what the rule at the foot of this sheet now
+     removes rather than re-labels. drag-layer.css quotes the same three and has
+     been corrected with them.
 
    TEXT — 4.5:1, all of it is small text
      label + count ink on a node fill (16%)      6.35 / 5.53
@@ -107,8 +128,12 @@
        on its own fill / on --bg-elev-2          8.12 / 8.99 · 8.41 / 9.06
      chevron count (--text-dim) on --bg-elev-2   6.97 / 5.98
      table warn (--yellow) / bad (--red),
-       on a hovered row                          9.17 / 5.82 · 6.10 / 5.96
-     5 seeded tracks + 12 picker swatches        8.00 / 9.68 at worst
+       on a hovered row (--text 4% over
+       --bg-elev)                                9.17 / 5.82 · 6.10 / 5.96
+     ink on its own fill, over the 6 seeded
+       tracks + 8 picker swatches (NOT the
+       sweep — the palette an admin is
+       actually offered)                         8.00 / 9.68 at worst
 
    NON-TEXT — 3:1 (WCAG 1.4.11)
      node outline + edge, vs the canvas          6.06 / 5.53
@@ -116,19 +141,37 @@
      current-node marker (ink, 2px), vs canvas   6.06 / 5.53
      chevron ring (ink), vs --bg-elev-2          5.25 / 4.70
      breach dot (--red) vs any node fill         4.07 / 4.45
-     focus stroke (--accent) vs a node fill      4.07 / 4.36
-     …vs the hover fill                          3.29 / 3.74  ← the non-text floor
-     …vs the bare canvas (an empty track)        6.72 / 6.32
+     focus stroke (--accent) vs a node fill      3.24 / 9.41  ← the non-text floor
+     …vs the bare canvas (an empty track)        5.34 / 13.65
+     …vs the 22% HOVER fill                      2.61 / 8.07  ← FAILS 3:1, and is
+       why the rule at the foot of this sheet pins a focused node — and every
+       node under a drag — back to its 16% resting fill. The state is unreachable
+       rather than tolerated; see `.mtree-node:focus-visible .mtree-node-box`.
      root outline + legend chip (--field-border)
        on --bg-elev-2                            3.26 / 3.10
 
    ── ADDED BY THE CONTINUOUS DIVE ────────────────────────────────────────────
 
-   Copied here from the two sheets that computed them, so this file stays the
-   ONE table a reader consults. Each is still argued in its own sheet:
+   Restated here from the two sheets that argue them, so this file stays the ONE
+   table a reader consults. Each is still argued in its own sheet:
    `components/mindtree/mind-ring.css` for the world rim and the match arc,
    `components/map/map-altitude.css` for the rail. Same sweep, same method, same
    dark / light order.
+
+   ⚠ RE-DERIVED HERE RATHER THAN QUOTED, which reverses this block's own earlier
+     rule ("quoted rather than re-derived so the two files cannot drift"). That
+     rule is exactly what let them drift: a quote cannot be checked, and a quote
+     of a stale figure looks identical to a quote of a fresh one. Every row below
+     was re-run against the current accent by the same sweep as the block above.
+     Two of the sheets they came from held their own stale copies, and those have
+     since been corrected AT SOURCE rather than only here:
+       · mind-ring.css     match arc over a node fill, 3.15 / 9.39 → 3.24 / 9.41
+       · map-altitude.css  thumb on its own track, 1.38 / 3.73 → 1.42 / 3.74
+                           …and its plate figure, 5.20 / 13.62 → 5.34 / 13.65
+     Neither changed a verdict (the arc still clears 3:1; the thumb still fails
+     and still carries the ring that fixes it), which is exactly why they went
+     unread through two repaints. All four figures were then re-derived a THIRD
+     time, from global.css's hexes alone, by the gate that took this wave.
 
    TEXT — 4.5:1
      rim label (--text) on --bg                 15.74 / 16.44
@@ -142,7 +185,7 @@
    NON-TEXT — 3:1
      match arc (--accent) on --bg                5.78 / 12.60
      …on --bg-elev-2                             4.63 / 11.60
-     …over the worst 16% node fill               3.15 / 9.39
+     …over the worst 16% node fill               3.24 / 9.41
      dive rail track + ticks (--field-border),
        on the plate (--bg-elev)                  3.77 / 3.65
      dive rail thumb (--accent), on the plate    5.34 / 13.65
@@ -152,9 +195,11 @@
 
    THE MATCH COUNT IS `--text` AND THE ARC IT COUNTS IS `--accent`, which looks
    like an inconsistency and is the measurement: over the worst node fill the
-   accent is 3.15 / 9.39 — comfortably past the 3:1 a non-text arc owes and below
-   the 4.5:1 a numeral owes. One token cannot do both jobs. Same move as
-   `--vocab-ink`, one level down.
+   accent is 3.24 / 9.41 — past the 3:1 a non-text arc owes and, in the DARK
+   theme, below the 4.5:1 a numeral owes. One token cannot do both jobs. Same
+   move as `--vocab-ink`, one level down. (The margin is 0.24 dark, and it is
+   thin on purpose rather than by luck: the arc is a mark on top of a fill whose
+   hue an admin types in, and the sweep's worst case is a near-white track.)
 
    THE INK IS THE HUE MIXED 35% INTO THE THEME'S OWN `--text`, which is exactly
    global.css's `--vocab-ink` move applied to the track pair: STOP ASKING ONE HEX
@@ -174,7 +219,7 @@
        full sweep it bottoms out at 1.00 / 1.20, and it fails on the ordinary
        hues too: measured on the FIVE SEEDED TRACKS the node outline came to
        2.17–3.12 dark (PMO worst) and 2.36–2.58 light (Infra worst), and against
-       its own node fill 1.82 / 1.92. `--border` is documented in global.css as
+       its own node fill 1.82 / 1.92 at worst. `--border` is documented in global.css as
        1.46:1 and "deliberately quiet"; there is no headroom in it to spend.
      · `--field-border` AS THE ANCHOR survives the non-text floor and fails the
        text one, which is the floor that matters for a token that also paints
@@ -184,19 +229,21 @@
      · THE RAW HUE, for the current-node marker — see that rule below. Floor
        1.00:1 over the sweep and 2.97:1 on the DEFAULT track colour.
 
-   AND THE FILL IS NOT A BOUNDARY. At 12% over `--bg-elev` the composite measured
-   1.12–1.23 against the canvas across the seeded tracks — the card was invisible
+   AND THE FILL IS NOT A BOUNDARY. At 12% over `--bg-elev` the composite measures
+   1.12–1.23 dark and 1.17–1.19 light against the canvas across the seeded tracks — the card was invisible
    and the (failing) outline was carrying it alone. 16% is still a wash rather
    than a block of colour, and the card is now found by its outline, which is
    measured.
 
    OPACITY IS NEVER USED TO CUE DEPTH. Fading a stroke composites it toward the
-   canvas and hands its measured ratio back: at `opacity: .55` the edge ink drops
-   from 6.06 / 5.53 to 3.76 / 3.20 — still over 3:1, but that is the entire
-   headroom spent on decoration, and it is spent in the LIGHT theme where there
-   was least of it. (The same fade over the rejected `--border` ink measured
-   1.66 / 1.60, which is where this rule came from.) Depth is cued by STROKE
-   WIDTH below, which costs no contrast at all.
+   canvas and hands its measured ratio back. At `opacity: .55` the edge ink drops
+   from 6.06 / 5.53 to 2.77 / 2.26 over the SWEEP — under 3:1 outright — and to
+   3.76 / 3.20 over the six seeded tracks, which is the number this paragraph
+   used to quote against the sweep's own 6.06: two bases, one sentence, and the
+   fade read as merely expensive when on a free hex it is disqualifying. (The
+   same fade over the rejected `--border` ink measures 1.00 / 1.10 swept and
+   1.46–1.80 / 1.56–1.62 across the seeded six, which is where this rule came
+   from.) Depth is cued by STROKE WIDTH below, which costs no contrast at all.
 
    MOTION comes in two speeds and both are declared, not improvised.
 
@@ -897,9 +944,11 @@
 
 /* The deeper the ring, the quieter the connector, so the eye reads the trunk
    first — but by WIDTH, never by opacity. See the header: fading a stroke
-   composites it toward the canvas, and the leaf edges measured 1.60:1 that way.
-   Width costs nothing, and the budget is untouched: this is depth cueing, not a
-   third visual variable. */
+   composites it toward the canvas, and the leaf edges measure 1.46–1.80 dark /
+   1.56–1.62 light that way across the seeded six (1.00 / 1.10 over the full
+   sweep) — this sheet's original `--border` ink at `opacity: .55`. Width costs
+   nothing, and the budget is untouched: this is depth cueing, not a third visual
+   variable. */
 .mtree-edge[data-depth='1'] {
   stroke-width: 2;
 }
@@ -1011,6 +1060,46 @@
   .mtree-node:hover .mtree-node-box {
     fill: color-mix(in srgb, var(--track-color) 22%, var(--bg-elev));
   }
+}
+
+/* ⚠ THE HOVER TINT STANDS DOWN WHERE AN `--accent` MARK IS DRAWN, and this rule
+   is a MEASUREMENT rather than a preference.
+
+   `--accent` over a node fill is the one mark on this map whose contrast depends
+   on a colour an admin typed: over the 16% resting fill the sweep's worst case
+   is 3.24 / 9.41, and over the 22% hover fill it is 2.61 / 8.07 — UNDER WCAG
+   1.4.11's 3:1, in the dark theme, for any track hue near white. Two marks land
+   there: the focus ring at the foot of this sheet, and drag-layer.css's
+   accepting outline, which is drawn over the node the pointer is resting on and
+   therefore over a HOVERED node by construction. Both were certified as passing
+   at a figure computed for an accent two generations old.
+
+   THE FIX IS TO REMOVE THE STATE, NOT TO RE-LABEL IT. Neither mark can be given
+   a backing ring (the ring's own colour would be measured against the same free
+   hex) and the accent cannot be re-chosen for one mark without unpicking the
+   theme, so the 22% tint — which exists to say "the pointer is here", a thing
+   both of these marks say louder — is dropped for exactly as long as one of them
+   is on screen. The certified figure becomes the resting fill's 3.24 / 9.41 and
+   the sub-3:1 combination is unreachable rather than tolerated.
+
+   `:has()` IS ALREADY IN THIS CODEBASE (map-numbers.css, map-panel.css), and the
+   selector is cheap: `.mtree-drag-overlay` is rendered by `MindDropTargets` ONLY
+   while a lift is in flight, inside the same <svg> as the nodes, so the whole
+   rule is dormant except during a drag. Specificity beats the rule above it
+   without depending on order — (0,4,1) and (0,3,0) against its (0,2,0) — and
+   neither declaration touches `stroke`, which the focus block below reserves. */
+.mtree-node:focus-visible:hover .mtree-node-box,
+svg:has(.mtree-drag-overlay) .mtree-node:hover .mtree-node-box {
+  fill: var(--mtree-fill);
+}
+
+/* An EMPTY node has no fill to return to — `[data-empty]` paints `transparent`
+   and the accent then measures against the bare canvas at 5.34 / 13.65, the
+   safest of the three surfaces. Restated so the rule above is not read as
+   quietly filling in a card the drawing deliberately leaves hollow. */
+.mtree-node[data-empty]:focus-visible:hover .mtree-node-box,
+svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
+  fill: transparent;
 }
 
 /* The node the reader last acted on, kept marked after focus moves away — so a
@@ -1156,10 +1245,20 @@
    focus ring everywhere else, and a dashed 2.5px ring is the weaker of the two
    anyway. One ring, one look, on every fill this map can produce.
 
-   2.5px of --accent measures 4.07 / 4.36 (dark / light) on a node fill, 3.29 /
-   3.74 on the hover fill — the floor — and 6.72 / 6.32 on the bare canvas that
-   an empty track's `transparent` fill exposes. Past 3:1 for all 140,608 hues in
-   the sweep, in both themes. */
+   ⚠ 2.5px of --accent measures 3.24 / 9.41 (dark / light) on the 16% resting
+   fill and 5.34 / 13.65 on the bare canvas an empty track's `transparent` fill
+   exposes — past 3:1 for all 140,608 hues in the sweep, in both themes, and the
+   dark figure is the whole sheet's non-text floor.
+
+   THE THIRD SURFACE IS GONE RATHER THAN QUOTED. On the 22% HOVER fill the same
+   stroke measures 2.61 / 8.07, which fails WCAG 1.4.11 — and this sheet
+   certified that exact row as passing, at 3.29, for two accent generations,
+   because the figure was computed for #58a6ff and never re-run. A focused node
+   under the pointer is not an exotic combination; it is what happens when a
+   reader tabs to the node their mouse is already resting on. The hover rule
+   above now stands the tint down for a focused node (and for every node while a
+   drag is in flight, which is drag-layer.css's accepting outline in the same
+   bind), so the failing pair cannot be composed on screen. */
 .mtree-node:focus-visible .mtree-node-box {
   stroke: var(--accent);
   stroke-width: calc(2.5px * var(--mtree-hair, 1));

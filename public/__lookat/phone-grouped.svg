@@ -1245,6 +1245,18 @@ textarea.input {
 }
 
 
+.mtree-node:focus-visible:hover .mtree-node-box,
+svg:has(.mtree-drag-overlay) .mtree-node:hover .mtree-node-box {
+  fill: var(--mtree-fill);
+}
+
+
+.mtree-node[data-empty]:focus-visible:hover .mtree-node-box,
+svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
+  fill: transparent;
+}
+
+
 .mtree-node[data-current] .mtree-node-box {
   stroke: var(--mtree-ink);
   stroke-width: calc(2px * var(--mtree-hair, 1));

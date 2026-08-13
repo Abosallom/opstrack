@@ -177,6 +177,11 @@ export interface MindMenuRun {
    * repeating them is what makes the act audible to a reader who cannot see the
    * branch leave. Counts are DIRECT children and DIRECT entries — see
    * `archiveConfirmCopy` on why that is stated rather than deepened.
+   *
+   * READ BY `archiveAnnouncement`, which `useMapWrites.runMenu` speaks. It was
+   * carried and read by nothing for a whole wave — the promise above was made by
+   * this comment and kept by nobody — so the reader who most needed the counts
+   * was the one reader who never got them.
    */
   readonly usage?: MapNodeUsage | null
 }
@@ -990,19 +995,54 @@ export function confirmFor(run: MindMenuRun, title: string, label: string): Conf
  * The question ARCHIVING A BRANCH asks, with the cascade in it.
  *
  * THE COUNTS ARRIVE BEFORE THE CLICK OR THE CLICK DOES NOT HAPPEN. Archiving a
- * node takes its whole subtree off the map — `store/config.ts` drops the
- * children of an archived parent — and there is nothing on a canvas that says
- * so. `api/map.ts`'s own header states the rule this function implements: the
- * screen has to say so before the click, and the function must not discover it
- * afterwards.
+ * node changes what a canvas is drawing and there is nothing on a canvas that
+ * says so. `api/map.ts`'s own header states the rule this function implements:
+ * the screen has to say so before the click, and the function must not discover
+ * it afterwards.
  *
- * THE NUMBERS ARE DIRECT, AND THE SENTENCES SAY DIRECT. `getMapNodeUsage`
- * counts rows whose `parent_id` (or `node_id`) IS this node — one level, not the
- * subtree — because those are exactly the counts 0023's delete guard computes.
- * The cascade goes deeper than that, so the base sentence states the cascade in
- * words ("and everything beneath them") rather than putting a number on it that
- * would be smaller than the truth. A branch labelled 12 showing 3 is the worst
- * thing this map can do, and it is no better inside a dialog.
+ * ── ⚠ WHAT IT SAYS IS THE MODEL'S RULE, NOT THE STORE'S ────────────────────
+ *
+ * This copy said "It leaves the map, and so does everything beneath it", and for
+ * the branch a reader is most likely to archive that was the OPPOSITE of what
+ * happens. The sentence was written against store/config.ts's `deriveMap`, which
+ * does drop the children of an archived parent — but that feeds `mapChildren` /
+ * `mapRoots`, and the CANVAS does not draw entities from those. It draws
+ * `buildMindtree`, whose rule is one line:
+ *
+ *     lib/mindtree/model.ts:1910
+ *       if (entity.archived && node.count === 0 && node.children.length === 0)
+ *         return null
+ *
+ * — "an archived entity is drawn only if it still matters", and the header above
+ * it argues the case deliberately: hiding a thing must never hide DATA, and a
+ * parent labelled 12 whose children sum to 9 is worse than a greyed-out branch.
+ * `model.test.ts` pins it ("keeps an archived Org that still holds work, marked
+ * retired"). So an Organization holding twelve open items stays on the canvas
+ * after it is archived, Archived-badged, with all twelve visible — and the old
+ * copy's count clauses were GUARDED to appear in exactly that case, which is
+ * precisely the case in which they were false.
+ *
+ * The two outcomes are therefore SEPARATE SENTENCES and the guard chooses
+ * between them:
+ *
+ *   nothing filed, nothing beneath   it leaves the map on confirm. (`count === 0
+ *                                    && children.length === 0` — both halves of
+ *                                    the model's test, from the direct counts.)
+ *   items filed on it                it STAYS, marked, for as long as any of
+ *                                    them is open. The map draws open work
+ *                                    (`applied` pins `scope: 'open'`), so
+ *                                    closing or moving the last one is what
+ *                                    finally takes the branch off it.
+ *   branches beneath it              each is archived by 0023's cascade and each
+ *                                    stays under the same rule, bottom-up.
+ *
+ * THE NUMBERS ARE DIRECT, AND THE SENTENCES SAY DIRECT. `getMapNodeUsage` counts
+ * rows whose `parent_id` (or `node_id`) IS this node — one level, not the
+ * subtree — because those are exactly the counts 0023's delete guard computes. A
+ * branch labelled 12 showing 3 is the worst thing this map can do, and it is no
+ * better inside a dialog. It also counts entries REGARDLESS OF STATUS, which is
+ * why no sentence here calls them open: it says they are filed on it, and ties
+ * the branch's fate to whether any of them is still open.
  *
  * A ZERO IS NOT PRINTED. English has no CLDR `zero` form, so
  * `t('…', {count: 0})` selects `other` and renders "0 branches go with it" —
@@ -1019,8 +1059,12 @@ export function confirmFor(run: MindMenuRun, title: string, label: string): Conf
  */
 export function archiveConfirmCopy(label: string, usage: MapNodeUsage): ConfirmCopy {
   const parts = [t('mindtree.confirmArchiveBody')]
-  if (usage.children > 0) parts.push(t('mindtree.confirmArchiveBranches', { count: usage.children }))
   if (usage.entries > 0) parts.push(t('mindtree.confirmArchiveItems', { count: usage.entries }))
+  if (usage.children > 0) parts.push(t('mindtree.confirmArchiveBranches', { count: usage.children }))
+  // THE ONLY CASE THE MODEL ACTUALLY DROPS. Both halves of its test, read off
+  // the two direct counts: nothing filed here and nothing beneath here means
+  // `count === 0 && children.length === 0` for certain.
+  if (usage.entries === 0 && usage.children === 0) parts.push(t('mindtree.confirmArchiveEmpty'))
   parts.push(t('mindtree.confirmArchiveTrap'))
   return {
     title: t('mindtree.confirmArchiveTitle', { label }),
@@ -1034,6 +1078,62 @@ export function archiveConfirmCopy(label: string, usage: MapNodeUsage): ConfirmC
     cancelLabel: t('common.cancel'),
     danger: true,
   }
+}
+
+/**
+ * WHAT A READER WHO CANNOT SEE THE BRANCH HEARS, a moment after they confirmed.
+ *
+ * ── IT SAYS THE COUNTS THE DIALOG SAID, WHICH IS WHAT `usage` IS FOR ───────
+ *
+ * `MindMenuRun.usage` was filled on the confirmed `archiveBranch` run and its
+ * docstring promised that "the live region repeating them is what makes the act
+ * audible to a reader who cannot see the branch leave" — and nothing read it.
+ * The announcement named the label and nothing else, so a blind reader confirmed
+ * a dialog naming 3 branches and 12 items and then heard a sentence naming
+ * neither. That is the field wired, and it is why this function lives HERE and
+ * not in `useMapWrites`: the question and the answer are one contract, and the
+ * defect they were half of was two files each believing the other spoke.
+ *
+ * SAME RULE, PAST TENSE. The outcome clause is chosen by the same guard
+ * `archiveConfirmCopy` uses, against the same line of model.ts — nothing filed
+ * and nothing beneath means the branch is gone; anything else means it is still
+ * drawn, marked, for as long as open work is filed beneath it. The two sentences
+ * cannot disagree, because they are one `if`.
+ *
+ * ⚠ THE `stays` CLAUSE IS CONDITIONAL, AND THAT IS NOT STYLE. The guard is over
+ *   DIRECT counts, and `usage.children > 0` does NOT imply the branch survives:
+ *   0023's cascade archives every descendant, and model.ts's rule then drops each
+ *   EMPTY archived one bottom-up — so an Org with three departments and no work
+ *   anywhere under it leaves the map exactly as an empty Org does. An
+ *   unconditional "it stays on the map until the work beneath it moves or
+ *   closes" is false for that shape, which is Fable #3's own mistake one level
+ *   further in. `for as long as open work is filed beneath it` is true for every
+ *   shape the clause fires on, including the one where the answer is "no time at
+ *   all". Both bundles carry the condition; NodeMenu.test.tsx pins the shape.
+ *
+ * A NULL `usage` SAYS ONLY THAT IT WAS ARCHIVED. The field is optional on
+ * `MindMenuRun` so a caller that never asked stays representable; a caller that
+ * never asked does not know which outcome happened, and guessing one would
+ * reintroduce the whole defect in a quieter voice.
+ */
+export function archiveAnnouncement(label: string, usage: MapNodeUsage | null): string {
+  const parts = [t('mindtree.branchArchived', { label })]
+  if (usage !== null) {
+    // GUARDED, for `archiveConfirmCopy`'s reason: English has no `zero` form, so
+    // an unguarded count would speak "0 items are filed on it".
+    if (usage.entries > 0) parts.push(t('mindtree.branchArchivedItems', { count: usage.entries }))
+    if (usage.children > 0)
+      parts.push(t('mindtree.branchArchivedBranches', { count: usage.children }))
+    parts.push(
+      usage.entries === 0 && usage.children === 0
+        ? t('mindtree.branchArchivedGone')
+        : t('mindtree.branchArchivedStays'),
+    )
+  }
+  // Joined as the dialog's body is joined, and for the same reason: each part is
+  // a whole sentence with its own punctuation in both bundles, and the only
+  // interpolated text is `label`, which its own locale string fences.
+  return parts.join(' ')
 }
 
 /* ─────────────────────────────── the panel ───────────────────────────────── */

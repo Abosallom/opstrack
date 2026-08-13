@@ -545,24 +545,83 @@ export function mapPortfolioFromParams(p: URLSearchParams): MapUrlPortfolio {
  * `mapParamsForLens`'s shape, so all three compose without either owning the
  * other's names.
  *
- * A DEFAULT IS NEVER SPELLED OUT, which is `mapParamsForLens`'s rule for
- * `?stage=` applied to both of these. The default state IS the chip's own state,
- * so writing `?by=stage&risk=1` on every portfolio link would put two redundant
- * params in front of every reader for the one case that round-trips without
- * them. The values that carry an opinion — `by=manager`, `risk=0` — are written,
- * and `mapPortfolioFromParams` reads either form back identically, which is what
- * lets the palette's rows spell them out in full and still round-trip.
+ * ⚠ `?by=` IS ALWAYS SPELLED, AND `?risk=` IS NOT. That asymmetry is deliberate
+ * and it is the whole of wave 8's fix to budget E9. `?risk=` has two states and
+ * the absent one is the default, so suppressing it loses nothing. `?by=` has
+ * THREE: the reader chose `stage`, the reader chose something else, and the
+ * reader has not chosen at all — and the third is not a spelling of the first.
+ * The canvas reads an unchosen `?by=` as UNGROUPED (Mindtree.tsx's `canvasBy`)
+ * while the table keeps its stalled-by-stage opening, so collapsing "chose
+ * stage" and "chose nothing" into one address is what made a pressed `Stage`
+ * chip die on reload. Every call here is a reader's own choice — a chip, a
+ * palette row — so every call spells it. The one writer that must NOT invent a
+ * choice is the filter keystroke, and it has its own function below.
+ *
+ * `mapPortfolioFromParams` still reads either form back identically, which is
+ * what lets the palette's rows spell them out in full and still round-trip.
  */
 export function mapParamsForPortfolio(
   p: URLSearchParams,
   v: MapUrlPortfolio,
 ): URLSearchParams {
   const next = new URLSearchParams(p)
-  if (v.by === DEFAULT_PORTFOLIO_BY) next.delete(P_BY)
-  else next.set(P_BY, v.by)
+  next.set(P_BY, v.by)
   if (v.risk === DEFAULT_PORTFOLIO_RISK) next.delete(P_RISK)
   else next.set(P_RISK, v.risk ? '1' : '0')
   return next
+}
+
+/**
+ * DID THE READER CHOOSE A GROUPING, OR DID THEY JUST ARRIVE?
+ *
+ * The third state `mapPortfolioFromParams` cannot express, because that reader
+ * is total by design and answers with the default. Read off the RAW param: a
+ * spelled, recognised `?by=` is a choice; absent, blank or hostile is not. It is
+ * the same predicate `mapPortfolioFromParams` uses to accept the value, so the
+ * two cannot disagree about what counts as spelled.
+ *
+ * Only the canvas asks. The table's default IS `stage` either way, so nothing
+ * downstream of the portfolio rows reads this.
+ */
+export function mapPortfolioChosen(p: URLSearchParams): boolean {
+  return isPortfolioBy(p.get(P_BY))
+}
+
+/**
+ * CARRY THE PORTFOLIO'S TWO PARAMS THROUGH A WRITE THAT DID NOT TOUCH THEM —
+ * absence included, which is the reason this is not `mapParamsForPortfolio`.
+ *
+ * `mapPortfolioFromParams` is total: handed a URL with no `?by=` it answers
+ * `stage`, and writing THAT back through the chooser would tell the canvas the
+ * reader had pressed `Stage`. One character typed into the search box would
+ * regroup 400 organizations into stage rings nobody asked for. So the raw pair
+ * is copied instead, normalised only enough that a hostile value cannot survive
+ * as a choice.
+ */
+function carryPortfolioParams(next: URLSearchParams, prev: URLSearchParams): URLSearchParams {
+  const out = carryChoiceOnly(next, prev)
+  const rawRisk = prev.get(P_RISK)
+  if (riskFromParam(rawRisk) === DEFAULT_PORTFOLIO_RISK) out.delete(P_RISK)
+  else out.set(P_RISK, riskFromParam(rawRisk) ? '1' : '0')
+  return out
+}
+
+/**
+ * The `?by=` half of the carry, on its own — because the exception cut needs it
+ * without the rest.
+ *
+ * `?risk=` and `?by=` ride in one setter (the table hands both down in one
+ * object), so a reader toggling `At risk` while having chosen no grouping would
+ * otherwise have `by=stage` written underneath them by the very write that was
+ * about something else, and watch the canvas fall into stage rings. Toggling the
+ * exception cut is not an opinion about how the rings should be cut.
+ */
+function carryChoiceOnly(next: URLSearchParams, prev: URLSearchParams): URLSearchParams {
+  const out = new URLSearchParams(next)
+  const rawBy = prev.get(P_BY)
+  if (isPortfolioBy(rawBy)) out.set(P_BY, rawBy)
+  else out.delete(P_BY)
+  return out
 }
 
 /**
@@ -600,6 +659,10 @@ export function mapPortfolioKey(p: URLSearchParams): string {
  * controls; they live nowhere else, so they are read back off `prev` and put
  * on again. Without that, one character typed into the search box throws a
  * reader looking at the vendor cohorts back to the stalled list mid-word.
+ *
+ * ⚠ IT CARRIES, IT DOES NOT CHOOSE — `carryPortfolioParams`, never
+ * `mapParamsForPortfolio`. A keystroke is not a grouping decision, and since
+ * wave 8 a spelled `?by=` IS one.
  */
 export function mapParamsForFilterWrite(
   prev: URLSearchParams,
@@ -607,7 +670,7 @@ export function mapParamsForFilterWrite(
   view: MindtreeUrlView,
   lens: MapUrlLens,
 ): URLSearchParams {
-  return mapParamsForPortfolio(mapParamsForAll(filter, view, lens), mapPortfolioFromParams(prev))
+  return carryPortfolioParams(mapParamsForAll(filter, view, lens), prev)
 }
 
 /* ── the hooks ──────────────────────────────────────────────────────────── */
@@ -682,7 +745,19 @@ export function useMapUrlFilter(): MapUrlFilter {
 
 export interface MapUrlPortfolioState {
   portfolio: MapUrlPortfolio
-  setPortfolio: (next: MapUrlPortfolio) => void
+  /**
+   * Whether the `?by=` in the address bar was spelled by somebody, as opposed to
+   * defaulted by the reader above. The canvas's opening grouping turns on it;
+   * see `mapPortfolioChosen` and Mindtree.tsx's `canvasBy`.
+   */
+  chosen: boolean
+  /**
+   * `chose` IS NOT OPTIONAL AND HAS NO DEFAULT. Both controls ride in one
+   * object, so the setter cannot tell a grouping press from a risk toggle by
+   * looking at the value; every caller says which it is, and a caller that says
+   * `false` leaves `?by=`'s spelled/unspelled state exactly as it found it.
+   */
+  setPortfolio: (next: MapUrlPortfolio, chose: boolean) => void
 }
 
 /**
@@ -705,15 +780,24 @@ export function useMapUrlPortfolio(): MapUrlPortfolioState {
   // is over the canonical string, which the round-trip case proves is lossless.
   const key = useMemo(() => mapPortfolioKey(params), [params])
   const portfolio = useMemo(() => mapPortfolioFromParams(new URLSearchParams(key)), [key])
+  // NOT off `key`. The key is canonical, and canonicalising is exactly what
+  // erases the difference between a spelled `by=stage` and no `by=` at all.
+  const chosen = useMemo(() => mapPortfolioChosen(params), [params])
 
   const setPortfolio = useCallback(
-    (next: MapUrlPortfolio) => {
-      setParams((prev) => mapParamsForPortfolio(prev, next), { replace: true })
+    (next: MapUrlPortfolio, chose: boolean) => {
+      setParams(
+        (prev) => {
+          const written = mapParamsForPortfolio(prev, next)
+          return chose ? written : carryChoiceOnly(written, prev)
+        },
+        { replace: true },
+      )
     },
     [setParams],
   )
 
-  return { portfolio, setPortfolio }
+  return { portfolio, chosen, setPortfolio }
 }
 
 /**

@@ -45,14 +45,30 @@
 // writes the previous rung back — including "no rung", which is a value the
 // select can hold and the write path can express.
 //
-// ⚠ AN UNDO THAT CANNOT RESTORE "NOBODY HAS SAID" IS NOT AN UNDO, and it is
-//   also not available: `setNodeStage(id, null)` upserts `stage_id = null`,
-//   which is "somebody looked and cleared it" — a DIFFERENT fact from having no
-//   row at all (types.ts states it twice, api/map.ts once more). Undoing the
-//   first stage ever recorded on an organization therefore lands it on "cleared"
-//   rather than back on "never touched", and the toast says nothing false
-//   because the two render identically. Returning a node to "nobody has said" is
-//   a DELETE and is deliberately not a verb this screen has.
+// ⚠ AN UNDO THAT CANNOT RESTORE "NOBODY HAS SAID" IS NOT AN UNDO — and it now
+//   can. `setNodeStage(id, null)` upserts `stage_id = null`, which is "somebody
+//   looked and cleared it": a DIFFERENT fact from having no row at all (types.ts
+//   states it twice, api/map.ts once more). Undoing the FIRST rung ever recorded
+//   on an organization through that path landed it on "cleared" rather than back
+//   on "never touched" — the two render identically as an em-dash, so nothing on
+//   screen said so, and the difference is exactly the one the no-backfill
+//   decision exists to keep: a `stage_changed_at` that does not exist versus one
+//   that has been nulled, and an `updated_by` naming a person who never made a
+//   claim.
+//
+//   So `undoStage` branches on ONE FACT CAPTURED IN THE TAP — did this node have
+//   a progress row a moment before this write — and calls `deleteNodeProgress`
+//   when it did not. `hadRow` is read from the store BEFORE the write, because
+//   the write itself publishes a row and the answer is different by the time the
+//   toast's button is pressed.
+//
+//   THE RETRACTION IS THE ONE PATH THAT STILL REFETCHES. `publishNodeProgress`
+//   can publish a row; there is no `retractNodeProgress` to un-publish one, so
+//   the delete falls back to `invalidateConfig()`. That is the heavy call this
+//   file otherwise exists to avoid — and it is right here: undoing a first-ever
+//   rung is a once-in-a-session act, not the forty-a-morning one, and a targeted
+//   retraction in store/config would be a new export for a single caller. Named
+//   in the handoff rather than hidden.
 //
 // ── THE OPTIMISTIC OVERLAY, AND WHY IT IS A MODULE AND NOT A useState ──────
 //
@@ -86,7 +102,7 @@ import {
   type ReactElement,
 } from 'react'
 import { Link } from 'react-router-dom'
-import { setNodeStage } from '../../api/map'
+import { deleteNodeProgress, setNodeStage } from '../../api/map'
 import { EmptyState } from '../shared'
 import { toast } from '../toast'
 import { isolate } from '../../lib/bidi'
@@ -123,6 +139,7 @@ import {
 } from '../../lib/portfolio/rows'
 import type { FilterContext, FilterState } from '../../lib/entryFilter'
 import {
+  invalidateConfig,
   publishNodeProgress,
   useAllUseCases,
   useMapNodeMap,
@@ -244,6 +261,59 @@ async function writeStage(nodeId: string, stageId: string | null): Promise<boole
    */
   publishNodeProgress(result.data)
   return true
+}
+
+/**
+ * Take the row away again — back to "nobody has said anything about this
+ * organization", which is a state no `setNodeStage` call can express.
+ *
+ * THE OVERLAY IS SET TO `null` FIRST, exactly as `writeStage` does: "no row" and
+ * "a row holding null" render as the same em-dash, so the optimistic cell is
+ * already correct while the delete is in flight, and a failure puts the store's
+ * row back under it.
+ *
+ * `invalidateConfig()` RATHER THAN A PUBLISH, and the header says why: there is
+ * no row to hand to `publishNodeProgress` — the absence IS the result — and
+ * store/config exports no retraction. The refetch is what makes
+ * `useStageReconcile` retire the overlay, because only then does the store agree
+ * that the rung is gone.
+ */
+async function retractStage(nodeId: string): Promise<boolean> {
+  pendingStage.set(nodeId, null)
+  publish()
+  const result = await deleteNodeProgress(nodeId)
+  if (!result.ok) {
+    pendingStage.delete(nodeId)
+    publish()
+    return false
+  }
+  invalidateConfig()
+  return true
+}
+
+/**
+ * PUT IT BACK THE WAY IT WAS — the toast's button, and the one place the two
+ * kinds of "before" are told apart.
+ *
+ * `hadRow` is the state of `map_node_progress` BEFORE the write being undone, as
+ * read in the reader's own tap. False means this write created the row, so
+ * undoing it must DELETE the row rather than write a null into it; true means
+ * the row was already there and `previous` — including `null`, which is a real
+ * value there — is what it held.
+ *
+ * EXPORTED SO THE BRANCH CAN BE PROVEN. `vitest.config.ts` is
+ * `environment: 'node'` and this suite renders through `renderToStaticMarkup` —
+ * there is no button to press and no effect to run, so a decision that lived
+ * only inside the toast's `onClick` is a decision no test can reach.
+ * `useChangesCount` and `runBulk` are exported from their own components for the
+ * same reason: the mechanism is the thing that has to be checkable.
+ */
+export async function undoStage(
+  nodeId: string,
+  previous: string | null,
+  hadRow: boolean,
+): Promise<boolean> {
+  return hadRow ? await writeStage(nodeId, previous) : await retractStage(nodeId)
 }
 
 /**
@@ -673,6 +743,10 @@ export default function PortfolioStage({
   const setOne = useCallback(
     (nodeId: string, next: string | null, previous: string | null) => {
       if (next === previous) return
+      // READ IN THE TAP, NOT IN THE UNDO. `writeStage` publishes the row it
+      // wrote, so by the time the toast's button is pressed every node has a
+      // row and the answer would always be "yes, it was there".
+      const hadRow = storedProgress.has(nodeId)
       announce(
         next === null
           ? t('mindtree.portfolioStageCleared', { name: nameOf(nodeId) })
@@ -691,17 +765,19 @@ export default function PortfolioStage({
             action: {
               label: t('common.undo'),
               onClick: () => {
-                // The PREVIOUS rung, including null. See the header: undoing the
-                // first rung ever recorded lands on "cleared" rather than on
-                // "never touched", and the two render identically.
-                void writeStage(nodeId, previous)
+                // The PREVIOUS rung, including null — or NO ROW AT ALL when this
+                // write is the first anybody ever recorded here. See the
+                // header's ⚠: the two render identically as an em-dash, which is
+                // exactly why the difference has to be carried rather than
+                // eyeballed.
+                void undoStage(nodeId, previous, hadRow)
               },
             },
           },
         )
       })
     },
-    [announce, nameOf, stageWordOf],
+    [announce, nameOf, stageWordOf, storedProgress],
   )
 
   /**
@@ -724,6 +800,11 @@ export default function PortfolioStage({
       const before = new Map<string, string | null>(
         nodeIds.map((id) => [id, resolveStageId(id, storedProgress, pending)]),
       )
+      // BESIDE `before`, AND IT IS NOT THE SAME QUESTION. `before` is which rung
+      // each row stood on; this is whether the row EXISTED. Thirty rows can be
+      // em-dashes for two different reasons, and the undo owes each of them its
+      // own answer — the ones nobody had ever touched go back to untouched.
+      const hadRows = new Set(nodeIds.filter((id) => storedProgress.has(id)))
       setBusy(true)
       const results = await pooled(nodeIds, (id) => writeStage(id, next))
       setBusy(false)
@@ -736,7 +817,7 @@ export default function PortfolioStage({
         onClick: () => {
           void (async () => {
             const ids = nodeIds.filter((id) => !failedIds.includes(id))
-            await pooled(ids, (id) => writeStage(id, before.get(id) ?? null))
+            await pooled(ids, (id) => undoStage(id, before.get(id) ?? null, hadRows.has(id)))
           })()
         },
       }
@@ -1437,6 +1518,9 @@ export function StagePicker({
   const choose = useCallback(
     (next: string | null) => {
       if (next === current) return
+      // The row's own reason, one surface over: read before the write, because
+      // the write creates the row it is asking about.
+      const hadRow = storedProgress.has(nodeId)
       const said =
         next === null
           ? t('mindtree.portfolioStageCleared', { name })
@@ -1451,13 +1535,13 @@ export function StagePicker({
           action: {
             label: t('common.undo'),
             onClick: () => {
-              void writeStage(nodeId, current)
+              void undoStage(nodeId, current, hadRow)
             },
           },
         })
       })
     },
-    [current, name, nodeId, wordOf, announce],
+    [current, name, nodeId, wordOf, announce, storedProgress],
   )
 
   // NO CONTROL WHERE THERE IS NO LADDER. The band's own rule one field up: a
