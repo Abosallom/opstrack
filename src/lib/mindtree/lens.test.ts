@@ -4,7 +4,7 @@
 // WHY EXHAUSTIVENESS IS TESTED AT RUNTIME WHEN TYPESCRIPT ALREADY CHECKS IT.
 // tsc proves a `switch` with no `default:` returns on every path; it does not
 // prove the union was ENUMERATED. `MAP_LENSES` is a hand-written array beside a
-// hand-written union, and the failure that matters is a sixth lens added to the
+// hand-written union, and the failure that matters is a NEXT lens added to the
 // type and forgotten in the array — after which every chip bar, every URL codec
 // and every persistence validator silently disagrees with the type. The two
 // `toEqual` assertions below are the only place that can be caught.
@@ -17,16 +17,21 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_LENS,
+  DEFAULT_PORTFOLIO_BY,
+  DEFAULT_PORTFOLIO_RISK,
   DETENT_KEY,
   LENS_KEY,
   MAP_DETENTS,
   MAP_LENSES,
   MAP_STAGES,
+  PORTFOLIO_BYS,
+  PORTFOLIO_BY_KEY,
   STAGE_KEY,
   allowedStages,
   isMapLens,
   isMapStage,
   isPanelDetent,
+  isPortfolioBy,
   lensNeedsClosedWork,
   phoneDetentFor,
   stageForLens,
@@ -36,6 +41,7 @@ import {
   type MapStage,
   type PanelDetent,
   type PanelSubject,
+  type PortfolioBy,
 } from './lens'
 
 const NODE = 'root/track:11111111-2222-3333-4444-555555555555'
@@ -45,12 +51,30 @@ const NODE = 'root/track:11111111-2222-3333-4444-555555555555'
 describe('the closed unions', () => {
   it('enumerates every lens, stage and detent exactly once', () => {
     expect([...MAP_LENSES].sort()).toEqual(
-      ['by-status', 'needs-me', 'numbers', 'shape', 'what-changed'].sort(),
+      ['by-status', 'needs-me', 'numbers', 'portfolio', 'shape', 'what-changed'].sort(),
     )
-    expect([...MAP_STAGES].sort()).toEqual(['board', 'map', 'numbers', 'table'].sort())
+    expect([...MAP_STAGES].sort()).toEqual(
+      ['board', 'map', 'numbers', 'portfolio', 'table'].sort(),
+    )
     // Ordered smallest first — a detent control steps through the array.
     expect(MAP_DETENTS).toEqual(['peek', 'half', 'full'])
     expect(new Set(MAP_LENSES).size).toBe(MAP_LENSES.length)
+  })
+
+  it('fixes the chip row in READING order, not in arrival order', () => {
+    // MAP_LENSES is what MapLensBar maps over, so this array IS the left-to-right
+    // order of the chips — and the sorted assertion above cannot see it. The
+    // portfolio sits beside `shape` because both ask about the hierarchy; it
+    // must not land at the end merely because it arrived last, which is what
+    // `push` does to a table nobody pins.
+    expect(MAP_LENSES).toEqual([
+      'needs-me',
+      'shape',
+      'portfolio',
+      'by-status',
+      'what-changed',
+      'numbers',
+    ])
   })
 
   it('lands on the attention lens when nothing is persisted', () => {
@@ -78,10 +102,11 @@ describe('the closed unions', () => {
 /* ─────────────────────────── lens → stage → panel ────────────────────────── */
 
 describe('stageForLens', () => {
-  it('answers for all five, and every answer is a real stage', () => {
+  it('answers for all six, and every answer is a real stage', () => {
     const table: Record<MapLens, MapStage> = {
       'needs-me': 'map',
       shape: 'map',
+      portfolio: 'portfolio',
       'by-status': 'board',
       'what-changed': 'map',
       numbers: 'numbers',
@@ -106,6 +131,10 @@ describe('stageWithTable', () => {
     // persisted from a map session cannot blank either of them.
     expect(stageWithTable('by-status', true)).toBe('board')
     expect(stageWithTable('numbers', true)).toBe('numbers')
+    // Neither is the portfolio, which ALREADY is a table: a reader who left the
+    // ledger switch on must not have their organization list swapped for the
+    // tracks ledger the moment they tap the sixth chip.
+    expect(stageWithTable('portfolio', true)).toBe('portfolio')
     for (const lens of MAP_LENSES) expect(stageWithTable(lens, false)).toBe(stageForLens(lens))
   })
 })
@@ -116,6 +145,8 @@ describe('allowedStages', () => {
     expect(allowedStages('needs-me')).toEqual(['map', 'table'])
     expect(allowedStages('by-status')).toEqual(['board'])
     expect(allowedStages('numbers')).toEqual(['numbers'])
+    // No Map|Table pair over a surface that has no canvas to offer.
+    expect(allowedStages('portfolio')).toEqual(['portfolio'])
     for (const lens of MAP_LENSES) {
       expect(allowedStages(lens).length).toBeGreaterThan(0)
       expect(allowedStages(lens)).toContain(stageForLens(lens))
@@ -126,10 +157,11 @@ describe('allowedStages', () => {
 })
 
 describe('subjectForLens', () => {
-  it('answers for all five, with and without a focused node', () => {
+  it('answers for all six, with and without a focused node', () => {
     const withNode: Record<MapLens, PanelSubject> = {
       'needs-me': { kind: 'needsMe' },
       shape: { kind: 'branch', nodeId: NODE },
+      portfolio: { kind: 'branch', nodeId: NODE },
       'by-status': { kind: 'none' },
       'what-changed': { kind: 'changes' },
       numbers: { kind: 'numbers' },
@@ -140,11 +172,29 @@ describe('subjectForLens', () => {
     // nothing focused is `none`, the panel does not render, and the map is the
     // whole width — which is today's screen exactly.
     expect(subjectForLens('shape', null)).toEqual({ kind: 'none' })
+    expect(subjectForLens('portfolio', null)).toEqual({ kind: 'none' })
     // The other four do not depend on the drill-in at all.
     for (const lens of MAP_LENSES) {
-      if (lens === 'shape') continue
+      if (lens === 'shape' || lens === 'portfolio') continue
       expect(subjectForLens(lens, null), lens).toEqual(withNode[lens])
     }
+  })
+
+  it('gives the portfolio the SAME subject as the shape, for every input', () => {
+    // THE PROPERTY THE SIXTH LENS IS BOUGHT WITH. A portfolio row tap opens the
+    // org panel that already exists — no new PanelSubject, so no edit to
+    // phoneDetentFor and no edit to the shell's one exhaustive panel switch. The
+    // two arms share a fall-through in lens.ts; this is what says they must, so
+    // that separating them later is a deliberate act with a red test rather than
+    // a copy that quietly stopped matching.
+    for (const focus of [null, NODE, `${NODE}/group:blocked`]) {
+      expect(subjectForLens('portfolio', focus), String(focus)).toEqual(
+        subjectForLens('shape', focus),
+      )
+    }
+    // …and therefore the phone opens it at the branch's own height, with
+    // phoneDetentFor untouched.
+    expect(phoneDetentFor(subjectForLens('portfolio', NODE))).toBe('half')
   })
 
   it('carries the node id verbatim, because the panel addresses it', () => {
@@ -163,9 +213,29 @@ describe('lensNeedsClosedWork', () => {
     // move.
     const needs = MAP_LENSES.filter(lensNeedsClosedWork)
     expect([...needs].sort()).toEqual(['by-status', 'numbers'])
-    for (const lens of MAP_LENSES) {
-      expect(lensNeedsClosedWork(lens), lens).toBe(stageForLens(lens) !== 'map')
+    // ⚠ THE INVARIANT USED TO READ `stageForLens(lens) !== 'map'`, AND THE SIXTH
+    // LENS IS WHY IT NO LONGER CAN. That shorthand was only ever true by
+    // coincidence: the question is whether the lens ASKS ABOUT CLOSED ROWS, not
+    // whether it draws the canvas. The portfolio replaces the canvas and still
+    // asks only about open work — where each organization has got to, and how
+    // much is open under it — so a rule written as "not the map" would have made
+    // the morning's first chip pay for `loadClosedSince` on every open.
+    const REPLACES_THE_CANVAS: Record<MapLens, boolean> = {
+      'needs-me': false,
+      shape: false,
+      portfolio: true,
+      'by-status': true,
+      'what-changed': false,
+      numbers: true,
     }
+    for (const lens of MAP_LENSES) {
+      expect(REPLACES_THE_CANVAS[lens], lens).toBe(stageForLens(lens) !== 'map')
+      expect(lensNeedsClosedWork(lens), lens).toBe(lens === 'by-status' || lens === 'numbers')
+    }
+    // Said once more in the form the reader of this file cares about: the sixth
+    // chip is a NEW STAGE that costs NO extra read.
+    expect(stageForLens('portfolio')).not.toBe('map')
+    expect(lensNeedsClosedWork('portfolio')).toBe(false)
   })
 })
 
@@ -207,10 +277,65 @@ describe('the literal key tables', () => {
     expect(Object.keys(LENS_KEY).sort()).toEqual([...MAP_LENSES].sort())
     expect(Object.keys(STAGE_KEY).sort()).toEqual([...MAP_STAGES].sort())
     expect(Object.keys(DETENT_KEY).sort()).toEqual([...MAP_DETENTS].sort())
-    const all = [...Object.values(LENS_KEY), ...Object.values(STAGE_KEY), ...Object.values(DETENT_KEY)]
+    expect(Object.keys(PORTFOLIO_BY_KEY).sort()).toEqual([...PORTFOLIO_BYS].sort())
+    const all = [
+      ...Object.values(LENS_KEY),
+      ...Object.values(STAGE_KEY),
+      ...Object.values(DETENT_KEY),
+      ...Object.values(PORTFOLIO_BY_KEY),
+    ]
     expect(new Set(all).size).toBe(all.length)
     // In the map's own namespace, so localeReach resolves them against
     // locales/{en,ar}/mindtree.json rather than a namespace nobody registered.
     for (const key of all) expect(key.startsWith('mindtree.')).toBe(true)
+  })
+})
+
+/* ─────────────────────── the portfolio's two controls ────────────────────── */
+
+describe('the ?by= union', () => {
+  it('enumerates the four groupings exactly once, in reading order', () => {
+    // Coarse to fine, and the order IS the chip order: where each organization
+    // is → whose book it is → who is integrating it → how far the programme has
+    // got. `MAP_LENSES` has the same property one level up.
+    expect(PORTFOLIO_BYS).toEqual(['stage', 'manager', 'vendor', 'phase'])
+    expect(new Set(PORTFOLIO_BYS).size).toBe(PORTFOLIO_BYS.length)
+  })
+
+  it('defaults to the stalled list — budget E1, as two constants', () => {
+    // THE MORNING ANSWER COSTS ZERO INTERACTIONS AFTER OPEN. If either of these
+    // moves, the chip stops answering the question it exists for and the reader
+    // is back to two taps before they can see what is stuck.
+    expect(DEFAULT_PORTFOLIO_BY).toBe('stage')
+    expect(DEFAULT_PORTFOLIO_RISK).toBe(true)
+    expect(PORTFOLIO_BYS).toContain(DEFAULT_PORTFOLIO_BY)
+  })
+
+  it('is total over hostile input', () => {
+    // `?by=` is hand-editable, inheritable from a link written under an older
+    // build, and pasted by people. Everything it is not must be false, not
+    // undefined.
+    for (const bad of [null, undefined, 0, '', 'Stage', 'stages', 'owner', {}, [], 'toString']) {
+      expect(isPortfolioBy(bad), String(bad)).toBe(false)
+    }
+    for (const by of PORTFOLIO_BYS) expect(isPortfolioBy(by)).toBe(true)
+  })
+
+  it('gives every grouping a human word that is not its own spelling', () => {
+    // Budget E5: `?by=` renders as chips a person reads. A table that echoed the
+    // param values would put `manager` and `phase` on screen, which is the
+    // machine's spelling of two questions ("whose book", "how far along").
+    // JOINED RATHER THAN WRITTEN, and the workaround is worth a sentence:
+    // localeReach.test.ts scans SOURCE — comments included — for quoted dotted
+    // strings and requires each one to resolve in both bundles. The prefix these
+    // four keys share is not itself a key, so spelling it as one quoted string
+    // anywhere in this file (even in a comment) fails that gate with a missing
+    // string nobody ever asked for.
+    const prefix = ['mindtree', 'portfolioBy'].join('.')
+    for (const by of PORTFOLIO_BYS) {
+      const key: string = PORTFOLIO_BY_KEY[by as PortfolioBy]
+      expect(key, by).not.toBe(by)
+      expect(key.startsWith(prefix), by).toBe(true)
+    }
   })
 })

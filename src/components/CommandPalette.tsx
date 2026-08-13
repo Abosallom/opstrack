@@ -55,7 +55,14 @@ import { useTrackLabel } from '../lib/labels'
 import { canEditEntry } from '../lib/permissions'
 import { pushOverlay } from '../lib/overlayStack'
 import { viewToParams } from '../lib/mindtree/focus'
-import { LENS_KEY, MAP_LENSES, type MapLens } from '../lib/mindtree/lens'
+import {
+  DEFAULT_PORTFOLIO_BY,
+  DEFAULT_PORTFOLIO_RISK,
+  LENS_KEY,
+  MAP_LENSES,
+  type MapLens,
+  type PortfolioBy,
+} from '../lib/mindtree/lens'
 import { ROOT_ID } from '../lib/mindtree/model'
 // The composer is mounted on the map, so `c` is a focus() when the reader is
 // already there and a navigation when they are not — see the `capture` case in
@@ -247,6 +254,35 @@ const MAP_PATH = '/mindtree'
 const LENS_PARAM = 'lens'
 
 /**
+ * The portfolio's two controls, spelled the way that same file reads them.
+ *
+ * COPIES, PINNED THE SAME WAY `LENS_PARAM` IS — CommandPalette.test.tsx reads
+ * `P_BY` and `P_RISK` out of useMapUrl.ts's source and fails if either side
+ * respells one. The alternative to a pinned copy is importing the hook, which
+ * this file cannot do (see above); the alternative to pinning it is a link that
+ * stops working in silence, because a `?by=` the map does not recognise is
+ * simply "no opinion" and the row lands on the default view with no error.
+ *
+ * UNLIKE `?stage=`, THESE ARE SPELLED OUT IN FULL even when they agree with the
+ * default. A palette row is a thing a person reads, copies out of the address
+ * bar and sends to someone; `/mindtree?lens=portfolio&by=stage&risk=1` says what
+ * it will show, and `mapPortfolioFromParams` reads the redundant form back
+ * identically, so nothing downstream can tell the difference.
+ */
+const BY_PARAM = 'by'
+const RISK_PARAM = 'risk'
+
+/**
+ * The manager facet, as lib/entryFilter.ts's codec carries it.
+ *
+ * A THIRD PINNED COPY, and the one with the most to lose: `manager=` is how "My
+ * organizations" says WHOSE. Comma-joined uuids rather than repeated params,
+ * which is that codec's own split — `tag`/`vendor` repeat because they are free
+ * text a person types, and these are ids.
+ */
+const MANAGER_PARAM = 'manager'
+
+/**
  * A link to the map: a lens, and optionally the node it opens focused.
  *
  * ONE FUNCTION FOR EVERY MAP DESTINATION THE PALETTE HAS, so the five lens rows
@@ -299,6 +335,75 @@ export const LENSES: readonly PaletteScreen[] = MAP_LENSES.map((lens) => ({
   to: mapHref(lens),
   labelKey: LENS_KEY[lens],
 }))
+
+/**
+ * A link to one reading of the portfolio: a grouping and the exception cut.
+ *
+ * `mapHref('portfolio')` and then the two params, rather than a second
+ * `viewToParams` composition — there is no focus on any of these rows and adding
+ * one would be a claim about a drill-in nobody made.
+ */
+export function portfolioHref(by: PortfolioBy, risk: boolean): string {
+  return `${mapHref('portfolio')}&${BY_PARAM}=${by}&${RISK_PARAM}=${risk ? '1' : '0'}`
+}
+
+/**
+ * The four morning questions, as palette rows.
+ *
+ * ONE CHIP, FOUR ROWS, AND THAT IS THE WHOLE TRADE. `MapLensBar` carries six
+ * chips because nine is a two-screen pan on a 375px phone, so stalled, workload,
+ * vendor cohorts and progress collapsed into ONE chip with a `?by=` control
+ * behind it. That would have cost three of the four questions their
+ * one-interaction guarantee — a reader would tap Portfolio and then tap again —
+ * if these rows did not exist. They are the compensation, and they are not
+ * optional: delete them and the collapse becomes a demotion.
+ *
+ * NOT IN `LENSES`, which is derived from `MAP_LENSES` and must stay derived: one
+ * row per lens, in the chip order, is what keeps the palette and the chip bar
+ * saying the same thing. These are four readings of ONE lens, so they are their
+ * own table — and the row that `LENSES` already contributes for `portfolio`
+ * lands on the default view, which is the first of these four. That repetition
+ * is deliberate: "Portfolio" is what someone types who wants the screen, and
+ * "Stalled organizations" is what someone types who wants the answer.
+ *
+ * ⚠ THE `risk` VALUES ARE NOT DECORATION. The stalled row is the ONLY one that
+ * keeps the exception cut. Workload has to sum to every organization or the
+ * five books do not add up to the workspace; vendors has to count whole cohorts
+ * or "one fix unblocks N" is a lie; progress has to carry the organizations with
+ * nothing open or the denominator flatters itself. Turning `risk` on for any of
+ * the three silently answers a different question with the same-looking table.
+ */
+export const PORTFOLIO_VIEWS: readonly PaletteScreen[] = [
+  // Spelled through the two constants rather than as `('stage', true)`, so this
+  // row and the chip's own default state are the SAME view by construction —
+  // which is the claim budget E1 makes and the one a reader would otherwise have
+  // to check by hand.
+  {
+    to: portfolioHref(DEFAULT_PORTFOLIO_BY, DEFAULT_PORTFOLIO_RISK),
+    labelKey: 'mindtree.portfolioViewStalled',
+  },
+  { to: portfolioHref('manager', false), labelKey: 'mindtree.portfolioViewWorkload' },
+  { to: portfolioHref('vendor', false), labelKey: 'mindtree.portfolioViewVendors' },
+  { to: portfolioHref('phase', false), labelKey: 'mindtree.portfolioViewProgress' },
+]
+
+/**
+ * "My organizations" — the AM's own book, from anywhere.
+ *
+ * BUILT, NOT LISTED, because it names a person: the id is the signed-in reader's
+ * and there is no such row for a session that has none. That is the same shape
+ * as `trackCandidates`, and it carries the same hazard — a destination assembled
+ * at call time is invisible to a test that walks a table — so the "never
+ * navigates anywhere App.tsx does not route" case RUNS this builder rather than
+ * reading it.
+ *
+ * `risk=0`, deliberately: an account manager opening their own book wants all
+ * eighty organizations, not the subset that is late. The stalled cut is one chip
+ * away and is what the first palette row above is for.
+ */
+export function myOrgsHref(memberId: string): string {
+  return `${portfolioHref(DEFAULT_PORTFOLIO_BY, false)}&${MANAGER_PARAM}=${encodeURIComponent(memberId)}`
+}
 
 /**
  * The screens App.tsx withholds, each with the key it is withheld on.
@@ -368,11 +473,18 @@ export const ADMIN_SCREENS: readonly AdminPaletteScreen[] = [
  * until they typed something. LENSES is not optional in this sum — anything the
  * builder can return has to be counted here, or the tail of the list is a set of
  * screens the palette silently withholds.
+ *
+ * IT IS FIVE TABLES NOW, AND ONE OF THEM IS CONDITIONAL. `PORTFOLIO_VIEWS` is
+ * flat; "My organizations" is one row that exists only for a signed-in reader.
+ * The cap has to be the LARGEST list the builder can return, so the `+ 1` is
+ * unconditional even though the row is not — a cap that bites only when someone
+ * is signed in is the same defect twice removed, and it would drop the admin
+ * block for exactly the people who have one.
  */
 const GROUP_CAP: Readonly<Record<GroupId, number>> = {
   entries: 8,
   tracks: 6,
-  screens: SCREENS.length + LENSES.length + ADMIN_SCREENS.length,
+  screens: SCREENS.length + LENSES.length + PORTFOLIO_VIEWS.length + 1 + ADMIN_SCREENS.length,
   actions: 6,
 }
 
@@ -502,15 +614,33 @@ export function trackCandidates(
  * tests pass a predicate — and this function only decides which rows the answers
  * admit and in what order. Passing a role would have put a fourth copy of "who
  * is an admin" in a file that renders a list.
+ *
+ * `meId` IS NULL FOR A SESSION WITH NO PROFILE, and the "My organizations" row
+ * is then ABSENT rather than pointing at an empty facet. `?manager=` with
+ * nothing after it is not "everybody" and it is not "me": it is a filter that
+ * matches nothing, and a palette row that reliably produces an empty table is
+ * worse than a row that is not offered. Same call the component already makes
+ * for `canEditEntry` — null, never a stand-in.
  */
 export function screenCandidates(
   holds: (key: PermissionKey) => boolean,
   navigate: NavigateFn,
+  meId: string | null = null,
 ): RankRow<Row>[] {
   // The lenses sit after the plain routes and before the admin block, so the
   // shared prefix of every viewer's list is unchanged — the property the
-  // "leaving the shared order alone" case pins.
-  const screens = [...SCREENS, ...LENSES, ...ADMIN_SCREENS.filter((s) => holds(s.permKey))]
+  // "leaving the shared order alone" case pins. The four portfolio readings and
+  // the reader's own book follow the lens they are readings OF, for the same
+  // reason: coarse to fine, and never reordered by who is looking.
+  const mine: readonly PaletteScreen[] =
+    meId === null ? [] : [{ to: myOrgsHref(meId), labelKey: 'mindtree.portfolioViewMine' }]
+  const screens = [
+    ...SCREENS,
+    ...LENSES,
+    ...PORTFOLIO_VIEWS,
+    ...mine,
+    ...ADMIN_SCREENS.filter((s) => holds(s.permKey)),
+  ]
   return screens.map((screen) => ({
     item: {
       id: `screen:${screen.to}`,
@@ -701,7 +831,7 @@ export default function CommandPalette(): ReactElement {
   // is a dependency the value does not read and a linter is right to reject it.
   // The labels have to be recomputed on a language switch, and the cheapest
   // honest way to guarantee that is to recompute them always.
-  const screenRows = screenCandidates((key) => held[key], navigate)
+  const screenRows = screenCandidates((key) => held[key], navigate, meId)
   const actionRows = actionCandidates({
     cycleTheme: () => setTheme(nextThemeAfter(theme)),
     switchLanguage: () => setLocaleSetting(locale === 'en' ? 'ar' : 'en'),

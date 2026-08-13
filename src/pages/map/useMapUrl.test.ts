@@ -75,7 +75,11 @@ const {
   mapMirrorParams,
   mapParamsFor,
   mapParamsForAll,
+  mapParamsForFilterWrite,
   mapParamsForLens,
+  mapParamsForPortfolio,
+  mapPortfolioFromParams,
+  mapPortfolioKey,
   mapUrlInbound,
   mapUrlStage,
 } = await import('./useMapUrl')
@@ -509,6 +513,163 @@ describe('mapLensMirror', () => {
   it('still holds it shut over a lens the store has not absorbed', () => {
     const claim = { lens: 'needs-me', stage: null } as const
     expect(mapLensMirror(params('lens=needs-me'), { lens: 'shape', stage: 'map' }, claim)).toBeNull()
+  })
+})
+
+/* ─────────────────── the portfolio's two controls, in the URL ────────────── */
+//
+// URL-ONLY STATE, so there is no store to claim against and no third effect —
+// which is precisely why these have to be proven as PURE FUNCTIONS here. The
+// property that matters is not "the value round-trips" but "no other writer on
+// this screen can drop them", and the last two cases are that property.
+
+describe('mapPortfolioFromParams', () => {
+  it('lands on the stalled list when the URL says nothing — budget E1', () => {
+    // ZERO INTERACTIONS AFTER OPEN. If this ever answers anything else, the
+    // morning question costs a tap and the chip stops being the answer.
+    expect(mapPortfolioFromParams(params(''))).toEqual({ by: 'stage', risk: true })
+    expect(mapPortfolioFromParams(params('lens=portfolio'))).toEqual({ by: 'stage', risk: true })
+  })
+
+  it('reads each grouping the palette can link to', () => {
+    expect(mapPortfolioFromParams(params('by=manager&risk=0')).by).toBe('manager')
+    expect(mapPortfolioFromParams(params('by=vendor')).by).toBe('vendor')
+    expect(mapPortfolioFromParams(params('by=phase')).by).toBe('phase')
+  })
+
+  it('is total over hostile input, and falls to the DEFAULT rather than to off', () => {
+    // `Boolean('0')` is true and `'false'` is an ordinary string: a loose read
+    // turns a hand-edited param into the opposite of what it says. And a mangled
+    // link must land the reader on the morning answer, not on 400 unfiltered
+    // rows.
+    for (const bad of ['', 'Stage', 'stages', 'owner', 'toString', '__proto__']) {
+      expect(mapPortfolioFromParams(params(`by=${bad}`)).by, bad).toBe('stage')
+    }
+    for (const bad of ['', 'true', 'false', 'yes', '2', '-1', 'toString']) {
+      expect(mapPortfolioFromParams(params(`risk=${bad}`)).risk, bad).toBe(true)
+    }
+    expect(mapPortfolioFromParams(params('risk=0')).risk).toBe(false)
+    expect(mapPortfolioFromParams(params('risk=1')).risk).toBe(true)
+  })
+})
+
+describe('mapParamsForPortfolio', () => {
+  it('never spells out a default, and always spells out an opinion', () => {
+    // `mapParamsForLens`'s rule for `?stage=`, applied to both controls: the
+    // default state IS the chip's own state, so writing it would put two
+    // redundant params in front of every reader.
+    expect(mapParamsForPortfolio(params(''), { by: 'stage', risk: true }).toString()).toBe('')
+    expect(mapParamsForPortfolio(params(''), { by: 'manager', risk: true }).toString()).toBe(
+      'by=manager',
+    )
+    expect(mapParamsForPortfolio(params(''), { by: 'stage', risk: false }).toString()).toBe('risk=0')
+    const both = mapParamsForPortfolio(params(''), { by: 'vendor', risk: false })
+    expect(both.get('by')).toBe('vendor')
+    expect(both.get('risk')).toBe('0')
+  })
+
+  it('clears a param that has gone back to its default', () => {
+    // The reader taps Vendors, then taps Stage again. Leaving `by=vendor` on the
+    // URL would hand the next person to open the link a view the sender is not
+    // looking at.
+    const back = mapParamsForPortfolio(params('by=vendor&risk=0'), { by: 'stage', risk: true })
+    expect(back.has('by')).toBe(false)
+    expect(back.has('risk')).toBe(false)
+  })
+
+  it('carries every other param through — one write, the whole address bar', () => {
+    // The setter starts from `prev`, so a chip tap must not cost the reader
+    // their filter, their drill-in or their lens (budget E9).
+    const next = mapParamsForPortfolio(
+      params('lens=portfolio&focus=root%2Ftrack%3Ax&dim=owner&q=vpn'),
+      { by: 'manager', risk: false },
+    )
+    expect(next.get('lens')).toBe('portfolio')
+    expect(next.get('focus')).toBe('root/track:x')
+    expect(next.get('dim')).toBe('owner')
+    expect(next.get('q')).toBe('vpn')
+  })
+
+  it('round-trips every combination through the reader', () => {
+    for (const by of ['stage', 'manager', 'vendor', 'phase'] as const) {
+      for (const risk of [true, false]) {
+        const v = { by, risk }
+        expect(mapPortfolioFromParams(mapParamsForPortfolio(params('q=a'), v)), `${by}/${risk}`)
+          .toEqual(v)
+      }
+    }
+  })
+})
+
+describe('mapPortfolioKey', () => {
+  it('gives two URLs that mean the same view the same key', () => {
+    // The memo key downstream of this is a fold over ~400 organizations. Keyed
+    // on `params` it would re-run on every keystroke and every drill-in; keyed
+    // on this it survives every write that touched neither control.
+    expect(mapPortfolioKey(params('by=stage&risk=1&q=vpn'))).toBe(mapPortfolioKey(params('q=other')))
+    expect(mapPortfolioKey(params('by=manager&q=a'))).toBe(mapPortfolioKey(params('by=manager')))
+    expect(mapPortfolioKey(params('by=manager'))).not.toBe(mapPortfolioKey(params('by=vendor')))
+    expect(mapPortfolioKey(params('risk=0'))).not.toBe(mapPortfolioKey(params('')))
+  })
+})
+
+describe('the writers that could drop the portfolio, and do not', () => {
+  it('the drill-in mirror carries ?by= and ?risk= through untouched', () => {
+    // `viewToParams` copies the params it is handed. If that ever changes, a
+    // reader who drills into a branch loses the grouping they were reading — and
+    // this is the only place that would say so.
+    const next = mapMirrorParams(params('by=vendor&risk=0'), { focusId: BRANCH, dimension: null }, null)
+    expect(next?.get('by')).toBe('vendor')
+    expect(next?.get('risk')).toBe('0')
+    expect(next?.get('focus')).toBe(BRANCH)
+  })
+
+  it('the lens mirror carries them too', () => {
+    const next = mapLensMirror(params('by=phase&risk=0'), { lens: 'portfolio', stage: 'portfolio' }, null)
+    expect(next?.get('by')).toBe('phase')
+    expect(next?.get('risk')).toBe('0')
+    expect(next?.get('lens')).toBe('portfolio')
+  })
+
+  it('⚠ mapParamsForAll DOES drop them — which is why the filter writer is its own function', () => {
+    // THE NEGATIVE CONTROL, AND IT IS THE POINT OF THE WHOLE SECTION.
+    // `filterToParams` builds a FRESH object (that is what clears an inherited
+    // `?scope=`), so the composed writer cannot preserve anything it was not
+    // given. Asserted so that the fix below cannot be "tidied" into a call to
+    // this function on the grounds that it looks like the same thing.
+    const dropped = mapParamsForAll(filter({ search: 'vpn' }), NO_VIEW, {
+      lens: 'portfolio',
+      stage: 'portfolio',
+    })
+    expect(dropped.has('by')).toBe(false)
+    expect(dropped.has('risk')).toBe(false)
+  })
+
+  it('the filter writer carries the portfolio through a keystroke', () => {
+    // THE ONE THAT WOULD ACTUALLY BE SEEN: a reader is on the vendor cohorts,
+    // types one character into the search box, and the row set changes under
+    // them. `useMapUrlFilter` calls exactly this, with `setParams`'s `prev`.
+    const out = mapParamsForFilterWrite(
+      params('lens=portfolio&by=vendor&risk=0&q=v'),
+      filter({ search: 'vpn' }),
+      { focusId: BRANCH, dimension: 'owner' },
+      { lens: 'portfolio', stage: 'portfolio' },
+    )
+    expect(out.get('by')).toBe('vendor')
+    expect(out.get('risk')).toBe('0')
+    // …and everything the three store-backed codecs own is still written.
+    expect(out.get('q')).toBe('vpn')
+    expect(out.get('lens')).toBe('portfolio')
+    expect(out.get('focus')).toBe(BRANCH)
+    expect(out.get('dim')).toBe('owner')
+    // A reader on the DEFAULT view keeps writing the default view: no params
+    // appear that the reader did not ask for.
+    const plain = mapParamsForFilterWrite(params('lens=portfolio'), filter({ search: 'a' }), NO_VIEW, {
+      lens: 'portfolio',
+      stage: 'portfolio',
+    })
+    expect(plain.has('by')).toBe(false)
+    expect(plain.has('risk')).toBe(false)
   })
 })
 

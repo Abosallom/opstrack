@@ -281,12 +281,29 @@ export function useMapLens(options: {
   /**
    * Make this subject the panel's subject — the inverse of `panelSubjectFor`.
    *
-   * `branch` SETS THE SHAPE LENS AND REMEMBERS THE NODE, and it still does not
-   * touch the focus. The drill-in belongs to `useMapFocus`; writing it from here
-   * would give one concept two writers, which is how a drill-in and a breadcrumb
-   * start disagreeing — and for the gesture this exists to serve it would be
-   * actively wrong, because selecting an Organization must leave the camera and
-   * the drawing exactly where they are.
+   * `branch` REMEMBERS THE NODE AND KEEPS THE LENS THE READER IS IN, and it
+   * still does not touch the focus. The drill-in belongs to `useMapFocus`;
+   * writing it from here would give one concept two writers, which is how a
+   * drill-in and a breadcrumb start disagreeing — and for the gesture this
+   * exists to serve it would be actively wrong, because selecting an
+   * Organization must leave the camera and the drawing exactly where they are.
+   *
+   * ── THE SIDEBAR FOLLOWS THE READER ─────────────────────────────────────
+   *
+   * It used to hardcode `applyLens('shape', …)`, which was right while `shape`
+   * was the only lens with a branch panel. It is not any more: a tap on a
+   * PORTFOLIO ROW opens that organization's panel, and throwing the reader onto
+   * the map to see it would close the list they were reading — one tap to open a
+   * row, then a chip and a scroll to get back to where they were. The lens is
+   * kept whenever it is one that can ANSWER with a branch, which is asked
+   * through `subjectForLens` rather than by listing the lenses: that keeps the
+   * closed union the one place a panel kind is decided, and it means the arm
+   * needs no edit when a seventh lens with a branch panel arrives.
+   *
+   * `shape` IS STILL THE FALLBACK, and it has to be. `needs-me`, `what-changed`,
+   * `numbers` and `by-status` all answer something other than `branch`, so a row
+   * or node tap arriving under one of them has asked for a panel that lens
+   * cannot show — and `shape` is the lens whose whole subject is "this branch".
    *
    * IT IS THE ONE CASE THAT DOES NOT ANNOUNCE, and that is not an omission. Its
    * only caller is the Organization tap, which holds the node's LABEL; this hook
@@ -308,7 +325,7 @@ export function useMapLens(options: {
           return
         case 'branch':
           setSelectedNodeId(next.nodeId)
-          applyLens('shape', next.nodeId)
+          applyLens(subjectForLens(lens, next.nodeId).kind === 'branch' ? lens : 'shape', next.nodeId)
           return
         case 'changes':
           setLens('what-changed')
@@ -318,7 +335,7 @@ export function useMapLens(options: {
           return
       }
     },
-    [announce, applyLens, setLens],
+    [announce, applyLens, lens, setLens],
   )
 
   const setPanelOpen = useCallback(

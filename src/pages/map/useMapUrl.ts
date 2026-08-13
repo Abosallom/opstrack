@@ -104,6 +104,16 @@
 // mirror is held over the lens alone. That is `absorbed()`'s own rule (only the
 // fields the URL claimed are compared) applied to the other pair.
 //
+// ── AND THE PORTFOLIO'S TWO CONTROLS RIDE NEITHER EFFECT ───────────────────
+//
+// `?by=` and `?risk=` are the sixth lens's whole interface, and they are URL-ONLY
+// state: no store, no persistence, and therefore NO THIRD EFFECT. There is
+// nothing to mirror — the address bar is the record — and the pair above carries
+// them through untouched, because both mirrors COPY the params they are handed
+// and set only their own names. The one writer that could drop them is the
+// filter, whose fresh-params rule is stated in rule 1 below; it re-applies them
+// off `setParams`'s `prev`. See "the portfolio half of the codec".
+//
 // ── THE FILTER IS WIRED NOW, AND THREE RULES CAME WITH IT ──────────────────
 //
 // `useMapUrlFilter` was exported and called by nobody, so a filtered map could
@@ -154,14 +164,18 @@ import {
   type MindtreeUrlView,
 } from '../../lib/mindtree/focus'
 import {
+  DEFAULT_PORTFOLIO_BY,
+  DEFAULT_PORTFOLIO_RISK,
   allowedStages,
   isMapLens,
   isMapStage,
+  isPortfolioBy,
   stageForLens,
   stageWithTable,
   subjectForLens,
   type MapLens,
   type MapStage,
+  type PortfolioBy,
 } from '../../lib/mindtree/lens'
 import type { MindDimension } from '../../lib/mindtree/model'
 import {
@@ -174,9 +188,11 @@ import {
   useMindView,
 } from '../../store/mindtree'
 
-/** The two params this file adds. `dim` and `focus` are named by focus.ts. */
+/** The four params this file adds. `dim` and `focus` are named by focus.ts. */
 const P_LENS = 'lens'
 const P_STAGE = 'stage'
+const P_BY = 'by'
+const P_RISK = 'risk'
 
 /* ── the pure decisions ─────────────────────────────────────────────────── */
 
@@ -260,6 +276,15 @@ export function mapParamsFor(filter: FilterState, view: MindtreeUrlView): URLSea
  * that dropped `?lens=` would not merely leave the link wrong for a render — the
  * inbound effect would read the lens-less params it just wrote and, one pass
  * later, the mirror would put back the lens the reader had ALREADY left.
+ *
+ * ⚠ THE PORTFOLIO'S `?by=`/`?risk=` ARE NOT IN HERE, AND MUST NOT BE. This
+ * function takes the whole STORE-BACKED state and can therefore build its answer
+ * from arguments alone; those two live only in the address bar, so the only
+ * honest source for them is the address bar itself. The one caller re-applies
+ * them with `mapParamsForPortfolio` off `setParams`'s `prev` — see
+ * `useMapUrlFilter`. A second caller that forgets is a reader thrown back to the
+ * stalled list, so add the same composition rather than a fourth argument that
+ * defaults to something.
  */
 export function mapParamsForAll(
   filter: FilterState,
@@ -442,6 +467,149 @@ export function mapLensMirror(
   return next.toString() === current.toString() ? null : next
 }
 
+/* ── the portfolio half of the codec ────────────────────────────────────── */
+//
+// `?by=` AND `?risk=` ARE URL-ONLY STATE, AND THAT IS WHY THIS SECTION HOLDS NO
+// EFFECT AND NO CLAIM.
+//
+// `lens`, `stage`, `focus` and `dim` all live in store/mindtree — persisted
+// preferences a reader carries between sessions — so each needs the inbound /
+// outbound pair above and the claim that makes the two converge instead of
+// alternate. The portfolio's two controls are not preferences: they are WHICH
+// QUESTION the reader is asking right now, and the answer to "what was I looking
+// at" for them is the link itself. So the address bar is their only home, the
+// reader's own default is `stage` + the risk cut (budget E1: the morning answer
+// costs zero interactions after open), and there is nothing for a mirror to
+// mirror.
+//
+// A SECOND `setParams` EFFECT IS THEREFORE NOT MERELY UNNECESSARY, IT IS THE
+// BUG THE HEADER WARNS ABOUT: two effects calling `setParams` on one render both
+// start from the same `params` snapshot and the second silently drops the
+// first's contribution. The pair above is untouched, and it carries these two
+// params through for free — `viewToParams` and `mapParamsForLens` both COPY the
+// params they are handed and set only their own names.
+//
+// THE ONE WRITER THAT COULD DROP THEM IS THE FILTER, and it is handled where it
+// happens rather than here: `mapParamsForAll` starts from a FRESH object
+// (`filterToParams` builds its own, which is what clears an inherited `?scope=`),
+// so `useMapUrlFilter`'s setter re-applies the portfolio pair read off the LIVE
+// params through `setParams`'s functional form. Without that, typing one
+// character into the search box would throw a reader who was looking at the
+// vendor cohorts back to the stalled list.
+//
+// THEY ARE NOT STRIPPED UNDER THE OTHER FIVE LENSES, deliberately. A `?by=` on a
+// `needs-me` link is inert — nothing reads it — and keeping it means the reader
+// who taps away from the portfolio and back finds the grouping they left, which
+// is the same courtesy `view` extends to the ledger. Stripping it would also
+// cost a write on every render under every other lens, for no reader's benefit.
+
+/** The portfolio's two controls, as the URL carries them. */
+export interface MapUrlPortfolio {
+  by: PortfolioBy
+  risk: boolean
+}
+
+/**
+ * `?risk=` is `1`/`0` and NOTHING ELSE resolves to an opinion.
+ *
+ * `Boolean('0')` is `true` and `'false'` is a perfectly ordinary string, so a
+ * loose read here turns a hand-edited or hand-copied param into the opposite of
+ * what it says. Anything unrecognised falls to the default rather than to
+ * `false`: the reader who pastes a mangled link should land on the morning
+ * answer, not on an unfiltered list of 400 organizations.
+ */
+function riskFromParam(raw: string | null): boolean {
+  if (raw === '1') return true
+  if (raw === '0') return false
+  return DEFAULT_PORTFOLIO_RISK
+}
+
+/**
+ * What the portfolio is showing, read off whatever is in the address bar.
+ *
+ * TOTAL, and it answers with the DEFAULTS rather than with null — the asymmetry
+ * that governs `?lens=` (null means "keep what you had") does not apply, because
+ * there is nothing to keep. A URL that says nothing is a reader who has just
+ * arrived, and what they get is the stalled list.
+ */
+export function mapPortfolioFromParams(p: URLSearchParams): MapUrlPortfolio {
+  const rawBy = p.get(P_BY)
+  return {
+    by: isPortfolioBy(rawBy) ? rawBy : DEFAULT_PORTFOLIO_BY,
+    risk: riskFromParam(p.get(P_RISK)),
+  }
+}
+
+/**
+ * Write the portfolio into an existing params object — `viewToParams`'s and
+ * `mapParamsForLens`'s shape, so all three compose without either owning the
+ * other's names.
+ *
+ * A DEFAULT IS NEVER SPELLED OUT, which is `mapParamsForLens`'s rule for
+ * `?stage=` applied to both of these. The default state IS the chip's own state,
+ * so writing `?by=stage&risk=1` on every portfolio link would put two redundant
+ * params in front of every reader for the one case that round-trips without
+ * them. The values that carry an opinion — `by=manager`, `risk=0` — are written,
+ * and `mapPortfolioFromParams` reads either form back identically, which is what
+ * lets the palette's rows spell them out in full and still round-trip.
+ */
+export function mapParamsForPortfolio(
+  p: URLSearchParams,
+  v: MapUrlPortfolio,
+): URLSearchParams {
+  const next = new URLSearchParams(p)
+  if (v.by === DEFAULT_PORTFOLIO_BY) next.delete(P_BY)
+  else next.set(P_BY, v.by)
+  if (v.risk === DEFAULT_PORTFOLIO_RISK) next.delete(P_RISK)
+  else next.set(P_RISK, v.risk ? '1' : '0')
+  return next
+}
+
+/**
+ * THE PORTFOLIO OF THIS URL, AND NOTHING ELSE — `mapFilterKey`'s move, for the
+ * other pair.
+ *
+ * Every filter keystroke, drill-in, lens and stage write mints a new `params`
+ * object. Memoising the `MapUrlPortfolio` on `params` would mint a new object
+ * for each of them, and the row fold downstream of it — one pass over ~400
+ * organizations — is keyed on that object. Keyed on this canonical string
+ * instead, it survives every write that touched neither control, and two URLs
+ * that mean the same thing (`?by=stage&risk=1` and nothing at all) produce the
+ * same key.
+ */
+export function mapPortfolioKey(p: URLSearchParams): string {
+  return mapParamsForPortfolio(new URLSearchParams(), mapPortfolioFromParams(p)).toString()
+}
+
+/**
+ * THE WHOLE ADDRESS BAR FOR A FILTER THE READER JUST CHANGED — the four codecs,
+ * composed in the one order that lets each own its own names.
+ *
+ * EXPORTED AND PURE BECAUSE THAT IS THE ONLY WAY IT CAN BE PROVEN. This file's
+ * header says it for the effects and it is just as true here: vitest.config.ts
+ * is `environment: 'node'`, so nothing drives the hook below, and a composition
+ * written inline inside `setFilter` is a composition no test can see. It is the
+ * shape of write that has already gone wrong once on this screen — a keystroke
+ * that dropped `?lens=` did not merely leave the link wrong for a render, it
+ * handed the store back the lens the reader had already left — so the writer is
+ * a function with a name.
+ *
+ * `prev` IS THE LIVE PARAMS AT THE MOMENT OF THE WRITE, not the render that
+ * scheduled the handler. `mapParamsForAll` starts from a fresh object, which is
+ * what clears an inherited `?scope=` and would equally clear the portfolio's two
+ * controls; they live nowhere else, so they are read back off `prev` and put
+ * on again. Without that, one character typed into the search box throws a
+ * reader looking at the vendor cohorts back to the stalled list mid-word.
+ */
+export function mapParamsForFilterWrite(
+  prev: URLSearchParams,
+  filter: FilterState,
+  view: MindtreeUrlView,
+  lens: MapUrlLens,
+): URLSearchParams {
+  return mapParamsForPortfolio(mapParamsForAll(filter, view, lens), mapPortfolioFromParams(prev))
+}
+
 /* ── the hooks ──────────────────────────────────────────────────────────── */
 
 export interface MapUrlFilter {
@@ -490,12 +658,19 @@ export function useMapUrlFilter(): MapUrlFilter {
   const setFilter = useCallback(
     (next: FilterState) => {
       const live = getMindtreeState()
+      /**
+       * THE FUNCTIONAL FORM, FOR THE ONE PIECE OF STATE THAT IS NOT IN A STORE.
+       * `prev` is the params at the moment of the WRITE, which is where the
+       * portfolio's two controls live — see `mapParamsForFilterWrite`. It also
+       * keeps this callback's dependency array at `[setParams]` rather than
+       * re-minting the handler on every param change the map makes.
+       */
       setParams(
-        mapParamsForAll(
-          next,
-          { focusId: live.focus, dimension: live.dimension },
-          { lens: live.lens, stage: stageWithTable(live.lens, live.view === 'table') },
-        ),
+        (prev) =>
+          mapParamsForFilterWrite(prev, next, { focusId: live.focus, dimension: live.dimension }, {
+            lens: live.lens,
+            stage: stageWithTable(live.lens, live.view === 'table'),
+          }),
         { replace: true },
       )
     },
@@ -503,6 +678,42 @@ export function useMapUrlFilter(): MapUrlFilter {
   )
 
   return { filter, setFilter }
+}
+
+export interface MapUrlPortfolioState {
+  portfolio: MapUrlPortfolio
+  setPortfolio: (next: MapUrlPortfolio) => void
+}
+
+/**
+ * THE PORTFOLIO'S TWO CONTROLS, IN THE URL. No effect, so it is safe to call
+ * anywhere in the composition — and, like `useMapUrlFilter`, it costs one extra
+ * `useSearchParams()`, which is a memo over `location.search` and therefore free.
+ *
+ * The setter starts from `prev` rather than from a fresh object, so a chip tap
+ * carries the filter, the drill-in, the dimension and the lens through untouched:
+ * one write, in the reader's own tap, and the address bar is a link to exactly
+ * what they are looking at (budget E9).
+ *
+ * `replace`, not push — the whole screen's rule. Back should leave the map
+ * rather than walk the reader backwards through four groupings they tried.
+ */
+export function useMapUrlPortfolio(): MapUrlPortfolioState {
+  const [params, setParams] = useSearchParams()
+
+  // TWO PARSES, ONE OBJECT PER STATE. See `mapPortfolioKey` — the second parse
+  // is over the canonical string, which the round-trip case proves is lossless.
+  const key = useMemo(() => mapPortfolioKey(params), [params])
+  const portfolio = useMemo(() => mapPortfolioFromParams(new URLSearchParams(key)), [key])
+
+  const setPortfolio = useCallback(
+    (next: MapUrlPortfolio) => {
+      setParams((prev) => mapParamsForPortfolio(prev, next), { replace: true })
+    },
+    [setParams],
+  )
+
+  return { portfolio, setPortfolio }
 }
 
 /**

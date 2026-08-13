@@ -157,7 +157,10 @@ import BoardStage from '../components/map/BoardStage'
 import MapBranch from '../components/map/MapBranch'
 // The terminal capability status, imported from the ONE place that owns the
 // literal — lib/mapNodes.ts's header refuses a second copy of `'live'`.
-import { TERMINAL_STATUS } from '../components/map/MapBranchDetail'
+// `managerLabel` rides in beside it for the portfolio's AM column: an id the
+// roster does not know is a person who LEFT, not nobody, and that rule lives in
+// exactly one function.
+import { managerLabel, TERMINAL_STATUS } from '../components/map/MapBranchDetail'
 import MapCanvas from '../components/map/MapCanvas'
 import MapCapture from '../components/map/MapCapture'
 import MapChanges, { useChangesCount } from '../components/map/MapChanges'
@@ -170,6 +173,7 @@ import MapSummary from '../components/map/MapSummary'
 import MapToolbar from '../components/map/MapToolbar'
 import NumbersPanel from '../components/map/NumbersPanel'
 import NumbersStage from '../components/map/NumbersStage'
+import PortfolioStage, { useAtRiskCount } from '../components/map/PortfolioStage'
 import { EMPTY_FILTER, isFilterEmpty, type FilterState } from '../lib/entryFilter'
 import { t, useLocale } from '../lib/i18n'
 import { findNode, trailTo } from '../lib/mindtree/focus'
@@ -200,7 +204,7 @@ import { isDiveTarget, useMapKeyboard } from './map/useMapKeyboard'
 import { useMapModel, type MapProgressSource } from './map/useMapModel'
 import { useMapOverlays } from './map/useMapOverlays'
 import { useMapToolbarActions } from './map/useMapToolbar'
-import { useMapUrl, useMapUrlFilter } from './map/useMapUrl'
+import { useMapUrl, useMapUrlFilter, useMapUrlPortfolio } from './map/useMapUrl'
 import { useIsCompact } from './map/useMapViewport'
 import { useMapWrites } from './map/useMapWrites'
 import './mindtree.css'
@@ -243,6 +247,12 @@ const FACETS: readonly FilterFacet[] = [
   // so picking OB includes every organization under it.
   'branch',
   'vendor',
+  // After `vendor`, and the pair reads as one sentence in the order it narrows:
+  // who is DOING the work, then who is ACCOUNTABLE for it. It is NOT withheld
+  // the way `NUMBERS_FACETS` withholds status and health — the argument for that
+  // asymmetry is the `PORTFOLIO_FACETS` paragraph below, which exists so nobody
+  // "fixes" this line by symmetry with the one under it.
+  'manager',
   'status',
   'priority',
   'type',
@@ -255,6 +265,24 @@ const FACETS: readonly FilterFacet[] = [
 const NUMBERS_FACETS: readonly FilterFacet[] = FACETS.filter(
   (facet) => facet !== 'status' && facet !== 'health',
 )
+
+/**
+ * ⚠ THERE IS NO `PORTFOLIO_FACETS`, AND THE ABSENCE IS ARGUED RATHER THAN
+ *   FORGOTTEN — say so here, or the next reader "fixes" it.
+ *
+ * The numbers stage drops `status` and `health` because three of its panels
+ * MEASURE those two, so a reader could filter the answer out of its own
+ * question and be left with a number that is true of a subset nobody named. The
+ * portfolio measures neither. Its grouping control (`?by=`) and the facets are
+ * ORTHOGONAL: filtering to one account manager while grouped BY account manager
+ * is a legitimate narrowing to one book — it is how an AD gets from "the five of
+ * them" to "Sara's eighty" — and filtering to one vendor while grouped by vendor
+ * is how a cohort is inspected. Neither collapses a measurement onto itself.
+ *
+ * Withholding them would also break the one drill this screen has: every
+ * roll-up row narrows `mapNodeIds`, and a facet the bar refuses to render is a
+ * facet the reader cannot then clear.
+ */
 
 /**
  * How much of the stage the panel is covering, in CSS px.
@@ -313,6 +341,21 @@ export default function Mindtree(): ReactElement {
    * nobody.
    */
   const { filter, setFilter } = useMapUrlFilter()
+
+  /**
+   * `?by=` AND `?risk=` — the portfolio's two controls, in the address bar
+   * beside the facets rather than in this component's state.
+   *
+   * Called here and threaded down rather than read inside `PortfolioStage`, for
+   * the reason `useMapUrlFilter` is called here: the badge on the lens chip is
+   * counted at THIS level, under every lens, so the shell needs the same answer
+   * the stage does and two `useSearchParams()` readings of one pair is two
+   * chances to disagree about what the reader is looking at.
+   *
+   * It holds no effect (see its header), so calling it here reorders none of the
+   * eleven hooks below.
+   */
+  const { portfolio, setPortfolio } = useMapUrlPortfolio()
 
   /**
    * THE PROGRESS UNDERSCORE'S SOURCE — the one read wave 5 left unwired, and the
@@ -376,6 +419,14 @@ export default function Mindtree(): ReactElement {
     // Unawaited on purpose: this must not block the frame it is fired from, and
     // loadPortfolio never rejects. A second call while one is in flight awaits
     // the first rather than issuing a second 4,000-row read.
+    //
+    // THE PORTFOLIO STAGE ADDS NO SECOND CALLER, and that is the point of it
+    // being here rather than inside `PortfolioStage`: this effect already asks
+    // for every organization's links (the underscore is on every card), the
+    // store dedupes a concurrent call onto the same promise, and a stage that
+    // fired its own would be a second 4,000-row read on the tab that opens it.
+    // `store/portfolio` stays lazy in the only sense that matters — nothing in
+    // it runs at import time and nobody outside this screen pays for it.
     void loadPortfolio(portfolioIds)
   }, [portfolioIds])
 
@@ -829,6 +880,36 @@ export default function Mindtree(): ReactElement {
    */
   const attentionCount = useAttentionCount(filter)
   const changesCount = useChangesCount()
+  /**
+   * THE THIRD BADGE, AND IT IS THE WHOLE OF BUDGET E1.
+   *
+   * "How many organizations are stuck" is the morning question, and a number on
+   * the chip is what makes it cost ZERO interactions: the reader does not open
+   * the portfolio to find out whether it is worth opening. It is counted from
+   * `model.tree` — the same tree the portfolio's rows are built from, through
+   * the same `stageReading` in lib/portfolio/rows.ts — so the badge and the row
+   * count are provably one number rather than two folds that agree today.
+   *
+   * IT RESPECTS THE FILTER, AND IT TAKES IT EXPLICITLY — `model.tree` is NOT
+   * enough, which is the correction this line carries. lib/mindtree/model.ts
+   * draws a track and an organization whether or not they are populated, on
+   * purpose, so a filter naming a set of organizations changes the WORK under
+   * them and not which of them the tree holds. The count therefore narrows
+   * through the same `inPortfolioScope` the table's rows do, which is what keeps
+   * the badge and the row count one number under a filter as well as without
+   * one. `useAttentionCount` takes the filter one chip over for its own reason.
+   */
+  const atRiskCount = useAtRiskCount(model.tree, filter)
+
+  /**
+   * The account manager's name for a node, through the roster — memoised so the
+   * portfolio's row memo (one pass over ~400 organizations) is not rebuilt by an
+   * inline arrow on every render of this shell.
+   */
+  const portfolioManagerName = useCallback(
+    (id: string | null) => managerLabel(model.memberById, id),
+    [model.memberById],
+  )
 
   /**
    * The pulses, and whether the drawing may tween between layouts.
@@ -1110,6 +1191,33 @@ export default function Mindtree(): ReactElement {
               // it measured as 14px of empty plate that pushed the rail into the
               // group-by chips below it. See `.mtree-filter` in mindtree.css.
               className="mtree-filter"
+              /* FINDING ONE OF FOUR HUNDRED ORGANIZATIONS BY NAME — budget E3,
+                 and the screen's half of it. FilterBar matches the typed words
+                 against every node's `name` AND `name_ar`, folded; WHERE a pick
+                 lands is this file's decision, because only this file has a
+                 camera and a panel.
+
+                 BOTH VERBS, IN ONE TAP. `setSubject` opens that organization's
+                 panel — the same branch panel a portfolio row tap opens, and
+                 through `subjectForLens` it KEEPS the lens the reader is in
+                 rather than throwing them onto `shape`. Then, only where a
+                 canvas is actually drawn, the camera makes the minimum move to
+                 it: `flyToId` frames a world by id and is a NO-OP for a node
+                 that is not in the current drawing, which is the honest answer
+                 for an organization inside a collapsed branch — the panel still
+                 opened, so the reader still arrived.
+
+                 The stage test is `lens.stage`, not the lens: `board`, `numbers`
+                 and `portfolio` have no camera to move, and calling `flyToId`
+                 under them would be a claim about a picture that is not on
+                 screen. Supplying this handler also replaces FilterBar's own
+                 fallback (narrow `mapNodeIds` to the node), which is the right
+                 answer for a screen with no camera and the wrong one here: it
+                 would leave a filter behind that the reader never set. */
+              onPickNode={(nodeId) => {
+                lens.setSubject({ kind: 'branch', nodeId })
+                if (lens.stage === 'map') flyToId(nodeId)
+              }}
             />
           </div>
 
@@ -1125,7 +1233,11 @@ export default function Mindtree(): ReactElement {
               lens={lens.lens}
               onLens={lens.setLens}
               compact={compact}
-              counts={{ 'needs-me': attentionCount, 'what-changed': changesCount }}
+              counts={{
+                'needs-me': attentionCount,
+                'what-changed': changesCount,
+                portfolio: atRiskCount,
+              }}
             />
             <MapModeBar
               compact={compact}
@@ -1239,6 +1351,43 @@ export default function Mindtree(): ReactElement {
         <div className="mpan-stage">
           {lens.stage === 'board' ? (
             <BoardStage filter={filter} compact={compact} rtl={rtl} announce={setLive} />
+          ) : lens.stage === 'portfolio' ? (
+            /* THE PORTFOLIO, AND IT SITS ABOVE THE THREE NON-DRAWING GUARDS ON
+               PURPOSE — beside `board` and `numbers` rather than below them.
+               Those guards (`showSkeleton`, `showError`, `noTracks`) are about
+               THE ENTRIES: the map cannot draw until the working set lands and
+               says so. This table's rows come from the hierarchy — an
+               organization with nothing filed against it is a row, and the
+               exception list exists to show exactly those — so a portfolio held
+               behind "no entries yet" would blank the one surface that has an
+               answer in a workspace nobody has filed anything in.
+
+               `onOpenNode` is `setSubject`, not `focusBranch`: tapping an
+               organization opens the panel beside the table and MOVES NOTHING
+               on the canvas, which is the owner's own correction. `setSubject`'s
+               branch arm keeps the current lens through `subjectForLens`, so the
+               tap does not throw the reader back to `shape`. */
+            <PortfolioStage
+              root={model.tree}
+              filter={filter}
+              onNarrow={setFilter}
+              view={portfolio}
+              onView={setPortfolio}
+              textOf={model.textOf}
+              // THE TWO POLICIES THE TABLE MUST NOT OWN, handed down from the
+              // one place that already holds them. `TERMINAL_STATUS` is
+              // lib/mapNodes.ts's "the terminal status is a parameter, never the
+              // literal" — this file already imports it for the canvas's
+              // underscore — and `managerLabel` is MapBranchDetail's roster rule
+              // ("an id the roster does not know is a person who left, not
+              // nobody"). Passing both also keeps the import graph acyclic: the
+              // org panel mounts this file's stage picker.
+              terminalKey={TERMINAL_STATUS}
+              managerNameOf={portfolioManagerName}
+              onOpenNode={(nodeId) => lens.setSubject({ kind: 'branch', nodeId })}
+              compact={compact}
+              announce={setLive}
+            />
           ) : lens.stage === 'numbers' ? (
             <NumbersStage filter={filter} compact={compact} rtl={rtl} announce={setLive} />
           ) : showSkeleton ? (

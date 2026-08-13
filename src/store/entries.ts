@@ -900,16 +900,25 @@ export function useFilterContext(): FilterContext {
     return map
   }, [tracks])
   const mapNodeById = useMapNodeMap()
-  // ONE WALK, TWO ANSWERS, and both are facts lib/entryFilter cannot know: which
-  // node sits under which, and which integrator is behind a node. Built here
-  // because this is where the tree is, and built over EVERY node — archived ones
-  // included — so a link to an organization somebody put away still resolves.
-  const { ancestryOfNode, vendorOfNode } = useMemo(() => {
+  // ONE WALK, THREE ANSWERS, and all three are facts lib/entryFilter cannot
+  // know: which node sits under which, which integrator is behind a node, and
+  // who is accountable for it. Built here because this is where the tree is, and
+  // built over EVERY node — archived ones included — so a link to an
+  // organization somebody put away still resolves.
+  //
+  // THE THIRD ANSWER RIDES THE SAME LOOP RATHER THAN A SECOND ONE. A separate
+  // memo over the same map would be a second bounded parent walk per node for a
+  // value the first walk already passes through, and — worse — a second place
+  // where "nearest self-or-ancestor" is spelled out, which is how two facets
+  // covering one tree come to disagree about what an organization inherits.
+  const { ancestryOfNode, vendorOfNode, managerOfNode } = useMemo(() => {
     const ancestry = new Map<string, readonly string[]>()
     const vendor = new Map<string, string>()
+    const manager = new Map<string, string | null>()
     for (const id of mapNodeById.keys()) {
       const chain: string[] = []
       let effective = ''
+      let accountable: string | null = null
       let cursor = mapNodeById.get(id)
       // Bounded: 0023's deferred trigger makes a cycle impossible in the
       // database, but this also runs over a localStorage cache, and an unbounded
@@ -919,16 +928,23 @@ export function useFilterContext(): FilterContext {
         // The NEAREST self-or-ancestor with a vendor wins: work filed one level
         // inside an organization is still that integrator's work.
         if (effective === '') effective = cursor.vendor.trim()
+        // The same rule for the person, and `null` is what keeps the walk
+        // climbing: `account_manager_id` is a REFERENCE, so there is no blank
+        // spelling to trim — absent is absent, and an unassigned organization
+        // under an assigned phase answers the phase's manager, which is what
+        // "accountable for it" means one level up.
+        if (accountable === null) accountable = cursor.account_manager_id
         cursor = cursor.parent_id === null ? undefined : mapNodeById.get(cursor.parent_id)
       }
       ancestry.set(id, chain)
       vendor.set(id, effective)
+      manager.set(id, accountable)
     }
-    return { ancestryOfNode: ancestry, vendorOfNode: vendor }
+    return { ancestryOfNode: ancestry, vendorOfNode: vendor, managerOfNode: manager }
   }, [mapNodeById])
   return useMemo(
-    () => ({ meId, today, groupOfTrack, ancestryOfNode, vendorOfNode }),
-    [meId, today, groupOfTrack, ancestryOfNode, vendorOfNode],
+    () => ({ meId, today, groupOfTrack, ancestryOfNode, vendorOfNode, managerOfNode }),
+    [meId, today, groupOfTrack, ancestryOfNode, vendorOfNode, managerOfNode],
   )
 }
 

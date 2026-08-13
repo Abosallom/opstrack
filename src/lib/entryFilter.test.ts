@@ -6,6 +6,7 @@ import {
   filterKey,
   filterToParams,
   isFilterEmpty,
+  MANAGER_NONE,
   matchesFilter,
   selectEntries,
   sortEntries,
@@ -215,6 +216,14 @@ const MAPPED: FilterContext = {
     ['org2', ' acme '],
     ['clinical', ''],
   ]),
+  // The third answer out of the same walk. Sara has Org1; Org2 is the gap an AD
+  // is hunting; OB and Clinical are structure nobody has been given.
+  managerOfNode: new Map<string, string | null>([
+    ['ob', null],
+    ['org1', 'u-sara'],
+    ['org2', null],
+    ['clinical', null],
+  ]),
 }
 
 describe('branch — the hierarchy below tracks (0023)', () => {
@@ -360,6 +369,106 @@ describe('vendor — filter the map by the integrator', () => {
     // selectEntries over the whole working set for the second is work that
     // cannot change the answer.
     expect(filterKey(filter({ vendors: ['Acme'] }))).toBe(filterKey(filter({ vendors: ['acme '] })))
+  })
+})
+
+describe('manager — whose book an organization is in', () => {
+  it('keeps the work inside that manager’s organizations and drops the rest', () => {
+    expect(matches(entry({ node_id: 'org1' }), { managerIds: ['u-sara'] }, undefined, MAPPED)).toBe(
+      true,
+    )
+    expect(matches(entry({ node_id: 'org2' }), { managerIds: ['u-sara'] }, undefined, MAPPED)).toBe(
+      false,
+    )
+  })
+
+  it('inherits downward, because "Sara’s book" does not stop one level in', () => {
+    // The caller resolves the nearest self-or-ancestor manager; this pins that
+    // the module reads it per NODE and asks no further questions.
+    const deeper: FilterContext = {
+      ...MAPPED,
+      managerOfNode: new Map<string, string | null>([
+        ...(MAPPED.managerOfNode ?? new Map<string, string | null>()),
+        ['org1-sub', 'u-sara'],
+      ]),
+    }
+    expect(matches(entry({ node_id: 'org1-sub' }), { managerIds: ['u-sara'] }, undefined, deeper))
+      .toBe(true)
+  })
+
+  it('selects the gap only through the sentinel, never as a spelling of a person', () => {
+    // "Nobody has been given this organization" is a question an AD really
+    // asks. It is also NOT an answer to "show me Sara's book".
+    expect(
+      matches(entry({ node_id: 'org2' }), { managerIds: [MANAGER_NONE] }, undefined, MAPPED),
+    ).toBe(true)
+    expect(
+      matches(entry({ node_id: 'org1' }), { managerIds: [MANAGER_NONE] }, undefined, MAPPED),
+    ).toBe(false)
+    // Both at once is a legal selection — one array, one facet.
+    expect(
+      matches(entry({ node_id: 'org1' }), { managerIds: ['u-sara', MANAGER_NONE] }, undefined, MAPPED),
+    ).toBe(true)
+  })
+
+  it('an entry filed on no node is in nobody’s book, including the unassigned one', () => {
+    // Passing it through would put every unfiled row into the gap an AD is
+    // hunting, and the books would then sum to more than the map.
+    expect(
+      matches(entry({ node_id: null }), { managerIds: [MANAGER_NONE] }, undefined, MAPPED),
+    ).toBe(false)
+    expect(matches(entry({ node_id: null }), { managerIds: ['u-sara'] }, undefined, MAPPED)).toBe(
+      false,
+    )
+    expect(matches(entry({ node_id: null }), {}, undefined, MAPPED)).toBe(true)
+  })
+
+  it('a node the context has no answer for is not the same as a node with nobody', () => {
+    // `undefined` is "this map has never heard of that node" — a stale id, a
+    // place deleted since the link was copied. Merging it into MANAGER_NONE
+    // would report deleted places as an unassigned book somebody then hunts.
+    expect(matches(entry({ node_id: 'ghost' }), { managerIds: [MANAGER_NONE] }, undefined, MAPPED))
+      .toBe(false)
+    expect(matches(entry({ node_id: 'ghost' }), { managerIds: ['u-sara'] }, undefined, MAPPED)).toBe(
+      false,
+    )
+  })
+
+  it('matches NOTHING when the context cannot say whose anything is', () => {
+    // The strict reading `groupOfTrack` takes, for its reason.
+    expect(matches(entry({ node_id: 'org1' }), { managerIds: ['u-sara'] })).toBe(false)
+    // …and with no manager facet the missing map changes nothing at all, which
+    // is what made the field safe to add without touching a call site.
+    expect(matches(entry({ node_id: 'org1' }), {})).toBe(true)
+  })
+
+  it('is NOT `mine` — one field cannot hold two questions', () => {
+    // `mine` is owner_id/created_by on an ENTRY. An entry Sara neither owns nor
+    // created, filed on an organization she is accountable for, is in her book
+    // and not in her `mine`.
+    const e = entry({ node_id: 'org1', owner_id: 'u-bandar', created_by: 'u-bandar' })
+    expect(matches(e, { managerIds: ['u-sara'] }, undefined, { ...MAPPED, meId: 'u-sara' })).toBe(
+      true,
+    )
+    expect(matches(e, { mine: true }, undefined, { ...MAPPED, meId: 'u-sara' })).toBe(false)
+  })
+
+  it('is its own dimension, ANDed with branch and vendor rather than replacing them', () => {
+    const f = { managerIds: ['u-sara'], mapNodeIds: ['clinical'] }
+    expect(matches(entry({ node_id: 'org1' }), f, undefined, MAPPED)).toBe(false)
+    expect(countActiveFacets(filter(f))).toBe(2)
+  })
+
+  it('counts as its own facet, and keys the memo unfolded', () => {
+    expect(countActiveFacets(filter({ managerIds: ['u-sara'] }))).toBe(1)
+    expect(isFilterEmpty(filter({ managerIds: ['u-sara'] }))).toBe(false)
+    expect(filterKey(filter({ managerIds: ['u-sara'] }))).not.toBe(filterKey(EMPTY_FILTER))
+    expect(filterKey(filter({ managerIds: ['a', 'b'] }))).toBe(filterKey(filter({ managerIds: ['b', 'a'] })))
+    // Ids are matched by identity, so two casings are two different filters —
+    // the opposite of `vendors`, one line above it in filterKey.
+    expect(filterKey(filter({ managerIds: ['U-SARA'] }))).not.toBe(
+      filterKey(filter({ managerIds: ['u-sara'] })),
+    )
   })
 })
 
@@ -608,6 +717,7 @@ describe('URL round-trip', () => {
       trackIds: ['tr1', 'tr2'],
       mapNodeIds: ['ob', 'org1'],
       vendors: ['Acme, Inc.'],
+      managerIds: ['u-sara', 'u-bandar'],
       statuses: ['blocked', 'waiting_on'],
       priorities: ['critical'],
       types: ['issue'],
@@ -709,6 +819,26 @@ describe('URL round-trip', () => {
     // with no visible cause and an empty list under it.
     const f = filterFromParams(new URLSearchParams('vendor=&vendor=%20%20&vendor=Acme'))
     expect(f.vendors).toEqual(['Acme'])
+  })
+
+  it('carries a book as `manager=`, comma-joined, and round-trips the gap', () => {
+    // The one link this facet exists to produce: an AD sending an AM their own
+    // book. Comma-joined because every member is a uuid or the literal `none` —
+    // the property that makes `vendor` a repeated param and this one not.
+    const p = filterToParams(filter({ managerIds: ['u-sara', 'u-bandar'] }))
+    expect(p.get('manager')).toBe('u-sara,u-bandar')
+    expect(filterFromParams(p).managerIds).toEqual(['u-sara', 'u-bandar'])
+    const gap = filterToParams(filter({ managerIds: [MANAGER_NONE] }))
+    expect(gap.get('manager')).toBe('none')
+    expect(filterFromParams(gap).managerIds).toEqual([MANAGER_NONE])
+  })
+
+  it('keeps a manager who has left the workspace, so the filter can be seen and switched off', () => {
+    // Not validated against a roster — this module is pure and holds no
+    // members. An id naming somebody who handed their book over matches nothing
+    // and SAYS SO in the facet, which is the honest rendering; dropping it would
+    // widen a pasted link to the whole workspace under a promise of one book.
+    expect(filterFromParams(new URLSearchParams('manager=u-gone')).managerIds).toEqual(['u-gone'])
   })
 
   it('does not confuse the branch param with focus.ts’s drill-in', () => {

@@ -136,12 +136,14 @@ const { buildMindtree } = await import('../lib/mindtree/model')
 const {
   ADMIN_SCREENS,
   LENSES,
+  PORTFOLIO_VIEWS,
   PaletteDialog,
   SCREENS,
   actionCandidates,
   default: CommandPalette,
   entryCandidates,
   mapHref,
+  myOrgsHref,
   nextThemeAfter,
   rankPalette,
   screenCandidates,
@@ -224,8 +226,14 @@ const asHtml = (s: string): string =>
 // module-private, and importing that file would pull store/mindtree and two
 // react-router hooks into a suite with no DOM. CommandPalette's `LENS_PARAM` is
 // therefore a copy, and this is where the copy is checked against the original.
+//
+// lib/entryFilter.ts is read for the third copy: `manager=` is the facet "My
+// organizations" narrows on, and its name lives in that file's private `P`
+// table. Same reasoning, and the same failure if it drifts — a `?manager=` the
+// filter codec does not recognise is simply dropped, so the row would open the
+// whole workspace and look like it worked.
 const SOURCES: Record<string, string> = import.meta.glob(
-  ['../App.tsx', '../pages/map/useMapUrl.ts'],
+  ['../App.tsx', '../pages/map/useMapUrl.ts', '../lib/entryFilter.ts'],
   {
     query: '?raw',
     import: 'default',
@@ -234,6 +242,7 @@ const SOURCES: Record<string, string> = import.meta.glob(
 )
 const APP_SOURCE = SOURCES['../App.tsx'] ?? ''
 const MAP_URL_SOURCE = SOURCES['../pages/map/useMapUrl.ts'] ?? ''
+const FILTER_SOURCE = SOURCES['../lib/entryFilter.ts'] ?? ''
 
 interface ParsedRoute {
   path: string
@@ -334,6 +343,14 @@ const asAdmin = (): boolean => true
 const asMember = (): boolean => false
 
 /**
+ * The signed-in reader, for the one row that names a person.
+ *
+ * A uuid rather than `'me'`, because the row percent-encodes what it is handed
+ * and a value with nothing to encode would prove nothing about that.
+ */
+const ME = '9f2b1c34-5678-4abc-9def-000000000001'
+
+/**
  * The routes that render a screen, as opposed to a redirect or a detail surface.
  *
  * A DETAIL SURFACE IS RECOGNISED BY ITS COMPONENT, not by a colon in its own
@@ -420,10 +437,16 @@ describe('the palette registry against App.tsx', () => {
     const record = (to: string): void => {
       seen.push(to)
     }
-    for (const row of screenCandidates(asAdmin, record)) row.item.run([])
+    // SIGNED IN, so the "My organizations" row is in the list. That row is the
+    // second destination in this file that is BUILT rather than listed — its
+    // path carries the reader's own id — and the track rows are the standing
+    // proof that a built destination is invisible to a table walk.
+    for (const row of screenCandidates(asAdmin, record, ME)) row.item.run([])
     for (const row of trackCandidates([NETWORK], label, record)) row.item.run([])
     // Guards the filter below from passing because nothing navigated at all.
-    expect(seen).toHaveLength(SCREENS.length + LENSES.length + ADMIN_SCREENS.length + 1)
+    expect(seen).toHaveLength(
+      SCREENS.length + LENSES.length + PORTFOLIO_VIEWS.length + 1 + ADMIN_SCREENS.length + 1,
+    )
     expect(seen.filter((to) => !routedBy(ROUTES, to))).toEqual([])
   })
 
@@ -500,7 +523,7 @@ describe('the palette registry against App.tsx', () => {
     expect(ids).toContain('screen:/settings/terminology')
     expect(ids).not.toContain('screen:/settings/roles')
     expect(ids).not.toContain('screen:/settings/members')
-    expect(ids).toHaveLength(SCREENS.length + LENSES.length + 7)
+    expect(ids).toHaveLength(SCREENS.length + LENSES.length + PORTFOLIO_VIEWS.length + 7)
     // The shared prefix is still the member's list, in the member's order.
     const member = screenCandidates(asMember, () => {}).map((r) => r.item.id)
     expect(ids.slice(0, member.length)).toEqual(member)
@@ -509,7 +532,7 @@ describe('the palette registry against App.tsx', () => {
   it('names every screen with a key that resolves in both languages', () => {
     for (const locale of ['en', 'ar'] as const) {
       setLocale(locale)
-      for (const screen of [...SCREENS, ...LENSES, ...ADMIN_SCREENS]) {
+      for (const screen of [...SCREENS, ...LENSES, ...PORTFOLIO_VIEWS, ...ADMIN_SCREENS]) {
         // t() echoes an unknown key, so a label equal to its own key is a
         // missing string rendering a dot path at the user.
         expect(t(screen.labelKey)).not.toBe(screen.labelKey)
@@ -539,10 +562,10 @@ describe('the palette registry against App.tsx', () => {
 
   it('offers a row for every lens, each landing on the one routed map path', () => {
     // The five lenses replaced six palette rows (capture, follow-ups, board,
-    // tracks, dashboard, notifications). They are QUERIES on `/mindtree`, so the
-    // "nothing App.tsx does not route" case above cannot see them — this is the
-    // half that keeps them honest.
-    expect(LENSES).toHaveLength(5)
+    // tracks, dashboard, notifications), and the portfolio is the sixth. They
+    // are QUERIES on `/mindtree`, so the "nothing App.tsx does not route" case
+    // above cannot see them — this is the half that keeps them honest.
+    expect(LENSES).toHaveLength(6)
     const routed = new Set(ROUTES.map((r) => r.path))
     for (const lens of LENSES) {
       expect(lens.to.startsWith('/mindtree?lens=')).toBe(true)
@@ -554,6 +577,78 @@ describe('the palette registry against App.tsx', () => {
     }
     setLocale('en')
   })
+
+  it('keeps all four portfolio questions ONE tap from anywhere', () => {
+    // THE COMPENSATION FOR THE COLLAPSE, ASSERTED. Stalled, workload, vendor
+    // cohorts and progress are one chip on the lens bar because nine chips do
+    // not fit a phone — so three of the four would have cost a second tap if
+    // these rows did not exist. Delete a row here and a question quietly becomes
+    // two interactions; nothing else in the repo would say so.
+    expect(PORTFOLIO_VIEWS).toHaveLength(4)
+    const routed = new Set(ROUTES.map((r) => r.path))
+    const bys = PORTFOLIO_VIEWS.map((v) => new URLSearchParams(v.to.split('?')[1] ?? '').get('by'))
+    expect(bys).toEqual(['stage', 'manager', 'vendor', 'phase'])
+    for (const view of PORTFOLIO_VIEWS) {
+      expect(routed.has(view.to.split('?')[0] ?? '')).toBe(true)
+      const q = new URLSearchParams(view.to.split('?')[1] ?? '')
+      expect(q.get('lens')).toBe('portfolio')
+      // Spelled out in full, unlike `?stage=`: a palette row is a link a person
+      // copies out of the address bar, and it should say what it will show.
+      expect(q.get('risk')).not.toBeNull()
+    }
+    // ⚠ THE EXCEPTION CUT IS ON FOR EXACTLY ONE ROW. Workload has to sum to
+    // every organization, a vendor cohort has to be whole for "one fix unblocks
+    // N" to be true, and progress has to carry the organizations with nothing
+    // open or the denominator flatters itself. Turning `risk` on for any of the
+    // three answers a different question with the same-looking table.
+    const risky = PORTFOLIO_VIEWS.filter(
+      (v) => new URLSearchParams(v.to.split('?')[1] ?? '').get('risk') === '1',
+    )
+    expect(risky.map((v) => v.labelKey)).toEqual(['mindtree.portfolioViewStalled'])
+  })
+
+  it('spells ?by= and ?risk= the way pages/map/useMapUrl.ts reads them', () => {
+    // The same derived pin `LENS_PARAM` gets, for the two params that carry the
+    // whole of the sixth lens's interface. A row whose `?by=` the map does not
+    // recognise does not fail: `mapPortfolioFromParams` is total and answers
+    // with the DEFAULT, so a respelt param silently lands every row on the
+    // stalled list and three of the four palette rows stop working in silence.
+    const by = /const P_BY = '([^']+)'/.exec(MAP_URL_SOURCE)?.[1]
+    const risk = /const P_RISK = '([^']+)'/.exec(MAP_URL_SOURCE)?.[1]
+    expect(by).toBe('by')
+    expect(risk).toBe('risk')
+    for (const view of PORTFOLIO_VIEWS) {
+      const q = new URLSearchParams(view.to.split('?')[1] ?? '')
+      expect(q.get(by ?? ''), view.labelKey).not.toBeNull()
+      expect(q.get(risk ?? ''), view.labelKey).not.toBeNull()
+    }
+  })
+
+  it('names the reader own book with their id, and offers it to nobody else', () => {
+    // "My organizations" is BUILT, so it has no row in any table to walk. The
+    // whole book, not the late part of it (`risk=0`), grouped the way the chip
+    // groups (`by=stage`), narrowed to one person.
+    // The facet name is DERIVED from lib/entryFilter.ts's own param table, not
+    // typed twice and hoped about: that codec DROPS a param it does not
+    // recognise, so a respelling here would open the whole workspace and look
+    // exactly like a working row.
+    const manager = /^\s+manager: '([^']+)',$/m.exec(FILTER_SOURCE)?.[1]
+    expect(manager).toBe('manager')
+    const href = myOrgsHref(ME)
+    const q = new URLSearchParams(href.split('?')[1] ?? '')
+    expect(href.startsWith('/mindtree?')).toBe(true)
+    expect(q.get('lens')).toBe('portfolio')
+    expect(q.get(manager ?? '')).toBe(ME)
+    expect(q.get('risk')).toBe('0')
+    expect(q.get('by')).toBe('stage')
+    // A SESSION WITH NO PROFILE GETS NO ROW. `?manager=` with nothing after it
+    // matches nothing, so the row would be a promise of an empty table.
+    const out = screenCandidates(asMember, () => {}).map((r) => r.item.id)
+    expect(out.some((id) => id.includes('manager='))).toBe(false)
+    const inn = screenCandidates(asMember, () => {}, ME).map((r) => r.item.id)
+    expect(inn).toContain(`screen:${href}`)
+    expect(inn).toHaveLength(out.length + 1)
+  })
 })
 
 /* ══════════════════════════ 2. the candidate rows ════════════════════════ */
@@ -561,14 +656,16 @@ describe('the palette registry against App.tsx', () => {
 describe('screenCandidates', () => {
   it('withholds the admin screens from a member', () => {
     const rows = screenCandidates(asMember, () => {})
-    expect(rows).toHaveLength(SCREENS.length + LENSES.length)
+    expect(rows).toHaveLength(SCREENS.length + LENSES.length + PORTFOLIO_VIEWS.length)
     expect(rows.map((r) => r.item.id)).not.toContain('screen:/settings/members')
   })
 
   it('appends them for an admin, leaving the shared order alone', () => {
     const member = screenCandidates(asMember, () => {}).map((r) => r.item.id)
     const admin = screenCandidates(asAdmin, () => {}).map((r) => r.item.id)
-    expect(admin).toHaveLength(SCREENS.length + LENSES.length + ADMIN_SCREENS.length)
+    expect(admin).toHaveLength(
+      SCREENS.length + LENSES.length + PORTFOLIO_VIEWS.length + ADMIN_SCREENS.length,
+    )
     // Same rows in the same places: a list that reorders itself by role is a
     // list nobody builds muscle memory on.
     expect(admin.slice(0, member.length)).toEqual(member)
@@ -795,7 +892,13 @@ describe('rankPalette', () => {
     // counted SCREENS and ADMIN_SCREENS but not the five LENSES that were
     // inserted between them, so an admin's nineteen rows were cut to fourteen
     // and the five that fell off the end were the entire admin block.
-    const rows = screenCandidates(asAdmin, () => {})
+    //
+    // DRIVEN AT THE LARGEST LIST THE BUILDER CAN RETURN — a signed-in admin, so
+    // the four portfolio readings AND the "My organizations" row are both in it.
+    // The cap's `+ 1` for that conditional row is only exercised here; counted
+    // against a signed-out reader this case would pass on a cap one short, and
+    // the row it ate would be Members again.
+    const rows = screenCandidates(asAdmin, () => {}, ME)
     const model = rankPalette('', sources({ screens: rows }), 0)
     // Counted off the BUILDER rather than off the tables, so a fourth table
     // added to `screenCandidates` is covered by this case the day it lands.
@@ -826,7 +929,9 @@ describe('rankPalette', () => {
 
   it('clamps a highlight that a shrinking list left past the end', () => {
     const screens = screenCandidates(asMember, () => {})
-    expect(rankPalette('', sources({ screens }), 99).at).toBe(SCREENS.length + LENSES.length - 1)
+    expect(rankPalette('', sources({ screens }), 99).at).toBe(
+      SCREENS.length + LENSES.length + PORTFOLIO_VIEWS.length - 1,
+    )
     expect(rankPalette('zzzzz', sources({ screens }), 99).at).toBe(-1)
     expect(rankPalette('zzzzz', sources({ screens }), 99).count).toBe(0)
   })

@@ -73,10 +73,29 @@
 // stays on the stats band, whose `track.statsPartial` note already says so when
 // `useEntriesTruncated()` is true.
 //
-// READ-ONLY IN v1, deliberately. `map_node_use_cases` is member-writable and
+// READ-ONLY IN v1, deliberately — AND THAT DECISION IS NOW REVERSED FOR THE
+// STAGE, AND FOR THE STAGE ALONE. `map_node_use_cases` is member-writable and
 // `setNodeUseCase` exists, but the plan puts per-use-case editing in the admin
 // catalogue screen; a second place to write the same cell is a second place for
-// the two to disagree about what was saved.
+// the two to disagree about what was saved. That argument still holds for the
+// capability matrix below and it does NOT hold for `map_node_progress`:
+//
+//   · 0026 split the stage into a side table PRECISELY so the three account
+//     managers could write it without `structure.edit`. A field made
+//     member-writable on purpose and then editable nowhere is a migration that
+//     shipped a column nobody can fill in.
+//   · It is the action they take most (budget E2: two taps from landing, three
+//     on a phone), and the panel is where a reader already is when they have
+//     just read what an organization IS.
+//   · There is no second writer to disagree with. The portfolio row and this
+//     field are ONE control mounted twice — `StagePicker`, exported from
+//     PortfolioStage.tsx, which also owns the optimistic overlay both surfaces
+//     read. That is the opposite of the duplication the v1 rule was about.
+//
+// THE IMPORT DIRECTION IS PortfolioStage → nothing here, and this band → it.
+// The stage takes `terminalKey` and `managerNameOf` as PROPS from the shell
+// rather than importing `TERMINAL_STATUS` and `managerLabel` from this file,
+// which is what keeps the two modules acyclic.
 //
 // ══════════════════════════════════════════════════════════════════════════
 //
@@ -110,7 +129,15 @@
 //   that can never return a row, since goals hang off map nodes and nothing
 //   else has one.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react'
 import {
   createGoal,
   deleteGoal,
@@ -122,6 +149,9 @@ import {
 } from '../../api/goals'
 import { listNodeUseCases } from '../../api/map'
 import { confirm } from '../Confirm'
+// The stage control and the optimistic write behind it. ONE control mounted
+// twice — see the header's note on the reversed read-only decision.
+import { StagePicker } from './PortfolioStage'
 import { EmptyState } from '../shared'
 import { toast } from '../toast'
 import { isolate } from '../../lib/bidi'
@@ -302,7 +332,11 @@ export default function MapBranchDetail({ nodeId, kindName }: MapBranchDetailPro
   // NO BAND, rather than an empty one. Not an entity (a track, a bucket, the
   // root), or an entity whose row has not arrived — the map draws from the same
   // store, so the second case is a cold start, not a missing organization.
-  if (node === undefined) return null
+  // `nodeId === null` is already implied by `node === undefined` — the lookup
+  // above short-circuits on it — but it is spelled out so the compiler narrows
+  // the id for the stage control below, which needs the string rather than the
+  // row. The two conditions are one fact and must not drift apart.
+  if (nodeId === null || node === undefined) return null
 
   return (
     <DetailBand
@@ -314,6 +348,12 @@ export default function MapBranchDetail({ nodeId, kindName }: MapBranchDetailPro
       labelOf={(useCase) => localName(useCase, locale)}
       loading={loading}
       error={error}
+      // THE ONE WRITABLE FIELD ON THIS BAND — see the header. Passed as a NODE
+      // rather than as an `onStage` callback, so `DetailBand` stays renderable
+      // without a store: `vitest.config.ts` is `environment: 'node'` and effects
+      // do not run under `renderToStaticMarkup`, so a band that mounted the
+      // connected picker itself could only ever be tested in its loading state.
+      stage={<StagePicker nodeId={nodeId} name={localName(node, locale)} />}
     />
   )
 }
@@ -333,6 +373,16 @@ export interface DetailBandProps {
   loading: boolean
   /** An i18n key from api/map.ts, never a sentence. */
   error: string | null
+  /**
+   * The stage control, or absent.
+   *
+   * OPTIONAL, and the absence is a real state rather than a default: with no
+   * ladder configured `StagePicker` renders null and this row does not appear at
+   * all. A picker whose only option is "nothing" is a control promising a verb
+   * the workspace does not have yet, and the portfolio stage already names that
+   * state and links to the screen that fixes it.
+   */
+  stage?: ReactNode
 }
 
 /**
@@ -350,6 +400,7 @@ export function DetailBand({
   labelOf,
   loading,
   error,
+  stage,
 }: DetailBandProps): ReactElement {
   useLocale()
   const { rows, done, total, linked } = progress
@@ -366,6 +417,19 @@ export function DetailBand({
       </div>
 
       <dl className="mbr-fields">
+        {/* THE STAGE FIRST, because it is the one field on this band that is
+            also a CONTROL, and because "where has this got to" is the question
+            an account manager opens the panel with. The `<dd>` holds the picker
+            directly — no label element of its own: the `<dt>` names the pair for
+            sighted readers and the select carries its own `aria-label` naming
+            the organization, so a screen-reader user hears "Stage for Riyadh
+            General" rather than a bare "Stage" repeated on every panel. */}
+        {stage !== undefined && stage !== null && (
+          <div className="mbr-field">
+            <dt className="mbr-field-k">{t('mindtree.colStage')}</dt>
+            <dd className="mbr-field-v">{stage}</dd>
+          </div>
+        )}
         <div className="mbr-field">
           <dt className="mbr-field-k">{t('mapnode.accountManager')}</dt>
           <dd className="mbr-field-v">{manager === null ? <NotRecorded /> : isolate(manager)}</dd>

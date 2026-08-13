@@ -402,10 +402,23 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
         section: 'actions',
       },
       { prefixes: ['empty', 'branchEmpty'], section: 'emptyStates' },
+      // THE PORTFOLIO'S THREE, ON LONGEST-PREFIX-WINS. `portfolio` alone is the
+      // stage's verbs and controls — the `?by=` chips, the risk toggle, the bulk
+      // action, the two drill buttons — which are things a person presses, so
+      // they group with the other actions. The two longer prefixes peel off what
+      // is NOT a verb: `portfolioEmpty*` is what the table says when there is
+      // nothing in it, and `portfolioNo*` is what it says when the workspace has
+      // not been configured yet — a message about the READ in exactly the sense
+      // `nodesPartial` below is.
+      //
+      // The `col*` keys are deliberately absent and fall to the namespace
+      // default (`entryFields`), which is where a column heading belongs.
+      { prefixes: ['portfolio'], section: 'actions' },
+      { prefixes: ['portfolioEmpty'], section: 'emptyStates' },
       // `nodesPartial` joins the errors rather than the states it sits beside on
       // screen: it is a sentence about the READ, like every other message here,
       // and the reader who retitles it is retitling a warning.
-      { prefixes: ['err', 'nodesPartial'], section: 'messages' },
+      { prefixes: ['err', 'nodesPartial', 'portfolioNo'], section: 'messages' },
     ],
   },
 

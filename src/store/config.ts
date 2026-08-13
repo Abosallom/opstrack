@@ -1096,6 +1096,41 @@ export function invalidateConfig(): void {
 }
 
 /**
+ * Publish ONE node's progress row, without refetching the workspace.
+ *
+ * THE TARGETED PUBLISHER `invalidateConfig`'s note above asks for, built for the
+ * caller it names: `setNodeStage` is an account manager's ordinary daily action,
+ * and a reader moving forty organizations down the portfolio would otherwise
+ * fire forty full reloads of all eight reads to publish forty rows the writer
+ * already had in hand. `saveJiraConfig` is the precedent — publish what the
+ * write returned and rebuild nothing else.
+ *
+ * NOTHING DERIVED SPANS THIS LIST. `deriveAll` builds `progressByNodeId` from
+ * `mapNodeProgress` and nothing more — no ordering, no roll-up, no cross-table
+ * join — so replacing one row is the whole of the update. That is what makes a
+ * targeted publisher legitimate here and not for, say, a map node, whose row
+ * feeds `mapChildren`, `mapRoots` and the ancestry walk.
+ *
+ * THE ROW IS THE STORED ONE, never the input: `setNodeStage` returns what the
+ * database wrote, INCLUDING the `stage_changed_at` the stamp trigger owns and no
+ * client may send. Publishing the input instead would put a stamp on screen that
+ * a reload would disagree with.
+ *
+ * The cache is rewritten with it, so a reload inside the 30-second window shows
+ * the change rather than the row it replaced.
+ */
+export function publishNodeProgress(row: MapNodeProgress): void {
+  const held = useConfigStore.getState()
+  const rows = held.mapNodeProgress.some((r) => r.node_id === row.node_id)
+    ? held.mapNodeProgress.map((r) => (r.node_id === row.node_id ? row : r))
+    : [...held.mapNodeProgress, row]
+  const byId = new Map(held.progressByNodeId)
+  byId.set(row.node_id, row)
+  useConfigStore.setState({ mapNodeProgress: rows, progressByNodeId: byId })
+  writeRowCache(MAP_NODE_PROGRESS_CACHE_KEY, rows)
+}
+
+/**
  * Save the Jira configuration and publish what the database stored.
  *
  * THE WRITE LIVES HERE RATHER THAN AT THE SCREEN, and that is the same decision
