@@ -91,14 +91,29 @@
 // tier gets one more dive level for free, which is the whole point of the
 // correction: the number of levels is the depth of the tree, never four.
 //
-// PAST THE DOM HORIZON, HOLD THE ID AND FLY. `order` is the CULLED, drawn list,
-// so an arrow can name a node that is not in the DOM — the parent that has
-// become the frame, or a child still below `DOM_HORIZON_PX`. Answering with a
-// whole-map fit would take a reader who asked for ONE item to a picture of
-// everything. Instead the id is parked in useMapCursor's `requestPendingFocus`
-// and the camera is asked to open the way in; focus lands on the node the next
-// commit brings in. That is the same contract `flyToNode`'s `null` return
-// already documents at mapMotion.ts:551-566.
+// PAST THE DOM HORIZON, HOLD THE ID AND FLY. When `order` is a list SHORTER
+// than the layout, an arrow can name a node that is not in the DOM — the parent
+// that has become the frame, or a child still below `DOM_HORIZON_PX`. Answering
+// with a whole-map fit would take a reader who asked for ONE item to a picture
+// of everything. Instead the id is parked in useMapCursor's
+// `requestPendingFocus` and the camera is asked to open the way in; focus lands
+// on the node the next commit brings in. That is the same contract
+// `flyToNode`'s `null` return already documents at mapMotion.ts:551-566.
+//
+// AND TODAY THAT ARM IS ARMED, NOT LIVE — stated because the sentence above
+// used to claim `order` WAS the drawn list, and it is not. `Mindtree.tsx` hands
+// both this hook and `useMapCursor` `geo.order`, the LAID-OUT list, so
+// `drawnIds` below is the whole layout and every branch takes its "it is drawn"
+// arm. The gap predates wave 9's frustum cull — the DOM horizon opened it at
+// wave 1, when 31 groups were drawn against 424 laid-out nodes at zoomed-out —
+// and wave 9 does not widen the BEHAVIOUR, because `MapCanvas`'s cull keeps
+// `activeId` outright: an arrow onto an off-screen sibling sets the cursor, the
+// cull keeps that node for being the cursor, and `dive.follow` brings the camera
+// to it. Passing the culled list instead would change what an arrow DOES (park
+// and fly for every off-screen sibling rather than move) and would close a cycle
+// — `activeId` derives from the drawn set, the drawn set keeps `activeId` — so
+// it is a deliberate open seam, not an oversight. Whoever closes it must cull
+// AFTER `useMapCursor` to break that cycle.
 
 import { useCallback, useMemo } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, MutableRefObject } from 'react'
@@ -492,12 +507,18 @@ export function useMapKeyboard({
   )
 
   /**
-   * WHICH IDS ARE ACTUALLY IN THE DOM RIGHT NOW.
+   * WHICH IDS THIS HOOK HAS BEEN TOLD ARE IN THE DOM — whatever `order` holds.
    *
-   * `order` is the CULLED, drawn list — nodes whose world intersects the camera
-   * rect and whose apparent size clears `DOM_HORIZON_PX`. Before the camera it
-   * is simply every laid-out node, so this set is the whole layout and every
-   * branch below takes its "it is drawn" arm exactly as it always did.
+   * THE CALLER TODAY PASSES `geo.order`, THE LAID-OUT LIST, so this set is the
+   * whole layout and every branch below takes its "it is drawn" arm. The undrawn
+   * arm is therefore armed and not live in the app; the header says why that is
+   * a deliberate seam rather than a bug, and mapZoomReach.test.tsx exercises it
+   * by handing this hook a genuinely shorter list.
+   *
+   * The name stays `drawnIds` because it is what the set MEANS to the logic
+   * below: the ids a keystroke may land focus on without flying first. What is
+   * NOT safe is to read this as proof the app culls the keyboard's order — it
+   * does not.
    */
   const drawnIds = useMemo(() => new Set(order.map((pos) => pos.id)), [order])
 
