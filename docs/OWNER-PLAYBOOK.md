@@ -7,18 +7,34 @@ will see, and what happens after.
 
 **If you only have 15 minutes today: do Step 1 and Step 2.** Everything else can wait.
 
-| # | Step | Time | Needs |
+**Verified state, 13 Aug 2026 (probed against the live project, not assumed):**
+
+| # | Step | State | Evidence |
 |---|---|---|---|
-| 0 | Rotate the exposed credentials | 5 min | browser |
-| 1 | The SQL sitting (0026 / 0027 / 0028) | 10 min | SQL Editor |
-| 2 | Tell me — I import the 400-org demo | 1 min | a message |
-| 3 | Redeploy `jira-read` | 2 min | terminal |
-| 4 | Provision the 16 people | 15 min | terminal + browser |
-| 5 | Connect Jira (optional, whenever) | 10 min | Atlassian + dashboard |
-| 6 | The verification tour — your verdict | 20 min | your eyes |
-| 7 | The real 400 organizations | when data is ready | Excel |
-| 8 | Push / deploy decision | 1 min | a message |
+| 0 | Rotate the exposed credentials | ✅ done | `.env.supabase-admin` deleted |
+| 1 | The SQL sitting (0026 / 0027 / 0028) | ❌ **not landed** | all five objects 404 on the live project — see the self-check below |
+| 2 | Tell me — I import the 400-org demo | ⏳ waits on 1 | — |
+| 3 | Redeploy `jira-read` | ❓ unverifiable from outside | redoing it is free and idempotent |
+| 4 | Provision the 16 people | ❌ not done | `profiles` holds 2 rows |
+| 5 | Connect Jira | ⏳ waits on 1 (needs 0028's table) | — |
+| 6 | The verification tour | ⏳ waits on 1–2 | — |
+| 7 | The real 400 organizations | when data is ready | — |
+| 8 | Push / deploy decision | ❌ not done | branch has no upstream |
 | — | Later: `/nphiescore/` move, TestFlight | scheduled separately | |
+
+**If you believe you already ran the SQL and this table says otherwise**, one of three things
+happened: the Editor was on a different project (check the picker top-left — the right URL is
+`supabase.com/dashboard/project/lrysgpbkmuqgzsjesfkr/sql`), the file was pasted but never
+Run (⌘⏎ executes; the Editor happily saves drafts), or it errored and the red line at the
+bottom of the results panel went unseen. The 30-second self-check, safe to paste any time:
+
+```sql
+select relname from pg_class
+ where relname in ('map_node_stages','map_node_progress','map_node_goals','jira_settings')
+ order by 1;
+```
+
+Four rows = the sitting landed. Zero = it did not, whatever the Editor seemed to say.
 
 ---
 
