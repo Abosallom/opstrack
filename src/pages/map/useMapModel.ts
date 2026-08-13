@@ -939,18 +939,55 @@ export function useMapModel(
   )
 
   /**
-   * One view model per node: the display label, the accessible name, the count
-   * chip and the two tooltips.
+   * ONE NODE'S VIEW MODEL, ON DEMAND: the display label, the accessible name,
+   * the count chip and the two tooltips.
    *
-   * Built in a single walk rather than inside the node component, because a
+   * Built here rather than inside the node component, because a
    * filtered-to-everything workspace is several hundred nodes and every one of
    * them would otherwise re-resolve its own label on every pan frame. `locale`
    * is a dependency even though nothing below reads it directly: t() reads
    * lib/i18n's MODULE state, which React cannot watch, so without it here a
    * language switch would re-render the map around a memo full of English.
+   *
+   * ── WAVE 9's 5d: LAZY, AND THE ARITHMETIC THAT FORCED IT ───────────────────
+   *
+   * This was a `Map` built by ONE EAGER WALK of the whole tree. At 400
+   * organizations the tree is ~3,200 nodes and a view costs about six `t()`
+   * lookups, so a rebuild — and it rebuilds whenever `entryById` changes, which
+   * is every realtime patch — was ~20,000 locale lookups for a picture that
+   * draws a couple of hundred marks.
+   *
+   * So the walk that remains is the CHEAP half: one pass that indexes the nodes
+   * by id and calls nothing. The expensive half runs per id, on the first ask,
+   * and is cached. `MapCanvas` asks only for nodes that survived the frustum
+   * cull, which is what turns the reduction from an argument into a number —
+   * `mapRender.test.tsx` counts the asks per camera and pins them.
+   *
+   * IDENTITY IS STILL STABLE, which is the property `MindNode`'s `memo()` runs
+   * on: an id asked for twice returns the same object, and the cache lives
+   * exactly as long as the memo does. What changed is WHEN it is built, never
+   * how many times.
+   *
+   * NOBODY EAGER IS LEFT. `lib/export.ts` and `MindtreeTable` were named as the
+   * two consumers an `allViews()` would have to keep whole; neither reads this
+   * — the serialiser walks the model and the table builds its own rows — so an
+   * eager arm would have been dead code on the day it shipped. `getView` is the
+   * whole surface; if a caller ever needs every view at once, it should walk the
+   * tree it already has and ask.
    */
-  const views = useMemo(() => {
-    const out = new Map<string, MindNodeView>()
+  const getView = useMemo(() => {
+    const cache = new Map<string, MindNodeView>()
+
+    /**
+     * The cheap walk: id → node, plus the parent link the fold's ancestry trail
+     * needs. No `t()`, no isolation, no allocation per node beyond the entry.
+     */
+    const index = new Map<string, { node: MindNodeModel; parentId: string | null }>()
+    const indexOf = (node: MindNodeModel, parentId: string | null): void => {
+      index.set(node.id, { node, parentId })
+      for (const child of node.children) indexOf(child, node.id)
+    }
+    indexOf(tree, null)
 
     const sep = t('mindtree.listSep')
 
@@ -964,9 +1001,26 @@ export function useMapModel(
      * the same button twice. Each component is isolated separately rather than
      * the joined string being isolated once, because the separator is the
      * locale's own comma and it belongs to the SENTENCE, not to either label.
+     *
+     * WALKED UP FROM THE NODE rather than carried down into it, which is the
+     * one thing the lazy cache changed about this function: an eager walk had
+     * the ancestry in hand and a per-id build does not. The root contributes
+     * nothing and stops the climb — "NphiesCore, Network, Blocked" would name
+     * the workspace in every fold on the screen — and only a `'more'` node ever
+     * asks, so the climb runs a handful of times per rebuild rather than 3,200.
      */
-    const trail = (ancestry: readonly string[]): string =>
-      ancestry.filter((text) => text !== '').map(isolate).join(sep)
+    const trail = (id: string): string => {
+      const parts: string[] = []
+      let at = index.get(id)?.parentId ?? null
+      while (at !== null) {
+        const held = index.get(at)
+        if (held === undefined || held.node.kind === 'root') break
+        const text = textOf(held.node.label)
+        if (text !== '') parts.push(isolate(text))
+        at = held.parentId
+      }
+      return parts.reverse().join(sep)
+    }
 
     /** An Organization's account manager and vendor, or null for everything else. */
     const secondaryOf = (node: MindNodeModel): string | null => {
@@ -992,7 +1046,7 @@ export function useMapModel(
      */
     const terminalWord = progressSource === null ? '' : t(progressSource.terminalWordKey)
 
-    const visit = (node: MindNodeModel, ancestry: readonly string[]): void => {
+    const build = (node: MindNodeModel): MindNodeView => {
       const raw = textOf(node.label)
       const stat = stats.get(node.id) ?? NO_STATS
       /**
@@ -1029,8 +1083,8 @@ export function useMapModel(
         name = t('mindtree.nodeName', {
           label: raw,
           detail: node.collapsed
-            ? t('mindtree.showMore', { label: trail(ancestry) })
-            : t('mindtree.showFewer', { label: trail(ancestry) }),
+            ? t('mindtree.showMore', { label: trail(node.id) })
+            : t('mindtree.showFewer', { label: trail(node.id) }),
         })
       } else {
         const detail: string[] = []
@@ -1105,7 +1159,7 @@ export function useMapModel(
           : t('mindtree.nodeName', { label: raw, detail: detail.join(sep) })
       }
 
-      out.set(node.id, {
+      return {
         // Isolated for DISPLAY only. The accessible names above pass `raw`,
         // because the locale templates isolate their own interpolations —
         // `"⁨{label}⁩, {detail}"` — and isolating twice would nest two runs
@@ -1146,16 +1200,18 @@ export function useMapModel(
          * fold's ancestry trail above does it.
          */
         secondary: secondaryOf(node),
-      })
-
-      // The root is the workspace and adds nothing to a fold's ancestry, so it
-      // seeds an empty trail rather than "NphiesCore, Network, Blocked".
-      const below = node.kind === 'root' ? [] : [...ancestry, raw]
-      for (const child of node.children) visit(child, below)
+      }
     }
 
-    visit(tree, [])
-    return out
+    return (id: string): MindNodeView | undefined => {
+      const hit = cache.get(id)
+      if (hit !== undefined) return hit
+      const held = index.get(id)
+      if (held === undefined) return undefined
+      const made = build(held.node)
+      cache.set(id, made)
+      return made
+    }
     // `locale` is a dependency the rule cannot see the use of, and the same
     // one store/entries.ts and MindtreeTable.tsx suppress for the same reason:
     // every t() above reads lib/i18n's MODULE-level current locale rather than
@@ -1256,7 +1312,7 @@ export function useMapModel(
     dragging,
     tree,
     stats,
-    views,
+    getView,
     textOf,
     dimensionLabel,
     /** The cohort key the picture is cut by — the toolbar lights its chip from it. */

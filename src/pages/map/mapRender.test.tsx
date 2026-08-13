@@ -133,12 +133,14 @@ import type { MindDragController } from '../../components/mindtree/DragLayer'
 import type { MindNodeView } from '../../components/mindtree/MindNode'
 import type { PulseLayerProps } from '../../components/mindtree/PulseLayer'
 import type { Band } from '../../lib/mindtree/lod'
+import type { Camera } from './mapMotion'
 import type { MindNode as MindNodeModel } from '../../lib/mindtree/model'
 import type { CameraSpec, Fixture } from './mapRenderFixtures'
 
 const { default: MapCanvas } = await import('../../components/map/MapCanvas')
+const { MapCameraContext, reachesCamera } = await import('./mapCameraContext')
 const { D_LEAF, layoutWorlds } = await import('../../lib/mindtree/worlds')
-const { apparentOf, bandFor, bandFloorPx, BAND_EDGES, FLOOR: INK } = await import(
+const { apparentOf, bandFor, bandFloorPx, BAND_EDGES, DOM_HORIZON_PX, FLOOR: INK } = await import(
   '../../lib/mindtree/lod'
 )
 const { DEFAULT_NODE_SIZE } = await import('../../lib/mindtree/layout')
@@ -409,11 +411,17 @@ interface Render {
   readonly camera: CameraSpec
   readonly svg: string
   readonly layout: WorldLayout
-  /** CSS px per drawing unit — `MapCanvas`'s `scale` prop, and the whole ballgame. */
+  /** CSS px per drawing unit — the camera context's `scale`, and the whole ballgame. */
   readonly cameraScale: number
+  /** The camera as RESOLVED — the rectangle wave 9's frustum cull tests against. */
+  readonly frustum: Camera
   readonly viewportMinPx: number
   readonly framedId: string
   readonly views: ReadonlyMap<string, MindNodeView>
+  /** Every node the LAYOUT holds — the denominator of both wave-9 numbers. */
+  readonly nodeCount: number
+  /** How many distinct view models the drawing asked for — wave 9's 5d. */
+  readonly viewsAsked: number
   readonly matchWorlds: number
 }
 
@@ -469,57 +477,83 @@ function render(fixture: Fixture, camera: CameraSpec): Render {
     if (marked.length > 0) matchWedgesById.set(w.id, marked)
   }
 
+  /**
+   * HOW MANY VIEW MODELS THE DRAWING ACTUALLY ASKED FOR — wave 9's 5d, counted
+   * rather than argued.
+   *
+   * `useMapModel` builds a view lazily and caches it, at ~6 `t()` calls each; the
+   * saving is therefore exactly `nodes − distinct asks`, and this counter is the
+   * second number in that subtraction. Counted DISTINCT, because the cache is
+   * what the app has and a repeat ask costs nothing there either.
+   */
+  const asked = new Set<string>()
+  const getView = (id: string): MindNodeView | undefined => {
+    asked.add(id)
+    return views.get(id)
+  }
+
   const element: ReactElement = (
-    <MapCanvas
-      canvasRef={() => {}}
-      svgRef={{ current: null }}
-      layout={layout}
-      order={layout.nodes}
-      scale={cameraScale}
-      viewportMinPx={viewportMinPx}
-      matchesById={matchesById}
-      matchWedgesById={matchWedgesById}
-      views={views}
-      viewBox={viewBoxOf(cam)}
-      rtl={fixture.rtl}
-      hintId="map-hint"
-      dimensionLabel="Status"
-      motion={false}
-      pulses={NO_PULSES}
-      dragController={DRAG}
-      activeId={null}
-      currentId={null}
-      cardPos={null}
-      cardAnchor={null}
-      box={camera.viewport}
-      dragging={false}
-      entryById={new Map()}
-      memberById={new Map()}
-      vocabLabel={() => ''}
-      dimension="status"
-      today="2026-01-01"
-      onActivate={() => {}}
-      onNodeFocus={() => {}}
-      registerRef={() => {}}
-      onHover={() => {}}
-      onMenu={() => {}}
-      onTreeFocus={() => {}}
-      onKeyDown={() => {}}
-      onPointerDown={() => {}}
-      onPointerMove={() => {}}
-      onPointerEnd={() => {}}
-    />
+    <MapCameraContext.Provider
+      value={{
+        camera: cam,
+        scale: cameraScale,
+        viewportMinPx,
+        viewBox: viewBoxOf(cam),
+      }}
+    >
+      <MapCanvas
+        canvasRef={() => {}}
+        svgRef={{ current: null }}
+        layout={layout}
+        order={layout.nodes}
+        matchesById={matchesById}
+        matchWedgesById={matchWedgesById}
+        getView={getView}
+        rtl={fixture.rtl}
+        hintId="map-hint"
+        dimensionLabel="Status"
+        motion={false}
+        pulses={NO_PULSES}
+        dragController={DRAG}
+        activeId={null}
+        currentId={null}
+        cardPos={null}
+        cardAnchor={null}
+        box={camera.viewport}
+        dragging={false}
+        entryById={new Map()}
+        memberById={new Map()}
+        vocabLabel={() => ''}
+        dimension="status"
+        today="2026-01-01"
+        onActivate={() => {}}
+        onNodeFocus={() => {}}
+        registerRef={() => {}}
+        onHover={() => {}}
+        onMenu={() => {}}
+        onTreeFocus={() => {}}
+        onKeyDown={() => {}}
+        onPointerDown={() => {}}
+        onPointerMove={() => {}}
+        onPointerEnd={() => {}}
+      />
+    </MapCameraContext.Provider>
   )
+
+  const svg = renderToStaticMarkup(element)
 
   return {
     fixture,
     camera,
-    svg: renderToStaticMarkup(element),
+    svg,
     layout,
     cameraScale,
+    frustum: cam,
     viewportMinPx,
     framedId,
     views,
+    nodeCount: layout.nodes.length,
+    viewsAsked: asked.size,
     matchWorlds: matchWedgesById.size,
   }
 }
@@ -705,6 +739,25 @@ function strokeSizeOf(mark: Mark): { value: number; authored: Authored } | null 
 interface Measured {
   readonly render: Render
   readonly marks: readonly Mark[]
+  /**
+   * HOW MANY `<g>` ELEMENTS THE DRAWING EMITTED — the budget wave 9's frustum
+   * cull makes meetable, and the only one of these numbers that is about the
+   * browser rather than about the eye. A group is what the page pays for: a
+   * transform to compose, a subtree to lay out, a hit-test region to keep.
+   */
+  readonly groups: number
+  /**
+   * The same count, MINUS the groups inside a `visibility: hidden` subtree.
+   *
+   * The two are different budgets and wave 9 only moves one of them. A painted
+   * group is a mark the reader receives and the frustum decides whether it
+   * exists; a hidden one is the DOM horizon's own placeholder — `lod.ts` keeps a
+   * node between `DOM_HORIZON_PX` and `BAND_EDGES.grain` in the document,
+   * `visibility: hidden`, "so a keyboard walk never waits on a repaint" — and
+   * the frustum cannot cull it, because it is not off screen. It is on screen
+   * and too small to draw.
+   */
+  readonly painted: number
   readonly texts: readonly Sized[]
   readonly strokes: readonly Sized[]
   /** How wide each node's card actually landed, CSS px, keyed by its own name. */
@@ -764,7 +817,17 @@ function measure(r: Render): Measured {
     childCount += 1
   }
 
-  return { render: r, marks, texts, strokes, cardWidthPx, childBands, childCount }
+  return {
+    render: r,
+    marks,
+    groups: marks.filter((mark) => mark.tag === 'g').length,
+    painted: marks.filter((mark) => mark.tag === 'g' && !mark.hidden).length,
+    texts,
+    strokes,
+    cardWidthPx,
+    childBands,
+    childCount,
+  }
 }
 
 /**
@@ -795,6 +858,11 @@ function statLine(m: Measured): string {
     `${m.render.fixture.id.padEnd(10)} ${m.render.camera.id.padEnd(11)}`,
     `scale=${m.render.cameraScale.toExponential(3)}`,
     `marks=${String(m.marks.length).padStart(5)}`,
+    // WAVE 9's TWO NUMBERS, on the line a pull request reads: how many groups
+    // survived the frustum cull, and how many view models the drawing asked for
+    // out of every node the layout holds.
+    `g=${String(m.groups).padStart(4)}(${String(m.painted).padStart(3)}drawn)`,
+    `views=${String(m.render.viewsAsked).padStart(4)}/${String(m.render.nodeCount).padStart(4)}`,
     `minText=${min(m.texts).padStart(9)}`,
     `minStroke=${min(m.strokes).padStart(9)}`,
     `framed=${m.render.framedId.padEnd(22)}`,
@@ -1495,16 +1563,201 @@ describe('the gate itself', () => {
   })
 
   /**
-   * WAVE 9 — the frustum cull, and the budget that becomes checkable with it.
+   * WAVE 9 — the frustum cull, and the budget that became checkable with it.
    *
-   * MEASURED AT THIS COMMIT: `large @ zoomed-in` emits 2,953 marks, because
-   * `MapCanvas`'s only cull tests APPARENT SIZE and every one of the 400
-   * organizations is the same size as the one being framed — they are simply
-   * off screen. `statLine`'s `marks=` column is already the number this will
-   * assert; the design's budget is ≤ 400 groups, and it cannot be met before
-   * the cull that makes it meetable exists.
+   * MEASURED BEFORE (HEAD cf44ebf): `large @ zoomed-in` emitted 2,953 marks in
+   * 860 `<g>`, because `MapCanvas`'s only cull tested APPARENT SIZE and every
+   * one of the 400 organizations is the same size as the one being framed —
+   * they were simply off screen. AFTER: 40 marks in 14 groups. The other four
+   * cameras of that workspace, `<g>` before → after: 465 → 227 (opening),
+   * 451 → 301 (dived-two), 446 → 151 (phone), 31 → 31 (zoomed-out, which frames
+   * the whole drawing and therefore has nothing off screen to lose).
+   *
+   * ── WHAT IS ASSERTED, AND WHY IT IS TWO CLAIMS AND NOT ONE THRESHOLD ───────
+   *
+   * 1. THE CULL IS EXACT. The treeitems the renderer emits are PRECISELY the
+   *    nodes that reach the camera and clear the DOM horizon — computed here
+   *    from the layout and `MapCanvas`'s own exported predicate, and compared as
+   *    an equality. A threshold would pass a cull that dropped the wrong nodes;
+   *    this cannot. It is also the assertion that would go red if a later wave
+   *    culled something the reader is looking at.
+   *
+   * 2. THE PAINTED BUDGET — ≤ 400 groups the reader actually receives, at every
+   *    camera of every fixture. Measured worst case: 301, at `large @
+   *    dived-two`. The design's number, met with room.
+   *
+   * ── THE ONE CAMERA WHOSE TOTAL IS OVER 400, AND WHY THAT IS NOT THE CULL ───
+   *
+   * `large-grouped @ opening` emits 465 groups — 65 painted and 400
+   * `visibility: hidden`. It emitted 465 before this wave too, and the frustum
+   * changed nothing there, CORRECTLY: that camera frames the whole stage ladder,
+   * so all 400 organizations are on screen. They are not drawn — at 5.93 px
+   * apparent they are in the `absent` band — but `lod.ts` keeps a node between
+   * `DOM_HORIZON_PX` and `BAND_EDGES.grain` in the document on purpose, "so a
+   * keyboard walk never waits on a repaint". That placeholder is the DOM
+   * horizon's cost and it is bounded by the WORKSPACE, not by the camera; the
+   * only lever on it is `DOM_HORIZON_PX`, which is frozen and is a reachability
+   * constant rather than a drawing one. Pinned below as the number it is, so a
+   * wave that moves it has to say so.
    */
-  it.todo('draws no more than the frustum holds, at 400 organizations (wave 9)')
+  it('draws no more than the frustum holds, at 400 organizations (wave 9)', () => {
+    const failures: string[] = []
+    for (const m of ALL) {
+      // ONE GROUP PER NODE THE RENDERER DREW, counted off `data-band`, which
+      // `MindNode` writes on its own outermost `<g>` and nothing else in the
+      // drawing writes at all. NOT `role="treeitem"`: `grain` and `state` marks
+      // are deliberately outside the `role="tree"` DOM (MindNode.tsx's own
+      // rule, and the precedent this cull was argued from), so counting the
+      // tree would count a quarter of the picture.
+      const emitted = m.marks.filter((mark) => mark.attrs.has('data-band')).length
+      const owed = m.render.layout.nodes.filter((pos) => {
+        if (!reachesCamera(pos, m.render.frustum)) return false
+        if (pos.worldD === undefined) return true
+        const apparent = apparentOf(pos.worldD, m.render.cameraScale)
+        if (apparent < DOM_HORIZON_PX) return false
+        // THE HANDOFF IS NOT A CULL, and the two are excluded here so that the
+        // equality below measures the cull alone. A world that fills the stage
+        // IS the stage (`frame`), and a world that is OPENING has already given
+        // its name to its rim — `MindNode` draws nothing for either, and the
+        // name is never absent and never drawn twice (the `holding` exception,
+        // a terminal node with nothing beneath it competing for the room, keeps
+        // its card right through `opening` and is counted).
+        const band = bandFor(apparent, m.render.viewportMinPx)
+        if (band === 'frame') return false
+        return band !== 'opening' || !pos.hasChildren
+      }).length
+      if (emitted !== owed) {
+        failures.push(`${statLine(m)}\n  treeitems=${emitted}, frustum×horizon owes ${owed}`)
+      }
+      if (m.painted > 400) failures.push(`${statLine(m)}\n  painted=${m.painted} > 400`)
+    }
+    expect(report(failures, 4)).toBe('')
+
+    // THE WORST CASE OF EACH, PINNED. `toBe`, not a floor: a wave that improves
+    // either number SHOULD turn this red and rewrite it.
+    const worstPainted = Math.max(...ALL.map((m) => m.painted))
+    expect(worstPainted).toBe(301)
+    const worstTotal = Math.max(...ALL.map((m) => m.groups))
+    expect(worstTotal).toBe(465)
+    const grouped = at('large-grouped', 'opening')
+    expect(grouped.groups).toBe(465)
+    expect(grouped.painted).toBe(65)
+    expect(grouped.groups - grouped.painted).toBe(400) // one per organization
+
+    // AND THE CULL IS NOT VACUOUS: the camera that used to draw the whole
+    // workspace now draws fourteen groups, and the workspace still has 400
+    // organizations in it.
+    const zoomedIn = at('large', 'zoomed-in')
+    expect(zoomedIn.groups).toBe(14)
+    expect(zoomedIn.render.nodeCount).toBeGreaterThan(400)
+  })
+
+  /**
+   * WAVE 9's 5d — the lazy view cache, counted rather than argued.
+   *
+   * `useMapModel` used to build a view model for EVERY node in one eager walk,
+   * at ~6 `t()` calls each. It now builds them on demand and caches them, and
+   * `MapCanvas` asks only for the nodes that survived the cull — so the saving
+   * is exactly the gap between these two columns, times six.
+   */
+  it('asks for a view model only where it draws one', () => {
+    const zoomedIn = at('large', 'zoomed-in')
+    expect(zoomedIn.render.nodeCount).toBe(424)
+    expect(zoomedIn.render.viewsAsked).toBe(9)
+    const opening = at('large', 'opening')
+    expect(opening.render.viewsAsked).toBe(204)
+    // THE ONE CAMERA THAT ASKS FOR EVERYTHING, and it is the same camera whose
+    // group count is over 400 and for the same reason: the whole grouped
+    // workspace is on screen. A lazy cache cannot beat a picture of everything;
+    // it is not supposed to.
+    expect(at('large-grouped', 'opening').render.viewsAsked).toBe(443)
+    // ACROSS ALL TWENTY-FIVE RENDERS: 2,710 view models asked for out of 8,790
+    // nodes, which is 30.8% — so ~69% of the `t()` calls the eager walk made
+    // are not made at all. The 19-organization workspace is in that total and
+    // asks for nearly all of its 24 nodes at four of its five cameras, which is
+    // correct and is why the figure is not higher: a small workspace fits on
+    // the glass, and the lazy cache is a claim about big ones.
+    const asked = ALL.reduce((sum, m) => sum + m.render.viewsAsked, 0)
+    const nodes = ALL.reduce((sum, m) => sum + m.render.nodeCount, 0)
+    expect(asked).toBe(2710)
+    expect(nodes).toBe(8790)
+    // The same two sums over the 400-organization workspaces alone: 2,608 of
+    // 8,670, or 30.1%.
+    const big = ALL.filter((m) => m.render.fixture.orgCount === 400)
+    expect(big.reduce((sum, m) => sum + m.render.viewsAsked, 0)).toBe(2608)
+    expect(big.reduce((sum, m) => sum + m.render.nodeCount, 0)).toBe(8670)
+  })
+
+  /**
+   * WAVE 9's 5c — the camera stops re-rendering the chrome.
+   *
+   * ASSERTED AS THE SHAPE OF THE CODE, and that is not a fallback: it is the
+   * only honest form the claim has here. `vitest.config.ts` is
+   * `environment: 'node'` with no jsdom and no test renderer, so there is no way
+   * to mount this page, move the camera and COUNT renders — and a benchmark that
+   * cannot re-render cannot measure a re-render. `mapZoomReach.test.tsx` set the
+   * precedent for exactly this ("Behavioural coverage is impossible without a
+   * document; this is the assertion that survives without one") when it pinned
+   * `aria-posinset` to the model by reading the two expressions.
+   *
+   * What makes the shape sufficient is React's own rule: a subtree whose element
+   * is REFERENTIALLY IDENTICAL to last render's is skipped. So the claim "a
+   * wheel notch does not re-render the filter bar" is exactly "the element is
+   * inside a `useMemo` whose dependencies do not include a camera value" — and
+   * `react-hooks/exhaustive-deps` (on, and clean) is what turns the second half
+   * into a machine check rather than a promise. This test holds the first half.
+   */
+  it('keeps the camera out of the chrome — the wheel notch stops at the canvas', () => {
+    const page = fs.readFileSync(new URL('../Mindtree.tsx', import.meta.url), 'utf8')
+
+    // 1. THE FOUR ISLANDS EXIST AS MEMOS, and each one holds the component the
+    //    design named as re-rendering on every notch.
+    const ISLES: readonly (readonly [string, readonly string[]])[] = [
+      ['filterIsle', ['<FilterBar']],
+      ['shellIsle', ['<MapLensBar', '<MapModeBar']],
+      ['groupIsle', ['<MapToolbar']],
+      ['summaryIsle', ['<MapSummary']],
+    ]
+    // `const name = useMemo(` … up to the next declaration at the same
+    // indentation, or to the component's `return (` for the last of them. A
+    // scanner, not a parser — the same bargain this file's header strikes for
+    // `marksOf`, and it THROWS rather than reading an empty string.
+    const bodyOf = (name: string): string => {
+      const open = page.indexOf(`  const ${name} = useMemo(`)
+      if (open === -1) throw new Error(`Mindtree.tsx has no useMemo for ${name}`)
+      const ends = ['\n  const ', '\n  return ('].map((mark) => page.indexOf(mark, open + 10))
+      const next = Math.min(...ends.filter((at) => at !== -1))
+      return page.slice(open, next)
+    }
+    const CAMERA_VALUES = ['camera', 'geo.scale', 'geo.viewBox', 'framedId', 'viewportMinPx']
+    for (const [name, holds] of ISLES) {
+      const body = bodyOf(name)
+      for (const held of holds) {
+        expect(body, `${name} must hold ${held}`).toContain(held)
+      }
+      // 2. THE DEPENDENCY ARRAY IS CAMERA-FREE. Read off the LAST bracketed list
+      //    in the memo, which is the dependency array by construction.
+      const deps = /\[([^[\]]*)\]\s*,?\s*\)\s*$/.exec(body.trimEnd())?.[1] ?? ''
+      expect(deps, `${name} must have a dependency array`).not.toBe('')
+      for (const value of CAMERA_VALUES) {
+        const named = deps.split(',').map((d) => d.trim())
+        expect(named, `${name} depends on the camera through ${value}`).not.toContain(value)
+      }
+    }
+
+    // 3. AND THE CAMERA IS NOT A PROP ANY MORE, which is what makes 2 possible:
+    //    a value passed to `<MapCanvas>` is a value every memo around it has to
+    //    list. `MapCanvas` reads it from the context instead, and this is the
+    //    line that would go red if a later wave quietly handed it back.
+    const canvas = fs.readFileSync(
+      new URL('../../components/map/MapCanvas.tsx', import.meta.url),
+      'utf8',
+    )
+    expect(canvas).toContain('useMapCamera()')
+    for (const prop of ['scale:', 'viewBox:', 'viewportMinPx:']) {
+      expect(canvas.slice(canvas.indexOf('interface MapCanvasProps'), canvas.indexOf('export default'))).not.toContain(prop)
+    }
+  })
 
   it('measured marks at every camera, and none of them silently', () => {
     for (const m of ALL) {

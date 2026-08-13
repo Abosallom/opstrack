@@ -162,6 +162,7 @@ import MapBranch from '../components/map/MapBranch'
 // exactly one function.
 import { managerLabel, TERMINAL_STATUS } from '../components/map/MapBranchDetail'
 import MapCanvas from '../components/map/MapCanvas'
+import { MapCameraContext } from './map/mapCameraContext'
 import MapCapture from '../components/map/MapCapture'
 import MapChanges, { useChangesCount } from '../components/map/MapChanges'
 import MapDiveRail, { type DiveRung } from '../components/map/MapDiveRail'
@@ -681,6 +682,21 @@ export default function Mindtree(): ReactElement {
    */
   const framedWorld = worldAt(layout, camera, geo.scale, viewportMinPx)
   const framedId = framedWorld?.id ?? focus.drawnRoot.id
+
+  /**
+   * THE CAMERA, PUBLISHED TO THE ONE COMPONENT THAT DRAWS THROUGH IT — wave 9's
+   * 5c. `mapCameraContext.tsx`'s header carries the whole argument; the short
+   * version is that these four values used to be four PROPS on `MapCanvas`, and
+   * a value that is a prop is a value every memo around it has to list.
+   *
+   * MEMOISED, because the provider hands its value to consumers by identity: an
+   * object literal built inline would re-render the canvas on every keystroke in
+   * the filter box, which is the opposite of the trade this file is making.
+   */
+  const cameraValue = useMemo(
+    () => ({ camera, scale: geo.scale, viewportMinPx, viewBox: geo.viewBox }),
+    [camera, geo.scale, viewportMinPx, geo.viewBox],
+  )
 
   /**
    * THE PATH FROM THE WORKSPACE TO WHERE THE READER IS, root first and target
@@ -1285,6 +1301,172 @@ export default function Mindtree(): ReactElement {
     setOcclusion((prev) => (prev === NO_OCCLUSION ? prev : NO_OCCLUSION))
   }, [panelVisible])
 
+  /* ══════════════ THE CHROME THE CAMERA MUST NOT RE-RENDER — wave 9's 5c ═════
+   *
+   * `useMapGeometry` calls `setState` once per wheel notch and once per pan
+   * frame, so THIS FUNCTION re-runs on every one of them. That is unavoidable
+   * and cheap: the crumb bar and the dive rail below are honest camera readers —
+   * "where am I" IS the camera — and they live here.
+   *
+   * What was NOT cheap is that the run re-created every child element, so
+   * `FilterBar` (which owns a facet panel over 400 organizations and a
+   * type-ahead over their names), `MapLensBar`, `MapModeBar`, `MapToolbar` and
+   * `MapSummary` all re-rendered on every notch without being able to see the
+   * camera at all. React SKIPS a subtree whose element is referentially
+   * identical to the last render's, so holding them here is what stops it.
+   *
+   * ⚠ THE DEPENDENCY ARRAYS ARE THE ASSERTION, and they are machine-checked:
+   * `react-hooks/exhaustive-deps` is on, so a value read inside one of these and
+   * missing from its array is a lint error. Not one of the four lists contains
+   * `camera`, `geo.scale`, `geo.viewBox` or `framedId` — which is exactly the
+   * claim "a wheel notch does not re-render the chrome", written in the form a
+   * tool can check. That is also why wave 9 moved the camera OUT of MapCanvas's
+   * props and into a context (`mapCameraContext.tsx`): a camera that is a prop
+   * is a camera every memo around it has to list, and a list nobody can read is
+   * not a proof.
+   *
+   * `mapRender.test.tsx` holds the other half — that these five names appear
+   * inside a `useMemo` in this file and that the arrays stay camera-free.
+   */
+  /**
+   * DESTRUCTURED FOR THE MEMO BELOW, and for `geo`'s own reason one screen up: a
+   * memo that calls `lens.setSubject(…)` depends on `lens` — the receiver comes
+   * with the method — and `lens` is a fresh object every render, so the memo
+   * would rebuild on every render and buy nothing. `setSubject` is a
+   * `useCallback` in `useMapLens`, so the bare function is stable.
+   */
+  const setPanelSubject = lens.setSubject
+
+  const filterIsle = useMemo(
+    () => (
+      <div className="mtree-isle mtree-find">
+        <FilterBar
+          value={filter}
+          onChange={setFilter}
+          facets={lens.lens === 'numbers' ? NUMBERS_FACETS : FACETS}
+          tags={model.tags}
+          // A HOOK FOR ONE DECLARATION, and `className` is the prop that
+          // exists for exactly this: `.flt` carries a 14px `margin-block-end`
+          // that is right in a document and wrong inside a 44px island, where
+          // it measured as 14px of empty plate that pushed the rail into the
+          // group-by chips below it. See `.mtree-filter` in mindtree.css.
+          className="mtree-filter"
+          /* FINDING ONE OF FOUR HUNDRED ORGANIZATIONS BY NAME — budget E3,
+             and the screen's half of it. FilterBar matches the typed words
+             against every node's `name` AND `name_ar`, folded; WHERE a pick
+             lands is this file's decision, because only this file has a
+             camera and a panel.
+
+             BOTH VERBS, IN ONE TAP. `setSubject` opens that organization's
+             panel — the same branch panel a portfolio row tap opens, and
+             through `subjectForLens` it KEEPS the lens the reader is in
+             rather than throwing them onto `shape`. Then, only where a
+             canvas is actually drawn, the camera makes the minimum move to
+             it: `flyToId` frames a world by id and is a NO-OP for a node
+             that is not in the current drawing, which is the honest answer
+             for an organization inside a collapsed branch — the panel still
+             opened, so the reader still arrived.
+
+             The stage test is `lens.stage`, not the lens: `board`, `numbers`
+             and `portfolio` have no camera to move, and calling `flyToId`
+             under them would be a claim about a picture that is not on
+             screen. Supplying this handler also replaces FilterBar's own
+             fallback (narrow `mapNodeIds` to the node), which is the right
+             answer for a screen with no camera and the wrong one here: it
+             would leave a filter behind that the reader never set.
+
+             `flyToId` IS A `useCallback` OVER THE LAYOUT AND `flyTo`, not over
+             the camera — which is what lets this memo hold a fly handler and
+             still be camera-free. */
+          onPickNode={(nodeId) => {
+            setPanelSubject({ kind: 'branch', nodeId })
+            if (lens.stage === 'map') flyToId(nodeId)
+          }}
+        />
+      </div>
+    ),
+    [filter, setFilter, lens.lens, lens.stage, setPanelSubject, model.tags, flyToId],
+  )
+
+  const shellIsle = useMemo(
+    () => (
+      <div className="mtree-shellbar">
+        <MapLensBar
+          lens={lens.lens}
+          onLens={lens.setLens}
+          compact={compact}
+          counts={{
+            'needs-me': attentionCount,
+            'what-changed': changesCount,
+            portfolio: atRiskCount,
+          }}
+        />
+        <MapModeBar compact={compact} exporting={toolbar.exporting} onExport={toolbar.runExport} />
+      </div>
+    ),
+    [
+      lens.lens,
+      lens.setLens,
+      compact,
+      attentionCount,
+      changesCount,
+      atRiskCount,
+      toolbar.exporting,
+      toolbar.runExport,
+    ],
+  )
+
+  const groupIsle = useMemo(
+    () =>
+      onTree ? (
+        <div className="mtree-isle mtree-group">
+          <MapToolbar
+            dimension={model.dimension}
+            onDimension={toolbar.chooseDimension}
+            grouping={model.grouping}
+            onGrouping={chooseGrouping}
+            /* NULL WHEN THERE IS NOTHING TO GROUP — a workspace with no
+               organizations drawn gets the one control it has always had.
+               `hasEntities` is counted off the tree as drawn, so a filter
+               that hides every organization takes the chip with it rather
+               than leaving a control that changes nothing. */
+            groupings={model.hasEntities ? CANVAS_GROUPINGS : null}
+            compact={compact}
+          />
+        </div>
+      ) : null,
+    [
+      onTree,
+      model.dimension,
+      model.grouping,
+      model.hasEntities,
+      toolbar.chooseDimension,
+      chooseGrouping,
+      compact,
+    ],
+  )
+
+  const summaryIsle = useMemo(
+    () => (
+      <MapSummary
+        showMapChrome={onMap}
+        compact={compact}
+        hintId={hintId}
+        summary={model.summary}
+        busiest={model.busiest}
+        topGroup={model.topGroup}
+        // NO `countLabel`. It used to arrive here as `mindtree.countOpen` with
+        // `model.tree.count`, which is the SAME number the summary sentence
+        // already carries in its `{open}` slot from the same expression — so
+        // the screen read "0 open" twice, the second time on its own line and
+        // larger than the sentence containing it. The fragment is gone; the
+        // sentence, which also carries the tracks and the breaches, stays.
+        live={live}
+      />
+    ),
+    [onMap, compact, hintId, model.summary, model.busiest, model.topGroup, live],
+  )
+
   return (
     <div
       className="mtree"
@@ -1335,48 +1517,10 @@ export default function Mindtree(): ReactElement {
             one group the rail takes OUT of its flow (see `.mtree-find`): opened,
             this island measures 722px tall at 1600x900, and in the rail's flow
             it would carry the trail that far down the picture with it. Measured
-            open: the other two groups stay at y=77, h=38, unmoved. */}
-          <div className="mtree-isle mtree-find">
-            <FilterBar
-              value={filter}
-              onChange={setFilter}
-              facets={lens.lens === 'numbers' ? NUMBERS_FACETS : FACETS}
-              tags={model.tags}
-              // A HOOK FOR ONE DECLARATION, and `className` is the prop that
-              // exists for exactly this: `.flt` carries a 14px `margin-block-end`
-              // that is right in a document and wrong inside a 44px island, where
-              // it measured as 14px of empty plate that pushed the rail into the
-              // group-by chips below it. See `.mtree-filter` in mindtree.css.
-              className="mtree-filter"
-              /* FINDING ONE OF FOUR HUNDRED ORGANIZATIONS BY NAME — budget E3,
-                 and the screen's half of it. FilterBar matches the typed words
-                 against every node's `name` AND `name_ar`, folded; WHERE a pick
-                 lands is this file's decision, because only this file has a
-                 camera and a panel.
+            open: the other two groups stay at y=77, h=38, unmoved.
 
-                 BOTH VERBS, IN ONE TAP. `setSubject` opens that organization's
-                 panel — the same branch panel a portfolio row tap opens, and
-                 through `subjectForLens` it KEEPS the lens the reader is in
-                 rather than throwing them onto `shape`. Then, only where a
-                 canvas is actually drawn, the camera makes the minimum move to
-                 it: `flyToId` frames a world by id and is a NO-OP for a node
-                 that is not in the current drawing, which is the honest answer
-                 for an organization inside a collapsed branch — the panel still
-                 opened, so the reader still arrived.
-
-                 The stage test is `lens.stage`, not the lens: `board`, `numbers`
-                 and `portfolio` have no camera to move, and calling `flyToId`
-                 under them would be a claim about a picture that is not on
-                 screen. Supplying this handler also replaces FilterBar's own
-                 fallback (narrow `mapNodeIds` to the node), which is the right
-                 answer for a screen with no camera and the wrong one here: it
-                 would leave a filter behind that the reader never set. */
-              onPickNode={(nodeId) => {
-                lens.setSubject({ kind: 'branch', nodeId })
-                if (lens.stage === 'map') flyToId(nodeId)
-              }}
-            />
-          </div>
+            HELD IN A MEMO ABOVE — see `filterIsle`. */}
+          {filterIsle}
 
           {/* THE FIVE DESTINATIONS AND THE TWO MODES, at the reading end of the
               same row, at every width and never behind a disclosure. Each chip
@@ -1384,48 +1528,20 @@ export default function Mindtree(): ReactElement {
               must a chip. Below 768px this element leaves the rail entirely and
               becomes the pinned bar at the block end, one z-index above the
               sheet, which is why it is a `position: fixed` element that happens
-              to be parented here: its DOM seat is what keeps the Tab order. */}
-          <div className="mtree-shellbar">
-            <MapLensBar
-              lens={lens.lens}
-              onLens={lens.setLens}
-              compact={compact}
-              counts={{
-                'needs-me': attentionCount,
-                'what-changed': changesCount,
-                portfolio: atRiskCount,
-              }}
-            />
-            <MapModeBar
-              compact={compact}
-              exporting={toolbar.exporting}
-              onExport={toolbar.runExport}
-            />
-          </div>
+              to be parented here: its DOM seat is what keeps the Tab order.
+
+              HELD IN A MEMO ABOVE — see `shellIsle`. */}
+          {shellIsle}
 
           {/* WHAT THE RINGS ARE MADE OF — on the control row with every other
               control, and no longer alone on a second row at the opposite edge
               of the screen from the row it belongs to. It sits AFTER the modes
               because Tab order is DOM order here (MindtreeShell.test.ts asserts
               it) and a control that reads before the lens chips but focuses
-              after them is worse than one placed a group late. */}
-          {onTree && (
-            <div className="mtree-isle mtree-group">
-              <MapToolbar
-                dimension={model.dimension}
-                onDimension={toolbar.chooseDimension}
-                grouping={model.grouping}
-                onGrouping={chooseGrouping}
-                /* NULL WHEN THERE IS NOTHING TO GROUP — a workspace with no
-                   organizations drawn gets the one control it has always had.
-                   `hasEntities` is counted off the tree as drawn, so a filter
-                   that hides every organization takes the chip with it rather
-                   than leaving a control that changes nothing. */
-                groupings={model.hasEntities ? CANVAS_GROUPINGS : null}
-                compact={compact}
-              />
-            </div>
-          )}
+              after them is worse than one placed a group late.
+
+              HELD IN A MEMO ABOVE — see `groupIsle`. */}
+          {groupIsle}
 
           {/* WHERE THE READER IS INSIDE THE RINGS, and whether what is drawn is
               all of it. Both are INDICATORS rather than controls — the trail is
@@ -1635,50 +1751,44 @@ export default function Mindtree(): ReactElement {
               }
             />
           ) : (
-            <MapCanvas
-              canvasRef={geo.canvasRef}
-              svgRef={svgRef}
-              layout={geo.layout}
-              order={geo.order}
-              // THE FOUR THE LEVEL-OF-DETAIL NEEDS. `scale` is the only thing
-              // that turns an authored world diameter into an apparent size, and
-              // therefore the only thing that decides which of the five drawings
-              // each node renders; `viewportMinPx` answers the one question that
-              // is about the window rather than about legibility.
-              scale={geo.scale}
-              viewportMinPx={viewportMinPx}
-              matchesById={matchesById}
-              matchWedgesById={matchWedgesById}
-              views={model.views}
-              viewBox={geo.viewBox}
-              rtl={rtl}
-              hintId={hintId}
-              dimensionLabel={model.dimensionLabel}
-              motion={motion}
-              pulses={pulses}
-              dragController={dragController}
-              activeId={cursor.activeId}
-              currentId={cursor.currentId}
-              cardPos={overlays.cardPos}
-              cardAnchor={overlays.cardAnchor}
-              box={geo.box}
-              dragging={model.dragging}
-              entryById={model.entryById}
-              memberById={model.memberById}
-              vocabLabel={model.vocabLabelOf}
-              dimension={model.dimension}
-              today={model.ctx.today}
-              onActivate={keyboard.activate}
-              onNodeFocus={cursor.setCursorId}
-              registerRef={cursor.registerRef}
-              onHover={keyboard.onNodeHover}
-              onMenu={overlays.openMenuFor}
-              onTreeFocus={cursor.setTreeFocused}
-              onKeyDown={keyboard.onKeyDown}
-              onPointerDown={geo.onPointerDown}
-              onPointerMove={geo.onPointerMove}
-              onPointerEnd={geo.endPointer}
-            />
+            <MapCameraContext.Provider value={cameraValue}>
+              <MapCanvas
+                canvasRef={geo.canvasRef}
+                svgRef={svgRef}
+                layout={geo.layout}
+                order={geo.order}
+                matchesById={matchesById}
+                matchWedgesById={matchWedgesById}
+                getView={model.getView}
+                rtl={rtl}
+                hintId={hintId}
+                dimensionLabel={model.dimensionLabel}
+                motion={motion}
+                pulses={pulses}
+                dragController={dragController}
+                activeId={cursor.activeId}
+                currentId={cursor.currentId}
+                cardPos={overlays.cardPos}
+                cardAnchor={overlays.cardAnchor}
+                box={geo.box}
+                dragging={model.dragging}
+                entryById={model.entryById}
+                memberById={model.memberById}
+                vocabLabel={model.vocabLabelOf}
+                dimension={model.dimension}
+                today={model.ctx.today}
+                onActivate={keyboard.activate}
+                onNodeFocus={cursor.setCursorId}
+                registerRef={cursor.registerRef}
+                onHover={keyboard.onNodeHover}
+                onMenu={overlays.openMenuFor}
+                onTreeFocus={cursor.setTreeFocused}
+                onKeyDown={keyboard.onKeyDown}
+                onPointerDown={geo.onPointerDown}
+                onPointerMove={geo.onPointerMove}
+                onPointerEnd={geo.endPointer}
+              />
+            </MapCameraContext.Provider>
           )}
         </div>
 
@@ -1727,21 +1837,8 @@ export default function Mindtree(): ReactElement {
           </div>
         )}
 
-        <MapSummary
-          showMapChrome={onMap}
-          compact={compact}
-          hintId={hintId}
-          summary={model.summary}
-          busiest={model.busiest}
-          topGroup={model.topGroup}
-          // NO `countLabel`. It used to arrive here as `mindtree.countOpen` with
-          // `model.tree.count`, which is the SAME number the summary sentence
-          // already carries in its `{open}` slot from the same expression — so
-          // the screen read "0 open" twice, the second time on its own line and
-          // larger than the sentence containing it. The fragment is gone; the
-          // sentence, which also carries the tracks and the breaches, stays.
-          live={live}
-        />
+        {/* HELD IN A MEMO ABOVE — see `summaryIsle`. */}
+        {summaryIsle}
       </div>
 
       {/* THE GHOST, THE REASON AND THE DRAG'S OWN LIVE REGION — outside the

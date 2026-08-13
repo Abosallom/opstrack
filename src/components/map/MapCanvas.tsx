@@ -10,11 +10,15 @@
 // conversion and by the export, which serialises the LIVE element. Moving one
 // consumer to the other side of that ref breaks export or focus repair silently.
 //
-// So this file is a boundary, not a redesign: the page renders exactly what it
+// So this file was a boundary, not a redesign: the page rendered exactly what it
 // rendered before, one component deeper. Moving `pan` and `zoom` down here — so
 // that a pointermove stops re-rendering the filter bar, the toolbar and the
-// summary — is the change this boundary EXISTS to make possible, and it is a
-// behavioural change, so it is not made here.
+// summary — was named here as the change this boundary EXISTS to make possible.
+//
+// WAVE 9 MADE IT. The camera arrives through `mapCameraContext` instead of
+// through four props, and `pages/Mindtree.tsx` holds the filter bar, the toolbar
+// and the summary in memos whose dependency lists provably exclude it — see that
+// module's header for what the split does and does not buy.
 //
 // `.mtree-canvas` carries `touch-action: none` and a `block-size: clamp()`; the
 // element's identity is load-bearing for the pan gesture and it must not become
@@ -37,6 +41,7 @@ import NodeCard, { NODE_CARD_ID, type NodeCardProps } from '../mindtree/NodeCard
 import PulseLayer, { type PulseLayerProps } from '../mindtree/PulseLayer'
 import { MindDropTargets, type MindDragController } from '../mindtree/DragLayer'
 import { t } from '../../lib/i18n'
+import { reachesCamera, useMapCamera } from '../../pages/map/mapCameraContext'
 import type { DrawnLayout, PositionedNode } from '../../lib/mindtree/layout'
 import type { MindDimension, MindNode as MindNodeModel } from '../../lib/mindtree/model'
 import type { Entry } from '../../types'
@@ -56,20 +61,20 @@ export interface MapCanvasProps {
   svgRef: RefObject<SVGSVGElement | null>
   layout: DrawnLayout<MindNodeModel>
   order: readonly MindNodePos[]
-  /**
-   * CAMERA SCALE — `stageWidthPx / camera.width`, CSS px per drawing unit. The
-   * ONLY thing that turns a world's authored diameter into an apparent size, and
-   * therefore the only input to which of the five drawings each node renders.
-   */
-  scale: number
-  /** V — the smaller side of the UNOCCLUDED stage, CSS px. `frame`'s only input. */
-  viewportMinPx: number
   /** Per world: how many marked items are in its subtree. 0 draws no match rim. */
   matchesById: ReadonlyMap<string, number>
   /** Per world: the wedge each marked child occupies, radians, already mirrored. */
   matchWedgesById: ReadonlyMap<string, readonly MatchWedge[]>
-  views: ReadonlyMap<string, MindNodeView>
-  viewBox: string
+  /**
+   * ONE NODE'S VIEW MODEL, ON DEMAND — wave 9's 5d.
+   *
+   * A FUNCTION AND NOT A MAP, because the map cost ~6 `t()` calls per node ×
+   * 3,200 nodes on every rebuild and this component draws a couple of hundred of
+   * them. `useMapModel` memoises what it hands back, so an id asked for twice is
+   * built once and `MindNode`'s `memo()` still sees a stable `view` identity.
+   * `undefined` means "no such node", exactly as `Map.get` did.
+   */
+  getView: (id: string) => MindNodeView | undefined
   rtl: boolean
   hintId: string
   dimensionLabel: string
@@ -104,12 +109,9 @@ export default function MapCanvas({
   svgRef,
   layout,
   order,
-  scale,
-  viewportMinPx,
   matchesById,
   matchWedgesById,
-  views,
-  viewBox,
+  getView,
   rtl,
   hintId,
   dimensionLabel,
@@ -150,6 +152,15 @@ export default function MapCanvas({
   const { rings, hub } = layout
 
   /**
+   * THE CAMERA, READ RATHER THAN TAKEN. See `mapCameraContext.tsx`'s header for
+   * why it is a context: the three props these four values replaced are what
+   * kept the filter bar, the toolbar and the summary re-rendering on every wheel
+   * notch, because a subtree that has to LIST them in a memo is a subtree that
+   * cannot be memoised.
+   */
+  const { camera, scale, viewportMinPx, viewBox } = useMapCamera()
+
+  /**
    * WHICH OF THE FIVE DRAWINGS EACH NODE RENDERS, COMPUTED ONCE PER CAMERA.
    *
    * IN A MEMO AND NOT INLINE, and that is the whole reason a pure camera change
@@ -162,6 +173,25 @@ export default function MapCanvas({
    * the ring emit `PositionedNode`s with no `worldD`, so they keep rendering
    * exactly what they rendered before rather than being culled to nothing by an
    * apparent size of zero.
+   *
+   * ── WAVE 9's 5b, MEASURED AND CUT ──────────────────────────────────────────
+   *
+   * The design's fourth performance item was to replace this `Map` of 3,200
+   * small objects with a `useRef`-held `Uint8Array`/`Float32Array` pair
+   * rewritten in place. Benchmarked at both sizes, 400 camera changes each
+   * (node 24, this machine):
+   *
+   *     3,200 nodes   Map 66.5-69.5 µs   typed arrays 12.9-13.1 µs   5.1-5.4x
+   *       424 nodes   Map      10.1 µs   typed arrays       1.7 µs   6.0x
+   *
+   * A five-fold win on a pass that costs 57 µs — 0.34% of a 16.7 ms frame — and
+   * that does not run on a PAN at all, because this memo depends on `scale` and
+   * not on where the camera is. Against that: a mutable buffer written during
+   * render (which React may run twice), a second id→index map for the edge
+   * layer, and a band that arrives as a number and has to be turned back into
+   * the string `MindNode` takes. The cull above removed ~2,900 SVG elements from
+   * the same render; that is the millisecond. So 5b is CUT, with its number, per
+   * the plan's own rule for a change that measures as a wash.
    */
   const bands = useMemo(() => {
     const out = new Map<string, { band: Band; out: number; apparent: number }>()
@@ -176,6 +206,72 @@ export default function MapCanvas({
     }
     return out
   }, [order, scale, viewportMinPx])
+
+  /**
+   * WHAT IS ACTUALLY ON SCREEN — wave 9's 5a, and the reason the 400-organization
+   * budget in `mapRender.test.tsx` is meetable at all.
+   *
+   * MEASURED BEFORE: `large @ zoomed-in` emitted 2,953 marks, because the only
+   * cull this file had tested APPARENT SIZE — and at that camera all 400
+   * organizations are the same size as the one being framed. They were simply
+   * somewhere else. Every one of them was an SVG element.
+   *
+   * ── LEGALITY ───────────────────────────────────────────────────────────────
+   *
+   * `aria-posinset`/`aria-setsize` come from the MODEL — `pos.siblingCount` and
+   * `pos.index`, written by `layout.ts` off the node's parent — so removing a
+   * mark from this list cannot renumber the set a screen reader hears. That is
+   * asserted, as the SHAPE of the two expressions, in `mapZoomReach.test.tsx`
+   * ("leaves aria-posinset and aria-setsize sourced from the MODEL, never from
+   * the cull"). The precedent for a mark that is off the `role="tree"` DOM
+   * entirely is older than this cull: `grain` and `state` worlds have never been
+   * in it, reachable "three other ways: zoom to them, the accessible table, or
+   * search". An off-screen world is the same class of thing.
+   *
+   * The predicate itself is `reachesCamera`, next to the camera it tests
+   * against — `mapCameraContext.ts` argues the geometry, including why an
+   * ancestor of the framed world cannot be culled by it.
+   *
+   * ── WHAT IS NEVER CULLED, AND WHY THE LIST IS THIS SHORT ───────────────────
+   *
+   * `activeId` — the roving tab stop. `useMapCursor`'s `activeId` falls back to
+   * `order[0]` when the cursor names a node that is not drawn, so a cull that
+   * could take the tab stop would move the reader's place on a pan. It cannot.
+   * `currentId` — the node the dive is on. Same argument, one gesture later.
+   * Everything else the design listed — the framed world, every ancestor of it,
+   * the crumb's whole spine — is kept by the GEOMETRY, because worlds nest and
+   * an ancestor contains the camera (see `reachesCamera`).
+   *
+   * ── THE SEAM THIS WIDENS, NAMED RATHER THAN QUIETLY CROSSED ────────────────
+   *
+   * `useMapKeyboard`'s header says its `order` "is the CULLED, drawn list", and
+   * `pages/Mindtree.tsx` hands it `geo.order` — the LAID-OUT list. That gap is
+   * older than this cull (the DOM horizon already opened it: at `zoomed-out` the
+   * drawing has held 31 groups against 424 laid-out nodes since wave 1), and
+   * this wave deliberately does not close it, because closing it changes what an
+   * arrow key does — `reach()` would park-and-fly instead of moving, for every
+   * off-screen sibling. What keeps the keyboard whole meanwhile is the keep-list
+   * above: the tab stop is never the thing that disappears.
+   *
+   * ── A SEPARATE MEMO FROM `bands`, DELIBERATELY ─────────────────────────────
+   *
+   * `bands` depends on `scale` and not on where the camera IS, so a PAN does not
+   * rebuild it and no node's `band`/`bandOut` prop changes across one. Folding
+   * the frustum test into that memo would have made every pan frame rebuild
+   * 3,200 entries to answer a question about which ~200 to draw. This memo
+   * allocates one array and one set of the SURVIVORS instead, which is the size
+   * that changed.
+   */
+  const drawn = useMemo(() => {
+    const list: MindNodePos[] = []
+    const ids = new Set<string>()
+    for (const pos of order) {
+      if (!reachesCamera(pos, camera) && pos.id !== activeId && pos.id !== currentId) continue
+      list.push(pos)
+      ids.add(pos.id)
+    }
+    return { list, ids }
+  }, [order, camera, activeId, currentId])
 
   /**
    * DRAWING UNITS PER CSS PIXEL — the reciprocal of the camera scale, computed
@@ -282,6 +378,11 @@ export default function MapCanvas({
               `card` and above it is the honest reading of a ring's structure.
               The `state` band is where it arrives, so that is where it fades. */}
           {layout.edges.map((edge) => {
+            // A CONNECTOR TO A MARK THAT IS NOT DRAWN IS A LINE TO NOWHERE. The
+            // frustum cull takes the spoke with the node, which is also what
+            // keeps the edge layer from being the thing that blows the budget:
+            // there are as many edges as there are nodes.
+            if (!drawn.ids.has(edge.childId)) return null
             const child = layout.byId.get(edge.childId)
             const read = bands.get(edge.childId)
             const fade =
@@ -315,7 +416,7 @@ export default function MapCanvas({
             mind-ring.css's matrix carries the measurement and cites this line
             for why the composite does not occur. Move this block after the
             nodes and that certification is void. */}
-        {order.map((pos) => {
+        {drawn.list.map((pos) => {
           const read = bands.get(pos.id)
           if (read === undefined) return null
           if (read.band !== 'opening' && read.band !== 'frame') return null
@@ -336,7 +437,7 @@ export default function MapCanvas({
             <MindWorldRim
               key={`rim-${pos.id}`}
               world={{ worldX: pos.worldX, worldY: pos.worldY, worldD: pos.worldD }}
-              label={views.get(pos.id)?.label ?? ''}
+              label={getView(pos.id)?.label ?? ''}
               ink={pos.node.colourVars}
               matches={matchesById.get(pos.id) ?? 0}
               matchWedges={matchWedgesById.get(pos.id) ?? EMPTY_WEDGES}
@@ -347,16 +448,19 @@ export default function MapCanvas({
           )
         })}
 
-        {order.map((pos) => {
-          const nodeView = views.get(pos.id)
-          if (nodeView === undefined) return null
+        {drawn.list.map((pos) => {
           const read = bands.get(pos.id)
           if (read === undefined) return null
-          // THE CULL, AND THE ONLY ONE. One band deeper than the eye's, so a
-          // keyboard walk never waits on a repaint and `aria-posinset` /
-          // `aria-setsize` — which come from the MODEL, never from this list —
-          // are never renumbered by it.
+          // THE SECOND CULL — the SIZE one, over the survivors of the frustum's.
+          // One band deeper than the eye's, so a keyboard walk never waits on a
+          // repaint and `aria-posinset` / `aria-setsize` — which come from the
+          // MODEL, never from this list — are never renumbered by it.
           if (read.apparent < DOM_HORIZON_PX) return null
+          // ASKED AFTER BOTH CULLS, and that ordering IS wave 9's 5d: a view
+          // model costs ~6 `t()` calls to build, and the ones nobody is looking
+          // at now cost nothing at all.
+          const nodeView = getView(pos.id)
+          if (nodeView === undefined) return null
           return (
             <MindNode
               key={pos.id}
