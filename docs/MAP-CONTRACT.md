@@ -176,7 +176,10 @@ Non-negotiable, repeated in every brief because the builders never talk to each 
 5. **Do not touch**: `src/lib/capture/parse.ts` (FROZEN) · `src/lib/export.ts`
    `format: 'opstrack-export'` · `src/lib/labelIO.ts` `LABEL_FILE_FORMAT =
    'coretrack-terminology'` · `@opstrack.internal` · `supabase/migrations/*.sql` · the
-   `/opstrack/` Pages base path · any `opstrack_*` localStorage key.
+   repo name `opstrack` · any `opstrack_*` localStorage key. (The `/opstrack/` Pages base
+   path is no longer on this list: `public/CNAME` moves the app to the apex of
+   `nphiescore.com` with no source change — DOMAIN-CUTOVER.md. Everything else here still
+   holds, and a new domain is exactly when a sweep tries to "tidy" it.)
 6. **Gates**: `npx tsc --noEmit` · `npx oxlint` · `npx vitest run` · `npx vite build`.
    Baseline: tsc clean, oxlint 0 errors, 3,281 tests pass, build succeeds. **A test that
    passed before your change must pass after it.** If you delete a page you delete its

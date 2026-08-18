@@ -483,8 +483,11 @@ and both are cheap to avoid:
 
 ## Open items carried forward, unchanged by this run
 
-- **`/opstrack/` Pages base path.** The move to `/nphiescore/` is queued as separate
-  work and was deliberately not attempted here.
+- **`/opstrack/` Pages base path.** ~~The move to `/nphiescore/` is queued as separate
+  work and was deliberately not attempted here.~~ **Resolved a different way, 19 Aug
+  2026:** `nphiescore.com` was bought, and a custom domain serves the project site at
+  the apex — so the base path becomes `/`, the repo keeps its name, and the queued move
+  is cancelled rather than done. See [`DOMAIN-CUTOVER.md`](DOMAIN-CUTOVER.md).
 - **`src/lib/capture/confirm.ts`.** The contract asked for `confirmationFor()` to be
   promoted out of the two copies in `pages/Capture.tsx` and `MapCapture.tsx`.
   Deleting `/capture` removed the duplication on its own, so the promotion became

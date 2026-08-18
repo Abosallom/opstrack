@@ -10,13 +10,19 @@ A multi-track action and decision tracker for an operations lead who owns severa
 domains at once (PMO, IT Operations, Network, Infrastructure, SRE) and delegates
 most of the execution.
 
-> **On the name.** The product is **CoreTrack** for the team-testing period. Every
-> technical identifier still reads `opstrack` on purpose — the repo, the Pages URL,
-> the `package.json` name, the `opstrack_*` storage keys, the CSS prefixes, the
-> Supabase project, the iOS bundle id and the `@opstrack.internal` auth domain.
-> Renaming those mid-testing would break installed PWAs, bookmarks and stored
-> sessions for no gain. They are swapped in one clean cut at launch, under the
-> launch name — see [`docs/WAVE5-NOTES.md`](docs/WAVE5-NOTES.md) §1.
+> **On the name.** The product is **NphiesCore**. Every technical identifier still
+> reads `opstrack` on purpose — the repo, the `package.json` name, the `opstrack_*`
+> storage keys, the CSS prefixes, the Supabase project, the iOS bundle id and the
+> `@opstrack.internal` auth domain. Renaming those mid-testing would break installed
+> PWAs, bookmarks and stored sessions for no gain, and `@opstrack.internal` is
+> permanent (real rows in `auth.users`). See [`docs/WAVE5-NOTES.md`](docs/WAVE5-NOTES.md) §1
+> and the gate that enforces the split, `src/lib/brand.test.ts`.
+>
+> **The URL is the one that moves.** `nphiescore.com` was bought on 19 Aug 2026, and
+> a custom domain serves the app at that apex — so the public URL stops reading
+> `opstrack` without any of the identifiers above changing, and the queued
+> `/nphiescore/` base-path move is cancelled rather than done.
+> [`docs/DOMAIN-CUTOVER.md`](docs/DOMAIN-CUTOVER.md) is the procedure.
 
 Two things it optimises for, and everything else bends around them:
 
@@ -41,7 +47,8 @@ native call sits behind a no-op that a browser tab takes instead.
 ## Status at v1.0.1
 
 Released 30 July 2026 as v1.0.0; **v1.0.1 on 31 July 2026**. Live at
-<https://abosallom.github.io/opstrack/>, built from `main` by GitHub Actions,
+<https://abosallom.github.io/opstrack/> — moving to <https://nphiescore.com/>,
+see [`docs/DOMAIN-CUTOVER.md`](docs/DOMAIN-CUTOVER.md) — built from `main` by GitHub Actions,
 backed by a real Supabase project. The v1.0.0 release smoke — every screen in
 both languages, both themes, at 1280 and 375, against the deployed origin rather
 than a dev server — is

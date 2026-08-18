@@ -1,7 +1,9 @@
 # The owner's playbook — every step that is yours, in order
 
-**Written for Aziz, alone at his desk, 13 August 2026.** The revamp is built: fourteen commits
-on `feat/map-hierarchy`, 5,101 tests green, nothing pushed. Everything below is either a step
+**Written for Aziz, alone at his desk, 13 August 2026. Revised 19 August** when
+`nphiescore.com` was bought — that adds Step 3b and cancels the queued
+`/nphiescore/` move. The revamp is built: forty commits
+on `feat/map-hierarchy`, nothing pushed. Everything below is either a step
 only you can take, or a judgement only you can make. Each step says what it needs, what you
 will see, and what happens after.
 
@@ -15,12 +17,13 @@ will see, and what happens after.
 | 1 | The SQL sitting (0026 / 0027 / 0028) | ❌ **not landed** | all five objects 404 on the live project — see the self-check below |
 | 2 | Tell me — I import the 400-org demo | ⏳ waits on 1 | — |
 | 3 | Redeploy `jira-read` | ❓ unverifiable from outside | redoing it is free and idempotent |
-| 4 | Provision the 16 people | ❌ not done | `profiles` holds 2 rows |
+| 3b | **The domain — DNS for `nphiescore.com`** | ❌ new, 19 Aug | bought; records not yet added — [`DOMAIN-CUTOVER.md`](DOMAIN-CUTOVER.md) |
+| 4 | Provision the 16 people | ❌ not done | `profiles` holds 2 rows — **do 3b first**, see below |
 | 5 | Connect Jira | ⏳ waits on 1 (needs 0028's table) | — |
 | 6 | The verification tour | ⏳ waits on 1–2 | — |
 | 7 | The real 400 organizations | when data is ready | — |
 | 8 | Push / deploy decision | ❌ not done | branch has no upstream |
-| — | Later: `/nphiescore/` move, TestFlight | scheduled separately | |
+| — | Later: TestFlight | scheduled separately | the `/nphiescore/` move is **cancelled** — the domain replaces it |
 
 **If you believe you already ran the SQL and this table says otherwise**, one of three things
 happened: the Editor was on a different project (check the picker top-left — the right URL is
@@ -131,6 +134,38 @@ deployed function exists either way.
 
 ---
 
+## Step 3b — The domain: add the DNS now (5 min, new on 19 Aug)
+
+You bought **`nphiescore.com`**. The full procedure is
+[`docs/DOMAIN-CUTOVER.md`](DOMAIN-CUTOVER.md); the part that is yours today is the
+DNS, and it is safe to do at any moment because nothing changes until the deploy
+in Step 8 carries the `CNAME` file.
+
+Four `A` records and four `AAAA` records on `@`, one `CNAME` on `www` → the table
+in DOMAIN-CUTOVER §2. Then:
+
+```bash
+dig +short nphiescore.com A     # four addresses
+dig +short www.nphiescore.com CNAME   # abosallom.github.io.
+```
+
+**Do this before Step 4, not after.** An origin change signs everyone out once,
+strands installed PWAs on the old address and drops every push subscription.
+`profiles` holds two rows today — you and Nasser. That is the entire cost of
+moving now. Provision the 16 first and it becomes eighteen re-installs and sixteen
+invite codes handed out against a URL you are about to abandon.
+
+It is also a security fix, not decoration: `src/api/supabase.ts` records that the
+tracker's session store is shared with three unrelated hobby apps on
+`abosallom.github.io`, one of which loads a CDN script with no integrity check.
+An origin of its own is the fix that file names.
+
+Two things still yours after the deploy, both in DOMAIN-CUTOVER: the **Supabase
+Site URL and redirect allow-list** (§4 — miss it and every emailed sign-in link
+still lands on the old origin), and **verifying the domain** on GitHub (§5).
+
+---
+
 ## Step 4 — Provision the 16 people (15 min)
 
 The demo left three account-manager books deliberately unassigned because only you and Nasser
@@ -193,7 +228,8 @@ Full function documentation: [`supabase/functions/jira-read/README.md`](../supab
 ## Step 6 — The verification tour: the judgements only you can make (20 min)
 
 After Steps 1–2, sign in at the dev server (`npm run dev -- --port 5201 --strictPort`) or the
-live site, and walk this list. These are the calls arithmetic can't make — everything
+live site (`https://nphiescore.com/` once Step 8 has landed; the old address until then),
+and walk this list. These are the calls arithmetic can't make — everything
 measurable has already been measured.
 
 **Desktop, 1600×900, English:**
@@ -259,17 +295,30 @@ unchanged file does nothing, and every apply writes an undo manifest.
 
 ## Step 8 — Push and deploy (your word)
 
-Fourteen commits sit local on `feat/map-hierarchy`. When you're satisfied with the tour:
+Forty commits sit local on `feat/map-hierarchy`, with **no upstream** — `main` is
+still at 2 August, so the live site today is the app as it stood *before* the whole
+revamp. The deploy only fires on a push to `main`.
 
-- Say **"push"** — I push the branch, watch CI, and confirm live = HEAD
+This same deploy is what carries `public/CNAME` into the artifact and turns
+`nphiescore.com` on, so **Step 3b's DNS must resolve before this runs** — otherwise
+GitHub redirects the old address to a domain that answers nothing and there is no
+working URL left. DOMAIN-CUTOVER §1 and §3.
+
+When you're satisfied with the tour:
+
+- Say **"push"** — I merge to `main`, push, watch CI, confirm live = HEAD, and run
+  the domain verification curls in DOMAIN-CUTOVER §3
 - Or name what to change first
 
 ---
 
 ## Later, scheduled separately
 
-- **The `/nphiescore/` move** — the Supabase redirect allow-list moves in the same change;
-  one sitting, planned when you want it
+- ~~**The `/nphiescore/` move**~~ — **cancelled 19 Aug 2026.** `nphiescore.com`
+  supersedes it: a custom domain serves the app at the apex, so the URL stops
+  reading `opstrack` without renaming the repo, the storage keys or anything else
+  the brand gate freezes. The redirect-allow-list step it warned about survives,
+  and lives in [`DOMAIN-CUTOVER.md`](DOMAIN-CUTOVER.md) §4
 - **TestFlight** — needs your Apple ID in your hands; I prepare, you submit
 - **Jira write-back** — designed (preview → apply → downloadable undo manifest), built only
   after your "the tracker is verified"
@@ -281,6 +330,7 @@ Fourteen commits sit local on `feat/map-hierarchy`. When you're satisfied with t
 | Document | What it's for |
 |---|---|
 | [`docs/RUN-0026-0027-0028.md`](RUN-0026-0027-0028.md) | **Step 1.** The SQL sitting, NOTICE by NOTICE |
+| [`docs/DOMAIN-CUTOVER.md`](DOMAIN-CUTOVER.md) | **Step 3b.** Moving to `nphiescore.com`: DNS, the artifact CNAME, the Supabase allow-list, what it costs people |
 | [`docs/PENDING-MIGRATIONS.md`](PENDING-MIGRATIONS.md) | The permanent record of what is applied and what is pending, with the canary query |
 | [`docs/templates/README.md`](templates/README.md) | **Step 7.** Filling the CSV — every column, every trap |
 | `docs/templates/structure.csv` / `.example.csv` / `.demo.csv` | The empty template, the readable example, the 400-org demo |

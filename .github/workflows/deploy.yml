@@ -57,6 +57,16 @@ jobs:
           # what the comment on DEFAULT_VAPID_PUBLIC_KEY promises, and could not
           # deliver while this line was missing. RUNBOOK §4.2.
           VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+      # The custom domain lives in the ARTIFACT, not in the repo's Pages setting.
+      # With `build_type: workflow` GitHub reads CNAME out of each deployed tree,
+      # so a build that drops the file silently un-sets nphiescore.com and the
+      # site reverts to abosallom.github.io/opstrack/ — a "successful" deploy that
+      # moves the app back onto the shared origin src/api/supabase.ts exists to
+      # get it off. Vite copies public/ verbatim; this proves it did.
+      - name: Require the CNAME in the artifact
+        run: |
+          test -f dist/CNAME || { echo "::error::dist/CNAME is missing - the custom domain would be un-set"; exit 1; }
+          grep -qx 'nphiescore.com' dist/CNAME || { echo "::error::dist/CNAME does not read nphiescore.com"; exit 1; }
       - uses: actions/configure-pages@v5
         with:
           enablement: true

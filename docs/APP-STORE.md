@@ -243,11 +243,13 @@ Three things about that string:
    prop in `Privacy.tsx`.
 2. The `#` is not optional — `src/main.tsx` uses `HashRouter`, because GitHub
    Pages is static hosting with no URL rewriting.
-3. ⚠ **It changes the day the base path moves.** Moving the app to
-   `/nphiescore/` is a decided but separate change (it needs a Supabase
-   redirect-allow-list step), and when it lands this URL becomes
-   `https://abosallom.github.io/nphiescore/#/privacy`. Set the App Store Connect
-   field **after** that move, or set it now and remember to update it.
+3. ⚠ **It changes the day the domain cut-over lands.** The `/nphiescore/`
+   base-path move is CANCELLED — `nphiescore.com` was bought on 19 Aug 2026 and
+   supersedes it ([`DOMAIN-CUTOVER.md`](DOMAIN-CUTOVER.md)). A Pages project site
+   with a custom domain serves at the apex, so this URL becomes
+   `https://nphiescore.com/#/privacy` — shorter than either predecessor, and the
+   one to give Apple. Set the App Store Connect field **after** the cut-over, or
+   set it now and remember to update it.
 
 ⬜ **The page is not wired yet.** It is a work unit that does not own
 `src/App.tsx` or `src/locales/index.ts`. Until the integrator applies those two
@@ -425,8 +427,8 @@ none of the hard parts.
 2. **Register the App ID `app.nphiescore`** on the developer portal.
 3. **Create the App Store Connect record** — this is the thing every remaining
    item hangs off.
-4. **Set the privacy policy URL** in App Information (§4.1), after deciding
-   whether the base path move has happened.
+4. **Set the privacy policy URL** in App Information (§4.1) — `https://nphiescore.com/#/privacy`
+   once the domain cut-over has landed, and check that it has before typing it.
 5. **Answer the App Privacy questionnaire** (§4.3) from
    `PrivacyInfo.xcprivacy`.
 6. **Archive and upload** — Xcode ▸ Product ▸ Archive with a Release

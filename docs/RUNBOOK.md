@@ -19,8 +19,8 @@ in this repo.
 
 | | |
 | --- | --- |
-| Live app | <https://abosallom.github.io/opstrack/> |
-| Repo | <https://github.com/Abosallom/opstrack> (branch `main` deploys) |
+| Live app | <https://nphiescore.com/> once the cut-over lands; <https://abosallom.github.io/opstrack/> until then — [`DOMAIN-CUTOVER.md`](DOMAIN-CUTOVER.md) |
+| Repo | <https://github.com/Abosallom/opstrack> (branch `main` deploys) — the repo name stays `opstrack`; the domain is what makes renaming it unnecessary |
 | Supabase project | `opstrack`, ref `lrysgpbkmuqgzsjesfkr`, region `ap-northeast-2` (Seoul) |
 | Supabase dashboard | <https://supabase.com/dashboard/project/lrysgpbkmuqgzsjesfkr> |
 | Admin | `az.alsaloom@gmail.com` — one admin, `profiles.role = 'admin'` |
@@ -675,8 +675,9 @@ retries until it abandons. Rotate only for a suspected compromise, and expect:
 1. Set all three secrets and redeploy `send-push` (§4).
 2. `gh secret set VITE_VAPID_PUBLIC_KEY` and re-run the deploy (above). Confirm
    the new key actually shipped:
-   `curl -s https://abosallom.github.io/opstrack/ | grep -o 'assets/index-[^"]*\.js'`
-   then `curl -s https://abosallom.github.io/opstrack/assets/index-….js | grep -c '<the new public key>'` → `1`.
+   `curl -s https://nphiescore.com/ | grep -o 'assets/index-[^"]*\.js'`
+   then `curl -s https://nphiescore.com/assets/index-….js | grep -c '<the new public key>'` → `1`.
+   (Before the domain cut-over, `https://abosallom.github.io/opstrack/` in both.)
 3. Confirm the two halves agree, without printing either — §9.3, check 6.
 4. **Every device must visit Settings → Push notifications and turn it off and on
    again.** Nothing can do this for them; the browser will not re-key a
@@ -954,8 +955,11 @@ limitation, not a setting you have missed.
 
 ### 8.4 The link opens the app and nothing happens
 
-The link always lands on **`https://abosallom.github.io/opstrack/`**, because the
-app doesn't pass a redirect and Supabase falls back to the project's Site URL. So:
+The link always lands on **whatever the project's Site URL says**, because the app
+doesn't pass a redirect and Supabase falls back to it — `https://nphiescore.com/`
+after the cut-over, `https://abosallom.github.io/opstrack/` before it. That single
+field is why DOMAIN-CUTOVER §4 is not optional: change the origin without changing
+it and every emailed link keeps delivering people to the old one. So:
 
 - **A link opened on a phone signs you in on that phone**, not on the laptop that
   requested it. That is how magic links work, not a bug.
@@ -1335,8 +1339,9 @@ Chrome, a throwaway profile, and CDP for the permission grant:
 
 Then, over the browser-level WebSocket from `http://127.0.0.1:9222/json/version`:
 
-1. `Browser.grantPermissions {origin:"https://abosallom.github.io",
-   permissions:["notifications"]}`. **Hold that WebSocket open for the entire
+1. `Browser.grantPermissions {origin:"https://nphiescore.com",
+   permissions:["notifications"]}` — `https://abosallom.github.io` before the
+   domain cut-over. The grant is per ORIGIN, so this line moves with it. **Hold that WebSocket open for the entire
    run** — Chrome reverts permission overrides the moment the client that set them
    disconnects, and headless then auto-*denies* the app's
    `Notification.requestPermission()`, which is sticky and needs a re-grant plus a
