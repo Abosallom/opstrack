@@ -116,6 +116,7 @@ function row(over: Partial<Entry> = {}): Entry {
   return {
     id: 'e1',
     track_id: 't-net',
+    node_id: null,
     title: 'Firewall rule DC2',
     description: '',
     type: 'action',

@@ -60,7 +60,7 @@ export interface VocabSnapshot {
   loadedAt: number | null
 }
 
-const CACHE_KEY = 'opstrack_vocab_v1'
+const CACHE_KEY = 'nphiescore_vocab_v1'
 
 /** Same window store/config.ts uses; vocabulary changes about as often as tracks. */
 const STALE_AFTER_MS = 30_000

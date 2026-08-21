@@ -117,7 +117,7 @@ import {
   type PluralCategory,
   type PluralNode,
 } from '../../lib/plural'
-import { useAuth } from '../../store/auth'
+import { useHasPerm } from '../../store/auth'
 import {
   resetAllOverrides,
   resetOverride,
@@ -141,23 +141,6 @@ const MAX_LABEL_LENGTH = 4000
 
 /** How many more each press of "show more" adds. */
 const PAGE_STEP = 50
-
-/**
- * Cosmetic admin gate — the same one VocabularyAdmin and TracksAdmin document.
- * The real authority is `is_admin()` in 0017's RLS policies: every write here
- * fails with 42501 for a member whatever this returns, and hiding the screen
- * only avoids offering an action that cannot succeed.
- *
- * `?shell` mirrors App.tsx's dev-only preview flag so the layout and the RTL
- * mirror stay reviewable in a build with no Supabase project.
- * `import.meta.env.DEV` is the literal `false` in a production build, so Vite
- * drops the whole expression and this cannot become a way in.
- */
-function useIsAdmin(): boolean {
-  const { profile } = useAuth()
-  if (profile?.role === 'admin') return true
-  return import.meta.env.DEV && new URLSearchParams(window.location.search).has('shell')
-}
 
 /**
  * One language's half of a slot: what the app ships, and what to validate
@@ -312,7 +295,18 @@ function draftOf(en: string | null | undefined, ar: string | null | undefined): 
 
 export default function Terminology(): ReactElement {
   const locale = useLocale()
-  const isAdmin = useIsAdmin()
+  // COSMETIC GATE, and the SAME KEY as Settings › Vocabulary, because that
+  // screen and this one are the two halves of the workspace's own words. The
+  // real authority is 0017's `label_overrides` RLS policies, which 0025
+  // re-points from `is_admin()` at `has_perm('vocab.edit')`, along with
+  // `reset_label_overrides()` — the RPC behind "reset every change". Every write
+  // here fails with 42501 for anyone without that key whatever this returns.
+  //
+  // A PERMISSION AND NO LONGER A ROLE: `profiles.role` cannot see a custom role,
+  // so a Director was bounced off a screen 0025 had just opened. store/auth's
+  // `useHasPerm` falls back to that column when 0025 is unapplied and carries
+  // the dev-only `?shell` flag this file used to repeat.
+  const canEdit = useHasPerm('vocab.edit')
   const byKey = useLabelOverrideMap()
   const count = useLabelOverrideCount()
 
@@ -547,7 +541,7 @@ export default function Terminology(): ReactElement {
     }
   }
 
-  if (!isAdmin) return <Navigate to="/settings" replace />
+  if (!canEdit) return <Navigate to="/settings" replace />
 
   const isOpen = (id: LabelSectionId): boolean => open[id] ?? filtering
 

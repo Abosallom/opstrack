@@ -1,21 +1,14 @@
 {
   "tree": {
-    "subtitle": "Every active track and the work still open on it — hand it out, re-file it, or open it.",
     "hint": "Change an owner from the row and the teammate is notified. Tick rows (hold ⁦Shift⁩ for a range) to act on several at once.",
     "refresh": "Refresh",
-    "expandAll": "Expand all",
-    "collapseAll": "Collapse all",
     "unassignedOnly": "Unassigned only",
+    "openWork": "Open work",
     "trackTree": "Tracks and their open work",
     "total": {
       "one": "{count} open item",
       "other": "{count} open items"
     },
-    "tagHint": "A row must carry every tag you pick.",
-    "truncated": "Only part of the workspace is loaded, so these counts describe what is in view.",
-    "errLoad": "The open work could not be loaded.",
-    "empty": "No tracks yet",
-    "emptyHint": "An admin creates tracks from Settings, then Tracks.",
     "emptyFiltered": "Nothing matches these filters",
     "emptyFilteredHint": "Clear a filter to see the rest of the work.",
     "countOpen": {
@@ -37,10 +30,8 @@
     "rowsHidden": "{count} more",
     "allClear": "All clear",
     "allClearHint": "Nothing open on this track.",
-    "noMatch": "Nothing here matches the filters.",
     "archived": "Archived",
     "archivedHint": "This track is archived and still holds open work.",
-    "unknownTrack": "Unknown track",
     "unknownOwner": "Unknown owner",
     "selectTrack": "Select every row under ⁨{track}⁩",
     "selectRow": "Select ⁨{title}⁩",

@@ -35,9 +35,86 @@
 // is what lets the Members page say the one thing the admin needs to hear. The
 // status mapping stays underneath it: a gateway error page, or a token this
 // build has never heard of, still resolves to something readable.
+//
+// ── WHAT WAVE B ADDED, AND WHY IT DOES NOT GO THROUGH THE FUNCTION ─────────
+//
+// A ROLE ASSIGNMENT WRITES `profiles.role_id` AND NOTHING ELSE. Not the legacy
+// `profiles.role` text beside it, and not the two together — writing both would
+// be the bug rather than the fix.
+//
+// 0025 keeps the text column and keeps it DERIVED. `profiles_role_sync()` is a
+// BEFORE INSERT OR UPDATE trigger whose last act is
+// `new.role := case when new.role_id = <the system admin role> then 'admin'
+// else 'member' end` (0025:548), so role_id is the source of truth and the text
+// is a mirror the database maintains inside the same statement. A client that
+// wrote both would be racing the trigger for a column the trigger is about to
+// overwrite — and on the one path where the two could disagree (a custom role
+// such as Director, which is neither system role) the client's guess would be
+// the wrong one. Writing role_id alone is exactly what keeps `is_admin()` in the
+// database and `useIsAdmin()` over the cached profile answering the same
+// question.
+//
+// THAT IS ALSO WHY `setMemberRole()` BELOW IS NOT THE CALL FOR THIS. It posts to
+// the edge function's `set-role`, whose body IS the legacy text and whose
+// vocabulary is therefore exactly two words: it can say Admin and Member and
+// cannot say Director, which is the whole reason 0025 exists. It stays, because
+// the Members screen falls back to it on a project where 0025 has not been
+// applied yet and no `roles` table exists to pick from.
+//
+// AND THE WRITE READS BACK WHAT PERSISTED. 0025's GUARD 2 REVERTS rather than
+// raising — `new.role_id := old.role_id` (0025:855) — so a refused self-move
+// comes back as a 200 with the row unmoved, deliberately, because RLS is
+// row-level and a raise would turn a member's legitimate `locale` save into a
+// hard error. A caller that trusted its own request would render a role the
+// database does not hold. `setMemberRoleId()` therefore returns the PERSISTED
+// row and the caller settles on that, never on what it asked for.
+//
+// ── AND `position`, WHICH IS DISPLAY ONLY AND GATES NOTHING ────────────────
+//
+// `profiles.position` IS A JOB TITLE SOMEBODY TYPED AND NOTHING ELSE. 0025's own
+// column comment says it (0025:483) and this module repeats it because the
+// temptation is real: with eighteen people and seven Associate Directors, a
+// string that says "Executive Director, UHR" looks exactly like something a
+// screen could branch on. It must never be. Seniority is a ROLE — a row in
+// `roles` with permission keys attached — and "Business Operations & Product
+// Director (Delegation)" is precisely the string a title parser would read as
+// two ranks, or as none. Nothing in this file, and nothing downstream of it,
+// may derive a capability from this value.
+//
+// THE WRITE IS A PLAIN `profiles` UPDATE, NOT A FIFTH EDGE ACTION, for the same
+// reason `setMemberRoleId()` is: the column is an ordinary `profiles` column and
+// nothing about it lives in `auth.users`.
+//
+// IT REVERTS RATHER THAN RAISING, exactly like role_id, and the caller has to
+// know that. Two gates stand between this UPDATE and the stored value, and they
+// are not the same gate:
+//
+//   RLS — `profiles_update` is `id = auth.uid() or is_admin()` (0009:165) and
+//   0025 deliberately LEAVES IT THERE (0025:855). So somebody else's row needs
+//   `is_admin()`, and a refusal there is a zero-row update, which surfaces below
+//   as `errNotFound`.
+//
+//   THE TRIGGER — `guard_profile_role()` reverts the column outright unless the
+//   writer holds `members.manage` (0025:1800): `new.position := old.position`.
+//   Not an exception, not a 42501: a 200 whose row did not move, because
+//   `profiles_update` also lets an ordinary member write their own row for
+//   `locale` and a raise would turn that save into a hard error.
+//
+// The refusal the trigger performs is therefore INVISIBLE to any caller that
+// trusts its own request. `setMemberPosition()` answers with the PERSISTED row
+// and the caller compares — the same contract, and for the same reason, as
+// `setMemberRoleId()` above.
+//
+// AND THE VALUE IS SCRUBBED BEFORE IT GOES. `stripInvisible()` rather than
+// `stripIsolates()`, which is the wider of the two on purpose: this string is
+// rendered after a separator ("Nawaf Alharbi · …"), so a paste out of Outlook
+// carrying one U+200E is a value that is non-empty to every `=== ''` test and
+// empty to every human, and the roster prints a name, a dot, and nothing.
 
 import { supabase } from './supabase'
 import { fail, notConfigured, type ApiResult } from './result'
+import { roleErrorKey } from './roles'
+import { stripInvisible } from '../lib/bidi'
 import { pgErrorKey } from '../lib/pgError'
 import type { ClaimInput, UserRole } from '../types'
 
@@ -340,8 +417,169 @@ export function sortMemberAccounts(rows: MemberAccount[]): MemberAccount[] {
   )
 }
 
+/* ───────────────── roles as data: role_id and position (0025) ──────────── */
+
 /**
- * Promote or demote.
+ * What `profiles` knows about one account that `auth.users` cannot: which ROLE
+ * it holds, and the job title printed beside its name.
+ *
+ * A THIRD SHAPE RATHER THAN FIELDS ON `MemberAccount`, because the two come from
+ * different principals and can arrive apart. `MemberAccount` is the edge
+ * function's answer over `auth.users`; this is a PostgREST select on `profiles`,
+ * and on a project where 0025 has not been applied the second read fails with a
+ * 42703 while the first is perfectly fine. Merged into one interface, that
+ * partial failure would take the whole roster down with it.
+ *
+ * `role` is the LEGACY text column and is carried on purpose, for the reason
+ * api/roles.ts's `ProfileRoleRef` carries it: `has_perm()` falls back to it when
+ * `role_id` is null (0025:400), so a holder count that ignored it would disagree
+ * with the database exactly on the half-provisioned rows where it matters.
+ */
+export interface MemberRoleRef {
+  id: string
+  /** Legacy text, derived by `profiles_role_sync()`. Never written from here. */
+  role: string
+  /** null only on a row that predates the backfill. See `has_perm()`'s fallback. */
+  roleId: string | null
+  /** Job title. FREE TEXT, DISPLAY ONLY (0025:301) — it gates nothing, ever. */
+  position: string
+}
+
+/** The `profiles` row as PostgREST emits it for the two columns 0025 added. */
+interface ProfileRoleRow {
+  id: string
+  role: string | null
+  role_id: string | null
+  position: string | null
+}
+
+/**
+ * The `profiles` row → view-model boundary, exported for its test on the
+ * `toMemberAccount` convention.
+ *
+ * `position` is `not null default ''` in the schema, so the `?? ''` is not
+ * defensiveness about the column — it is about the ROW being absent from an
+ * older cached response shape, and about a value of whitespace, which renders as
+ * a name followed by a separator and nothing after it.
+ */
+export function toMemberRoleRef(row: ProfileRoleRow): MemberRoleRef {
+  return {
+    id: row.id,
+    role: row.role === 'admin' ? 'admin' : 'member',
+    roleId: row.role_id,
+    position: row.position?.trim() ?? '',
+  }
+}
+
+/**
+ * Which role each account holds, and what it says under their name.
+ *
+ * A SELECT ON `profiles`, not a fifth action on the edge function. Both columns
+ * are ordinary `profiles` columns behind `profiles_select = is_member()`
+ * (0009:157) — nothing here lives in `auth.users`, so the function's monopoly
+ * does not apply and a round trip through the service role would buy nothing.
+ *
+ * ORDERLESS on purpose. The caller already has the roster in the order it wants
+ * (`sortMemberAccounts`) and joins this in by id; sorting the same eighteen rows
+ * a second time would only invite the two orders to drift.
+ */
+export async function listMemberRoleRefs(): Promise<ApiResult<MemberRoleRef[]>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase.from('profiles').select('id, role, role_id, position')
+  if (error) return fail(roleErrorKey(error))
+  return { ok: true, data: ((data ?? []) as ProfileRoleRow[]).map(toMemberRoleRef) }
+}
+
+/**
+ * Move one account into one role — the write the Director role was missing.
+ *
+ * WRITES `role_id` AND NOTHING ELSE, and answers with the row the database kept.
+ * Both halves are argued in this file's header; the short version is that
+ * `profiles.role` is a mirror the trigger maintains, and that 0025's GUARD 2
+ * refuses a self-escalation by REVERTING rather than raising, so the only honest
+ * report of what happened is the row that came back.
+ *
+ * `maybeSingle()`, never `single()`. Zero rows is a REACHABLE state here and not
+ * an error worth its own vocabulary: an account whose `profiles` row never got
+ * written (the roster's "No profile row" pill) matches nothing, and `single()`
+ * would answer PGRST116 — "JSON object requested, multiple (or no) rows
+ * returned" — which is not a sentence any admin can act on. `errNotFound` is,
+ * and it is the same key the edge function's own `not_found` resolves to.
+ */
+export async function setMemberRoleId(
+  id: string,
+  roleId: string,
+): Promise<ApiResult<MemberRoleRef>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ role_id: roleId })
+    .eq('id', id)
+    .select('id, role, role_id, position')
+    .maybeSingle()
+  if (error) return fail(roleErrorKey(error))
+  if (!data) return fail('members.errNotFound')
+  return { ok: true, data: toMemberRoleRef(data as ProfileRoleRow) }
+}
+
+/**
+ * What a typed position becomes on its way to the column — the ONE definition,
+ * shared by the writer and by every caller that has to ask "did it move?".
+ *
+ * Exported and used on both sides deliberately. The revert this write can suffer
+ * is detected by comparing what came back against what was asked for, and if the
+ * caller compared the RAW input it would report a refusal every time somebody
+ * typed a trailing space. Two normalisations would be two answers.
+ *
+ * `stripInvisible`, not `stripIsolates`: the header argues it. A value made
+ * entirely of invisible format characters must come out as the empty string,
+ * because the roster prints this after a `·` and "a name, a dot, and nothing" is
+ * the failure the trim on the read side (`toMemberRoleRef`) already guards.
+ */
+export function normalizePosition(value: string): string {
+  return stripInvisible(value).trim()
+}
+
+/**
+ * Set the job title printed beside one person's name.
+ *
+ * DISPLAY ONLY. It gates nothing here and must gate nothing anywhere — see the
+ * header, and 0025's own comment on the column.
+ *
+ * ANSWERS WITH THE PERSISTED ROW, never with the requested value, because
+ * `guard_profile_role()` reverts rather than raising for a writer without
+ * `members.manage` (0025:1800). A caller must compare `data.position` against
+ * the `normalizePosition()` of what it sent and treat inequality as the refusal
+ * it is; success here means "the statement ran", not "the title changed".
+ *
+ * `maybeSingle()` and `errNotFound` for `setMemberRoleId()`'s reason exactly: an
+ * account whose `profiles` row was never written matches nothing, and PGRST116
+ * is not a sentence any admin can act on. It is also what an RLS refusal on
+ * somebody else's row looks like from here — zero rows, no error — and
+ * "reload the list" is the right advice for both.
+ */
+export async function setMemberPosition(
+  id: string,
+  position: string,
+): Promise<ApiResult<MemberRoleRef>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ position: normalizePosition(position) })
+    .eq('id', id)
+    .select('id, role, role_id, position')
+    .maybeSingle()
+  if (error) return fail(roleErrorKey(error))
+  if (!data) return fail('members.errNotFound')
+  return { ok: true, data: toMemberRoleRef(data as ProfileRoleRow) }
+}
+
+/**
+ * Promote or demote, in the legacy two-word vocabulary.
+ *
+ * SUPERSEDED BY `setMemberRoleId()` WHEREVER `roles` CAN BE READ, and kept for
+ * the case where it cannot: a project with 0025 unapplied has no roles to pick
+ * from, and this is then the only way to make somebody an admin. See the header.
  *
  * Both refusals the caller has to expect — no self-demotion, no removing the
  * last admin — are the FUNCTION's, re-derived there from the live profiles

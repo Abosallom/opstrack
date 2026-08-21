@@ -1,10 +1,11 @@
-// The Group facet — the one part of FilterBar that no screen test can prove.
+// The facets no screen test can prove — Group, and now Branch and Vendor.
 //
-// Board, FollowUps, TracksIndex and Dashboard all render this component, and all
-// four mock `useGroups()` as empty because their subject is their own surface.
-// That covers exactly one of the two branches here, and it is the boring one.
-// This file covers the other: what the facet renders when the workspace HAS
-// groups, which is the state every user is in the moment 0018 is applied.
+// pages/Mindtree.tsx is the one place this component is rendered, and it mocks
+// nothing: every other suite that touches the filter mocks the STORES as empty,
+// because its subject is its own surface. That covers exactly one of the two
+// branches in each of these facets, and it is the boring one. This file covers
+// the other: what they render when the workspace HAS groups, nodes and vendors,
+// which is the state every user is in the moment 0018 and 0023 are applied.
 //
 // renderToStaticMarkup and no DOM, for the reason every sibling page test gives:
 // vitest.config.ts is `environment: 'node'`. A static render cannot open the
@@ -56,14 +57,58 @@ const fx = vi.hoisted(() => {
     updated_at: '2026-08-01T00:00:00Z',
   }
   const biz = { ...tech, id: 'g-biz', name: 'Business', name_ar: 'الأعمال', sort_order: 2 }
-  const state = { groups: [tech, biz] }
-  return { state, tech, biz }
+
+  // Aziz's own example branch: UHR ─ OB ─ Org1 / Org2, plus a phase with no
+  // integrator, because "most of the tree has no vendor" is the case the facet
+  // is designed around.
+  const node = {
+    id: 'ob',
+    parent_id: null,
+    track_id: 'tr-uhr',
+    kind_id: null,
+    name: 'Onboarding',
+    name_ar: 'التسجيل',
+    description: '',
+    description_ar: '',
+    account_manager_id: null,
+    vendor: '',
+    sort_order: 1,
+    archived: false,
+    archived_at: null,
+    source: 'local' as const,
+    external_ref: null,
+    external_url: null,
+    synced_at: null,
+    overrides: [],
+    created_by: null,
+    created_at: '2026-08-01T00:00:00Z',
+    updated_at: '2026-08-01T00:00:00Z',
+  }
+  const org1 = {
+    ...node,
+    id: 'org1',
+    parent_id: 'ob',
+    name: 'King Fahad Hospital',
+    name_ar: 'مستشفى الملك فهد',
+    vendor: 'Acme',
+  }
+  // The SAME integrator, typed by a different person on a different day. One
+  // chip, not two — the whole reason the option list dedupes on the fold.
+  const org2 = { ...org1, id: 'org2', name: 'Riyadh Clinic', name_ar: '', vendor: ' acme ' }
+  const org3 = { ...org1, id: 'org3', name: 'Jeddah Centre', vendor: 'Beta Systems' }
+  const state = { groups: [tech, biz], nodes: [node, org1, org2, org3] }
+  return { state, tech, biz, node, org1, org2, org3 }
 })
 
 vi.mock('../store/config', () => ({
   useGroups: () => fx.state.groups,
   useActiveTracks: () => [],
   useTrackMap: () => new Map(),
+  useMapNodes: () => fx.state.nodes,
+  // Built FROM the same array as the list, so a case that swaps a node's
+  // definition changes both — two sources of one node is how a fixture starts
+  // lying (MapBranch.test.tsx's rule for its track map).
+  useMapNodeMap: () => new Map(fx.state.nodes.map((n) => [n.id, n])),
 }))
 
 vi.mock('../store/members', () => ({ useMembers: () => [] }))
@@ -152,5 +197,166 @@ describe('the Group facet', () => {
       fx.state.groups = [fx.tech, fx.biz]
       setLocale('en')
     }
+  })
+})
+
+// The slice between one facet heading and the next. Every facet in this panel is
+// a radiogroup or a toggle group reporting its own checked options, so an
+// unscoped count would pass whatever any other facet happened to do.
+const facet = (html: string, from: string, to: string): string =>
+  html.slice(html.indexOf(from), html.indexOf(to))
+
+describe('the Vendor facet — filter the map by the integrator', () => {
+  it('renders one option per integrator, between Track and Status', () => {
+    const html = render()
+    expect(html).toContain(t('filter.vendor'))
+    expect(html).toContain('Acme')
+    expect(html).toContain('Beta Systems')
+    expect(html.indexOf(t('filter.track'))).toBeLessThan(html.indexOf(t('filter.vendor')))
+    expect(html.indexOf(t('filter.vendor'))).toBeLessThan(html.indexOf(t('filter.status')))
+  })
+
+  it('collapses two spellings of one integrator into one option', () => {
+    // org1 carries 'Acme' and org2 carries ' acme ' — the same company typed by
+    // two people. Two chips would select identical rows and look like two
+    // vendors that each half the work.
+    const slice = facet(render(), t('filter.vendor'), t('filter.status'))
+    expect(slice.match(/>Acme</g) ?? []).toHaveLength(1)
+    expect(slice).not.toContain('>acme<')
+    // Any vendor · Acme · Beta Systems, and nothing else.
+    expect(slice.match(/role="radio"/g) ?? []).toHaveLength(3)
+  })
+
+  it('offers "any vendor" rather than making the choice mandatory', () => {
+    expect(render()).toContain(t('filter.anyVendor'))
+  })
+
+  it('checks the chosen integrator however the link spelled it', () => {
+    // A URL carries a SPELLING, not an id. lib/entryFilter matches folded, so a
+    // link reading `vendor=acme` must tick the chip labelled 'Acme' — a control
+    // showing nothing selected under an active filter is the "1 filter over a
+    // list nobody can explain" failure.
+    for (const spelling of ['Acme', 'acme', 'ACME ']) {
+      const slice = facet(
+        render({ ...EMPTY_FILTER, vendors: [spelling] }),
+        t('filter.vendor'),
+        t('filter.status'),
+      )
+      expect(slice.match(/aria-checked="true"/g) ?? [], spelling).toHaveLength(1)
+      expect(slice.indexOf('aria-checked="true"'), spelling).toBeGreaterThan(
+        slice.indexOf(t('filter.anyVendor')),
+      )
+      // …and the orphan branch did not fire: still three options.
+      expect(slice.match(/role="radio"/g) ?? [], spelling).toHaveLength(3)
+    }
+  })
+
+  it('keeps an integrator nobody records any more visible, so it can be switched off', () => {
+    // The owner facet's orphan-option precedent: a vendor whose last
+    // organization was archived still filters the list, and a facet that
+    // dropped it would leave an active filter with no control showing it.
+    const slice = facet(
+      render({ ...EMPTY_FILTER, vendors: ['Gone Integrations'] }),
+      t('filter.vendor'),
+      t('filter.status'),
+    )
+    expect(slice).toContain('Gone Integrations')
+    expect(slice.match(/role="radio"/g) ?? []).toHaveLength(4)
+    expect(slice.match(/aria-checked="true"/g) ?? []).toHaveLength(1)
+  })
+
+  it('counts as an active facet in the rail badge', () => {
+    const html = render({ ...EMPTY_FILTER, vendors: ['Acme'] })
+    expect(html).toContain(t('filter.activeCount', { count: 1 }))
+    expect(html).toContain(t('filter.clearAll'))
+  })
+
+  it('does not offer a vendor that survives only on an archived organization', () => {
+    // Not a choice the workspace still has. The FILTER is unaffected — the
+    // context map is built over every node — but a chip that selects nothing
+    // anybody can see is a control that looks broken.
+    fx.state.nodes = [fx.node, { ...fx.org1, archived: true }]
+    try {
+      expect(render()).not.toContain(t('filter.vendor'))
+    } finally {
+      fx.state.nodes = [fx.node, fx.org1, fx.org2, fx.org3]
+    }
+  })
+
+  it('disappears entirely when no organization records an integrator', () => {
+    // Before 0023, and in a workspace whose admin has not filled the column in.
+    // A heading over a lone "Any vendor" chip is a control that looks broken;
+    // nothing at all is the honest rendering of a dimension with no values.
+    fx.state.nodes = [fx.node]
+    try {
+      const html = render()
+      expect(html).not.toContain(t('filter.vendor'))
+      expect(html).not.toContain(t('filter.anyVendor'))
+      // …and the rest of the bar is untouched.
+      expect(html).toContain(t('filter.track'))
+      expect(html).toContain(t('filter.group'))
+    } finally {
+      fx.state.nodes = [fx.node, fx.org1, fx.org2, fx.org3]
+    }
+  })
+})
+
+describe('the Branch readout — what a pasted link brought with it', () => {
+  it('is absent until something is selected, because the map is the picker', () => {
+    // Forty organizations as a flat chip row inside a disclosure panel would be
+    // a worse version of the surface behind it.
+    expect(render()).not.toContain(t('filter.branch'))
+    expect(render()).not.toContain(t('filter.branchHint'))
+  })
+
+  it('names every selected branch, and each one can be pressed off', () => {
+    const html = render({ ...EMPTY_FILTER, mapNodeIds: ['ob', 'org1'] })
+    const slice = facet(html, t('filter.branch'), t('filter.vendor'))
+    expect(slice).toContain('Onboarding')
+    expect(slice).toContain('King Fahad Hospital')
+    // Toggles, not a radiogroup: a link may carry several branches, and a
+    // single-select control would show one of them and keep filtering on the
+    // rest invisibly.
+    expect(slice.match(/aria-pressed="true"/g) ?? []).toHaveLength(2)
+    expect(slice).not.toContain('role="radio"')
+  })
+
+  it('says descendants are included, because that is what surprises people', () => {
+    expect(render({ ...EMPTY_FILTER, mapNodeIds: ['ob'] })).toContain(t('filter.branchHint'))
+  })
+
+  it('reads a branch in the reading language, falling back when untranslated', () => {
+    setLocale('ar')
+    try {
+      const html = render({ ...EMPTY_FILTER, mapNodeIds: ['ob', 'org2'] })
+      expect(html).toContain('التسجيل')
+      // `name_ar` is `not null default ''`, so the fallback tests for EMPTY and
+      // not for null — org2 has no Arabic name and shows its English one rather
+      // than an empty chip.
+      expect(html).toContain('Riyadh Clinic')
+    } finally {
+      setLocale('en')
+    }
+  })
+
+  it('falls back to a sentence for a branch the workspace has never heard of', () => {
+    // A link to something somebody deleted. A raw uuid tells the reader nothing
+    // and cannot be read aloud; the filter still has to be visible and
+    // removable.
+    const slice = facet(
+      render({ ...EMPTY_FILTER, mapNodeIds: ['ghost'] }),
+      t('filter.branch'),
+      t('filter.vendor'),
+    )
+    expect(slice).toContain(t('filter.branchGone'))
+    expect(slice).not.toContain('ghost')
+    expect(slice.match(/aria-pressed="true"/g) ?? []).toHaveLength(1)
+  })
+
+  it('counts as an active facet, separately from vendor', () => {
+    // Two decisions, two counters, and Clear all removes both — the group/track
+    // pair one level up.
+    const html = render({ ...EMPTY_FILTER, mapNodeIds: ['ob'], vendors: ['Acme'] })
+    expect(html).toContain(t('filter.activeCount', { count: 2 }))
   })
 })

@@ -30,6 +30,7 @@ function at(year: number, month: number, day: number, hour = 12, minute = 0): st
 function entry(partial: Partial<Entry> & Pick<Entry, 'id'>): Entry {
   return {
     track_id: 'tr-onb',
+    node_id: null,
     title: 'Vendor portal access',
     description: '',
     type: 'action',

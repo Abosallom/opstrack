@@ -46,6 +46,74 @@ export interface FilterState {
   groupIds: string[]
   /** [] = all tracks. */
   trackIds: string[]
+  /**
+   * [] = the whole map — `map_nodes` (0023), the hierarchy BELOW tracks.
+   *
+   * ITS OWN DIMENSION, NOT A SHORTHAND FOR A SET OF TRACK IDS, and every word of
+   * `groupIds`' paragraph above applies one level down. Resolving the chosen
+   * node to its track at the control would have needed no model change at all,
+   * and it is wrong in the same three ways: a shared link would read `track=UHR`
+   * and could never say "Org1"; picking a track after an organization would
+   * silently clear the organization, because one field cannot hold two
+   * questions; and — the one this level adds — a link saved while OB held four
+   * organizations would still be filtering to those four after the fifth was
+   * onboarded.
+   *
+   * IT NAMES WHAT THE READER PICKED, NEVER THE EXPANSION OF IT. `node=OB` means
+   * "OB and everything filed underneath it", resolved against the tree AS IT IS
+   * WHEN THE LINK IS OPENED. Writing the descendants into this array instead
+   * would freeze that membership into the URL, which is the third failure above
+   * wearing a different hat. Which node sits under which is a fact this module
+   * cannot know — see `FilterContext.ancestryOfNode`.
+   */
+  mapNodeIds: string[]
+  /**
+   * [] = every integrator. The company delivering an organization's work —
+   * `map_nodes.vendor` (0023), free text, `not null default ''`.
+   *
+   * ITS OWN DIMENSION FOR THE THIRD TIME, and here the temptation was sharper
+   * than at the two levels above: a vendor IS a set of organizations, so the
+   * vendor control could have written their ids into `mapNodeIds` and this
+   * field need not exist. That version cannot survive a week. The URL would read
+   * `node=<uuid>,<uuid>,<uuid>` and could never say "Acme"; the organization
+   * facet and the vendor facet would be one field holding two questions, so
+   * picking a branch would silently drop the vendor; and the day Acme takes on a
+   * twelfth hospital, every link anybody saved would still be reporting on
+   * eleven. Aziz asked to filter the map by vendor — a link that cannot say
+   * which vendor is not that feature.
+   *
+   * MATCHED FOLDED, like `tags`: 'Acme' and 'acme ' are one integrator, and the
+   * column is free text a person types. Which vendor is behind an entry is a
+   * fact this module cannot know — see `FilterContext.vendorOfNode`.
+   */
+  vendors: string[]
+  /**
+   * [] = every account manager. The teammate accountable for an organization —
+   * `map_nodes.account_manager_id` (0023), a REFERENCE to `profiles.id`.
+   *
+   * ITS OWN DIMENSION FOR THE FOURTH TIME, and the objection `vendors` raises is
+   * sharper here, not weaker: a manager IS a set of organizations, so this
+   * control could have written their ids into `mapNodeIds` and this field need
+   * not exist. The URL would then read `node=<uuid>,<uuid>,…×80` and could never
+   * say WHO; the branch facet and the book facet would be one field holding two
+   * questions, so drilling into one hospital would silently drop the person; and
+   * the day an organization is handed to a different AM, every link anybody
+   * saved would still be reporting yesterday's book. An AD asking "show me
+   * Sara's 80" is asking about SARA, resolved against the tree as it is when the
+   * link is opened.
+   *
+   * NOT `mine`. `mine` is "owner_id = me OR created_by = me" on an ENTRY; an
+   * organization's account manager is a different question about a different
+   * table, and one field cannot hold two questions — the objection this file
+   * already states once per level above.
+   *
+   * MATCHED BY ID, never folded, because unlike `vendors` and `tags` these are
+   * uuids and not text somebody typed. The one non-uuid member is
+   * {@link MANAGER_NONE}, and it is a value the reader can genuinely ask for:
+   * "which organizations has nobody been given". Which manager is behind an
+   * entry is a fact this module cannot know — see `FilterContext.managerOfNode`.
+   */
+  managerIds: string[]
   statuses: EntryStatus[]
   priorities: EntryPriority[]
   types: EntryType[]
@@ -89,7 +157,95 @@ export interface FilterContext {
    * and looks like it worked.
    */
   groupOfTrack?: ReadonlyMap<string, string | null>
+  /**
+   * node id → that node and every node ABOVE it, nearest first —
+   * `[self, parent, …, depth-0]`. `store/entries.useFilterContext()` builds it
+   * from the config store's `mapNodeById`, so every screen gets it without
+   * knowing it exists.
+   *
+   * THIS IS WHERE THE DESCENDANT EXPANSION LIVES, and it lives in the caller
+   * because this module holds no tree and must not grow one — `matchesFilter`
+   * is called once per row per keystroke and a tree walk per row is a different
+   * function with a different cost. Expressed as ANCESTRY rather than as "the
+   * ids under the chosen node" for one reason that matters: a descendant set
+   * would have to be keyed on the current selection, so every click on the
+   * filter would rebuild it, and every memo downstream of `FilterContext` with
+   * it. Ancestry depends on the tree alone, so it is built once when the config
+   * lands and survives every change to the filter.
+   *
+   * SELF IS INCLUDED, and it is not a convenience: `node=Org1` has to keep the
+   * work filed directly ON Org1, which is most of it.
+   *
+   * WHEN IT IS ABSENT AND `mapNodeIds` IS NOT EMPTY, NOTHING MATCHES — the
+   * strict reading `groupOfTrack` takes, for its reason. A partial answer is
+   * available here and is the worse failure: without this map a filter on Org1
+   * could still match rows whose `node_id` IS Org1, so the list would look
+   * right, be wrong for every branch above a leaf, and nobody would find out
+   * until an executive asked why OB was empty.
+   */
+  ancestryOfNode?: ReadonlyMap<string, readonly string[]>
+  /**
+   * node id → the integrator delivering it, `''` when nobody has recorded one.
+   *
+   * THE EFFECTIVE VENDOR, INHERITED DOWNWARD by the caller: an entry filed on a
+   * node beneath an organization answers that organization's vendor, because
+   * "Acme's work" means everything inside Acme's organizations and a reader
+   * filing an issue one level deeper did not mean to leave the vendor behind.
+   * Resolving the nearest self-or-ancestor with a non-empty vendor needs the
+   * tree, so it happens where the tree is — beside `ancestryOfNode`, from the
+   * same walk.
+   *
+   * `''` ANSWERS NO VENDOR FILTER, exactly as an ungrouped track answers no
+   * group filter: "not recorded" is the absence of an answer, not a twelfth
+   * integrator, and passing it through would put every phase's work into
+   * whichever vendor was asked about first.
+   *
+   * Absent map, non-empty `vendors` ⇒ nothing matches, for `groupOfTrack`'s
+   * reason.
+   */
+  vendorOfNode?: ReadonlyMap<string, string>
+  /**
+   * node id → the teammate accountable for it, `null` when nobody has been
+   * named anywhere up the chain.
+   *
+   * THE EFFECTIVE MANAGER, INHERITED DOWNWARD by the caller, exactly as
+   * `vendorOfNode` is and for the mirrored reason: an entry filed on a node
+   * beneath an organization answers that organization's account manager,
+   * because "Sara's book" means everything inside Sara's organizations and a
+   * reader filing an issue one level deeper did not mean to leave her behind.
+   * Resolving the nearest self-or-ancestor with a non-null `account_manager_id`
+   * needs the tree, so it happens where the tree is — beside `ancestryOfNode`
+   * and `vendorOfNode`, from the SAME walk (store/entries.useFilterContext:
+   * one walk, three answers).
+   *
+   * `null` IS A VALUE HERE, and that is the one place this map is not
+   * `vendorOfNode`'s twin. A blank vendor answers no vendor filter, because
+   * "not recorded" is the absence of an integrator rather than a twelfth one.
+   * "Nobody is accountable for this organization" is a question an AD really
+   * asks — it is the gap they are hunting — so it is selectable, as
+   * {@link MANAGER_NONE}, and only through that value.
+   *
+   * Absent map, non-empty `managerIds` ⇒ nothing matches, for `groupOfTrack`'s
+   * reason. A node this map has never heard of matches nothing either, rather
+   * than falling into MANAGER_NONE: "no answer for that node" and "that node
+   * has nobody" are different facts, and merging them would file every entry on
+   * a stale node id under the unassigned book.
+   */
+  managerOfNode?: ReadonlyMap<string, string | null>
 }
+
+/**
+ * The `managerIds` member that means "no account manager named".
+ *
+ * A SENTINEL RATHER THAN A SEPARATE BOOLEAN, because the facet is a list and
+ * "Sara, Bandar, or nobody" is a legitimate selection that two fields could not
+ * express without also being able to contradict each other. It cannot collide
+ * with a real value: every other member of the array is a `profiles.id` uuid.
+ *
+ * It goes in the URL verbatim — `manager=none` — which is the same shape
+ * `owner=none` already uses for the entry-level question one table over.
+ */
+export const MANAGER_NONE = 'none'
 
 /**
  * The neutral filter. Frozen so a screen cannot mutate the shared default into
@@ -98,6 +254,9 @@ export interface FilterContext {
 export const EMPTY_FILTER: Readonly<FilterState> = Object.freeze({
   groupIds: [],
   trackIds: [],
+  mapNodeIds: [],
+  vendors: [],
+  managerIds: [],
   statuses: [],
   priorities: [],
   types: [],
@@ -254,6 +413,59 @@ export function matchesFilter(
 
   if (f.trackIds.length > 0 && (e.track_id === null || !f.trackIds.includes(e.track_id)))
     return false
+
+  // Then the finer grain INSIDE the track. An entry with no `node_id` is filed
+  // on its track and nowhere else — it is not "at the root of the hierarchy",
+  // so it answers no question about a place in it, which is the group facet's
+  // "unfiled is not a third group" one level down.
+  //
+  // ANDed with the track facet rather than replacing it, and the pair is never
+  // contradictory by accident: `entries_map_sync` derives `track_id` from the
+  // node, so a filter naming a track and a node under a different one returns
+  // nothing because that is the truth, not because the two facets fought.
+  if (f.mapNodeIds.length > 0) {
+    if (e.node_id === null) return false
+    const ancestry = c.ancestryOfNode?.get(e.node_id)
+    if (ancestry === undefined || !ancestry.some((id) => f.mapNodeIds.includes(id))) return false
+  }
+
+  // Vendor is an attribute of a place, so it is asked of the entry's place —
+  // which is why it sits here and not beside `owner`. `owner_name` free text
+  // naming the same company is a DIFFERENT question ("who is chasing this")
+  // and deliberately does not answer this one.
+  if (f.vendors.length > 0) {
+    const vendor = e.node_id === null ? '' : (c.vendorOfNode?.get(e.node_id) ?? '')
+    // Folded on both sides, like tags: the column is free text a person types,
+    // and 'Acme' typed on one organization and 'acme ' on the next is one
+    // integrator to everybody except a string comparison.
+    const carried = normalizeSearch(vendor)
+    if (carried === '' || !f.vendors.some((v) => normalizeSearch(v) === carried)) return false
+  }
+
+  // The account manager is an attribute of a PLACE too, so it sits beside the
+  // vendor clause and is asked of the entry's place — not beside `owner`, which
+  // asks who is chasing this one item. The two are routinely different people
+  // and deliberately do not answer each other: an AM owns the organization, and
+  // whoever picked up today's issue owns the row.
+  //
+  // MATCHED BY ID, not folded: these are uuids resolved through the roster, so
+  // there is no second spelling to reconcile. The exception is MANAGER_NONE.
+  if (f.managerIds.length > 0) {
+    // An entry filed on no node is filed on its track and nowhere else, so it
+    // is in nobody's book — including, deliberately, the "nobody named" one.
+    // Passing it through would put every unfiled row into the gap an AD is
+    // hunting, and the books would sum to more than the map.
+    if (e.node_id === null) return false
+    if (c.managerOfNode === undefined) return false
+    const resolved = c.managerOfNode.get(e.node_id)
+    // `undefined` is "this context has no answer for that node" — a stale id, a
+    // node deleted since the link was copied. It is NOT "nobody is accountable",
+    // which is `null`, and merging the two would report deleted places as an
+    // unassigned book somebody then goes looking for.
+    if (resolved === undefined) return false
+    if (!f.managerIds.includes(resolved ?? MANAGER_NONE)) return false
+  }
+
   if (f.statuses.length > 0 && !f.statuses.includes(e.status)) return false
   if (f.priorities.length > 0 && !f.priorities.includes(e.priority)) return false
   if (f.types.length > 0 && !f.types.includes(e.type)) return false
@@ -371,6 +583,17 @@ export function countActiveFacets(f: FilterState): number {
   // Clear removes both.
   if (f.groupIds.length > 0) n += 1
   if (f.trackIds.length > 0) n += 1
+  // Three counters for three questions, and the badge is the only thing that
+  // tells a reader their list is narrowed before they open the panel. A facet
+  // wired into `matchesFilter` and left out of here is worse than one that does
+  // not exist: the list is short, the badge says nothing is filtering it, and
+  // Clear all — which is defined through this function — is offered or withheld
+  // on the strength of that same lie.
+  if (f.mapNodeIds.length > 0) n += 1
+  if (f.vendors.length > 0) n += 1
+  // Four counters for four questions now. "Sara's book, inside OB, on Acme" is
+  // three decisions a reader made and Clear removes all three.
+  if (f.managerIds.length > 0) n += 1
   if (f.statuses.length > 0) n += 1
   if (f.priorities.length > 0) n += 1
   if (f.types.length > 0) n += 1
@@ -406,6 +629,17 @@ export function filterKey(f: FilterState): string {
   return [
     [...f.groupIds].sort().join(','),
     [...f.trackIds].sort().join(','),
+    [...f.mapNodeIds].sort().join(','),
+    // FOLDED before sorting, because matching folds too: `vendor=Acme` and
+    // `vendor=acme` select the same rows, so they must key the same memo. A raw
+    // join would re-run selectEntries over the whole working set for a filter
+    // that cannot return a different answer.
+    [...f.vendors].map(normalizeSearch).sort().join(','),
+    // NOT folded, unlike the line above it: these are uuids matched by identity,
+    // so `normalizeSearch` would be work that cannot change the answer — and it
+    // lowercases, which would merge two ids that differ only in case if a link
+    // ever carried one hand-typed.
+    [...f.managerIds].sort().join(','),
     [...f.statuses].sort().join(','),
     [...f.priorities].sort().join(','),
     [...f.types].sort().join(','),
@@ -445,6 +679,16 @@ function ownerKey(owner: OwnerFilter): string {
 const P = {
   group: 'group',
   track: 'track',
+  // `node` and `vendor` are free: focus.ts owns `focus` and `dim`, and
+  // pages/map/useMapUrl.ts owns `lens` and `stage`. A collision would not be a
+  // compile error — it would be a drill-in and a filter overwriting each other
+  // in the address bar.
+  node: 'node',
+  vendor: 'vendor',
+  // `manager` is free for the same audit: focus.ts owns `focus`/`dim`,
+  // pages/map/useMapUrl.ts owns `lens`/`stage`, and the portfolio lens owns
+  // `by`/`risk`. None of them is this.
+  manager: 'manager',
   status: 'status',
   priority: 'priority',
   type: 'type',
@@ -475,6 +719,22 @@ export function filterToParams(f: FilterState): URLSearchParams {
   // the property that makes `tag` a repeated param and this one not.
   if (f.groupIds.length > 0) p.set(P.group, f.groupIds.join(','))
   if (f.trackIds.length > 0) p.set(P.track, f.trackIds.join(','))
+  // Comma-joined for the group facet's reason — these are uuids and a uuid
+  // cannot contain a comma.
+  if (f.mapNodeIds.length > 0) p.set(P.node, f.mapNodeIds.join(','))
+  // A REPEATED PARAM, like `tag` and unlike every id list above it, and the
+  // rule is the same one: a vendor is free-form text somebody typed into an
+  // admin form, so the day a company is filed as "Acme, Inc." a comma list
+  // becomes two integrators that match nothing and a link that silently reports
+  // on neither.
+  for (const vendor of f.vendors) p.append(P.vendor, vendor)
+  // COMMA-JOINED, and the rule that made `vendor` a repeated param is exactly
+  // what makes this one not: a vendor is free-form text somebody typed into an
+  // admin form and can contain a comma, while every member here is a uuid or
+  // the literal `none`. `manager=<uuid>,<uuid>` is also the short readable form
+  // for the one link this facet exists to produce — an AD sending an AM their
+  // own book — where a repeated param would run to 180 characters.
+  if (f.managerIds.length > 0) p.set(P.manager, f.managerIds.join(','))
   if (f.statuses.length > 0) p.set(P.status, f.statuses.join(','))
   if (f.priorities.length > 0) p.set(P.priority, f.priorities.join(','))
   if (f.types.length > 0) p.set(P.type, f.types.join(','))
@@ -515,6 +775,21 @@ export function filterFromParams(p: URLSearchParams): FilterState {
     // rendering of a link to a group somebody deleted.
     groupIds: splitList(p.get(P.group)),
     trackIds: splitList(p.get(P.track)),
+    // Not validated against the workspace's nodes either, for the same reason
+    // and with a sharper payoff: a link to an organization somebody archived
+    // this morning matches nothing and says so in the facet, rather than being
+    // silently dropped into "the whole map" — which would show a reader a full
+    // list under a link that promised one branch.
+    mapNodeIds: splitList(p.get(P.node)),
+    // Blank-only values are dropped rather than kept: `vendor=%20` is not an
+    // integrator, and it would fold to '' and match nothing while lighting the
+    // badge — an active facet nobody can see or explain.
+    // Not validated against the roster, for `mapNodeIds`' reason: this module is
+    // pure and holds no members, and an id naming a teammate who has left
+    // matches nothing and SAYS SO in the facet — which is the honest rendering
+    // of a link to somebody's book after they handed it over.
+    managerIds: splitList(p.get(P.manager)),
+    vendors: p.getAll(P.vendor).filter((vendor) => vendor.trim() !== ''),
     statuses: splitList(p.get(P.status)).filter(isStatus),
     priorities: splitList(p.get(P.priority)).filter(isPriority),
     types: splitList(p.get(P.type)).filter(isType),

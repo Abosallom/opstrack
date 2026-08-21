@@ -1,0 +1,396 @@
+/* The dock — the panel beside the picture, and the sheet under it on a phone.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.mpan*` and styles nothing
+   else. It is a co-located component sheet under components/map/, continuing the
+   disjoint-slice arrangement mindtree.css's header describes — except that this
+   one takes a prefix of its own rather than a slice of `.mtree-`, because the
+   split it owns wraps the canvas rather than living inside the map.
+
+   IT SUPERSEDES `.mtree-list-split`. map-list.css shipped a two-column wrapper
+   for the same job when the list was the only thing that could sit beside the
+   canvas; the shell now puts five different panels there, over four stages, with
+   a phone presentation the old wrapper never had. U3 keeps `.mtree-list-*` for
+   the list itself and no longer needs its `-split` rule.
+
+   Primitives it USES and never redeclares: `.btn`, `.btn-sm`, `.btn-ghost`,
+   `.tap-44`. Colour comes only from existing tokens — `--bg-elev`,
+   `--bg-elev-2`, `--border`, `--text`, `--text-dim`, `--accent` — so this sheet
+   introduces no new contrast recipe to measure; every pair below is one
+   global.css already computed in both themes.
+
+   LOGICAL PROPERTIES ONLY. `inline-size`, `block-size`, `min-block-size`,
+   `max-block-size`, `inset-inline`, `inset-block-end`, `padding-inline`. There
+   is no physical direction in this file. The one axis that is not mirrored is the
+   sheet's growth, which is the BLOCK axis and identical in `en` and `ar` because
+   both are `horizontal-tb`.
+
+   MOTION is 180ms on `block-size` and `transform` only. global.css's
+   prefers-reduced-motion block flattens every transition to 0.01ms, so no rule
+   here repeats it.
+
+   SPACING is on the 4px grid. */
+
+/* ---------- the split: the stage, and the card over it ---------- */
+
+/* THE POSITIONING CONTEXT, AND NOTHING ELSE. It was a two-column grid: the
+   canvas took the `1fr` and the dock took a sized track, so a desktop viewport
+   lost a fifth of its width to the panel whether or not the panel had anything
+   in it. The stage is now the whole shell and the card FLOATS over its
+   inline-end, so this element's only job is to be the `position: relative`
+   ancestor the two children are laid out against.
+
+   `block-size: 100%` and not a height of its own: U6's `.mtree` is a grid whose
+   `minmax(0, 1fr)` row this fills, at both presentations. The row is the height;
+   this rule only accepts it.
+
+   THE GRID IS GONE AND SO IS ITS SPECIAL CASE. `.mpan-split:not(:has(> .mpan))`
+   existed to collapse an empty sized track, and there is no sized track left to
+   collapse — `shape` with nothing focused is now full width by construction
+   rather than by a `:has()` that had to win on source order at two breakpoints. */
+.mpan-split {
+  /* Unconditional, because it changes nothing on its own: it only makes this
+     element the containing block for whatever below chooses to float. */
+  position: relative;
+}
+
+.mpan-stage {
+  min-inline-size: 0;
+}
+
+/* THE HEIGHT GUARD, AND IT IS WCAG 1.4.10 — the one rule in this file that
+   exists for a viewport nobody browses at on purpose.
+
+   `block-size: 100%` resolves against the parent only when the parent has a
+   DEFINITE height, and `pages/mindtree.css` gives it one — the `minmax(0, 1fr)`
+   row of a `100dvh` shell — under two media queries that both carry
+   `(min-height: 480px)`. At 400% zoom on a 1280×1024 screen the CSS viewport is
+   320×256, below that guard, and U6's shell deliberately falls back to the
+   document-flow column the page is today. If these two rules did not fall back
+   WITH it, `block-size: 100%` would resolve against an auto-height parent — that
+   is `auto`, i.e. the height of the absolutely-positioned stage, which is zero —
+   and reflow would render a map of no pixels at all. An absolutely positioned
+   stage inside an auto-height wrapper is the exact shape of that bug.
+
+   So the floating arrangement is gated on the same height the shell gates its
+   own grid on, and below it every element here is an ordinary block again.
+   THIS IS A DEPARTURE FROM THE WRITTEN DESIGN, which gives these two rules
+   unconditionally; the same document's §U6 requires the 320×256 fallback, and
+   the two cannot both be true. Test it at 320×256 rather than trusting it: "it
+   falls back" is what everybody says about the path nobody exercises. */
+@media (min-height: 480px) {
+  .mpan-split {
+    block-size: 100%;
+  }
+
+  /* The stage fills it, and the drawing inside fills the stage —
+     `.mtree-canvas` is `pages/mindtree.css`'s to place (U6), which is why this
+     rule stops at the wrapper it owns. */
+  .mpan-stage {
+    position: absolute;
+    inset: 0;
+  }
+}
+
+/* ---------- the panel itself ---------- */
+
+.mpan {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.mpan-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  /* 16px, not 8: this row wraps at 375px and two lines of 44px controls need
+     the clearance or their hit areas overlap. `.row-actions`' floor. */
+  row-gap: 16px;
+}
+
+.mpan-title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mpan-close {
+  flex: 0 0 auto;
+}
+
+/* The scroller. `contain` stops a flick inside the list chaining to the page,
+   which on a phone would scroll the map out from under the sheet. */
+.mpan-body {
+  min-inline-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---------- the floating card ---------- */
+
+/* 768px is where `useIsCompact` stops being true, so the card and the sheet are
+   never both live: one boolean decides the presentation, nine other decisions
+   branch on the same one, and a CSS-only breakpoint could disagree with it.
+
+   A CARD OVER THE STAGE, AND STILL A SIBLING OF THE CANVAS IN THE DOM. This is
+   the one thing a floating layout is most likely to break: `.mtree-canvas` is
+   `touch-action: none` and `touch-action` INTERSECTS DOWN the ancestor chain, so
+   a list moved inside it could not be scrolled with a finger — silently, and
+   only on a touch device. `position: absolute` changes what PAINTS where; it
+   does not change what contains what. MapPanel.tsx's header states the same rule
+   from the other end.
+
+   THE FOUR NUMBERS.
+     · `inset-inline-end: 12px` — the gutter every island in the redesign sits
+       in. MapPanel.tsx's `CARD_INSET` is this number: what the card OCCLUDES is
+       its own width plus this, and the two are one edit.
+     · `inset-block-start: 68px` — under the top-end island (12px inset + a 44px
+       row + 12px), so the card and the lens chips never overlap at rest.
+     · `inset-block-end: 88px` — clear of the block-end row that holds the
+       composer and the caption strip.
+     · `inline-size: clamp(20rem, 26vw, 26rem)` — the rail's old 20/26rem range,
+       kept, because map-list.css measured it: below 20rem the row actions wrap.
+   At 1600px that is 26rem of a full-height stage instead of a 26rem COLUMN, and
+   the drawing keeps every pixel behind it — which is only true because the
+   geometry subtracts the measured occlusion rather than pretending otherwise.
+
+   `(min-height: 480px)` is on this query for the reason the guard above states
+   and one more of its own: `inset-block-start: 68px` and `inset-block-end: 88px`
+   leave a card 100px tall on a 256px viewport, so even a positioned ancestor
+   would not save it. Below the guard the panel is a block under the stage, which
+   is what reflow asks for. */
+@media (min-width: 768px) and (min-height: 480px) {
+  .mpan {
+    position: absolute;
+    inset-inline-end: 12px;
+    inset-block-start: 68px;
+    inset-block-end: 88px;
+    inline-size: clamp(20rem, 26vw, 26rem);
+    box-shadow: var(--shadow);
+  }
+
+  /* The card's height is now the two insets above rather than its content, so
+     the scroller takes what is left instead of carrying a `clamp()` of its own.
+     `min-block-size: 0` is the flex-item override without which an overflowing
+     child refuses to shrink below its content and the card grows past its own
+     block-end inset. */
+  .mpan-body {
+    flex: 1 1 auto;
+    min-block-size: 0;
+  }
+}
+
+/* ---------- the phone sheet ---------- */
+
+/* NON-MODAL, and it has no scrim for that reason: the map behind it stays
+   readable and the composer stays reachable. See MapPanel.tsx's header for the
+   Escape ordering that makes a non-modal dismissible surface safe.
+
+   `inset-block-end` clears the composer, whose height the shell publishes as
+   `--map-composer-block-size` — the capture bar is fixed to the block end of the
+   shell and the sheet must never cover it, because a reader mid-triage typing
+   the next thing is the whole reason the composer is always mounted. The
+   fallback is the safe-area inset, which is what the gap becomes when no
+   composer is present.
+
+   AND IT NOW CLEARS THE LENS RAIL AS WELL. U6 pins `.mtree-shellbar` to the
+   block end on a phone at z-index 71, publishing `--map-lens-rail-block-size`;
+   this sheet is 70, ONE BELOW it, and starts above it. That pairing is what
+   makes the sheet honestly non-modal on a phone: the five destinations stay
+   visible and tappable at every detent, so `full` no longer has to be argued
+   about — the way to change what you are looking at is on screen the whole time.
+   The 48px fallback is the rail's own height, so a first paint before the rail
+   has been measured is one row out at worst, never a sheet sitting on top of it.
+
+   The `env(safe-area-inset-bottom)` fallback is gone with the composer's own
+   term, and that is not a regression: the composer is ALWAYS mounted on this
+   screen (MapCapture is never unmounted, at any lens or stage) and it is the
+   element that owns the safe-area padding. A `calc()` cannot take an `env()`
+   fallback and a var fallback in one term without saying one of them twice. */
+.mpan[data-sheet] {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: calc(
+    var(--map-composer-block-size, 0px) + var(--map-lens-rail-block-size, 48px)
+  );
+  /* Above the sticky app header (60) so a full-height sheet is not sliced by it,
+     one BELOW the pinned lens rail (71), and well below the modal Sheet (90),
+     its scrim (89) and the toasts (95), none of which this surface may ever
+     cover. */
+  z-index: 70;
+  border-radius: var(--radius) var(--radius) 0 0;
+  border-block-end: none;
+  box-shadow: var(--shadow);
+  transition: block-size 180ms ease;
+  /* THE CAP THE DETENTS CANNOT SEE, and it now subtracts at BOTH ends.
+     Each detent below is a fraction of the VIEWPORT; this sheet is inset from
+     the block end by the composer's measured height and must stop short of the
+     shell's own chrome at the block start.
+
+     BLOCK END — the composer. `full` at 92dvh on an 812px phone whose composer
+     has grown a chip strip and a problems panel (99px measured) puts the
+     sheet's block-start 34px ABOVE the viewport and takes its own rounded
+     corner, its grabber and part of its heading off the top of the screen with
+     it. Observed in a browser at 375×812, not reasoned about.
+
+     BLOCK END — the lens rail, new. The rail is pinned above the composer and
+     the sheet now starts above BOTH, so the space it can have is short by the
+     rail as well. Omit this term and `full` is 48px taller than the gap it is
+     allowed to fill and paints its last rows behind a rail it must never cover.
+
+     BLOCK START — the app header and a strip of live page under it. This
+     surface is `position: fixed` at z-index 70 and the sticky app header is 60,
+     so before this term `full` painted straight over the header and over every
+     control below it. A non-modal sheet that leaves no live pixel is a modal
+     sheet with extra steps. `--map-shell-chrome-block-size` is published by
+     `pages/mindtree.css` (the sheet's own host, the same route
+     `--map-composer-block-size` travels); U6 has now collapsed it from
+     `header + 64px` to `header + 8px`, because the strip of page it used to
+     reserve was reserved in the HOPE that the lens chips were scrolled into it,
+     and the chips are pinned above the sheet now instead of hoped for.
+
+     THE TWO WAYS OUT OF THIS, AND WHY THIS ONE. Capping is chosen; carrying the
+     lens chips into the sheet at `full` is the alternative and is worse three
+     ways. It needs the chips passed into this component by `pages/Mindtree.tsx`,
+     so the fix stops being local to the sheet. It puts a SECOND `MapLensBar` in
+     the DOM — two `role="group"`s with one accessible name and two pressed
+     states for one fact, which is a defect for a screen reader even when it
+     looks right. And it fixes only the chips: the header, the mode entrances
+     and the stage switch stay covered, so the sheet still owns the whole screen.
+     LOWERING z-index BELOW 60 is the third option and is the one the original
+     comment already refused: the header would then paint over the sheet's
+     block-start and slice its corner, grabber and heading off — the same defect
+     as the uncapped composer, arrived at from the other side.
+
+     `0px` fallbacks, not `0`: `calc()` needs the unit, and a missing variable
+     then costs nothing rather than breaking the whole declaration. The rail's
+     fallback is its real 48px rather than 0px, because that one is not a
+     "missing" value — the rail is unconditionally rendered on a phone, so 0px
+     would be a number that is never right. */
+  max-block-size: calc(
+    100dvh - var(--map-composer-block-size, 0px) - var(--map-lens-rail-block-size, 48px) -
+      var(--map-shell-chrome-block-size, 0px)
+  );
+}
+
+/* dvh, not vh: on iOS Safari `vh` is the tallest viewport, so a `full` sheet
+   measured in vh hides its own last rows behind the URL bar. The vh line is the
+   fallback for engines without dvh and is deliberately smaller. */
+.mpan[data-sheet][data-detent='peek'] {
+  block-size: 25vh;
+  block-size: 25dvh;
+}
+
+.mpan[data-sheet][data-detent='half'] {
+  block-size: 52vh;
+  block-size: 55dvh;
+}
+
+/* `full` ASKS FOR 92dvh AND THE CAP ABOVE IS WHAT IT ACTUALLY GETS, which is
+   deliberate and is why the number is left at 92: it says what this detent
+   MEANS — as much of the screen as the reader can have — and one place
+   (`max-block-size`) says what the screen can spare. Worked at 375×812 with the
+   composer at its 64px floor, a 65px header and the 48px lens rail:
+   812 − 65 header − 8 clearance − 64 composer − 48 rail = 627px used, ≈77dvh.
+   UP FROM 619 even though a whole rail was subtracted, because the duplicated
+   page title above the canvas is gone and the chrome term shrank by more than
+   the rail costs. `peek` (203px) and `half` (447px) are far under the cap and
+   are unchanged by it. */
+.mpan[data-sheet][data-detent='full'] {
+  block-size: 88vh;
+  block-size: 92dvh;
+}
+
+.mpan[data-sheet] .mpan-body {
+  flex: 1 1 auto;
+}
+
+/* ---------- the grabber ---------- */
+
+/* 30px HERE AND 32px ON `.mpan-close` (`.btn-sm`), which is not an
+   inconsistency: this button has `border: none`, so its border box IS its
+   padding box and `.tap-44`'s ±7px lands on 30 + 14 = 44 with nothing to
+   subtract. Give this one a border and it becomes a 42px target; that is the
+   whole difference.
+
+   AND IT IS NOW THE ONLY WAY TO RESIZE THE SHEET WITH A TAP, which raises what
+   this element owes rather than lowering it: click cycles, ArrowUp/ArrowDown
+   step, `touch-action: none` claims the drag, and the focus ring below is on
+   the BAR because the button itself is a transparent full-width strip. */
+.mpan-grab {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 30px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: grab;
+  /* The one gesture this element claims. Without it the browser takes the drag
+     as a page scroll and the detent never changes. */
+  touch-action: none;
+}
+
+.mpan-grab-bar {
+  inline-size: 40px;
+  block-size: 4px;
+  border-radius: 2px;
+  background: var(--text-dim);
+}
+
+.mpan-grab:focus-visible .mpan-grab-bar {
+  background: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ---------- the three heights ---------- */
+
+/* THERE IS NO `.mpan-detents` / `.mpan-detent` RULE ANY MORE, and the three
+   heights are all still here. The buttons were deleted, not the detents:
+   `MAP_DETENTS`, `DETENT_KEY` and `phoneDetentFor` are untouched in
+   `lib/mindtree/lens.ts`, the three `[data-detent]` rules above are what they
+   select, and every path to them survives — the grabber cycles on click,
+   ArrowUp/ArrowDown step it, and the value is persisted exactly as before. What
+   went is one row of chrome on a 375px screen that had seven of them above the
+   first line of content.
+
+   THE KEYBOARD PATH IS THE THING THIS FILE INSISTED ON and it is intact for the
+   reason it was insisted on: it was never the buttons that made the sheet
+   keyboard-resizable, it was `onGrabKeyDown`. The buttons were a second way to
+   the same three values, and the one they replaced nothing about — a reader who
+   cannot make a 24px drag — reaches every height with the arrow keys or with
+   repeated Enter on the grabber. */
+
+/* NOTHING HERE IS COMPACTED BELOW 44px, at any width — and the claim is now
+   arithmetic rather than assertion:
+
+     control        border box   border   padding box   + `.tap-44` ±7px
+     .mpan-grab        30px       none       30px           44px
+     .mpan-close       32px       1px        30px           44px  (`.btn-sm`)
+
+   `.mpan-grab` is 30 where a bordered control is 32 and that is not an
+   inconsistency: `.tap-44::after` is laid out against the PADDING box, so a
+   32px border box with a 1px border is a 30px padding box, and 30 + 14 = 44
+   either way. Give the grabber a border and it becomes a 42px target; that is
+   the whole difference, and it is why `.btn-sm` and `.chip` are 32px in
+   global.css.
+
+   The grabber exists only in the phone presentation, so a `@media (hover:
+   hover)` compaction would apply to nothing — and the unconditional version of
+   that rule shipped the smallest targets to the smallest screens once already.
+   The head row is not an `overflow` container, so nothing clips these overlays;
+   its 16px row-gap is what keeps two wrapped lines of them from eating each
+   other. */

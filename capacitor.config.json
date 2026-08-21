@@ -1,6 +1,6 @@
 {
-  "appId": "app.opstrack",
-  "appName": "CoreTrack",
+  "appId": "app.nphiescore",
+  "appName": "NphiesCore",
   "webDir": "dist",
   "ios": {
     "contentInset": "never",

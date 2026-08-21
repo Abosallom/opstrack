@@ -34,7 +34,7 @@ function fakeStorage(seed: Record<string, string> = {}): Storage {
   }
 }
 
-const KEY = 'opstrack_mindtree_v1'
+const KEY = 'nphiescore_mindtree_v1'
 
 function install(seed: Record<string, string> = {}): Storage {
   const store = fakeStorage(seed)
@@ -68,6 +68,12 @@ describe('readMindtreePrefs — every field validated', () => {
       dimension: 'status',
       view: 'map',
       density: 'comfortable',
+      // The map shell's two: the lens a device that has never chosen lands on —
+      // 'needs-me', because the app lands on /followups today and anywhere else
+      // is a day-one regression — and the dock, which starts open because the
+      // lens is only worth choosing when its panel is showing.
+      lens: 'needs-me',
+      panelOpen: true,
       focus: null,
       collapsed: {},
       opened: {},
@@ -163,6 +169,42 @@ describe('readMindtreePrefs — every field validated', () => {
   it('drops a node id long enough to be a payload rather than a path', async () => {
     install({ [KEY]: JSON.stringify({ collapsed: { status: ['x'.repeat(9000), 'root/track:a'] } }) })
     expect((await load()).readMindtreePrefs().collapsed.status).toEqual(['root/track:a'])
+  })
+
+  it('remembers a collapse id from deep in the hierarchy', async () => {
+    // REGRESSION, and the only test that pins the number. `MAX_NODE_ID` was 512
+    // under a comment claiming "a path is bounded by the tree's four rings",
+    // which stopped being true the moment the hierarchy landed: 0023 caps the
+    // map at six levels BELOW the track, so the deepest id the schema can mint
+    // is eleven segments, not four. A reader who collapses a branch six levels
+    // down inside an Org had that preference silently dropped on reload — no
+    // error, no signal, just a branch that would not stay shut.
+    //
+    // It is the same number as `lib/mindtree/focus.MAX_FOCUS_LEN` because it
+    // bounds the same ids arriving by a different door, so both assertions here
+    // are on one constant: the id must survive as a COLLAPSE entry and as the
+    // FOCUS, which are validated by two different functions.
+    //
+    // WAVE 6 MOVED IT AGAIN, 1024 → 4096, and this id is why. `?by=` inserts
+    // `cohort:` segments between a structural node and the organizations under
+    // it, and the grouping ladder can nest four of them at each of the seven
+    // grouping sites — 28 segments of ~62 characters on top of the eleven the
+    // schema already allowed. The id below carries a modest eight of them and
+    // already clears 1024, so at the old number an account manager who
+    // collapsed a branch inside their own cohort ring lost the preference on
+    // every reload. The bound below 4096 is the assertion that the constant did
+    // not simply become "no cap".
+    const cohorts = Array.from(
+      { length: 8 },
+      (_, i) => `cohort:${encodeURIComponent(`cohort:manager:${'d'.repeat(36 - String(i).length)}${i}`)}`,
+    ).join('/')
+    const deep = `root/track:UHR/${Array.from({ length: 6 }, (_, i) => `entity:${'L'.repeat(80)}${i}`).join('/')}/${cohorts}/group:blocked`
+    expect(deep.length).toBeGreaterThan(1024)
+    expect(deep.length).toBeLessThan(4096)
+    install({ [KEY]: JSON.stringify({ collapsed: { status: [deep] }, focus: deep }) })
+    const prefs = (await load()).readMindtreePrefs()
+    expect(prefs.collapsed.status).toEqual([deep])
+    expect(prefs.focus).toBe(deep)
   })
 
   it('keeps a dimension key it does not recognise', async () => {

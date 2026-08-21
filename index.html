@@ -4,8 +4,19 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="alternate icon" href="./favicon-32.png" sizes="32x32" type="image/png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="CoreTrack — capture actions, assign owners, and see what has gone stale across every track." />
+    <!-- `interactive-widget=resizes-content` is load-bearing on the mobile WEB
+         build. The map mounts its composer `position: fixed` at the block end
+         (src/components/map/map-capture.css), and Chrome Android's default,
+         `resizes-visual`, leaves a fixed block-end bar BEHIND the software
+         keyboard — which is the whole of the phone capture story. The Capacitor
+         iOS app is unaffected either way (capacitor.config.json sets
+         `Keyboard.resize: "native"`, which resizes the WebView frame). UNVERIFIED
+         on a device: there is no browser in the environment this was written in. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="description" content="NphiesCore — capture actions, assign owners, and see what has gone stale across every track." />
     <!-- Kept in sync with the active theme at runtime by src/lib/theme.ts so the
          installed PWA's status bar matches the app instead of always being dark.
          This static value is only what the bar shows for the few frames before
@@ -16,9 +27,9 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="CoreTrack" />
+    <meta name="apple-mobile-web-app-title" content="NphiesCore" />
     <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
-    <title>CoreTrack — Multi-Track Action Tracker</title>
+    <title>NphiesCore — Multi-Track Action Tracker</title>
   </head>
   <body>
     <!-- lang and dir above are the pre-hydration defaults; main.tsx overwrites

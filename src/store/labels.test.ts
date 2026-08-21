@@ -34,7 +34,7 @@ if (!g.localStorage) {
   } as unknown as Storage
 }
 
-const CACHE_KEY = 'opstrack_label_overrides_v1'
+const CACHE_KEY = 'nphiescore_label_overrides_v1'
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
@@ -111,7 +111,7 @@ function row(
   }
 }
 
-const BOARD = row({ key: 'nav.board', en: 'Pipeline', ar: 'خط العمل' })
+const BOARD = row({ key: 'nav.map', en: 'Pipeline', ar: 'خط العمل' })
 
 function cached(): LabelOverrideRow[] {
   const raw = localStorage.getItem(CACHE_KEY)
@@ -155,8 +155,8 @@ describe('the cache guard — an empty read without a session is not an answer',
     await store.loadLabels()
 
     expect(store.getLabelOverrides()).toEqual([BOARD])
-    expect(layer().en['nav.board']).toBe('Pipeline')
-    expect(layer().ar['nav.board']).toBe('خط العمل')
+    expect(layer().en['nav.map']).toBe('Pipeline')
+    expect(layer().ar['nav.map']).toBe('خط العمل')
     // The cache is the half that used to be poisoned: believing the empty read
     // wrote [] over it, and the wording was gone on the next cold start too.
     expect(cached()).toEqual([BOARD])
@@ -164,13 +164,13 @@ describe('the cache guard — an empty read without a session is not an answer',
     // And it did not latch. `loadedAt` is unobservable from outside, so the
     // observable consequence is what is asserted: the next load still fires.
     signedIn = true
-    listAnswer = { ok: true, data: [row({ key: 'nav.board', en: 'Queue' })] }
+    listAnswer = { ok: true, data: [row({ key: 'nav.map', en: 'Queue' })] }
     await store.loadLabels()
     expect(listCalls).toBe(2)
-    expect(layer().en['nav.board']).toBe('Queue')
+    expect(layer().en['nav.map']).toBe('Queue')
     // The Arabic override is GONE, not stale: the map is rebuilt from the rows
     // on every apply, never patched key by key.
-    expect(layer().ar['nav.board']).toBeUndefined()
+    expect(layer().ar['nav.map']).toBeUndefined()
   })
 
   it('but an empty read WITH a session clears the layer — that is reset-all elsewhere', async () => {
@@ -182,7 +182,7 @@ describe('the cache guard — an empty read without a session is not an answer',
     // First paint still shows the cached wording; the guard must not make an
     // authenticated empty answer unbelievable, or the escape hatch would never
     // reach the owner's other devices.
-    expect(layer().en['nav.board']).toBe('Pipeline')
+    expect(layer().en['nav.map']).toBe('Pipeline')
 
     await store.loadLabels()
 
@@ -211,7 +211,7 @@ describe('a failed load does not latch', () => {
     listAnswer = { ok: true, data: [BOARD] }
     await store.loadLabels()
     expect(listCalls).toBe(3)
-    expect(layer().en['nav.board']).toBe('Pipeline')
+    expect(layer().en['nav.map']).toBe('Pipeline')
 
     // Now it HAS an answer, so the next call is the one that must not refetch.
     await store.loadLabels()
@@ -232,7 +232,7 @@ describe('a failed load does not latch', () => {
 
 describe('optimistic save, and rollback on 42501', () => {
   it('shows the new wording immediately and puts ALL of it back when the write is refused', async () => {
-    listAnswer = { ok: true, data: [BOARD, row({ key: 'nav.tracks', en: 'Workstreams' })] }
+    listAnswer = { ok: true, data: [BOARD, row({ key: 'nav.more', en: 'Workstreams' })] }
     const store = await freshStore()
     await store.loadLabels()
     const pushesAfterLoad = pushes
@@ -241,7 +241,7 @@ describe('optimistic save, and rollback on 42501', () => {
     // admin.errForbidden; nothing about it is visible client-side beforehand,
     // which is exactly why the optimistic write has to be reversible.
     upsertAnswer = { ok: false, error: 'admin.errForbidden' }
-    const result = await store.saveOverride('nav.board', 'Delivery', 'التسليم')
+    const result = await store.saveOverride('nav.map', 'Delivery', 'التسليم')
 
     expect(result.ok).toBe(false)
     expect(result.ok ? null : result.error).toBe('admin.errForbidden')
@@ -253,12 +253,12 @@ describe('optimistic save, and rollback on 42501', () => {
 
     // …and every string is back, in the order the load returned them rather
     // than a re-sorted approximation of it.
-    expect(store.getLabelOverrides()).toEqual([BOARD, row({ key: 'nav.tracks', en: 'Workstreams' })])
-    expect(layer().en['nav.board']).toBe('Pipeline')
-    expect(layer().ar['nav.board']).toBe('خط العمل')
+    expect(store.getLabelOverrides()).toEqual([BOARD, row({ key: 'nav.more', en: 'Workstreams' })])
+    expect(layer().en['nav.map']).toBe('Pipeline')
+    expect(layer().ar['nav.map']).toBe('خط العمل')
     // The rollback restores the whole map, not the edited row: one override can
     // be showing in the nav, a column heading and a toast at once.
-    expect(layer().en['nav.tracks']).toBe('Workstreams')
+    expect(layer().en['nav.more']).toBe('Workstreams')
   })
 
   it('a successful save keeps the new wording and refetches', async () => {
@@ -266,13 +266,13 @@ describe('optimistic save, and rollback on 42501', () => {
     const store = await freshStore()
     await store.loadLabels()
 
-    upsertAnswer = { ok: true, data: row({ key: 'nav.board', en: 'Delivery' }) }
-    listAnswer = { ok: true, data: [row({ key: 'nav.board', en: 'Delivery' })] }
-    const result = await store.saveOverride('nav.board', 'Delivery', null)
+    upsertAnswer = { ok: true, data: row({ key: 'nav.map', en: 'Delivery' }) }
+    listAnswer = { ok: true, data: [row({ key: 'nav.map', en: 'Delivery' })] }
+    const result = await store.saveOverride('nav.map', 'Delivery', null)
 
     expect(result.ok).toBe(true)
-    expect(layer().en['nav.board']).toBe('Delivery')
-    expect(layer().ar['nav.board']).toBeUndefined()
+    expect(layer().en['nav.map']).toBe('Delivery')
+    expect(layer().ar['nav.map']).toBeUndefined()
     // invalidateLabels() forces a re-read, so 0017's trigger-stamped
     // updated_at/updated_by replace the optimistic guess.
     expect(listCalls).toBeGreaterThan(1)
@@ -285,11 +285,11 @@ describe('optimistic save, and rollback on 42501', () => {
 
     upsertAnswer = { ok: true, data: null }
     listAnswer = { ok: true, data: [] }
-    await store.saveOverride('nav.board', '   ', '')
+    await store.saveOverride('nav.map', '   ', '')
 
     expect(store.getLabelOverrides()).toEqual([])
-    expect(layer().en['nav.board']).toBeUndefined()
-    expect(layer().ar['nav.board']).toBeUndefined()
+    expect(layer().en['nav.map']).toBeUndefined()
+    expect(layer().ar['nav.map']).toBeUndefined()
   })
 
   it('a per-row reset rolls back when it is refused', async () => {
@@ -298,11 +298,11 @@ describe('optimistic save, and rollback on 42501', () => {
     await store.loadLabels()
 
     deleteAnswer = { ok: false, error: 'admin.errForbidden' }
-    const result = await store.resetOverride('nav.board')
+    const result = await store.resetOverride('nav.map')
 
     expect(result.ok).toBe(false)
     expect(store.getLabelOverrides()).toEqual([BOARD])
-    expect(layer().en['nav.board']).toBe('Pipeline')
+    expect(layer().en['nav.map']).toBe('Pipeline')
   })
 
   it('a per-row reset that removed nothing is still a success', async () => {
@@ -314,8 +314,8 @@ describe('optimistic save, and rollback on 42501', () => {
     // reporting that as a failure would be a lie about what happened.
     deleteAnswer = { ok: true, data: 0 }
     listAnswer = { ok: true, data: [] }
-    expect(await store.resetOverride('nav.board')).toEqual({ ok: true, data: null })
-    expect(layer().en['nav.board']).toBeUndefined()
+    expect(await store.resetOverride('nav.map')).toEqual({ ok: true, data: null })
+    expect(layer().en['nav.map']).toBeUndefined()
   })
 })
 
@@ -330,7 +330,7 @@ describe('reset-all is the escape hatch, so it rolls back too', () => {
 
     expect(result.ok).toBe(false)
     expect(store.getLabelOverrides()).toEqual([BOARD])
-    expect(layer().en['nav.board']).toBe('Pipeline')
+    expect(layer().en['nav.map']).toBe('Pipeline')
   })
 
   it('clears the live layer on success and reports how many rows went', async () => {
@@ -367,7 +367,7 @@ describe('first paint', () => {
     // which on a renamed workspace looks like the app forgetting its own
     // configuration on every launch.
     expect(pushes).toBe(1)
-    expect(layer().en['nav.board']).toBe('Pipeline')
+    expect(layer().en['nav.map']).toBe('Pipeline')
     expect(listCalls).toBe(0)
   })
 
@@ -432,10 +432,10 @@ describe('a clipped read is applied but never cached', () => {
     // something is wrong, not merely large. The rows that did arrive are still
     // shown, because most of the owner's wording beats none of it.
     listTruncated = true
-    listAnswer = { ok: true, data: [row({ key: 'nav.board', en: 'Queue' })] }
+    listAnswer = { ok: true, data: [row({ key: 'nav.map', en: 'Queue' })] }
     await store.loadLabels()
 
-    expect(layer().en['nav.board']).toBe('Queue')
+    expect(layer().en['nav.map']).toBe('Queue')
     // Not stamped: a partial answer must not stop the next attempt, and not
     // cached: a partial set must never become what a cold start believes.
     expect(cached()).toEqual([BOARD])
@@ -446,6 +446,6 @@ describe('a clipped read is applied but never cached', () => {
     listTruncated = false
     await store.loadLabels()
     expect(listCalls).toBe(3)
-    expect(cached()).toEqual([row({ key: 'nav.board', en: 'Queue' })])
+    expect(cached()).toEqual([row({ key: 'nav.map', en: 'Queue' })])
   })
 })

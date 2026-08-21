@@ -108,7 +108,7 @@ const WEEK_STARTS_ON = 0
  */
 const EARLIEST: IsoDate = '2020-01-01'
 
-const PREFS_KEY = 'opstrack_digest_v1'
+const PREFS_KEY = 'nphiescore_digest_v1'
 
 interface Prefs {
   sections: DigestSectionKind[]

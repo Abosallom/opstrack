@@ -32,6 +32,7 @@ function at(date: string): string {
 function entry(over: Partial<Entry> & Pick<Entry, 'id'>): Entry {
   return {
     track_id: null,
+    node_id: null,
     title: over.id,
     description: '',
     type: 'action',

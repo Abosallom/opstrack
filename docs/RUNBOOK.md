@@ -19,8 +19,8 @@ in this repo.
 
 | | |
 | --- | --- |
-| Live app | <https://abosallom.github.io/opstrack/> |
-| Repo | <https://github.com/Abosallom/opstrack> (branch `main` deploys) |
+| Live app | <https://nphiescore.com/> once the cut-over lands; <https://abosallom.github.io/opstrack/> until then — [`DOMAIN-CUTOVER.md`](DOMAIN-CUTOVER.md) |
+| Repo | <https://github.com/Abosallom/opstrack> (branch `main` deploys) — the repo name stays `opstrack`; the domain is what makes renaming it unnecessary |
 | Supabase project | `opstrack`, ref `lrysgpbkmuqgzsjesfkr`, region `ap-northeast-2` (Seoul) |
 | Supabase dashboard | <https://supabase.com/dashboard/project/lrysgpbkmuqgzsjesfkr> |
 | Admin | `az.alsaloom@gmail.com` — one admin, `profiles.role = 'admin'` |
@@ -50,6 +50,45 @@ when the app is the thing that is broken, when you need to script something, or
 when you want to see exactly what the screen is sending. Everything below and the
 Team members screen are the same endpoint; neither can do anything the other
 cannot.
+
+**For the eighteen-person roster, use [`scripts/provision-people.mjs`](../scripts/provision-people.mjs), not eighteen curls.**
+It is dry-run by default, idempotent, refuses to reissue a code, and prints every
+derived username before it creates anything. Who is on the roster and what they
+are allowed to do: [`docs/PEOPLE.md`](PEOPLE.md).
+
+✅ **`0025` IS APPLIED, AND THE ORDER THIS PARAGRAPH USED TO FORBID HAS ALREADY
+HAPPENED.** This block read *"DO NOT APPLY `0025` BEFORE PROVISIONING — NOT
+YET"* until 13 August 2026. Its reason was that a Director was real in the
+*database* and invisible in the *app*, because every configuration screen
+guarded on `profile.role === 'admin'`. **That gate shipped** — screens now ask
+`useHasPerm(key)` (`src/store/auth.ts:267`), which answers from the permission
+set `0025` fills. `legacyPermissionKeys(profile.role)` is still read, and being
+exact about WHEN matters: `loadPermissions()` (`auth.ts:334-360`) publishes it
+SYNCHRONOUSLY as step 1, so there is no instant in which a signed-in admin is
+treated as a member, and then step 2 replaces it with the real set — that is
+the step that finds the Director. The legacy set therefore stands as the final
+answer only when step 2 fails, and a failure does not latch (`loadedAt` is
+stamped by step 2 alone). `0025` was applied on 12 August and the roles are
+seeded and live.
+
+So provisioning writes `profiles.role_id` **directly** for the seven Directors
+(`scripts/provision-people.mjs:99-111`), and it does so by PROBING for the
+column rather than assuming it: the script still has an honest "0025 has not
+run" arm, and that honesty is the reason this paragraph can be checked instead
+of trusted. Do not simplify the probe away on the grounds that `0025` is
+applied now.
+
+⛔ **Do not re-run `0023`, `0024` or `0025`.** Re-running `0023` after `0025`
+restores `is_admin()` on `map_nodes`/`map_node_kinds` and silently strips the
+Director role of the whole tree — no error, no failed statement, a Director
+whose writes affect zero rows. See
+[`docs/PENDING-MIGRATIONS.md`](PENDING-MIGRATIONS.md), which is the runbook for
+this and carries the `w_0025` / `f_0025` canary query.
+
+⚠ **The sixteen invite codes print ONCE and exist nowhere else afterwards.** Be
+present when `--apply` runs, and read the derived-username table on the dry run
+first: these are permanent logins and a transliteration cannot be corrected later
+without locking somebody out.
 
 ### 1.1 Get your access token
 
@@ -146,9 +185,20 @@ curl -s -X POST "$URL" \
 You get a fresh code with a fresh 14 days, and two side effects that are both
 deliberate:
 
-- **The account is un-claimed.** Until the new code is redeemed, the old password
-  does not work. A reissue is a *reset*, not a spare key — if it left the old
-  password working, "I forgot my password" would have no answer.
+- **The account is un-claimed**, which is what lets `/claim` accept a code for it
+  a second time. Redeeming the new code sets the password the member types there,
+  and that is the reset.
+
+  **Their old password keeps working until they redeem it.** This page said the
+  opposite until 11 August 2026 and the opposite was wrong: `issueCode()` in
+  `supabase/functions/admin-members/index.ts` writes `user_metadata` only — a new
+  invite digest and `claimed: false` — and never touches the password. Nothing in
+  the sign-in path reads `claimed`; `signInPassword()` hands the address and
+  password straight to `signInWithPassword`. Existing sessions are not ended
+  either. So a reissue is a **spare key, not a lock change**: it is the right
+  remedy for "I forgot my password", and the wrong one for "someone else knows my
+  password". For that, delete the account (§1.6) and create it again (§1.2) —
+  their entries survive the delete.
 - **That username's failed-guess counter is cleared**, so the member can use the
   new code immediately. Your remedy is "here is a new code, try again", and it has
   to work the moment you say it. The caller's *address* counter is untouched: a
@@ -316,6 +366,133 @@ saying which of "promoted", "already an admin" or "no profile yet" happened.
 User*, set a password you choose, then run the insert above with the new UUID.
 Adding the user fires a trigger that writes `role = 'member'`, so the
 `on conflict … do update` branch is what actually makes you an admin.
+
+### 3.1 The admin who forgot their password, and there is nobody to ask
+
+**Symptom:** an admin cannot sign in, and their account is a **username**
+account. Not "the admin screens are missing" (that is §3) — they cannot get past
+the sign-in form at all.
+
+**Why this one is different from every other lockout in this document.** The
+`admin-members` function has three guards that keep the admin set from emptying:
+it refuses to demote you (`self_demote`), refuses to demote or delete the last
+remaining admin (`last_admin`), and refuses to touch the bootstrap address
+(`bootstrap_admin`). Read them in `supabase/functions/admin-members/index.ts` —
+they are all on `set-role` and `delete`.
+
+**They guard deletion. They do not guard forgetting.** An account that is still
+there, still an admin, and whose password nobody remembers passes every one of
+those checks. And a username account has no self-service way back: it signs in as
+`<username>@opstrack.internal`, a domain RFC 6761 reserves so that it can never
+resolve, so there is no mailbox for a reset or a sign-in code to arrive at. Its
+only reset is **another admin** pressing **New code** on its row (§1.4). When
+every admin in the workspace is a username account, that other admin is the
+person who is locked out, and the app has no move left.
+
+#### Can this workspace reach that state?
+
+**Not today, and it rests on one hardcoded line.**
+
+```
+const ADMIN_EMAILS = ['az.alsaloom@gmail.com']   // admin-members/index.ts
+```
+
+That is a **floor**, not the gate: the address is an admin whatever
+`profiles.role` says, the function refuses to demote or delete it, and it is a
+real address that Supabase can mail. So there is always at least one admin who
+can recover without help — *as long as that auth user exists with that exact
+address*.
+
+It stops being true if any of these happen, and none of them is something the
+app can do or prevent:
+
+- the user is deleted, or its email changed, from **Authentication › Users** in
+  the dashboard;
+- `ADMIN_EMAILS` is edited to an address that has no account, and the function
+  redeployed (§4);
+- this codebase is deployed to a **second Supabase project** where that account
+  was never created.
+
+After any of those the roster can be all-username, and the next forgotten
+password is terminal inside the app.
+
+**The app tells you when you are in that state.** Settings › Team members shows a
+red note above the roster — *"No admin here can get back in without another
+admin"* — whenever no admin on the list signs in with a real email address. It is
+computed from the same list the rows are drawn from, so it cannot disagree with
+what you are looking at.
+
+#### Break glass
+
+You need the **Supabase dashboard** and nothing else. It needs no app session,
+which is the whole point — it is reachable precisely when the app is not.
+
+1. Open <https://supabase.com/dashboard/project/lrysgpbkmuqgzsjesfkr> and sign in
+   with your Supabase account (that login is separate from the app's, and is not
+   affected by any of this).
+2. **Authentication › Users.** In the search box type the locked-out person's
+   username. The address you are looking for is
+   `<username>@opstrack.internal` — for example `nasser@opstrack.internal`.
+3. Open that row → **Edit user** → set a password. Type it yourself. Do not
+   dictate it into a chat, an email or a note; hand it over by voice, in person
+   or on a call, the same way an invite code is handed over.
+4. Tell them to sign in with **the username** — `nasser`, not the
+   `@opstrack.internal` address — and that password. (The address works too: the
+   sign-in form branches on whether what you typed contains an `@`, and passes a
+   real address through verbatim. The username is what they know.)
+5. **Check the role actually landed.** SQL Editor:
+
+   ```sql
+   select u.email, p.role, u.last_sign_in_at
+     from public.profiles p
+     join auth.users u on u.id = p.id
+    order by p.role, u.email;
+   ```
+
+   If their `role` is not `admin`, run the promote statement from §3 with their
+   address in place of the bootstrap one, then have them **sign out and back
+   in** — the role is read once per sign-in.
+6. Once they are back in, have them replace the password you chose with one only
+   they know. There is no change-password screen in the app, but there is a way,
+   and it is the same button as everything else in this section: on **Settings ›
+   Team members** they press **New code** on **their own row**, then redeem that
+   code at `/claim` with a password they pick. `reissue-code` has no self-check
+   — only `set-role` and `delete` refuse to act on the caller — so an admin with
+   a username account can reset themselves this way whenever they are already
+   signed in. That is worth knowing outside this procedure too: it is the answer
+   to "I want to change my password", which otherwise has none.
+
+Step 3 does not disturb anything else. It writes the password and nothing more:
+`claimed` and the outstanding invite digest live in `user_metadata` and are not
+touched, so a code you had already issued stays valid, and any session they still
+have open stays open. The failed-guess counters are in the `claim_counters` table
+(migration 0010), not in the account, and are likewise unaffected.
+
+#### Stop it happening again
+
+Give the workspace **at least one admin with a real email address**. That account
+can always mail itself a sign-in code, so it is the anchor every other recovery
+hangs off.
+
+The Members screen only creates username accounts, deliberately. To create an
+email one, use the `create` action's other branch — no `username`, an `email` and
+a `displayName` instead:
+
+```bash
+curl -s -X POST "$URL" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"create","email":"someone@example.com","displayName":"Their Name","role":"admin"}'
+```
+
+That account has **no password**: it signs in with a six-digit code (in practice
+a magic link — §8.3) mailed on demand. Two caveats, both real:
+
+- the project's built-in mailer is capped at **two emails per hour,
+  project-wide** (§8.2), so this is an anchor, not a daily door;
+- it must be an address whose mailbox will still exist in a year. A personal
+  address that follows the person out of the organisation is a slower version of
+  the same lockout.
 
 ---
 
@@ -498,8 +675,9 @@ retries until it abandons. Rotate only for a suspected compromise, and expect:
 1. Set all three secrets and redeploy `send-push` (§4).
 2. `gh secret set VITE_VAPID_PUBLIC_KEY` and re-run the deploy (above). Confirm
    the new key actually shipped:
-   `curl -s https://abosallom.github.io/opstrack/ | grep -o 'assets/index-[^"]*\.js'`
-   then `curl -s https://abosallom.github.io/opstrack/assets/index-….js | grep -c '<the new public key>'` → `1`.
+   `curl -s https://nphiescore.com/ | grep -o 'assets/index-[^"]*\.js'`
+   then `curl -s https://nphiescore.com/assets/index-….js | grep -c '<the new public key>'` → `1`.
+   (Before the domain cut-over, `https://abosallom.github.io/opstrack/` in both.)
 3. Confirm the two halves agree, without printing either — §9.3, check 6.
 4. **Every device must visit Settings → Push notifications and turn it off and on
    again.** Nothing can do this for them; the browser will not re-key a
@@ -534,6 +712,30 @@ union all select '0010 claim ctrs',  case when to_regclass('public.claim_counter
 union all select '0011 web push',    case when to_regclass('public.push_outbox')        is not null then 'yes' else 'NO' end
 union all select '0012 owner name',  case when exists (select 1 from pg_trigger where tgname = 'profiles_preserve_owner_name') then 'yes' else 'NO' end
 union all select '0013 usernames',   case when to_regprocedure('public.member_directory()') is not null then 'yes' else 'NO' end
+union all select '0014 tmpl author', case when exists (select 1 from pg_trigger where tgname = 'recurring_templates_guard_write_trg') then 'yes' else 'NO' end
+union all select '0015 write guard', case when exists (select 1 from information_schema.columns where table_schema='public' and table_name='entries' and column_name='updated_by') then 'yes' else 'NO' end
+union all select '0016 name pin',    case when position('display_name' in pg_get_functiondef('public.guard_profile_role()'::regprocedure)) > 0 then 'yes' else 'NO' end
+union all select '0017 labels',      case when to_regclass('public.label_overrides')     is not null then 'yes' else 'NO' end
+union all select '0018 groups',      case when to_regclass('public.track_groups')        is not null then 'yes' else 'NO' end
+union all select '0019 nudges',      case when to_regprocedure('public.nudge_entry(uuid)') is not null then 'yes' else 'NO' end
+union all select '0020 ai usage',    case when to_regclass('public.ai_usage')            is not null then 'yes' else 'NO' end
+union all select '0021 ai prefs',    case when exists (select 1 from information_schema.columns where table_schema='public' and table_name='notification_prefs' and column_name='ai_enabled') then 'yes' else 'NO' end
+union all select '0022 nudge insert', case when position('nudged_at' in pg_get_functiondef('public.entries_guard_insert()'::regprocedure)) > 0 then 'yes' else 'NO' end
+union all select '0023 map nodes',   case when to_regclass('public.map_nodes')           is not null then 'yes' else 'NO' end
+union all select '0024 use cases',   case when to_regclass('public.use_cases')           is not null then 'yes' else 'NO' end
+-- 0025 is fingerprinted on has_perm() rather than on the `roles` TABLE: the
+-- table can exist from a half-applied run while is_admin() is still 0001's, and
+-- those two states need telling apart. If this row says NO but `roles` exists,
+-- re-run the whole file — it is re-runnable by construction.
+union all select '0025 roles/perms', case when to_regprocedure('public.has_perm(text)')  is not null then 'yes' else 'NO' end
+-- …and two rows for the halves of 0025 that a RE-RUN OF SOMEBODY ELSE'S FILE can
+-- silently undo while has_perm() above still says yes. Re-running 0023 restores
+-- its own is_admin() policies and RPC guards; re-running 0001/0002/0003/0009/
+-- 0017/0018/0024 does the same for theirs. The symptom of the first is a
+-- Director whose writes affect ZERO ROWS with no error; of the second, a clean
+-- 42501 on a drag the policy would have allowed. Fix by re-applying 0025 — last.
+union all select '0025 policies',    case when exists (select 1 from pg_policies where schemaname='public' and policyname='map_nodes_insert' and position('structure.edit' in coalesce(with_check,'')) > 0) then 'yes' else 'NO' end
+union all select '0025 rpcs',        case when position('structure.edit' in pg_get_functiondef('public.reorder_map_nodes(uuid, uuid, uuid[])'::regprocedure)) > 0 then 'yes' else 'NO' end
 order by file;
 ```
 
@@ -545,6 +747,21 @@ Verified against the live project on 30 July 2026: the first ten rows returned
 > `0014`–`0017` sit unapplied — which was true for four migrations on 31 July 2026 and
 > is the reason [`docs/PENDING-MIGRATIONS.md`](PENDING-MIGRATIONS.md) exists. Read that
 > file first; extend the query below whenever you add a migration.
+>
+> **EXTENDED at the Wave-B integration to cover `0014`–`0025`, and NOT re-verified
+> against the live project — no Postgres exists in the environment that wrote these
+> rows.** Each fingerprint was derived by reading the migration file, so a row saying
+> `yes` means the object that file creates exists; it does not mean the file's probe
+> blocks ever ran. `0023`, `0024` and `0025` were applied to the live project on
+> 12 August 2026 and are NEVER RE-RUN (`docs/PENDING-MIGRATIONS.md` carries the
+> evidence and the one named exception). The order they were applied in was
+> `0023` → `0024` → `0025`, and `0025` had to be last of the
+> three because it redefines `is_admin()`, which every policy in both calls —
+> **and because it now re-points 21 write policies and restates 8 admin RPCs that
+> `0023` and four applied files own.** That order is no longer advisory: `0025`
+> carries a preflight block that refuses to apply without `map_nodes`,
+> `map_node_kinds` and `use_cases`. Any note elsewhere calling `0025`
+> "independent of both" predates the amendment and is wrong.
 Both new files were applied twice that day, probes passing on both runs.
 
 `0005` has no fingerprint on purpose: it is a one-time correction that clears the
@@ -738,8 +955,11 @@ limitation, not a setting you have missed.
 
 ### 8.4 The link opens the app and nothing happens
 
-The link always lands on **`https://abosallom.github.io/opstrack/`**, because the
-app doesn't pass a redirect and Supabase falls back to the project's Site URL. So:
+The link always lands on **whatever the project's Site URL says**, because the app
+doesn't pass a redirect and Supabase falls back to it — `https://nphiescore.com/`
+after the cut-over, `https://abosallom.github.io/opstrack/` before it. That single
+field is why DOMAIN-CUTOVER §4 is not optional: change the origin without changing
+it and every emailed link keeps delivering people to the old one. So:
 
 - **A link opened on a phone signs you in on that phone**, not on the laptop that
   requested it. That is how magic links work, not a bug.
@@ -767,12 +987,26 @@ own address correctly, and the address was never the secret.
 They are almost certainly typing a username that doesn't exist, or the wrong
 password — the app deliberately gives the same message for both, so that the form
 cannot be used to discover who has an account. Reissue their invite code (§1.4);
-that is the reset, and there is no other one.
+for a **username** account that is the reset, and there is no other one.
 
-Warn them of the one sharp edge before you send the code: **reissuing un-claims
-the account**, so their old password stops working the moment you do it. If they
-turn out to have remembered it after all, they still have to redeem the new code
-before they can get in.
+If they sign in with a **real email address**, they do not need you: the sign-in
+screen's **"Forgot your password?"** link mails them a recovery link, and the
+`/reset` screen it lands on sets a new password. That door is offered to both
+kinds of account, and `/reset` branches on the `@` — a username typed there is
+told, in so many words, that no mailbox exists and that you are the way back.
+The same mail cap applies (§8.2): recovery mails come out of the same handful
+per hour as sign-in codes.
+
+The sharp edge is the opposite of what this page used to say: **their old
+password is still live.** Reissuing un-claims the account so that `/claim` will
+take a code for it again, and it does not change the password — see §1.4. If they
+remember the old one halfway through, it still signs them in and the new code
+just sits there until it expires. If the reason you are reissuing is that someone
+*else* knows their password, reissuing fixes nothing; delete and re-create the
+account instead.
+
+In the app the same operation is **Settings › Team members → New code** on their
+row, and that screen now says all of this above the roster.
 
 ---
 
@@ -1105,8 +1339,9 @@ Chrome, a throwaway profile, and CDP for the permission grant:
 
 Then, over the browser-level WebSocket from `http://127.0.0.1:9222/json/version`:
 
-1. `Browser.grantPermissions {origin:"https://abosallom.github.io",
-   permissions:["notifications"]}`. **Hold that WebSocket open for the entire
+1. `Browser.grantPermissions {origin:"https://nphiescore.com",
+   permissions:["notifications"]}` — `https://abosallom.github.io` before the
+   domain cut-over. The grant is per ORIGIN, so this line moves with it. **Hold that WebSocket open for the entire
    run** — Chrome reverts permission overrides the moment the client that set them
    disconnects, and headless then auto-*denies* the app's
    `Notification.requestPermission()`, which is sticky and needs a re-grant plus a

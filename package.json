@@ -1,5 +1,5 @@
 {
-  "name": "opstrack",
+  "name": "nphiescore",
   "private": true,
   "version": "1.0.1",
   "type": "module",
@@ -8,7 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run",
+    "lookat": "node scripts/lookat.mjs",
     "seed": "node scripts/seed.mjs",
+    "provision": "node scripts/provision-people.mjs",
+    "demo:slice": "node scripts/make-demo-slice.mjs",
     "preview": "vite preview",
     "icons": "node assets/generate-icons.mjs && capacitor-assets generate --ios",
     "ios:sync": "npm run build && cap sync ios",

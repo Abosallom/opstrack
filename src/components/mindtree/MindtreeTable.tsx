@@ -11,12 +11,28 @@
 // arithmetic paths to one screen is how a branch ends up labelled 12 while its
 // table row says 9.
 //
-// ONE ROW PER TRACK × GROUP CELL, and that is the whole design decision.
+// ONE ROW PER `group` NODE, AT ANY DEPTH, and that is the whole design
+// decision. The first column is the PATH to that bucket, not a track:
 //
-//   Track    Group        Open  Unassigned  Past deadline  Age
-//   Network  Blocked         2           1              1  31d
-//   Network  New             3           3              0   4d
-//   PMO      In progress     8           0              2  12d
+//   Path                Group        Open  Unassigned  Past deadline  Age
+//   Network             Blocked         2           1              1  31d
+//   Network             New             3           3              0   4d
+//   UHR, OB, Org1       In progress     8           0              2  12d
+//
+// The separator is `mindtree.listSep` — the locale's own comma, and the same
+// one useMapModel's `trail()` joins a node's ancestry with, so the picture and
+// the table punctuate a path identically in both languages.
+//
+// IT USED TO BE "one row per track × group", which was a two-level assumption
+// baked into `buildRows` back when the map was a fixed four-ring tree. The
+// hierarchy is arbitrary-depth now — a programme holds phases, a phase holds
+// organizations — and a two-level walk would find no groups beneath an Org and
+// drop every one of its buckets off the table. That breaks the guarantee three
+// paragraphs above (the table would carry FEWER facts than the picture) and it
+// breaks the footer, which reconciles the row totals against the root's own
+// count. So the walk recurses, the first column accumulates the trail, and an
+// Org with nothing on it still gets its "all clear" row for exactly the reason
+// an empty track always did.
 //
 // The map's ring 3 (the entries) is deliberately NOT a third level of rows. A
 // row per entry turns a 40-item workspace into a 40-row wall whose numeric
@@ -57,7 +73,18 @@ import { useCallback, useId, useMemo, useState, type CSSProperties, type ReactEl
 import { isolate } from '../../lib/bidi'
 import { diffDays, formatAge, instantToIsoDate, type IsoDate } from '../../lib/dates'
 import { t, useLocale, type Locale } from '../../lib/i18n'
-import { normalizeSearch } from '../../lib/text'
+// The generic half of this file's sort, extracted so the portfolio table reuses
+// the cycle rather than growing a second one that disagrees on the third click.
+// `nextSort` is re-exported below under its own name — see the wrapper.
+import {
+  ariaSort,
+  compareText,
+  nextSort as nextSortState,
+  sortRows,
+  type SortableColumn,
+  type SortDir,
+  type TableSort,
+} from '../../lib/mindtree/tableSort'
 import {
   MIND_DIMENSIONS,
   groupTotals,
@@ -90,30 +117,70 @@ const COLUMN_COUNT = 6
 // ── the row ────────────────────────────────────────────────────────────────
 
 /**
- * One track × group cell, with everything the six columns need already
+ * One path × group cell, with everything the six columns need already
  * resolved. Exported because the page may want to feed the same rows to the
  * export, and because every assertion in the test file is about this shape.
  */
 export interface MindtreeTableRow {
-  /** `${trackNodeId}|${groupNodeId}` — React key, and unique by construction. */
+  /** The group node's own id — React key, and unique by construction (every
+   *  dynamic segment of a node id is percent-encoded, so two buckets under two
+   *  different Orgs cannot collide). An "all clear" row keys off its node. */
   key: string
   /** Position in the TREE's order, kept so every sort has a total tiebreak and
    *  so "no sort" can be restored without rebuilding. */
   order: number
-  /** The track's bucket key — a track id, or `''` for the untracked pile. */
+  /** The track's bucket key — a track id, or `''` for the untracked pile.
+   *  STILL THE TRACK, at every depth: `entries.track_id` is derived from the
+   *  node by a trigger, so everything under an Org belongs to the Org's track
+   *  and `filterForCell` has something it can actually express. */
   trackKey: string
-  trackLabel: string
-  /** `trackVars()`'s pair, straight off the node. Never a hex picked here. */
+  /**
+   * The trail from the track down to this row's parent, one resolved label per
+   * step, track first — `['UHR', 'OB', 'Org1']`. Kept as PARTS rather than as
+   * one string because the renderer has to isolate each component separately
+   * (useMapModel's `trail()` says why: the separator is the locale's own comma
+   * and it belongs to the sentence, not to either label).
+   */
+  pathParts: readonly string[]
+  /** Those parts joined with `mindtree.listSep` and NO isolates — the sort key,
+   *  and the `{track}` the accessible name interpolates (the bundle owns the
+   *  isolate there, and nesting one inside it would be two invisible controls
+   *  around the same run). Never rendered raw: the cell isolates part by part. */
+  pathLabel: string
+  /**
+   * The deepest STRUCTURAL node between the track and this row — an Org's
+   * `map_nodes.id` — or null when the row sits directly under its track.
+   *
+   * READ BY `filterForCell`, which puts it in `FilterState.mapNodeIds` so a
+   * drill-down lands on the set the cell counted rather than on the whole track
+   * above it. It is `map_nodes.id` and not a label because that facet is matched
+   * against `FilterContext.ancestryOfNode`, which is keyed on ids.
+   */
+  nodeKey: string | null
+  /** `trackVars()`'s pair, straight off the TRACK node. Never a hex picked here.
+   *  Every descendant of a track carries the same pair (model.ts inherits it),
+   *  so a row under an Org reads in its programme's colour family. */
   trackVars: CSSProperties
-  /** An archived track that still holds work. Rendered, never dropped. */
-  trackRetired: boolean
+  /**
+   * ANY step of the path is retired — an archived track, or an archived Org
+   * inside a live programme. Rendered, never dropped.
+   *
+   * It is the whole path rather than the track alone because the path is now
+   * the unit the cell names: model.ts marks an archived entity that still holds
+   * work `retired` for exactly the reason it marks an archived track (hiding an
+   * option must never hide data, and a parent labelled 12 whose children sum to
+   * 9 is worse than a greyed-out branch), and a table that showed the pill for
+   * one and not the other would be silently under-reporting the second.
+   */
+  pathRetired: boolean
   /** The group's bucket key, or null when the track holds nothing at all. */
   groupKey: string | null
   /** The group's label, or the "all clear" line for an empty track. */
   groupLabel: string
   /** A hidden vocabulary option, or an owner the roster no longer explains. */
   groupRetired: boolean
-  /** True when this row stands for a track with no open work under it. */
+  /** True when this row stands for a STRUCTURAL node with no buckets under it —
+   *  a clear track, or an Org nobody has filed anything against yet. */
   empty: boolean
   /** Entries at this intersection, AFTER the page's filter. From the node. */
   count: number
@@ -131,15 +198,16 @@ export interface MindtreeTableRow {
 
 export type MindtreeSortColumn = 'track' | 'group' | 'count' | 'unassigned' | 'breached' | 'age'
 
-export type MindtreeSortDir = 'asc' | 'desc'
+/** ALIASES, NOT SECOND DECLARATIONS. The shapes are tableSort's; naming them
+ *  here keeps every existing import path and every existing annotation exactly
+ *  as it was, while there stays one definition of what a sort is. */
+export type MindtreeSortDir = SortDir
+export type MindtreeSort = TableSort<MindtreeSortColumn>
 
-export interface MindtreeSort {
-  column: MindtreeSortColumn
-  dir: MindtreeSortDir
-}
-
-interface ColumnDef {
-  key: MindtreeSortColumn
+/** A column of THIS table: tableSort's `{ key, numeric }` plus the label only
+ *  this table has. Passed to `nextSort` unchanged — the shared cycle reads the
+ *  two fields it declares and ignores the rest. */
+interface ColumnDef extends SortableColumn<MindtreeSortColumn> {
   /** Written as a literal so lib/localeReach.test.ts can see it. */
   labelKey: string
   /** Numbers open DESCENDING (the biggest pile is the question), text ASCENDING. */
@@ -155,6 +223,13 @@ interface ColumnDef {
  * across namespaces for the same reason.
  */
 const COLUMNS: readonly ColumnDef[] = [
+  // Still `colTrack` — "Track" — now that the column holds a PATH, because the
+  // path's FIRST step is always the track and a heading that named the deepest
+  // step instead would be wrong for every row that has only one. Renaming it is
+  // a three-file locale change (en, ar, labelSections) that buys a better word
+  // and nothing else; it is written up in the handoff rather than smuggled in
+  // here, where a key this file cannot add to the bundles would render as its
+  // own dot path.
   { key: 'track', labelKey: 'mindtree.colTrack', numeric: false },
   { key: 'group', labelKey: 'mindtree.colGroup', numeric: false },
   { key: 'count', labelKey: 'mindtree.colOpen', numeric: true },
@@ -244,13 +319,47 @@ function collectStats(
 }
 
 /**
- * The tree, flattened to one row per track × group.
+ * Is this node part of the SHAPE of the map rather than a bucket, an item or a
+ * fold — a track, an organization, whatever the hierarchy grows next?
  *
- * A track with NO open work still produces a row — one row, marked `empty`.
- * "Which track is clear?" is one of the questions this screen exists to answer,
- * and a track that simply vanished when its last item closed would answer it by
- * looking identical to a track nobody ever configured. model.ts keeps empty
- * active tracks in ring 1 for exactly this reason.
+ * WRITTEN AS A NEGATIVE, and that is the point. model.ts's tree gains kinds as
+ * the hierarchy gains levels (`entity`, for an Organization, is the first of
+ * them), and a positive list of structural kinds would have to be edited in
+ * step with it — the day a new one lands, a positive list silently stops
+ * recursing into it and every bucket beneath it drops out of this table while
+ * the picture beside it keeps drawing them. That is the exact failure the file
+ * header's guarantee forbids, and it fails SILENTLY. The negative fails the
+ * other way: an unknown kind is walked, and a walk that finds no groups under
+ * it costs one "all clear" row and nothing else.
+ */
+function isStructural(node: MindNode): boolean {
+  return node.kind !== 'group' && node.kind !== 'entry' && node.kind !== 'more'
+}
+
+/** The track half of a row, resolved once per track and carried down the walk.
+ *  Every descendant inherits the SAME colour pair and the SAME track key —
+ *  `entries.track_id` is derived from the node, so there is one filing axis. */
+interface TrackRef {
+  key: string
+  vars: CSSProperties
+}
+
+/**
+ * The tree, flattened to one row per `group` node at any depth.
+ *
+ * A STRUCTURAL NODE WITH NO BUCKETS still produces a row — one row, marked
+ * `empty`. "Which track is clear?" is one of the questions this screen exists
+ * to answer, and a track that simply vanished when its last item closed would
+ * answer it by looking identical to a track nobody ever configured. The same
+ * sentence now reads "which Org has nothing on it", which is the question the
+ * onboarding hierarchy exists to answer, and model.ts draws structural nodes
+ * whether or not they are populated for exactly this reason.
+ *
+ * THE RECURSION IS ONE PASS IN THE TREE'S OWN CHILD ORDER, not "groups first,
+ * then children". A track can hold both — items filed at the track itself and
+ * organizations beneath it — and reordering them here would make the table read
+ * in an order the picture is not drawn in, which is the one thing `order` and
+ * the third click on a sort header exist to preserve.
  *
  * PURE GIVEN THE ACTIVE LOCALE. The only impurity is `t()` for key-shaped
  * labels, which is what the memo below re-runs on a language switch.
@@ -261,56 +370,124 @@ export function buildTableRows(
   today: IsoDate,
 ): MindtreeTableRow[] {
   const rows: MindtreeTableRow[] = []
+  const sep = t('mindtree.listSep')
+
+  const walk = (
+    node: MindNode,
+    track: TrackRef,
+    parts: readonly string[],
+    nodeKey: string | null,
+    retired: boolean,
+  ): void => {
+    // A blank step is dropped rather than rendered as an empty pair of isolates
+    // and a stray comma — useMapModel's `trail()` filters for the same reason,
+    // and doing it once here keeps the sort key and the visible cell agreeing
+    // about how many steps the path has.
+    const pathLabel = parts.filter((part) => part !== '').join(sep)
+    let emitted = false
+
+    for (const child of node.children) {
+      if (child.kind === 'group') {
+        const stats = collectStats(child, entryById, today)
+        const sole = stats.soleEntryId
+        rows.push({
+          key: child.id,
+          order: rows.length,
+          trackKey: track.key,
+          pathParts: parts,
+          pathLabel,
+          nodeKey,
+          trackVars: track.vars,
+          pathRetired: retired,
+          groupKey: child.bucketKey ?? NO_VALUE,
+          groupLabel: labelText(child.label),
+          groupRetired: child.retired,
+          empty: false,
+          // Off the NODE, not off the walk: `count` is what the picture drew,
+          // and the two must be the same number or the toggle changes the
+          // answer.
+          count: child.count,
+          unassigned: stats.unassigned,
+          breached: stats.breached,
+          oldestDays: stats.oldestDays,
+          soleEntryId: sole,
+          soleTitle: sole === null ? '' : titleOf(sole, child, entryById),
+        })
+        emitted = true
+        continue
+      }
+
+      if (!isStructural(child)) continue
+
+      // A structural node's own bucket key is its map-node id; it inherits the
+      // one above it only if it somehow has none, so `nodeKey` is always the
+      // DEEPEST answer to "which Org is this row under".
+      //
+      // ⚠ EXCEPT A COHORT, WHOSE KEY IS NOT A ROW. `?by=` puts a `cohort` step
+      // between a track and its organizations, and its `bucketKey` is
+      // `cohortKeyOf`'s synthetic `cohort:manager:<uuid>`. `filterForCell`
+      // writes `nodeKey` into `FilterState.mapNodeIds`, which is documented
+      // there as `map_nodes.id`, so taking it would scope a drill-in to a node
+      // that does not exist. A cohort is TRANSPARENT here for the same reason
+      // `dropRules.foldPath` and `actions.branchRefAt` skip it. Today no row
+      // escapes with one — `groupEntities` only ever buckets ENTITY plans, so
+      // every cohort has entity children that overwrite the key one step later
+      // — but that is a guarantee held in another module and defended by
+      // nothing here.
+      // `retired || child.retired` — the flag ACCUMULATES down the path: an
+      // archived Org inside a live programme marks its own rows, and a live Org
+      // under an archived track keeps its track's mark.
+      walk(
+        child,
+        track,
+        [...parts, labelText(child.label)],
+        child.kind === 'cohort' ? nodeKey : (child.bucketKey ?? nodeKey),
+        retired || child.retired,
+      )
+      emitted = true
+    }
+
+    if (emitted) return
+
+    // Nothing under this node but (at most) bare leaves. In every shape model.ts
+    // produces that means nothing at all — a node holding work holds buckets —
+    // so the stats below are all zero and this is today's "All clear" row. They
+    // are still COMPUTED rather than hard-coded, because a row that asserted
+    // zero over a node that held something would be the one lie this table
+    // cannot afford. `soleEntryId` stays null regardless: "All clear" is not the
+    // name of an item, and a button offering to open one under that label would
+    // be lying about what it does.
+    const stats = collectStats(node, entryById, today)
+    rows.push({
+      key: `${node.id}|`,
+      order: rows.length,
+      trackKey: track.key,
+      pathParts: parts,
+      pathLabel,
+      nodeKey,
+      trackVars: track.vars,
+      pathRetired: retired,
+      groupKey: null,
+      groupLabel: t('mindtree.branchEmpty'),
+      groupRetired: false,
+      empty: true,
+      count: node.count,
+      unassigned: stats.unassigned,
+      breached: stats.breached,
+      oldestDays: stats.oldestDays,
+      soleEntryId: null,
+      soleTitle: '',
+    })
+  }
 
   for (const track of root.children) {
-    const trackLabel = labelText(track.label)
-
-    if (track.children.length === 0) {
-      rows.push({
-        key: `${track.id}|`,
-        order: rows.length,
-        trackKey: track.bucketKey ?? NO_VALUE,
-        trackLabel,
-        trackVars: track.colourVars,
-        trackRetired: track.retired,
-        groupKey: null,
-        groupLabel: t('mindtree.branchEmpty'),
-        groupRetired: false,
-        empty: true,
-        count: 0,
-        unassigned: 0,
-        breached: 0,
-        oldestDays: null,
-        soleEntryId: null,
-        soleTitle: '',
-      })
-      continue
-    }
-
-    for (const group of track.children) {
-      const stats = collectStats(group, entryById, today)
-      const sole = stats.soleEntryId
-      rows.push({
-        key: `${track.id}|${group.id}`,
-        order: rows.length,
-        trackKey: track.bucketKey ?? NO_VALUE,
-        trackLabel,
-        trackVars: track.colourVars,
-        trackRetired: track.retired,
-        groupKey: group.bucketKey ?? NO_VALUE,
-        groupLabel: labelText(group.label),
-        groupRetired: group.retired,
-        empty: false,
-        // Off the NODE, not off the walk: `count` is what the picture drew, and
-        // the two must be the same number or the toggle changes the answer.
-        count: group.count,
-        unassigned: stats.unassigned,
-        breached: stats.breached,
-        oldestDays: stats.oldestDays,
-        soleEntryId: sole,
-        soleTitle: sole === null ? '' : titleOf(sole, group, entryById),
-      })
-    }
+    walk(
+      track,
+      { key: track.bucketKey ?? NO_VALUE, vars: track.colourVars },
+      [labelText(track.label)],
+      null,
+      track.retired,
+    )
   }
 
   return rows
@@ -369,6 +546,15 @@ export interface MindtreeGroupRow {
  * numbers the picture drew and the same numbers the cells above carry. The
  * other two are summed off the ROWS above for the same reason: one arithmetic
  * path per number, or the two tables on one screen disagree.
+ *
+ * IT INHERITS `groupTotals()`'s DEPTH, and that is why the depth fix belongs
+ * there rather than here. The function used to walk exactly two levels, which
+ * was the whole tree when it was written; with organizations between a track and
+ * its buckets it now recurses, so this block reaches the same rows the table
+ * above does. It is deliberately NOT reimplemented locally: useMapModel's
+ * ranking sentence under the map reads the same function, and two
+ * implementations of one ranking is precisely the split this file exists to
+ * prevent.
  */
 export function buildGroupRows(
   root: MindNode,
@@ -396,19 +582,13 @@ export function buildGroupRows(
 }
 
 // ── sorting ────────────────────────────────────────────────────────────────
-
-/**
- * Folded, then compared by CODE POINT — never `localeCompare`, which with no
- * explicit locale is host-dependent and would order this table differently in
- * the test runner and in the browser. lib/entryFilter's title sort documents
- * the same choice, and folding is what makes code-point order sane in both
- * languages (case, tashkeel and Arabic-Indic digits are gone first).
- */
-function compareText(a: string, b: string): number {
-  const x = normalizeSearch(a)
-  const y = normalizeSearch(b)
-  return x < y ? -1 : x > y ? 1 : 0
-}
+//
+// THE GENERIC HALF LIVES IN lib/mindtree/tableSort.ts — the three-state cycle,
+// the copy-and-total sort, `aria-sort`, and the folded code-point text
+// comparison. It moved unchanged when the portfolio table needed the same
+// headers over a different row; what stays here is the only part that is about
+// THIS table, which is what a column MEANS. The two exports below keep their
+// names and their exact signatures so no import anywhere else changed.
 
 /**
  * An empty cell has no age. It sorts BELOW a zero-day-old item in both
@@ -421,10 +601,15 @@ function ageValue(row: MindtreeTableRow): number {
 function compareRows(a: MindtreeTableRow, b: MindtreeTableRow, column: MindtreeSortColumn): number {
   switch (column) {
     case 'track':
-      // The group is the secondary key under a track sort: two rows of one
-      // track would otherwise be ordered by whichever way `sort` happened to
+      // The group is the secondary key under a path sort: two rows of one
+      // branch would otherwise be ordered by whichever way `sort` happened to
       // land, which reads as the table shuffling under the reader's finger.
-      return compareText(a.trackLabel, b.trackLabel) || compareText(a.groupLabel, b.groupLabel)
+      //
+      // `pathLabel` and not the parts array, so a sort compares what the column
+      // SHOWS — and it carries no isolates, which would otherwise fold into the
+      // comparison as invisible characters that order two identical paths
+      // differently depending on how deep they sit.
+      return compareText(a.pathLabel, b.pathLabel) || compareText(a.groupLabel, b.groupLabel)
     case 'group':
       return compareText(a.groupLabel, b.groupLabel)
     case 'count':
@@ -439,36 +624,28 @@ function compareRows(a: MindtreeTableRow, b: MindtreeTableRow, column: MindtreeS
 }
 
 /**
- * Sorts a COPY, and every comparison ends on `order` so the result is TOTAL.
- * Array.prototype.sort is stable everywhere that matters, but stability only
- * preserves an order the caller already had — and `order` is that order, kept
- * explicitly so a re-render cannot hand the sort a different starting point.
+ * This table's rows, sorted — `sortRows` with this table's comparator bound to
+ * it. `null` means the tree's own reading order, which is the order the picture
+ * is drawn in; it is a real state, not "unsorted".
  *
- * `null` means the tree's own reading order, which is the order the picture is
- * drawn in. It is a real state, not "unsorted".
+ * KEPT AS A NAMED EXPORT WITH THIS EXACT SIGNATURE rather than re-exporting the
+ * generic. Callers pass `MindtreeSort | null` and get rows back with no
+ * comparator in hand, which is what makes the sort one decision rather than a
+ * choice every caller re-makes — and it is why the extraction changed no import
+ * and no test outside this file.
  */
 export function sortTableRows(
   rows: readonly MindtreeTableRow[],
   sort: MindtreeSort | null,
 ): MindtreeTableRow[] {
-  const copy = [...rows]
-  if (sort === null) return copy.sort((a, b) => a.order - b.order)
-  const sign = sort.dir === 'asc' ? 1 : -1
-  return copy.sort((a, b) => sign * compareRows(a, b, sort.column) || a.order - b.order)
+  return sortRows(rows, sort, compareRows)
 }
 
 /** The header cycle: unsorted → the column's natural direction → the other →
- *  unsorted. Three states, because the tree's order is worth getting back to. */
+ *  unsorted. tableSort's, narrowed to this table's column union so a typo in a
+ *  column key is a compile error here rather than a sort that never fires. */
 export function nextSort(current: MindtreeSort | null, column: ColumnDef): MindtreeSort | null {
-  const first: MindtreeSortDir = column.numeric ? 'desc' : 'asc'
-  if (current === null || current.column !== column.key) return { column: column.key, dir: first }
-  if (current.dir === first) return { column: column.key, dir: first === 'asc' ? 'desc' : 'asc' }
-  return null
-}
-
-function ariaSort(sort: MindtreeSort | null, column: MindtreeSortColumn): 'ascending' | 'descending' | 'none' {
-  if (sort === null || sort.column !== column) return 'none'
-  return sort.dir === 'asc' ? 'ascending' : 'descending'
+  return nextSortState(current, column)
 }
 
 // ── drilling down ──────────────────────────────────────────────────────────
@@ -486,6 +663,25 @@ function ariaSort(sort: MindtreeSort | null, column: MindtreeSortColumn): 'ascen
  * for "no track at all". Rather than silently filter to nothing, the track half
  * is left alone and only the group half is applied. The handoff proposes the
  * facet; until it exists, this is the honest behaviour.
+ *
+ * A ROW UNDER AN ORG NOW NARROWS TO THE ORG. It shipped narrowing to the TRACK,
+ * because `FilterState` had no node facet and the finest thing this function
+ * could say about a row under `UHR › OB › Org1` was "the UHR track, blocked" —
+ * a SUPERSET of what the cell counted, so the reader clicked 3 and landed on 12.
+ * `mapNodeIds` exists now (entryFilter.ts:69), the row has carried `nodeKey`
+ * against this day since the walk went recursive, and the cell finally filters
+ * to what it counted. Two facts make the one line below true and both live in
+ * other files: `nodeKey` is `map_nodes.id` (model.ts's entity node sets
+ * `bucketKey: entity.id`), and the facet reaches every DESCENDANT of that id
+ * through `FilterContext.ancestryOfNode`, which store/entries.ts builds over the
+ * whole tree — so "Org1, blocked" is Org1 and everything filed beneath it, which
+ * is exactly the set the cell walked.
+ *
+ * A ROW WITH NO NODE LEAVES THE FACET ALONE, which is the untracked pile's rule
+ * one ring down and not an oversight either. `mapNodeIds: []` means "the whole
+ * map", not "filed under no organization", so clearing it would WIDEN a filter
+ * the reader is narrowing. The rows this can reach are the ones filed at a track
+ * itself, and under an active branch filter they are empty by construction.
  */
 export function filterForCell(
   base: FilterState,
@@ -495,8 +691,9 @@ export function filterForCell(
   const next: FilterState = {
     ...base,
     trackIds: row.trackKey === NO_VALUE ? base.trackIds : [row.trackKey],
-    // A cell is a track × group intersection, so any other facet on the same
-    // two axes would fight it. Everything else the reader chose — search, tags,
+    mapNodeIds: row.nodeKey === null ? base.mapNodeIds : [row.nodeKey],
+    // A cell is a path × group intersection, so any other facet on those same
+    // axes would fight it. Everything else the reader chose — search, tags,
     // date range, sort — survives, because those narrow WITHIN the cell.
     statuses: [],
     priorities: [],
@@ -802,6 +999,27 @@ function ageCell(days: number | null, locale: Locale): string {
   return days === null ? EM_DASH : formatAge(days, locale)
 }
 
+/**
+ * The path cell's text — `⁨UHR⁩, ⁨OB⁩, ⁨Org1⁩`.
+ *
+ * EACH COMPONENT IS ISOLATED SEPARATELY, not the joined string once, and it is
+ * the same decision useMapModel's `trail()` documents: every step is database
+ * text of unknown direction, and the separator between them is the locale's own
+ * comma, which belongs to the ROW's reading direction rather than to either
+ * label. Isolate the whole path instead and an Arabic Org under a Latin
+ * programme drags the comma to the wrong side of itself.
+ *
+ * `row.pathLabel` is the same list without the isolates, and that is the one
+ * the sort and the accessible name use — a comparison must not fold invisible
+ * controls, and `mindtree.cellFilter` already wraps its `{track}` in the bundle.
+ */
+function pathText(parts: readonly string[], sep: string): string {
+  return parts
+    .filter((part) => part !== '')
+    .map(isolate)
+    .join(sep)
+}
+
 function Row({
   row,
   locale,
@@ -814,8 +1032,14 @@ function Row({
   onFilter?: (row: MindtreeTableRow) => void
 }): ReactElement {
   const sole = row.soleEntryId
+  // Read here rather than threaded down from the memo, because it is the same
+  // t() call the row builder made and it must give the same answer: the builder
+  // and the renderer punctuate one path, not two. `locale` above is what makes
+  // the whole component re-render when that answer changes.
+  const sep = t('mindtree.listSep')
   // A cell with one item opens it; a cell with many narrows the page to it; a
-  // track with nothing has neither, and gets text rather than a dead control.
+  // structural node with nothing under it has neither, and gets text rather
+  // than a dead control.
   const action: 'open' | 'filter' | null =
     sole !== null ? 'open' : row.count > 0 && onFilter !== undefined ? 'filter' : null
 
@@ -845,7 +1069,12 @@ function Row({
           label: row.groupLabel,
           detail: t('mindtree.openEntry', { title: row.soleTitle }),
         })
-      : t('mindtree.cellFilter', { track: row.trackLabel, label: row.groupLabel })
+      : // `pathLabel`, so the name says WHICH ⁨Blocked⁩ this is all the way down
+        // — "Show only ⁨UHR, OB, Org1⁩, ⁨Blocked⁩". Under an arbitrary-depth
+        // hierarchy the track alone stopped being unique: five Orgs under one
+        // programme would have produced five identically-named buttons, which
+        // is the exact collapse the track was added to this name to fix.
+        t('mindtree.cellFilter', { track: row.pathLabel, label: row.groupLabel })
 
   const groupBody = (
     <>
@@ -862,12 +1091,14 @@ function Row({
           and to nothing shorter — and scope="row" on each is how a screen
           reader announces the pair with every number in the row. */}
       <th scope="row" className="mtree-tbl-track">
-        {/* The colour is the track's own pair, resolved in CSS by theme. */}
+        {/* The colour is the track's own pair, resolved in CSS by theme — one
+            mark for the whole path, because every step under a track inherits
+            that track's colour family and a second dot would encode nothing. */}
         <span className="track-dot" style={row.trackVars} aria-hidden="true" />
         {/* Database text next to numbers: isolated, or an Arabic track name and
             a Latin count trade places under dir="rtl". */}
-        <span className="mtree-tbl-tracklabel">{isolate(row.trackLabel)}</span>
-        {row.trackRetired ? (
+        <span className="mtree-tbl-tracklabel">{pathText(row.pathParts, sep)}</span>
+        {row.pathRetired ? (
           <span className="pill mtree-tbl-flag">{t('mindtree.archived')}</span>
         ) : null}
       </th>

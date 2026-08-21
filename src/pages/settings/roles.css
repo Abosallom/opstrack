@@ -1,0 +1,328 @@
+/* Settings › Roles & permissions — the `.rol-*` prefix, per the class registry
+   (docs/EXECUTION-PLAN.md §1.0.7).
+
+   A SEPARATE SHEET FROM groups.css and admin.css, on the rule those two were
+   split under: this is the part of the settings tree writing a THIRD pair of
+   tables (`roles`, `role_permissions`), and it owns a layout neither of them has
+   — a card whose body is a list of SWITCHES EACH CARRYING TWO LINES OF PROSE.
+   That two-line explanation is not decoration here, it is the feature: a
+   permission checkbox whose effect the reader cannot predict is worse than no
+   checkbox, so the note is a first-class part of the control and the type scale
+   in this file is built around making it readable rather than making it small.
+
+   ALMOST EVERYTHING VISIBLE IS A global.css PRIMITIVE and is deliberately NOT
+   restyled: `.card`, `.btn`, `.btn-sm`, `.btn-primary`, `.btn-danger`, `.pill`,
+   `.field`, `.field-label`, `.input`, `.switch`, `.row-actions`, `.muted`,
+   `.sr-only`. This file owns the five layouts that have no primitive — the
+   standing note about what is and is not configurable, the role card's head, its
+   rename panel, the permission list, and the create form.
+
+   LOGICAL PROPERTIES ONLY, like the rest of the repo, so the Arabic mirror comes
+   free: `padding-inline-*`, `border-inline-start`, `text-align: start`. There is
+   no `left`, `right`, `margin-left` or `padding-left` in this file and there must
+   never be one — the permission notes are indented under their switch, and a
+   physical inset would indent them off the wrong edge in Arabic. */
+
+.rol {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-inline-size: 760px;
+}
+
+.rol-bar {
+  display: flex;
+  align-items: center;
+}
+
+/* The route's h1 lives in the app header, so the page opens on its standfirst
+   rather than repeating the title. */
+.rol-intro {
+  font-size: 13px;
+  line-height: 1.55;
+  /* --text-dim, not --text-faint: this sits directly on --bg, and dim is the
+     token that clears AA at every elevation. */
+  color: var(--text-dim);
+}
+
+/* ---------- the standing note ----------
+   "You invent the roles. The permissions are fixed." This is the one thing on
+   the screen that must be read before anything is clicked, so it is a bordered
+   block rather than another paragraph of the standfirst — and the border is on
+   the INLINE START edge, which mirrors. */
+.rol-fixed {
+  border-inline-start: 3px solid var(--accent);
+  padding-inline-start: 12px;
+  padding-block: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rol-fixed-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rol-fixed-body {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.rol-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.rol-summary {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.rol-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---------- one role ---------- */
+
+.rol-role {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* TOP-ALIGNED, not centred, for groups.css's reason: the text block is three
+   lines (name, the other language, the counts) and the action cluster is one, so
+   centring parks "Rename" level with the second line. */
+.rol-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.rol-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.rol-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* The other language, always beneath the current one. `lang`/`dir` are set on
+   the element itself so an Arabic name gets an Arabic face while the UI is in
+   English, and its punctuation resolves against its own paragraph direction. */
+.rol-alt {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.rol-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 2px;
+}
+
+/* The machine name. Monospace and LTR ALWAYS: `workspace_admin` is an
+   identifier, not a word, and it reads left to right in every locale. The
+   isolate is applied in the markup; this is the face. */
+.rol-key {
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-faint);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ---------- the permission list ---------- */
+
+.rol-perms {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-block-start: 1px solid var(--border);
+  padding-block-start: 12px;
+}
+
+.rol-perms-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rol-perms-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.rol-perm-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The whole row is the switch, so the label and its explanation are inside the
+   44px target rather than beside it. `min-block-size` gives that target without
+   forcing the row to be that tall when the note wraps to three lines. */
+.rol-perm {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding-block: 12px;
+  border: 0;
+  border-block-end: 1px solid var(--border);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.rol-perm:last-child {
+  border-block-end: 0;
+}
+
+/* A REFUSED switch is not a dimmed one. `.rol-perm-blocked` is the last
+   workspace.admin: it must look deliberate rather than broken, and its reason
+   must stay at full contrast — a greyed-out explanation of why something cannot
+   be done is the one piece of text on this screen that has to be readable. */
+.rol-perm:disabled,
+.rol-perm[aria-disabled='true'] {
+  cursor: default;
+}
+
+/* Dimming is for BUSY, which passes in a moment. The refused switch keeps full
+   contrast: it is not unavailable, it is answered — and its answer is the one
+   piece of text on this screen that has to be readable. */
+.rol-perm:disabled:not(.rol-perm-blocked) {
+  opacity: 0.55;
+}
+
+.rol-perm:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.rol-perm-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-inline-size: 0;
+}
+
+/* The label and its reach pill on one line, wrapping to two on a phone rather
+   than squeezing the pill against the switch. */
+.rol-perm-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rol-perm-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* THE HONESTY LINE. 12.5px and --text-dim rather than --text-faint: this is the
+   sentence the reader is making the decision from, and faint is a token for
+   metadata nobody has to read. */
+.rol-perm-effect {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* "Nothing checks this yet." Indented under the label with a logical inset and
+   a start-edge rule, so it reads as a footnote to the line above it — in both
+   directions. */
+.rol-perm-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  border-inline-start: 2px solid var(--border);
+  padding-inline-start: 8px;
+}
+
+/* The last-admin refusal. Not faint, not italic, not an aside: it is the reason
+   a control the reader just tried to use did not move. */
+.rol-perm-reason {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.rol-perm-switch {
+  display: flex;
+  align-items: center;
+  /* Nudges the 26px switch onto the label's optical line while the note wraps
+     beneath it. Block-only, so it is direction-neutral. */
+  padding-block-start: 2px;
+}
+
+/* ---------- rename / create ---------- */
+
+.rol-edit,
+.rol-create {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-block-start: 1px solid var(--border);
+  padding-block-start: 12px;
+}
+
+.rol-fields {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 560px) {
+  .rol-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.rol-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* The key field is an identifier: LTR and monospace whatever the UI language is,
+   because it is typed as ASCII and compared as ASCII. */
+.rol-key-input {
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+}
+
+.rol-empty {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* A grant this build does not know about. Reachable only when the database is
+   ahead of the client, which is a real state for a tab left open across a
+   deploy — so it is a visible, explained line rather than a silently dropped
+   row. */
+.rol-unknown {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  border-inline-start: 2px solid var(--border);
+  padding-inline-start: 8px;
+  padding-block: 6px;
+}

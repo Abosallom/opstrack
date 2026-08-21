@@ -24,9 +24,19 @@ export default defineConfig({
       // manifest, so workbox would leave them out of the precache.
       includeAssets: ['icon.svg', 'apple-touch-icon.png', 'favicon-32.png'],
       manifest: {
-        name: 'CoreTrack',
-        short_name: 'CoreTrack',
-        description: 'Multi-track action and decision tracker for operations leads.',
+        // The installed app's name on a home screen and in the OS app switcher.
+        // `short_name` is what a launcher actually renders under the icon — it
+        // is a separate field because Android truncates past ~12 characters, and
+        // 'NphiesCore' fits, so the two are the same string here rather than one
+        // being an abbreviation nobody chose.
+        name: 'NphiesCore',
+        short_name: 'NphiesCore',
+        // Names the product, because this string is read where the brand row is
+        // not: the install prompt, the Play/App Store listing, the OS's own app
+        // info screen. What it CLAIMS is deliberately unchanged from the version
+        // that shipped — the manifest is not the place to announce an
+        // architecture that is still landing.
+        description: 'NphiesCore — multi-track action and decision tracker for operations leads.',
         display: 'standalone',
         orientation: 'portrait',
         // Relative so the installed app scopes correctly under /opstrack/ on

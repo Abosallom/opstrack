@@ -1,21 +1,40 @@
-// The drill-in trail — where you are in the map, and every way back out.
+// THE BREADCRUMB — the map's primary orientation object, and every way back out.
 //
-// Focusing a branch makes it the whole screen. That is the point (lib/mindtree/
-// focus.ts's header argues it: a lead chasing one track wants that track to BE
-// the screen for a minute), and it is also the risk: a reader two rings deep is
-// looking at a picture that gives no clue what it is a picture OF. This is the
-// clue, and it is the only control on the screen that can undo a drill-in.
+// Diving into a world makes it the whole screen. That is the point (the
+// reference the whole redesign is built on is an infinite-zoom illustration:
+// the mouth becomes the frame, and then it is gone), and it is also the risk: a
+// reader three worlds deep is looking at a picture that gives no clue what it is
+// a picture OF. This is the clue.
 //
 // ── THE ROOT IS ALWAYS ONE PRESS AWAY ──────────────────────────────────────
 //
-// Not "reachable", not "two crumbs back" — ONE PRESS, from any depth. It falls
-// out of rendering the WHOLE trail rather than an ellipsis or a "…" fold: the
-// first crumb is the root, always, and the trail is at most four hops deep
-// because model.ts's tree is (root → track → group → more → entry) and
-// focus.ts's `canFocus` refuses the leaf. There is nothing here to truncate, so
-// nothing here truncates — the row WRAPS instead of scrolling, because a crumb
-// that has scrolled out of a horizontal strip is a crumb the reader cannot press
-// without first finding it.
+// Not "reachable", not "two crumbs back" — ONE PRESS, from any depth, and that
+// is the promise the truncation below is written around rather than in spite of.
+//
+// ── IT TRUNCATES FROM THE START, WHICH REVERSES WHAT THIS FILE USED TO DO ──
+//
+// What stood here before: "the trail is at most four hops deep because model.ts's
+// tree is (root → track → group → more → entry) and focus.ts's `canFocus` refuses
+// the leaf. There is nothing here to truncate, so nothing here truncates."
+//
+// THAT BOUND IS GONE. The camera can be anywhere, `map_nodes` has a
+// self-referencing `parent_id` with a depth cap of six, and the trail is now
+// `ancestorWorlds(layout, worldAt(camera))` — as deep as the department tree the
+// admin configured. A wrapping row of eight crumbs is two rows of chrome over a
+// drawing, which is the fault this whole unit exists to cut.
+//
+// So it truncates, and the direction is the decision: FROM THE START, keeping
+// the ROOT plus the NEAREST hops (`… › Onboarding › Riyadh Cluster`). The near
+// end is what you need — it is where you are and what you are about to leave —
+// and the far end is one press away because the root is never dropped. The
+// hops in between are not lost either: they are what zooming OUT passes through,
+// continuously, which is the one navigation this map has that a breadcrumb
+// cannot be a substitute for.
+//
+// THE ELIDED MARKER IS NOT A CONTROL. A "…" that expands would be a second
+// disclosure over the picture, and a "…" that navigated would be ambiguous about
+// WHICH of the hops it went to. It is a mark with a screen-reader sentence
+// saying how many worlds it stands for, and the way to any of them is the rail.
 //
 // ── IT RENDERS `FocusView.trail` AND COMPUTES NOTHING ──────────────────────
 //
@@ -86,6 +105,55 @@ function labelText(label: MindLabel): string {
 }
 
 /**
+ * How many LINK crumbs are drawn before the current location.
+ *
+ * Three: the root, plus the two nearest hops. Four crumb boxes and an elision
+ * mark is the widest arrangement that fits the 540px top-centre island at 1080px
+ * without wrapping, measured against `.mtree-crumbbar-btn`'s 14rem cap and the
+ * 12.5px type — and a fifth would not survive the phone's top rail at all.
+ *
+ * It is a CEILING on the drawn row and never on the trail: `visibleCrumbs`
+ * always returns the root, so the promise this component makes ("the root is one
+ * press away, from any depth") is a property of the function rather than of the
+ * data it happens to be given.
+ */
+export const CRUMB_LINKS_MAX = 3
+
+/** One drawn crumb: the node, and the index it had in the FULL trail. */
+export interface VisibleCrumb {
+  readonly node: MindNode
+  /** Index in the original trail — what `crumbTarget` needs. */
+  readonly at: number
+}
+
+/**
+ * The link crumbs to draw, and how many were elided before them.
+ *
+ * TRUNCATES FROM THE START, keeping the ROOT: `[root, …, near, nearest]`. Pure
+ * and total — a trail of any length, in any order, yields a list whose first
+ * entry is `at === 0` whenever the input had one.
+ *
+ * A named export because it is the decision this component makes and
+ * `environment: 'node'` cannot measure a rendered row to observe it.
+ */
+export function visibleCrumbs(trail: readonly MindNode[]): {
+  readonly crumbs: readonly VisibleCrumb[]
+  readonly elided: number
+} {
+  const links = trail.slice(0, -1).map((node, at) => ({ node, at }))
+  if (links.length <= CRUMB_LINKS_MAX) return { crumbs: links, elided: 0 }
+
+  const root = links[0]
+  // The nearest hops, which is what a reader who can be anywhere needs: they
+  // are where they are and what they are about to leave.
+  const near = links.slice(links.length - (CRUMB_LINKS_MAX - 1))
+  return {
+    crumbs: root === undefined ? near : [root, ...near],
+    elided: links.length - CRUMB_LINKS_MAX,
+  }
+}
+
+/**
  * What pressing the crumb at `at` asks for.
  *
  * The root crumb clears the focus (`null`) rather than focusing the node whose
@@ -111,6 +179,8 @@ export default function Breadcrumb({ trail, onFocus }: BreadcrumbProps): ReactEl
   const here = trail[trail.length - 1]
   if (here === undefined) return null
 
+  const { crumbs, elided } = visibleCrumbs(trail)
+
   return (
     <nav className="mtree-crumbbar" aria-label={t('mindtree.breadcrumb')}>
       {/* An ordered list, because the order IS the meaning — this is a path, not
@@ -124,10 +194,25 @@ export default function Breadcrumb({ trail, onFocus }: BreadcrumbProps): ReactEl
           role restores the <ol>'s own implicit role and changes nothing
           anywhere else. */}
       <ol className="mtree-crumbbar-list" role="list">
-        {trail.slice(0, -1).map((node, at) => {
+        {crumbs.map(({ node, at }, drawn) => {
           const label = at === 0 ? t('mindtree.backToRoot') : labelText(node.label)
           return (
             <li key={node.id} className="mtree-crumbbar-item">
+              {/* THE ELISION SITS BEFORE THE FIRST NEAR CRUMB, never before the
+                  root — which is what makes "the root is one press away" true of
+                  the drawn row and not only of the data. It is a mark, not a
+                  control: pressing it could only be ambiguous about which of the
+                  hidden worlds it meant, and the way to any of them is to zoom
+                  out, continuously, past every one of them. */}
+              {drawn === 1 && elided > 0 && (
+                <>
+                  <span className="mtree-crumbbar-gap" aria-hidden="true">
+                    …
+                  </span>
+                  <span className="sr-only">{t('mindtree.crumbElided', { count: elided })}</span>
+                  <IconChevronEnd className="icon-directional mtree-crumbbar-sep" size={14} />
+                </>
+              )}
               <button
                 type="button"
                 className="btn btn-sm btn-ghost mtree-crumbbar-btn"

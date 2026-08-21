@@ -364,7 +364,22 @@ export interface ExportMeta {
 
 /** The JSON export, in full. */
 export interface ExportEnvelope extends ExportMeta {
-  /** A magic string, so a reader can tell this file from any other JSON. */
+  /**
+   * A magic string, so a reader can tell this file from any other JSON.
+   *
+   * FROZEN AT THE RETIRED SLUG, ON PURPOSE. Every export anyone has already
+   * taken carries `opstrack-export`, and a reader identifies the file by
+   * matching this exact value — so renaming it to follow the brand makes every
+   * file the app has ever written unreadable by the app that wrote it. It moves
+   * only behind a format migration that accepts both, never with a rename.
+   *
+   * The filename two hundred lines down does NOT share this constraint and has
+   * already moved twice (`opstrack-` → `coretrack-` → `nphiescore-`): nothing
+   * keys off a filename, and it is read by people rather than by parsers. The
+   * two strings look like the same string half-renamed. They are not, and
+   * brand.test.ts asserts both spellings so a sweep that "finishes the job"
+   * fails a gate instead of shipping.
+   */
   format: 'opstrack-export'
   version: number
   /** Relations whose read hit the page cap — their OLDEST rows are missing. */
@@ -676,7 +691,7 @@ function pad(n: number): string {
 }
 
 /**
- * `coretrack-export-2026-07-30-1432.json`.
+ * `nphiescore-export-2026-07-30-1432.json`.
  *
  * LOCAL time, not UTC. The stamp exists so a person can tell two exports apart
  * in a Downloads folder, and "when did I take this" is a question they answer
@@ -691,13 +706,17 @@ function pad(n: number): string {
  * magic value a reader matches on to identify the file; renaming it would make
  * every export taken before this build unrecognisable to every export taken
  * after. This one is a word in someone's Downloads folder. The two happened to
- * share a spelling; they never shared a reason. brand.test.ts pins the filename.
+ * share a spelling once; they never shared a reason, and they have now been
+ * spelled differently across two renames (opstrack → coretrack → nphiescore)
+ * while the tag never moved. brand.test.ts pins BOTH sides — the filename to the
+ * current brand, the tag to `opstrack-export` — so the gap between them is a
+ * gate, not a loose end for a later sweep to tidy up.
  */
 export function exportFilename(kind: 'json' | 'csv', at: Date): string {
   const stamp = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}-${pad(
     at.getHours(),
   )}${pad(at.getMinutes())}`
-  return `coretrack-export-${stamp}.${kind}`
+  return `nphiescore-export-${stamp}.${kind}`
 }
 
 /**

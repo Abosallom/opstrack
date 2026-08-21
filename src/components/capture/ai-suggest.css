@@ -10,9 +10,9 @@
    IT STYLES NO PRIMITIVE AND NO OTHER PREFIX. `.pill`, `.chip`, `.chip-row`,
    `.btn*`, `.card`, `.switch`, `.track-dot` and `.sr-only` are used as
    `global.css` ships them; where this sheet needs a variant it adds an `.ais-`
-   class alongside rather than reaching into the primitive. `.cap-*` is
-   Capture's and is not touched here, which is what lets this row sit inside
-   that screen without owning any of it.
+   class alongside rather than reaching into the primitive. `.mcap-*` belongs to
+   the map's composer (components/map/map-capture.css) and is not touched here,
+   which is what lets this row sit inside that bar without owning any of it.
 
    LOGICAL PROPERTIES ONLY, so the whole thing mirrors under dir="rtl" with no
    [dir] rule anywhere in this file. SPACING on the 4px grid. MOTION inherits

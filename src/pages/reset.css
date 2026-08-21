@@ -1,0 +1,363 @@
+/* /reset — password recovery: asking for a link, and setting the password one
+   arrived with.
+
+   PREFIX: .rst-* (EXECUTION-PLAN §1.0.7). This sheet styles nothing else, and
+   nothing else styles .rst-*. It is registered rather than folded into
+   signin.css or claim.css for the reason privacy.css was kept out of both: it
+   is a THIRD screen outside the shell with its own frame, and either of those
+   two would have had to grow rules for a screen it does not own — signin.css in
+   particular is already carrying a linkSent panel and a code disclosure that
+   have nothing to do with this route.
+
+   Everything structural comes from global.css: .card, .field, .field-label,
+   .field-error, .input, .btn, .tap-44. What is here is only what the design
+   system has no opinion about — the centring frame, the leading field icon, the
+   trailing reveal control, the answer panel and the three named steps.
+
+   Logical properties only, so the Arabic mirror comes free: the field icon, the
+   back arrow (.icon-directional at the call site) and the ordered list's
+   markers all move to the other edge with the writing direction. Spacing is on
+   the 4px grid.
+
+   Where a rule says the same thing as its twin in signin.css it is written the
+   same way on purpose, so that a later change to one is a legible diff against
+   the other. */
+
+/* ---------- the frame ---------- */
+
+.rst {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 100dvh;
+  padding-block: calc(24px + env(safe-area-inset-top, 0px))
+    calc(24px + env(safe-area-inset-bottom, 0px));
+  /* Symmetric notch padding: a hardware cutout does not swap sides with the
+     writing direction. */
+  padding-inline: max(20px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+}
+
+.rst-card {
+  inline-size: 100%;
+  max-inline-size: 400px;
+  padding: 28px 24px;
+  box-shadow: var(--shadow);
+  animation: rst-rise 180ms ease-out both;
+}
+
+@keyframes rst-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- brand ---------- */
+
+.rst-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-block-end: 24px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+
+/* The one string in the app that must never break across two lines. */
+.rst-brand-name {
+  white-space: nowrap;
+}
+
+.rst-lang {
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+}
+
+.rst-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  flex: 0 0 auto;
+}
+
+/* ---------- typography ---------- */
+
+.rst-title {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.rst-sub {
+  margin-block: 8px 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  /* Both answer panels echo a value back — an address or a username — and
+     either can be long. Break it rather than let it push the card past the
+     viewport. */
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.rst-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  text-wrap: pretty;
+}
+
+.rst-note {
+  margin-block-start: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-faint);
+  text-wrap: pretty;
+}
+
+/* ---------- forms ---------- */
+
+.rst-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.rst-field-block {
+  margin-block-start: 20px;
+}
+
+/* Leading icon inside the field. inset-inline-start, so it moves to the other
+   edge in Arabic along with the text it introduces. */
+.rst-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rst-field-icon {
+  position: absolute;
+  inset-inline-start: 12px;
+  color: var(--text-faint);
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+
+.rst-field:focus-within .rst-field-icon {
+  color: var(--accent);
+}
+
+.rst-input {
+  padding-inline-start: 40px;
+}
+
+/* Room for the reveal control on the trailing edge. 76px is the widest of the
+   four labels (EN "Show"/"Hide", AR "إظهار"/"إخفاء") plus its padding — the
+   same measure signin.css arrived at for the same two words. */
+.rst-input-secret {
+  padding-inline-end: 76px;
+}
+
+.rst-reveal {
+  position: absolute;
+  inset-inline-end: 6px;
+  min-block-size: 32px;
+  padding-block: 6px;
+  padding-inline: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.rst-reveal:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.rst-reveal:active {
+  transform: translateY(1px);
+}
+
+/* The 44px block-axis hit area comes from global.css's .tap-44, which this
+   button also carries. It is not re-implemented here: the four hand-copies that
+   primitive replaced all shipped a 42px target. */
+
+/* No margin of its own: it is a child of .field, whose 6px gap already spaces
+   it — the same arrangement signin.css's .signin-caps sits in. */
+.rst-caps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--yellow);
+}
+
+.rst-error {
+  margin-block-start: 16px;
+}
+
+.rst-submit {
+  margin-block-start: 20px;
+}
+
+.rst-sep {
+  block-size: 1px;
+  margin-block: 20px;
+  background: var(--border);
+}
+
+/* ---------- the answer panels ---------- */
+
+.rst-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Programmatic focus target — the panel is the announcement, so focus lands on
+   it rather than on a control. global.css paints the ring for :focus-visible
+   only, so this scripted move draws nothing. */
+.rst-panel:focus {
+  outline: none;
+}
+
+.rst-panel-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  margin-block-end: 16px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+/* The three steps of the username recovery. A real <ol>, so the order lives in
+   the markup rather than in three hand-typed numerals that would each need a
+   bidi fence in Arabic — and so a screen reader announces "list, 3 items". The
+   marker sits outside the content box and `padding-inline-start` is what makes
+   room for it, which is also what mirrors it to the other edge in Arabic. */
+.rst-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-block-start: 16px;
+  padding-inline-start: 20px;
+  list-style: decimal outside;
+}
+
+.rst-step {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
+
+.rst-step::marker {
+  color: var(--text-faint);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.rst-claim {
+  margin-block-start: 20px;
+  font-weight: 600;
+}
+
+/* ---------- the way back ----------
+   One rule for two elements: a <Link> on three panels and a <button> on the
+   recovery form, which has to sign the link's session out rather than merely
+   navigate. The button-only resets (border, background, font-family) are what
+   let the two look identical. */
+
+.rst-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding-inline: 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.rst-link:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.rst-link:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.rst-link:disabled {
+  opacity: 0.55;
+}
+
+/* ---------- unconfigured build ---------- */
+
+.rst-notice {
+  padding: 16px;
+  border: 1px solid var(--yellow);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+.rst-notice-title {
+  margin-block-end: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.rst-notice-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  /* --text-dim rather than --text-faint: this sits on --bg-elev-2, the surface
+     where the faint token bottoms out. */
+  color: var(--text-dim);
+}
+
+/* ---------- motion ----------
+   global.css already collapses every duration for these users. This block
+   removes the MOVEMENT too: a 6px jump completed in 0.01ms is still a jump. */
+
+@media (prefers-reduced-motion: reduce) {
+  .rst-card {
+    animation: none;
+  }
+
+  .rst-reveal:active,
+  .rst-link:active:not(:disabled) {
+    transform: none;
+  }
+}

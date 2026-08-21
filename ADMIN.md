@@ -1,7 +1,9 @@
 # CoreTrack — administration
 
-> **Pending database migrations:** see [`docs/PENDING-MIGRATIONS.md`](docs/PENDING-MIGRATIONS.md). Migrations `0014`–`0017` are written, tested and **not yet
-> applied**; four user-facing guarantees are broken until they are run.
+> **Database migrations: nothing is pending.** Everything through `0025` is applied to the live
+> project. See [`docs/PENDING-MIGRATIONS.md`](docs/PENDING-MIGRATIONS.md) before every deploy —
+> it is the only file that answers "what still has to be run?", and `0023`/`0024`/`0025` are
+> never re-run.
 
 
 What an admin can change from the app, what is deliberately not changeable, what
@@ -50,6 +52,34 @@ They have to sign out and back in afterwards. The role is read once per sign-in,
 so an open tab keeps the old answer and will render member chrome while the server
 happily accepts admin writes — confusing in exactly the direction that makes
 people think the promotion failed.
+
+### After migration 0025: roles are data, and `profiles.role` is derived
+
+`0025_roles_permissions.sql` (**written, not yet applied**) makes `is_admin()` a
+thin alias over `has_perm('workspace.admin')`, so all 183 policy call sites keep
+working byte for byte while permissions become rows in `roles` and
+`role_permissions`. Three things follow, and none of them changes the paragraphs
+above:
+
+- **`profiles.role` stays**, and stays the only admin signal the browser reads. It
+  becomes DERIVED: `profiles_role_sync()` keeps it equal to `'admin'` exactly when
+  `role_id` is the system Admin role, in both directions. The promotion statement
+  above still works — the trigger bridges the text onto `role_id`.
+- **Nobody loses access on apply.** `has_perm()` COALESCEs through `profiles.role`
+  when `role_id` is null, so an existing admin passes `is_admin()` even if the
+  backfill never ran at all.
+- **Roles are editable in the app**, at Settings › Roles and permissions, by anyone
+  holding `members.manage` — which today is the system Admin role and nothing else.
+  Who holds which role, and the reasoning behind the Admin/Director split:
+  [`docs/PEOPLE.md`](docs/PEOPLE.md).
+
+⚠ **Four of the five permission keys are DECLARED, not ENFORCED.** Only
+`workspace.admin` (which *is* `is_admin()`) and `members.manage` (0025's own write
+gate) are read by any policy. `structure.edit`, `vocab.edit` and `capture.write`
+are checked by nothing yet — tracks, map nodes, use cases and vocabulary options
+are all still gated on `is_admin()`. So a Director today can write exactly what a
+member can. The Roles screen says so on each switch; do not read the catalogue as
+a list of live grants.
 
 ---
 
@@ -264,7 +294,7 @@ every support question is really a question about which kind you are holding.
 | Auth address | that address | `<username>@opstrack.internal` |
 | Ways in | password, or a magic link mailed to you | password only |
 | Got the password how | you set it in the dashboard | chose it themselves, redeeming a one-time invite code |
-| Password reset | set a new one in the dashboard | **the admin reissues a code** |
+| Password reset | **"Forgot your password?" on the sign-in screen** mails a recovery link; the dashboard is the fallback | **the admin reissues a code** — there is no mailbox to send a link to |
 
 `@opstrack.internal` is reserved by RFC 6761 and can never receive mail. That is
 the point: it makes it structurally impossible for any feature to quietly grow a
@@ -306,9 +336,14 @@ credential and the code is dead.
 there is nothing else. It mints a fresh code with a fresh 14 days, clears the
 account's `claimed` flag so the claim screen accepts it again, and resets that
 username's throttle bucket so the member is not made to wait out someone else's
-failed guesses. A **reissued code un-claims the account**: until it is redeemed,
-the old password no longer works. That is deliberate — it is a reset, not a
-second key.
+failed guesses. A **reissued code un-claims the account**, which is what lets the
+claim screen accept a code for it a second time; redeeming it sets the password
+the member types there, and that is the reset. **Their old password keeps working
+until they redeem it.** `issueCode()` writes `user_metadata` only and never
+touches the password, and nothing in the sign-in path reads `claimed` — so a
+reissue is a spare key, not a lock change. It is the right remedy for a forgotten
+password and the wrong one for a leaked password; for that, delete the account
+and create it again.
 
 Codes expire after **14 days** and work **once**.
 

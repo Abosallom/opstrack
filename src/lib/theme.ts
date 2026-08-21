@@ -1,18 +1,31 @@
 // Theme preference: 'auto' follows the OS, otherwise force dark/light.
 
+import { writeRawCache } from './cache'
 import { syncNativeChrome } from './native'
+// Imported for its module-scope side effect as much as for the function: the
+// `opstrack_` → `nphiescore_` copy has to have happened before the line below
+// reads its key. See lib/storageMigration.ts, decision 1.
+import { readWithLegacyFallback } from './storageMigration'
 
 export type ThemePref = 'auto' | 'dark' | 'light'
 
-const KEY = 'opstrack_theme'
+const KEY = 'nphiescore_theme'
 
 export function getThemePref(): ThemePref {
-  const v = localStorage.getItem(KEY)
+  // The value is a bare word (`dark`), not JSON, and has been since Wave 1 —
+  // hence the raw read rather than readCache. The legacy fallback is the
+  // belt-and-braces half of the prefix rename: it costs one `getItem` on a
+  // miss and makes "opens once in the wrong theme" impossible even if the
+  // migration was refused by a full store.
+  const v = readWithLegacyFallback(KEY)
   return v === 'dark' || v === 'light' ? v : 'auto'
 }
 
 export function setThemePref(p: ThemePref): void {
-  localStorage.setItem(KEY, p)
+  // Through lib/cache.ts rather than a bare `setItem`: this used to be the one
+  // storage write in the app with no try/catch around it, so choosing a theme
+  // in Safari's private mode threw out of the click handler.
+  writeRawCache(KEY, p)
   applyTheme()
 }
 

@@ -3,11 +3,14 @@
    the design system's dependencies inside the design system. */
 @import './fonts.css';
 
-/* CoreTrack design system — neutral slate, calm blue accent.
+/* CoreTrack design system — neutral slate, nphies violet accent.
 
    This is an operations tool that people stare at for an hour at a time while
    triaging, so the base is a desaturated blue-grey rather than a media app's
-   warm black, and the accent is a working blue instead of a brand yellow.
+   warm black, and the accent is a working violet — the middle of the nphies
+   ring — rather than a brand yellow. It was a blue until the owner pointed out
+   that a brand whose ring is mostly violet and magenta was reading as a blue
+   app; see the accent block below for the arithmetic that moved it.
    Colour is reserved for meaning here: --green/--yellow/--red carry entry
    health, and --track-* carry track identity. Nothing else gets to be colourful.
 
@@ -42,17 +45,51 @@
   --text-dim: #a8b4c0; /*  8.71 /  8.05 /  6.97  — AA at every elevation */
   --text-faint: #8d9aa8; /*  6.40 /  5.92 /  5.13  — worst case 5.13:1, AA */
 
-  /* ---------- accent ---------- */
-  /* nphies indigo. The brand navy (#1E2A63) is the anchor, but at 1.37:1 on
-     this background it is invisible — so the DARK theme carries a lightened
-     tint of the same hue and the LIGHT theme carries the navy itself. Same
-     brand, two renderings, because one hex cannot clear 4.5:1 on both. */
-  --accent: #7a8ad6; /* 4.51 on --bg-elev-2 (#212932), the worst surface — AA */
-  --accent-hover: #8997db;
-  --accent-soft: rgba(122, 138, 214, 0.16);
-  /* Foreground for text sitting ON a filled accent surface. 7.51:1 on
-     --accent. Never use --bg here: the light theme flips which one is dark. */
-  --accent-ink: #08111c; /* 5.81:1 on the indigo --accent */
+  /* ---------- accent ----------
+     nphies VIOLET — the middle of the brand ring, not its cold end.
+
+     The ring runs cyan → sky → blue → VIOLET → PURPLE → magenta → rose, and the
+     app used to sit at the blue end of it: this token was an indigo tint of the
+     brand navy, so the most-repeated colour on every screen was the one hue the
+     ring spends least time being. Hue 255° is the arithmetic midpoint of the
+     ring's two middle stops — violet #7b72c4 (247°) and purple #8e6fbf (263°) —
+     so the accent is now literally the centre of the mark it comes from.
+
+     NEITHER RING STOP CAN BE USED VERBATIM, and this is not a preference:
+     #7b72c4 measures 3.53:1 and #8e6fbf 3.63:1 on --bg-elev-2, against a 4.5
+     floor. The ring is drawn on a white plate at logo scale; a token has to
+     survive three surfaces in two themes. So the accent is a RENDERING of that
+     hue, the same pair strategy --track-* already uses — hue held, lightness
+     moved until it clears.
+
+     WHY THE LUMINANCE IS HELD, NOT JUST THE HUE. This token has 123 uses across
+     27 sheets, and five of them (charts.css's color-mix ladder, mindtree.css,
+     drag-layer.css, mind-ring.css, map-altitude.css) quote DERIVED ratios in
+     prose that were computed from the old value. Rotating hue at constant
+     relative luminance holds a ratio measured against a FIXED surface: this
+     token on --bg / --bg-elev / --bg-elev-2 moved +0.12 and +0.03, which is the
+     whole of what "<0.15" was ever verified over.
+
+     ⚠ IT DOES NOT HOLD FOR A RATIO MEASURED AGAINST A BLEND, and the broader
+       claim this comment used to make ("every one of those figures") was false.
+       Where the backdrop is `color-mix(track-hue N%, --bg-elev)` the accent's
+       HUE is part of the arithmetic, so four such rows drifted 0.68–4.30 across
+       the repaint and one of them — the focus stroke over the 22% hover fill —
+       was certified as a passing 3.29 while actually sitting at 2.61, under
+       WCAG 1.4.11. All four were re-derived and corrected in wave 8;
+       pages/mindtree.css holds the working, and that sheet now RE-DERIVES the
+       rows it used to quote. Rotate this token again and those blends must be
+       swept again — holding luminance buys nothing there. */
+  --accent: #9884d6; /* 5.78 / 5.34 / 4.63 on bg / elev / elev-2 — AA on all three */
+  --accent-hover: #a894de; /* 5.57 worst surface */
+  --accent-soft: rgba(152, 132, 214, 0.16);
+  /* Foreground for text sitting ON a filled accent surface. RE-DERIVED, not
+     carried over: the old #08111c was a BLUE-black tuned to a blue accent, and
+     a violet accent does not take the same ink. This is the same near-black at
+     the accent's own hue, so a filled button reads as one colour family rather
+     than violet-on-navy. Never use --bg here: the light theme flips which one
+     is dark. */
+  --accent-ink: #0d0819; /* 6.20:1 on --accent, 7.46:1 on --accent-hover */
 
   /* ---------- semantic status ---------- */
   /* Ratios quoted against --bg-elev-2, the worst (lightest) dark surface —
@@ -104,10 +141,21 @@
   --text-dim: #4e5a67; /*  6.50 /  7.04 /  5.98 */
   --text-faint: #5d6a77; /*  5.11 /  5.54 /  4.71  — worst case 4.71:1, AA */
 
-  --accent: #1d2961; /* 11.36 on --bg-elev-2 — the nphies navy, verbatim */
-  --accent-hover: #0f4fa8;
-  --accent-soft: rgba(20, 92, 192, 0.12);
-  --accent-ink: #ffffff; /* 13.62:1 on the navy --accent */
+  /* The same 255° violet as the dark theme, rendered dark instead of light —
+     and rendered to the NAVY'S OWN LUMINANCE. #1d2961 measured 11.57 on
+     --bg-elev-2; this measures 11.60. That is deliberate to a third decimal:
+     the light theme keeps exactly the weight and authority the navy gave it,
+     and every derived figure quoted elsewhere stays accurate, while the hue
+     stops being the thing the owner was reading as "majority is blue". */
+  --accent: #322067; /* 12.60 / 13.65 / 11.60 on bg / elev / elev-2 */
+  --accent-hover: #4b2f96; /* 8.32 worst surface; --accent-ink 9.78:1 on it */
+  /* NOT a tint of --accent, and the old value was not one either: this slot
+     held rgba(20, 92, 192, …) — the light --blue — because 12% of a near-black
+     is indistinguishable from grey and the soft fill would read as a smudge.
+     Same intent, rotated to the accent's hue: a VIVID violet at 12%. Composited
+     over --bg-elev it is #ebe7f7, and --text on that measures 14.68:1. */
+  --accent-soft: rgba(90, 52, 192, 0.12);
+  --accent-ink: #ffffff; /* 13.65:1 on the violet --accent */
 
   /* Against --bg-elev-2 (#e9edf1), the darkest light surface. The dark-theme
      values are 1.4–1.9:1 here, which is why none of them are inherited.
@@ -153,41 +201,75 @@
    picker has to be able to read both halves at once, under either theme, to
    write them into a row.
 
-   Five of the twelve are the --track-* values above, unchanged, so the seeded
-   tracks' colours appear in the picker instead of being unreachable one-offs.
-   The wheel is sampled at roughly 30°, with an extra sample in the blue/violet
-   arc because that is where people reach first for a work tool.
+   Some of these ARE the --track-* values above, unchanged, so a seeded track's
+   colour appears in the picker instead of being an unreachable one-off. This
+   block used to claim "five of the twelve"; recomputing it found the real count
+   is THREE of the thirteen — violet (--track-pmo), cyan (--track-network) and
+   the new purple (--track-infra). --track-itops and --track-sre have no ladder
+   entry in either theme, so two of the five seeded tracks still carry colours
+   an admin cannot reproduce from the picker. Stated rather than rounded up: the
+   gap is real and belongs to whoever next touches the swatch list.
+
+   The wheel is sampled at roughly 30°, with extra samples in the violet/purple
+   arc — see the ordering note below.
+
+   THE LADDER LEADS WITH THE PURPLES, and that ordering is the point rather than
+   housekeeping. It used to open violet → indigo → blue → cyan: one purple, then
+   three consecutive blues, so the first four things offered were three-quarters
+   blue and an admin picking "the first one that looks fine" picked blue. The
+   ring's own middle — violet and purple — now leads, and the blue family
+   follows it. `--swatch-purple-*` is new, rendering the ring's purple stop
+   (#8e6fbf, 263°), which had no representative here at all even though the ring
+   spends an eighth of its circumference being it.
+
+   REORDERING THESE DECLARATIONS IS SAFE. They are thirteen distinct custom
+   property names in one block; no two collide, so the cascade cannot care what
+   sequence they are written in. The order is documentation — it is the order
+   the palette is READ in, here and in docs/BRAND-NPHIES.md.
 
    Every value was measured against the WORST surface of its own theme —
    --bg-elev-2, #212932 dark and #e9edf1 light — since that is where a track
    chip actually sits. The quoted ratios are dark-on-#212932 and
-   light-on-#e9edf1; the lowest in the table is 4.08:1, well past the 3:1 that
-   WCAG 1.4.11 asks of a meaningful non-text graphic. A track bar is 3px wide
-   with no label, so it is the colour or it is nothing. */
+   light-on-#e9edf1; the lowest in the table is 4.14:1 (amber-light), well past
+   the 3:1 that WCAG 1.4.11 asks of a meaningful non-text graphic. A track bar
+   is 3px wide with no label, so it is the colour or it is nothing.
+
+   (That floor previously read "4.08:1". Recomputing all thirteen pairs to add
+   the purple found no swatch at 4.08 in either theme — the real minimum is
+   amber-light's 4.14. Corrected rather than left, since the number's only job
+   is to be checkable.) */
 
 :root {
-  --swatch-violet-dark: #8a82cb; /* nphies ring */
-  --swatch-violet-light: #675cbb; /* nphies ring */
-  --swatch-indigo-dark: #7586d5; /* nphies ring */
-  --swatch-indigo-light: #1d2961; /* nphies ring */
-  --swatch-blue-dark: #698acf; /* nphies ring */
-  --swatch-blue-light: #3c66be; /* nphies ring */
-  --swatch-cyan-dark: #47b1d8; /* nphies ring */
-  --swatch-cyan-light: #1e7291; /* nphies ring */
+  /* the ring's middle — these lead */
+  --swatch-violet-dark: #8a82cb; /* 4.30 — nphies ring */
+  --swatch-violet-light: #675cbb; /* 4.67 — nphies ring */
+  --swatch-purple-dark: #9a7fc6; /* 4.36 — nphies ring stop 5; = --track-infra */
+  --swatch-purple-light: #7b56b4; /* 4.66 — nphies ring stop 5; = --track-infra */
+  /* the blues follow */
+  --swatch-indigo-dark: #7586d5; /* 4.29 — nphies ring */
+  --swatch-indigo-light: #1d2961; /* 11.57 — the brand navy, still reachable
+                                     here after --accent moved off it */
+  --swatch-blue-dark: #698acf; /* 4.30 — nphies ring */
+  --swatch-blue-light: #3c66be; /* 4.65 — nphies ring */
+  --swatch-cyan-dark: #47b1d8; /* 5.99 — nphies ring */
+  --swatch-cyan-light: #1e7291; /* 4.61 — nphies ring */
   --swatch-teal-dark: #2fc5ac; /* 6.80 */
   --swatch-teal-light: #0d7a6b; /* 4.45 */
-  --swatch-green-dark: #46c26a; /* 6.43 — same as --track-infra */
+  --swatch-green-dark: #46c26a; /* 6.43 — was annotated "same as --track-infra";
+                                   it is not, and has not been since the ring
+                                   repaint made --track-infra a purple */
   --swatch-green-light: #2c7a45; /* 4.49 */
   --swatch-lime-dark: #9ec93f; /* 7.62 */
   --swatch-lime-light: #5c7a12; /* 4.20 */
-  --swatch-amber-dark: #e0a020; /* 6.46 — same as --track-network */
+  --swatch-amber-dark: #e0a020; /* 6.46 — likewise not --track-network, which
+                                   the ring repaint made a cyan */
   --swatch-amber-light: #9c6600; /* 4.14 */
   --swatch-orange-dark: #f5904e; /* 6.29 */
   --swatch-orange-light: #a55418; /* 4.60 */
-  --swatch-rose-dark: #cd6c96; /* nphies ring */
-  --swatch-rose-light: #b43d71; /* nphies ring */
-  --swatch-magenta-dark: #bb72b0; /* nphies ring */
-  --swatch-magenta-light: #9d4b90; /* nphies ring */
+  --swatch-rose-dark: #cd6c96; /* 4.33 — nphies ring */
+  --swatch-rose-light: #b43d71; /* 4.64 — nphies ring */
+  --swatch-magenta-dark: #bb72b0; /* 4.30 — nphies ring */
+  --swatch-magenta-light: #9d4b90; /* 4.64 — nphies ring */
   --swatch-slate-dark: #93a3b5; /* 5.71 */
   --swatch-slate-light: #56646f; /* 5.18 */
 }
@@ -290,11 +372,9 @@ button,
 .pill,
 .nav-item,
 .sidebar,
-.tabbar,
 .app-header,
 .page-title,
-.section-title,
-.tabbar-label {
+.section-title {
   -webkit-user-select: none;
   user-select: none;
 }
@@ -746,9 +826,15 @@ textarea.input {
 
 .status-pill,
 .vocab-pill,
-.bd-col-title,
-.bd-rail,
-.bd-overflow-label {
+/* WAS `.bd-col-title`, `.bd-rail`, `.bd-overflow-label` — pages/board.css's
+   names. That sheet is deleted; the board is a STAGE now
+   (components/map/map-board.css) and the three consumers renamed with it. Left
+   unchanged, this recipe would have silently stopped applying and every column
+   title, collapsed rail and overflow label would have fallen back to
+   `var(--text-dim)` — a colour regression no gate can see. */
+.mbd-col-title,
+.mbd-rail,
+.mbd-overflow-label {
   --vocab-ink: color-mix(in srgb, var(--vocab-c) 35%, var(--text));
 }
 
@@ -1181,11 +1267,9 @@ textarea.input {
 
 @media print {
   .sidebar,
-  .tabbar,
   .app-header,
   .offline-banner,
-  .toast-host,
-  .fab {
+  .toast-host {
     display: none !important;
   }
 

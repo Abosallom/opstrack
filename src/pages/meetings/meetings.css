@@ -734,8 +734,14 @@
 
 .mt-commit-bar {
   position: sticky;
-  /* Clears the mobile tab bar; the desktop rule below drops it to the corner. */
-  inset-block-end: calc(72px + env(safe-area-inset-bottom, 0px));
+  /* 72px WAS the mobile tab bar's clearance (`.tabbar`'s 52px min-block-size
+     plus its 7/6 padding, measured up to 72). The tab bar is deleted by the nav
+     collapse and NOTHING replaces it on a mode route — the map's composer is
+     fixed on the map only — so this offset is now just "off the screen edge",
+     and the commit action on a 20-row triage table sits 60px lower in the
+     thumb's reach than it did. The desktop rule below still drops it to the
+     corner. */
+  inset-block-end: calc(12px + env(safe-area-inset-bottom, 0px));
   z-index: 6;
   display: flex;
   align-items: center;

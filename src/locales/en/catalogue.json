@@ -1,0 +1,131 @@
+{
+  "catalogue": {
+    "title": "Catalogue",
+    "settingsHint": "The capabilities organizations are onboarded onto, and the kinds of thing the map is made of.",
+    "manage": "Open the catalogue",
+    "subtitle": "Two short lists the map is built out of: the capabilities an organization is onboarded onto, and the kinds of thing a node can be.",
+    "whyEditable": "This screen can add and delete; Settings › Vocabulary deliberately cannot. Vocabulary is frozen because an item's status key is written into the append-only update thread, so merging two options would silently rewrite finished work with no undo. Nothing here is stored that way — a capability is referenced by a real foreign key — so add and delete are safe, and the database refuses the one delete that would lose something.",
+    "hideVsDelete": "Hiding is not deleting. A hidden capability leaves the pickers; every organization already recorded against it keeps it, and still shows it.",
+    "loadFailed": "Couldn't load the catalogue.",
+    "notInstalled": "The catalogue tables aren't in this project yet. Apply migrations 0023 and 0024, then reload.",
+    "errSave": "Couldn't save that. Nothing was changed.",
+    "usageUnknown": "Couldn't count what uses these, so the warnings below are missing. The database still refuses a delete that would lose data.",
+
+    "order": "Order",
+    "moveUp": "Move ⁨{name}⁩ up",
+    "moveDown": "Move ⁨{name}⁩ down",
+    "movedTo": "⁨{name}⁩, position {position} of {total}.",
+    "reordered": "New order saved.",
+
+    "nameEn": "English name",
+    "nameAr": "Arabic name",
+    "nameArHint": "Leave it empty and readers see the English name. Nothing breaks — it just stays untranslated.",
+    "errNameRequired": "An English name is required.",
+    "errNameLong": "That name is too long. The limit is {max}.",
+
+    "save": "Save",
+    "saving": "Saving…",
+    "unsaved": "Unsaved",
+    "discardTitle": "Discard your changes?",
+    "discardBody": "The edits in this row haven't been saved.",
+    "discard": "Discard",
+    "editRow": "Edit ⁨{name}⁩",
+    "closeRow": "Close ⁨{name}⁩",
+    "saved": "Saved ⁨{name}⁩.",
+
+    "delete": "Delete",
+    "deleteRow": "Delete ⁨{name}⁩",
+    "deleteConfirm": "Delete",
+    "deleted": "Deleted ⁨{name}⁩.",
+
+    "useCasesTitle": "Use cases",
+    "useCasesHint": "The HL7/FHIR capabilities an organization integrates. A version is its own row — “Medication Prescribe V2” sits beside V1 rather than replacing it.",
+    "useCasesOrderNote": "The order below is the one the catalogue was seeded in, and every screen reads it. It can't be changed from here yet.",
+    "useCasesEmpty": "No capabilities yet",
+    "useCasesEmptyHint": "Add the first one and it appears wherever an organization is scored.",
+    "arabicPending": {
+      "one": "1 capability still has no Arabic name. This screen is where you add it.",
+      "other": "{count} capabilities still have no Arabic name. This screen is where you add them."
+    },
+    "needsArabic": "No Arabic name",
+    "needsArabicHint": "The ten seeded capabilities shipped with the Arabic name blank on purpose. An empty field here is a job to do, not a fault.",
+    "inUse": {
+      "one": "Recorded against 1 organization",
+      "other": "Recorded against {count} organizations"
+    },
+    "hidden": "Hidden",
+    "hide": "Hide",
+    "show": "Show",
+    "hideRow": "Hide ⁨{name}⁩",
+    "showRow": "Show ⁨{name}⁩",
+    "inUseBlocks": "Organizations are recorded against this, so the database refuses to delete it — that work would go with it. Hide it instead: it leaves the pickers and keeps its history.",
+    "deleteUseCaseTitle": "Delete ⁨{name}⁩?",
+    "deleteUseCaseBody": "No organization is recorded against it, so nothing is lost. If you only want it out of the pickers, hide it instead.",
+    "addUseCase": "Add a capability",
+    "addUseCaseTitle": "New capability",
+    "addUseCaseHint": "Name it the way the room says it. A version is a separate row, so write the version into the name.",
+
+    "kindsTitle": "Node kinds",
+    "kindsHint": "What a node on the map IS — a programme, a phase, an organization. Nothing in the app behaves differently because of a kind; it names the thing and orders the list.",
+    "kindsNoHide": "Kinds can't be hidden — the table has no such state. Delete one and the nodes that used it simply lose their kind; they stay on the map.",
+    "kindsEmpty": "No kinds yet",
+    "kindsEmptyHint": "Add one and it becomes selectable wherever a node is created.",
+    "kindUsage": {
+      "one": "1 node on the map uses this",
+      "other": "{count} nodes on the map use this"
+    },
+    "kindUsageNone": "Nothing uses this",
+    "deleteKindTitle": "Delete ⁨{name}⁩?",
+    "deleteKindBody": "The nodes that used this kind stay on the map and lose their kind. Nothing else changes.",
+    "addKind": "Add a kind",
+    "addKindTitle": "New kind",
+    "addKindHint": "A colour is not asked for: colour on this map means track, at every depth.",
+
+    "stagesTitle": "Stage ladder",
+    "stagesHint": "How far an organization has got — the rungs an account manager moves it up, from the first conversation to live. Position is the meaning here: a goal written as “at Testing/UAT or beyond” counts every rung from Testing/UAT downwards in this list.",
+    "stagesOrderNote": "Reordering this ladder restates every goal written as a count. “40 organizations at Go-live ready or beyond” is measured by a rung's position, so moving one changes which organizations count towards commitments nobody edited — and no goal records that it changed.",
+    "stagesEmpty": "No stages configured yet",
+    "stagesEmptyHint": "Nobody can record where an organization got to until this ladder has rungs. Add the first one above — or, if migration 0026 has not been applied to this project yet, apply it and reload.",
+    "stagesLoadFailed": "Couldn't load the stage ladder. The two lists above are unaffected.",
+    "stagesArabicPending": {
+      "one": "1 rung still has no Arabic name. This screen is where you add it.",
+      "other": "{count} rungs still have no Arabic name. This screen is where you add them."
+    },
+    "stagesNoThresholds": "No rung has an expected length, so nothing anywhere in the app is counted as stalled. Open a rung and set one to turn that on.",
+    "stageTerminal": "Counts as arrived",
+    "stagePaused": "Clock stopped",
+    "stageExpected": {
+      "one": "Stalled after 1 day",
+      "other": "Stalled after {count} days"
+    },
+    "terminalLabel": "This rung counts as arrived",
+    "terminalHint": "An organization on this rung has finished. Every live count in the app is the number of organizations on a rung marked this way, never a rung that happens to be named Live — so more than one rung may carry it, and nothing here asks how many do.",
+    "pausedLabel": "The stalled clock stops here",
+    "pausedHint": "Time spent on this rung counts against no threshold, so “blocked on the customer since March” stays a fact somebody recorded rather than an alarm the app raises every morning.",
+    "expectedDaysLabel": "Expected length",
+    "expectedDaysHint": "How long an organization may sit on this rung before it counts as stalled. Leave it empty and this rung has no threshold — nothing standing here is ever flagged. A whole number from 1 to {max}.",
+    "errExpectedDays": "The expected length has to be a whole number from 1 to {max}, or empty for no threshold.",
+    "reorderStagesTitle": "Reorder the ladder?",
+    "reorderStagesBody": "Every goal written as a count is measured by a rung's position in this list: “40 organizations at Go-live ready or beyond by 31 December” counts everything from that rung downwards. Moving a rung changes which organizations meet commitments nobody edited, retroactively, and no goal records that it happened. Asked once a visit.",
+    "reorderStagesConfirm": "Reorder",
+    "deleteStageTitle": "Delete ⁨{name}⁩?",
+    "deleteStageBody": "The rung goes and nothing filed under it is deleted: the organizations standing on it stop showing a stage, and every goal that named it falls back to meaning “a terminal stage”, which is a different promise. Hiding it takes it out of the pickers and leaves everyone where they are.",
+    "stageUsageNodes": {
+      "one": "1 organization sits at this stage.",
+      "other": "{count} organizations sit at this stage."
+    },
+    "stageUsageGoals": {
+      "one": "1 goal names this stage.",
+      "other": "{count} goals name this stage."
+    },
+    "stageUsageUnknown": "Couldn't count what sits at this stage or what refers to it, so this box can't say what the delete touches.",
+    "addStage": "Add a rung",
+    "addStageTitle": "New rung",
+    "addStageHint": "It joins the end of the ladder. Move it into place afterwards — and read the note above the list before you do.",
+
+    "addSubmit": "Add",
+    "adding": "Adding…",
+    "added": "Added ⁨{name}⁩.",
+    "cancelAdd": "Cancel"
+  }
+}

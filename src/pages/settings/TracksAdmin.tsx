@@ -1,4 +1,4 @@
-// Track manager (/settings/tracks) — the admin's list of operational domains:
+// Track manager (/settings/tracks) — the workspace's list of operational domains:
 // reorder, archive/restore, and delete-with-reassign. Creating and editing live
 // on the /settings/tracks/new and /settings/tracks/:id sub-routes rather than in
 // a modal, so a half-written track survives a mis-tap and has its own URL.
@@ -26,27 +26,9 @@ import { trackIcon } from '../../lib/trackIcons'
 import { trackVars } from '../../lib/trackStyle'
 import { t, useLocale } from '../../lib/i18n'
 import { invalidateConfig } from '../../store/config'
-import { useAuth } from '../../store/auth'
+import { useHasPerm } from '../../store/auth'
 import type { Track, TrackUsage } from '../../types'
 import './admin.css'
-
-/**
- * Cosmetic admin gate. The real authority is `is_admin()` in the tracks RLS
- * policies — every write on this screen fails with 42501 for a member whatever
- * this returns; hiding the screen only avoids offering an action that cannot
- * succeed.
- *
- * `?shell` mirrors App.tsx's dev-only preview flag. Without it these screens are
- * unreachable in a build with no Supabase project, which is exactly where the
- * layout and the RTL mirror get reviewed. `import.meta.env.DEV` is the literal
- * `false` in a production build, so Vite tree-shakes the whole expression out
- * and this cannot become a way in.
- */
-function useIsAdmin(): boolean {
-  const { profile } = useAuth()
-  if (profile?.role === 'admin') return true
-  return import.meta.env.DEV && new URLSearchParams(window.location.search).has('shell')
-}
 
 /** Move `index` by `delta`, returning a new array. Out-of-range is a no-op. */
 function moved(rows: Track[], index: number, delta: number): Track[] {
@@ -60,7 +42,24 @@ function moved(rows: Track[], index: number, delta: number): Track[] {
 
 export default function TracksAdmin(): ReactElement {
   const locale = useLocale()
-  const isAdmin = useIsAdmin()
+  // COSMETIC GATE, ASKING THE QUESTION THE DATABASE ASKS. The real authority is
+  // the `tracks` RLS policies, which 0025 re-points from `is_admin()` at
+  // `has_perm('structure.edit')` — the key the Director role holds — along with
+  // `reorder_tracks()` and `delete_track_reassign()`, the two RPCs this screen
+  // calls. Every write here fails with 42501 for anyone without that key
+  // whatever this returns; hiding the screen only avoids offering an action that
+  // cannot succeed.
+  //
+  // THIS FILE HELD ONE OF SEVEN BYTE-IDENTICAL `useIsAdmin` COPIES, and the
+  // duplication was the smaller of its two problems: they read `profiles.role`,
+  // which 0025 keeps derived from the SYSTEM roles only, so no custom role was
+  // visible to any of them and a Director read as 'member'. store/auth's
+  // `useHasPerm` reads `role_permissions`, falls back to the legacy column when
+  // 0025 has not been applied — so a workspace without the roles tables behaves
+  // exactly as it did before — and carries the dev-only `?shell` preview flag
+  // that used to be repeated here, which is what keeps this screen reviewable in
+  // a build with no Supabase project.
+  const canEdit = useHasPerm('structure.edit')
   const label = useTrackLabel()
 
   const [rows, setRows] = useState<Track[] | null>(null)
@@ -107,8 +106,8 @@ export default function TracksAdmin(): ReactElement {
   }, [])
 
   useEffect(() => {
-    if (isAdmin) void load()
-  }, [isAdmin, load])
+    if (canEdit) void load()
+  }, [canEdit, load])
 
   // ---- reorder ------------------------------------------------------------
 
@@ -255,7 +254,7 @@ export default function TracksAdmin(): ReactElement {
     toast(t('admin.tracks.deleted'))
   }
 
-  if (!isAdmin) return <Navigate to="/settings" replace />
+  if (!canEdit) return <Navigate to="/settings" replace />
 
   const loading = rows === null
 
@@ -454,6 +453,12 @@ export default function TracksAdmin(): ReactElement {
                         }),
                         templates: t('admin.tracks.usageTemplates', {
                           count: pendingDelete.usage.templates,
+                        }),
+                        // 0023's fourth dependant. Omitting it would tell an
+                        // admin the track holds three kinds of thing while the
+                        // RPC refuses over a fourth they were never shown.
+                        nodes: t('admin.tracks.usageNodes', {
+                          count: pendingDelete.usage.nodes,
                         }),
                       })}
                     </p>

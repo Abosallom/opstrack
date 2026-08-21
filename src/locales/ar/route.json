@@ -1,14 +1,8 @@
 {
   "route": {
     "signin": "تسجيل الدخول",
-    "capture": "التسجيل السريع",
-    "followups": "المتابعات",
-    "board": "اللوحة",
-    "tracks": "المسارات",
-    "trackDetail": "المسار",
     "entry": "البند",
     "meetings": "الاجتماعات",
-    "dashboard": "لوحة المؤشرات",
     "settings": "الإعدادات",
     "meeting": "الاجتماع",
     "minutes": "المحضر",

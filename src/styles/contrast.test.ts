@@ -64,7 +64,12 @@ function sheet(relative: string): string {
 }
 
 const GLOBAL = sheet('./global.css')
-const FOLLOWUPS = sheet('../pages/followups.css')
+// WAS `../pages/followups.css`. That screen is deleted; its list is the map's
+// `needs-me` panel now (components/map/MapList.tsx), and the row actions this
+// file was written about are `.mtree-list-act*` in the sheet below. See the
+// describe block at the foot for what changed about the CLAIM, which is not the
+// same as what changed about the file.
+const MAP_LIST = sheet('../components/map/map-list.css')
 
 /* ────────────────────────── the colour arithmetic ────────────────────────── */
 
@@ -94,6 +99,28 @@ function contrast(fg: Rgb, bg: Rgb): number {
   const b = luminance(bg)
   const [hi, lo] = a > b ? [a, b] : [b, a]
   return (hi + 0.05) / (lo + 0.05)
+}
+
+/**
+ * Hue in degrees, 0–360. Only the hue channel of HSL is needed here, and only
+ * by the brand-arc claim below — contrast is hue-blind, which is exactly the
+ * gap that assertion exists to cover.
+ *
+ * A GREY HAS NO HUE. When max === min the expression is 0/0, and the callers
+ * below would silently compare NaN. Every value it is handed is a saturated
+ * accent, so rather than return a fake 0 (which is red, and would read as a
+ * real answer) this returns null and the caller asserts on it.
+ */
+function hue([r, g, b]: Rgb): number | null {
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const d = max - min
+  if (d === 0) return null
+  let h: number
+  if (max === r) h = 60 * (((g - b) / d) % 6)
+  else if (max === g) h = 60 * ((b - r) / d + 2)
+  else h = 60 * ((r - g) / d + 4)
+  return ((h % 360) + 360) % 360
 }
 
 /* ───────────────────────────── the CSS reading ───────────────────────────── */
@@ -173,41 +200,61 @@ function declared(body: string, property: string): string | null {
   return value
 }
 
-const FU_RULES = rules(FOLLOWUPS)
+const LIST_RULES = rules(MAP_LIST)
 
-/** Rules whose selector targets .fu-act (including .fu-act-done and friends). */
-function fuActRules(): { selector: string; body: string }[] {
-  return FU_RULES.filter((r) => /\.fu-act\b/.test(r.selector))
+/** Rules targeting .mtree-list-act (including -act-done and -act-label). */
+function actRules(): { selector: string; body: string }[] {
+  return LIST_RULES.filter((r) => /\.mtree-list-act\b/.test(r.selector))
 }
 
 /* ─────────────────────────────── the claims ──────────────────────────────── */
 
-describe('the follow-up row actions', () => {
+describe('the attention panel’s row actions', () => {
+  it('parsed a sheet worth asserting against', () => {
+    // Guard the guard. This file read pages/followups.css until that screen was
+    // collapsed into the map; a rename that stopped these rules matching would
+    // otherwise make every assertion below pass by checking nothing at all.
+    expect(actRules().length).toBeGreaterThanOrEqual(3)
+  })
+
   it('never expresses its quiet state as an opacity', () => {
-    // The regression this file was written for. An opacity on a control that
-    // carries text is a contrast multiplier no per-token matrix can see; the
-    // quiet state has to be a token that was measured at full alpha.
-    const offenders = fuActRules()
+    // The regression this file was written for (R3-A11Y-1). An opacity on a
+    // control that carries text is a contrast multiplier no per-token matrix can
+    // see; the quiet state has to be a token measured at full alpha.
+    const offenders = actRules()
       .filter((r) => declared(r.body, 'opacity') !== null)
       .map((r) => r.selector)
     expect(offenders).toEqual([])
   })
 
   it('inks every state at 4.5:1 or better, both themes, on both row surfaces', () => {
-    const inks = fuActRules()
+    // WHAT CHANGED WITH THE COLLAPSE, stated rather than quietly dropped.
+    // followups.css declared the resting ink of its four action buttons itself,
+    // so this test had four selectors to walk. map-list.css declares ONE colour
+    // — the `--green` tint on mark-done — and takes the resting and hover inks
+    // from `.btn-ghost` in global.css, which is where they now have to be
+    // measured. So the set below is the union: every colour the panel's own
+    // sheet declares, PLUS `.btn-ghost`'s resting and hover inks. Dropping the
+    // second half would have left the resting ink of every row action in this
+    // app unmeasured, which is exactly the guarantee R3-A11Y-1 bought.
+    const own = actRules()
       .map((r) => ({ selector: r.selector, color: declared(r.body, 'color') }))
       .filter((r): r is { selector: string; color: string } => r.color !== null)
+    const ghost = rules(GLOBAL)
+      .filter((r) => /^\.btn-ghost(:hover:not\(:disabled\))?$/.test(r.selector.trim()))
+      .map((r) => ({ selector: r.selector, color: declared(r.body, 'color') }))
+      .filter((r): r is { selector: string; color: string } => r.color !== null)
+    const inks = [...own, ...ghost]
 
-    // Guard the guard: a rename that stopped these rules from matching would
-    // otherwise make this test pass by checking nothing at all.
-    expect(inks.length).toBeGreaterThanOrEqual(4)
+    expect(own.length).toBeGreaterThanOrEqual(1)
+    expect(ghost.length).toBe(2)
 
     const failures: string[] = []
     for (const { name, selector } of THEMES) {
       const tokens = tokensIn(GLOBAL, selector)
-      // `.entry-row` fills with --bg-elev and the `.fu-swipe` wrapper behind it
-      // with --bg-elev-2; a button can be read against either, so the smaller
-      // ratio is the one that counts.
+      // `.entry-row` fills with --bg-elev and the panel behind it with
+      // --bg-elev-2; a button can be read against either, so the smaller ratio
+      // is the one that counts.
       for (const surfaceName of ['--bg-elev', '--bg-elev-2'] as const) {
         const surface = tokens.get(surfaceName)
         expect(surface, `${name} ${surfaceName}`).toBeDefined()
@@ -229,26 +276,6 @@ describe('the follow-up row actions', () => {
   })
 })
 
-// ── the brand palette ───────────────────────────────────────────────────────
-//
-// Added when the nphies identity was adopted. The brand colours CANNOT be used
-// raw and the arithmetic is why: the navy is 1.37:1 on the dark background and
-// the cyan is 2.29:1 on the light one, so every brand token ships as a per-theme
-// PAIR — hue and saturation held, lightness moved until it clears the bar
-// against the worst surface of its own theme.
-//
-// That derivation is exactly the kind of work that rots. Somebody re-picks a
-// hex to match a logo more closely, the app still looks broadly right, and a
-// track bar quietly drops to 3:1. These assertions recompute it from the
-// stylesheet on every run so the palette cannot drift back toward the raw brand
-// values without a red test.
-//
-// --track-* and --swatch-* are checked at 3:1, not 4.5:1, and the distinction is
-// deliberate: they are rendered as BARS, dots and chip fills — WCAG 1.4.11
-// non-text contrast — never as body text. --accent IS used as link and control
-// text, so it carries the full 4.5:1. Where a hue is used as ink the app mixes
-// it into --text first (see --vocab-ink), which is a different token and a
-// different check.
 describe('the nphies brand palette', () => {
   const SURFACES = ['--bg', '--bg-elev', '--bg-elev-2'] as const
 
@@ -273,6 +300,43 @@ describe('the nphies brand palette', () => {
       const accent = tokens.get('--accent')
       expect(ink).toBeDefined()
       expect(contrast(ink!, accent!)).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it(`${theme.name}: --accent-ink is readable on the HOVER fill too`, () => {
+      // `.btn-primary:hover` swaps the background to --accent-hover and keeps
+      // `color: var(--accent-ink)`. So the hover state is a second filled
+      // surface carrying the same ink, and nothing measured it: a hover tuned
+      // for the old accent could fail here while the resting state passed, and
+      // the only signal would be a button that gets harder to read when you
+      // point at it.
+      const ink = tokens.get('--accent-ink')
+      const hover = tokens.get('--accent-hover')
+      expect(ink, `--accent-ink missing from ${theme.selector}`).toBeDefined()
+      expect(hover, `--accent-hover missing from ${theme.selector}`).toBeDefined()
+      expect(contrast(ink!, hover!)).toBeGreaterThanOrEqual(4.5)
+    })
+
+    it(`${theme.name}: --accent sits in the ring's violet/purple arc`, () => {
+      // WHY A HUE ASSERTION LIVES IN A CONTRAST FILE. Every other claim here is
+      // hue-blind by construction — relative luminance weights R, G and B and
+      // then throws the hue away, so a blue, a violet and a magenta of equal
+      // luminance are indistinguishable to all of it. That is the whole reason
+      // the accent could sit at the cold end of the brand ring for months while
+      // passing every measurement in this file.
+      //
+      // The owner's correction was that the app read as blue when the mark is
+      // mostly violet through magenta. Without this test that correction is a
+      // comment, and the next person to "fix" the accent by nudging it toward a
+      // more conventional UI blue would find nothing objecting. 240–280° is the
+      // ring's violet stop (#7b72c4, 247°) through its purple stop (#8e6fbf,
+      // 263°) with a little room either side; it deliberately EXCLUDES the
+      // ring's blue stop (#5b7fcb, 221°) and its magenta (#b25fa5, 309°).
+      const accent = tokens.get('--accent')
+      expect(accent, `--accent missing from ${theme.selector}`).toBeDefined()
+      const h = hue(accent!)
+      expect(h, '--accent is a grey — it carries no brand hue at all').not.toBeNull()
+      expect(h!).toBeGreaterThanOrEqual(240)
+      expect(h!).toBeLessThanOrEqual(280)
     })
 
     it(`${theme.name}: every --track-* clears 3:1 as a bar on every surface`, () => {
@@ -308,7 +372,11 @@ describe('the swatch presets', () => {
       const keys = [...ROOT.keys()].filter(
         (k) => k.startsWith('--swatch-') && k.endsWith(`-${theme.name}`),
       )
-      expect(keys.length, 'no --swatch-* tokens found — check the selector').toBeGreaterThanOrEqual(8)
+      // THIRTEEN pairs since the purple joined the ladder. The guard is `>=` so
+      // adding a swatch never fails it, but the floor is raised to the real
+      // count rather than left at 8: a floor five below the truth would let a
+      // rename silently drop four pairs out of the sweep and still pass.
+      expect(keys.length, 'no --swatch-* tokens found — check the selector').toBeGreaterThanOrEqual(13)
       for (const key of keys) {
         for (const surface of SURFACES) {
           expect(

@@ -1,0 +1,263 @@
+/* /privacy — the privacy policy page.
+
+   PREFIX: .pv-* (EXECUTION-PLAN §1.0.7). Registered rather than folded into a
+   neighbour's prefix because this is the one route in the app that renders on
+   BOTH sides of the auth gate: signed out it owns a full-viewport frame of its
+   own, the way signin.css and claim.css do, and signed in it is a plain column
+   inside the shell. No other sheet has both jobs, and neither of those two
+   could grow this one without one of its rules leaking onto the other screen.
+
+   Cards, buttons and the .muted/.btn primitives come from global.css. This file
+   owns only the reading column, the long-form typography inside it, and the
+   shell-less frame.
+
+   Logical properties only — inline/block axes, never a physical edge — so the
+   Arabic mirror comes free, including the back arrow (which carries
+   .icon-directional at the call site) and the language button's auto margin.
+   Spacing is on the 4px grid. */
+
+/* ---------- the frame ---------- */
+
+/* Signed in this is the column inside the shell's <main>; signed out it is the
+   column inside .pv-shellless. One class either way, so the reading measure
+   cannot drift between the two contexts. */
+.pv-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* Prose, not a dashboard: a little wider than the 400px auth cards and a lot
+     narrower than the app's full width, because a 1280px-wide paragraph is
+     unreadable and this page is nothing but paragraphs. */
+  max-inline-size: 680px;
+}
+
+/* Signed out there is no shell at all — no header, no tab bar, no safe-area
+   handling — so this page supplies the lot. Mirrors claim.css's frame rule for
+   rule; where the two agree the declarations are byte-identical so a later
+   change to one is an obvious diff against the other. */
+.pv-shellless {
+  display: flex;
+  justify-content: center;
+  min-block-size: 100dvh;
+  padding-block: calc(24px + env(safe-area-inset-top, 0px))
+    calc(24px + env(safe-area-inset-bottom, 0px));
+  /* Symmetric notch padding: a hardware cutout does not swap sides with the
+     writing direction. */
+  padding-inline: max(20px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+}
+
+/* ---------- brand row (shell-less only) ---------- */
+
+.pv-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+
+.pv-brand-name {
+  /* The one string in the app that must never break — see signin.css, where
+     the language button competing for the row split the wordmark in two. */
+  white-space: nowrap;
+}
+
+.pv-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  flex: 0 0 auto;
+}
+
+/* Pushed to the trailing edge of the brand row. `margin-inline-start`, so it
+   sits on the right in English and on the left in Arabic without a second
+   rule. */
+.pv-lang {
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+}
+
+/* ---------- typography ---------- */
+
+/* Shell-less only: signed in, the app header renders the route's <h1>. */
+.pv-h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.pv-h1-icon {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.pv-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pv-standfirst {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+/* --text-dim, not --text-faint: this sits directly on --bg, and dim is the
+   token that clears AA at every elevation (admin.css makes the same call). */
+.pv-meta {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.pv-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pv-h2 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.pv-h3 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* The "what is NOT sent" heading is marked apart rather than merely worded
+   apart — AiSettings.tsx makes the same call on the same content, and a reader
+   who only scans the headings still gets the true shape of the answer. */
+.pv-h3-not {
+  color: var(--green);
+}
+
+.pv-p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+/* The one paragraph on the page that admits a gap. A quiet inline-start rule
+   rather than a coloured panel: it is a statement of fact, not a warning, and
+   an alert box here would read as an error the reader had caused. */
+.pv-p-flag {
+  border-inline-start: 3px solid var(--border);
+  padding-inline-start: 10px;
+}
+
+.pv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* The marker sits in the inline-start gutter in both directions; `padding-
+     inline-start` is what reserves that gutter without naming a side. */
+  padding-inline-start: 20px;
+  list-style: disc;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.pv-list-not {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+/* A check rather than a bullet, so the "not sent" items read as guarantees.
+   ::before with a logical margin, not a background image, so it mirrors and
+   scales with the text. */
+.pv-list-not > li::before {
+  content: '✓';
+  margin-inline-end: 8px;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.pv-dl {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pv-dt {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.pv-dd {
+  /* No margin-inline-start indent: at 375px an indented definition list wastes
+     a tenth of the measure, and the weight difference already separates the
+     two. */
+  margin-block-start: 4px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.pv-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  /* 44px is the touch floor. An inline link inside a paragraph cannot be given
+     a 44px box without wrecking the line rhythm, so it is padded on the block
+     axis only and the surrounding line-height (1.7 on 14px ≈ 24px) carries the
+     rest of the target. */
+  padding-block: 10px;
+}
+
+.pv-link:hover {
+  color: var(--accent-hover);
+}
+
+/* Shell-less only: the way back to the form. */
+.pv-back {
+  display: flex;
+}
+
+/* ---------- motion ---------- */
+
+/* One short rise on arrival, matching claim.css's. Long-form text has nothing
+   to animate, so this is the whole of the page's motion. */
+.pv-shellless .pv-page {
+  animation: pv-rise 180ms ease-out both;
+}
+
+@keyframes pv-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pv-shellless .pv-page {
+    animation: none;
+  }
+}

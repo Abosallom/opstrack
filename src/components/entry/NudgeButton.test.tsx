@@ -288,7 +288,7 @@ describe('askOffer — the window decides, not the movement', () => {
 // claim the sentence makes, never on the exact phrasing of the interval.
 
 function markup(over: Partial<Entry> & { nudged_at?: string | null; nudged_by?: string | null }): string {
-  return renderToStaticMarkup(<NudgeButton entry={entry(over)} meId="me" className="fu-act" />)
+  return renderToStaticMarkup(<NudgeButton entry={entry(over)} meId="me" className="mtree-list-act" />)
 }
 
 const HOURS_2 = new Date(Date.now() - 2 * 3600_000).toISOString()

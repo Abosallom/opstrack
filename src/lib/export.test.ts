@@ -65,6 +65,7 @@ function entry(over: Partial<Entry> = {}): Entry {
   return {
     id: 'e1',
     track_id: 't1',
+    node_id: null,
     title: 'Renew the core switch certificate',
     description: '',
     type: 'action',
@@ -637,13 +638,13 @@ describe('exportFilename', () => {
   it('stamps local date and time, sortable-first', () => {
     // Constructed from LOCAL components, so the assertion holds in any TZ.
     expect(exportFilename('json', new Date(2026, 6, 30, 14, 32))).toBe(
-      'coretrack-export-2026-07-30-1432.json',
+      'nphiescore-export-2026-07-30-1432.json',
     )
   })
 
   it('pads every field, so the folder sorts by name', () => {
     expect(exportFilename('csv', new Date(2026, 0, 5, 9, 7))).toBe(
-      'coretrack-export-2026-01-05-0907.csv',
+      'nphiescore-export-2026-01-05-0907.csv',
     )
   })
 

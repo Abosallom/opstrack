@@ -1,0 +1,336 @@
+/* The lens chips — a row on the desktop, THE PINNED RAIL on a phone.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.mlens*` and styles nothing
+   else. A prefix of its own rather than a slice of `.mtree-`, for the reason
+   map-panel.css gives: this row is the SHELL's chrome — it decides which surface
+   the shell shows — and it outlives any one of them.
+
+   Primitives it USES and never redeclares: `.tap-44`, `.tabular`, `.chip-row`'s
+   idea (not its class — this row scrolls, which `.chip-row` does not).
+
+   COLOUR comes only from existing tokens. The pressed chip is `--bg-elev-2` with
+   `--text` ink and a `--border` outline, which is the same recipe FilterBar's
+   segmented pairs already use and global.css already measured in both themes;
+   the badge is `--accent` ink on `--bg-elev-2`, the pair `.pill` was computed
+   on. No new contrast recipe is introduced here.
+
+   LOGICAL PROPERTIES ONLY — `padding-inline`, `margin-inline-start`,
+   `inline-size`, `scroll-padding-inline`. The chip row scrolls along the INLINE
+   axis, so it reverses with the document direction for free.
+
+   WITH ONE STATED EXCEPTION, AT THE BOTTOM OF THIS FILE: the scroll fade is a
+   `linear-gradient`, and a gradient has no logical direction — `to right` means
+   `to right` in Arabic too. It is therefore written twice, once per direction,
+   selected on the `dir` attribute `lib/i18n.ts` sets on <html>. Every PROPERTY
+   that places it (`inset-inline-end`, `inline-size`, `inset-block`) is still
+   logical; only the angle is not, and it is mirrored explicitly rather than
+   left to break Arabic quietly. Do not add a second one without the pair.
+
+   MOTION: none of its own. The only transition is the one `.btn`-family
+   primitives already carry.
+
+   SPACING is on the 4px grid. */
+
+.mlens {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  /* 16px row gap: this row wraps at 375px and two lines of 44px targets need
+     the clearance or their hit areas overlap. `.row-actions`' floor. */
+  row-gap: 16px;
+  min-inline-size: 0;
+}
+
+/* `.mlens-label` IS DELETED, span and rules together. It was `aria-hidden`, it
+   was already hidden at `[data-compact]`, and the group's own `aria-label` says
+   the same words to the readers who need them — so on the desktop it was a
+   small-caps heading spending width to repeat the chips beside it. The KEY
+   `mindtree.lensLabel` is NOT retired: it is that accessible name. */
+
+/* ═══════════════ THE PHONE RAIL — the fix for a map nobody could reach ═════
+
+   THE BUG, MEASURED. `DEFAULT_LENS = 'needs-me'` -> `phoneDetentFor({kind:
+   'needsMe'}) = 'full'` -> the sheet is `position: fixed`, z-index 70, capped by
+   `--map-shell-chrome-block-size` (the app header + 64px). That reservation is
+   supposed to leave "one lens row of live page" — but `.mtree-shellbar` is the
+   THIRD block in `.mtree`'s normal flow (the `<h1>` and the FilterBar come
+   first), so at scroll-top the reserved strip shows the FILTER BAR. The chips
+   render about 380px below the fold, underneath a fixed sheet. On a 375x812
+   phone that meant zero pixels of map and no control that could bring it back.
+   `pages/mindtree.css` says this against itself in the same breath as the
+   variable: "It does NOT put the lens chips in that window on its own."
+
+   THE FIX IS TO TAKE THE ROW OUT OF THE FLOW ENTIRELY. Fixed to the block end,
+   z-index 71 — ONE ABOVE THE SHEET'S 70, always — sitting on top of the composer
+   rather than under the fold, in the thumb zone.
+
+   map-panel.css's own comment considered a version of this ("carry the chips
+   into the sheet at `full`") and rejected it on three grounds. All three fail
+   against THIS version: the fix stays in CSS; there is NO second MapLensBar in
+   the DOM (the chips are MOVED, not duplicated — one `role="group"`, one
+   accessible name, one set of pressed states); and it repairs the whole problem
+   rather than the chips alone, because it is the ROW that leaves the flow.
+
+   THE RAIL IS 48px of content — 8px of scroller padding + a 32px chip + 8px —
+   plus the 1px hairline above it, so 49px of screen. `.mmode[data-compact]`
+   (map-mode.css) computes to the same 8 + 32 + 8 at its own inline end, which is
+   what makes the two fixed halves read as one row. Report the number to the
+   integrator — U6 publishes it as `--map-lens-rail-block-size` for
+   map-panel.css to subtract from the sheet, and collapses
+   `--map-shell-chrome-block-size` to the header + 8px, because it no longer has
+   to reserve a strip of page in the hope the chips are scrolled into it. */
+.mlens[data-compact] {
+  position: fixed;
+  inset-inline: 0;
+  /* Above the composer, which is fixed at the true block end and publishes its
+     own height (including the home-indicator inset) into this variable. */
+  inset-block-end: var(--map-composer-block-size, 0px);
+  z-index: 71;
+  /* OPAQUE, NOT OPTIONAL: the map is drawn directly underneath it. */
+  background: var(--bg-elev);
+  border-block-start: 1px solid var(--border);
+  flex-wrap: nowrap;
+  column-gap: 0;
+  padding-inline-start: 8px;
+  /* ROOM FOR THE MODES, WHICH ARE PINNED AT THIS RAIL'S INLINE END.
+     `.mmode[data-compact]` fixes itself to the same block position at the inline
+     end (map-mode.css) — Meetings must never be the half that scrolls
+     off-screen. THE TWO NUMBERS MUST AGREE: this padding and that element's
+     `max-inline-size` are the same 136px, stated in both files because a custom
+     property declared on one of two SIBLINGS cannot reach the other.
+
+       44  Meetings — icon-only here, its label kept in the accessible name by
+           `.sr-only` rather than by `display: none`, so the link is still
+           announced "Meetings Live"
+     + 34  the live pill, when a meeting is running. The worst case is what the
+           reserve has to be sized for; with no meeting running the cluster is
+           100px and the chips simply get 36px more to scroll in
+     +  4  the gap
+     + 44  the export disclosure
+     +  8  end padding
+     = 134 -> 136 on the 4px grid.
+
+     STATED ONCE NOW, as a custom property, because the fade below has to land on
+     the same line: the chips stop where this reserve begins, and a second
+     literal 136 in this file would be a number to keep in step. The one in
+     `map-mode.css` cannot be reached from here (a property declared on one of
+     two SIBLINGS does not inherit sideways) and stays where it is, stated. */
+  --mlens-modes-reserve: 136px;
+
+  padding-inline-end: var(--mlens-modes-reserve);
+
+  /* HOW WIDE THE SCROLL FADE IS, stated once because THREE declarations have to
+     land on the same line: the fade's own `inline-size` below, and the chip
+     scroller's `scroll-padding-inline` end term, which is what keeps a chip the
+     browser scrolls into view — a Tab, a `scrollIntoView`, a snap — from coming
+     to rest underneath it. A focus ring under a fade is a focus ring nobody can
+     see, and the two numbers drifting apart is exactly how that happens.
+
+     32px AND NOT THE 24 IT WAS, and the difference is measured. At 375×812 the
+     chips get 231px of scroll port against 469px of content, and the row rests
+     mid-word: the browser showed "By status" cut to "By stat". 24px of gradient
+     under a 13px `--text-dim` label spends its whole run inside ONE glyph, so
+     what it produces is a letter that looks badly anti-aliased rather than a row
+     that looks like it continues — the fade was doing its job on too small a
+     canvas to read as an edge. 32px is a whole word-end, it is the chip's own
+     block size, and it is on the 4px grid. It costs nothing when there is
+     nothing to hide (see the gradient below) and it takes no target: the fade is
+     `pointer-events: none` and every chip keeps its full 44px. */
+  --mlens-fade-inline-size: 32px;
+}
+
+/* THE CHIP ROW SAYS THAT IT CONTINUES. Five destinations do not fit 375px — that
+   is the deliberate trade above, not a defect — but what the browser showed was
+   "By statu" sheared flat against the reserve, with nothing to say the row pans.
+   A word cut in half reads as a broken render; a fade reads as an edge.
+
+   THIS RULE PAINTS. IT WAS AUDITED AS "not working" AND IT IS NOT BROKEN, and
+   the difference matters because the answer to a fade that does not paint is a
+   second overlay, which is how a sheet ends up with two. Measured in Chrome at
+   375×812 on the running app: `getComputedStyle(el, '::after')` resolves to
+   `content: ""`, 24×48 at `left: 215px`, `background-image: linear-gradient(to
+   right, rgba(0,0,0,0), rgb(23,29,35))` — and painting was confirmed rather than
+   inferred, by overriding this one declaration to `background: red` and reading
+   the screenshot: a solid red band appeared at 215→239, over the chips, exactly
+   where the gradient is. No stacking problem exists to fix. It cannot: this
+   pseudo-element is a POSITIONED descendant of the rail's own stacking context
+   (`position: fixed`, z-index 71) and the chips are inline-level flex items
+   inside it, so CSS paint order puts this above them by construction, and
+   `--mlens-modes-reserve` reaches it because a custom property declared on the
+   originating element inherits into its pseudo-elements.
+
+   WHAT WAS ACTUALLY WRONG WAS THE RUN LENGTH, fixed at the token above: 24px of
+   gradient across a 13px dim label reads as a smeared letter, not as an edge.
+   The row is NOT given more of the 375px instead, and that is the other half of
+   the decision: the width it would take is `--mlens-modes-reserve`, which is
+   sized for the worst case (44 Meetings + 34 live pill + 4 + 44 export + 8) and
+   measured 100px of actual cluster with no meeting running — 36px the chips
+   already inherit as scroll room. Taking it permanently means shrinking the
+   reserve, the reserve is stated in map-mode.css as well as here BY NECESSITY
+   (`.mlens` and `.mmode` are siblings and neither owns an ancestor to declare it
+   on), and a Meetings link that scrolls off the rail the moment a meeting starts
+   is the one outcome MAP-CONTRACT §2 prices as unacceptable. So: the affordance
+   gets the fix, the reserve keeps the width.
+
+   IT IS DRAWN IN THE RAIL'S OWN COLOUR, so it costs nothing when there is
+   nothing to hide: with four short chips in a wide compact window the gradient
+   is `--bg-elev` over `--bg-elev` and no fade is visible at all. Contrast is
+   untouched — the ink under it is the same ink, at the same size, and the chip
+   it lands on is reachable by the scroll it is advertising.
+
+   A PSEUDO-ELEMENT AND NOT `mask-image` ON THE SCROLLER, deliberately: a mask
+   creates a stacking context, and this rail is the element whose z-index 71 has
+   to stay one above the phone sheet's 70. Masking anything on this path is how
+   the map disappears under the sheet again.
+
+   `inset-inline-end` puts it on the reading end in both languages; the gradient
+   inside it cannot follow, because CSS gradients have no logical direction — so
+   the pair of rules below IS the mirror, and neither is complete without the
+   other. */
+.mlens[data-compact]::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--mlens-modes-reserve);
+  inline-size: var(--mlens-fade-inline-size);
+  /* The row scrolls under it and the modes sit beside it; a press here belongs
+     to whichever chip is passing beneath. */
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--bg-elev));
+}
+
+/* THE MIRROR. `lib/i18n.ts` writes `document.documentElement.dir`, so an
+   attribute selector reads it in every engine; `:dir()` is the semantic
+   spelling and is younger than the oldest browser this app is installed on. */
+[dir='rtl'] .mlens[data-compact]::after {
+  background: linear-gradient(to left, transparent, var(--bg-elev));
+}
+
+/* ---------- the five chips ---------- */
+
+.mlens-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+/* A PHONE SCROLLS THE ROW RATHER THAN SHRINKING THE CHIPS. Five destinations do
+   not fit 375px at a legible size, and compacting them is exactly what rule 4
+   forbids: the smallest targets must never ship to the smallest screens. The
+   row pans, snaps, and every chip keeps its full 44px. */
+.mlens[data-compact] .mlens-chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline mandatory;
+  /* 8px AT THE START, THE FADE'S OWN WIDTH AT THE END, and the second value is
+     the half that is about focus rather than taste. Every scroll this row does
+     for the reader instead of by the reader — Tab into a chip, `scrollIntoView`,
+     a snap after a fling — aligns the chip against the port's edge, and the
+     inline END of this port is under the fade above. Without this term the chip
+     that just took focus can come to rest in the one 32px band of the row that
+     is deliberately painted over, ring and all. `scroll-padding` is the property
+     that tells the scroller that band is not usable landing space; it moves with
+     the fade because both read the same custom property. The START term is still
+     8px, which is `.tap-44`'s clearance and unrelated. */
+  scroll-padding-inline: 8px var(--mlens-fade-inline-size);
+  /* 8px, NOT 4px, AND THE DIFFERENCE IS THE PHONE'S TAP TARGET.
+     `overflow-x: auto` makes this a scroll container, which CLIPS its children
+     at its PADDING edge — and clipped area is not hit-tested. `.tap-44`'s
+     overlay reaches 7px past the chip's padding box, which on a 1px-bordered
+     chip is 6px past its border box, so 4px of padding here cut 2px off each
+     end of every chip's target: 4 + 32 + 4 = 40px of the 44 the chip carries.
+     (At the 30px the chip was before, the same clipping measured 38px.)
+     8px clears both the 6px overlay and the 4px focus ring (a 2px outline at a
+     2px offset), and is on the 4px grid. global.css's `.chip-row` pads 7px for
+     exactly this reason and states it. */
+  padding-block: 8px;
+}
+
+.mlens[data-compact] .mlens-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+/* 32px, NOT 30 — the same number `.btn-sm` and `.chip` carry in global.css, and
+   for the same measured reason. `.tap-44`'s overlay is positioned against the
+   PADDING box, so a 1px border eats 2px of it: 30px of border box is a 28px
+   padding box and 28 + 14 = 42, two short. 32 - 2 = 30 and 30 + 14 = 44 exactly.
+   The chip still LOOKS 32px; only the invisible overlay grows.
+
+   THE TIERING, AND IT IS THE ANSWER TO "NOTHING LEADS THE EYE".
+   The border here is `transparent`, not `--border`. An unpressed chip is
+   borderless `--text-dim` TEXT; the pressed one is a filled pill. One filled
+   pill in a row of four labels is the whole difference between five equal
+   buttons and somewhere for the eye to land — and it is the only change on this
+   screen that costs nothing at all, because the border is still in the box
+   model (so the 32/30/44 arithmetic above is untouched) and the `.tap-44`
+   overlay is untouched with it. The targets do not shrink; only the ink does. */
+.mlens-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 32px;
+  padding-inline: 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* Hover is ink only, for the same reason: an outline appearing under the pointer
+   would make a second chip look chosen. */
+.mlens-chip:hover {
+  color: var(--text);
+}
+
+.mlens-chip[aria-pressed='true'] {
+  color: var(--text);
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.mlens-chip-text {
+  white-space: nowrap;
+}
+
+.mlens-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ---------- the map / ledger switch has left this file ----------
+
+   `.mlens-stages` and `.mlens-stage` are DELETED with the markup they styled.
+   Map|Table is the Table toggle at MapAltitude's foot now (`.malt-stop`,
+   map-altitude.css) — still ONE TAP, because the ledger is the low-motion,
+   drag-free reading mode and burying an accessibility mode behind a disclosure
+   is not available to us. It moved because the ladder is where "how much of the
+   tree, drawn how" now lives, and because this row had to become a rail narrow
+   enough for five chips and two modes on a 375px phone. */
+
+/* THE 44px CLAIM, WITH THE ARITHMETIC THAT MAKES IT TRUE.
+   This footer used to read "30px + `.tap-44`'s ±7px = 44" and it was wrong by
+   two pixels in one place and by six in another, because it counted the border
+   box where the overlay counts the padding box:
+
+     box    border   padding box   overlay (±7)   clipped by the scroller
+     32px    1px       30px          44px          no (8px pad ≥ 6px)   ← now
+     30px    1px       28px          42px          no                   ← was
+     30px    1px       28px          42px          YES → 38px           ← was,
+                                                     in the compact chip row
+
+   Every control in this file is now 32px of border box, 30px of padding box and
+   44px of hit area, at every width, and the one `overflow` container has the
+   8px of block padding that keeps the overlay out of the clip.
+
+   Nothing here is compacted for a fine pointer: the row is already the cheapest
+   thing on the screen to hit, and the unconditional version of that compaction
+   shipped the smallest targets to the smallest screens once already. */

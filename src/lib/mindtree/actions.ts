@@ -48,6 +48,15 @@
 // chosen from a menu on the branch it was dropped on — and only one of the two
 // would have `dropRules`' XOR fix for unassigning a free-text owner.
 //
+// TWO VERBS HERE EDIT THE MAP RATHER THAN THE WORK — `addBranch` and
+// `archiveBranch` — and they are decided by exactly the same rules as the rest.
+// `map_nodes` writes are gated on is_admin() by 0023, surfaced as the
+// `structure.edit` grant, and that verdict ARRIVES AS INPUT for the nudge rule's
+// reason: it lives in a store and `src/lib/**` may not import one. What is
+// different about them is stated where they are built (`structuralActions`):
+// they are ABSENT without the grant rather than disabled with a sentence,
+// because "you are not an admin" is not a rule a reader can act on.
+//
 // THE ONE THING THIS FILE STILL FOLDS A PATH FOR IS `addHere`, and that is a
 // different question with a different answer. A CREATE has no current bucket to
 // compare against and no row to move: "add an item here" under Network's Blocked
@@ -63,6 +72,7 @@ import {
   NO_VALUE,
   closesEntry,
   evaluateDrop,
+  isFilingKind,
   type DropOutcome,
 } from './dropRules'
 import { ROOT_ID } from './model'
@@ -103,6 +113,8 @@ export type MindActionKind =
   | 'applySelection'
   | 'focus'
   | 'collapse'
+  | 'addBranch'
+  | 'archiveBranch'
 
 export interface MindAction {
   readonly kind: MindActionKind
@@ -200,6 +212,28 @@ export interface MindActionCtx {
   readonly focusedId: string | null
   /** See MindNudgeVerdict. REQUIRED so a surface cannot forget to wire it. */
   readonly nudge: MindNudgeLookup
+  /**
+   * May this reader SHAPE the hierarchy — `structure.edit`, the grant
+   * `pages/settings/StructureAdmin.tsx` already gates on.
+   *
+   * IT ARRIVES AS INPUT for `nudge`'s reason: the answer lives in
+   * `store/auth.useHasPerm` and `src/lib/**` may not import a store. The screen
+   * already holds it.
+   *
+   * OPTIONAL, AND IT DEFAULTS TO CLOSED — the one place in this file where a
+   * missing input is not a wiring bug to shout about. `undefined` means "no
+   * structural verbs", which is exactly what a reader without the grant must
+   * see, so a surface that has not wired it yet shows the map it showed before
+   * rather than two verbs whose every press would come back 42501.
+   *
+   * ABSENT RATHER THAN DISABLED, and it is the one refusal in this module that
+   * is silent. Every other `reasonKey` teaches a rule the reader could satisfy —
+   * sign in, pick a different bucket, tick something. "You are not an admin" is
+   * not a rule they can act on, it is a fact about their account, and two greyed
+   * rows on every branch of the map is a permanent reminder of it. The verbs
+   * that are MEANINGLESS rather than refused are absent for the same reason.
+   */
+  readonly canEditStructure?: boolean
 }
 
 // ── the reason keys ────────────────────────────────────────────────────────
@@ -220,6 +254,7 @@ export const WHY_NONE_EDITABLE = 'mindtree.whyNoneEditable'
 export const WHY_FOCUSED = 'mindtree.whyFocused'
 export const WHY_EMPTY_BRANCH = 'mindtree.whyEmptyBranch'
 export const WHY_NO_NUDGE = 'mindtree.whyNoNudge'
+export const WHY_TOO_DEEP = 'mindtree.whyTooDeep'
 
 /**
  * A leaf the store no longer holds.
@@ -238,12 +273,18 @@ export const WHY_GONE = 'entry.errNotFound'
  * or null when this branch cannot hold new work.
  *
  * THE WHOLE PATH, and this is the one place in the feature where that is right.
- * Ring 2 is drawn INSIDE ring 1, so the "Blocked" node under Network means
- * "blocked AND on Network" — and an item created from that node with only its
- * status set would be filed untracked and appear somewhere else entirely, which
- * is the reader watching their own click land in the wrong place. A MOVE is a
- * different question (`dropRules.evaluateDrop`, one field, with the row's
- * current bucket to compare against); a DRAFT has no current bucket at all.
+ * Every ring is drawn INSIDE the one above it, so "Blocked" under Org1 under
+ * UHR means "blocked AND on Org1 AND on UHR" — and an item created from that
+ * node with only its status set would be filed untracked, under no
+ * organization, and appear somewhere else entirely, which is the reader watching
+ * their own click land in the wrong place. A MOVE is a different question
+ * (`dropRules.evaluateDrop`, with the row's current bucket to compare against);
+ * a DRAFT has no current bucket at all.
+ *
+ * AND THAT IS WHY THE `track` ARM SENDS `mapNodeId: null` OUT LOUD. Every key a
+ * draft omits is a key the capture form is free to default, so "omit it" and
+ * "clear it" are not the same statement here — the lesson `dropRules.ownerPatch`
+ * paid for on the owner XOR, one ring further in.
  *
  * NULL HAS THREE CAUSES, each with its own sentence from `draftRefusal`: a node
  * that stands for no bucket, a retired bucket, and the `health` axis — whose
@@ -253,7 +294,15 @@ export const WHY_GONE = 'entry.errNotFound'
 export function draftAt(path: readonly MindNode[], dimension: MindDimension): EntryPatch | null {
   const node = path[path.length - 1]
   if (node === undefined) return null
-  if (node.kind !== 'track' && node.kind !== 'group') return null
+  // A TABLE, NOT TWO `!==` COMPARISONS — `dropRules.isFilingKind`, which is
+  // total over `MindNodeKind` so the next kind is a build error here instead of
+  // a silent "no". A filing kind is a node whose `bucketKey` is a row id (a
+  // track or an Organization) and a `group` is the dimension's own bucket;
+  // between them they are every ring a NEW item can be seeded from. A COHORT is
+  // neither: it is a CUT of the organizations, so "add an item to the 96
+  // organizations Sara manages" names none of them to file under, and the answer
+  // is that the reader dives one ring and picks one.
+  if (!isFilingKind(node.kind) && node.kind !== 'group') return null
 
   const patch: EntryPatch = {}
   for (const step of path) {
@@ -264,8 +313,34 @@ export function draftAt(path: readonly MindNode[], dimension: MindDimension): En
       if (step.retired) return null
       if (step.bucketKey === null) return null
       patch.trackId = step.bucketKey === NO_VALUE ? null : step.bucketKey
+      // EXPLICITLY, and for `ownerPatch`'s reason rather than `foldPath`'s. A
+      // draft has no row to compare against, so every key it omits is a key the
+      // capture form gets to default — and a form that remembers the last
+      // organization would file "add an item here" on a TRACK's own bucket
+      // straight back under Org3. Sending the null is how a create says "under
+      // this track and no organization" instead of saying nothing. Root-first,
+      // so an `entity` step further down the path overwrites it.
+      patch.mapNodeId = null
       continue
     }
+    if (step.kind === 'entity') {
+      // An archived Org, or a node id nothing explains. Same rule as the track
+      // above: `map_nodes.archived` is a filing decision, and new work filed
+      // under an archived Organization is how it quietly comes back to life.
+      if (step.retired) return null
+      if (step.bucketKey === null) return null
+      // NO `NO_VALUE` ARM — see dropRules.foldPath. There is no "no
+      // organization" node; a row under none is drawn on the track's group ring,
+      // and an empty key here is a malformed node, not a bucket.
+      if (step.bucketKey === NO_VALUE) return null
+      patch.mapNodeId = step.bucketKey
+      continue
+    }
+    // The root, and every `cohort` step `?by=` put on the path. SKIPPED, and
+    // transparently: a cohort is a lens over the same hierarchy, so a draft
+    // seeded under an Organization must carry the same fields whether the reader
+    // has grouping on or off — `dropRules.foldPath` skips them for the same
+    // reason and with the longer argument.
     if (step.kind !== 'group') continue
     // A hidden vocabulary option, or an owner the roster has forgotten.
     // store/vocab.ts's frozen rule is that hiding an option must never hide
@@ -324,11 +399,172 @@ function seedGroup(patch: EntryPatch, dimension: MindDimension, key: string): bo
 export function draftRefusal(path: readonly MindNode[], dimension: MindDimension): string {
   const node = path[path.length - 1]
   if (node === undefined) return WHY_EMPTY_BRANCH
-  if (path.some((step) => (step.kind === 'track' || step.kind === 'group') && step.retired)) {
+  if (
+    path.some((step) => (isFilingKind(step.kind) || step.kind === 'group') && step.retired)
+  ) {
     return WHY_RETIRED
   }
   if (dimension === 'health' && node.kind === 'group') return WHY_DERIVED
   return WHY_EMPTY_BRANCH
+}
+
+// ── the branch a structural verb acts on ───────────────────────────────────
+
+/**
+ * The deepest a node may sit below its track — `v_max_depth` in 0023's
+ * `map_nodes_check_tree()`, MIRRORED here and not owned here.
+ *
+ * IT IS 1-BASED, LIKE THE TRIGGER: a node hanging directly off a track is at
+ * level 1. `pages/settings/StructureAdmin.tsx` holds the same number as
+ * `MAX_LEVEL` and refuses "Add child" with it for the same reason this file
+ * refuses "Add a branch here"; the value cannot be derived from either place
+ * because the cap lives in a plpgsql constant. Two mirrors of one constant is
+ * one more than anybody wants, and importing across `src/lib` → `src/pages` is
+ * the thing that is actually forbidden (EXECUTION-PLAN rule 2), so the two
+ * copies stay and this comment is what keeps them in step.
+ *
+ * WITHOUT THIS THE READER MEETS 22023. The trigger is deferred, so the refusal
+ * arrives after a name has been typed and a button pressed, as
+ * `mapadmin.errTooDeep` — correct, and too late to be a rule anybody learns.
+ */
+export const MAX_BRANCH_LEVEL = 6
+
+/**
+ * WHERE a structural verb would write, folded out of the root-to-node path.
+ *
+ * ONE SHAPE FOR BOTH VERBS, because both need the same three facts and a second
+ * type would be a second fold of the same path. Which field matters depends on
+ * the verb, and each is documented for the verb that reads it.
+ *
+ * `map_nodes` is a tree hanging under a TRACK, so `trackId` is not optional
+ * context — the column is `not null` on every row and `createMapNode` sends it
+ * even when there is a parent, so that a caller's belief about which track a
+ * branch belongs to is checkable against `map_node_cross_track` rather than
+ * left to a trigger nobody can see from the map.
+ */
+export interface MindBranchRef {
+  /** The track this branch lives under. `map_nodes.track_id`. */
+  readonly trackId: string
+  /**
+   * The map node this path ends on, or null when the path ends on the TRACK
+   * itself — which is a real place, not a missing one: a child added there is a
+   * level-1 node with `parent_id: null`.
+   */
+  readonly nodeId: string | null
+  /** The 1-based level `nodeId` sits at; 0 when the path ends on the track. */
+  readonly level: number
+  /**
+   * Any structural step on the path is already put away — an archived track, an
+   * archived Organization that still holds work and is therefore still drawn.
+   *
+   * CARRIED RATHER THAN REFUSED HERE, because the two verbs want different
+   * sentences from the same fact: adding under an archived branch is how one
+   * quietly comes back to life, and archiving one again is a no-op the reader
+   * should be told about rather than allowed to perform.
+   */
+  readonly retired: boolean
+}
+
+/**
+ * Fold a root-to-node path into the place a structural verb would write, or
+ * null when this path names no place in `map_nodes`.
+ *
+ * THE PATH AGAIN, AND FOR A THIRD REASON. `draftAt` folds it because a create
+ * means the intersection of every ring; `evaluateDrop` folds it because a move
+ * does. This folds it because the hierarchy IS the path: the track at the top
+ * says which tree, and each `entity` step below it is one level of that tree,
+ * so the depth the database will check is something this function can count
+ * rather than something the reader discovers on submit.
+ *
+ * NULL HAS FOUR CAUSES and all four are structural rather than permissive: the
+ * node is not a track or an entity (a group, a leaf, a "+N more", a cohort and
+ * the root are not places in `map_nodes`); a `group` or `entry` step sits ABOVE
+ * the node, which no tree this app draws produces and which would make the level
+ * count a fiction; a track whose bucket key is missing or empty; an entity whose
+ * bucket key is missing or empty, which is a malformed node rather than a bucket
+ * — the same `NO_VALUE` refusal `draftAt` makes one ring out, and for its
+ * reason: there is no "no organization" node.
+ *
+ * ── THE COHORT STEP IS TRANSPARENT, AND THAT IS THE BUG THIS WAVE ALMOST SHIPPED
+ *
+ * The loop below refuses any step it does not recognise, because a `group` or an
+ * `entry` above the node would make the level count a fiction. A `cohort` is NOT
+ * that: `?by=manager` puts one between the track and the organizations, so the
+ * path to every Org on the map grows a step the moment the reader taps a
+ * grouping chip. Falling into the refusal would have made "Add a branch" and the
+ * whole QuickAdd composer VANISH from every Organization whenever grouping was
+ * on — silently, because a null here is rendered as an absent verb rather than
+ * as an error. It is skipped like the root, and for the root's reason: it is not
+ * a level of `map_nodes`, so the depth the database is about to check does not
+ * count it.
+ */
+export function branchRefAt(path: readonly MindNode[]): MindBranchRef | null {
+  const node = path[path.length - 1]
+  if (node === undefined) return null
+  // A filing kind is exactly "this node's `bucketKey` is a row id". A cohort is
+  // not one — it is `KIND_ROLE`'s `'place'`, which is a different question (may
+  // the camera frame it) with a different answer — and it is refused HERE as a
+  // TARGET even though it is skipped as a STEP just below: you may fly into
+  // Sara's book, and you may not hang a `map_nodes` row off it.
+  if (!isFilingKind(node.kind)) return null
+
+  let trackId: string | null = null
+  let nodeId: string | null = null
+  let level = 0
+  let retired = false
+
+  for (const step of path) {
+    if (step.kind === 'root' || step.kind === 'cohort') continue
+    if (step.kind === 'track') {
+      if (step.bucketKey === null || step.bucketKey === NO_VALUE) return null
+      trackId = step.bucketKey
+      retired = retired || step.retired
+      continue
+    }
+    if (step.kind === 'entity') {
+      if (step.bucketKey === null || step.bucketKey === NO_VALUE) return null
+      nodeId = step.bucketKey
+      level += 1
+      retired = retired || step.retired
+      continue
+    }
+    // A group, a leaf or a fold above the node. The hierarchy does not run
+    // through one, so neither does the level count.
+    return null
+  }
+
+  // The untracked pile. It is drawn, it holds real work, and it is not a track
+  // — so there is no `track_id` to hang a node from and no branch to add.
+  if (trackId === null) return null
+  return { trackId, nodeId, level, retired }
+}
+
+/**
+ * Why a NEW CHILD BRANCH cannot go here, or null when it can.
+ *
+ * ONE RULE, TWO READERS, and that is the whole reason it is a function rather
+ * than four lines inside the menu. `structuralActions` asks it to decide whether
+ * to grey the verb; `components/mindtree/QuickAdd.tsx` asks it again when the
+ * composer is already open, because a tree can change underneath a popover — a
+ * realtime archive, another admin's move — and a form that can no longer submit
+ * must say why instead of teaching the reader to press Enter and get nothing.
+ * Two copies of this would be a menu and a form disagreeing about the depth cap.
+ *
+ * IT DOES NOT ASK ABOUT `structure.edit`. The grant decides whether the VERB
+ * exists at all (see `MindActionCtx.canEditStructure`), and there is no path to
+ * the composer that does not go through the verb. Restating it here would put a
+ * permission check in a component's render, which is where a permission check
+ * goes stale.
+ */
+export function branchAddRefusal(path: readonly MindNode[], meId: string | null): string | null {
+  if (meId === null) return WHY_SIGNED_OUT
+  const ref = branchRefAt(path)
+  if (ref === null) return WHY_EMPTY_BRANCH
+  // Adding under a branch that is put away is how one quietly comes back to
+  // life — `draftAt`'s rule about an archived Org, one table up.
+  if (ref.retired) return WHY_RETIRED
+  if (ref.level + 1 > MAX_BRANCH_LEVEL) return WHY_TOO_DEEP
+  return null
 }
 
 // ── the list ───────────────────────────────────────────────────────────────
@@ -421,7 +657,14 @@ function branchActions(
   // wrapper in 0009), so any signed-in member may create — the only refusal is
   // being signed out, and the only PRODUCT refusal is a branch that cannot hold
   // new work.
-  if (node.kind === 'track' || node.kind === 'group' || node.kind === 'root') {
+  //
+  // A COHORT IS THE ONE BRANCH THAT IS NOT ON THIS LIST, and its absence is a
+  // category error rather than a refusal — the distinction this function already
+  // draws twice below. "Add an item to the 96 organizations Sara manages" names
+  // no organization to file it under; the reader dives one ring and picks one,
+  // which is one tap and unambiguous. So a cohort's menu carries the two
+  // NAVIGATION verbs and nothing else: focus, and collapse.
+  if (isFilingKind(node.kind) || node.kind === 'group' || node.kind === 'root') {
     const draft = node.kind === 'root' ? EMPTY_PATCH : draftAt(path, ctx.dimension)
     const why =
       ctx.meId === null
@@ -445,11 +688,30 @@ function branchActions(
     })
   }
 
-  // The bulk verb, only where a drop would be legal. Absent rather than disabled
-  // on the root and on a "+N more" fold, because "apply the selection to a fold"
-  // is not a refusal, it is a category error — the same three kinds
-  // `dropRules.isDropZoneKind` declines to build a zone for.
-  if (node.kind === 'track' || node.kind === 'group') out.push(selectionAction(path, node, ctx))
+  // The bulk verb, only where a drop could LAND. Absent rather than disabled on
+  // the root and on a "+N more" fold, because "apply the selection to a fold" is
+  // not a refusal, it is a category error.
+  //
+  // ⚠ THIS IS NOT `isDropZoneKind` ANY MORE, and the divergence is deliberate
+  // rather than drift. A zone is about the POINTER — a cohort arms so that a
+  // drag crossing the biggest ring on the screen gets a sentence instead of
+  // nothing (see that function). A menu is about a DELIBERATE ACT on a named
+  // node, and every drop onto a cohort is refused, so offering "Move 12 items
+  // here" greyed out would be a row that can never be anything else. The two
+  // surfaces agree about what LANDS — `evaluateDrop` decides that for both — and
+  // differ about what is worth showing, which is the difference between hovering
+  // something on your way past it and choosing it.
+  if (isFilingKind(node.kind) || node.kind === 'group') {
+    out.push(selectionAction(path, node, ctx))
+  }
+
+  // Shaping the tree, between the work verbs and the two view verbs. The
+  // position is deliberate: everything above changes WORK, everything below
+  // changes only what is on screen, and these two sit on the seam because they
+  // change the MAP — which is neither, and is the only pair here that outlives
+  // the reader's session. Appending them at the end instead would put the two
+  // most consequential rows under the two most reversible ones.
+  out.push(...structuralActions(path, node, ctx))
 
   // Focus. `focusedId ?? ROOT_ID` normalises "no drill-in" to the root node, so
   // the root's own entry in the list reads as "show every track" and correctly
@@ -487,11 +749,130 @@ function branchActions(
 const EMPTY_PATCH: EntryPatch = Object.freeze({})
 
 /**
+ * The two verbs that edit the HIERARCHY rather than the work filed on it.
+ *
+ * WHY THEY ARE ON THE MAP AT ALL. Shaping the tree lived on one other screen —
+ * Settings › Structure — which meant a round trip per branch: leave the picture,
+ * find the row in an indented list, add, come back, check it landed where you
+ * meant. The owner's sentence for this was that the map "looks static": not that
+ * it does not move, but that it can only be LOOKED AT. These two verbs are the
+ * answer, and they are deliberately the SAME two the settings screen offers
+ * (add a child, put one away) rather than a lighter subset — a second, weaker
+ * editor is how the two screens start disagreeing about what a branch is.
+ *
+ * SETTINGS › STRUCTURE IS NOT REPLACED AND MUST NOT BE. It is the only place an
+ * archived branch is visible, which makes it the only place one is RESTORED,
+ * and it owns the fields this composer has no room for: the Arabic name, the
+ * kind, the account manager, re-parenting, reordering. This is the fast path for
+ * the shape; that is the full editor for the detail.
+ *
+ * NOTHING IS OFFERED WITHOUT `structure.edit` — see `MindActionCtx`.
+ */
+function structuralActions(
+  path: readonly MindNode[],
+  node: MindNode,
+  ctx: MindActionCtx,
+): readonly MindAction[] {
+  if (ctx.canEditStructure !== true) return EMPTY_ACTIONS
+  // A status bucket, an owner bucket, a COHORT and the root are drawn branches
+  // that are not PLACES: a group stands for a value inside its Org, a cohort
+  // stands for a CUT of the organizations, and the root stands for the
+  // workspace. Hanging a `map_nodes` row off one is a category error rather than
+  // a refusal, so neither verb appears — the same distinction `branchActions`
+  // already makes for `applySelection`, one ring out. "Add an ITEM here" is
+  // still offered on the first and the last, and that is the difference.
+  //
+  // `isFilingKind` IS THE WORD FOR THIS, and this function is the sharpest
+  // reason the audit needed a predicate narrower than `KIND_ROLE`: "`bucketKey`
+  // is a row id" is the precondition BOTH verbs here have — `addBranch` hangs a
+  // child off it, `archiveBranch` writes `archived` on it — and a cohort is a
+  // `'place'` with no row. Reading the role here would have put "Add a branch"
+  // on every cohort ring, pointed at the parent Org, one refactor after the kind
+  // landed.
+  if (!isFilingKind(node.kind)) return EMPTY_ACTIONS
+
+  const ref = branchRefAt(path)
+  const out: MindAction[] = []
+
+  // ADD A CHILD BRANCH. Offered on a track (where the child is a level-1 node)
+  // and on every Organization above the cap. `entries_insert`'s reasoning does
+  // not apply here — 0023 gates `map_nodes` writes on is_admin(), and that is
+  // exactly the grant this whole function is behind — so the only refusals left
+  // are structural: no session, no place, a branch already put away, and the
+  // depth the database is about to check.
+  const addWhy = branchAddRefusal(path, ctx.meId)
+  out.push({
+    kind: 'addBranch',
+    labelKey: 'mindtree.actAddBranch',
+    enabled: addWhy === null,
+    reasonKey: addWhy,
+    mutates: true,
+    // The composer asks for a name, which is the only question a create has;
+    // asking a second time whether the reader meant to type it would be a
+    // dialog in front of a text box.
+    confirm: false,
+    closes: false,
+    targetIds: EMPTY_IDS,
+    patch: null,
+  })
+
+  // ARCHIVE. ORGANIZATIONS ONLY, and the absence on a track is a category error
+  // rather than a refusal: a track is a row in `tracks`, archiving one is
+  // `setTrackArchived`, and it takes its whole hierarchy plus every item ever
+  // filed on it with it. That is a decision for the track editor, with the
+  // track editor's counts in front of it — not for a right-click on a ring.
+  if (node.kind === 'entity') {
+    const why =
+      ctx.meId === null
+        ? WHY_SIGNED_OUT
+        : ref === null || ref.nodeId === null
+          ? WHY_EMPTY_BRANCH
+          : ref.retired
+            ? // Already put away, and still drawn because it holds work.
+              // model.ts renders a retired bucket rather than dropping it; this
+              // is the one place that fact turns into a refusal instead of a
+              // second archive that would write the value already in the column.
+              WHY_RETIRED
+            : null
+    out.push({
+      kind: 'archiveBranch',
+      labelKey: 'mindtree.actArchiveBranch',
+      enabled: why === null,
+      reasonKey: why,
+      mutates: true,
+      // ALWAYS ASKS, and the counts in the question are the whole point:
+      // archiving CASCADES to every descendant and that is invisible from a
+      // canvas. `NodeMenu` reads `getMapNodeUsage` before it raises the dialog —
+      // a destructive act that explains itself afterwards has already happened.
+      confirm: true,
+      // `closes` is about CLOSING WORK — it gates `dropRules.closesEntry`'s
+      // sentence and the close-flavoured confirm. Archiving a branch writes no
+      // status on anything; the items filed on it stay exactly as open as they
+      // were and stop being drawn. Setting this true would word the question as
+      // though the work had been finished.
+      closes: false,
+      targetIds: EMPTY_IDS,
+      patch: null,
+    })
+  }
+
+  return out
+}
+
+/**
  * The verb that names what this branch does to the selection. A LABEL, not a
  * rule — `evaluateDrop` decides what actually lands.
+ *
+ * AN ENTITY REUSES `actMoveHere` RATHER THAN MINTING A KEY. "Move here" is
+ * exactly what filing items under an Organization is, and the repo has a gate
+ * that objects to the alternative: lib/labelSections.test.ts fails on two keys
+ * carrying one string. A separate `actFileHere` would be a second English
+ * sentence and a second Arabic one to keep in step for no difference the reader
+ * can perceive — and the entity ring is the same kind of re-filing the track
+ * ring is, one grain finer.
  */
 function selectionLabel(node: MindNode, dimension: MindDimension): string {
-  if (node.kind === 'track') return 'mindtree.actMoveHere'
+  if (isFilingKind(node.kind)) return 'mindtree.actMoveHere'
   if (dimension === 'owner') return 'mindtree.actAssignHere'
   if (dimension === 'priority') return 'mindtree.actPriorityHere'
   if (dimension === 'status') return 'mindtree.actStatusHere'

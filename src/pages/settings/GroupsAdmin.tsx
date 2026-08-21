@@ -49,34 +49,9 @@ import { rovingTabIndex, useRadioGroupKeys } from '../../lib/radioGroup'
 import { trackIcon } from '../../lib/trackIcons'
 import { trackVars } from '../../lib/trackStyle'
 import { invalidateConfig } from '../../store/config'
-import { useAuth } from '../../store/auth'
+import { useHasPerm } from '../../store/auth'
 import type { Track, TrackGroup } from '../../types'
 import './groups.css'
-
-/**
- * Cosmetic admin gate. The real authority is `is_admin()` in the track_groups
- * RLS policies (0018) — every write on this screen fails with 42501 for a member
- * whatever this returns; hiding the screen only avoids offering an action that
- * cannot succeed.
- *
- * THE SIXTH COPY OF THIS HOOK (TracksAdmin, TrackEditor, VocabularyAdmin,
- * Members, Terminology). It is copied rather than shared because the one place
- * it could live is `store/auth.ts` — `src/lib/**` may not import a store, so
- * lib/permissions.ts cannot host it — and that file is not this worker's to
- * edit. Flagged in the handoff; the six are byte-identical today and a copy is
- * exactly the thing that drifts.
- *
- * `?shell` mirrors App.tsx's dev-only preview flag, so these screens stay
- * reachable in a build with no Supabase project — which is where the layout and
- * the RTL mirror get reviewed. `import.meta.env.DEV` is the literal `false` in a
- * production build, so Vite tree-shakes the whole expression out and this cannot
- * become a way in.
- */
-function useIsAdmin(): boolean {
-  const { profile } = useAuth()
-  if (profile?.role === 'admin') return true
-  return import.meta.env.DEV && new URLSearchParams(window.location.search).has('shell')
-}
 
 /**
  * The group colour palette — PAIRS from the `--swatch-*` block in
@@ -173,7 +148,22 @@ function moved(rows: TrackGroup[], index: number, delta: number): TrackGroup[] {
 
 export default function GroupsAdmin(): ReactElement {
   const locale = useLocale()
-  const isAdmin = useIsAdmin()
+  // COSMETIC GATE, ASKING THE QUESTION THE DATABASE ASKS. The real authority is
+  // 0018's `track_groups` RLS policies, which 0025 re-points from `is_admin()` at
+  // `has_perm('structure.edit')` — the same key as the tracks these groups
+  // contain, which is the whole argument for gating this screen like the track
+  // editor. Every write here fails with 42501 for anyone without it whatever
+  // this returns; hiding the screen only avoids offering an action that cannot
+  // succeed.
+  //
+  // THE SIX COPIES ARE GONE. This file used to define its own `useIsAdmin` and
+  // record, in a comment right here, that it belonged in `store/auth.ts` and
+  // that a copy is exactly the thing that drifts. It does now. It also stopped
+  // being a role: `profiles.role` is derived from the SYSTEM roles only, so it
+  // could not see a custom role at all and a Director read as 'member'.
+  // `useHasPerm` falls back to that column when 0025 has not been applied, and
+  // carries the dev-only `?shell` flag that used to be repeated here.
+  const canEdit = useHasPerm('structure.edit')
   const trackLabel = useTrackLabel()
   // Memoised on locale so passing it into a callback does not invalidate one
   // on every render — useTrackLabel's own reasoning.
@@ -221,8 +211,8 @@ export default function GroupsAdmin(): ReactElement {
   }, [])
 
   useEffect(() => {
-    if (isAdmin) void load()
-  }, [isAdmin, load])
+    if (canEdit) void load()
+  }, [canEdit, load])
 
   // ---- reorder ------------------------------------------------------------
 
@@ -421,7 +411,7 @@ export default function GroupsAdmin(): ReactElement {
     return { byGroup: map, loose: rest }
   }, [tracks, groups])
 
-  if (!isAdmin) return <Navigate to="/settings" replace />
+  if (!canEdit) return <Navigate to="/settings" replace />
 
   const loading = groups === null
 

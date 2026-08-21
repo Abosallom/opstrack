@@ -1,0 +1,1173 @@
+{
+  "manifestVersion": 1,
+  "tool": "import-structure",
+  "file": "docs/templates/structure.demo.csv",
+  "projectRef": "lrysgpbkmuqgzsjesfkr",
+  "startedAt": "2026-08-12T19:54:32.494Z",
+  "finishedAt": "2026-08-12T19:54:34.469Z",
+  "outcome": "complete",
+  "createdUseCases": [],
+  "createdNodes": [
+    {
+      "id": "9eb63cf2-f358-4230-8305-6a5a6c7e929c",
+      "path": [
+        "UHR",
+        "Demo Portfolio"
+      ],
+      "depth": 1,
+      "parentId": null,
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "d205891b-3b06-4fd5-b7a0-56a6c6b56256",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1"
+      ],
+      "depth": 2,
+      "parentId": "9eb63cf2-f358-4230-8305-6a5a6c7e929c",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "016f678b-6dcf-444b-9970-463528bf61f0",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2"
+      ],
+      "depth": 2,
+      "parentId": "9eb63cf2-f358-4230-8305-6a5a6c7e929c",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "27d7b9d9-0eb3-4b90-bf7f-19ac54569e5b",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 3"
+      ],
+      "depth": 2,
+      "parentId": "9eb63cf2-f358-4230-8305-6a5a6c7e929c",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "034d0366-07a3-4598-8f5c-d91663b06f47",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4"
+      ],
+      "depth": 2,
+      "parentId": "9eb63cf2-f358-4230-8305-6a5a6c7e929c",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "depth": 3,
+      "parentId": "d205891b-3b06-4fd5-b7a0-56a6c6b56256",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "depth": 3,
+      "parentId": "d205891b-3b06-4fd5-b7a0-56a6c6b56256",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b56b0598-d0d9-4789-8180-77a4a72298f0",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Rimal Polyclinic"
+      ],
+      "depth": 3,
+      "parentId": "d205891b-3b06-4fd5-b7a0-56a6c6b56256",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "577ee756-1e2c-45c0-8936-c4b05c6fb51e",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Sarab Group"
+      ],
+      "depth": 3,
+      "parentId": "d205891b-3b06-4fd5-b7a0-56a6c6b56256",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": true
+    },
+    {
+      "id": "1e875462-ec71-4f49-960d-9d6923be952d",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Wateen Cardiac Centre"
+      ],
+      "depth": 3,
+      "parentId": "d205891b-3b06-4fd5-b7a0-56a6c6b56256",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "5963a701-cdd8-4c6a-801f-1435596f227a",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Yaqoot Diagnostic Laboratories"
+      ],
+      "depth": 3,
+      "parentId": "d205891b-3b06-4fd5-b7a0-56a6c6b56256",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "ba150028-470b-4000-9269-d56569211bd3",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "depth": 3,
+      "parentId": "016f678b-6dcf-444b-9970-463528bf61f0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "c0a4a89e-4c7c-4154-bc72-14d52f220261",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Salsabeel Maternity Hospital"
+      ],
+      "depth": 3,
+      "parentId": "016f678b-6dcf-444b-9970-463528bf61f0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "471261ee-e756-4afa-b561-efcf4b84194b",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Shurooq Medical Complex"
+      ],
+      "depth": 3,
+      "parentId": "016f678b-6dcf-444b-9970-463528bf61f0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "16567ca3-2bbe-40d8-9628-1ec5b02a15b1",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 3",
+        "Lulwah Specialist Polyclinic"
+      ],
+      "depth": 3,
+      "parentId": "27d7b9d9-0eb3-4b90-bf7f-19ac54569e5b",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "1ff5dc29-861b-41a2-9cf0-00d1c3829096",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Anwa Regional Laboratory"
+      ],
+      "depth": 3,
+      "parentId": "034d0366-07a3-4598-8f5c-d91663b06f47",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "depth": 3,
+      "parentId": "034d0366-07a3-4598-8f5c-d91663b06f47",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "78335db8-0536-43db-a95f-2d9dffaec09f",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Rawnaq Dental & Medical Centre"
+      ],
+      "depth": 3,
+      "parentId": "034d0366-07a3-4598-8f5c-d91663b06f47",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "3f468092-8f22-46b7-93a1-c249914b0c6b",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Zahrat Al Wadi Clinic"
+      ],
+      "depth": 3,
+      "parentId": "034d0366-07a3-4598-8f5c-d91663b06f47",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "c07e1dc2-f239-4547-bf14-3190a384ee49",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Sarab Group",
+        "Areej Day Surgery Unit"
+      ],
+      "depth": 4,
+      "parentId": "577ee756-1e2c-45c0-8936-c4b05c6fb51e",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "5f25f07f-8b69-4f3e-b9b7-3b484957eb1d",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Sarab Group",
+        "Falak Imaging Centre"
+      ],
+      "depth": 4,
+      "parentId": "577ee756-1e2c-45c0-8936-c4b05c6fb51e",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "92a17b61-cbe4-4f92-8bd7-4e7c5d1e18bd",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Sarab Group",
+        "Ghadeer Family Medicine Centre"
+      ],
+      "depth": 4,
+      "parentId": "577ee756-1e2c-45c0-8936-c4b05c6fb51e",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    }
+  ],
+  "updatedNodes": [],
+  "setUseCases": [
+    {
+      "nodeId": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e7bc7ccb-dc98-4adb-95b2-d31503b74f75",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Khuzama Specialist Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a28e6e25-634b-47b8-a1ce-e29c7ede5adb",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Nawras General Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b56b0598-d0d9-4789-8180-77a4a72298f0",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Rimal Polyclinic"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b56b0598-d0d9-4789-8180-77a4a72298f0",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Rimal Polyclinic"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b56b0598-d0d9-4789-8180-77a4a72298f0",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Rimal Polyclinic"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b56b0598-d0d9-4789-8180-77a4a72298f0",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Rimal Polyclinic"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5f25f07f-8b69-4f3e-b9b7-3b484957eb1d",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Sarab Group",
+        "Falak Imaging Centre"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5f25f07f-8b69-4f3e-b9b7-3b484957eb1d",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Sarab Group",
+        "Falak Imaging Centre"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "92a17b61-cbe4-4f92-8bd7-4e7c5d1e18bd",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Sarab Group",
+        "Ghadeer Family Medicine Centre"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e875462-ec71-4f49-960d-9d6923be952d",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Wateen Cardiac Centre"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e875462-ec71-4f49-960d-9d6923be952d",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Wateen Cardiac Centre"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e875462-ec71-4f49-960d-9d6923be952d",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Wateen Cardiac Centre"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e875462-ec71-4f49-960d-9d6923be952d",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Wateen Cardiac Centre"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e875462-ec71-4f49-960d-9d6923be952d",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Wateen Cardiac Centre"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5963a701-cdd8-4c6a-801f-1435596f227a",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Yaqoot Diagnostic Laboratories"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5963a701-cdd8-4c6a-801f-1435596f227a",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Yaqoot Diagnostic Laboratories"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5963a701-cdd8-4c6a-801f-1435596f227a",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 1",
+        "Yaqoot Diagnostic Laboratories"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ba150028-470b-4000-9269-d56569211bd3",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ba150028-470b-4000-9269-d56569211bd3",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ba150028-470b-4000-9269-d56569211bd3",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ba150028-470b-4000-9269-d56569211bd3",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ba150028-470b-4000-9269-d56569211bd3",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ba150028-470b-4000-9269-d56569211bd3",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ba150028-470b-4000-9269-d56569211bd3",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ba150028-470b-4000-9269-d56569211bd3",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ba150028-470b-4000-9269-d56569211bd3",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ba150028-470b-4000-9269-d56569211bd3",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Marjan Coastal Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0a4a89e-4c7c-4154-bc72-14d52f220261",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Salsabeel Maternity Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0a4a89e-4c7c-4154-bc72-14d52f220261",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Salsabeel Maternity Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0a4a89e-4c7c-4154-bc72-14d52f220261",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Salsabeel Maternity Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0a4a89e-4c7c-4154-bc72-14d52f220261",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Salsabeel Maternity Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0a4a89e-4c7c-4154-bc72-14d52f220261",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Salsabeel Maternity Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0a4a89e-4c7c-4154-bc72-14d52f220261",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 2",
+        "Salsabeel Maternity Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "16567ca3-2bbe-40d8-9628-1ec5b02a15b1",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 3",
+        "Lulwah Specialist Polyclinic"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "16567ca3-2bbe-40d8-9628-1ec5b02a15b1",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 3",
+        "Lulwah Specialist Polyclinic"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "16567ca3-2bbe-40d8-9628-1ec5b02a15b1",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 3",
+        "Lulwah Specialist Polyclinic"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1ff5dc29-861b-41a2-9cf0-00d1c3829096",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Anwa Regional Laboratory"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1ff5dc29-861b-41a2-9cf0-00d1c3829096",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Anwa Regional Laboratory"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46a1f74b-b02e-4b54-b498-d4fd1add1b65",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Basateen Community Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "78335db8-0536-43db-a95f-2d9dffaec09f",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Portfolio",
+        "Wave 4",
+        "Rawnaq Dental & Medical Centre"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    }
+  ],
+  "clearedUseCases": []
+}

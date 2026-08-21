@@ -1,0 +1,518 @@
+/* The map's two floating controls: the DIVE RAIL, and the disclosure the
+   group-by menu is made of.
+
+   THE FILENAME IS NOW WRONG AND IS KEPT ANYWAY. The altitude ladder this file
+   was written for is deleted — `MapAltitude.tsx` with it — and what stands here
+   is its successor plus the one part of it that had a second consumer. Renaming
+   the file would be a rename in `MapDiveRail.tsx` and `MapToolbar.tsx` and a
+   line in the prefix registry, for no behaviour; it is offered to the integrator
+   as a tidy-up and is deliberately not taken here, where every changed line has
+   to be reviewable against the contract.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.mdive*` and `.malt*` and
+   styles nothing else. Report the two lines to the integrator:
+       `.mdive-*` -> src/components/map/map-altitude.css   (U4)
+       `.malt-*`  -> src/components/map/map-altitude.css   (U4)
+
+   TWO CONSUMERS, ONE IDEA — the same arrangement `map-mode.css` states for
+   MapModeBar and ModeFrame, and for the same reason. `MapDiveRail.tsx` renders
+   the rail; `MapToolbar.tsx` renders the group-by menu, which is a 44px summary
+   naming where you are, opening a small stack of 44px rows. Giving that object
+   two class families would be two sheets that have to agree about the same
+   popover metrics forever, and §1.0.4 exists to stop exactly that.
+
+   Primitives it USES and never redeclares: `.tap-44`. Nothing else — the rows
+   are deliberately NOT `.btn`, because `.btn`'s hover fill on a control that
+   floats over a drawing reads as a second selected state.
+
+   ── CONTRAST, COMPUTED IN BOTH THEMES, READ dark / light ──────────────────
+
+   Computed from global.css's tokens with the WCAG 2.x relative-luminance
+   formula, not eyeballed. Every figure names the surface it was measured
+   against, because a ratio without its background is not a measurement. No new
+   colour is introduced: every pair below is already in the sheet's matrix or is
+   the same two tokens measured against a different one of this app's three
+   surfaces.
+
+   NON-TEXT — 3:1 (WCAG 1.4.11)
+     tick mark + track (--field-border) on the plate (--bg-elev)   3.77 / 3.65
+     …the same pair on --bg-elev-2 (the pressed row's fill)        3.26 / 3.10
+     thumb (--accent) on the plate (--bg-elev)                     5.34 / 13.65
+     thumb (--accent) on --bg-elev-2                               4.63 / 11.60
+     plate hairline (--border) on --bg-elev                        1.35 / 1.40
+                                                 ← a DIVIDER, not a boundary
+   TEXT — 4.5:1, all of it small text
+     tick label (--text-dim) on the plate (--bg-elev)              8.05 / 7.04
+     table row + current tick (--text) on the plate                14.56 / 17.81
+
+   THE ONE FIGURE THAT FAILED, AND THE RULE THAT CAME OUT OF IT. The thumb
+   painted directly against the track measures **1.42 / 3.74** — `--accent` on
+   `--field-border` — which misses 3:1 in the dark theme outright. A thumb whose
+   only boundary is the track it slides on is therefore not compliant, and no
+   amount of size fixes it. So the thumb carries a 2px ring in the PLATE's own
+   colour: its adjacent colour is `--bg-elev` on every side (5.34 / 13.65), the
+   track's adjacent colour is also `--bg-elev` (3.77 / 3.65), and the two marks
+   never touch. Both boundaries are measured and both pass. This is the only new
+   structural decision in the file and it came from a measurement, not a taste.
+
+   ⚠ THOSE TWO PAIRS WERE STALE UNTIL WAVE 8, and the verdict never moved, which
+     is precisely why nobody noticed: 1.38 / 3.73 and 5.20 / 13.62 were measured
+     against an older `--accent`, and both a failing figure and a passing one
+     stayed failing and passing across the repaint. Re-derived here against
+     `--accent: #9884d6` / `#322067`. The lesson this file inherits from
+     pages/mindtree.css: a certification that only gets checked when it changes
+     its mind is not a certification.
+
+   OPACITY IS NEVER A RESTING STATE, per mindtree.css: fading a stroke
+   composites it toward its backdrop and hands the measured ratio back. Nothing
+   here is drawn at a fractional opacity.
+
+   LOGICAL PROPERTIES ONLY — and this file is where that rule earns its keep
+   rather than merely being obeyed. The rail is VERTICAL on the desktop and
+   HORIZONTAL on the phone, and the difference is one `writing-mode` and nothing
+   else: the slider is 44px on its BLOCK axis and long on its INLINE axis in both
+   cases, and the ticks are placed with `inset-inline-start`. One rule set, two
+   orientations, no `transform`, no second layout. The compact rule is now
+   literally that — a writing mode and two insets — because the plate's
+   `flex-direction` was `column`, the BLOCK axis, and had to be overridden per
+   orientation; `row` is the rail's own axis in both and the override is gone.
+
+   THE FOOTPRINT, AND WHERE IT DEPARTS FROM docs/MAP-ZOOM.md §6. That budget
+   prices this island at 44×396: a 44px column, block-centred at the canvas's
+   inline end. The track is still 44px and the plate is still one column, but it
+   now carries a 4.5rem GUTTER for the tier names — measured at ~132×364 with
+   three rungs — because those names have nowhere else legible to be. Outside the
+   plate they are 11px `--text-dim` over an arbitrary node colour, and they leave
+   the viewport outright in one of the two scripts: the block axis is the only
+   axis a label can hang on beside a vertical rail, and it does not mirror, so
+   block-start is over the map in Arabic and past the screen edge in English. The
+   gutter is the price of keeping the words the CUT table promised would survive
+   as tick labels. Reported to the integrator rather than assumed.
+
+   WHAT THE ARABIC MIRROR DOES TO A VERTICAL RAIL, STATED PLAINLY BECAUSE IT IS
+   NOT OBVIOUS. Under `writing-mode: vertical-lr` the inline axis runs top → bottom
+   in `ltr` and bottom → top in `rtl`. So the rail's ZERO — the whole workspace,
+   the Home rung — sits at the top in English and at the bottom in Arabic, and
+   the tick labels follow it exactly because they are placed on the same axis.
+   That is the same rule every other row in this app obeys (a list starts at the
+   reader's start) applied to a vertical control, and it is a CONSEQUENCE of the
+   logical properties rather than a second stylesheet. It is also the one thing
+   in this file that must be looked at in a real browser in both languages before
+   it is believed; see the handoff.
+
+   MOTION: none.
+
+   SPACING is on the 4px grid. */
+
+/* ═══════════════════════════ the dive rail ═══════════════════════════════ */
+
+/* SELF-PLACING, AND THE SHELL MUST NOT WRAP IT AGAIN.
+   `.mdive` positions itself against the nearest positioned ancestor — the
+   stage's `.mtree-ladder` frame — at the canvas's inline end, block-centred.
+   Reported to the integrator: render `<MapDiveRail>` as a direct child of that
+   frame and do NOT add a second positioned island around it, or the 12px inset
+   applies twice. This is the same contract `.malt` had, so the frame needs no
+   change on the desktop. */
+.mdive {
+  /* THE LABEL GUTTER, ACROSS THE RAIL — the strip of plate the tier names live
+     in, and the whole of the difference between a label that belongs to the rail
+     and one that floats over the drawing. It is stated once, here, because it is
+     the only number in this file that has to differ between the two
+     orientations: across a VERTICAL rail a tier name is as long as the word
+     (capped at the same 4.5rem the label truncates to), and across a HORIZONTAL
+     one it is a single 11px line. See the ticks block. */
+  --mdive-gutter: 4.5rem;
+  position: absolute;
+  inset-inline-end: 12px;
+  inset-block: 0;
+  block-size: fit-content;
+  margin-block: auto;
+  /* Above the canvas, below anything the shell fixes to the viewport (the phone
+     rails are 71/72). The islands are a layer, not a dialog. */
+  z-index: 2;
+  /* The stage sets `pointer-events: none` on the island layer where it needs
+     the drag to pass through; this island is a control and always takes its
+     own. */
+  pointer-events: auto;
+}
+
+/* THE PHONE PUTS IT UNDER THE THUMB AND ACROSS THE SCREEN.
+   A vertical rail at the inline end collides with the thumb's natural arc and
+   with the sheet's drag handle, and 375px has no column to spare for it. So it
+   is horizontal, full width minus 16, and pinned IMMEDIATELY ABOVE the lens
+   rail — which means above the two things the shell fixes to the viewport, and
+   their heights are MEASURED and published rather than copied: map-panel.css
+   travels the same two tokens for the same reason. The fallbacks are the ones
+   that file already uses, so a rail that has not reported yet lands in the right
+   place rather than at zero.
+
+   THE THIRD TOKEN IS A COLLISION FIX AND THE COLLISION WAS VISIBLE.
+   `.mtree-ladder` — this island's containing block — reaches the block END of
+   the stage's padding box, which is BELOW the caption strip, so `inset-block:
+   auto 0` plus the two rail heights landed this plate exactly on top of the
+   legend: two sentences behind an opaque box, and a third line under it visible
+   only as three clipped characters at the inline-start edge. There is no author-
+   time number for that strip — it is two sentences in English, three lines in
+   Arabic, and it grows when a selection bar joins its row — so MapSummary.tsx
+   MEASURES it and publishes `--map-caption-block-size` onto `.mtree`, exactly as
+   MapCapture.tsx publishes the composer's. Adding it here puts the plate's
+   block-end 8px above the strip's block-start at any height, in either language.
+   The fallback is 0px, which is this file's behaviour before the measurement
+   arrives and on any host that does not render that strip.
+
+   NO LOOP: this island is out of flow, so where it sits cannot change how tall
+   the strip is. */
+.mdive[data-compact] {
+  /* One 11px line and the 4px that ties it to its mark, on the 4px grid. A
+     horizontal rail spends its gutter on the BLOCK axis, where a label is a line
+     tall rather than a word wide. */
+  --mdive-gutter: 16px;
+  inset-inline: 8px;
+  inset-block: auto 0;
+  margin-block: 0;
+  margin-block-end: calc(
+    var(--map-composer-block-size, 0px) + var(--map-lens-rail-block-size, 48px) +
+      var(--map-caption-block-size, 0px) + 8px
+  );
+  block-size: auto;
+}
+
+/* THE PLATE IS OPAQUE, AND THAT IS A REQUIREMENT RATHER THAN A TASTE. It floats
+   over the drawing, so its backdrop is not the canvas colour — it is whatever
+   node happens to be under it. `--bg-elev` + a `--border` hairline is `.mpan`'s
+   plate verbatim, already measured in both themes.
+
+   `writing-mode: vertical-lr` IS THE ORIENTATION, and it is set on the plate so
+   the track, the ticks and the slider all inherit one axis system. The Table row
+   below it is turned back to `horizontal-tb` for its own text, which is the only
+   place in this file that names a writing mode twice.
+
+   `row` IS ALONG THE RAIL, IN BOTH ORIENTATIONS, AND `column` WAS THE BUG.
+   Flexbox reads its axes through the writing mode: under `vertical-lr` the
+   INLINE axis is the rail's own long axis and the BLOCK axis is across it. This
+   plate said `column` — the block axis — so on the desktop the Table toggle was
+   laid out BESIDE the track rather than at the end of it, which is what made the
+   rail read as two objects side by side and put the plate at ~90px wide where
+   docs/MAP-ZOOM.md §6 prices it as one 44px column. `row` is one declaration for
+   both orientations: down the rail when it is vertical, along it when it is
+   horizontal, and the compact rule now changes the WRITING MODE and nothing
+   else — which is the claim this file's header makes and, until now, did not
+   keep. */
+.mdive-plate {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  writing-mode: vertical-lr;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+
+.mdive[data-compact] .mdive-plate {
+  writing-mode: horizontal-tb;
+}
+
+/* The positioning context for the ticks, and the thing that gives the slider its
+   308px of travel. `min-inline-size` is the LONG axis in both orientations —
+   vertical on the desktop because the plate is `vertical-lr`, horizontal on the
+   phone because it is `horizontal-tb`. That is the whole of the difference. */
+.mdive-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-inline-size: 308px;
+  min-block-size: 44px;
+  /* THE GUTTER IS PART OF THE TRACK, not of the tick that draws into it — which
+     is what makes the plate GROW to hold the tier names instead of letting them
+     hang over the drawing. An absolutely positioned tick contributes nothing to
+     its container's size, so a label placed outside this padding would sit on
+     the canvas at whatever colour a node happened to be, and would leave the
+     screen entirely in one of the two scripts: the block axis does not mirror,
+     so a label hung off the block start is over the map in Arabic and off the
+     edge in English. Inside the plate it is over the plate's own measured
+     `--bg-elev` in both. */
+  padding-block-start: var(--mdive-gutter);
+}
+
+.mdive[data-compact] .mdive-track {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+/* ─────────────────────────────── the ticks ───────────────────────────────── */
+
+.mdive-ticks {
+  position: absolute;
+  inset: 0;
+  list-style: none;
+  /* MARKS, NOT CONTROLS — so a drag that starts on a label still reaches the
+     thumb underneath it. The component sets `aria-hidden` for the same reason
+     from the other side: the slider already speaks the world it frames. */
+  pointer-events: none;
+}
+
+/* `--mdive-at` is the rung's share of the octave span, written by the component
+   as a percentage. `inset-inline-start` is what makes the placement mirror in
+   Arabic and rotate with the writing mode, both for free.
+
+   A TICK IS A LABEL AND THE LINE THAT ATTACHES IT, and the second half is the
+   fix. This was a 10px dash and a word, laid out along the flex `row` — which
+   under `vertical-lr` is the RAIL'S OWN AXIS — so the mark sat 20px off the
+   groove at the far edge of the 44px slider box and the word ran DOWN the rail
+   onto the thumb. Read at 1600×900 that is a stray glyph and a floating title,
+   not a graduation.
+
+   `column` is the axis ACROSS the rail in both orientations, so the tick now
+   spans the track: the name in the gutter, then the mark from the name's edge
+   all the way to the track's block end, crossing the groove. The mark is the
+   leader line. Nothing is adrift because everything is on one line that ends on
+   the thing it is measuring. */
+.mdive-tick {
+  position: absolute;
+  inset-inline-start: var(--mdive-at, 0%);
+  /* The gutter AND the slider box: `inset: 0` on the list is its containing
+     block's PADDING box, so this spans the name's strip and the groove's. */
+  inset-block: 0;
+  display: flex;
+  flex-direction: column;
+  /* ALONG THE RAIL, AT THE TICK. `center` would put the mark at the middle of
+     the label instead of at the octave it names, and the mark is the thing that
+     has to be exact. */
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* THE LEADER LINE, 1px across the rail and as long as what is left. `flex` and
+   not a fixed length: the gutter is 4.5rem across a vertical rail and 16px
+   across a horizontal one, and a mark that had to be told which is a mark that
+   drifts the next time either changes. `--field-border` on the plate's
+   `--bg-elev` is 3.77 / 3.65 — the same measured pair as the track it lands
+   on. */
+.mdive-tick-mark {
+  flex: 1 1 auto;
+  inline-size: 1px;
+  background: var(--field-border);
+}
+
+/* The department's own name, out of `map_node_kinds` — which is why the ladder
+   can be the admin's depth rather than four English words. `horizontal-tb`
+   because a rotated glyph run is not a label anybody reads; the LABEL is
+   horizontal even where the rail is vertical, and it sits in the gutter the
+   track reserves for it — ON the plate, over `--bg-elev` at 8.05 / 7.04, rather
+   than over whatever node the drawing put underneath.
+
+   4.5rem AND NOT 7: the cap and the gutter are the SAME number, because the
+   gutter is what makes the label part of the rail and a label wider than its
+   gutter is a label back over the map. Longer names truncate, which the
+   breadcrumb and `aria-valuetext` both spell in full. */
+.mdive-tick-label {
+  writing-mode: horizontal-tb;
+  max-inline-size: 4.5rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-dim);
+}
+
+/* ────────────────────────────── the slider ───────────────────────────────── */
+
+/* 44px ON THE BLOCK AXIS IN BOTH ORIENTATIONS, which is 44px wide when the plate
+   is vertical and 44px tall when it is horizontal — one declaration, because it
+   is written on the logical axis rather than on `width`/`height`.
+
+   `appearance: none` on the element and a hand-drawn track/thumb below: the
+   platform's own range control cannot be given a measured contrast in both
+   themes, and this one has to clear 3:1 over a plate that floats above arbitrary
+   node colours. */
+.mdive-range {
+  appearance: none;
+  -webkit-appearance: none;
+  inline-size: 100%;
+  min-block-size: 44px;
+  margin: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* The unfilled track. `--field-border` on `--bg-elev` measures 3.77 / 3.65 —
+   over the 3:1 non-text floor in both themes. */
+.mdive-range::-webkit-slider-runnable-track {
+  block-size: 4px;
+  border-radius: 2px;
+  background: var(--field-border);
+}
+
+.mdive-range::-moz-range-track {
+  block-size: 4px;
+  border-radius: 2px;
+  background: var(--field-border);
+}
+
+/* THE 2px RING IS THE MEASUREMENT, NOT A HIGHLIGHT. `--accent` against
+   `--field-border` — the thumb painted straight onto its own track — measures
+   1.42 / 3.74 and FAILS 1.4.11 in the dark theme. The ring is the plate's own
+   colour, so the thumb's adjacent colour is `--bg-elev` on every side (5.34 /
+   13.65) and the two marks never touch. See this file's header. */
+.mdive-range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  inline-size: 20px;
+  block-size: 20px;
+  margin-block-start: -8px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-elev);
+}
+
+.mdive-range::-moz-range-thumb {
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-elev);
+}
+
+/* ───────────────────────────── the ledger row ────────────────────────────── */
+
+/* 32px OF BORDER BOX, NOT 30, and `map-panel.css` already documents the number.
+   `.tap-44`'s overlay is positioned against the PADDING box, so a 1px border
+   eats 2px of it: 30px of border box is a 28px padding box and 28 + 14 = 42, two
+   short. 32 − 2 = 30 and 30 + 14 = 44 exactly. The border is present at every
+   state — transparent until pressed — so the box model never changes under the
+   arithmetic. */
+.mdive-table {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: horizontal-tb;
+  min-block-size: 32px;
+  /* The inline axis carries its own 44: `.tap-44` only grows the block axis, and
+     a two-word label in one language can be a four-letter one in another. */
+  min-inline-size: 44px;
+  padding-inline: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.mdive-table:hover {
+  color: var(--text);
+}
+
+.mdive-table[aria-pressed='true'] {
+  color: var(--text);
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+/* ════════════════════ the disclosure (the group-by menu) ═════════════════ */
+
+.malt-menu {
+  position: relative;
+}
+
+/* A `<summary>` is a list-item box by default; the marker is replaced by the
+   control's own styling, which is why it is suppressed in both spellings —
+   Safari still only understands the -webkit- pseudo-element. */
+.malt-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.malt-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The current dimension, as a target. Same 32/30/44 arithmetic as `.mdive-table`,
+   and the opaque plate for the same reason: it floats over the drawing. */
+.malt-current {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-block-size: 32px;
+  min-inline-size: 44px;
+  padding-inline: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+
+/* OPENS DOWNWARD AND TOWARD THE READING EDGE, at both widths, and it cannot
+   leave the screen in either script: the inline START is pinned to the summary's,
+   so the panel grows toward the inline END — which is the direction the map is
+   in, in both scripts, because the menu is at the canvas's inline start. The
+   `max-inline-size` is the guard for a 320px viewport at 400% zoom. */
+.malt-pop {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: calc(100% + 6px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  /* 16px, AND IT IS THE 44px RULE THAT SETS IT — not taste.
+     `.tap-44`'s overlay is `inset-block: -7px`, so two 32px rows stacked with
+     less than 14px between them have OVERLAPPING hit areas, and the overlap
+     belongs to whichever element paints later: the other row's target silently
+     shrinks below 44. 16px is the first value on the 4px grid that clears it,
+     and it is the same floor `.row-actions` and `.mlens` already document for
+     two lines of `.tap-44` controls. */
+  gap: 16px;
+  padding: 8px;
+  min-inline-size: 11rem;
+  max-inline-size: calc(100dvw - 24px);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+
+/* Same 32/30/44 arithmetic, start-aligned because a menu of options reads down a
+   column. `--text-dim` on `--bg-elev` is 8.05 / 7.04; pressed takes `--text` on
+   `--bg-elev-2` at 12.61 / 15.14, which is `.mlens-chip[aria-pressed='true']`
+   verbatim. */
+.malt-stop {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-block-size: 32px;
+  min-inline-size: 44px;
+  padding-inline: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: start;
+  white-space: nowrap;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.malt-stop:hover {
+  color: var(--text);
+}
+
+.malt-stop[aria-pressed='true'] {
+  color: var(--text);
+  background: var(--bg-elev-2);
+  border-color: var(--accent);
+  font-weight: 700;
+}

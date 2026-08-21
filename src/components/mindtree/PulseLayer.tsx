@@ -75,7 +75,7 @@ import {
   type ReactElement,
 } from 'react'
 import { drawnIds } from '../../lib/mindtree/focus'
-import type { MindtreeLayout } from '../../lib/mindtree/layout'
+import type { DrawnLayout } from '../../lib/mindtree/layout'
 import type { MindNode } from '../../lib/mindtree/model'
 import {
   breachChanges,
@@ -498,8 +498,8 @@ const NO_GHOSTS: readonly MindGhost[] = Object.freeze([])
  * layouts and no DOM.
  */
 export function ghostsFor(
-  before: MindtreeLayout<MindNode>,
-  after: MindtreeLayout<MindNode>,
+  before: DrawnLayout<MindNode>,
+  after: DrawnLayout<MindNode>,
 ): readonly MindGhost[] {
   const beforeRoot = before.nodes[0]
   const afterRoot = after.nodes[0]
@@ -535,11 +535,11 @@ export function ghostsFor(
  * forever, over a map that had moved on without them.
  */
 function useExitGhosts(
-  layout: MindtreeLayout<MindNode>,
+  layout: DrawnLayout<MindNode>,
   reduced: boolean,
 ): readonly MindGhost[] {
   const [ghosts, setGhosts] = useState<readonly MindGhost[]>(NO_GHOSTS)
-  const previous = useRef<MindtreeLayout<MindNode> | null>(null)
+  const previous = useRef<DrawnLayout<MindNode> | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -570,7 +570,7 @@ function useExitGhosts(
 
 export interface PulseLayerProps {
   /** The layout the map is drawing. Positions come from here, never recomputed. */
-  layout: MindtreeLayout<MindNode>
+  layout: DrawnLayout<MindNode>
   /** `useMindPulses().pulses`. */
   pulses: PulseMap
 }

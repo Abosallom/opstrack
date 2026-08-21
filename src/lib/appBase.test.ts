@@ -38,6 +38,25 @@ describe('baseUrlFrom resolves the app root, not the origin', () => {
     expect(baseUrlFrom('https://example.com/')).toBe('https://example.com/')
   })
 
+  // The custom domain, and the reason it needs no code change. A GitHub Pages
+  // PROJECT site with a CNAME serves at the apex of that domain — `/`, not
+  // `/opstrack/` — so the subpath the four cases above protect simply stops
+  // existing. These assert that the same function, unedited, is still right on
+  // the other side of the cut-over: the hash route goes, index.html collapses,
+  // and what comes back is the origin because here the origin IS the app root.
+  // That is the one situation where returning the bare origin is correct, which
+  // is why the guard case below is scoped to "while the app sits in a subpath".
+  it('serves from the apex once nphiescore.com is the origin', () => {
+    for (const href of [
+      'https://nphiescore.com/',
+      'https://nphiescore.com/#/signin',
+      'https://nphiescore.com/index.html',
+      'https://nphiescore.com/?a=1#/board',
+    ]) {
+      expect(baseUrlFrom(href)).toBe('https://nphiescore.com/')
+    }
+  })
+
   it('survives a rename of the subpath without an edit here', () => {
     expect(baseUrlFrom('https://abosallom.github.io/nphiescore/#/x')).toBe(
       'https://abosallom.github.io/nphiescore/',

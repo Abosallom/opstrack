@@ -18,6 +18,16 @@
 // over rows spanning every owner shape, then assert that for every leaf, the key
 // this module computes is the key of the branch model.ts actually filed it
 // under. A drift in either module reds it.
+//
+// AND THE ENTITY RING IS THE NEW WAY TO GET THAT WRONG. `entity` nodes — the
+// map_nodes hierarchy, UHR > OB > Org1 — sit BETWEEN the track and its status
+// buckets, so "which bucket is this row in" now has one more answer, and the
+// track ring's meaning changed underneath it: a track's own Blocked bucket now
+// means "blocked, on this track, under NO organization". The block near the
+// bottom is the case that would otherwise ship silently — a drop onto a track
+// that leaves `node_id` pointing at Org3, which `entries_map_sync` turns back
+// into the same track, so the rebuild files the row under Org3 again and the
+// node springs across the screen a frame after landing.
 
 import { describe, expect, it } from 'vitest'
 import { EMPTY_FILTER, type FilterContext, type FilterState } from '../entryFilter'
@@ -28,6 +38,7 @@ import {
   evaluateDrop,
   groupBucketKey,
   isDropZoneKind,
+  nodeBucketKey,
   ownerBucketKey,
   trackBucketKey,
   type DropEntryRow,
@@ -38,6 +49,7 @@ import {
 import {
   buildMindtree,
   type MindDimension,
+  type MindEntity,
   type MindMember,
   type MindNode,
   type MindTrack,
@@ -57,6 +69,9 @@ function at(date: string): string {
 function entry(over: Partial<Entry> & Pick<Entry, 'id'>): Entry {
   return {
     track_id: null,
+    // `entries.node_id` — null is "on the track, under no organization", which
+    // is where every row on this map sits until Aziz's hierarchy is entered.
+    node_id: null,
     title: over.id,
     description: '',
     type: 'action',
@@ -135,7 +150,11 @@ describe('ring 1 — dropping on a track re-files the entry', () => {
       entryId: 'e1',
       field: 'trackId',
       value: 'trk-2',
-      patch: { trackId: 'trk-2' },
+      // `mapNodeId: null` rides along on EVERY track drop — see the entity-ring
+      // block below. The track ring is above the organizations, so landing on it
+      // means "under none of them", and saying nothing would leave the row filed
+      // under whichever Org it came from.
+      patch: { trackId: 'trk-2', mapNodeId: null },
     })
   })
 
@@ -149,7 +168,7 @@ describe('ring 1 — dropping on a track re-files the entry', () => {
       entryId: 'e1',
       field: 'trackId',
       value: null,
-      patch: { trackId: null },
+      patch: { trackId: null, mapNodeId: null },
     })
   })
 
@@ -190,7 +209,7 @@ describe('a drop is the whole path, not the node under the pointer', () => {
       // what an announcement should say out loud.
       field: 'status',
       value: 'blocked',
-      patch: { trackId: 'trk-B', status: 'blocked' },
+      patch: { trackId: 'trk-B', mapNodeId: null, status: 'blocked' },
     })
   })
 
@@ -212,16 +231,17 @@ describe('a drop is the whole path, not the node under the pointer', () => {
     })
   })
 
-  it('folds an owner group under a track into three keys', () => {
-    // The unassign arm's two keys plus the track — the case where re-deriving
-    // the patch from `field`+`value` would silently lose two columns.
+  it('folds an owner group under a track into four keys', () => {
+    // The unassign arm's two keys, the track, and the node the track ring
+    // clears — the case where re-deriving the patch from `field`+`value` would
+    // silently lose THREE columns.
     const row = entry({ id: 'e1', track_id: 'trk-A', owner_name: 'Acme Ltd' })
     expect(dropAt([ROOT, branch('track', 'trk-B'), branch('group', NO_VALUE)], 'owner', row)).toEqual({
       kind: 'patch',
       entryId: 'e1',
       field: 'ownerId',
       value: null,
-      patch: { trackId: 'trk-B', ownerId: null, ownerName: null },
+      patch: { trackId: 'trk-B', mapNodeId: null, ownerId: null, ownerName: null },
     })
   })
 
@@ -451,10 +471,198 @@ describe('ring 2 — health', () => {
   })
 })
 
+// ── the entity ring: an item belongs to an organization ───────────────────
+//
+// UHR > OB > Org1. An `entity` node is a row in `map_nodes`, and dropping an
+// item on one means "this issue belongs to this organization" — the gesture the
+// whole hierarchy exists for. It is a real drop zone, unlike the health ring:
+// the entity ring would otherwise be the only ring on this map you cannot drop
+// on, which reads as a broken drag rather than as a rule.
+
+const UHR: DropTargetNode = { kind: 'track', bucketKey: 'trk-uhr', retired: false }
+
+function org(id: string, retired = false): DropTargetNode {
+  return { kind: 'entity', bucketKey: id, retired }
+}
+
+describe('ring 1.5 — the entity ring', () => {
+  it('files an item under an organization, writing the node and the track', () => {
+    const row = entry({ id: 'e1', track_id: 'trk-uhr' })
+    expect(dropAt([ROOT, UHR, org('ob'), org('org-1')], 'status', row)).toEqual({
+      kind: 'patch',
+      entryId: 'e1',
+      // The DEEPEST step names the move, exactly as it does on the group ring.
+      field: 'mapNodeId',
+      value: 'org-1',
+      // `trackId` comes from the track step and `mapNodeId` from the deepest
+      // entity — the intermediate OB is overwritten by Org1, which is what makes
+      // an arbitrarily deep path fold to one node rather than to a list.
+      patch: { trackId: 'trk-uhr', mapNodeId: 'org-1' },
+    })
+  })
+
+  it('writes ONLY the node when the path is the Org alone', () => {
+    // No track step, so no `trackId` — and that is correct rather than
+    // incomplete: `entries_map_sync` DERIVES `track_id` from the node on every
+    // write, so the node is the whole answer. Asserting a track the client
+    // guessed would be the second filing axis the schema exists to prevent.
+    const row = entry({ id: 'e1', track_id: 'trk-uhr' })
+    expect(drop(org('org-1'), 'status', row)).toEqual({
+      kind: 'patch',
+      entryId: 'e1',
+      field: 'mapNodeId',
+      value: 'org-1',
+      patch: { mapNodeId: 'org-1' },
+    })
+  })
+
+  it('moves an item between two Orgs on the SAME track, which is not a no-op', () => {
+    // THE CASE `changesRow` HAD TO LEARN. Both patches write `trackId` with the
+    // value the row already holds; comparing only the track would call this
+    // "already there", write nothing, and let the next rebuild put the node back
+    // on Org1 — a drag that visibly moved something and changed nothing.
+    const row = entry({ id: 'e1', track_id: 'trk-uhr', node_id: 'org-1' })
+    expect(dropAt([ROOT, UHR, org('org-2')], 'status', row)).toEqual({
+      kind: 'patch',
+      entryId: 'e1',
+      field: 'mapNodeId',
+      value: 'org-2',
+      patch: { trackId: 'trk-uhr', mapNodeId: 'org-2' },
+    })
+  })
+
+  it('is a no-op back onto the organization the item is already under', () => {
+    const row = entry({ id: 'e1', track_id: 'trk-uhr', node_id: 'org-1' })
+    expect(dropAt([ROOT, UHR, org('org-1')], 'status', row)).toEqual({ kind: 'noop' })
+  })
+
+  it('still writes the status when a bucket hangs under an Org', () => {
+    const row = entry({ id: 'e1', track_id: 'trk-uhr', node_id: 'org-1', status: 'new' })
+    expect(
+      dropAt([ROOT, UHR, org('org-1'), branch('group', 'blocked')], 'status', row),
+    ).toEqual({
+      kind: 'patch',
+      entryId: 'e1',
+      field: 'status',
+      value: 'blocked',
+      patch: { trackId: 'trk-uhr', mapNodeId: 'org-1', status: 'blocked' },
+    })
+  })
+
+  it('refuses an archived Org, and an archived Org ANYWHERE on the path', () => {
+    const row = entry({ id: 'e1', track_id: 'trk-uhr' })
+    expect(dropAt([ROOT, UHR, org('org-old', true)], 'status', row)).toEqual({
+      kind: 'refused',
+      reasonKey: 'mindtree.whyRetired',
+    })
+    // A live Org under an archived phase. Filing new work through an archived
+    // ancestor is how the archived branch quietly comes back to life — the same
+    // rule the track ring has had since the beginning.
+    expect(dropAt([ROOT, UHR, org('ob', true), org('org-1')], 'status', row)).toEqual({
+      kind: 'refused',
+      reasonKey: 'mindtree.whyRetired',
+    })
+  })
+
+  it('refuses an entity whose key is empty, rather than writing a uuid column blank', () => {
+    // NO_VALUE is a real bucket on the TRACK ring — the untracked pile — and no
+    // bucket at all here: a row under no Org is drawn one ring shallower, so an
+    // empty key is a malformed node. Writing it would send `node_id = ''` and
+    // 22P02 after the optimistic row had already moved.
+    expect(dropAt([ROOT, UHR, org(NO_VALUE)], 'status')).toEqual({
+      kind: 'refused',
+      reasonKey: 'mindtree.dropRefusedUnknown',
+    })
+  })
+
+  it('accepts an Org while the health dimension is showing', () => {
+    // Like the track ring and unlike ring 2: the entity ring is a place, not an
+    // axis, so the dimension switcher has no opinion about it.
+    const row = entry({ id: 'e1', track_id: 'trk-uhr' })
+    expect(dropAt([ROOT, UHR, org('org-1')], 'health', row)).toMatchObject({
+      kind: 'patch',
+      field: 'mapNodeId',
+      value: 'org-1',
+    })
+  })
+
+  it('does not think filing into an Org closes anything', () => {
+    const row = entry({ id: 'e1', track_id: 'trk-uhr' })
+    expect(closesEntry(dropAt([ROOT, UHR, org('org-1')], 'status', row))).toBe(false)
+  })
+})
+
+// ── THE LINE THE WHOLE HIERARCHY RESTS ON ──────────────────────────────────
+//
+// A `track` step writes BOTH `trackId` AND `mapNodeId: null`.
+
+describe('a drop on a TRACK takes the item out of its organization', () => {
+  it('clears node_id when an item is dropped on its own track from inside an Org', () => {
+    // Same track, so `trackId` changes nothing; the drop is real because the
+    // item left Org3. Without the null this resolves to a no-op, nothing is
+    // written, and the node sits on the track ring for one frame before the
+    // rebuild files it straight back under Org3.
+    const row = entry({ id: 'e1', track_id: 'trk-uhr', node_id: 'org-3' })
+    expect(dropAt([ROOT, UHR], 'status', row)).toEqual({
+      kind: 'patch',
+      entryId: 'e1',
+      field: 'trackId',
+      value: 'trk-uhr',
+      patch: { trackId: 'trk-uhr', mapNodeId: null },
+    })
+  })
+
+  it("clears node_id on a track's own status bucket — 'blocked, under no Org'", () => {
+    // The sentence in the plan, asserted. The bucket hanging off a TRACK is not
+    // the same bucket as the one hanging off Org3, and a drop that honoured only
+    // the status would leave the row filed under Org3 and drawn there.
+    const row = entry({ id: 'e1', track_id: 'trk-uhr', node_id: 'org-3', status: 'new' })
+    expect(dropAt([ROOT, UHR, branch('group', 'blocked')], 'status', row)).toEqual({
+      kind: 'patch',
+      entryId: 'e1',
+      field: 'status',
+      value: 'blocked',
+      patch: { trackId: 'trk-uhr', mapNodeId: null, status: 'blocked' },
+    })
+  })
+
+  it('is STILL a no-op on a row that was never in an Org — the null costs nothing', () => {
+    // The other half of the rule, and the reason it is safe to send
+    // unconditionally: `changesRow` compares against the ROW, so a spurious
+    // `mapNodeId: null` on a row that already has none writes nothing, fires no
+    // `entries_touch()`, and does not reset the staleness clock (R3-LEAD-1).
+    const row = entry({ id: 'e1', track_id: 'trk-uhr', node_id: null })
+    expect(dropAt([ROOT, UHR], 'status', row)).toEqual({ kind: 'noop' })
+  })
+
+  it('lets a deeper entity step overwrite the null, because the fold walks root-first', () => {
+    // The null is not "clear the Org", it is "the Org is whatever the rest of
+    // this path says". A path that keeps going never sees it.
+    const row = entry({ id: 'e1', track_id: 'trk-uhr', node_id: 'org-3' })
+    expect(dropAt([ROOT, UHR, org('org-1')], 'status', row)).toMatchObject({
+      patch: { mapNodeId: 'org-1' },
+    })
+  })
+
+  it('moves an item from one track to another and out of its Org in one write', () => {
+    const row = entry({ id: 'e1', track_id: 'trk-uhr', node_id: 'org-3' })
+    expect(dropAt([ROOT, branch('track', 'trk-other')], 'status', row)).toEqual({
+      kind: 'patch',
+      entryId: 'e1',
+      field: 'trackId',
+      value: 'trk-other',
+      // Not `mapNodeId: 'org-3'` and not silence: Org3 belongs to the OLD track,
+      // and `map_node_track_mismatch` is exactly the state 0023's trigger
+      // refuses. The client must not send a pair the server has to reject.
+      patch: { trackId: 'trk-other', mapNodeId: null },
+    })
+  })
+})
+
 // ── what may be dragged, and onto what ─────────────────────────────────────
 
 describe('the source', () => {
-  it.each(['root', 'track', 'group', 'more'] as const)('refuses a dragged %s', (kind) => {
+  it.each(['root', 'track', 'entity', 'group', 'more'] as const)('refuses a dragged %s', (kind) => {
     expect(drop(branch('track', 'trk-2'), 'status', entry({ id: 'e1' }), { kind, entryId: null })).toEqual({
       kind: 'refused',
       reasonKey: 'mindtree.dropRefusedBranch',
@@ -489,23 +697,114 @@ describe('the target', () => {
     })
   })
 
-  it('refuses a bucket-less track or group', () => {
-    expect(drop(branch('track', null), 'status')).toEqual({
-      kind: 'refused',
-      reasonKey: 'mindtree.dropRefusedUnknown',
-    })
+  it('refuses a bucket-less track, entity or group', () => {
+    for (const kind of ['track', 'entity', 'group'] as const) {
+      expect(drop(branch(kind, null), 'status'), kind).toEqual({
+        kind: 'refused',
+        reasonKey: 'mindtree.dropRefusedUnknown',
+      })
+    }
   })
 
-  it('arms exactly the two branch kinds as zones', () => {
+  it('arms exactly the four branch kinds as zones', () => {
     expect(
-      (['root', 'track', 'group', 'entry', 'more'] as const).filter(isDropZoneKind),
-    ).toEqual(['track', 'group'])
+      (['root', 'track', 'entity', 'cohort', 'group', 'entry', 'more'] as const).filter(
+        isDropZoneKind,
+      ),
+    ).toEqual(['track', 'entity', 'cohort', 'group'])
   })
 
   it('arms the health ring even though every drop on it is refused', () => {
     // The refusal has to be reachable to be read. A ring excluded from the hit
     // test is a ring that explains nothing.
     expect(isDropZoneKind('group')).toBe(true)
+  })
+})
+
+// ── the cohort ring: hoverable, and never a destination ────────────────────
+//
+// `?by=manager` puts a cohort between the track and its organizations, so this
+// ring is BOTH the biggest thing a dragging pointer crosses and a thing no drop
+// may ever land on. The three tests below are the three ways that could go
+// wrong, and the second is the one that would have shipped silently.
+
+const COHORT_KEY = 'cohort:manager:5f2c1a90-0000-4000-8000-000000000001'
+
+describe('a cohort is a zone that always refuses', () => {
+  it('refuses a drop ONTO a cohort with the derived-ring sentence, under every dimension', () => {
+    // `whyDerived` and not a new key: a cohort is worked out from a column the
+    // organizations already carry, which is exactly what that sentence says, and
+    // lib/labelSections.test.ts fails on two keys carrying one string.
+    for (const dimension of ALL_DIMENSIONS) {
+      expect(drop(branch('cohort', COHORT_KEY), dimension), dimension).toEqual({
+        kind: 'refused',
+        reasonKey: 'mindtree.whyDerived',
+      })
+    }
+  })
+
+  it('refuses BEFORE the fold — a cohort must not resolve to its ancestors', () => {
+    // THE ONE THAT WOULD HAVE SHIPPED SILENTLY. `foldPath` skips cohorts, so a
+    // drop that ended on one would have folded root → track and succeeded:
+    // "this track, under no organization". Dropping an issue on "Sara's book"
+    // would have quietly taken it out of Org1 and filed it on the track — a
+    // drag doing something other than what it looked like, which is worse than
+    // one that is refused. The row below is INSIDE Org1, so the folded patch
+    // would have been a real change rather than a no-op.
+    const row = entry({ id: 'e1', track_id: 'trk-1', node_id: 'org-1' })
+    const path = [ROOT, branch('track', 'trk-1'), branch('cohort', COHORT_KEY)]
+    expect(dropAt(path, 'status', row)).toEqual({
+      kind: 'refused',
+      reasonKey: 'mindtree.whyDerived',
+    })
+  })
+
+  it('is TRANSPARENT on the way through: grouping on or off writes the same patch', () => {
+    // The grouping is a lens over one hierarchy, so the same drop onto the same
+    // Organization must write the same two columns whichever chip is lit. A URL
+    // parameter that changed what a drag DOES is the defect `?by=` exists to
+    // avoid.
+    const row = entry({ id: 'e1', track_id: 'trk-0', node_id: null })
+    const ungrouped = [ROOT, branch('track', 'trk-1'), branch('entity', 'org-1')]
+    const grouped = [
+      ROOT,
+      branch('track', 'trk-1'),
+      branch('cohort', COHORT_KEY),
+      branch('entity', 'org-1'),
+    ]
+    expect(dropAt(grouped, 'status', row)).toEqual(dropAt(ungrouped, 'status', row))
+    expect(dropAt(grouped, 'status', row)).toEqual({
+      kind: 'patch',
+      entryId: 'e1',
+      field: 'mapNodeId',
+      value: 'org-1',
+      patch: { trackId: 'trk-1', mapNodeId: 'org-1' },
+    })
+  })
+
+  it('never lets a cohort key reach a DIMENSION column', () => {
+    // The subtler half of the fold guard. `foldPath`'s last arm is `applyGroup`,
+    // so a cohort that got past the filing-kind test would have had its cut key
+    // read as a dimension value — `status = 'cohort:manager:<uuid>'`, the trap
+    // model.ts's `'cohort'` note is written against. Asserted on the PATCH
+    // itself rather than on the verdict, because the verdict would still have
+    // said "patch".
+    const row = entry({ id: 'e1', track_id: 'trk-1' })
+    const path = [ROOT, branch('track', 'trk-1'), branch('cohort', COHORT_KEY), branch('group', 'blocked')]
+    const out = dropAt(path, 'status', row)
+    expect(out.kind).toBe('patch')
+    if (out.kind !== 'patch') return
+    expect(out.patch.status).toBe('blocked')
+    for (const value of Object.values(out.patch)) {
+      expect(String(value ?? '')).not.toContain('cohort:')
+    }
+  })
+
+  it('is refused even when the cohort is the whole path', () => {
+    expect(dropAt([branch('cohort', COHORT_KEY)], 'owner')).toEqual({
+      kind: 'refused',
+      reasonKey: 'mindtree.whyDerived',
+    })
   })
 })
 
@@ -596,11 +895,47 @@ const ROWS: Entry[] = [
   entry({ id: 'e-blank', owner_name: '   ', status: 'in_progress' }),
 ]
 
-function buildFor(dimension: MindDimension): MindNode {
+/**
+ * The hierarchy under trk-1: UHR > OB > Org1 · Org2, with an archived Org3 that
+ * still holds work.
+ *
+ * `trk-2` is deliberately left flat, so both worlds are in the same fixture:
+ * the agreement has to hold for a leaf drawn under three entity rings AND for a
+ * leaf drawn on a bare track, in one tree.
+ */
+const ENTITIES: readonly MindEntity[] = [
+  { id: 'ob', trackId: 'trk-1', parentId: null, label: 'OB', sortOrder: 0, archived: false, typeKey: 'Phase' },
+  { id: 'org-1', trackId: 'trk-1', parentId: 'ob', label: 'Org1', sortOrder: 0, archived: false, typeKey: 'Organization' },
+  { id: 'org-2', trackId: 'trk-1', parentId: 'ob', label: 'Org2', sortOrder: 1, archived: false, typeKey: 'Organization' },
+  { id: 'org-old', trackId: 'trk-1', parentId: 'ob', label: 'Org3', sortOrder: 2, archived: true, typeKey: 'Organization' },
+]
+
+/** The same rows, re-filed under the hierarchy above. */
+const ORG_ROWS: Entry[] = [
+  entry({ id: 'e-flat', track_id: 'trk-2', owner_id: 'user-9', status: 'blocked' }),
+  entry({ id: 'e-org1', track_id: 'trk-1', node_id: 'org-1', owner_id: 'user-7' }),
+  entry({ id: 'e-org1-b', track_id: 'trk-1', node_id: 'org-1', owner_name: 'Acme Ltd', priority: 'high' }),
+  entry({ id: 'e-org2', track_id: 'trk-1', node_id: 'org-2', status: 'in_progress' }),
+  // Filed on the PHASE rather than on an Org — a legal place, and the case a
+  // "the deepest ring is always an Organization" reading would get wrong.
+  entry({ id: 'e-phase', track_id: 'trk-1', node_id: 'ob', priority: 'critical' }),
+  // On the track, under no node at all: the row every entry in the workspace is
+  // today, and the one the track ring's `mapNodeId: null` must leave alone.
+  entry({ id: 'e-bare', track_id: 'trk-1', status: 'waiting_on' }),
+  // Under an ARCHIVED Org. model.ts keeps it drawn because it still holds work.
+  entry({ id: 'e-archived', track_id: 'trk-1', node_id: 'org-old' }),
+]
+
+function buildFor(
+  dimension: MindDimension,
+  entities: readonly MindEntity[] = [],
+  rows: Entry[] = ROWS,
+): MindNode {
   const input: MindtreeInput = {
-    entries: ROWS,
+    entries: rows,
     health: new Map(),
     tracks: [track({ id: 'trk-1' }), track({ id: 'trk-2', sortOrder: 1 })],
+    entities,
     vocab:
       dimension === 'status'
         ? vocab(['new', 'in_progress', 'blocked', 'waiting_on', 'done', 'cancelled'])
@@ -617,25 +952,61 @@ function buildFor(dimension: MindDimension): MindNode {
   return buildMindtree(input)
 }
 
-/** Every leaf, with the group and track branch model.ts filed it under. */
-function filings(root: MindNode): { entryId: string; group: string | null; track: string | null }[] {
-  const out: { entryId: string; group: string | null; track: string | null }[] = []
-  for (const trackNode of root.children) {
-    for (const groupNode of trackNode.children) {
-      for (const entryNode of groupNode.children) {
-        if (entryNode.kind !== 'entry' || entryNode.entryId === null) continue
-        out.push({
-          entryId: entryNode.entryId,
-          group: groupNode.bucketKey,
-          track: trackNode.bucketKey,
-        })
-      }
+interface Filing {
+  entryId: string
+  group: string | null
+  track: string | null
+  /** The DEEPEST `entity` ancestor's bucket key, or null when there is none. */
+  node: string | null
+}
+
+/**
+ * Every leaf, with the branches model.ts filed it under.
+ *
+ * RECURSIVE RATHER THAN THREE NESTED LOOPS, and that is the whole shape of Wave
+ * A: the tree under a track is no longer track → group → entry but track →
+ * entity* → group → entry, with arbitrarily many entity rings between. A fixed
+ * walk would silently stop seeing leaves the moment an Org existed and this
+ * whole block would pass by finding nothing — the exact way an agreement test
+ * dies quietly.
+ */
+function filings(root: MindNode): Filing[] {
+  const out: Filing[] = []
+  const walk = (node: MindNode, at: Omit<Filing, 'entryId'>): void => {
+    if (node.kind === 'entry') {
+      if (node.entryId !== null) out.push({ entryId: node.entryId, ...at })
+      return
     }
+    const next: Omit<Filing, 'entryId'> =
+      node.kind === 'track'
+        ? { ...at, track: node.bucketKey }
+        : node.kind === 'entity'
+          ? { ...at, node: node.bucketKey }
+          : node.kind === 'group'
+            ? { ...at, group: node.bucketKey }
+            : at
+    for (const child of node.children) walk(child, next)
   }
+  walk(root, { group: null, track: null, node: null })
   return out
 }
 
-const BY_ID = new Map(ROWS.map((row) => [row.id, row]))
+const BY_ID = new Map([...ROWS, ...ORG_ROWS].map((row) => [row.id, row]))
+
+/** Every leaf, with the REAL ancestor chain model.ts drew above it. */
+function leafPaths(root: MindNode): { entryId: string; path: MindNode[] }[] {
+  const out: { entryId: string; path: MindNode[] }[] = []
+  const walk = (node: MindNode, trail: MindNode[]): void => {
+    const here = [...trail, node]
+    if (node.kind === 'entry') {
+      if (node.entryId !== null) out.push({ entryId: node.entryId, path: here })
+      return
+    }
+    for (const child of node.children) walk(child, here)
+  }
+  walk(root, [])
+  return out
+}
 
 describe('agreement with model.ts — the no-op is only correct if this holds', () => {
   it('sees every fixture row in every dimension, so the assertions are not vacuous', () => {
@@ -661,6 +1032,64 @@ describe('agreement with model.ts — the no-op is only correct if this holds', 
       const row = BY_ID.get(filed.entryId)
       if (!row) continue
       expect(trackBucketKey(row), filed.entryId).toBe(filed.track)
+    }
+  })
+
+  it('files nothing under an entity ring when the builder is given no hierarchy', () => {
+    // Wave A's own gate, stated from the drop side: with no entities the tree is
+    // what it always was. It is also what makes the track ring's unconditional
+    // `mapNodeId: null` a no-op rather than a write on every row in the
+    // workspace today — all 27 of them have `node_id` null.
+    for (const dimension of ALL_DIMENSIONS) {
+      for (const filed of filings(buildFor(dimension))) {
+        expect(filed.node, `${filed.entryId} @ ${dimension}`).toBeNull()
+      }
+    }
+  })
+
+  it('agrees with model.ts about which entity a leaf is filed under', () => {
+    // THE AGREEMENT, one ring finer. `changesRow` compares `patch.mapNodeId`
+    // against `row.node_id`, so if this module and model.ts disagreed about
+    // which Org a row belongs to, dropping a row back onto the Org it is DRAWN
+    // under would resolve to a write — bumping `last_activity_at` and resetting
+    // the staleness clock on work nobody touched (R3-LEAD-1).
+    for (const dimension of ALL_DIMENSIONS) {
+      const filed = filings(buildFor(dimension, ENTITIES, ORG_ROWS))
+      expect(filed.length, dimension).toBe(ORG_ROWS.length)
+      // Not vacuous: this fixture really does draw leaves inside entity rings,
+      // on the phase as well as on the Orgs, and one under an archived Org.
+      expect(new Set(filed.map((f) => f.node)), dimension).toEqual(
+        new Set([null, 'ob', 'org-1', 'org-2', 'org-old']),
+      )
+      for (const f of filed) {
+        const row = BY_ID.get(f.entryId)
+        if (!row) continue
+        expect(nodeBucketKey(row), `${f.entryId} @ ${dimension}`).toBe(f.node)
+      }
+    }
+  })
+
+  it('makes every leaf a no-op against its REAL path, entity rings and all', () => {
+    // The end-to-end statement, with the ancestor chain model.ts actually drew
+    // rather than a one-element path: track → phase → Org → bucket, folded. Not
+    // one leaf may resolve to a write against the branch it is drawn under —
+    // including `e-bare`, whose path has no entity step and whose row must
+    // therefore survive the track arm's `mapNodeId: null` untouched, and
+    // `e-archived`, which sits in a retired Org and must reach the NO-OP arm
+    // before the retired one.
+    for (const dimension of ['status', 'owner', 'priority'] as const) {
+      const leaves = leafPaths(buildFor(dimension, ENTITIES, ORG_ROWS))
+      expect(leaves.length, dimension).toBe(ORG_ROWS.length)
+      for (const { entryId, path } of leaves) {
+        const row = BY_ID.get(entryId)
+        if (!row) continue
+        // The leaf itself is not a target; drop onto its parent branch.
+        const target = path.slice(0, -1)
+        expect(
+          evaluateDrop({ source: leaf(entryId), entry: row, path: target, dimension }),
+          `${entryId} @ ${dimension}`,
+        ).toEqual({ kind: 'noop' })
+      }
     }
   })
 

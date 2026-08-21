@@ -1,0 +1,372 @@
+/* Settings › Catalogue — the `.cat-*` prefix, per the class registry
+   (docs/EXECUTION-PLAN.md §1.0.7).
+
+   A SEPARATE SHEET FROM vocab.css, which owns `.vocab-*`. The two screens are
+   siblings and are not twins: Vocabulary edits three frozen lists and spends
+   most of its layout on a colour picker, a preview and two day counts, none of
+   which exist here; this screen edits two UNFROZEN lists and spends its layout
+   on the things Vocabulary has no need for — an add form, a delete confirmation
+   that has to name a count, and a "no Arabic name yet" state that is a job
+   rather than a fault. Reaching into `.vocab-*` for the half that happens to
+   match would make every future change to Vocabulary a change to this screen.
+
+   Almost everything visible here is a global.css primitive and is deliberately
+   NOT restyled: `.card`, `.btn`, `.btn-sm`, `.btn-icon`, `.btn-ghost`, `.pill`,
+   `.field`, `.field-label`, `.field-error`, `.input` and `.row-actions`. This
+   file owns the four layouts that have no primitive — the page's intro block,
+   a section head, one catalogue row, and the add form.
+
+   LOGICAL PROPERTIES ONLY, like the rest of the repo, so the Arabic mirror
+   comes free. An indented or side-aligned rule written with the physical twin
+   of `padding-inline-start` would unindent in Arabic; the standing grep for
+   physical layout properties must stay empty over this sheet, comments
+   included. */
+
+.cat {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-inline-size: 760px;
+}
+
+.cat-bar {
+  display: flex;
+  align-items: center;
+}
+
+/* ---------- the intro ---------- */
+
+/* The route's h1 lives in the app header, so the page opens on its standfirst
+   rather than repeating the title. */
+.cat-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-intro-lead {
+  font-size: 13.5px;
+  line-height: 1.55;
+  /* --text-dim, not --text-faint: this sits directly on --bg, and dim is the
+     token that clears AA at every elevation. */
+  color: var(--text-dim);
+}
+
+/* The paragraph that says WHY this screen has Add and Delete when Vocabulary
+   refuses them. Boxed rather than set as a third dim paragraph: without it the
+   next reader assumes one of the two screens is wrong, so it has to survive a
+   skim. The rule is on the inline-start edge, which mirrors in Arabic. */
+.cat-why {
+  padding: 10px 12px;
+  border-inline-start: 3px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.cat-note {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* ---------- a section ---------- */
+
+.cat-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cat-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cat-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cat-section-hint {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* The "N capabilities still have no Arabic name" line. Amber, not red: a blank
+   Arabic name is the SEEDED state and the app renders perfectly without it —
+   it is a job on this screen, not a fault to apologise for. Same reading
+   `groups.css .grp-loose` gives an ungrouped track. */
+.cat-todo {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 45%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.cat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- one row ---------- */
+
+.cat-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+}
+
+.cat-row[data-hidden='true'] {
+  /* Not `opacity`: a dimmed row dims its own focus ring and its error text
+     with it. The dashed edge says "out of the pickers" without touching
+     anything's contrast. */
+  border-style: dashed;
+}
+
+.cat-row[data-open='true'] {
+  border-color: var(--accent);
+}
+
+.cat-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* Up and down as a labelled pair, so a screen reader hears one group rather
+   than two unrelated chevrons. Reorder is buttons, not drag: a drag handle is
+   unreachable by keyboard and unusable one-handed, which is this app's primary
+   posture. */
+.cat-moves {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+/* 44, not 40 — `.btn-icon`'s floor is min-inline-size and the block-axis
+   `.tap-44` overlay cannot cover for a narrowed box. Same correction
+   `groups.css .grp-move` and `vocab.css .vocab-move` carry. */
+.cat-move {
+  min-inline-size: 44px;
+  padding-inline: 8px;
+}
+
+/* One chevron glyph serves both directions. Up and down are axis-neutral, so
+   these must NOT carry `.icon-directional` — mirroring them in Arabic would
+   point them sideways. */
+.cat-move-icon {
+  transition: transform 0.15s ease;
+}
+
+.cat-move-up {
+  transform: rotate(-90deg);
+}
+
+.cat-move-down {
+  transform: rotate(90deg);
+}
+
+.cat-row-main {
+  display: flex;
+  flex: 1 1 200px;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cat-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* The other language, always — an admin filling in Arabic names needs both
+   halves of the pair on screen at once. */
+.cat-alt {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.cat-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 2px;
+}
+
+.cat-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* The sentence that stands in for a Delete button the database would refuse.
+   It replaces the control rather than sitting beside a disabled one: a disabled
+   button with no explanation reads as a bug, and the explanation is the whole
+   point of the row. */
+.cat-blocked {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* ---------- the editor and the add form ---------- */
+
+/* Inline disclosure rather than a dialog, for the reason groups.css gives:
+   Confirm.tsx owns the only focus trap in the app, and a second modal with its
+   own trap and Esc handling is a lot of machinery for two text fields. Dashed,
+   because this is a form over the row above it, not another card. */
+.cat-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+
+.cat-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cat-fields .field {
+  flex: 1 1 220px;
+  min-inline-size: 0;
+}
+
+.cat-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.cat-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- the stage rung's three extra columns ---------- */
+
+/* `terminal` and `paused` (0026). Stacked rather than laid out beside the two
+   name fields: each one carries a sentence saying what it MEANS — "counts as
+   arrived", "the stalled clock stops" — and a sentence that has to wrap to two
+   words per line is a sentence nobody reads. 14px row gap, not 8: every row
+   below is a 44px control, and `.tap-44` (global.css) extends a shorter one by
+   ±7px, so two rows closer than 14px have overlapping targets. */
+.cat-flags {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* A `role="switch"` button over global.css's `.switch`, exactly as
+   `digest.css .dg-toggle` does it and for the same reason: this sheet owns
+   `.cat-*` and may not restyle a form primitive, and a real checkbox would need
+   an appearance reset to be visible at all. The whole row is the control, so
+   the label and its sentence are tap targets too. */
+.cat-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+}
+
+.cat-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.cat-toggle-label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.cat-toggle:hover .switch {
+  border-color: var(--accent);
+}
+
+/* The ring goes round the whole row and not round the 26px switch: the row is
+   the control, and a ring on the thumb alone reads as a separate widget. */
+.cat-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* `expected_days`. Capped rather than full width because the value is at most
+   four digits — a box the width of the panel invites a sentence into a field
+   the database will refuse. 7ch, not 4: the placeholder says the empty state in
+   words and has to be legible before it is truncated. */
+.cat-days {
+  inline-size: 7ch;
+  min-inline-size: 7ch;
+}
+
+/* ---------- states ---------- */
+
+.cat-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
+  color: var(--text);
+}
+
+.cat-error-text {
+  display: flex;
+  flex: 1 1 240px;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (max-width: 479px) {
+  /* At 375px the row's move pair, its name and three action buttons cannot
+     share a line. Dropping the text block to full width puts the actions on
+     their own row at full tap size instead of shrinking either. */
+  .cat-row-main {
+    flex-basis: 100%;
+  }
+
+  .cat-row-actions {
+    flex-basis: 100%;
+  }
+}

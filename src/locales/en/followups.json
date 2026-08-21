@@ -1,14 +1,13 @@
 {
   "followups": {
     "title": "Follow-ups",
-    "subtitle": "What needs you today, in one list.",
-    "total": { "one": "{count} item needs attention", "other": "{count} items need attention" },
+    "total": {
+      "one": "{count} item needs attention",
+      "other": "{count} items need attention"
+    },
     "whose": "Whose items",
     "whoseAll": "Everyone",
     "whoseMine": "Mine",
-    "tagHint": "An item must carry every tag you pick.",
-    "clearFilters": "Clear filters",
-    "captureCta": "Capture something",
     "overdue": "Overdue",
     "overdueHint": "Past the date someone promised.",
     "dueSoon": "Due soon",
@@ -67,9 +66,6 @@
     "refresh": "Refresh",
     "refreshed": "Up to date.",
     "updatedAgo": "Updated ⁨{time}⁩",
-    "density": "Density",
-    "densityComfortable": "Comfortable",
-    "densityCompact": "Compact",
     "groupBy": "Group by",
     "groupSection": "Section",
     "groupTrack": "Track",

@@ -39,6 +39,15 @@
 // is where the reader was and where they must end up — and it means the branch
 // being changed is visible behind the dialog while the question is on screen.
 //
+// IT MAKES EXACTLY ONE REQUEST, AND IT IS A READ. "Archive this branch" is the
+// only act on this map whose consequence is invisible from the picture:
+// archiving CASCADES to every descendant, and a canvas cannot show a subtree
+// that is about to leave it. So `getMapNodeUsage` is called BEFORE the dialog is
+// raised and its counts go INTO the question — "3 branches beneath it, 12 items
+// filed on it" — because a destructive act that explains itself afterwards has
+// already happened. That read is the whole of this file's traffic with the
+// server; the sentence below is unchanged.
+//
 // WHAT IT DOES NOT DO: WRITE. `onRun` hands the surface a fully decided
 // `MindMenuRun` — the ids, the patch, and the `DropOutcome` that produced it —
 // and the surface performs it through `store/entries`, the same optimistic-
@@ -60,18 +69,25 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { confirm, focusRestoreTarget } from '../Confirm'
+import { toast } from '../toast'
+// A READ, and the only one this component makes. `getMapNodeUsage` is what puts
+// the cascade in the question BEFORE the click; see `archiveConfirmCopy`. The
+// file's promise not to WRITE is unchanged — see the header.
+import { getMapNodeUsage } from '../../api/map'
 import { isolate } from '../../lib/bidi'
 import { t } from '../../lib/i18n'
 import { pushOverlay } from '../../lib/overlayStack'
 import {
+  branchRefAt,
   mindActionsFor,
   type MindAction,
   type MindActionCtx,
   type MindActionKind,
+  type MindBranchRef,
 } from '../../lib/mindtree/actions'
 import { closesEntry, evaluateDrop, type DropOutcome } from '../../lib/mindtree/dropRules'
 import type { MindNode } from '../../lib/mindtree/model'
-import type { EntryPatch } from '../../types'
+import type { EntryPatch, MapNodeUsage } from '../../types'
 import './node-menu.css'
 
 /* ────────────────────────────── the contract ─────────────────────────────── */
@@ -143,6 +159,31 @@ export interface MindMenuRun {
   readonly outcome: DropOutcome | null
   /** True when this component already asked and the reader said yes. */
   readonly confirmed: boolean
+  /**
+   * WHERE in `map_nodes` a structural verb writes — `addBranch` and
+   * `archiveBranch` only, null on every other verb.
+   *
+   * OPTIONAL, so that the shape a test or a caller already builds stays valid
+   * and so that a surface reading it has to say what it does about `undefined`.
+   * `menuRunFor` always sets it explicitly, including to null.
+   */
+  readonly branch?: MindBranchRef | null
+  /**
+   * What was pointing at the branch a moment before the reader confirmed —
+   * `archiveBranch` only.
+   *
+   * CARRIED SO THE SURFACE CAN SAY IT OUT LOUD without asking the server a
+   * second time. The dialog already stated these numbers; the live region
+   * repeating them is what makes the act audible to a reader who cannot see the
+   * branch leave. Counts are DIRECT children and DIRECT entries — see
+   * `archiveConfirmCopy` on why that is stated rather than deepened.
+   *
+   * READ BY `archiveAnnouncement`, which `useMapWrites.runMenu` speaks. It was
+   * carried and read by nothing for a whole wave — the promise above was made by
+   * this comment and kept by nobody — so the reader who most needed the counts
+   * was the one reader who never got them.
+   */
+  readonly usage?: MapNodeUsage | null
 }
 
 export interface NodeMenuProps {
@@ -400,6 +441,18 @@ export interface MenuRow {
   readonly action: MindAction | null
   readonly choice: MindMenuChoice | null
   readonly outcome: DropOutcome | null
+  /**
+   * This row opens the STRUCTURAL group — the verbs that edit the map itself
+   * rather than the work on it — and takes a hairline above it.
+   *
+   * A RULE, NOT A COLOUR, and not a `role="separator"` either. The group is two
+   * rows that outlive the reader's session sitting under rows that do not, so
+   * the eye needs a seam; but a red "Archive" row would be a colour chosen at
+   * render, which is the thing model.ts freezes, and a separator element inside
+   * `role="menu"` is a node the roving index would have to learn to skip. One
+   * border-block-start on the first row of the group says it with neither.
+   */
+  readonly startsGroup?: boolean
 }
 
 /**
@@ -407,7 +460,11 @@ export interface MenuRow {
  * that order is part of its contract and this adds nothing and drops nothing.
  */
 export function rootMenuRows(actions: readonly MindAction[]): readonly MenuRow[] {
-  return actions.map((action) => ({
+  // The seam goes above the FIRST structural verb, wherever actions.ts placed
+  // it. Reading the position rather than fixing it here is what keeps the order
+  // that module's contract rather than a thing two files agree about.
+  const firstStructural = actions.findIndex((action) => isStructural(action.kind))
+  return actions.map((action, index) => ({
     key: `act:${action.kind}`,
     shape: opensSubmenu(action.kind) ? 'submenu' : 'item',
     label: t(action.labelKey),
@@ -417,6 +474,9 @@ export function rootMenuRows(actions: readonly MindAction[]): readonly MenuRow[]
     action,
     choice: null,
     outcome: null,
+    // Never on row 0: a rule above the first row of a panel is a rule under the
+    // panel's own title.
+    startsGroup: index > 0 && index === firstStructural,
   }))
 }
 
@@ -478,6 +538,13 @@ export function menuRunFor(
   ctx: MindActionCtx,
   entryId: string | null,
   row: MenuRow,
+  /**
+   * The place in `map_nodes` this menu's path names, or null. Passed IN rather
+   * than folded here so this function keeps taking no path at all — the two
+   * structural verbs are the only readers of it, and `branchRefAt` is already
+   * the one fold the whole feature shares.
+   */
+  branch: MindBranchRef | null = null,
 ): MindMenuRun | null {
   const action = row.action
   if (action === null || !row.enabled) return null
@@ -500,6 +567,8 @@ export function menuRunFor(
       patch: outcome.kind === 'patch' ? outcome.patch : null,
       outcome,
       confirmed: false,
+      branch: null,
+      usage: null,
     }
   }
 
@@ -510,7 +579,18 @@ export function menuRunFor(
     patch: action.patch,
     outcome: null,
     confirmed: false,
+    // Only the two structural verbs mean anything by it. Handing it to every
+    // run would invite a surface to read it on a verb that never set it.
+    branch: isStructural(action.kind) ? branch : null,
+    // Filled by `activate` once the reader has been asked. A run that reaches a
+    // surface with a null usage on `archiveBranch` has not been confirmed.
+    usage: null,
   }
+}
+
+/** Does this verb edit the HIERARCHY rather than the work filed on it? */
+export function isStructural(kind: MindActionKind): boolean {
+  return kind === 'addBranch' || kind === 'archiveBranch'
 }
 
 /* ────────────────────────────── the component ────────────────────────────── */
@@ -611,9 +691,19 @@ export function NodeMenu({
 
   /* ── running an act ─────────────────────────────────────────────────────── */
 
+  /**
+   * The place in `map_nodes` this path names, folded ONCE.
+   *
+   * Memoised on `path`, which the props already require to be reference-stable
+   * while the menu is open — so this is one fold per open, not one per render,
+   * and the run handed to the surface names the same branch the rows were built
+   * against even if the tree changes underneath.
+   */
+  const branchRef = useMemo(() => branchRefAt(path), [path])
+
   const runFor = useCallback(
-    (row: MenuRow): MindMenuRun | null => menuRunFor(ctx, entryId, row),
-    [ctx, entryId],
+    (row: MenuRow): MindMenuRun | null => menuRunFor(ctx, entryId, row, branchRef),
+    [branchRef, ctx, entryId],
   )
 
   /**
@@ -669,6 +759,41 @@ export function NodeMenu({
       // to be unmounted out from under it.
       dismiss()
 
+      // ARCHIVING A BRANCH ASKS A QUESTION THIS COMPONENT HAS TO GO AND FETCH.
+      // Every other confirmation on this map is a pure function of what is
+      // already on screen; this one names how much goes with the branch, and
+      // that number is only in the database. It is read BEFORE the dialog, never
+      // reported after the act — `api/map.ts`'s own header states that rule for
+      // exactly this call.
+      //
+      // KNOWN BOUND: the menu is already closed while the three head requests
+      // are in flight, so a slow link shows a short gap between the press and
+      // the dialog. The alternative is a spinner inside a menu that is about to
+      // unmount, and a menu row that stays lit while a request runs is a row the
+      // reader presses twice.
+      if (run.kind === 'archiveBranch') {
+        const nodeId = run.branch?.nodeId ?? null
+        // `actions.ts` refuses the verb without one, so this is the frame in
+        // which the tree changed under an open menu.
+        if (nodeId === null) return
+        const usage = await getMapNodeUsage(nodeId)
+        // ⚠ `getMapNodeUsage` degrades a FAILED count to 0 (api/map.ts's
+        // `countReferencing` warns and returns 0), so this branch is only
+        // reachable when Supabase is not configured at all. The hazard is
+        // StructureAdmin.openMove's, carried verbatim: a confirmation that
+        // quietly says "nothing goes with it" when it does not know is the exact
+        // failure this dialog exists to prevent, and the fix is in
+        // `countReferencing`, not here.
+        if (!usage.ok) {
+          toast(t(usage.error), { tone: 'error' })
+          return
+        }
+        const ok = await confirm(archiveConfirmCopy(label, usage.data))
+        if (!ok) return
+        onRun({ ...run, confirmed: true, usage: usage.data })
+        return
+      }
+
       if (!needsConfirm(row.action, run.outcome)) {
         onRun(run)
         return
@@ -678,7 +803,7 @@ export function NodeMenu({
       if (!ok) return
       onRun({ ...run, confirmed: true })
     },
-    [closeSubmenu, confirmCopyFor, dismiss, onRun, openKind, openSubmenu, runFor],
+    [closeSubmenu, confirmCopyFor, dismiss, label, onRun, openKind, openSubmenu, runFor],
   )
 
   /* ── roving focus ───────────────────────────────────────────────────────── */
@@ -866,6 +991,151 @@ export function confirmFor(run: MindMenuRun, title: string, label: string): Conf
   }
 }
 
+/**
+ * The question ARCHIVING A BRANCH asks, with the cascade in it.
+ *
+ * THE COUNTS ARRIVE BEFORE THE CLICK OR THE CLICK DOES NOT HAPPEN. Archiving a
+ * node changes what a canvas is drawing and there is nothing on a canvas that
+ * says so. `api/map.ts`'s own header states the rule this function implements:
+ * the screen has to say so before the click, and the function must not discover
+ * it afterwards.
+ *
+ * ── ⚠ WHAT IT SAYS IS THE MODEL'S RULE, NOT THE STORE'S ────────────────────
+ *
+ * This copy said "It leaves the map, and so does everything beneath it", and for
+ * the branch a reader is most likely to archive that was the OPPOSITE of what
+ * happens. The sentence was written against store/config.ts's `deriveMap`, which
+ * does drop the children of an archived parent — but that feeds `mapChildren` /
+ * `mapRoots`, and the CANVAS does not draw entities from those. It draws
+ * `buildMindtree`, whose rule is one line:
+ *
+ *     lib/mindtree/model.ts:1910
+ *       if (entity.archived && node.count === 0 && node.children.length === 0)
+ *         return null
+ *
+ * — "an archived entity is drawn only if it still matters", and the header above
+ * it argues the case deliberately: hiding a thing must never hide DATA, and a
+ * parent labelled 12 whose children sum to 9 is worse than a greyed-out branch.
+ * `model.test.ts` pins it ("keeps an archived Org that still holds work, marked
+ * retired"). So an Organization holding twelve open items stays on the canvas
+ * after it is archived, Archived-badged, with all twelve visible — and the old
+ * copy's count clauses were GUARDED to appear in exactly that case, which is
+ * precisely the case in which they were false.
+ *
+ * The two outcomes are therefore SEPARATE SENTENCES and the guard chooses
+ * between them:
+ *
+ *   nothing filed, nothing beneath   it leaves the map on confirm. (`count === 0
+ *                                    && children.length === 0` — both halves of
+ *                                    the model's test, from the direct counts.)
+ *   items filed on it                it STAYS, marked, for as long as any of
+ *                                    them is open. The map draws open work
+ *                                    (`applied` pins `scope: 'open'`), so
+ *                                    closing or moving the last one is what
+ *                                    finally takes the branch off it.
+ *   branches beneath it              each is archived by 0023's cascade and each
+ *                                    stays under the same rule, bottom-up.
+ *
+ * THE NUMBERS ARE DIRECT, AND THE SENTENCES SAY DIRECT. `getMapNodeUsage` counts
+ * rows whose `parent_id` (or `node_id`) IS this node — one level, not the
+ * subtree — because those are exactly the counts 0023's delete guard computes. A
+ * branch labelled 12 showing 3 is the worst thing this map can do, and it is no
+ * better inside a dialog. It also counts entries REGARDLESS OF STATUS, which is
+ * why no sentence here calls them open: it says they are filed on it, and ties
+ * the branch's fate to whether any of them is still open.
+ *
+ * A ZERO IS NOT PRINTED. English has no CLDR `zero` form, so
+ * `t('…', {count: 0})` selects `other` and renders "0 branches go with it" —
+ * a sentence about nothing, in the one dialog that must be read. Each counted
+ * clause is therefore GUARDED at the call site, which is what `lib/plural.ts`'s
+ * zero audit asks of every node that omits the form.
+ *
+ * THE TRAP IS ALWAYS STATED, including when both counts are zero: un-archiving
+ * a parent does NOT bring its children back, because the restore cannot know
+ * which of them were already put away before this. That is a fact about a
+ * REVERSAL the reader has not performed yet, so a branch with nothing under it
+ * today still earns the sentence — it may not be empty when they change their
+ * mind.
+ */
+export function archiveConfirmCopy(label: string, usage: MapNodeUsage): ConfirmCopy {
+  const parts = [t('mindtree.confirmArchiveBody')]
+  if (usage.entries > 0) parts.push(t('mindtree.confirmArchiveItems', { count: usage.entries }))
+  if (usage.children > 0) parts.push(t('mindtree.confirmArchiveBranches', { count: usage.children }))
+  // THE ONLY CASE THE MODEL ACTUALLY DROPS. Both halves of its test, read off
+  // the two direct counts: nothing filed here and nothing beneath here means
+  // `count === 0 && children.length === 0` for certain.
+  if (usage.entries === 0 && usage.children === 0) parts.push(t('mindtree.confirmArchiveEmpty'))
+  parts.push(t('mindtree.confirmArchiveTrap'))
+  return {
+    title: t('mindtree.confirmArchiveTitle', { label }),
+    // Joined with a space, as `StructureAdmin.submitMove` joins its two: each
+    // part is a whole sentence with its own terminal punctuation in both
+    // bundles, so the join carries no grammar and needs no bidi fencing of its
+    // own — the only interpolated text in the dialog is `label`, and the locale
+    // string fences that with the isolates it ships with.
+    body: parts.join(' '),
+    confirmLabel: t('mindtree.confirmArchiveOk'),
+    cancelLabel: t('common.cancel'),
+    danger: true,
+  }
+}
+
+/**
+ * WHAT A READER WHO CANNOT SEE THE BRANCH HEARS, a moment after they confirmed.
+ *
+ * ── IT SAYS THE COUNTS THE DIALOG SAID, WHICH IS WHAT `usage` IS FOR ───────
+ *
+ * `MindMenuRun.usage` was filled on the confirmed `archiveBranch` run and its
+ * docstring promised that "the live region repeating them is what makes the act
+ * audible to a reader who cannot see the branch leave" — and nothing read it.
+ * The announcement named the label and nothing else, so a blind reader confirmed
+ * a dialog naming 3 branches and 12 items and then heard a sentence naming
+ * neither. That is the field wired, and it is why this function lives HERE and
+ * not in `useMapWrites`: the question and the answer are one contract, and the
+ * defect they were half of was two files each believing the other spoke.
+ *
+ * SAME RULE, PAST TENSE. The outcome clause is chosen by the same guard
+ * `archiveConfirmCopy` uses, against the same line of model.ts — nothing filed
+ * and nothing beneath means the branch is gone; anything else means it is still
+ * drawn, marked, for as long as open work is filed beneath it. The two sentences
+ * cannot disagree, because they are one `if`.
+ *
+ * ⚠ THE `stays` CLAUSE IS CONDITIONAL, AND THAT IS NOT STYLE. The guard is over
+ *   DIRECT counts, and `usage.children > 0` does NOT imply the branch survives:
+ *   0023's cascade archives every descendant, and model.ts's rule then drops each
+ *   EMPTY archived one bottom-up — so an Org with three departments and no work
+ *   anywhere under it leaves the map exactly as an empty Org does. An
+ *   unconditional "it stays on the map until the work beneath it moves or
+ *   closes" is false for that shape, which is Fable #3's own mistake one level
+ *   further in. `for as long as open work is filed beneath it` is true for every
+ *   shape the clause fires on, including the one where the answer is "no time at
+ *   all". Both bundles carry the condition; NodeMenu.test.tsx pins the shape.
+ *
+ * A NULL `usage` SAYS ONLY THAT IT WAS ARCHIVED. The field is optional on
+ * `MindMenuRun` so a caller that never asked stays representable; a caller that
+ * never asked does not know which outcome happened, and guessing one would
+ * reintroduce the whole defect in a quieter voice.
+ */
+export function archiveAnnouncement(label: string, usage: MapNodeUsage | null): string {
+  const parts = [t('mindtree.branchArchived', { label })]
+  if (usage !== null) {
+    // GUARDED, for `archiveConfirmCopy`'s reason: English has no `zero` form, so
+    // an unguarded count would speak "0 items are filed on it".
+    if (usage.entries > 0) parts.push(t('mindtree.branchArchivedItems', { count: usage.entries }))
+    if (usage.children > 0)
+      parts.push(t('mindtree.branchArchivedBranches', { count: usage.children }))
+    parts.push(
+      usage.entries === 0 && usage.children === 0
+        ? t('mindtree.branchArchivedGone')
+        : t('mindtree.branchArchivedStays'),
+    )
+  }
+  // Joined as the dialog's body is joined, and for the same reason: each part is
+  // a whole sentence with its own punctuation in both bundles, and the only
+  // interpolated text is `label`, which its own locale string fences.
+  return parts.join(' ')
+}
+
 /* ─────────────────────────────── the panel ───────────────────────────────── */
 
 export interface NodeMenuPanelProps {
@@ -940,6 +1210,7 @@ export function NodeMenuPanel({
               registerRow(index, el)
             }}
             data-shape={row.shape}
+            data-group-start={row.startsGroup === true ? 'true' : undefined}
             role={row.shape === 'radio' ? 'menuitemradio' : 'menuitem'}
             aria-checked={row.shape === 'radio' ? row.checked : undefined}
             aria-haspopup={row.shape === 'submenu' ? 'menu' : undefined}

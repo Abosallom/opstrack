@@ -65,7 +65,7 @@ import { isBlankLabel } from '../lib/labelOverrides'
 import { hasSession } from './auth'
 import type { LabelOverrideMap, LabelOverrideRow } from '../types'
 
-const CACHE_KEY = 'opstrack_label_overrides_v1'
+const CACHE_KEY = 'nphiescore_label_overrides_v1'
 
 /** Same window store/config.ts and store/vocab.ts use. Wording changes rarely. */
 const STALE_AFTER_MS = 30_000

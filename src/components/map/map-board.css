@@ -1,0 +1,793 @@
+/* The board stage — the `.mbd-*` prefix, per the class registry (§1.0.7).
+
+   It is `pages/board.css` re-prefixed and re-hosted: the board is a STAGE of
+   the map now, not a route, so the sheet moves with the component and the page
+   frame it used to sit in is gone. Rule for rule the behaviour is the one that
+   shipped; what changed is named in place.
+
+   NOTHING HERE STYLES A CARD. `.entry-card*` belongs to the entry kit's own
+   sheet, and the one hook the kit left for this screen is
+   `.entry-card[data-dragging]`, which it already styles. What this file owns is
+   the space AROUND the cards: the scroller, the columns, the composer, the drop
+   slot, the collapsed rails, the overflow list.
+
+   THE SCROLLER IS THE INLINE AXIS AND NOTHING ELSE. Columns scroll sideways as
+   a group; each column scrolls its own cards vertically. A board that scrolled
+   the page vertically AND the columns horizontally puts two scroll containers
+   under one finger, and on a phone the wrong one always wins.
+
+   LOGICAL PROPERTIES ONLY, so RTL is the same board mirrored with no rules of
+   its own — including the scroll direction, which the browser flips for free
+   because the container's `dir` comes from <html>. `overflow-x`, `scroll-snap-
+   type: x` and `scrollLeft` are the three physical names left in the drag path,
+   and every one of them is a scroll-axis name with no logical spelling yet;
+   lib/dnd.ts's header explains why the arithmetic behind them is physical too.
+
+   THE ONE OTHER PHYSICAL VALUE is `--mbd-slide`, the arrival animation's
+   offset. CSS has no logical transform, so the SIGN is resolved in
+   BoardStage.tsx from the shell's own `rtl` — the same fact arrowStep() takes
+   as a parameter, and re-deriving it in two places is how the two disagree.
+
+   THE PHONE IS `[data-compact]`, NOT A MEDIA QUERY. `useIsCompact()` is the
+   shell's single source of truth for "this is a small screen" and nine other
+   decisions branch on it; a 767px media query here could disagree with it by
+   a pixel at exactly the point where the panel changes shape. The `(pointer:
+   coarse)` blocks stay media queries, because pointer type is not a size.
+
+   MOTION: 150–200ms, and every transition and keyframe here is clamped by the
+   reduced-motion kill-switch in global.css. The ONE exception is `mbd-press`,
+   which is not decoration but a clock: it has to last as long as the touch hold
+   it visualises (lib/dnd.ts's HOLD_MS), and it carries its own reduced-motion
+   rule because a duration the kill-switch collapses to nothing would leave the
+   hold with no feedback at all.
+
+   SPACING is on the 4px grid throughout — 4 / 8 / 12 / 16 / 24, nothing else. */
+
+.mbd {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.mbd-sub {
+  color: var(--text-dim);
+  margin-block-end: 12px;
+}
+
+/* ── the control bar ───────────────────────────────────────────────────── */
+
+.mbd-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block-end: 8px;
+}
+
+.mbd-group {
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.mbd-group-label {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-inline-end: 4px;
+}
+
+/* Pushed to the far end, so the two chip groups do not read as one run of six
+   options — which is exactly how "Status Track Owner Priority Comfortable
+   Compact" scanned before this rule and its visible label existed. */
+.mbd-density {
+  margin-inline-start: auto;
+}
+
+.mbd-hint {
+  color: var(--text-faint);
+  font-size: 13px;
+  margin-block-end: 12px;
+}
+
+/* The closed window's own line. It was FilterBar's `tagHint` on the page, and
+   the shell's FilterBar is shared with four other lenses that do not read
+   closed rows — so the sentence follows the stage that makes the request. */
+.mbd-window {
+  margin-block-end: 4px;
+}
+
+/* The status-axis note and the failed closed read. Both are conditions the
+   reader can act on, so they read as notes rather than as errors. */
+.mbd-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  margin-block-end: 12px;
+  border: 1px solid color-mix(in srgb, var(--yellow) 40%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--yellow) 8%, transparent);
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ONE of these two is rendered, and the media query picks which. A mouse is
+   told to drag; a thumb is told to hold, because on a phone a plain drag is how
+   you reach the next column and the board deliberately does not take it. Both
+   strings exist in the markup, so `display: none` is doing real work here — it
+   is the only hiding mechanism a screen reader also respects, and a hint that
+   describes the wrong gesture is worse read aloud than seen. */
+.mbd-hint-touch {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .mbd-hint-fine {
+    display: none;
+  }
+
+  .mbd-hint-touch {
+    display: block;
+  }
+}
+
+/* ── error ─────────────────────────────────────────────────────────────── */
+
+.mbd-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+  margin-block-end: 16px;
+}
+
+.mbd-error-title {
+  font-weight: 700;
+  color: var(--red);
+}
+
+/* ── the scroller ──────────────────────────────────────────────────────── */
+
+.mbd-scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* The columns carry their own bottom padding; this keeps the scrollbar off
+     the last row of cards. */
+  padding-block-end: 4px;
+  /* A drag that runs past the last column must not bounce the whole page. */
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.mbd-cols {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  /* Columns size themselves; without this the flex line collapses to the
+     scroller's inline size and every column is squeezed instead of scrolled. */
+  inline-size: max-content;
+  min-inline-size: 100%;
+}
+
+.mbd-col {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  inline-size: 300px;
+  max-block-size: min(72dvh, 900px);
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    inline-size 0.18s ease;
+}
+
+/* A TRACK column paints itself in the track's colour, and tracks store TWO
+   hexes because one that reads on near-black sits near 2:1 on white. This is
+   the same resolution global.css does for .track-bar/.track-dot/.track-glyph,
+   applied to the one custom property the rest of this sheet consumes — never a
+   colour picked in JavaScript, which would keep yesterday's hex when the `auto`
+   theme flips at sunset (lib/trackStyle.ts's header). */
+.mbd-col[data-dim='track'] {
+  --vocab-c: var(--track-c-dark, var(--text-dim));
+}
+
+[data-theme='light'] .mbd-col[data-dim='track'] {
+  --vocab-c: var(--track-c-light, var(--track-c-dark, var(--text-dim)));
+}
+
+/* The status's own colour, as a 2px cap on the block-end edge of the header.
+   One hex, both themes — lib/vocabStyle.ts's header explains why this is a
+   custom property and not a colour picked in JavaScript. */
+.mbd-col-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-block-end: 8px;
+  margin-block-end: 4px;
+  border-block-end: 2px solid color-mix(in oklab, var(--vocab-c, var(--text-dim)) 45%, transparent);
+}
+
+.mbd-col-title {
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+  color: var(--vocab-ink, var(--text-dim));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+.mbd-col-count {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+
+/* Any card in this column past its SLA. A count, not a dot: "3 past SLA" is
+   actionable and "something is wrong here" is not. */
+.mbd-sla {
+  flex: 0 0 auto;
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
+  font-weight: 700;
+}
+
+/* 44 square. These are the column's two controls on a board that is dragged
+   with a thumb, and they sit 4px apart — too close for the .tap-44 overlay,
+   which would have each of them stealing the other's taps. The only honest 44
+   here is a real 44. */
+.mbd-col-fold,
+.mbd-col-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 44px;
+  block-size: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.mbd-col-fold:hover,
+.mbd-col-add:hover {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+.mbd-col-fold:active,
+.mbd-col-add:active {
+  border-color: var(--border);
+}
+
+.mbd-col-fold:focus-visible,
+.mbd-col-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.mbd-col-add[aria-expanded='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mbd-caret {
+  transition: rotate 0.16s ease;
+}
+
+/* The live drop target. A ring plus a wash rather than a background flood: the
+   cards keep their contrast, and it reads at a glance from across a six-column
+   board. */
+.mbd-col[data-over='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-elev));
+}
+
+/* ── the collapsed rail ────────────────────────────────────────────────── */
+
+/* A collapsed column is still a DROP TARGET — filing something out of sight is
+   the reason to collapse a column in the first place.
+
+   The `[data-density]` in the selector is not decoration: the compact rule far
+   below is `.mbd[data-density='compact'] .mbd-col`, which outweighs a bare
+   `.mbd-col[data-collapsed]` — it once carried an `inline-size` and made every
+   collapsed column 264px wide on a compact board. It carries only padding now,
+   but the weight match still has to hold. */
+.mbd[data-density] .mbd-col[data-collapsed='true'] {
+  inline-size: 64px;
+  padding-block: 8px;
+  padding-inline: 4px;
+}
+
+.mbd-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  min-block-size: 160px;
+  padding-block: 8px;
+  padding-inline: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--vocab-ink, var(--text-dim));
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+
+.mbd-rail:hover {
+  background: var(--bg-elev-2);
+}
+
+.mbd-rail:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* HORIZONTAL AND WRAPPED, not rotated — and that is a deliberate break with the
+   kanban convention. `writing-mode: vertical-rl` is what every other board does
+   with a collapsed column, and it turns Arabic into a column of rotated,
+   effectively unreadable glyphs (verified in the RTL pass). RTL has to be equal
+   to LTR, so both scripts get a small wrapped label, and the full name rides on
+   the button's aria-label and its tooltip. */
+.mbd-rail-label {
+  inline-size: 100%;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  max-block-size: 4.2em;
+}
+
+/* ── quick add ─────────────────────────────────────────────────────────── */
+
+.mbd-add {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  margin-block-end: 8px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.mbd-add-input {
+  inline-size: 100%;
+}
+
+.mbd-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mbd-add-hint {
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* ── cards ─────────────────────────────────────────────────────────────── */
+
+.mbd-cards {
+  display: block;
+  list-style: none;
+  overflow-y: auto;
+  min-block-size: 0;
+  /* Room for the lift shadow, so a dragged card is not clipped by its own
+     column. */
+  padding-inline: 2px;
+  padding-block: 2px;
+  overscroll-behavior-block: contain;
+}
+
+.mbd-card {
+  display: block;
+  /* THE BROWSER KEEPS EVERY PAN, IN BOTH AXES. It used to read `pan-y`, which
+     handed the inline axis to the drag: on a phone the card IS the column and
+     the column IS the screen, so the only surface left that could swipe to the
+     next column was the 8px gutter between two cards. A drag is claimed by a
+     HOLD instead (lib/dnd.ts), and the browser's scrolling is cancelled from
+     the touchmove listener at the one moment that is still possible — after the
+     card has been lifted. `manipulation` rather than `auto` only to keep body's
+     double-tap-zoom suppression from being widened back out by the
+     intersection. */
+  touch-action: manipulation;
+  /* No iOS callout menu or magnifier growing out of the press that lifts a
+     card. The selection half is suppressed in JS for the length of the gesture
+     (`selectstart`), because the card's title is deliberately selectable text
+     and must stay that way once the finger is off it. */
+  -webkit-touch-callout: none;
+  border-radius: var(--radius-sm);
+}
+
+/* The pointer half of "this card can be moved". Conditional, because a card
+   this reader may not edit is not draggable and must not say otherwise. */
+.mbd-card[data-draggable='true'] {
+  cursor: grab;
+}
+
+/* Cursor only, and only while a card is actually in the air. The descendant
+   universal is load-bearing rather than lazy: `cursor` inherits, but the card's
+   own title button sets `pointer` explicitly, and the pointer spends the whole
+   drag sitting exactly on top of it. */
+.mbd[data-dragging='true'] .mbd-card,
+.mbd[data-dragging='true'] .mbd-card * {
+  cursor: grabbing;
+}
+
+/* THE HOLD, MADE VISIBLE. A gesture with a 420ms tax and no feedback reads as a
+   dead card, so the card compresses under the finger and the animation lands
+   exactly as the lift does. The 120ms delay is what keeps an ordinary tap
+   silent: nothing renders at all unless the finger has already stayed put
+   longer than a tap ever does. */
+@keyframes mbd-press {
+  from {
+    scale: 1;
+  }
+
+  to {
+    scale: 0.97;
+  }
+}
+
+.mbd-card[data-press='true'] {
+  animation: mbd-press 0.3s 0.12s ease-out both;
+}
+
+/* Reduced motion gets the same information without the squeeze — the global
+   kill-switch only collapses DURATION, which would turn this into an instant
+   jump rather than into nothing. A ring is the honest still equivalent. */
+@media (prefers-reduced-motion: reduce) {
+  .mbd-card[data-press='true'] {
+    animation: none;
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.mbd-card + .mbd-card,
+.mbd-slot + .mbd-card {
+  margin-block-start: 8px;
+}
+
+/* Focus is RESTORED here after a keyboard move, so the ring has to be visible
+   even though this element is not in the tab order. */
+.mbd-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ── arrival motion ────────────────────────────────────────────────────── */
+
+/* Three arrivals, three readings. `moved` is somebody ELSE's move and slides in
+   from the direction the card travelled (the kit's own is-flash highlight rides
+   along, set by the store). `landed` is this reader's own move and springs,
+   because the drag already showed the travel. `new` is a card that did not
+   exist a moment ago. All three are one-shot, all three are 180ms, and all
+   three are neutralised by the reduced-motion kill-switch in global.css. */
+
+@keyframes mbd-arrive {
+  from {
+    translate: var(--mbd-slide, 0) 0;
+    opacity: 0.4;
+  }
+
+  to {
+    translate: 0 0;
+    opacity: 1;
+  }
+}
+
+@keyframes mbd-appear {
+  from {
+    translate: 0 -8px;
+    opacity: 0;
+  }
+
+  to {
+    translate: 0 0;
+    opacity: 1;
+  }
+}
+
+@keyframes mbd-land {
+  0% {
+    scale: 0.97;
+  }
+
+  55% {
+    scale: 1.015;
+  }
+
+  100% {
+    scale: 1;
+  }
+}
+
+.mbd-card[data-enter='moved'] {
+  animation: mbd-arrive 0.18s ease-out both;
+}
+
+.mbd-card[data-enter='new'] {
+  animation: mbd-appear 0.18s ease-out both;
+}
+
+.mbd-card[data-enter='landed'] {
+  animation: mbd-land 0.18s ease-out both;
+}
+
+/* ── the drop preview ──────────────────────────────────────────────────── */
+
+/* Where the card WILL be, which is the top: every write bumps
+   last_activity_at, and every list in this app is ordered by it. A slot under
+   the pointer would preview a position the store never produces. */
+.mbd-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  margin-block-end: 8px;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  min-block-size: 56px;
+  justify-content: center;
+}
+
+.mbd-slot-title {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mbd-slot-hint {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.mbd-fold {
+  inline-size: 100%;
+  margin-block-start: 8px;
+  gap: 4px;
+}
+
+/* ── an empty column ───────────────────────────────────────────────────── */
+
+.mbd-col-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-block: 20px;
+  padding-inline: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.mbd-col-empty-title {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mbd-col-empty-hint {
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ── the overflow rail ─────────────────────────────────────────────────── */
+
+.mbd-overflow {
+  margin-block-start: 24px;
+  padding-block-start: 16px;
+  border-block-start: 1px solid var(--border);
+}
+
+.mbd-overflow-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mbd-overflow-hint {
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-block: 4px 8px;
+}
+
+.mbd-overflow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+}
+
+.mbd-overflow-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  overflow: hidden;
+}
+
+.mbd-overflow-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.mbd-overflow-toggle:hover {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+.mbd-overflow-toggle:active {
+  background: var(--bg-elev-2);
+}
+
+.mbd-overflow-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.mbd-overflow-label {
+  flex: 1 1 auto;
+  color: var(--vocab-ink, var(--text-dim));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+.mbd-overflow-cards {
+  padding-block: 0 8px;
+  padding-inline: 8px;
+}
+
+/* Nested lists (an overflow strip's cards) must not add a second scroller. */
+.mbd-overflow-cards .mbd-cards {
+  overflow: visible;
+  padding: 0;
+}
+
+/* ── density ───────────────────────────────────────────────────────────── */
+
+/* What this toggle can reach is the space AROUND the cards: EntryCardProps has
+   no `density`, unlike EntryRowProps, so the card's own internals keep their
+   comfortable spacing. Filed as an extension-slot gap rather than reached for
+   across the registry — `.entry-card*` belongs to entry.css.
+
+   AND THAT IS EXACTLY WHY COMPACT MUST NOT NARROW THE COLUMN. It used to set
+   264px against the comfortable 300px, which squeezed the card's meta row into
+   a second line: measured over six cards, two grew (193→216px, 174→193px) and
+   none shrank, so "compact" made the board TALLER — the one thing the toggle
+   promises not to do. What compact buys is vertical, and it is real: 4px
+   between cards instead of 8, a tighter gutter, no drop hint, and MAX_CARDS 40
+   instead of 25 before the fold takes over. */
+.mbd[data-density='compact'] .mbd-col {
+  padding: 4px 8px 8px;
+}
+
+.mbd[data-density='compact'] .mbd-card + .mbd-card,
+.mbd[data-density='compact'] .mbd-slot + .mbd-card {
+  margin-block-start: 4px;
+}
+
+.mbd[data-density='compact'] .mbd-cols {
+  gap: 8px;
+}
+
+.mbd[data-density='compact'] .mbd-hint {
+  display: none;
+}
+
+/* ── loading ───────────────────────────────────────────────────────────── */
+
+.mbd-col-skeleton {
+  gap: 8px;
+  max-block-size: none;
+}
+
+/* ── coarse pointers ───────────────────────────────────────────────────── */
+
+@media (pointer: coarse) {
+  .mbd-col-fold,
+  .mbd-col-add {
+    inline-size: 44px;
+    block-size: 44px;
+  }
+}
+
+/* ── the phone ─────────────────────────────────────────────────────────── */
+
+/* `[data-compact='true']` is `useIsCompact()`, the shell's own boolean — see
+   the header. One column at a time, snapped: a 300px column on a 375px screen
+   shows a sliver of the next one, which reads as a broken layout rather than as
+   an affordance, while a snapped near-full-bleed column reads as a deck.
+
+   `scroll-snap-type` belongs to the SCROLL CONTAINER — the element with
+   `overflow-x: auto`, which is `.mbd-scroller`. It sat on the `max-content`
+   flex child for a whole release, where it is simply inert. */
+.mbd[data-compact='true'] .mbd-scroller {
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 0;
+}
+
+.mbd[data-compact='true'] .mbd-cols {
+  gap: 8px;
+}
+
+/* A mandatory snap and a per-frame `scrollLeft` are two hands on one wheel, and
+   the snap wins every frame — edge auto-scroll would crawl a few pixels and be
+   yanked back to the current column, which is precisely the "it won't let me
+   carry this card anywhere" report. The board hands the wheel over for the
+   length of the drag and takes it back at the drop. */
+.mbd[data-compact='true'][data-dragging='true'] .mbd-scroller {
+  scroll-snap-type: none;
+}
+
+.mbd[data-compact='true'] .mbd-col {
+  scroll-snap-align: start;
+  inline-size: min(86vw, 340px);
+  max-block-size: none;
+}
+
+/* A collapsed column keeps its slim rail on a phone too — it is how you skip
+   past four empty owner columns with one swipe. It must not snap, or the swipe
+   stops on every one of them. The `[data-density]` weight match is the same one
+   the desktop rule makes. */
+.mbd[data-compact='true'][data-density] .mbd-col[data-collapsed='true'] {
+  inline-size: 60px;
+  scroll-snap-align: none;
+}
+
+/* The page scrolls on a phone, not the column: two nested scrollers under one
+   thumb is the interaction people report as "it scrolls the wrong thing". */
+.mbd[data-compact='true'] .mbd-cards {
+  overflow: visible;
+}

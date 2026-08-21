@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    NphiesCore — App Privacy Manifest.
+
+    WHY THIS FILE EXISTS EVEN THOUGH DISTRIBUTION IS INTERNAL TESTFLIGHT.
+    Internal TestFlight testing skips Beta App Review, so nobody reads the
+    listing or the nutrition label yet. The privacy manifest is NOT part of
+    review — it is enforced by the automated check that runs at UPLOAD, before
+    a build is ever distributed to anyone. A missing or contradicted manifest
+    comes back as an ITMS-9105x email and the build is not processed. So this
+    is required now, not at public launch.
+
+    IT IS REGISTERED IN THE BUILD, NOT JUST ON DISK. A .xcprivacy that is not a
+    member of the target's Copy Bundle Resources phase is invisible to the
+    upload check and to Xcode's privacy report — the failure looks exactly like
+    having no manifest at all. This one is wired in project.pbxproj as
+    AC1DB0A5E9FC4B1D8E2F0001 (file reference, in the App group) and
+    AC1DB0A5E9FC4B1D8E2F0002 (build file, in the Resources phase). Verify after
+    any `npx cap sync ios` with:
+
+        /usr/libexec/PlistBuddy -c Print \
+          "$(xcodebuild -showBuildSettings -project ios/App/App.xcodeproj \
+             -target App 2>/dev/null | awk -F' = ' '/ BUILT_PRODUCTS_DIR/{print $2}')"/App.app/PrivacyInfo.xcprivacy
+
+    ── NSPrivacyTracking = false ────────────────────────────────────────────
+    "Tracking" has Apple's narrow meaning: linking this app's data with data
+    from other companies' apps, websites or data brokers, for advertising or
+    ad measurement. Nothing here does that. The app talks to exactly one host
+    — the project's own Supabase instance — and ships no advertising, no
+    attribution and no analytics SDK. Grepping src/, package.json, index.html
+    and vite.config.ts for analytics/telemetry/sentry/crashlytics/amplitude/
+    mixpanel/posthog/gtag/firebase returns nothing but unrelated Arabic and
+    English locale strings. NSPrivacyTrackingDomains is therefore empty, which
+    is the only value consistent with tracking = false.
+
+    ── NSPrivacyAccessedAPITypes IS DELIBERATELY EMPTY ──────────────────────
+    This is the entry most likely to be "fixed" by someone assuming a
+    Capacitor app must declare NSPrivacyAccessedAPICategoryUserDefaults
+    (CA92.1). On Capacitor 8 it must not, and the reason is specific.
+
+      * The app target's only native source is App/AppDelegate.swift. It is
+        the stock Capacitor delegate — window, lifecycle stubs, and two
+        forwards into ApplicationDelegateProxy. No required-reason API.
+
+      * Four plugins are compiled FROM SOURCE into this target via
+        ios/App/CapApp-SPM/Package.swift: @capacitor/app, @capacitor/keyboard,
+        @capacitor/splash-screen, @capacitor/status-bar. Their combined iOS
+        sources (five Swift files, two Objective-C files) contain no match for
+        UserDefaults, systemUptime, mach_absolute_time, statfs,
+        volumeAvailableCapacity, systemFreeSize, activeInputModes,
+        creationDate, modificationDate, attributesOfItem, getattrlist, or the
+        NSFile{Creation,Modification}Date keys. They ship no .xcprivacy of
+        their own precisely because they have nothing to declare.
+
+      * Capacitor and Cordova arrive as prebuilt, signed XCFrameworks from
+        capacitor-swift-pm (pinned 8.4.2 in Package.resolved). Each carries
+        its own PrivacyInfo.xcprivacy declaring an EMPTY
+        NSPrivacyAccessedAPITypes, and `nm -u` plus `strings` over
+        Capacitor.framework's arm64 binary find no reference to NSUserDefaults,
+        statfs, uptime, activeInputModes or getattrlist. A framework's manifest
+        covers the framework; it is not inherited by, and does not substitute
+        for, this file.
+
+      * The reason a Capacitor 5/6/7 app WOULD have needed CA92.1 and this one
+        does not: Capacitor 8 moved AppUUID and the persisted serverBasePath
+        off UserDefaults onto a file-backed store —
+        Capacitor/KeyValueStore.swift:177, `KeyValueStore.standard` is
+        `.persistent(suiteName: "standard")`, which writes under
+        FileManager's .libraryDirectory. Nothing calls NSUserDefaults anymore.
+
+      * The app's own persistence — the auth session, the offline outbox, the
+        entry cache — is localStorage and IndexedDB inside the WKWebView. That
+        is WebKit's storage, implemented in a system framework. It is not this
+        app calling NSUserDefaults, and it does not create a declaration duty.
+
+    RE-CHECK THIS ON EVERY CAPACITOR MAJOR AND ON EVERY NEW PLUGIN. The list
+    above is a claim about a specific dependency set, not a permanent property
+    of the app. If a future upload returns ITMS-91053 naming a category, the
+    correct response is to find the call and add the category with the reason
+    code Apple's message quotes — never to add a category speculatively. An
+    over-declaration is a false statement about the app in the same way an
+    omission is.
+
+    ── NSPrivacyCollectedDataTypes ──────────────────────────────────────────
+    Everything below leaves the device for the project's own Supabase backend,
+    which is what makes it "collected" in Apple's sense even though there is no
+    third party anywhere in the path. All of it is linked to the signed-in
+    identity — the app is invite-only and every screen past sign-in is gated,
+    so there is no anonymous mode to be unlinked in. None of it is used for
+    tracking. The single purpose is App Functionality: this is the record of
+    work the app exists to keep.
+
+    NOT DECLARED, each for a checkable reason:
+      * Device ID. Web Push would store a per-installation endpoint, but
+        src/lib/push.ts:101 returns 'unsupported' when env.isNative, so a
+        native build never subscribes and never creates one. If push is ever
+        wired natively (APNs via a real plugin), Device ID must be added here.
+      * Product Interaction / Analytics / Crash / Performance data. No
+        analytics or crash SDK is present; see the grep noted above.
+      * Health or sensitive personal data. Entries are programme and
+        operations records — actions, decisions, issues, SLAs. If the app ever
+        carries claim-level or patient-level data, this manifest and the App
+        Store Connect nutrition label must both change before that ships.
+
+    The App Store Connect privacy questionnaire must be answered to match this
+    file exactly. The two are checked against each other.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<!-- Email address. The only sign-in credential: supabase.auth
+		     signInWithOtp / verifyOtp / signInWithPassword in src/store/auth.ts
+		     (:161, :176, :250). It is the account key and is stored in
+		     auth.users. Admin-provisioned members get a synthetic
+		     @opstrack.internal address, which is still an email address. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeEmailAddress</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Name. public.profiles.display_name (migration 0001, :23) is the
+		     person's own name, shown on every row they own. entries.owner_name
+		     and entries.requester (:313, :314) are free-text names of other
+		     people — a vendor contact, a colleague outside the tool — typed by
+		     the user as part of the work record. Both are names, so both are
+		     covered here rather than pretending only the account holder's is
+		     collected. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeName</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- User ID. public.profiles.id, the auth.users uuid. It is the
+		     foreign key on every row the app writes — ownership, authorship,
+		     notifications, row-level security. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeUserID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Other user content. The substance of the app: entry titles and
+		     descriptions, tags and links (migration 0001, :304-:318), meeting
+		     minutes, and the free text captured through the parser. Apple's
+		     "Other User Content" is the correct bucket — it is neither
+		     messaging between users nor uploaded media. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

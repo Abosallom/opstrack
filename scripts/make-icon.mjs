@@ -1,0 +1,118 @@
+// Generates public/icon.svg — the NphiesCore mark.
+//
+// The geometry is COMPUTED, not hand-written, because eight arcs at 45-degree
+// intervals is exactly the kind of thing a person gets subtly wrong by hand:
+// the first draft of this file had two degenerate arcs whose start and end
+// points were identical, which renders as nothing at all. A generator makes
+// the ring correct by construction and turns a colour or gap revision into an
+// edit of one constant.
+import { writeFileSync } from 'node:fs'
+
+const SIZE = 1024
+const C = SIZE / 2
+const R = 310            // ring radius
+const STROKE = 74        // petal thickness
+// THE GAP MUST OUT-MEASURE THE CAPS. `stroke-linecap: round` extends each end
+// of an arc by half the stroke width, which at this radius is
+// degrees(37/310) ~= 6.8deg PER END — so a 9deg gap (the first attempt) was
+// swallowed whole and the ring rendered as one continuous doughnut with no
+// petals at all. The visible gap is GAP_DEG - 2*capAngle, so this value is
+// chosen for what survives the caps, not for what looks right in the number.
+const GAP_DEG = 21
+
+// Hue order clockwise from 12 o'clock, matching the supplied artwork and the
+// --swatch-* ladder in global.css.
+const HUES = ['#45b0d8', '#4e9bd6', '#5b7fcb', '#7b72c4', '#8e6fbf', '#b25fa5', '#c75b8a', '#d0587c']
+
+// Each petal's gradient runs from its own hue toward the NEXT one, so the ring
+// reads as a single spectrum rather than eight flat chips. The last petal has
+// no next hue, and wrapping it back to the cyan at 12 o'clock — the first
+// version of this file — made it sweep rose->cyan and go grey in the middle,
+// a transition that exists nowhere in the supplied mark. The ladder is a sweep
+// from cyan to rose, not a colour wheel, so it TERMINATES: one more step in the
+// direction it was already travelling. The break between the last petal and the
+// first falls inside a gap, where the eye asks nothing of it.
+const TERMINAL = '#d75873'
+const RAMP = [...HUES, TERMINAL]
+
+const rad = (d) => ((d - 90) * Math.PI) / 180        // -90 so 0deg is 12 o'clock
+const pt = (deg) => [C + R * Math.cos(rad(deg)), C + R * Math.sin(rad(deg))]
+const f = (n) => Number(n.toFixed(2))
+
+const slice = 360 / HUES.length                       // 45
+const sweep = slice - GAP_DEG                         // 36 of every 45
+
+const defs = HUES.map((hue, i) => {
+  const next = RAMP[i + 1]
+  const a0 = i * slice - sweep / 2
+  const a1 = a0 + sweep
+  const [x0, y0] = pt(a0)
+  const [x1, y1] = pt(a1)
+  // Gradient runs along the arc's own chord, so each petal sweeps toward the
+  // next hue and the ring reads as one continuous spectrum.
+  return `    <linearGradient id="g${i}" gradientUnits="userSpaceOnUse" x1="${f(x0)}" y1="${f(y0)}" x2="${f(x1)}" y2="${f(y1)}">
+      <stop offset="0" stop-color="${hue}"/><stop offset="1" stop-color="${next}"/>
+    </linearGradient>`
+}).join('\n')
+
+const paths = HUES.map((_, i) => {
+  const a0 = i * slice - sweep / 2
+  const a1 = a0 + sweep
+  const [x0, y0] = pt(a0)
+  const [x1, y1] = pt(a1)
+  return `    <path stroke="url(#g${i})" d="M ${f(x0)} ${f(y0)} A ${R} ${R} 0 0 1 ${f(x1)} ${f(y1)}"/>`
+}).join('\n')
+
+// Three variants, one geometry. The differences are not cosmetic — each exists
+// because a platform rejects or ruins the others:
+//
+//   icon.svg           transparent. The favicon and the PWA `purpose: any`
+//                      icons, where a white plate would be a white box on a
+//                      dark browser chrome.
+//   icon-opaque.svg    white plate, same size. iOS REJECTS an app icon that
+//                      carries an alpha channel at all ("Invalid Image"), and
+//                      composites a transparent apple-touch-icon onto black,
+//                      which turns the plate the mark was designed on into a
+//                      hole. Feeds AppIcon and apple-touch-icon.
+//   icon-maskable.svg  white plate, ring scaled into the safe zone. A maskable
+//                      icon is cropped by the platform to a circle or squircle
+//                      of unknown radius; Android guarantees only the central
+//                      66.7%, so the mark is shrunk to survive the worst mask
+//                      rather than drawn to the edge and clipped.
+const SAFE_SCALE = 0.88   // ring outer radius 347 -> 305, inside Android's 341
+
+const variants = [
+  { file: 'icon.svg', plate: false, scale: 1 },
+  { file: 'icon-opaque.svg', plate: true, scale: 1 },
+  { file: 'icon-maskable.svg', plate: true, scale: SAFE_SCALE },
+]
+
+for (const { file, plate, scale } of variants) {
+  // Scale about the centre. The gradients are `userSpaceOnUse`, so they live in
+  // the same user space the transform establishes and travel with the arcs.
+  const open = scale === 1 ? '' : ` transform="translate(${C} ${C}) scale(${scale}) translate(${-C} ${-C})"`
+  const svg = `<!-- NphiesCore mark — the nphies ring, GENERATED by scripts/make-icon.mjs.
+     Do not hand-edit: change the constants in that file and re-run it, then
+     re-run scripts/make-icons.sh to refresh every raster that derives from it.
+
+     Drawn rather than traced because one source must serve 1024px for the App
+     Store and 32px for a browser tab. Upscaling the supplied raster is soft
+     exactly where Apple's review looks hardest; the wordmark at 32px is mush.
+     The RING is the icon and the wordmark stays on the sign-in screen, where it
+     has the width it was designed for. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-label="NphiesCore">
+  <title>NphiesCore</title>
+  <defs>
+${defs}
+  </defs>
+${plate ? `  <rect width="${SIZE}" height="${SIZE}" fill="#ffffff"/>\n` : ''}  <g fill="none" stroke-width="${STROKE}" stroke-linecap="round"${open}>
+${paths}
+  </g>
+</svg>
+`
+  writeFileSync(new URL(`../public/${file}`, import.meta.url), svg)
+}
+console.log(
+  `${variants.length} SVGs written — ${HUES.length} arcs, ${sweep}deg sweep, ${GAP_DEG}deg gap, ` +
+    `maskable at ${SAFE_SCALE}`,
+)

@@ -58,7 +58,32 @@ export interface Profile {
   id: string
   /** `not null default ''` — may be empty, never null. */
   display_name: string
+  /**
+   * STILL HERE, AND STILL THE ONLY ADMIN SIGNAL THE CLIENT READS.
+   *
+   * 0025 does NOT drop this column — it DERIVES it. `profiles_role_sync()` keeps
+   * it equal to `'admin'` exactly when `role_id` is the system Admin role, in
+   * both directions, because `admin-members`' `set-role` still PATCHes the text
+   * with the service role and a one-way derivation would report success and move
+   * nobody. Dropping it needs three things first, and they are a later
+   * migration's job: no policy reading it, the edge function gating on
+   * `has_perm()`, and `src/lib/permissions.ts` no longer branching on it.
+   */
   role: UserRole
+  /**
+   * 0025 — the role this person holds, null until `profiles_role_sync()` or a
+   * backfill fills it. `has_perm()` COALESCEs through `role` when it is null, so
+   * a profile written by `handle_new_user()` before the trigger ran still
+   * resolves; anything counting admins client-side has to reproduce that
+   * coalesce or it under-counts. See `admin_holder_count()` in 0025.
+   */
+  role_id: string | null
+  /**
+   * 0025 — free text, display only, and deliberately grants nothing. Pinned by
+   * `guard_profile_role()` against anyone without `members.manage`. Wave C's
+   * altitude must be derived from the ROLE, never by parsing this string.
+   */
+  position: string
   locale: string
   created_at: string
 }
@@ -231,6 +256,14 @@ export interface TrackUsage {
   entries: number
   meetings: number
   templates: number
+  /**
+   * map_nodes on this track (0023). Counted because `delete_track` now reassigns
+   * the whole hierarchy and `tracks_block_delete_when_referenced()` counts it —
+   * without this the confirmation tells an admin a track is empty while a whole
+   * Org tree hangs off it, and the RPC then refuses for a reason nothing on
+   * screen explained.
+   */
+  nodes: number
 }
 
 /**
@@ -273,6 +306,15 @@ export interface ConfigAuditRow {
 export interface Entry {
   id: string
   track_id: string | null
+  /**
+   * `entries.node_id` (0024) — which hierarchy node this row is filed on, or
+   * null for a row filed at track level under no organization.
+   *
+   * `track_id` is authoritative when this is null and DERIVED from the node by
+   * the `entries_map_sync` trigger when it is not, so the two can never
+   * disagree: there is one filing axis with an optional finer grain, not two.
+   */
+  node_id: string | null
   title: string
   /** `not null default ''`. */
   description: string
@@ -339,6 +381,12 @@ export interface EntryUpdate {
 export interface NewEntry {
   title: string
   trackId?: string | null
+  /**
+   * The map node to file this under. `track_id` is derived from it server-side,
+   * so sending both is safe only when they agree — which is what `dropRules`
+   * and `draftAt` guarantee by reading one branch of one tree.
+   */
+  mapNodeId?: string | null
   description?: string | null
   type?: EntryType
   status?: EntryStatus
@@ -369,6 +417,14 @@ export interface EntryPatch {
   tags?: string[]
   links?: EntryLink[]
   trackId?: string | null
+  /**
+   * `entries.node_id`. Named for the dimension, not the column, matching the
+   * plan's `FilterState.mapNodeIds`. Null means "under no organization" and is
+   * written EXPLICITLY by every drop on a track ring — see `dropRules.foldPath`,
+   * or a row dropped on a track's bucket springs back under its old Org one
+   * frame after landing.
+   */
+  mapNodeId?: string | null
 }
 
 /** One appended thread post. `statusFrom`/`statusTo` mark a transition row. */
@@ -654,7 +710,7 @@ export interface ClaimInput {
  * `label_overrides_touch()` collapses blank to null on the way in, so a row read
  * back from the table carries null and never `''`.
  *
- * `key` is a dot path into the locale bundles (`nav.board`). For a CLDR plural
+ * `key` is a dot path into the locale bundles (`nav.map`). For a CLDR plural
  * node it carries the category too (`board.total.one`), because a plural key has
  * no single string to override — lib/labelOverrides.ts's `overrideKey()` is the
  * one place that format is written.
@@ -693,4 +749,576 @@ export interface LabelOverrideRow {
 export interface LabelOverrideMap {
   readonly en: Readonly<Record<string, string>>
   readonly ar: Readonly<Record<string, string>>
+}
+
+// ── the map hierarchy (0023 map_nodes, 0024 map_use_cases) ──────────────────
+//
+// THE ONE INVARIANT: TRACKS STAY. This hierarchy hangs BELOW them. `entries.track_id`
+// is still what colours a row, what the track × priority SLA matrix is keyed on and
+// what the track timeline reads; a node is a FINER GRAIN inside a track, never a
+// replacement for one. UHR is a track, OB a node beneath it, each Org a node beneath
+// OB, to arbitrary depth.
+//
+// Which is why `MapNode.track_id` is `string`, not `string | null`: every node
+// carries the track it lives under, denormalised, and the database derives it from
+// the parent rather than trusting a writer to assert it. An entry gaining a
+// `node_id` therefore cannot end up filed under two different tracks at once — the
+// second filing axis is unrepresentable rather than merely detected.
+//
+// EVERY FIELD BELOW IS REQUIRED. `Track.group_id` is optional only because twelve
+// test files build Track literals by hand and a required field would have redded
+// `tsc -b` in all of them at once (see its comment). These types are new and have no
+// such fixtures, so the debt is not repeated: a row PostgREST returns carries every
+// column, and a type that admits `undefined` teaches every reader to write `?? null`
+// forever.
+
+/**
+ * Where a node's content came from — `map_nodes.source` (0023).
+ *
+ * 'jira' is provisioned from day one and written by nothing yet: the sync is
+ * deliberately not built (a two-way sync is gated on the tracker being verified),
+ * but the columns exist so turning it on later is a feature, not a migration of
+ * live rows. Everything a person creates in this app is 'local'.
+ */
+export type MapNodeSource = 'local' | 'jira'
+
+/**
+ * How far one organization has got with one HL7/FHIR capability —
+ * `map_node_use_cases.status` (0024).
+ *
+ * THREE STATES AND NO FOURTH, because "not integrated at all" is the ABSENCE of the
+ * row, not a value. That is the same shape `track_slas` uses for "inherit" and it is
+ * chosen for the same reason: a sentinel value would be a second way to say nothing
+ * and both would have to be handled everywhere. See `setNodeUseCase` in api/map.ts,
+ * which DELETEs on null.
+ */
+export type UseCaseStatus = 'planned' | 'testing' | 'live'
+
+/**
+ * map_nodes — the tree beneath a track. Programme phases, onboarding phases, and
+ * the organizations being onboarded, at whatever depth the admin builds.
+ *
+ * `vendor` IS A COLUMN, not a facet computed from something else, and it is here
+ * because Aziz asked to filter the map by the integrator doing each organization's
+ * work. It carries the shape three separate units argued for before it existed:
+ * `text not null default ''`, free text rather than an FK for `entries.owner_name`'s
+ * reason. `FilterState.mapNodeIds` is what actually delivers the filter (Wave B);
+ * this column is what it filters ON.
+ */
+export interface MapNode {
+  id: string
+  /**
+   * The node above this one, or null for a depth-0 node hanging directly off its
+   * track. NOT a general "no parent": null means "this node's parent IS the track",
+   * which is why `track_id` is required on the same row.
+   */
+  parent_id: string | null
+  /**
+   * Which track this node lives under — NOT NULL on every node, at every depth.
+   *
+   * DERIVED, NOT ASSERTED: the database sets it from the parent, and a move that
+   * crosses tracks rewrites the whole subtree in one statement (`move_map_node`).
+   * A client must never compute it for a child node; pass it only when creating or
+   * moving a depth-0 node, where there is no parent to derive it from.
+   */
+  track_id: string
+  /**
+   * Which `map_node_kinds` row this is — Programme, Phase, Organization.
+   *
+   * NULLABLE, and legally so: the FK is `on delete set null`, so retiring a kind
+   * un-kinds its nodes rather than deleting the organizations filed under it. A
+   * node with no kind is still drawn; nothing in the renderer branches on the kind
+   * key, because what a Phase shows and what an Org shows is configuration.
+   */
+  kind_id: string | null
+  name: string
+  /** `not null default ''` — fall back to `name` when EMPTY, not when null. */
+  name_ar: string
+  /** `not null default ''`. */
+  description: string
+  /** `not null default ''`. */
+  description_ar: string
+  /**
+   * The teammate accountable for this node — `profiles.id`, `on delete set null`.
+   *
+   * A REFERENCE, not a name, so that renaming a person propagates everywhere they
+   * are shown instead of leaving a stale string on forty organizations.
+   */
+  account_manager_id: string | null
+  /**
+   * The integrator delivering this organization — `not null default ''`.
+   *
+   * FREE TEXT, NOT A REFERENCE, and the asymmetry with `account_manager_id` right
+   * above is the whole point: an account manager is a teammate with a profile, a
+   * login and a display name somebody maintains; a vendor is a company outside
+   * the workspace with none of those. Empty means "not recorded" — never null, so
+   * that filter-by-vendor has one answer to "no vendor" rather than two.
+   */
+  vendor: string
+  sort_order: number
+  archived: boolean
+  /**
+   * Maintained by `map_nodes_archive_stamp()` in BOTH directions from `archived`,
+   * exactly as `tracks.archived_at` is. Never write it from the client: the trigger
+   * owns it and a client value would be overwritten on the same statement.
+   */
+  archived_at: string | null
+  /** Provenance (0023). 'local' for everything a person created here. */
+  source: MapNodeSource
+  /** The issue key in the external system, or null. Nothing writes this yet. */
+  external_ref: string | null
+  /** A link back to the external system, or null. Nothing writes this yet. */
+  external_url: string | null
+  /**
+   * When the external sync last wrote this row, or null for a node no sync has
+   * touched. SUBTRACTED FROM THE TOUCH AND AUDIT DIFFS by the migration — a nightly
+   * sync that changed nothing must not write one audit row per node per night.
+   */
+  synced_at: string | null
+  /**
+   * Column names a person has edited here since the last sync — `text[] not null
+   * default '{}'`, so an empty list is `[]` and never null. It is the per-field
+   * editing contract decided up front: a synced field shows its provenance, and
+   * editing it takes that field out of the sync's hands until it is given back.
+   */
+  overrides: string[]
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * map_node_kinds — Programme, Phase, Organization. What a node IS.
+ *
+ * NO COLOUR COLUMN, and that is a decision rather than an omission: colour on this
+ * map means TRACK, and a node inherits its track's colour at every depth. The map's
+ * visual budget is already spent on size-for-count and the breach mark, and a second
+ * colour axis would make two different things look like the same thing.
+ */
+export interface MapNodeKind {
+  id: string
+  name: string
+  /** `not null default ''` — fall back to `name` when EMPTY, not when null. */
+  name_ar: string
+  sort_order: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * use_cases — the HL7/FHIR capabilities an organization integrates. ADT, Medication
+ * Prescribe V1, Radiology Order, and the rest, "and more to be added later".
+ *
+ * `vocab_options`' shape but UNFROZEN. vocab_options is frozen because entry status
+ * keys are stored in append-only `entry_updates` rows that can never be rewritten;
+ * nothing here has that property, so an admin may add, rename and retire freely.
+ * Versions are separate rows the admin names ("Medication Prescribe V2"), not a
+ * version column — a version schema would have to decide what V1 means once V2
+ * exists, and the honest answer is "whatever the admin called it".
+ */
+export interface UseCase {
+  id: string
+  name: string
+  /**
+   * `not null default ''`, and SEEDED BLANK on purpose: an empty Arabic name means
+   * "no translation yet" and every reader falls back to `name`, which is the right
+   * answer for a capability whose English name is the one everybody in the room
+   * actually says. Test for EMPTY, not for null.
+   */
+  name_ar: string
+  sort_order: number
+  /**
+   * Hidden capabilities leave the pickers but never hide the links that already
+   * name them — `vocab_options.hidden`'s exact contract. This is how a capability
+   * is retired without erasing which organizations integrated it.
+   */
+  hidden: boolean
+  created_by: string | null
+  /** Who last edited this row. 0024 carries both; `map_node_kinds` carries only the first. */
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * map_node_use_cases — which organization integrated which capability, and how far.
+ *
+ * NO ID: the pair is the primary key, so the ordering is total and two loads of the
+ * same data render in the same order. `TrackSlaRule` is shaped this way for the same
+ * reason, and api/map.ts selects these columns by name rather than `*` so the type
+ * cannot drift from the query.
+ *
+ * ABSENCE IS A VALUE. No row means "not integrated", which is why there is no
+ * 'none' member of `UseCaseStatus`.
+ *
+ * THE FIVE JIRA COLUMNS ARE OPTIONAL, AND THAT IS A STATEMENT ABOUT ROWS RATHER
+ * THAN ABOUT THE TABLE. 0024 created all five `not null default`/nullable on day one
+ * (0024:393-397) and every row in the database has them; what is genuinely optional
+ * is whether the value in hand CAME FROM the database. Hand-built rows in fixtures
+ * and optimistic rows a panel holds between a tick and its round trip carry the
+ * three key columns alone, and a required field would force every one of them to
+ * invent a `source` — which is exactly the "seeded default asserting a fact nobody
+ * stated" this feature refuses elsewhere. api/map.ts's LINK_COLUMNS populates all
+ * eight on every read, so `source === undefined` means "not from a read", never
+ * "no source". Test for the field, not for its value.
+ */
+export interface MapNodeUseCase {
+  node_id: string
+  use_case_id: string
+  status: UseCaseStatus
+  /** 'local' unless a sync wrote the row. The frozen twin of `map_nodes.source`. */
+  source?: MapNodeSource
+  /** The Jira issue key this link mirrors, or null for a link somebody typed. */
+  external_ref?: string | null
+  /** Deep link to that issue. Null unless `external_ref` names one. */
+  external_url?: string | null
+  /** When the sync last touched this row; null for a local link. */
+  synced_at?: string | null
+  /**
+   * Fields a person changed by hand that a future sync must not overwrite.
+   *
+   * Empty on every row today — nothing writes it yet. It is read before it is
+   * written on purpose: `held` is only meaningful if the row can say which fields
+   * are held, and a write path that discovers that afterwards has already lost the
+   * edits it was supposed to protect.
+   */
+  overrides?: string[]
+}
+
+/**
+ * The editable half of a node, camelCase because it is a form's view-model —
+ * api/map.ts hand-maps it to the snake_case columns, exactly as `TrackInput` is.
+ *
+ * `sortOrder` and `archived` are absent for `TrackInput`'s reason: reordering and
+ * archiving are their own operations with their own guards. `parentId` and `trackId`
+ * ARE here because creating a node has to say where it goes — but they are read by
+ * `createMapNode` ALONE. `updateMapNode` takes `Partial<Omit<MapNodeInput, 'parentId'
+ * | 'trackId'>>` so that re-parenting through the patch endpoint is a type error
+ * rather than a silently-ignored key: a subtree move has to rewrite every
+ * descendant's `track_id` in one statement, and that is `moveMapNode`.
+ */
+export interface MapNodeInput {
+  /** Null puts the node at depth 0, directly under `trackId`. */
+  parentId: string | null
+  /**
+   * Which track the node lives under. Authoritative only when `parentId` is null;
+   * with a parent the database derives it and disagreement is rejected, not
+   * silently preferred.
+   */
+  trackId: string
+  name: string
+  nameAr: string
+  description: string
+  descriptionAr: string
+  /** Null is the ordinary "no kind chosen", not a missing value. */
+  kindId: string | null
+  /** Null is the ordinary "nobody named yet". */
+  accountManagerId: string | null
+  /** `''` is the ordinary "no vendor recorded" — free text, never null. */
+  vendor: string
+}
+
+/**
+ * What `move_map_node()` reports back — a jsonb object, mapped to camelCase by
+ * api/map.ts because it is a return value the UI reads, not a row.
+ *
+ * THREE NUMBERS BECAUSE THE MOVE DOES THREE THINGS, and a single count would make
+ * the confirmation lie in the interesting case: a cross-track move rewrites the
+ * subtree AND re-files every entry beneath it, and "moved 3" when 40 items changed
+ * track is exactly the surprise this app exists to prevent. `trackChanged` is what
+ * distinguishes a reorder-shaped move within one track from the one worth warning
+ * about beforehand.
+ */
+export interface MapNodeMoveResult {
+  /** Nodes whose row was rewritten — the subtree, including the node itself. */
+  nodes: number
+  /** Entries re-filed onto the destination track. Zero for a same-track move. */
+  entries: number
+  /** Whether the subtree changed track. */
+  trackChanged: boolean
+}
+
+/** The editable half of a node kind. `sort_order` is `reorderMapNodeKinds`' job. */
+export interface MapNodeKindInput {
+  name: string
+  nameAr: string
+}
+
+/**
+ * The editable half of a use case.
+ *
+ * `hidden` is OPTIONAL and permanently so, for `TrackInput.groupId`'s reason:
+ * `updateUseCase` patches only the keys it is handed, so `undefined` carries its own
+ * meaning here — "leave the visibility alone" — which is what the rename form wants
+ * and what the hide toggle does not.
+ */
+export interface UseCaseInput {
+  name: string
+  nameAr: string
+  hidden?: boolean
+}
+
+/**
+ * How many rows still point at a node, for the delete confirmation. `TrackUsage`'s
+ * job, one level down.
+ *
+ * ALL THREE COUNTS ARE DIRECT, not recursive, and the delete flow depends on that
+ * being true: the database refuses to delete a node that still has children, so
+ * `children` is the number the admin has to clear first, and a descendant count
+ * would tell them to clear more than the guard actually asks for.
+ */
+export interface MapNodeUsage {
+  /** Entries filed directly on this node (`entries.node_id`). */
+  entries: number
+  /** Nodes whose `parent_id` is this node. */
+  children: number
+  /** Rows in `map_node_use_cases` for this node. */
+  useCases: number
+}
+
+/**
+ * map_node_stages — the onboarding ladder a node climbs (0026). Not started →
+ * Kickoff → Integrating → Testing/UAT → Go-live ready → Live → Paused.
+ *
+ * THE COLUMN LIST IS 0026's, NOT A DESIGN'S. Every field below is one the
+ * migration creates, spelled the way it spells it, and there is no `updated_by` —
+ * `map_node_kinds` carries none either and this table copies it.
+ *
+ * NO COLOUR COLUMN, and 0026's probe 1 fails the migration if one ever appears:
+ * colour on this map means TRACK at every depth, the map's two visual variables
+ * are already spent, and an ORDERED list draws as position rather than hue.
+ *
+ * Member-read, `structure.edit`-write, AUDITED — renaming a rung restates what
+ * every portfolio count MEANS, which is exactly the change one person makes with
+ * nobody watching.
+ */
+export interface MapNodeStage {
+  id: string
+  name: string
+  /**
+   * `not null default ''`, and SEEDED BLANK for all seven rungs on purpose —
+   * those words are the programme's own vocabulary and Aziz translates them
+   * himself. Fall back to `name` when EMPTY, not when null (`stageLabel`).
+   */
+  name_ar: string
+  sort_order: number
+  /**
+   * `use_cases.hidden`'s contract: the rung leaves the pickers and never
+   * un-stages the organizations already standing on it.
+   */
+  hidden: boolean
+  /**
+   * An organization at this stage HAS ARRIVED. The portfolio's live count is
+   * `count(*) where terminal` and NEVER a comparison against the word "Live" —
+   * lib/mapNodes.ts's "the terminal status is a parameter, never the literal"
+   * promoted from a TS constant to a column the admin owns. Deliberately not
+   * derived from the highest `sort_order`, because that is draggable.
+   */
+  terminal: boolean
+  /**
+   * The clock is deliberately stopped here. lib/lifecycle.ts's `isAtRisk` counts
+   * a node only when NOT terminal and NOT paused, so "blocked on the customer
+   * since March" is a fact somebody recorded rather than an alarm the app raises
+   * every morning.
+   */
+  paused: boolean
+  /**
+   * How long a node is expected to sit on this rung before it counts as stalled,
+   * bounded 1..3650 by `map_node_stages_expected_days_chk`.
+   *
+   * NULL IS THE ORDINARY STATE AND THE SEEDED STATE — 0026 sets it on no row,
+   * which is 0003's SLA-off reasoning: a threshold nobody chose is a number the
+   * app would then chase people with. `resolveStallDays` reads it.
+   */
+  expected_days: number | null
+  created_at: string
+  updated_at: string
+  created_by: string | null
+}
+
+/**
+ * The editable half of a stage — a form's view-model, camelCase, hand-mapped to
+ * 0026's snake_case columns by api/map.ts exactly as `MapNodeKindInput` is.
+ *
+ * `sortOrder` is absent for `MapNodeKindInput`'s reason: ordering is
+ * `reorderMapNodeStages`' job, and on this table it is a heavier operation than
+ * it looks — reordering the ladder restates every count-form goal.
+ *
+ * The last four are OPTIONAL and permanently so, for `UseCaseInput.hidden`'s
+ * reason: `updateMapNodeStage` patches only the keys it is handed, so
+ * `undefined` carries its own meaning — "leave that flag alone" — which is what
+ * the rename form wants and what the flag toggles do not. `expectedDays: null`
+ * is a real instruction ("no expectation on this rung") and is NOT the same as
+ * leaving the key off.
+ */
+export interface MapNodeStageInput {
+  name: string
+  nameAr: string
+  hidden?: boolean
+  terminal?: boolean
+  paused?: boolean
+  expectedDays?: number | null
+}
+
+/**
+ * map_node_progress — which rung of the ladder one node is standing on, and
+ * since when (0026).
+ *
+ * NO ID: `node_id` IS the primary key, at most one row per node, exactly as
+ * `MapNodeUseCase` is keyed by its pair. That is also why every write is an
+ * upsert on `node_id` — see `setNodeStage` in api/map.ts.
+ *
+ * ⚠ THE ABSENCE OF A ROW IS MEANINGFUL, AND IT IS NOT THE SAME FACT AS
+ *   `stage_id: null`. No row means NOBODY HAS SAID ANYTHING YET — the state all
+ *   400 imported organizations are in, because 0026 ships no backfill on
+ *   purpose. `stage_id: null` means somebody looked and cleared it. Returning a
+ *   node to "nobody has said" is a DELETE, not a null.
+ *
+ * MEMBER-WRITABLE, unlike `map_node_stages`: the owner owns the ladder, the
+ * three account managers own where each organization got to.
+ */
+export interface MapNodeProgress {
+  node_id: string
+  /** The rung, or null. `on delete set null`, so retiring a rung un-stages its nodes. */
+  stage_id: string | null
+  /**
+   * When this node arrived on its current rung — NULL exactly when `stage_id` is
+   * null, which `map_node_progress_stage_chk` enforces as a backstop.
+   *
+   * WRITTEN ONLY BY `map_node_progress_stage_stamp()`. A value sent by a client
+   * is OVERRULED, not rejected, so a write that carries one reads as working and
+   * is not. Never send it.
+   */
+  stage_changed_at: string | null
+  /** Server-owned, diffed by `map_node_progress_touch()`. Never send it. */
+  updated_at: string
+  /**
+   * Who last recorded this node's position — resolved through `profiles` from
+   * `auth.uid()`, never a field a screen offers. Null when the write had no JWT
+   * (the SQL editor, the importer).
+   */
+  updated_by: string | null
+}
+
+/**
+ * map_node_goals — one commitment about one node (0027).
+ *
+ * ⚠ THE TWO NULLABLE COLUMNS ARE THE WHOLE VOCABULARY. There is deliberately no
+ *   `metric` column and no frozen union: `stage_id` and `target` between them
+ *   say which of the four things a goal is, and adding a fifth phrasing is a
+ *   sentence in the UI rather than a coded value in the schema.
+ *
+ *   | stage_id | target | reads as                                              |
+ *   |----------|--------|-------------------------------------------------------|
+ *   | null     | null   | this node reaches a terminal stage by `target_date`    |
+ *   | null     | 40     | 40 beneath it are at a terminal stage by `target_date` |
+ *   | a rung   | 40     | 40 beneath it are at that rung OR BEYOND               |
+ *   | a rung   | null   | this node reaches that rung or beyond                  |
+ *
+ * NOT UNIQUE ON ANYTHING: two goals with one date and two rungs describe one
+ * ramp at two altitudes, and 0027's probe 1 asserts the primary key is the only
+ * unique index precisely so half of somebody's ramp cannot be silently refused.
+ */
+export interface MapNodeGoal {
+  id: string
+  node_id: string
+  /**
+   * "Phase 2 go-live". `not null default ''`, and `''` IS A GOOD GOAL — the date
+   * and the target already say what it is. Empty string rather than null for
+   * `map_nodes.vendor`'s reason (0023:359): a three-state string/null/'' is a bug
+   * waiting for the first filter.
+   */
+  label: string
+  label_ar: string
+  /** NULL means "a terminal stage", never "no rung". See the table above. */
+  stage_id: string | null
+  /** NULL = a date goal about this node. A positive int = a count of descendants. Never 0. */
+  target: number | null
+  /**
+   * The calendar day the commitment names. `date`, not `timestamptz`: giving a
+   * go-live date a time zone makes "31 Dec" render as 30 Dec for somebody.
+   */
+  target_date: string
+  created_at: string
+  updated_at: string
+  created_by: string | null
+  updated_by: string | null
+}
+
+/**
+ * What a caller hands in to create or patch a goal — camelCase, columns out.
+ *
+ * `MapNodeStageInput`'s shape and its reason: the column names are the api
+ * layer's business, and a screen that built a row literal would be a screen that
+ * can send `created_by`. `Partial<MapNodeGoalInput>` is what `updateGoal` takes,
+ * where an ABSENT key means "leave it alone" and an explicit `null` on
+ * `stageId`/`target` is a real instruction — "this goal names no rung" / "this is
+ * a date goal now". The `!== undefined` test below is what keeps those apart.
+ */
+export interface MapNodeGoalInput {
+  nodeId: string
+  label: string
+  labelAr: string
+  stageId: string | null
+  target: number | null
+  targetDate: string
+}
+
+/**
+ * v_map_node_open_counts — one row per map node, DIRECT counts of the open work
+ * filed on it (0027). The first aggregate VIEW this schema has.
+ *
+ * ⚠ THE BOUNDARY RULE THIS TYPE EXISTS TO KEEP, in 0027's own words:
+ *
+ *     A NUMBER A HUMAN READS AS A FACT COMES FROM THE SERVER AGGREGATE.
+ *     A SIZE A HUMAN READS AS A SHAPE COMES FROM THE WORKING SET.
+ *
+ * Past 1,000 open entries the client's working set is clipped by PostgREST and
+ * every count folded from it is silently low — a correct-looking wrong number in
+ * front of an executive. So the panel's "12 open · 3 overdue" reads THIS; the
+ * canvas's size-encoding keeps reading the (truncated, flagged) working set,
+ * because a 10% error is invisible at grain size.
+ *
+ * NOT ROLLED UP. The server does the expensive join over thousands of entries;
+ * the client rolls ~400 rows up in the O(n) pass it already runs.
+ *
+ * EVERY NODE GETS A ROW, including one with no entries at all (0027's LEFT
+ * JOIN). A MISSING row therefore means the read did not reach that node, and the
+ * client renders an em-dash rather than 0 — "this node has zero open items" and
+ * "nobody has looked" are different facts.
+ */
+export interface MapNodeOpenCounts {
+  node_id: string
+  open: number
+  overdue: number
+  /** Open entries whose SLA is breached — `v_entry_health.sla_breached`. */
+  breached: number
+  /** Open entries with neither `owner_id` nor a non-blank `owner_name`. */
+  unassigned: number
+}
+
+/**
+ * What retiring a rung would cost, for the delete confirmation — `MapNodeUsage`'s
+ * job one table over.
+ *
+ * BOTH NUMBERS ARE NEEDED BEFORE THE CLICK, and neither of them blocks the
+ * delete: `map_node_progress.stage_id` and `map_node_goals.stage_id` are both
+ * `on delete set null`, so deleting a rung un-stages the organizations standing
+ * on it and blanks the rung out of the goals that named it. Nothing is refused
+ * and nothing raises — which is exactly why the sentence has to be said in
+ * advance rather than discovered afterwards. `hidden` is the operation an admin
+ * almost always wants instead.
+ */
+export interface MapNodeStageUsage {
+  /** Nodes currently recorded at this stage (`map_node_progress.stage_id`). */
+  progress: number
+  /**
+   * Goals whose target names this stage (`map_node_goals.stage_id`, 0027).
+   *
+   * 0 on a database where 0027 has not been applied, and that is the honest
+   * answer rather than a swallowed error: a table that does not exist holds no
+   * goals. api/map.ts's `countReferencing` warns to the console and answers 0.
+   */
+  goals: number
 }

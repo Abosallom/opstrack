@@ -52,26 +52,45 @@
    `src/styles/global.css` and `pages/mindtree.css` use. Figures read dark/light
    and every one names the surface it was measured against.
 
+   ⚠ RE-DERIVED WHOLESALE against `--accent` = #9884d6 dark / #322067 light. Two
+     rows here were computed for accents that no longer exist — the accepting
+     outline's three reproduced bit-exact for #58a6ff, and the count chip's pair
+     matched no accent era at all — and both were carried through two repaints
+     because the prose below declared them QUOTES owned by mindtree.css, so
+     whoever updated that sheet synchronised only the one line whose number
+     already matched. Every figure below has now been re-run.
+
    TEXT — 4.5:1
      ghost title (--text) on --bg-elev-2              12.61 / 15.14
      count chip (--text) on --accent-soft over
-       --bg-elev-2                                    11.98 / 14.30
+       --bg-elev-2                                     9.95 / 12.56
      refusal (--red) on --bg-elev-2                    5.82 / 5.49  ← text floor
      "already there" (--text-dim) on --bg-elev-2       6.97 / 5.98
 
    NON-TEXT — 3:1 (WCAG 1.4.11)
      candidate outline (--field-border) on the
-       canvas (--bg-elev)                              3.77 / 3.65  ← the floor
-     accepting outline (--accent) on a node fill       4.07 / 4.36
-     …on the hover fill                                3.29 / 3.74
-     …on the bare canvas                               6.72 / 6.32
+       canvas (--bg-elev)                              3.77 / 3.65
+     accepting outline (--accent) on a node fill       3.24 / 9.41  ← the floor
+     …on the bare canvas                               5.34 / 13.65
      refusing outline (--red) on any node fill         4.07 / 4.45
-     card border (--accent) on --bg-elev-2             4.51 / 11.57
+     card border (--accent) on --bg-elev-2             4.63 / 11.60
 
-   The five node-fill figures are `pages/mindtree.css`'s own sweep — the same two
-   colours over the same surfaces, measured there across all 140,608 hues an
-   admin's free `tracks.color` hex can produce — quoted rather than re-derived so
-   the two files cannot drift to two different answers about one mark.
+   THE HOVER FILL IS NOT ON THAT LIST ANY MORE, and its absence is the fix rather
+   than an omission. The accepting outline is drawn over the node the pointer is
+   resting on — a HOVERED node by construction, since this whole layer is
+   `pointer-events: none` and the hover falls through to the map — and `--accent`
+   over the 22% hover fill measures 2.61 / 8.07, which FAILS 1.4.11 in the dark
+   theme for any track hue near white. This sheet certified it as 3.29 and
+   passing. `pages/mindtree.css` now stands the hover tint down for every node
+   while a lift is in flight (`svg:has(.mtree-drag-overlay)`), so the outline is
+   measured against the 16% resting fill and the failing pair cannot be composed.
+
+   The node-fill figures share `pages/mindtree.css`'s sweep — the same two colours
+   over the same surfaces, across all 140,608 hues an admin's free `tracks.color`
+   hex can produce — and are RE-DERIVED here rather than quoted. The old rule
+   ("quoted rather than re-derived so the two files cannot drift") is what let
+   them drift: a quote cannot be checked against anything, so a stale one and a
+   fresh one read identically.
 
    MOTION: there are no keyframes in this file. The only movement is the ghost
    following the pointer, which is direct manipulation rather than animation, and
@@ -109,6 +128,12 @@
   stroke-dasharray: none;
 }
 
+/* The branch that WILL take it. `--accent` measures 3.24 / 9.41 over the resting
+   node fill across the whole sweep — and it is measured against the RESTING fill
+   rather than the hover one because `pages/mindtree.css` suppresses the hover
+   tint for as long as this overlay is mounted. See the header's ⚠: on the 22%
+   fill this mark sits at 2.61 dark, under WCAG 1.4.11, on the one outline that
+   tells a reader their drop will be accepted. */
 .mtree-drag-zone[data-state='ok'] {
   stroke: var(--accent);
 }

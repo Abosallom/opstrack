@@ -1,20 +1,28 @@
 # CoreTrack
 
-> **Pending database migrations:** see [`docs/PENDING-MIGRATIONS.md`](docs/PENDING-MIGRATIONS.md). Migrations `0014`–`0017` are written, tested and **not yet
-> applied**; four user-facing guarantees are broken until they are run.
+> **Database migrations: nothing is pending.** Everything through `0025` is applied to the live
+> project. See [`docs/PENDING-MIGRATIONS.md`](docs/PENDING-MIGRATIONS.md) before every deploy —
+> it is the only file that answers "what still has to be run?", and `0023`/`0024`/`0025` are
+> never re-run.
 
 
 A multi-track action and decision tracker for an operations lead who owns several
 domains at once (PMO, IT Operations, Network, Infrastructure, SRE) and delegates
 most of the execution.
 
-> **On the name.** The product is **CoreTrack** for the team-testing period. Every
-> technical identifier still reads `opstrack` on purpose — the repo, the Pages URL,
-> the `package.json` name, the `opstrack_*` storage keys, the CSS prefixes, the
-> Supabase project, the iOS bundle id and the `@opstrack.internal` auth domain.
-> Renaming those mid-testing would break installed PWAs, bookmarks and stored
-> sessions for no gain. They are swapped in one clean cut at launch, under the
-> launch name — see [`docs/WAVE5-NOTES.md`](docs/WAVE5-NOTES.md) §1.
+> **On the name.** The product is **NphiesCore**. Every technical identifier still
+> reads `opstrack` on purpose — the repo, the `package.json` name, the `opstrack_*`
+> storage keys, the CSS prefixes, the Supabase project, the iOS bundle id and the
+> `@opstrack.internal` auth domain. Renaming those mid-testing would break installed
+> PWAs, bookmarks and stored sessions for no gain, and `@opstrack.internal` is
+> permanent (real rows in `auth.users`). See [`docs/WAVE5-NOTES.md`](docs/WAVE5-NOTES.md) §1
+> and the gate that enforces the split, `src/lib/brand.test.ts`.
+>
+> **The URL is the one that moves.** `nphiescore.com` was bought on 19 Aug 2026, and
+> a custom domain serves the app at that apex — so the public URL stops reading
+> `opstrack` without any of the identifiers above changing, and the queued
+> `/nphiescore/` base-path move is cancelled rather than done.
+> [`docs/DOMAIN-CUTOVER.md`](docs/DOMAIN-CUTOVER.md) is the procedure.
 
 Two things it optimises for, and everything else bends around them:
 
@@ -39,7 +47,8 @@ native call sits behind a no-op that a browser tab takes instead.
 ## Status at v1.0.1
 
 Released 30 July 2026 as v1.0.0; **v1.0.1 on 31 July 2026**. Live at
-<https://abosallom.github.io/opstrack/>, built from `main` by GitHub Actions,
+<https://abosallom.github.io/opstrack/> — moving to <https://nphiescore.com/>,
+see [`docs/DOMAIN-CUTOVER.md`](docs/DOMAIN-CUTOVER.md) — built from `main` by GitHub Actions,
 backed by a real Supabase project. The v1.0.0 release smoke — every screen in
 both languages, both themes, at 1280 and 375, against the deployed origin rather
 than a dev server — is
@@ -409,6 +418,7 @@ assets/        source icon + splash art and the generator that fans them out
 docs/          the build record: execution plan, wave notes, fix backlog, runbook
 docs/parked/   modules written but not wired in, with a note saying what adoption owes
 docs/EVIDENCE/ live-proof ledgers — claims about the running project, with artifacts
+docs/templates/ the spreadsheets the admin fills in, and the guide beside them
 ```
 
 Two conventions that are load-bearing rather than stylistic. **Every string goes

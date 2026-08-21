@@ -1,0 +1,416 @@
+/* THE PORTFOLIO STAGE — four hundred organizations as a table, with two
+   controls above it and one write inside it.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.pf*` and styles nothing
+   else. A prefix of its own rather than a slice of `.mtree-tbl*`, and the
+   argument is the one that split `map-board.css` from `mindtree.css`: this is a
+   STAGE — it replaces the canvas, it has its own chrome row, its own bulk bar
+   and its own editable cell — and the mindtree's table is a rendering of the
+   same tree the canvas draws. Two surfaces, two lifetimes; `mindtree.css` would
+   otherwise have to grow rules for a `<select>` inside a cell and a chip row
+   above one, neither of which it has any other reason to know about.
+
+   Primitives it USES and never redeclares: `.btn`, `.btn-sm`, `.btn-ghost`,
+   `.pill`, `.tap-44`, `.tabular`, `.sr-only`, `.empty-state`. `.pf-chip` is the
+   one recipe with a near-twin elsewhere — `map-lens.css`'s `.mlens-chip` — and
+   it is NOT reused: that class is the shell rail's, it is width-gated on the
+   phone rail's own breakpoint, and inheriting it would mean this row moved every
+   time the lens rail was retuned.
+
+   COLOUR comes only from existing tokens. The pressed chip is `--bg-elev-2` with
+   `--text` ink and a `--border` outline — the recipe FilterBar's segmented pairs
+   and the lens chips already use, and which global.css measured in both themes.
+   The at-risk cell is `--danger` ink on the ordinary surface, and it is NEVER
+   the only channel: the cell also carries the word and the day count (WCAG
+   1.4.1), so this rule is decoration over a fact that is already written.
+
+   LOGICAL PROPERTIES ONLY — `padding-inline`, `inset-inline`, `inline-size`,
+   `border-block-end`, `text-align: start|end`. The wide table scrolls along the
+   INLINE axis, so it reverses with the document direction for free.
+
+   MOTION: none of its own. The only transitions are the ones the `.btn` family
+   already carries.
+
+   SPACING is on the 4px grid. */
+
+.pf {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* The stage owns the whole region the canvas would have had, and scrolls in
+     the BLOCK axis on its own — `.mtree-canvas` is `overflow: hidden;
+     touch-action: none`, and a table rendered under those cannot be scrolled
+     with a finger at all. This element is a sibling of that box, never a child;
+     `overscroll-behavior` stops a flick at the end of the table pulling the
+     page behind it. */
+  block-size: 100%;
+  min-block-size: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+}
+
+/* Every non-drawing state is placed by the same rule the canvas's own blanks
+   are: centred in THE SPACE THE FLOATING RAIL LEAVES rather than in the whole
+   stage, so the sentence is not covered by the chrome over it. `mindtree.css`'s
+   `.mtree-blank` reserves the same block-start for the same measurement. */
+.pf-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-block-start: 48px;
+  min-block-size: 0;
+}
+
+/* ═══════════════════ the two controls ═══════════════════ */
+
+.pf-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  /* 16px, the floor `.mlens` sets for the same reason: this row wraps at 375px
+     and two lines of 44px targets need the clearance or their hit areas
+     overlap. */
+  row-gap: 16px;
+  min-inline-size: 0;
+}
+
+.pf-bys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+/* THE CHIP. Four of these plus the risk toggle is five targets, which is the
+   count the lens rail already prices at 375px — so the row wraps rather than
+   scrolling, because unlike the lens rail this one is in the page's flow and a
+   second line costs nothing the reader is looking at. */
+.pf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 12px;
+  padding-block: 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+}
+
+.pf-chip:hover {
+  color: var(--text);
+}
+
+/* ONE FILLED PILL IN A ROW OF FOUR LABELS — `map-lens.css`'s finding, applied
+   to the second chip row this app has: four equally-outlined chips are four
+   equal buttons and nothing leads the eye. The pressed one keeps the outline
+   and the raised surface; the rest are text. */
+.pf-chip[aria-pressed='true'] {
+  background: var(--bg-elev-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.pf-badge {
+  min-inline-size: 18px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* The pressed risk chip carries the badge on a raised plate, so the badge needs
+   the plate's own contrast pair rather than the row's. */
+.pf-risk[aria-pressed='true'] .pf-badge {
+  background: var(--bg-elev);
+}
+
+/* ═══════════════════ the sentences above the table ═══════════════════ */
+
+/* A state that names itself and links to the screen that fixes it (E6). It is a
+   NOTE above the table rather than a state instead of it: with no threshold
+   configured every other column is still true, and replacing the table would
+   hide four hundred organizations to report one unset number. */
+.pf-note {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.pf-note-warn {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
+}
+
+/* ═══════════════════ the bulk bar ═══════════════════ */
+
+/* IN THE FLOW, ABOVE THE ROWS IT ACTS ON, and never floating: MapBranch's bulk
+   bar carries the same rule for the same reason — a bar that floats over the
+   rows you are selecting covers the ones you are aiming at. */
+.pf-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev-2);
+}
+
+.pf-bulk-count {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ═══════════════════ the table ═══════════════════ */
+
+/* NINE COLUMNS DO NOT FIT 375px AND MUST NOT BE MADE TO. The wrapper scrolls
+   along the inline axis and is a real tab stop with a name, so a reader who
+   cannot use a pointer can still reach the last column — `.mtree-tblwrap`'s
+   rule, and the reason the component gives it `role="region"` and
+   `aria-labelledby`. */
+.pf-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.pf-tbl {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.pf-caption {
+  padding: 12px 16px;
+  text-align: start;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  border-block-end: 1px solid var(--border);
+}
+
+.pf-caption-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pf-caption-desc {
+  color: var(--text-faint);
+}
+
+.pf-tbl th,
+.pf-tbl td {
+  padding: 6px 12px;
+  text-align: start;
+  vertical-align: middle;
+  border-block-end: 1px solid var(--border);
+}
+
+.pf-tbl thead th {
+  padding: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--bg-elev-2);
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+.pf-num {
+  text-align: end;
+}
+
+.pf-txt {
+  max-inline-size: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-sortbtn {
+  inline-size: 100%;
+  justify-content: flex-start;
+  gap: 4px;
+  border-radius: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pf-num .pf-sortbtn {
+  justify-content: flex-end;
+}
+
+.pf-mark {
+  flex: 0 0 auto;
+}
+
+/* Rotated rather than drawn twice — one triangle, one transform. */
+.pf-mark.is-desc {
+  transform: rotate(180deg);
+}
+
+.pf-row:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+/* Archived, and still on the table: hiding a retired organization would break
+   the roll-up, and a bucket labelled 12 whose rows sum to 9 is worse than a
+   greyed line. model.ts's rule, rendered. */
+.pf-row.is-retired td,
+.pf-row.is-retired th {
+  color: var(--text-faint);
+}
+
+.pf-org {
+  font-weight: 600;
+  /* The two buttons — open the panel, drill the filter — stack at 375px and sit
+     on one line above it. Not `display: flex` on the `<th>`: any display other
+     than `table-cell` takes the header OUT of the table formatting context and
+     detaches the whole column from its rows (mindtree.css measured exactly that
+     and says so). The children are inline-flex instead. */
+  min-inline-size: 12rem;
+}
+
+.pf-orgbtn {
+  padding-inline: 0;
+  font-weight: 700;
+  text-align: start;
+}
+
+.pf-orgname {
+  overflow-wrap: anywhere;
+}
+
+/* The ancestry, under the name — the drill, and the one control on the row that
+   changes what the whole screen is about. Dimmer than the name because it is
+   the CONTEXT for it rather than a second title. */
+.pf-trail {
+  display: block;
+  padding-inline: 0;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: start;
+}
+
+.pf-flag {
+  margin-inline-start: 6px;
+}
+
+/* ═══════════════════ the editable cell ═══════════════════ */
+
+/* THE ONE WRITE ON THIS SCREEN, AND IT IS 44px WITHOUT AN OVERLAY. `.tap-44` is
+   an absolutely positioned pseudo-element over its host, which over a `<select>`
+   would swallow the very press that opens the picker — so this control takes the
+   height directly. Native `<select>`, so the phone gets its own wheel and the
+   keyboard gets type-ahead, neither of which a custom menu would have. */
+.pf-stage {
+  min-block-size: 44px;
+  min-inline-size: 9rem;
+  max-inline-size: 100%;
+  padding-inline: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.pf-stage:disabled {
+  color: var(--text-faint);
+}
+
+.pf-stagecell {
+  /* The cell never squeezes the control below its own minimum; the table
+     scrolls instead. A stage picker that has to be scrolled INSIDE its cell is a
+     control nobody can hit. */
+  white-space: nowrap;
+}
+
+/* The row's tick. `.tap-44` rides ON this one — a checkbox has no interior for
+   a pseudo-element to cover, and the overlay is what gives an 18px box a 44px
+   target. */
+.pf-check {
+  accent-color: var(--accent);
+  cursor: pointer;
+  position: relative;
+}
+
+.pf-pick {
+  inline-size: 44px;
+  text-align: center;
+}
+
+/* AT RISK IS NEVER COLOUR ALONE. The word is in the cell and the day count is
+   one column before it; this rule is the third, redundant channel. */
+.pf-tbl td[data-tone='danger'] {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.pf-risk-word {
+  white-space: nowrap;
+}
+
+.pf-total th,
+.pf-total td {
+  border-block-end: none;
+  font-weight: 700;
+  background: var(--bg-elev-2);
+}
+
+/* ═══════════════════ the phone ═══════════════════ */
+
+@media (max-width: 767px) {
+  .pf {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  /* One line per row is unreadable at 375px whatever the font size, so the
+     table keeps its columns and the WRAPPER pans — the same trade `.mtree-tbl`
+     makes, and the reason the wrapper is a focusable region with a name. What
+     changes on a phone is the chrome: the caption loses its second sentence's
+     line height and the cells lose 4px of inline padding, which is 36px across
+     nine columns. */
+  .pf-tbl th,
+  .pf-tbl td {
+    padding-inline: 8px;
+  }
+
+  .pf-org {
+    min-inline-size: 9rem;
+  }
+
+  .pf-txt {
+    max-inline-size: 8rem;
+  }
+}
+
+/* Desktop pointers get the denser row; a finger does not. Scoped exactly as the
+   registry requires, so no compaction ever reaches a touch device. */
+@media (hover: hover) and (pointer: fine) {
+  .pf-tbl th,
+  .pf-tbl td {
+    padding-block: 4px;
+  }
+}

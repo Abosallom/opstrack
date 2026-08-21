@@ -14,6 +14,12 @@
 import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
 import { materializeRecurring } from '../api/entries'
+import {
+  ADMIN_PERMISSION,
+  ALL_PERMISSION_KEYS,
+  MEMBER_PERMISSION_KEYS,
+  myPermissions,
+} from '../api/roles'
 import { supabase } from '../api/supabase'
 import { baseUrlFrom } from '../lib/appBase'
 import { setLocale, t } from '../lib/i18n'
@@ -32,10 +38,23 @@ export interface Profile {
   locale: string
 }
 
+/**
+ * What an emailed recovery link left this tab in.
+ *
+ * `'active'` — the link was opened, supabase-js adopted the session it carried
+ * and reported `PASSWORD_RECOVERY`. The session is deliberately NOT published to
+ * `session` while this is set: see adopt().
+ * `'expired'` — the link landed with `error_code` in the URL instead of tokens,
+ * which is what a reused or timed-out link looks like. Nothing is signed in;
+ * the sentence the reader needs is the only thing left of the attempt.
+ */
+export type Recovery = 'active' | 'expired' | null
+
 export interface AuthState {
   loading: boolean
   session: Session | null
   profile: Profile | null
+  recovery: Recovery
 }
 
 /** Shape of the columns we select from `profiles`. */
@@ -46,12 +65,67 @@ interface ProfileRow {
   locale: string | null
 }
 
+/**
+ * The document URL, or '' where there is not one.
+ *
+ * `window.location` is non-optional in the DOM typings, but the node tests that
+ * exercise this store stub `window` with only the members they need (see
+ * store/auth.test.ts, which gives it four functions and no location). Reading it
+ * through a widened shape keeps a module-scope read from throwing there, and the
+ * empty string is exactly what recoveryFromUrl() already treats as "no link".
+ */
+function currentHref(): string {
+  const loc = (globalThis as { window?: { location?: { href?: unknown } } }).window?.location
+  return typeof loc?.href === 'string' ? loc.href : ''
+}
+
+/**
+ * What the URL a recovery link opened says happened — read from the FRAGMENT.
+ *
+ * WHY THIS IS READ AT MODULE SCOPE AND NOT FROM AN EVENT. Both answers are
+ * erased within a tick of the page loading, by two different mechanisms:
+ *
+ *  - On success supabase-js parses the fragment, saves the session, and sets
+ *    `window.location.hash = ''` before it notifies anyone. Its
+ *    `PASSWORD_RECOVERY` notification then arrives on a `setTimeout(0)` — a
+ *    MACROTASK — while `getSession()` resolves on a microtask, so the store
+ *    would publish a live session and App would paint the whole signed-in shell
+ *    for a frame before the recovery state arrived to take it back.
+ *  - On failure supabase-js throws before it clears anything, so the fragment
+ *    survives — straight into HashRouter, which reads `#error=access_denied&…`
+ *    as a route, matches nothing, and replaces it with a redirect to /signin.
+ *    The only record that a link was even opened is gone before React commits.
+ *
+ * Module evaluation happens before both: it is synchronous, so it precedes
+ * every microtask, every timer and the first render. This function is pure and
+ * takes the href so the reasoning above can be tested rather than described.
+ *
+ * The error branch requires `error_code` AND `error_description` — the pair
+ * GoTrue always sends — rather than a bare `error`, so an ordinary in-app hash
+ * route that happens to carry `?error=…` cannot be mistaken for a dead link.
+ * Nothing here reads a token, and nothing here logs the URL.
+ */
+export function recoveryFromUrl(href: string): Recovery {
+  let hash: string
+  try {
+    hash = new URL(href).hash
+  } catch {
+    return null
+  }
+  if (!hash.startsWith('#')) return null
+  const params = new URLSearchParams(hash.slice(1))
+  if (params.get('type') === 'recovery' && params.get('access_token')) return 'active'
+  if (params.get('error_code') && params.get('error_description')) return 'expired'
+  return null
+}
+
 // loading starts true so the shell renders a spinner rather than bouncing the
 // user to /signin during the moment before the stored session is restored.
 const useAuthStore = create<AuthState>(() => ({
   loading: true,
   session: null,
   profile: null,
+  recovery: recoveryFromUrl(currentHref()),
 }))
 
 export function useAuth(): AuthState {
@@ -81,6 +155,226 @@ export function hasSession(): boolean {
   return useAuthStore.getState().session !== null
 }
 
+// ── permissions ────────────────────────────────────────────────────────────
+//
+// ONE PLACE THAT ANSWERS "MAY THIS PERSON DO X", and it lives here because it
+// can live nowhere else: `src/lib/**` may not import a store, and the answer is
+// a property of the signed-in session. Before this, NINE screens each carried a
+// byte-identical `useIsAdmin()` reading `profile.role` — the LEGACY text column,
+// which 0025 keeps derived from the two SYSTEM roles only. A custom role holding
+// `structure.edit` without `workspace.admin` — the Director, which is the whole
+// point of 0025 — was invisible to every one of them, so the database opened
+// twenty-one write policies to seven people and the client kept redirecting them
+// away from the screens behind those policies.
+//
+// ⚠ THIS IS COSMETIC AND MUST STAY COSMETIC. It decides what RENDERS. RLS
+//   decides what is WRITTEN, and `has_perm()` in the database is the authority
+//   for both — every gate below is an attempt to MIRROR that authority honestly,
+//   never a second one. Getting a key wrong shows or hides a screen; it cannot
+//   grant a row. That is why a failed read falls back rather than failing shut:
+//   a false "no" here is a user locked out of a screen the server would have
+//   served them, which is the worse of the two mistakes when the server is the
+//   thing that actually refuses.
+
+/** The empty answer, as ONE object: an identity every no-permissions state shares. */
+const NO_PERMISSIONS: ReadonlySet<string> = new Set<string>()
+
+interface PermState {
+  /**
+   * The granted keys. A STORED Set, never rebuilt in a selector — `usePermissions`
+   * returns this reference, and a selector that built a Set per call would return a
+   * new reference every render, which under useSyncExternalStore means "the snapshot
+   * changed" forever. store/config.ts's header is the long version.
+   */
+  keys: ReadonlySet<string>
+  /**
+   * Epoch ms of the last AUTHORITATIVE load — one that actually read
+   * `role_permissions`. Null after a fallback or a failure, which is what stops
+   * either from latching: the next auth event tries again.
+   */
+  loadedAt: number | null
+  /** Whose keys these are. A second account in this tab must not inherit them. */
+  userId: string | null
+}
+
+const usePermStore = create<PermState>(() => ({
+  keys: NO_PERMISSIONS,
+  loadedAt: null,
+  userId: null,
+}))
+
+/** The permission load in progress, so two auth events cost one round trip. */
+let permInFlight: Promise<void> | null = null
+
+/**
+ * The permission set implied by the LEGACY `profiles.role` text column.
+ *
+ * THIS IS THE FALLBACK THE FEATURE IS BUILT ON, not a defensive extra. Migration
+ * 0025 is unapplied on the live project: `roles`, `role_permissions` and
+ * `profiles.role_id` do not exist, so the read below cannot succeed and this is
+ * the ONLY answer available. It reproduces today's behaviour exactly — an admin
+ * sees every admin screen, a member sees none — so a build carrying this hook is
+ * deployable BEFORE the migration and gains the Director the moment it lands. A
+ * build that only works after a migration is a build that cannot be deployed
+ * before one.
+ *
+ * It is also the answer for a profile whose `role_id` is null AFTER 0025, which
+ * is not a coincidence: `has_perm()` (0025:400) coalesces to the same column, so
+ * the client and the database agree by construction rather than by luck.
+ */
+export function legacyPermissionKeys(role: UserRole): ReadonlySet<string> {
+  return new Set<string>(role === 'admin' ? ALL_PERMISSION_KEYS : MEMBER_PERMISSION_KEYS)
+}
+
+/**
+ * The dev-only `?shell` preview flag, read the way currentHref() reads the URL.
+ *
+ * It is carried over verbatim from the seven copies this hook replaces, and it
+ * earns its place for their reason: without it the settings screens are
+ * unreachable in a build with no Supabase project, which is exactly where the
+ * layout and the RTL mirror get reviewed. `import.meta.env.DEV` is the literal
+ * `false` in a production build, so Vite tree-shakes the whole expression out
+ * and this cannot become a way in.
+ *
+ * `window.location` is read through a widened shape because the node tests that
+ * exercise this store stub `window` with only the members they need — see
+ * currentHref() above, which exists for the same reason.
+ */
+function devShellPreview(): boolean {
+  if (!import.meta.env.DEV) return false
+  const loc = (globalThis as { window?: { location?: { search?: unknown } } }).window?.location
+  if (typeof loc?.search !== 'string') return false
+  return new URLSearchParams(loc.search).has('shell')
+}
+
+/** The one decision, so the hook and the imperative call cannot drift apart. */
+function decide(keys: ReadonlySet<string>, key: string): boolean {
+  return keys.has(key) || devShellPreview()
+}
+
+/**
+ * Every key the signed-in member holds.
+ *
+ * The RAW set — `?shell` does not widen it, because a preview build has no
+ * session and a list of permissions it does not have would be a fiction. The
+ * flag answers the QUESTION (`useHasPerm`), it does not invent the data.
+ */
+export function usePermissions(): ReadonlySet<string> {
+  return usePermStore((s) => s.keys)
+}
+
+/** May the signed-in member do this? Reactive; re-renders when the set lands. */
+export function useHasPerm(key: string): boolean {
+  return usePermStore((s) => decide(s.keys, key))
+}
+
+/**
+ * The same question, non-reactively, for imperative call sites — a command
+ * handler, a guard inside a promise callback. hasSession()'s reasoning: a guard
+ * that re-rendered its caller would be a subscription.
+ */
+export function hasPerm(key: string): boolean {
+  return decide(usePermStore.getState().keys, key)
+}
+
+/**
+ * The admin gate, now a thin wrapper over the real question.
+ *
+ * `is_admin()` in the database IS `has_perm('workspace.admin')` since 0025, so
+ * this asks precisely what the server asks. It is exported from here because
+ * nine screens used to define it themselves; they import it now — and most of
+ * them ask `useHasPerm` a SHARPER question than "admin" once they can, which is
+ * the whole point of the split.
+ */
+export function useIsAdmin(): boolean {
+  return useHasPerm(ADMIN_PERMISSION)
+}
+
+/**
+ * Clear the permission cache. Called on sign-out, from Shell's teardown and from
+ * this store's own sign-out paths.
+ *
+ * Both, deliberately: Shell's cleanup is where every store's reset is wired and
+ * where signOutReset.test.ts can see it, but a session can also end without Shell
+ * ever unmounting in that tick (a revoked token adopted as null). The next
+ * account in this tab must not be offered the previous one's screens for the
+ * length of a profile round-trip.
+ */
+export function resetPermissions(): void {
+  permInFlight = null
+  usePermStore.setState({ keys: NO_PERMISSIONS, loadedAt: null, userId: null })
+}
+
+/**
+ * Load this profile's permission keys — legacy answer first, real answer after.
+ *
+ * THE TWO-STEP IS THE POINT, and it is what makes this safe to ship today:
+ *
+ *   1. Publish `legacyPermissionKeys(profile.role)` SYNCHRONOUSLY. From this
+ *      instant the app behaves exactly as it did before this hook existed —
+ *      there is no window in which a signed-in admin is treated as a member,
+ *      which is what a load that only published on success would create.
+ *   2. Read `role_permissions` through the profile's `role_id` and replace the
+ *      set if the read succeeds. That is the step that finds the Director.
+ *
+ * A FAILURE MUST NOT LATCH. `loadedAt` is stamped only by step 2, so a 404 from
+ * a database without the tables, a dropped connection, or a null `role_id`
+ * awaiting 0025's backfill all leave the store willing to try again on the next
+ * auth event. store/config.ts's `settle()` is the precedent and FIX-APP-6 is the
+ * lesson: a read that failed once must not become the answer forever.
+ *
+ * Never rejects. It is called unawaited from adopt(), and a permission read that
+ * could break the sign-in path would be a worse bug than the one it fixes.
+ *
+ * `force` re-reads a set that is already authoritative — refreshProfile()'s
+ * out-of-band promotion. A forced call made while a load is already in flight
+ * JOINS it rather than issuing a second: the one in flight is at most a tick old
+ * and two concurrent reads would only race to publish the same answer.
+ */
+export function loadPermissions(profile: Profile, force = false): Promise<void> {
+  if (permInFlight) return permInFlight
+  const state = usePermStore.getState()
+  const sameUser = state.userId === profile.id
+  if (!force && sameUser && state.loadedAt !== null) return Promise.resolve()
+
+  // Step 1. Also the ONLY step that runs on a database without the roles tables,
+  // and the reason this file can be deployed before migration 0025.
+  if (!sameUser || state.loadedAt === null) {
+    usePermStore.setState({
+      keys: legacyPermissionKeys(profile.role),
+      loadedAt: null,
+      userId: profile.id,
+    })
+  }
+
+  permInFlight = myPermissions(profile.id)
+    .then((result) => {
+      // Another account signed in while this was in flight. Publishing now would
+      // hand them the previous member's keys.
+      if (usePermStore.getState().userId !== profile.id) return
+      if (!result.ok) {
+        // Expected, loudly, until 0025 lands: `profiles.role_id` does not exist
+        // yet and PostgREST answers 42703. The legacy set from step 1 stands.
+        console.warn('[auth] permission load failed; using the legacy role:', result.error)
+        return
+      }
+      // No role_id: `has_perm()` would answer from the legacy column, and step 1
+      // already did. Left unstamped on purpose — a workspace mid-backfill gets
+      // the true answer on the next auth event instead of this one, cached.
+      if (result.data.roleId === null) return
+      usePermStore.setState({
+        keys: new Set(result.data.keys),
+        loadedAt: Date.now(),
+        userId: profile.id,
+      })
+    })
+    .finally(() => {
+      permInFlight = null
+    })
+
+  return permInFlight
+}
+
 function notConfigured(): string {
   return t('common.notConfigured')
 }
@@ -101,10 +395,18 @@ function notConfigured(): string {
  * code, the token/expired family only ever comes back from verification, and
  * "invalid login credentials" only from a password grant.
  */
-type AuthStep = 'request' | 'verify' | 'password'
+type AuthStep = 'request' | 'verify' | 'password' | 'update'
 
 function authErrorMessage(message: string, step: AuthStep): string {
   const m = message.toLowerCase()
+  // Setting a new password is the one step whose credential is a LINK, so every
+  // shape that means "no usable session" has to read as "that link is dead"
+  // rather than as anything about the password just typed. It comes first
+  // because auth-js words the missing-session case "Auth session missing!",
+  // which the password branch below would otherwise have to guess at.
+  if (step === 'update' && /session|jwt|token|expired|not authenticated/.test(m)) {
+    return t('signin.errResetLinkDead')
+  }
   // With shouldCreateUser:false this is also what an UNKNOWN address produces,
   // so it is the real "no such account" message for this project.
   if (step !== 'password' && /signups? not allowed|user not found|does not exist/.test(m)) {
@@ -335,6 +637,139 @@ export async function claimAccount(input: ClaimInput): Promise<string | null> {
   return signInPassword(username, password)
 }
 
+// ── password recovery ──────────────────────────────────────────────────────
+//
+// THE CONSTRAINT THAT SHAPES ALL OF IT: half the accounts in this workspace have
+// no mailbox. A predefined username authenticates against
+// `<name>@opstrack.internal`, which RFC 6761 guarantees can never resolve —
+// USERNAME_EMAIL_DOMAIN's comment above says so, and says it is deliberate. So
+// there are two recoveries here, not one implementation with two error paths:
+//
+//   identifier contains '@' → resetPasswordForEmail(). A real inbox, a real
+//     link, self-serve.
+//   identifier has no '@'   → NOTHING IS SENT. requestPasswordReset() answers
+//     `noMailbox` before it touches the network, and the screen says who to ask
+//     and what happens next. Calling resetPasswordForEmail() for one of these
+//     would return `{ error: null }`, show a "check your email" panel, and
+//     strand the member on an inbox that cannot exist — a lie the client has
+//     every fact it needs to avoid telling.
+//
+// The username half of the recovery already exists and needs nothing built:
+// `admin-members`' reissue-code action (api/members.reissueInvite) mints a fresh
+// invite, and the member re-claims at /claim with a password they choose.
+
+/** The three answers a reset request can have. There is no fourth. */
+export type ResetRequest =
+  | { kind: 'sent'; email: string }
+  /** A username account: no mail was sent, and none could be. */
+  | { kind: 'noMailbox'; username: string }
+  | { kind: 'error'; message: string }
+
+/**
+ * Ask Supabase to email a password-recovery link — or refuse, honestly.
+ *
+ * `redirectTo` goes through appBaseUrl(), the same helper `emailRedirectTo`
+ * uses, and that is not tidiness: a hand-built URL here is exactly how the
+ * emailed sign-in link twice ended up on the account's Pages ROOT with the
+ * user's tokens in the hash (see appBaseUrl and lib/appBase.ts). It carries NO
+ * fragment of its own, deliberately — GoTrue appends `#access_token=…` to
+ * whatever it is given, so a `…/#/reset` redirect would arrive as
+ * `…/#/reset#access_token=…`, and supabase-js parses the fragment with
+ * `URLSearchParams`, which reads that as one key named `/reset#access_token`.
+ * The session would never be detected. The landing is routed to /reset by the
+ * sign-in screen instead, off the `recovery` state below.
+ *
+ * Nothing here reveals whether an address has an account: Supabase answers
+ * success either way, and this returns `sent` either way.
+ */
+export async function requestPasswordReset(identifier: string): Promise<ResetRequest> {
+  if (!supabase) return { kind: 'error', message: notConfigured() }
+  const id = identifier.trim()
+  if (!id) return { kind: 'error', message: t('signin.errIdentifierRequired') }
+  // A new request supersedes whatever the last link did, including the notice
+  // that it had expired.
+  if (useAuthStore.getState().recovery === 'expired') useAuthStore.setState({ recovery: null })
+
+  // The one character the whole feature turns on, read the same way
+  // signInPassword() reads it.
+  if (!id.includes('@')) return { kind: 'noMailbox', username: id.toLowerCase() }
+
+  const email = id.toLowerCase()
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: appBaseUrl(),
+  })
+  if (!error) return { kind: 'sent', email }
+
+  // BY NAME WHERE THERE IS A NAME. Supabase's built-in SMTP allows a handful of
+  // mails an hour PROJECT-WIDE, so a second tap is the ordinary case rather than
+  // the exotic one, and "something went wrong" would send the reader looking for
+  // a fault that is not there. auth-js gives these two machine-readable codes;
+  // the 429 is the belt-and-braces for a gateway that returns the status without
+  // one. The message still goes through authErrorMessage() below, so an unknown
+  // failure is still a translated sentence rather than English from Supabase.
+  const code = (error as { code?: string }).code ?? ''
+  const status = (error as { status?: number }).status
+  console.warn('[auth] reset request failed:', code || error.message)
+  if (code === 'over_email_send_rate_limit' || code === 'over_request_rate_limit' || status === 429) {
+    return { kind: 'error', message: t('signin.errResetSentAlready') }
+  }
+  return { kind: 'error', message: authErrorMessage(error.message, 'request') }
+}
+
+/**
+ * Set a new password on the session a recovery link created, then hand the tab
+ * over to the app as a normal signed-in session.
+ *
+ * The length floor is MIN_PASSWORD_LENGTH — imported by the screen, restated
+ * nowhere — and it is checked here as well as in the form so that the rule has
+ * one owner even if a second caller ever appears.
+ *
+ * Nothing about the password is logged, toasted or rendered; the console line
+ * carries the failure CODE only, exactly as the claim path does with its invite.
+ */
+export async function updatePassword(password: string): Promise<string | null> {
+  if (!supabase) return notConfigured()
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return t('signin.errPasswordShort', { min: MIN_PASSWORD_LENGTH })
+  }
+
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) {
+    const code = (error as { code?: string }).code ?? ''
+    console.warn('[auth] password update failed:', code || 'unknown')
+    if (code === 'same_password') return t('signin.errSamePassword')
+    if (code === 'weak_password') return t('signin.errPasswordShort', { min: MIN_PASSWORD_LENGTH })
+    if (code === 'session_not_found' || code === 'session_expired') {
+      return t('signin.errResetLinkDead')
+    }
+    return toFormError(error, 'update')
+  }
+
+  // The recovery is over, so the session stops being withheld: clear the flag
+  // FIRST, then adopt the session auth-js has been holding all along. The user
+  // lands inside the app, signed in, rather than on a sign-in form asking for
+  // the password they typed a second ago.
+  useAuthStore.setState({ recovery: null })
+  const { data } = await supabase.auth.getSession()
+  await adopt(data.session)
+  return null
+}
+
+/**
+ * Abandon a recovery in progress.
+ *
+ * Without this the tab is stuck: /signin redirects to /reset for as long as
+ * `recovery` is 'active', so a reader who opened the link by accident, or who
+ * remembered their password on the way to the form, would have no way back to
+ * it. Signing out is the right half of "never mind" — the link's session is a
+ * standing key to this account and there is no reason to leave it lying in
+ * localStorage once its one job has been declined.
+ */
+export async function cancelRecovery(): Promise<void> {
+  useAuthStore.setState({ recovery: null })
+  await signOut()
+}
+
 export async function signOut(): Promise<void> {
   if (!supabase) return
   // FIRST, AND THAT IS THE POINT. Handing the push registration back is an
@@ -352,6 +787,9 @@ export async function signOut(): Promise<void> {
   // onAuthStateChange also clears this, but doing it here means the UI flips
   // to signed-out immediately instead of waiting on the network round-trip.
   useAuthStore.setState({ session: null, profile: null, loading: false })
+  // With the profile, not after it: the keys ARE the profile's, and a set left
+  // standing for the length of a round trip is a set the next account inherits.
+  resetPermissions()
 }
 
 async function loadProfile(session: Session): Promise<Profile | null> {
@@ -371,13 +809,20 @@ async function loadProfile(session: Session): Promise<Profile | null> {
     // Falling back to the local part of the email keeps avatars and "assigned
     // to" labels readable for accounts provisioned without a display name.
     displayName: row.display_name?.trim() || email.split('@')[0] || email,
-    // profiles.role is the ONLY admin signal, deliberately. Every RLS policy
-    // gates on is_admin(), which reads this same column — so any second source
-    // here (this used to OR in a hardcoded email list) can only ever disagree
-    // with the server, and the failure mode is the bad direction: the admin
-    // screens render, then every write comes back 42501. One source means the
-    // UI can promise exactly what the database will allow. The first admin is
-    // promoted by migration 0002's bootstrap update, not by the client.
+    // THE LEGACY COLUMN, and since 0025 it is a DERIVED one: `is_admin()` is now
+    // `has_perm('workspace.admin')`, and a trigger keeps this text in step with
+    // the two SYSTEM roles only. So it can no longer answer for a custom role —
+    // a Director holding `structure.edit` reads 'member' here, correctly and
+    // uselessly. It is still fetched and still true, because it is what
+    // `has_perm()` falls back to when `role_id` is null and what
+    // legacyPermissionKeys() derives the whole key set from on a database where
+    // 0025 has not run. What it stopped being is the ADMIN GATE: that question
+    // goes to useHasPerm(), which reads the grants themselves.
+    //
+    // The rule the old comment was defending has not moved an inch — one source,
+    // the server's — it just moved to a truer column. A second source here (this
+    // used to OR in a hardcoded email list) can only ever disagree with RLS, and
+    // in the bad direction: the screen renders, then every write answers 42501.
     role: row.role === 'admin' ? 'admin' : 'member',
     locale: row.locale ?? 'en',
   }
@@ -386,11 +831,12 @@ async function loadProfile(session: Session): Promise<Profile | null> {
 /**
  * Re-read the signed-in user's profiles row into the store.
  *
- * `role` is otherwise fetched once per sign-in, and it is the single gate on
- * the admin screens (see loadProfile). Since guard_profile_role() blocks
- * changing a role from the browser, a promotion always happens out-of-band in
- * the SQL editor — without this the freshly-promoted admin has to sign out and
- * back in before Settings admits it happened.
+ * The profile AND the permission keys are otherwise read once per sign-in, and
+ * between them they decide every admin surface in the app. Since
+ * guard_profile_role() blocks changing a role from the browser, a promotion
+ * always happens out-of-band in the SQL editor — without this the freshly
+ * promoted admin (or Director) has to sign out and back in before Settings
+ * admits it happened.
  *
  * A failed fetch leaves the existing profile in place rather than writing null:
  * blanking it would silently demote the user to member on one flaky request,
@@ -400,7 +846,14 @@ export async function refreshProfile(): Promise<void> {
   const { session } = useAuthStore.getState()
   if (!session) return
   const profile = await loadProfile(session)
-  if (profile) useAuthStore.setState({ profile })
+  if (!profile) return
+  useAuthStore.setState({ profile })
+  // FORCED, unlike adopt()'s call. This function exists because a promotion
+  // happens out-of-band in the SQL editor, and since 0025 a promotion is a
+  // change of `role_id` — the exact thing the cached key set would otherwise
+  // keep answering from. Refreshing the profile without the keys would flip the
+  // role pill and leave every screen still hidden.
+  await loadPermissions(profile, true)
 }
 
 /** The user whose saved locale has already been applied this session. */
@@ -438,10 +891,27 @@ function materializeOnce(session: Session): void {
 }
 
 async function adopt(session: Session | null) {
+  // A RECOVERY SESSION IS WITHHELD FROM THE UI, and this is the line that does
+  // it. The link Supabase mails carries a full session — publishing it would
+  // render the whole signed-in shell for someone who has just proved they do not
+  // know their password, and would swap the reset screen out from under them
+  // mid-type, because App.tsx gates the two route trees on `session`. So the
+  // credential stays where auth-js keeps it (updateUser() below still uses it)
+  // and the store keeps answering "signed out" until the new password lands.
+  // `loading` is settled either way: something has to be rendered.
+  if (session && useAuthStore.getState().recovery === 'active') {
+    useAuthStore.setState({ session: null, profile: null, loading: false })
+    resetPermissions()
+    return
+  }
   if (!session) {
     localeAppliedFor = null
     recurrenceRunFor = null
     useAuthStore.setState({ session: null, profile: null, loading: false })
+    // Every path out of a session clears the keys, including the ones Shell's
+    // teardown cannot see: a revoked token, a sign-out in another tab, the
+    // recovery branch above. Idempotent, so the two callers cannot conflict.
+    resetPermissions()
     return
   }
   // Gate the shell ONLY while there is nothing to show. supabase-js re-fires
@@ -467,6 +937,12 @@ async function adopt(session: Session | null) {
   // On the FIRST adopt for a session there is nothing to protect and a null is
   // the true answer (a signed-in user with no profiles row), so it is written.
   useAuthStore.setState(profile || !booted ? { profile, loading: false } : { loading: false })
+  // ALONGSIDE THE PROFILE, and only when there is one: the keys are read through
+  // `role_id` on that very row, and a profile that could not be read leaves
+  // nothing to fall back to either. Unawaited — the shell must not wait on a
+  // read that is expected to fail until 0025 lands — and self-deduping, so the
+  // hourly TOKEN_REFRESHED that re-runs adopt() costs no round trip.
+  if (profile) void loadPermissions(profile)
   if (profile) materializeOnce(session)
 }
 
@@ -564,7 +1040,17 @@ export function initAuth(): void {
     void adopt(restored)
   })
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
+    // The recovery landing, as an EVENT rather than as a URL. The module-scope
+    // read above has almost always already set this — it runs before every timer
+    // and before the first render, and this notification arrives on a
+    // setTimeout(0) — but the two disagree in one real case: a link opened in a
+    // tab that already had the app loaded, where nothing re-evaluates a module.
+    // Both paths set the same flag, and setting it twice costs nothing.
+    if (event === 'PASSWORD_RECOVERY') {
+      useAuthStore.setState({ recovery: 'active', session: null, profile: null, loading: false })
+      return
+    }
     // Do NOT await Supabase calls inside this callback. supabase-js serializes
     // auth work behind a lock, and calling back into the client from the
     // handler deadlocks it — the profile query never resolves and the app

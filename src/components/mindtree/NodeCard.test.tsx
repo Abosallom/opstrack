@@ -75,6 +75,7 @@ const NOW = new Date('2026-07-31T09:00:00.000Z')
 function entry(over: Partial<Entry> & Pick<Entry, 'id' | 'title'>): Entry {
   return {
     track_id: 't-net',
+    node_id: null,
     description: '',
     type: 'action',
     status: 'new',
@@ -145,6 +146,7 @@ function tree(entries: Entry[], healthRows: EntryHealth[] = []) {
     entries,
     health: new Map(healthRows.map((h) => [h.entry_id, h])),
     tracks: TRACKS,
+    entities: [],
     vocab: VOCAB,
     members: MEMBERS,
     dimension: 'status',
@@ -277,6 +279,7 @@ describe('buildNodeCard — a branch', () => {
       entries: owned,
       health: new Map(),
       tracks: TRACKS,
+      entities: [],
       vocab: [],
       members: MEMBERS,
       dimension: 'owner',

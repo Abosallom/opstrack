@@ -27,6 +27,7 @@ import { describe, expect, it } from 'vitest'
 import { EMPTY_FILTER, type FilterContext } from '../entryFilter'
 import { ENTRIES_UPDATE_IS_OPEN } from '../permissions'
 import {
+  MAX_BRANCH_LEVEL,
   MIND_BULK_CONFIRM_AT,
   WHY_CLOSED,
   WHY_DERIVED,
@@ -38,6 +39,9 @@ import {
   WHY_NO_SELECTION,
   WHY_RETIRED,
   WHY_SIGNED_OUT,
+  WHY_TOO_DEEP,
+  branchAddRefusal,
+  branchRefAt,
   draftAt,
   draftRefusal,
   editableOf,
@@ -47,7 +51,7 @@ import {
   type MindNudgeVerdict,
 } from './actions'
 import { DROP_UNCHANGED_KEY } from './dropRules'
-import { buildMindtree, type MindNode, type MindtreeInput } from './model'
+import { buildMindtree, type MindEntity, type MindNode, type MindtreeInput } from './model'
 import type { Entry, EntryHealth, HealthLevel } from '../../types'
 
 /* ───────────────────────────────── fixtures ──────────────────────────────── */
@@ -61,6 +65,8 @@ function at(date: string): string {
 function entry(over: Partial<Entry> & Pick<Entry, 'id'>): Entry {
   return {
     track_id: null,
+    // `entries.node_id` — null is "on the track, under no organization".
+    node_id: null,
     title: over.id,
     description: '',
     type: 'action',
@@ -114,6 +120,7 @@ function build(over: Partial<MindtreeInput> = {}): MindNode {
     entries: [],
     health: new Map(),
     tracks: [],
+    entities: [],
     vocab: [],
     members: [],
     dimension: 'status',
@@ -231,13 +238,16 @@ describe('draftAt — what a NEW item filed at this branch carries', () => {
     // Both, not just the status. An item CREATED here with only its status set
     // would be filed untracked and appear somewhere other than where it was
     // asked for.
-    expect(draftAt(path, 'status')).toEqual({ trackId: 't-1', status: 'blocked' })
+    // `mapNodeId: null` rides along on the track step — a create under a
+    // TRACK's bucket means "under no organization", and omitting the key would
+    // let the capture form default it to whatever Org it last showed.
+    expect(draftAt(path, 'status')).toEqual({ trackId: 't-1', mapNodeId: null, status: 'blocked' })
   })
 
   it('maps the untracked pile to a null trackId, never to the empty string', () => {
     const root = build({ entries: [entry({ id: 'a' })], vocab: statusVocab() })
     const path = findPath(root, (n) => n.kind === 'track')
-    expect(draftAt(path, 'status')).toEqual({ trackId: null })
+    expect(draftAt(path, 'status')).toEqual({ trackId: null, mapNodeId: null })
   })
 
   it('unassigns through the empty owner bucket, clearing both owner columns', () => {
@@ -248,6 +258,7 @@ describe('draftAt — what a NEW item filed at this branch carries', () => {
     // digest and the CSV export disagree with this screen.
     expect(draftAt(path, 'owner')).toEqual({
       trackId: null,
+      mapNodeId: null,
       ownerId: null,
       ownerName: null,
     })
@@ -344,6 +355,231 @@ describe('draftAt — what a NEW item filed at this branch carries', () => {
   it('answers null for an empty path rather than throwing', () => {
     expect(draftAt([], 'status')).toBeNull()
     expect(draftRefusal([], 'status')).toBe(WHY_EMPTY_BRANCH)
+  })
+})
+
+/* ─────────────────────────────── the entity ring ─────────────────────────── */
+//
+// UHR > OB > Org1. An `entity` node is a row in `map_nodes` — a programme, a
+// phase, an Organization — hanging between a track and its status buckets.
+//
+// THE TREES HERE ARE REAL TOO, and for the reason this file's header gives:
+// actions.ts reads `kind`, `bucketKey` and `retired` off a node, and every claim
+// it makes about an Org is a claim about what model.ts EMITS for a `map_nodes`
+// row. `orgTree()` hands `buildMindtree` a real hierarchy and the cases below
+// walk to the node they care about, exactly as every case above does.
+
+const UHR_TRACK = {
+  id: 't-1',
+  label: 'UHR',
+  color: '#111',
+  colorLight: null,
+  sortOrder: 0,
+  archived: false,
+}
+
+function ent(over: Partial<MindEntity> & Pick<MindEntity, 'id'>): MindEntity {
+  return {
+    trackId: 't-1',
+    parentId: null,
+    label: over.id,
+    sortOrder: 0,
+    archived: false,
+    typeKey: 'Organization',
+    ...over,
+  }
+}
+
+/** UHR ▸ OB ▸ { Org1, an archived Org3 } — with one item under Org1. */
+function orgTree(over: Partial<MindtreeInput> = {}): MindNode {
+  return build({
+    entries: [entry({ id: 'a', track_id: 't-1', node_id: 'org-1', created_by: 'me-1' })],
+    tracks: [UHR_TRACK],
+    vocab: statusVocab(),
+    entities: [
+      ent({ id: 'ob', label: 'OB', typeKey: 'Phase' }),
+      ent({ id: 'org-1', parentId: 'ob' }),
+      // Archived but holding work, so model.ts keeps it drawn — the branch that
+      // must refuse NEW work while still showing the old.
+      ent({ id: 'org-old', parentId: 'ob', sortOrder: 1, archived: true }),
+    ],
+    ...over,
+  })
+}
+
+/** The real root-to-node chain down to the entity whose `map_nodes` id is `id`. */
+function orgPath(id: string, over: Partial<MindtreeInput> = {}): MindNode[] {
+  return findPath(orgTree(over), (n) => n.kind === 'entity' && n.bucketKey === id)
+}
+
+describe('draftAt on the entity ring', () => {
+  it('seeds the node AND the track, so a new item lands under the Org it was asked for', () => {
+    expect(draftAt(orgPath('org-1'), 'status')).toEqual({ trackId: 't-1', mapNodeId: 'org-1' })
+  })
+
+  it('takes the DEEPEST Org when the path runs through several', () => {
+    // The path is root ▸ UHR ▸ OB ▸ Org1. `entries.node_id` is one column, not a
+    // list: the item is filed on Org1, and the ancestry is the tree's business
+    // rather than the row's.
+    const path = orgPath('org-1')
+    expect(path.map((n) => n.kind)).toEqual(['root', 'track', 'entity', 'entity'])
+    expect(draftAt(path, 'status')).toEqual({ trackId: 't-1', mapNodeId: 'org-1' })
+    // And the phase itself is filable — "the deepest ring is always an
+    // Organization" is a reading the schema does not support.
+    expect(draftAt(orgPath('ob'), 'status')).toEqual({ trackId: 't-1', mapNodeId: 'ob' })
+  })
+
+  it('keeps the Org when a status bucket hangs beneath it', () => {
+    const path = findPath(
+      orgTree(),
+      (n) => n.kind === 'group' && n.bucketKey === 'new',
+    )
+    expect(path.map((n) => n.kind)).toEqual(['root', 'track', 'entity', 'entity', 'group'])
+    expect(draftAt(path, 'status')).toEqual({
+      trackId: 't-1',
+      mapNodeId: 'org-1',
+      status: 'new',
+    })
+  })
+
+  it('refuses an archived Org, and an archived Org anywhere above', () => {
+    const archived = orgPath('org-old', {
+      entries: [entry({ id: 'a', track_id: 't-1', node_id: 'org-old', created_by: 'me-1' })],
+    })
+    expect(archived[archived.length - 1].retired).toBe(true)
+    expect(draftAt(archived, 'status')).toBeNull()
+    expect(draftRefusal(archived, 'status')).toBe(WHY_RETIRED)
+
+    // A LIVE Org under an ARCHIVED phase. Filing new work through an archived
+    // ancestor is how the archived branch quietly comes back to life.
+    const throughArchived = orgPath('org-1', {
+      entities: [
+        ent({ id: 'ob', label: 'OB', typeKey: 'Phase', archived: true }),
+        ent({ id: 'org-1', parentId: 'ob' }),
+      ],
+    })
+    expect(throughArchived[throughArchived.length - 1].retired).toBe(false)
+    expect(draftAt(throughArchived, 'status')).toBeNull()
+    expect(draftRefusal(throughArchived, 'status')).toBe(WHY_RETIRED)
+  })
+
+  it('refuses an Org whose key is empty rather than seeding a uuid column blank', () => {
+    // Not reachable from a real `map_nodes` row — the ids are uuids — so this is
+    // the one case that has to be forged, from a real node. NO_VALUE is a real
+    // bucket on the TRACK ring (the untracked pile) and no bucket at all here:
+    // an item under no Org is drawn one ring shallower, so an empty key is a
+    // malformed node and writing it would send `node_id = ''` at a uuid column.
+    const path = orgPath('org-1')
+    const org = path[path.length - 1]
+    for (const forged of ['', null]) {
+      const bad = [...path.slice(0, -1), { ...org, bucketKey: forged }]
+      expect(draftAt(bad, 'status'), String(forged)).toBeNull()
+    }
+  })
+
+  it('seeds an Org on the health axis, which has no opinion about places', () => {
+    // Unlike ring 2. The entity ring is a place, not an axis, so the dimension
+    // switcher cannot make it unfilable.
+    expect(draftAt(orgPath('org-1'), 'health')).toEqual({ trackId: 't-1', mapNodeId: 'org-1' })
+  })
+})
+
+describe('the acts an Org offers', () => {
+  it('offers add-here and the bulk verb, exactly as a track and a bucket do', () => {
+    const acts = mindActionsFor(orgPath('org-1'), ctx())
+    expect(kinds(acts)).toContain('addHere')
+    expect(kinds(acts)).toContain('applySelection')
+    // Never the leaf verbs — an Org is a branch.
+    expect(kinds(acts)).not.toContain('open')
+    expect(kinds(acts)).not.toContain('nudge')
+  })
+
+  it('prefills add-here with the Org and its track', () => {
+    const add = byKind(mindActionsFor(orgPath('org-1'), ctx()), 'addHere')
+    expect(add.enabled).toBe(true)
+    expect(add.patch).toEqual({ trackId: 't-1', mapNodeId: 'org-1' })
+  })
+
+  it('disables add-here under an archived Org, with the retired sentence', () => {
+    const archived = orgPath('org-old', {
+      entries: [entry({ id: 'a', track_id: 't-1', node_id: 'org-old', created_by: 'me-1' })],
+    })
+    const add = byKind(mindActionsFor(archived, ctx()), 'addHere')
+    expect(add.enabled).toBe(false)
+    expect(add.reasonKey).toBe(WHY_RETIRED)
+  })
+
+  it('REUSES actMoveHere rather than minting a key for the Org', () => {
+    // lib/labelSections.test.ts fails on two keys carrying one string, and
+    // "move here" is exactly what filing work under an Organization is. A
+    // separate key would be a second English sentence and a second Arabic one
+    // for no difference a reader can perceive.
+    for (const dimension of ['status', 'owner', 'priority', 'health'] as const) {
+      const bulk = byKind(mindActionsFor(orgPath('org-1'), ctx({ dimension })), 'applySelection')
+      expect(bulk.labelKey, dimension).toBe('mindtree.actMoveHere')
+    }
+  })
+
+  it('applies the selection to the Org, through dropRules and not a second derivation', () => {
+    const row = entry({ id: 'z', track_id: 't-1', created_by: 'me-1' })
+    const bulk = byKind(
+      mindActionsFor(
+        orgPath('org-1'),
+        ctx({ entryById: new Map([['z', row]]), selection: new Set(['z']) }),
+      ),
+      'applySelection',
+    )
+    expect(bulk.enabled).toBe(true)
+    expect(bulk.targetIds).toEqual(['z'])
+    expect(bulk.patch).toEqual({ trackId: 't-1', mapNodeId: 'org-1' })
+    // Filing into an Organization is a move, never a close.
+    expect(bulk.closes).toBe(false)
+  })
+
+  it('says "already there" for a row that is already under this Org', () => {
+    // The no-op arm, reached through the entity ring. Writing it would bump
+    // last_activity_at and reset the staleness clock on work nobody touched.
+    const row = entry({ id: 'a', track_id: 't-1', node_id: 'org-1', created_by: 'me-1' })
+    const bulk = byKind(
+      mindActionsFor(
+        orgPath('org-1'),
+        ctx({ entryById: new Map([['a', row]]), selection: new Set(['a']) }),
+      ),
+      'applySelection',
+    )
+    expect(bulk.enabled).toBe(false)
+    expect(bulk.reasonKey).toBe(DROP_UNCHANGED_KEY)
+  })
+
+  it('moves a row OUT of its Org when the bulk verb sits on the track', () => {
+    // THE LOAD-BEARING LINE, seen from the menu instead of from the drag: the
+    // track's own branch means "under no organization", so the patch has to
+    // clear the node or the next rebuild files the row back under Org1.
+    const row = entry({ id: 'a', track_id: 't-1', node_id: 'org-1', created_by: 'me-1' })
+    const path = findPath(orgTree(), (n) => n.kind === 'track')
+    const bulk = byKind(
+      mindActionsFor(path, ctx({ entryById: new Map([['a', row]]), selection: new Set(['a']) })),
+      'applySelection',
+    )
+    expect(bulk.enabled).toBe(true)
+    expect(bulk.patch).toEqual({ trackId: 't-1', mapNodeId: null })
+  })
+
+  it('keeps every string on an Org a translated key', () => {
+    const row = entry({ id: 'z', track_id: 't-1', created_by: 'me-1' })
+    const cx = ctx({ entryById: new Map([['z', row]]), selection: new Set(['z']) })
+    const seen: string[] = []
+    const archived = orgPath('org-old', {
+      entries: [entry({ id: 'a', track_id: 't-1', node_id: 'org-old', created_by: 'me-1' })],
+    })
+    for (const path of [orgPath('ob'), orgPath('org-1'), archived]) {
+      for (const a of mindActionsFor(path, cx)) {
+        seen.push(a.labelKey)
+        if (a.reasonKey !== null) seen.push(a.reasonKey)
+      }
+    }
+    expect(seen.length).toBeGreaterThan(3)
+    expect(seen.filter((k) => !/^(mindtree|entry)\.[A-Za-z]+$/.test(k))).toEqual([])
   })
 })
 
@@ -465,6 +701,8 @@ describe('a leaf', () => {
       depth: 3,
       entryId: null,
       bucketKey: null,
+      // Only an `entity` node ever carries one; a leaf's is always null.
+      entityType: null,
       retired: false,
     }
     const actions = mindActionsFor([orphan], ctx())
@@ -541,7 +779,7 @@ describe('a branch', () => {
     const path = findPath(root, (n) => n.kind === 'group')
     const add = byKind(mindActionsFor(path, ctx()), 'addHere')
     expect(add.enabled).toBe(true)
-    expect(add.patch).toEqual({ trackId: 't-1', status: 'new' })
+    expect(add.patch).toEqual({ trackId: 't-1', mapNodeId: null, status: 'new' })
     // It creates rather than patches, so there is nothing to target.
     expect(add.targetIds).toEqual([])
   })
@@ -686,7 +924,7 @@ describe('applying the selection to a branch', () => {
     // Insertion order, not store order: a confirm dialog naming the first three
     // of eighteen should name the three they ticked first.
     expect(bulk.targetIds).toEqual(['c', 'a'])
-    expect(bulk.patch).toEqual({ trackId: 't-1' })
+    expect(bulk.patch).toEqual({ trackId: 't-1', mapNodeId: null })
   })
 
   it('drops ticked ids the store no longer holds rather than counting them', () => {
@@ -825,7 +1063,7 @@ describe('the bulk verb runs dropRules, so the menu and the drag cannot disagree
     // BOTH owner keys. `trackId: null` rides along because the path folds the
     // untracked pile these rows sit under, which is the branch the reader
     // actually pointed at.
-    expect(bulk.patch).toEqual({ trackId: null, ownerId: null, ownerName: null })
+    expect(bulk.patch).toEqual({ trackId: null, mapNodeId: null, ownerId: null, ownerName: null })
   })
 
   it('carries the refusal dropRules raised, not one of its own', () => {
@@ -886,5 +1124,364 @@ describe('every label and reason is a translated key', () => {
     // `mindtree` namespace, or in another one whose sentence already says this
     // exactly (`entry.errNotFound`, and dropRules' own refusals).
     expect(seen.filter((k) => !/^(mindtree|entry)\.[A-Za-z]+$/.test(k))).toEqual([])
+  })
+})
+
+
+/* ─────────────────── shaping the map from the map itself ─────────────────── */
+//
+// The two verbs that edit `map_nodes` rather than `entries`. Everything below
+// runs against a REAL tree for this file's stated reason: `branchRefAt` reads
+// `kind`, `bucketKey` and `retired` off what model.ts emits, and a hand-written
+// path would only prove that actions.ts agrees with itself.
+
+/** UHR ▸ l1 ▸ l2 ▸ … ▸ l6, one item on the deepest, so every level is drawn. */
+function deepTree(levels = 6): MindNode {
+  const entities: MindEntity[] = []
+  for (let i = 1; i <= levels; i += 1) {
+    entities.push(ent({ id: `l${i}`, parentId: i === 1 ? null : `l${i - 1}`, typeKey: 'Phase' }))
+  }
+  return build({
+    entries: [entry({ id: 'a', track_id: 't-1', node_id: `l${levels}`, created_by: 'me-1' })],
+    tracks: [UHR_TRACK],
+    vocab: statusVocab(),
+    entities,
+  })
+}
+
+function deepPath(id: string, levels = 6): MindNode[] {
+  return findPath(deepTree(levels), (n) => n.kind === 'entity' && n.bucketKey === id)
+}
+
+/**
+ * The archived Org, WITH the item that keeps it drawn.
+ *
+ * model.ts renders a retired bucket only while it still holds work, so the
+ * fixture has to file something on it — the idiom the `draftAt` blocks above use
+ * three times for the same node.
+ */
+function putAwayPath(): MindNode[] {
+  return orgPath('org-old', {
+    entries: [entry({ id: 'a', track_id: 't-1', node_id: 'org-old', created_by: 'me-1' })],
+  })
+}
+
+/** The context with the grant that makes the two verbs exist at all. */
+function admin(over: Partial<MindActionCtx> = {}): MindActionCtx {
+  return ctx({ canEditStructure: true, ...over })
+}
+
+describe('branchRefAt — the place a structural verb writes', () => {
+  it('reads the track off a track node, with no parent and level 0', () => {
+    const path = findPath(orgTree(), (n) => n.kind === 'track')
+    // A child added here is a level-1 node with `parent_id: null` — a real
+    // place, not a missing one.
+    expect(branchRefAt(path)).toEqual({
+      trackId: 't-1',
+      nodeId: null,
+      level: 0,
+      retired: false,
+    })
+  })
+
+  it('counts one level per entity step, deepest last', () => {
+    // root ▸ UHR ▸ OB ▸ Org1. `level` is the trigger's numbering, so OB is 1.
+    expect(branchRefAt(orgPath('ob'))).toEqual({
+      trackId: 't-1',
+      nodeId: 'ob',
+      level: 1,
+      retired: false,
+    })
+    expect(branchRefAt(orgPath('org-1'))).toEqual({
+      trackId: 't-1',
+      nodeId: 'org-1',
+      level: 2,
+      retired: false,
+    })
+  })
+
+  it('reports a branch that is already put away, and one whose ANCESTOR is', () => {
+    // Archived and still drawn, because it holds work — model.ts's rule that
+    // hiding an option must never hide data.
+    expect(branchRefAt(putAwayPath())?.retired).toBe(true)
+
+    const throughArchived = orgPath('org-1', {
+      entities: [
+        ent({ id: 'ob', label: 'OB', typeKey: 'Phase', archived: true }),
+        ent({ id: 'org-1', parentId: 'ob' }),
+      ],
+    })
+    // The Org itself is live; the phase above it is not, and adding under it is
+    // how the archived phase quietly comes back to life.
+    expect(throughArchived[throughArchived.length - 1].retired).toBe(false)
+    expect(branchRefAt(throughArchived)?.retired).toBe(true)
+  })
+
+  it('names no place on a node that is not part of the hierarchy', () => {
+    const tree = orgTree()
+    // The root, a status bucket, a leaf and a fold are all drawn; none of them
+    // is a row in `map_nodes`.
+    expect(branchRefAt(pathTo(tree, tree.id))).toBeNull()
+    expect(branchRefAt(findPath(tree, (n) => n.kind === 'group'))).toBeNull()
+    expect(branchRefAt(findPath(tree, (n) => n.kind === 'entry'))).toBeNull()
+    expect(branchRefAt([])).toBeNull()
+  })
+
+  it('refuses the untracked pile, which has no track_id to hang a node from', () => {
+    // An entry with no track still gets a branch, keyed NO_VALUE. There is no
+    // row in `tracks` behind it, so there is nothing for `map_nodes.track_id`.
+    const root = build({ entries: [entry({ id: 'a' })], vocab: statusVocab() })
+    const path = findPath(root, (n) => n.kind === 'track')
+    expect(path[path.length - 1].bucketKey).toBe('')
+    expect(branchRefAt(path)).toBeNull()
+  })
+})
+
+describe('branchAddRefusal — one rule, read by the menu and by the composer', () => {
+  it('permits a healthy branch and a track', () => {
+    expect(branchAddRefusal(orgPath('org-1'), 'me-1')).toBeNull()
+    expect(branchAddRefusal(findPath(orgTree(), (n) => n.kind === 'track'), 'me-1')).toBeNull()
+  })
+
+  it('tests the session first, as every other verdict in this file does', () => {
+    expect(branchAddRefusal(orgPath('org-1'), null)).toBe(WHY_SIGNED_OUT)
+  })
+
+  it('refuses a branch that is put away', () => {
+    expect(branchAddRefusal(putAwayPath(), 'me-1')).toBe(WHY_RETIRED)
+  })
+
+  it('refuses the SEVENTH level with a sentence, which is what 22023 is not', () => {
+    // 0023's deferred trigger raises `map_node_depth` at level 7, after a name
+    // has been typed and a button pressed. This is the same refusal, before.
+    expect(branchRefAt(deepPath('l6'))?.level).toBe(MAX_BRANCH_LEVEL)
+    expect(branchAddRefusal(deepPath('l6'), 'me-1')).toBe(WHY_TOO_DEEP)
+    // And the level that still fits is not refused.
+    expect(branchAddRefusal(deepPath('l5'), 'me-1')).toBeNull()
+  })
+})
+
+describe('the structural verbs on a node', () => {
+  it('offers NOTHING without structure.edit — absent, not greyed', () => {
+    // "You are not an admin" is not a rule a reader can act on, and two greyed
+    // rows on every branch of the map is a permanent reminder of it.
+    const offered = kinds(mindActionsFor(orgPath('org-1'), ctx()))
+    expect(offered).not.toContain('addBranch')
+    expect(offered).not.toContain('archiveBranch')
+  })
+
+  it('offers both on an Organization, and only "add" on a track', () => {
+    expect(kinds(mindActionsFor(orgPath('org-1'), admin()))).toEqual(
+      expect.arrayContaining(['addBranch', 'archiveBranch']),
+    )
+    // A track is a row in `tracks`; archiving one is the track editor's job and
+    // takes every item ever filed on it. Absent is a category error, not a
+    // refusal, so there is no greyed row and no sentence.
+    const track = kinds(mindActionsFor(findPath(orgTree(), (n) => n.kind === 'track'), admin()))
+    expect(track).toContain('addBranch')
+    expect(track).not.toContain('archiveBranch')
+  })
+
+  it('offers neither on a status bucket, which is not part of the hierarchy', () => {
+    const group = kinds(mindActionsFor(findPath(orgTree(), (n) => n.kind === 'group'), admin()))
+    expect(group).not.toContain('archiveBranch')
+    // Nor "add a branch": a status bucket is drawn INSIDE its Org, it stands for
+    // a value rather than a place, and hanging a `map_nodes` row off it is a
+    // category error rather than something to grey out with a sentence. "Add an
+    // ITEM here" is still offered, and that is the difference.
+    expect(group).not.toContain('addBranch')
+    expect(group).toContain('addHere')
+  })
+
+  it('offers neither on a leaf', () => {
+    const rows = [entry({ id: 'a', track_id: 't-1', node_id: 'org-1', created_by: 'me-1' })]
+    const leaf = findPath(orgTree(), (n) => n.kind === 'entry')
+    const offered = kinds(
+      mindActionsFor(leaf, admin({ entryById: new Map(rows.map((r) => [r.id, r])) })),
+    )
+    expect(offered).not.toContain('addBranch')
+    expect(offered).not.toContain('archiveBranch')
+  })
+
+  it('sits between the work verbs and the two view verbs', () => {
+    // Everything above changes WORK, everything below changes only what is on
+    // screen. These two change the MAP, and they are the only rows in the panel
+    // whose effect outlives the session — so they may not sit under the two most
+    // reversible verbs in the list.
+    const list = kinds(mindActionsFor(orgPath('org-1'), admin()))
+    expect(list.indexOf('addBranch')).toBeGreaterThan(list.indexOf('applySelection'))
+    expect(list.indexOf('archiveBranch')).toBeLessThan(list.indexOf('focus'))
+    expect(list.indexOf('addBranch')).toBeLessThan(list.indexOf('archiveBranch'))
+  })
+
+  it('marks archive as a write that ASKS FIRST and closes nothing', () => {
+    const archive = byKind(mindActionsFor(orgPath('org-1'), admin()), 'archiveBranch')
+    expect(archive.mutates).toBe(true)
+    // The cascade is invisible from a canvas, so the dialog is not optional.
+    expect(archive.confirm).toBe(true)
+    // Archiving writes no status on anything. The items filed on it stay exactly
+    // as open as they were and stop being drawn; `closes: true` would word the
+    // question as though the work had been finished.
+    expect(archive.closes).toBe(false)
+    // It writes `map_nodes`, never `entries` — so there is no patch and no row
+    // for a surface to run `patchEntry` over.
+    expect(archive.targetIds).toEqual([])
+    expect(archive.patch).toBeNull()
+  })
+
+  it('carries the depth refusal onto the row rather than into a Postgres code', () => {
+    const deep = byKind(mindActionsFor(deepPath('l6'), admin()), 'addBranch')
+    expect(deep.enabled).toBe(false)
+    expect(deep.reasonKey).toBe(WHY_TOO_DEEP)
+    // Archiving the deepest branch is still perfectly legal — the cap is about
+    // what goes BELOW it.
+    expect(byKind(mindActionsFor(deepPath('l6'), admin()), 'archiveBranch').enabled).toBe(true)
+  })
+
+  it('refuses both on a branch that is already put away, each with its sentence', () => {
+    const put = mindActionsFor(putAwayPath(), admin())
+    expect(byKind(put, 'addBranch').reasonKey).toBe(WHY_RETIRED)
+    // Archiving an archived node would write the value already in the column.
+    const archive = byKind(put, 'archiveBranch')
+    expect(archive.enabled).toBe(false)
+    expect(archive.reasonKey).toBe(WHY_RETIRED)
+  })
+
+  it('refuses both when the session has gone, before anything else', () => {
+    const out = mindActionsFor(orgPath('org-1'), admin({ meId: null }))
+    expect(byKind(out, 'addBranch').reasonKey).toBe(WHY_SIGNED_OUT)
+    expect(byKind(out, 'archiveBranch').reasonKey).toBe(WHY_SIGNED_OUT)
+  })
+
+  it('leaves every other verb on the node exactly where it was', () => {
+    // The grant ADDS rows; it must not reorder or re-decide the ones that were
+    // already there, or every existing assertion in this file is about a
+    // different menu.
+    const without = kinds(mindActionsFor(orgPath('org-1'), ctx()))
+    const with_ = kinds(mindActionsFor(orgPath('org-1'), admin()))
+    expect(with_.filter((k) => k !== 'addBranch' && k !== 'archiveBranch')).toEqual(without)
+  })
+})
+
+/* ────────────────────── the cohort ring, and the audit ──────────────────── */
+//
+// `?by=manager` inserts a `cohort` node between a structural node and the
+// organizations under it. Two questions follow, and they have opposite answers:
+//
+//   AS A TARGET  a cohort is a CUT, not a place. No "add an item", no "add a
+//                branch", no archive, no bulk apply — only the two navigation
+//                verbs, focus and collapse.
+//   AS A STEP    a cohort is TRANSPARENT. Every verb on the Organization INSIDE
+//                one has to behave exactly as it did with grouping off, because
+//                the grouping is a lens over the same hierarchy.
+//
+// The second is the regression this block exists for: `branchRefAt`'s loop
+// refuses any step it does not recognise, so a cohort falling into that arm
+// would have made "Add a branch" and the whole QuickAdd composer VANISH from
+// every Organization the moment a reader lit a grouping chip — silently, because
+// a null there is rendered as an absent verb rather than as an error.
+
+/** UHR ▸ { Org1, Org2, Org3 }, grouped by manager at a cap of two. */
+function cohortTree(over: Partial<MindtreeInput> = {}): MindNode {
+  return build({
+    entries: [
+      entry({ id: 'a', track_id: 't-1', node_id: 'org-1', created_by: 'me-1' }),
+      entry({ id: 'b', track_id: 't-1', node_id: 'org-2', created_by: 'me-1' }),
+      entry({ id: 'c', track_id: 't-1', node_id: 'org-3', created_by: 'me-1' }),
+    ],
+    tracks: [UHR_TRACK],
+    vocab: statusVocab(),
+    entities: [
+      ent({ id: 'org-1' }),
+      ent({ id: 'org-2', sortOrder: 1 }),
+      ent({ id: 'org-3', sortOrder: 2 }),
+    ],
+    grouping: 'manager',
+    entityFacets: [
+      { id: 'org-1', managerId: 'sara', typeKey: 'Organization', vendor: null, stageId: null },
+      { id: 'org-2', managerId: 'sara', typeKey: 'Organization', vendor: null, stageId: null },
+      { id: 'org-3', managerId: 'omar', typeKey: 'Organization', vendor: null, stageId: null },
+    ],
+    // Three organizations over a cap of two is the smallest tree that groups.
+    ringCap: 2,
+    ...over,
+  })
+}
+
+function cohortPath(over: Partial<MindtreeInput> = {}): MindNode[] {
+  return findPath(cohortTree(over), (n) => n.kind === 'cohort')
+}
+
+/** The path to an Org that now sits INSIDE a cohort. */
+function groupedOrgPath(id: string): MindNode[] {
+  return findPath(cohortTree(), (n) => n.kind === 'entity' && n.bucketKey === id)
+}
+
+describe('a cohort as a TARGET — navigation verbs only', () => {
+  it('is actually in the fixture, with organizations under it', () => {
+    // Guard on the fixture itself: every assertion below is vacuous if the
+    // grouping never fired.
+    const cohort = cohortPath()[cohortPath().length - 1]
+    expect(cohort.kind).toBe('cohort')
+    expect(cohort.children.every((c) => c.kind === 'entity')).toBe(true)
+    expect(groupedOrgPath('org-1').map((n) => n.kind)).toEqual(['root', 'track', 'cohort', 'entity'])
+  })
+
+  it('offers focus and collapse and NOTHING else, even to an admin', () => {
+    expect(kinds(mindActionsFor(cohortPath(), admin()))).toEqual(['focus', 'collapse'])
+  })
+
+  it('names no place, so neither structural verb can be built', () => {
+    // A cohort is `KIND_ROLE`'s `'place'` — the camera may frame it — and it is
+    // NOT a filing kind, because its `bucketKey` is synthetic. This is the line
+    // where those two facts have to disagree.
+    expect(branchRefAt(cohortPath())).toBeNull()
+    expect(branchAddRefusal(cohortPath(), 'me-1')).toBe(WHY_EMPTY_BRANCH)
+  })
+
+  it('seeds no draft — "add an item to Sara\'s book" names no organization', () => {
+    expect(draftAt(cohortPath(), 'status')).toBeNull()
+  })
+})
+
+describe('a cohort as a STEP — the verbs on the Org inside it are unchanged', () => {
+  it('still names the Organization it wraps, at the same level', () => {
+    // THE VANISHING-COMPOSER REGRESSION. Ungrouped, `root ▸ UHR ▸ Org1` is
+    // level 1; grouped, the path gains a cohort and must still be level 1,
+    // because a cohort is not a row in `map_nodes` and the depth trigger does
+    // not count it.
+    expect(branchRefAt(groupedOrgPath('org-1'))).toEqual({
+      trackId: 't-1',
+      nodeId: 'org-1',
+      level: 1,
+      retired: false,
+    })
+    expect(branchAddRefusal(groupedOrgPath('org-1'), 'me-1')).toBeNull()
+  })
+
+  it('offers both structural verbs on the grouped Org, ENABLED', () => {
+    const offered = mindActionsFor(groupedOrgPath('org-1'), admin())
+    expect(kinds(offered)).toEqual(expect.arrayContaining(['addBranch', 'archiveBranch']))
+    // `enabled`, not merely present: a `branchRefAt` that refused the cohort
+    // step would leave both rows on the menu and grey them out with "this
+    // branch stands for no place" — which is a sentence about a bug.
+    expect(byKind(offered, 'addBranch').enabled).toBe(true)
+    expect(byKind(offered, 'addBranch').reasonKey).toBeNull()
+    expect(byKind(offered, 'archiveBranch').enabled).toBe(true)
+  })
+
+  it('seeds the same draft through the cohort as without it', () => {
+    expect(draftAt(groupedOrgPath('org-1'), 'status')).toEqual({
+      trackId: 't-1',
+      mapNodeId: 'org-1',
+    })
+  })
+
+  it('offers the same verbs on a grouped Org as on an ungrouped one', () => {
+    // The whole claim, in one equality: lighting a grouping chip changes the
+    // PICTURE and changes nothing a reader may do to an organization.
+    const grouped = kinds(mindActionsFor(groupedOrgPath('org-1'), admin()))
+    const plain = kinds(mindActionsFor(orgPath('org-1'), admin()))
+    expect(grouped).toEqual(plain)
   })
 })

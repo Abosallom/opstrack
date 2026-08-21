@@ -27,6 +27,13 @@
 // the resolution below synchronous and t()'s signature unchanged.
 
 import { useSyncExternalStore } from 'react'
+import { writeRawCache } from './cache'
+// Imported for its module-scope side effect as much as for the function. This
+// module resolves the locale AT MODULE SCOPE (`current`, below), so the
+// `opstrack_` → `nphiescore_` copy has to have completed by the time that line
+// runs — and an import is the only thing that is guaranteed to. See
+// lib/storageMigration.ts, decision 1.
+import { readWithLegacyFallback } from './storageMigration'
 // One file per namespace under locales/{en,ar}/, merged there. The two
 // monolithic bundles this used to import were the build's worst contention
 // point; the key space and everything below is unchanged by the split.
@@ -40,7 +47,7 @@ import type { LabelOverrideMap } from '../types'
 
 export type Locale = 'en' | 'ar'
 
-const KEY = 'opstrack_locale'
+const KEY = 'nphiescore_locale'
 
 /** A locale bundle: nested objects bottoming out in strings. */
 interface Tree {
@@ -52,16 +59,16 @@ const BUNDLES: Record<Locale, Tree> = { en, ar }
 const RTL_LOCALES: readonly Locale[] = ['ar']
 
 function readStored(): Locale {
-  try {
-    const v = localStorage.getItem(KEY)
-    return v === 'ar' || v === 'en' ? v : 'en'
-  } catch {
-    // No web storage at all — vitest's `node` environment, which this module
-    // acquired a suite in when the override layer landed. store/vocab.ts's
-    // readCache() guards for exactly the same reason; a private-mode
-    // restriction lands here too, and English is the right answer for both.
-    return 'en'
-  }
+  // Raw, not JSON: the value is the bare word `ar`, written that way since Wave
+  // 1. The try/catch this function used to carry now lives inside lib/cache.ts,
+  // which answers null for no web storage at all — vitest's `node` environment,
+  // which this module acquired a suite in when the override layer landed — and
+  // for a private-mode restriction, and English is the right answer for both.
+  // The legacy fallback is the second half of the prefix rename: this line runs
+  // at module scope, and it must not be possible for it to open the app in
+  // English for an Arabic reader because a copy was refused.
+  const v = readWithLegacyFallback(KEY)
+  return v === 'ar' || v === 'en' ? v : 'en'
 }
 
 // Cached so getSnapshot() below stays cheap and returns a stable value —
@@ -99,12 +106,11 @@ export function getLocale(): Locale {
 export function setLocale(l: Locale): void {
   if (l === current) return
   current = l
-  try {
-    localStorage.setItem(KEY, l)
-  } catch {
-    // Quota, private mode, or no storage at all. The switch still applies for
-    // this session; only its persistence is lost.
-  }
+  // Quota, private mode, or no storage at all are all handled inside
+  // writeRawCache, which falls back to a process-lifetime map rather than
+  // throwing: the switch always applies for this session, and only its survival
+  // across a reload is at risk.
+  writeRawCache(KEY, l)
   applyLocale()
   notify()
 }

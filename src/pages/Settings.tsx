@@ -26,6 +26,7 @@ import { useCallback, useEffect, useState, type ReactElement, type ReactNode } f
 import { NavLink } from 'react-router-dom'
 import {
   IconBolt,
+  IconChecklist,
   IconChevronEnd,
   IconClipboardList,
   IconClock,
@@ -35,8 +36,10 @@ import {
   IconGlobe,
   IconLayers,
   IconLogOut,
+  IconNetwork,
   IconMonitor,
   IconMoon,
+  IconPlug,
   IconShieldCheck,
   IconSun,
   IconUser,
@@ -56,8 +59,13 @@ import { rovingTabIndex, useRadioGroupKeys } from '../lib/radioGroup'
 import type { ThemePref } from '../lib/theme'
 import { trackIcon } from '../lib/trackIcons'
 import { trackVars } from '../lib/trackStyle'
-import { signOut, useAuth } from '../store/auth'
-import { useActiveTracks } from '../store/config'
+import { signOut, useAuth, useHasPerm, useIsAdmin } from '../store/auth'
+import {
+  useActiveTracks,
+  useJiraEnabled,
+  useJiraSettings,
+  useJiraStatusesDropped,
+} from '../store/config'
 import { setLocaleSetting, setTheme, useSettings } from '../store/settings'
 import './settings.css'
 
@@ -80,6 +88,31 @@ const BACKEND_PILL: Record<BackendState, { tone: string; labelKey: string }> = {
   checking: { tone: '', labelKey: 'settings.backendChecking' },
   ok: { tone: 'ok', labelKey: 'settings.backendConnected' },
   unreachable: { tone: 'warn', labelKey: 'settings.backendUnreachable' },
+}
+
+/**
+ * The four states the Jira card can be in, named rather than collapsed.
+ *
+ * THE CARD ALWAYS RENDERS — it is the only way in to turning the feature on, so
+ * hiding it when Jira is off would hide the switch inside the thing it switches.
+ * Every OTHER Jira surface in the app is absent while `useJiraEnabled()` is
+ * false, and that asymmetry is the whole design: a control that does nothing is
+ * a promise, and this is the one screen where the control does something.
+ *
+ * FOUR STATES AND NOT TWO, which is the backend pill's own discipline one card
+ * down. "Nobody has set this up" and "somebody set it up and switched it off"
+ * are different sentences with different next actions, and so is "switched on
+ * with no site address" — a state in which the integration reports as live and
+ * every link it would draw is dead. Collapsing them into "Not connected" would
+ * send the reader to re-do work that is already done.
+ */
+type JiraCardState = 'unset' | 'off' | 'incomplete' | 'on'
+
+const JIRA_PILL: Record<JiraCardState, { tone: string; labelKey: string }> = {
+  unset: { tone: '', labelKey: 'jiraconfig.stateUnset' },
+  off: { tone: '', labelKey: 'jiraconfig.stateOff' },
+  incomplete: { tone: 'warn', labelKey: 'jiraconfig.stateIncomplete' },
+  on: { tone: 'ok', labelKey: 'jiraconfig.stateOn' },
 }
 
 /**
@@ -156,10 +189,57 @@ export default function Settings(): ReactElement {
   }, [])
 
   const email = session?.user.email ?? null
-  // The profiles row is the only admin signal, matching is_admin() in RLS
-  // exactly — see the note in store/auth.ts. This check is still cosmetic (it
-  // decides what renders); the database is what actually refuses the writes.
-  const isAdmin = profile?.role === 'admin'
+  // THREE QUESTIONS, NOT ONE, AND THEY MIRROR APP.TSX'S ROUTE TABLE KEY FOR KEY.
+  // This page is the ONLY entrance to six of the eight configuration screens —
+  // they are in neither nav — so a single `isAdmin` here would leave a Director
+  // able to open /settings/structure by typing the URL and unable to find it any
+  // other way. Migration 0025 puts the structure tables (`tracks`,
+  // `track_groups`, `map_nodes`, `map_node_kinds`) on `structure.edit` and the
+  // word tables (`use_cases`, `vocab_options`, `label_overrides`) on
+  // `vocab.edit`, so the cards below are grouped by exactly those two keys, with
+  // Roles and Members left on `workspace.admin`.
+  //
+  // THE CARD AND THE ROUTE MUST ASK THE SAME QUESTION. A card App.tsx then
+  // bounces is worse than no card, because the redirect lands after the lazy
+  // chunk has loaded and reads as a crash.
+  //
+  // Still cosmetic, all three: they decide what RENDERS. The database is what
+  // actually refuses the writes, and `useHasPerm` falls back to the legacy
+  // `profiles.role` column when 0025 has not been applied — so on the live
+  // project today this page behaves exactly as it did before the split.
+  const canEditStructure = useHasPerm('structure.edit')
+  const canEditVocab = useHasPerm('vocab.edit')
+  const isAdmin = useIsAdmin()
+  // THE ONE HOOK, asked here as everywhere else. `useJiraSettings()` is read
+  // beside it because this card is one of the two screens allowed to (the Jira
+  // reader is the other): it needs to tell "nobody has saved one" from "saved
+  // and switched off", and no other surface in the app does.
+  const jiraSettings = useJiraSettings()
+  const jiraEnabled = useJiraEnabled()
+  const jiraStatusesDropped = useJiraStatusesDropped()
+  const jiraState: JiraCardState =
+    jiraSettings === null
+      ? 'unset'
+      : !jiraSettings.enabled
+        ? 'off'
+        : // `enabled` is true here, so the only way `useJiraEnabled()` can still
+          // be false is a missing site address — which is what makes this arm
+          // the honest reading of the hook rather than a second definition of it.
+          jiraEnabled
+          ? 'on'
+          : 'incomplete'
+  // THE PILL STAYS ON THE LEGACY COLUMN, and it is the one place in this file
+  // that should. It answers "what does the workspace call you", not "what may
+  // you do" — and `profiles.role` is the column the Members screen shows, the
+  // one an admin changes, and the one 0025 keeps derived from the two SYSTEM
+  // roles. Reading it from a permission key would make the pill and the roster
+  // disagree about the same person.
+  //
+  // ⚠ A DIRECTOR STILL READS AS "Member" HERE. That is a small lie and it is
+  //   recorded rather than fixed: the honest third state is the role's own NAME,
+  //   which lives in `roles.name` / `name_ar` — workspace data, not a locale key
+  //   — and this page does not read that table. Handed off with the wave.
+  const legacyRoleIsAdmin = profile?.role === 'admin'
   // Fall back to the address when the profile has no display name, so the
   // identity block never renders as an empty line.
   const name = profile?.displayName?.trim() || email || ''
@@ -240,8 +320,8 @@ export default function Settings(): ReactElement {
           <div className="settings-fact">
             <dt>{t('settings.role')}</dt>
             <dd>
-              <span className={`pill${isAdmin ? ' info' : ''}`}>
-                {isAdmin ? t('settings.roleAdmin') : t('settings.roleMember')}
+              <span className={`pill${legacyRoleIsAdmin ? ' info' : ''}`}>
+                {legacyRoleIsAdmin ? t('settings.roleAdmin') : t('settings.roleMember')}
               </span>
             </dd>
           </div>
@@ -354,7 +434,11 @@ export default function Settings(): ReactElement {
         </NavLink>
       </Section>
 
-      {isAdmin ? (
+      {/* THE STRUCTURE HALF: Groups, Structure, Tracks — the three screens that
+          edit the SHAPE of the workspace, and the three tables 0025 puts on
+          `structure.edit`. App.tsx gates the matching five routes on the same
+          key. A Director holds it; a member does not. */}
+      {canEditStructure ? (
         <>
           {/* ABOVE Tracks, because a group contains tracks and the app reads
               coarse-to-fine everywhere else it offers both — the filter bar puts
@@ -377,6 +461,74 @@ export default function Settings(): ReactElement {
                   Arabic, hence icon-directional. */}
               <IconChevronEnd className="icon-directional" size={16} />
             </NavLink>
+          </Section>
+          {/* The tree BELOW a track, between the level above tracks and tracks
+              themselves — the app reads coarse-to-fine, and Structure is finer
+              than a group and coarser than the work inside a track. This is the
+              only entrance to /settings/structure, which is in neither nav.
+
+              IconNetwork rather than the IconLayers on the row beneath: a tree
+              of linked nodes is what the screen is, and two adjacent rows
+              wearing the same glyph is what the Groups card's comment above
+              warns about. */}
+          <Section
+            icon={IconNetwork}
+            title={t('structure.title')}
+            description={t('structure.settingsHint')}
+          >
+            <NavLink to="/settings/structure" className="btn btn-ghost">
+              {t('structure.manage')}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
+          </Section>
+          {/* THE ONE JIRA SURFACE THAT ALWAYS RENDERS. Every other one — the
+              "view in Jira" links, the source caption — is ABSENT while
+              `useJiraEnabled()` is false, because a disabled control is a
+              promise. This card is the exception for the obvious reason: it is
+              the way in to turning the feature on, and a switch hidden inside
+              the thing it switches is a switch nobody finds.
+
+              It stays inside the `structure.edit` block with its neighbours,
+              and that is this page's own rule rather than an oversight: the
+              /settings/jira ROUTE is gated on the same key, and a card App.tsx
+              then bounces is worse than no card.
+
+              The pill NAMES THE STATE in four ways (see JiraCardState), and the
+              line under it states the scope this wave actually shipped — read
+              only, nothing scheduled, nothing written back, no organization
+              invented from an issue. Stated where somebody would go looking for
+              a "Sync now" button and not find one. */}
+          <Section icon={IconPlug} title={t('jira.title')} description={t('jira.settingsHint')}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: 12,
+              }}
+            >
+              <span className={`pill ${JIRA_PILL[jiraState].tone}`.trim()}>
+                {t(JIRA_PILL[jiraState].labelKey)}
+              </span>
+              <p className="muted">
+                {t(jiraEnabled ? 'jiraconfig.refusals' : 'jiraconfig.offEverywhere')}
+              </p>
+              {/* The coded-values trap, surfaced where the owner will see it
+                  without going looking. api/jiraSettings.ts drops a saved status
+                  word it no longer understands and COUNTS the drop; without this
+                  line the only symptom is a preview in which some issues report
+                  "status not mapped", which reads as a Jira problem and is not
+                  one. */}
+              {jiraStatusesDropped > 0 && (
+                <p className="muted">
+                  {t('jiraconfig.droppedStatuses', { count: jiraStatusesDropped })}
+                </p>
+              )}
+              <NavLink to="/settings/jira" className="btn btn-ghost">
+                {t('jira.manage')}
+                <IconChevronEnd className="icon-directional" size={16} />
+              </NavLink>
+            </div>
           </Section>
           <Section
             icon={IconLayers}
@@ -434,8 +586,21 @@ export default function Settings(): ReactElement {
               </NavLink>
             </div>
           </Section>
-          {/* The other half of the admin config, and the only entrance to it:
-              /settings/vocabulary is deliberately absent from both navs, so
+        </>
+      ) : null}
+
+      {/* THE WORDS HALF: Vocabulary, Catalogue, Terminology — the three screens
+          that edit what the workspace CALLS things, and the three tables 0025
+          puts on `vocab.edit` (`vocab_options`, `use_cases`, `label_overrides`).
+          App.tsx gates the matching three routes on the same key.
+
+          BELOW the structure block and not interleaved with it, so the page
+          still reads coarse-to-fine for the one person who holds both keys —
+          which today is every Admin and every Director. */}
+      {canEditVocab ? (
+        <>
+          {/* The other half of the configuration block, and the only entrance to
+              it: /settings/vocabulary is deliberately absent from both navs, so
               without this row an admin can only reach the statuses, priorities
               and types by typing the URL. */}
           <Section
@@ -447,6 +612,23 @@ export default function Settings(): ReactElement {
               {t('settings.vocabularyManage')}
               {/* Forward through the hierarchy — forward is leftward in
                   Arabic, hence icon-directional. */}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
+          </Section>
+          {/* Beside Vocabulary because the two are the same kind of screen — a
+              list of words the workspace owns — and different in what they list:
+              Vocabulary holds the statuses an item moves through, this holds the
+              HL7/FHIR capabilities an organization is onboarded onto and the
+              kinds an item on the tree can be. /settings/catalogue is in neither
+              nav, so without this row an admin can only reach the capability
+              list by typing the URL. */}
+          <Section
+            icon={IconChecklist}
+            title={t('catalogue.title')}
+            description={t('catalogue.settingsHint')}
+          >
+            <NavLink to="/settings/catalogue" className="btn btn-ghost">
+              {t('catalogue.manage')}
               <IconChevronEnd className="icon-directional" size={16} />
             </NavLink>
           </Section>
@@ -468,6 +650,22 @@ export default function Settings(): ReactElement {
               <IconChevronEnd className="icon-directional" size={16} />
             </NavLink>
           </Section>
+        </>
+      ) : null}
+
+      {/* THE PEOPLE HALF, AND THE STRICTEST GATE ON THE PAGE. It does NOT move
+          to a narrower key: 0025 leaves `roles`, `role_permissions` and the
+          member endpoints on `members.manage` / `workspace.admin`, which only
+          the system Admin role carries. Creating, deleting and re-roling PEOPLE
+          is the power withheld from Director — a Director who could edit the
+          roles table would be one click from Admin.
+
+          The non-admin branch is the page's ONE "you cannot do this" card, and
+          it stays attached to this block rather than the two above: a member
+          should be told who adds members, and told nothing about a structure
+          editor they will never see. */}
+      {isAdmin ? (
+        <>
           {/* THE LAST "COMING SOON" IN THE APP, RETIRED. This card carried a
               `placeholder.comingSoon` pill and a line explaining that member
               management was sequenced after entries CRUD. Both the screen and the
@@ -480,6 +678,21 @@ export default function Settings(): ReactElement {
               creating a member mints a one-time invite code, and App.tsx
               route-gates /settings/members to match. The non-admin branch below
               still says who can. */}
+          {/* Directly above Members, because a role is what a member HOLDS and
+              the two are read in that order. 0025 makes what is ticked here the
+              answer is_admin() gives at 183 policy call sites, so this is the
+              widest-reaching card on the page — and the one whose own write gate
+              (has_perm('members.manage')) only the system Admin role carries. */}
+          <Section
+            icon={IconShieldCheck}
+            title={t('roles.title')}
+            description={t('roles.settingsHint')}
+          >
+            <NavLink to="/settings/roles" className="btn btn-ghost">
+              {t('roles.manage')}
+              <IconChevronEnd className="icon-directional" size={16} />
+            </NavLink>
+          </Section>
           <Section
             icon={IconUsers}
             title={t('settings.members')}
@@ -513,6 +726,14 @@ export default function Settings(): ReactElement {
           without this call site knowing anything about direction. */}
       <Section icon={IconCompass} title={t('settings.about')}>
         <p className="muted">{t('settings.version', { version: __APP_VERSION__ })}</p>
+        {/* Apple requires the policy to be reachable from inside the app, and
+            About is where somebody goes looking for "what is this thing".
+            Labelled out of the privacy namespace rather than settings.*: the
+            title already ships in both languages and a settings.privacy twin
+            would only ever hold the same word. */}
+        <NavLink to="/privacy" className="btn btn-ghost">
+          {t('privacy.title')}
+        </NavLink>
       </Section>
     </div>
   )

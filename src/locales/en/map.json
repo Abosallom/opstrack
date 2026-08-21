@@ -1,0 +1,8 @@
+{
+  "map": {
+    "scopeWhole": "Every track",
+    "scopeBranch": "Only ⁨{label}⁩",
+    "showing": "Filtered to ⁨{label}⁩.",
+    "changesWhich": "Which changes"
+  }
+}

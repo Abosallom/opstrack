@@ -1,4 +1,21 @@
 /// <reference types="vite-plugin-pwa/client" />
+// THIS IMPORT MUST STAY FIRST, and it is a bare one on purpose.
+//
+// It is the `opstrack_` → `nphiescore_` storage rename, and it runs during
+// module evaluation — which is the only moment early enough. Everything below
+// this line reads storage before a single statement of this file executes:
+// `./App` pulls in store/entries, store/outbox, store/config, store/vocab,
+// store/members and store/labels, and every one of them rehydrates its cache at
+// module scope for first paint, as lib/i18n.ts does for the locale. A
+// `migrate()` call further down this file would run after all of them and the
+// app would open once with an empty list, in English, on a light background,
+// with the offline queue apparently gone. Nothing would actually be lost — but
+// nobody looking at that screen would believe it.
+//
+// lib/theme.ts and lib/i18n.ts import the same module for the same reason, so
+// the two values that decide the first paint are safe even if this line is ever
+// moved. The stores are not: they get their guarantee from here.
+import './lib/storageMigration'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
@@ -125,7 +142,9 @@ setOutboxDiscard(discardOutboxWrite)
 setOrphanedTransitionSink(queueOrphanedTransition)
 
 // Install the flush triggers — `online`, tab-visible, and the bounded backoff
-// timer — and drain whatever the last session left in `opstrack_outbox_v1`.
+// timer — and drain whatever the last session left in `nphiescore_outbox_v1`
+// (or, on the first boot of the renamed build, in `opstrack_outbox_v1`: the
+// first import in this file copied it forward before store/outbox.ts read it).
 //
 // This is the line that makes 'offline.queued' true. The queue itself only ever
 // sends when something asks it to, and until Wave 4 the only thing that asked

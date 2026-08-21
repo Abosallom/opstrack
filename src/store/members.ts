@@ -18,10 +18,16 @@
 
 import { create } from 'zustand'
 import { listMembers, type Member } from '../api/members'
+
+// Re-exported so the screens that render a roster take the row type from the
+// store they already import, rather than reaching past it into src/api. Three
+// map modules did exactly that and `tsc -b` refused the whole build: a `type`
+// import is not a re-export.
+export type { Member }
 import { t } from '../lib/i18n'
 import { hasSession } from './auth'
 
-const CACHE_KEY = 'opstrack_members_v1'
+const CACHE_KEY = 'nphiescore_members_v1'
 
 /** How long a load stays fresh enough to skip the focus refetch. */
 const STALE_AFTER_MS = 60_000

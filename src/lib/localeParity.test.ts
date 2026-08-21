@@ -49,9 +49,9 @@ import type { Locale } from './i18n'
  * diff nobody reads.
  */
 const BASELINE_KEYS: readonly string[] = `
-  app.name app.tagline nav.capture nav.followups nav.board nav.tracks nav.more nav.primary
-  nav.openMenu nav.closeMenu nav.skipToContent route.signin route.capture route.followups
-  route.board route.tracks route.trackDetail route.entry route.meetings route.dashboard
+  app.name app.tagline nav.more nav.primary
+  nav.openMenu nav.closeMenu nav.skipToContent route.signin
+  route.entry route.meetings
   route.settings signin.heading signin.subtitle signin.emailLabel signin.emailPlaceholder
   signin.sendCode signin.sending signin.codeHeading signin.codeSent signin.codeLabel
   signin.codePlaceholder signin.verify signin.verifying signin.resend signin.resendIn
@@ -111,6 +111,16 @@ const BASELINE_KEYS: readonly string[] = `
  * still shipped fails immediately, and so does half-removing one (present in
  * `en`, gone from `ar`).
  *
+ * WHY TEN MORE NAMES JOINED IN THE MAP COLLAPSE. `/capture`, `/followups`,
+ * `/board`, `/tracks`, `/tracks/:id`, `/dashboard` and `/notifications` are no
+ * longer routes — they are five lens chips and a panel on `/mindtree`
+ * (docs/MAP-CONTRACT.md §1) — so the tab labels and the header titles that
+ * named them are asked for by nothing. They are RETIRED, not vanished: an entry
+ * here is asserted absent from BOTH bundles, so a half-removal still fails, and
+ * the 213 below is still arithmetic. `nav.map` is their replacement and it is
+ * NOT baseline — it was added by the collapse, so it is covered by the ordinary
+ * parity checks rather than by this fixture.
+ *
  * WHY THE `placeholder` NAMESPACE IS HERE. It was one component apologising for
  * screens that did not exist yet. Every one of them now does — capture,
  * follow-ups, the board, the tracks tree, a track's log, the entry surface,
@@ -129,6 +139,9 @@ const RETIRED_KEYS: readonly string[] = `
   placeholder.comingSoon placeholder.phase1 placeholder.capture placeholder.followups
   placeholder.board placeholder.tracks placeholder.trackDetail placeholder.entry
   placeholder.meetings placeholder.dashboard
+  nav.capture nav.followups nav.board nav.tracks
+  route.capture route.followups route.board route.tracks route.trackDetail
+  route.dashboard
 `
   .trim()
   .split(/\s+/)

@@ -77,7 +77,7 @@ import { t } from '../lib/i18n'
 import { toast } from '../components/toast'
 // The group half of useFilterContext(). A store may read another store — the
 // layering rule this repo enforces is that `src/lib/**` imports neither.
-import { useTrackMap } from './config'
+import { useMapNodeMap, useTrackMap } from './config'
 import type { MutOp } from './outbox'
 import type { ApiResult } from '../api/result'
 import type { EntryPatch, NewEntry, NewEntryUpdate } from '../api/entries'
@@ -86,7 +86,7 @@ import type { FilterContext, FilterState } from '../lib/entryFilter'
 import type { IsoDate } from '../lib/dates'
 import type { Entry, EntryHealth, EntryStatus, EntryUpdate } from '../types'
 
-const CACHE_KEY = 'opstrack_entries_v1'
+const CACHE_KEY = 'nphiescore_entries_v1'
 /** How long a load stays fresh enough to skip the focus refetch. */
 const STALE_AFTER_MS = 45_000
 /** Flash TTL, swept by ONE module-level interval — not a timer per row. */
@@ -296,6 +296,7 @@ export function applyPatchLocal(entry: Entry, patch: EntryPatch, nowIso: string)
   if (patch.tags !== undefined) next.tags = patch.tags
   if (patch.links !== undefined) next.links = patch.links
   if (patch.trackId !== undefined) next.track_id = patch.trackId
+  if (patch.mapNodeId !== undefined) next.node_id = patch.mapNodeId
   if (patch.ownerId !== undefined) {
     next.owner_id = patch.ownerId
     if (patch.ownerId) next.owner_name = null
@@ -898,9 +899,52 @@ export function useFilterContext(): FilterContext {
     for (const [id, track] of tracks) map.set(id, track.group_id ?? null)
     return map
   }, [tracks])
+  const mapNodeById = useMapNodeMap()
+  // ONE WALK, THREE ANSWERS, and all three are facts lib/entryFilter cannot
+  // know: which node sits under which, which integrator is behind a node, and
+  // who is accountable for it. Built here because this is where the tree is, and
+  // built over EVERY node — archived ones included — so a link to an
+  // organization somebody put away still resolves.
+  //
+  // THE THIRD ANSWER RIDES THE SAME LOOP RATHER THAN A SECOND ONE. A separate
+  // memo over the same map would be a second bounded parent walk per node for a
+  // value the first walk already passes through, and — worse — a second place
+  // where "nearest self-or-ancestor" is spelled out, which is how two facets
+  // covering one tree come to disagree about what an organization inherits.
+  const { ancestryOfNode, vendorOfNode, managerOfNode } = useMemo(() => {
+    const ancestry = new Map<string, readonly string[]>()
+    const vendor = new Map<string, string>()
+    const manager = new Map<string, string | null>()
+    for (const id of mapNodeById.keys()) {
+      const chain: string[] = []
+      let effective = ''
+      let accountable: string | null = null
+      let cursor = mapNodeById.get(id)
+      // Bounded: 0023's deferred trigger makes a cycle impossible in the
+      // database, but this also runs over a localStorage cache, and an unbounded
+      // parent walk over corrupt rows is a frozen tab rather than a wrong list.
+      for (let step = 0; cursor !== undefined && step < 16; step += 1) {
+        chain.push(cursor.id)
+        // The NEAREST self-or-ancestor with a vendor wins: work filed one level
+        // inside an organization is still that integrator's work.
+        if (effective === '') effective = cursor.vendor.trim()
+        // The same rule for the person, and `null` is what keeps the walk
+        // climbing: `account_manager_id` is a REFERENCE, so there is no blank
+        // spelling to trim — absent is absent, and an unassigned organization
+        // under an assigned phase answers the phase's manager, which is what
+        // "accountable for it" means one level up.
+        if (accountable === null) accountable = cursor.account_manager_id
+        cursor = cursor.parent_id === null ? undefined : mapNodeById.get(cursor.parent_id)
+      }
+      ancestry.set(id, chain)
+      vendor.set(id, effective)
+      manager.set(id, accountable)
+    }
+    return { ancestryOfNode: ancestry, vendorOfNode: vendor, managerOfNode: manager }
+  }, [mapNodeById])
   return useMemo(
-    () => ({ meId, today, groupOfTrack }),
-    [meId, today, groupOfTrack],
+    () => ({ meId, today, groupOfTrack, ancestryOfNode, vendorOfNode, managerOfNode }),
+    [meId, today, groupOfTrack, ancestryOfNode, vendorOfNode, managerOfNode],
   )
 }
 
@@ -1629,6 +1673,7 @@ function optimisticRow(input: NewEntry, id: string, meId: string | null, ts: str
   return {
     id,
     track_id: input.trackId ?? null,
+    node_id: input.mapNodeId ?? null,
     title: input.title.trim(),
     description: input.description ?? '',
     type: input.type ?? 'action',

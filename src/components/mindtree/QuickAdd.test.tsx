@@ -49,6 +49,10 @@ vi.mock('../../store/entries', () => ({
   createEntryOptimistic: () => Promise.resolve({ ok: false, error: 'common.error' }),
 }))
 
+// Imported for `invalidateConfig`. The real module registers a `window` focus
+// listener at module scope and there is no DOM here.
+vi.mock('../../store/config', () => ({ invalidateConfig: () => {} }))
+
 const { QuickAddPanel, draftToNewEntry } = await import('./QuickAdd')
 const { draftAt, draftRefusal } = await import('../../lib/mindtree/actions')
 const { NO_VALUE, NAME_PREFIX } = await import('../../lib/mindtree/dropRules')
@@ -66,6 +70,7 @@ function node(over: Partial<MindNode> & Pick<MindNode, 'id' | 'kind'>): MindNode
     depth: 1,
     entryId: null,
     bucketKey: null,
+    entityType: null,
     retired: false,
     ...over,
   }
@@ -92,11 +97,15 @@ describe('draftToNewEntry', () => {
     // Network means "blocked AND on Network". An item created there carrying
     // only its status would be filed untracked and appear somewhere else — the
     // reader watching their own click land in the wrong place.
+    // `mapNodeId: null` is EXPLICIT, not absent: a track step means "on this
+    // track, under none of its organizations", and an absent key would leave a
+    // dragged row filed under whatever Org it came from.
     const draft = draftAt([ROOT, TRACK, group('blocked')], 'status')
-    expect(draft).toEqual({ trackId: 't-net', status: 'blocked' })
+    expect(draft).toEqual({ trackId: 't-net', mapNodeId: null, status: 'blocked' })
     expect(draftToNewEntry(draft ?? {}, '  Patch the edge switch  ')).toEqual({
       title: '  Patch the edge switch  ',
       trackId: 't-net',
+      mapNodeId: null,
       status: 'blocked',
     })
   })
@@ -106,7 +115,7 @@ describe('draftToNewEntry', () => {
     // the pair as two independent optional fields is what preserves the fix
     // dropRules.ownerPatch exists for.
     const draft = draftAt([ROOT, TRACK, group(NO_VALUE)], 'owner')
-    expect(draft).toEqual({ trackId: 't-net', ownerId: null, ownerName: null })
+    expect(draft).toEqual({ trackId: 't-net', mapNodeId: null, ownerId: null, ownerName: null })
     const input = draftToNewEntry(draft ?? {}, 'x')
     expect(input.ownerId).toBeNull()
     expect(input.ownerName).toBeNull()
@@ -124,6 +133,7 @@ describe('draftToNewEntry', () => {
     expect(draftToNewEntry(draftAt([ROOT, TRACK], 'status') ?? {}, 'x')).toEqual({
       title: 'x',
       trackId: 't-net',
+      mapNodeId: null,
     })
   })
 
@@ -209,6 +219,21 @@ describe('QuickAddPanel', () => {
     expect(html).toContain('aria-describedby="qh"')
     expect(html).toContain('id="qh"')
     expect(html).toContain('Enter adds it and leaves the box open for the next one.')
+  })
+
+  it('wears the BRANCH strings in branch mode', () => {
+    // The one half of the branch composer a server render can see: same panel,
+    // same form, four different strings. If these ever come back as the entry
+    // set, `mode` has stopped reaching the panel and the reader is being asked
+    // "What needs doing?" while naming a department.
+    const branch = render({ mode: 'branch', heading: 'New branch under ⁨UHR⁩' })
+    expect(branch).toContain('aria-label="Branch name"')
+    expect(branch).toContain('placeholder="Name this branch"')
+    expect(branch).toContain('Add branch')
+    expect(branch).toContain('New branch under ⁨UHR⁩')
+    // And not the item strings, which is the failure worth naming.
+    expect(branch).not.toContain('aria-label="New item"')
+    expect(branch).not.toContain('placeholder="What needs doing?"')
   })
 
   it('refuses to submit an empty line', () => {

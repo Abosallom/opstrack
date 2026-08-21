@@ -103,7 +103,6 @@ vi.mock('../store/entrySheet', () => ({
 const { MemoryRouter } = await import('react-router-dom')
 const { notificationSentence } = await import('./NotificationBell')
 const NotificationBell = (await import('./NotificationBell')).default
-const NotificationsPage = (await import('../pages/Notifications')).default
 const { t } = await import('../lib/i18n')
 
 const map = (members: Member[]): ReadonlyMap<string, Member> =>
@@ -128,15 +127,8 @@ const asHtml = (s: string): string =>
 
 const renderBell = (): string =>
   renderToStaticMarkup(
-    <MemoryRouter initialEntries={['/board']}>
+    <MemoryRouter initialEntries={['/mindtree']}>
       <NotificationBell />
-    </MemoryRouter>,
-  )
-
-const renderPage = (): string =>
-  renderToStaticMarkup(
-    <MemoryRouter initialEntries={['/notifications']}>
-      <NotificationsPage />
     </MemoryRouter>,
   )
 
@@ -294,93 +286,15 @@ describe('NotificationBell', () => {
   })
 })
 
-/* ─────────────────────────────── the page ───────────────────────────── */
+/* ───────────────────── the page that became a lens ──────────────────── */
 
-describe('Notifications page', () => {
-  it('groups rows by local calendar day, newest bucket first', () => {
-    const now = Date.now()
-    fx.state.items = [
-      fx.notif({ id: '1', entryId: 'e1', createdAt: new Date(now - 60_000).toISOString() }),
-      fx.notif({ id: '2', entryId: 'e2', createdAt: new Date(now - fx.DAY).toISOString() }),
-      fx.notif({ id: '3', entryId: 'e3', createdAt: new Date(now - 9 * fx.DAY).toISOString() }),
-    ]
-    fx.state.unread = 3
-    const html = renderPage()
-    const today = html.indexOf(asHtml(t('date.today')))
-    const yesterday = html.indexOf(asHtml(t('date.yesterday')))
-    const earlier = html.indexOf(asHtml(t('notif.earlier')))
-    expect(today).toBeGreaterThan(-1)
-    expect(yesterday).toBeGreaterThan(today)
-    expect(earlier).toBeGreaterThan(yesterday)
-  })
+// `describe('Notifications page')` LIVED HERE AND IS GONE WITH ITS PAGE.
+// /notifications is deleted by the collapse (docs/MAP-CONTRACT.md §1); the
+// record is `components/map/MapChanges.tsx` inside the map's panel. Every one of
+// that block's seven guarantees — day grouping newest-first, unread marked for a
+// screen reader rather than by colour, the nudge row's own glyph and sentence,
+// mark-all disabled with nothing to clear, the empty state that offers both
+// filter chips, the retryable load failure, and a skeleton rather than an empty
+// state on a cold load — is restated case-for-case in
+// `components/map/MapChanges.test.tsx`. Nothing was dropped; it moved.
 
-  it('marks unread rows for a screen reader, not with colour alone', () => {
-    fx.state.items = [
-      fx.notif({ id: '1', entryId: 'e1' }),
-      fx.notif({ id: '2', entryId: 'e2', readAt: new Date().toISOString() }),
-    ]
-    fx.state.unread = 1
-    const html = renderPage()
-    expect(html).toContain('data-unread="true"')
-    expect(html).toContain(asHtml(t('notif.unreadRow')))
-    // One unread row → exactly one mark-read control, and the read row keeps
-    // its 44px spacer so the text column does not shift between the two.
-    expect(html.split(`aria-label="${asHtml(t('notif.markRead'))}"`).length - 1).toBe(1)
-    expect(html).toContain('notif-item-spacer')
-  })
-
-  it('gives a nudge row its own glyph and its own sentence, in real markup', () => {
-    // The sentence is asserted purely above; this is the ROW — the half that
-    // shipped broken twice over. `notif-kind-${item.kind}` interpolates the kind
-    // straight into a class name, so an unknown kind silently lands on a rule
-    // that does not exist and the pill renders in body text colour. The glyph
-    // moved too: a nudge is a person TALKING to you, not a handover.
-    fx.state.items = [fx.notif({ id: '1', entryId: 'e1', kind: 'nudged', actorId: 'u-actor' })]
-    fx.state.unread = 1
-    const html = renderPage()
-    expect(html).toContain('notif-kind-nudged')
-    expect(html).not.toContain('notif-kind-assigned')
-    expect(html).toContain(
-      asHtml(t('notif.nudged', { actor: 'Mallory Vance', title: 'Firewall rule DC2' })),
-    )
-  })
-
-  it('disables mark-all when there is nothing to clear', () => {
-    fx.state.items = [fx.notif({ id: '1', entryId: 'e1', readAt: new Date().toISOString() })]
-    fx.state.unread = 0
-    const html = renderPage()
-    const button = html.slice(html.indexOf(asHtml(t('notif.markAllRead'))) - 200)
-    expect(button).toContain('disabled')
-  })
-
-  it('shows a real empty state, with a way out of the unread filter', () => {
-    fx.state.items = []
-    fx.state.unread = 0
-    const html = renderPage()
-    expect(html).toContain(asHtml(t('notif.empty')))
-    expect(html).toContain(asHtml(t('notif.emptyHint')))
-    // Both filter chips are always offered, so an empty unread view is never a
-    // dead end.
-    expect(html).toContain(asHtml(t('notif.showAll')))
-    expect(html).toContain(asHtml(t('notif.showUnread')))
-  })
-
-  it('surfaces a load failure as a retryable state, not a blank list', () => {
-    fx.state.items = []
-    fx.state.unread = 0
-    fx.state.error = 'common.error'
-    const html = renderPage()
-    expect(html).toContain(asHtml(t('notif.errLoad')))
-    expect(html).toContain(asHtml(t('common.retry')))
-    fx.state.error = null
-  })
-
-  it('shows a skeleton, not an empty state, on a cold load', () => {
-    fx.state.items = []
-    fx.state.loading = true
-    const html = renderPage()
-    expect(html).toContain('skeleton')
-    expect(html).not.toContain(asHtml(t('notif.empty')))
-    fx.state.loading = false
-  })
-})

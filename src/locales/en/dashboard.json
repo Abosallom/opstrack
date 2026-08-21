@@ -1,10 +1,6 @@
 {
   "dashboard": {
     "subtitle": "Where the work is, how old it is getting, and whether we are keeping the promises we made about it.",
-    "total": {
-      "one": "{count} item in view",
-      "other": "{count} items in view"
-    },
     "windowLabel": "Window",
     "weeksOption": {
       "one": "{count} week",
@@ -17,7 +13,6 @@
     "closedFailed": "Couldn't load the completed items for this window, so the Closed tile, the throughput chart and the compliance figures are all reading low.",
     "blank": "Nothing to chart yet",
     "blankHint": "Capture the first item and this page starts answering questions about it.",
-    "blankCta": "Capture something",
     "statOpen": "Open",
     "statOverdue": "Overdue",
     "statQuiet": "Going quiet",
@@ -30,8 +25,20 @@
     },
     "blockedOldest": "Longest: “⁨{title}⁩”, {count} d",
     "blockedNone": "Nothing is stuck.",
-    "goBoard": "Opens the board.",
-    "goFollowups": "Opens the follow-ups list.",
+    "facetsIgnored": "Status and health filters are set but not applied here — three of these panels measure exactly those, so a number narrowed by them would be true of a subset nobody named.",
+    "windowChanged": {
+      "one": "Window: the last week.",
+      "other": "Window: the last {count} weeks."
+    },
+    "basisChanged": "Age is now measured ⁨{label}⁩.",
+    "refreshed": "The numbers were refreshed.",
+    "tileJumpLabel": "⁨{label}⁩: {count}. {hint}",
+    "tileJumpLabelNoted": "⁨{label}⁩: {count}. {note} {hint}",
+    "jumpOpen": "Shows all of it on the board.",
+    "jumpOverdue": "Shows the overdue items in the attention list.",
+    "jumpQuiet": "Shows the items going quiet in the attention list.",
+    "jumpBlocked": "Shows the blocked and waiting items in the attention list.",
+    "jumpUnassigned": "Shows the items nobody owns in the attention list.",
     "trackTitle": "Open work per track",
     "trackDesc": "Every active track, banded by health. Right now, not over the window.",
     "trackSummary": {

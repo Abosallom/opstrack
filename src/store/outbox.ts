@@ -242,7 +242,7 @@ interface OutboxState {
  * shape change bumps the suffix and the old key is simply never read again,
  * which is the whole migration story for data that is at most a few days old.
  */
-const OUTBOX_KEY = 'opstrack_outbox_v1'
+const OUTBOX_KEY = 'nphiescore_outbox_v1'
 
 const MUT_TABLES: ReadonlySet<string> = new Set<MutTable>([
   'entries',

@@ -20,22 +20,42 @@
 // nothing here returns a half-parsed value.
 //
 // VERSIONING IS IN THE KEY, by the convention every existing caller already
-// follows: `opstrack_entries_v1`. A shape change bumps the suffix, the old key
+// follows: `nphiescore_entries_v1`. A shape change bumps the suffix, the old key
 // is simply never read again, and there is no migration code to get wrong. That
 // is why this module stores the caller's JSON verbatim rather than wrapping it
 // in an envelope — an envelope would break the four keys already in the field.
+//
+// THE PREFIX ITSELF MOVED ONCE, `opstrack_` → `nphiescore_`, and that is the one
+// change the paragraph above does not cover: bumping a suffix throws data away
+// on purpose, but renaming the namespace would have thrown away every key at
+// once — including the offline outbox, which is not a cache but the user's
+// unsent WRITES. lib/storageMigration.ts is the forward copy that made the
+// rename free, and the raw accessors below are what it copies with.
 //
 // LAYERING: `src/lib/**` may not import from `src/store/**` or `src/api/**`.
 // This module imports nothing at all, which is what lets store/outbox.ts use it.
 
 /** Every key this app writes starts with it. Enforced in dev, see writeCache. */
-export const CACHE_PREFIX = 'opstrack_'
+export const CACHE_PREFIX = 'nphiescore_'
 
 /** The slice of the Storage interface this module uses. */
 interface KeyValueStore {
   getItem(key: string): string | null
   setItem(key: string, value: string): void
   removeItem(key: string): void
+  /**
+   * Enumeration — `Storage.length` and `Storage.key(i)`, the only way to ask a
+   * store "what else is in here".
+   *
+   * OPTIONAL, because a real `localStorage` always has both and the shims this
+   * module is tested against mostly do not: cache.test.ts installs an object
+   * with exactly three methods, and a required member here would either break
+   * that file or push a cast into every caller. `cacheKeysWithPrefix` therefore
+   * asks at runtime and answers "nothing" rather than throwing, which is the
+   * same contract as every other function in this file.
+   */
+  readonly length?: number
+  key?(index: number): string | null
 }
 
 /**
@@ -56,6 +76,22 @@ const memoryStore: KeyValueStore = {
   },
   removeItem: (key) => {
     memory.delete(key)
+  },
+  // Enumeration, so that the one caller that needs it — the prefix rename in
+  // lib/storageMigration.ts — behaves the same way here as it does against a
+  // real Storage. Walked rather than materialised into an array: the map holds
+  // a dozen keys on the one boot that reads it, and an allocation per index
+  // would be paid on every call to buy nothing.
+  get length() {
+    return memory.size
+  },
+  key: (index) => {
+    let i = 0
+    for (const k of memory.keys()) {
+      if (i === index) return k
+      i += 1
+    }
+    return null
   },
 }
 
@@ -89,6 +125,83 @@ function backing(): KeyValueStore {
  */
 export function isDurable(): boolean {
   return backing() !== memoryStore
+}
+
+/**
+ * Dev-only nudge that a key is outside this app's namespace.
+ *
+ * Not thrown: a mis-prefixed key still works. It just makes this app's storage
+ * indistinguishable from another app's on the same origin, and sign-out sweeps
+ * by key. Shared by both writers so the rule cannot hold for one and not the
+ * other.
+ */
+function warnUnprefixed(key: string): void {
+  if (import.meta.env.DEV && !key.startsWith(CACHE_PREFIX)) {
+    console.warn(`[cache] key '${key}' is missing the '${CACHE_PREFIX}' prefix`)
+  }
+}
+
+/**
+ * The raw string at `key`, exactly as stored. Null for absent or unreachable.
+ *
+ * WHY BYTES AND NOT JSON. `readCache` parses and validates, which is right for a
+ * cache of rows and wrong for two of the values in this namespace: `theme` and
+ * `locale` hold the bare words `dark` and `ar`, written by lib/theme.ts and
+ * lib/i18n.ts with a plain `setItem` since Wave 1. `JSON.parse('dark')` throws,
+ * and re-writing them as `"dark"` would change what every other build of this
+ * app reads back. The prefix rename therefore copies bytes and asks no
+ * questions about them — a migration that understood its payload would be a
+ * migration that could corrupt it.
+ */
+export function readRawCache(key: string): string | null {
+  try {
+    return backing().getItem(key)
+  } catch {
+    // Absent storage or a SecurityError. Same answer as `readCache`: null.
+    return null
+  }
+}
+
+/** Write a raw string. Returns false if it did not reach the store. See readRawCache. */
+export function writeRawCache(key: string, raw: string): boolean {
+  warnUnprefixed(key)
+  try {
+    backing().setItem(key, raw)
+    return true
+  } catch (e) {
+    // QuotaExceededError, or private-mode refusal.
+    console.warn('[cache] write failed for', key, e)
+    return false
+  }
+}
+
+/**
+ * Every key currently in the store that starts with `prefix`.
+ *
+ * The keys are SNAPSHOT before the caller does anything with them, which is not
+ * incidental: `Storage.key(i)` indexes into a live list, so a caller that wrote
+ * or removed while iterating would skip entries. Answers `[]` — never throws —
+ * for a store with no enumeration, for absent storage, and for a getter that
+ * raises. A partial walk returns what it got: the caller's next step is to copy
+ * those keys somewhere safer, and fewer is strictly better than none.
+ */
+export function cacheKeysWithPrefix(prefix: string): string[] {
+  const out: string[] = []
+  try {
+    const store = backing()
+    const size = store.length
+    const readKey = store.key
+    if (typeof size !== 'number' || typeof readKey !== 'function') return out
+    for (let i = 0; i < size; i += 1) {
+      // `.call` rather than `store.key(i)` so the receiver is explicit: on a
+      // real `Storage` this is a native method that needs its `this`.
+      const key = readKey.call(store, i)
+      if (typeof key === 'string' && key.startsWith(prefix)) out.push(key)
+    }
+  } catch {
+    return out
+  }
+  return out
 }
 
 /**
@@ -138,12 +251,7 @@ export function readCache<T>(key: string, accept: (value: unknown) => T | null):
  * lost one.
  */
 export function writeCache(key: string, value: unknown): boolean {
-  if (import.meta.env.DEV && !key.startsWith(CACHE_PREFIX)) {
-    // Not thrown: a mis-prefixed key still works. It just makes this app's
-    // storage indistinguishable from another app's on the same origin, and
-    // sign-out sweeps by prefix.
-    console.warn(`[cache] key '${key}' is missing the '${CACHE_PREFIX}' prefix`)
-  }
+  warnUnprefixed(key)
   let json: string
   try {
     json = JSON.stringify(value)

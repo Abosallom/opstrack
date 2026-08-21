@@ -1,0 +1,65 @@
+{
+  "mapnode": {
+    "detail": "Details",
+    "accountManager": "Account manager",
+    "managerGone": "No longer in the workspace",
+    "vendor": "Vendor",
+    "notRecorded": "Not recorded",
+    "useCases": "Use cases",
+    "useCasesFor": "Use cases at ⁨{name}⁩",
+    "progress": "⁨{done}⁩ of {total} ⁨{status}⁩",
+    "progressLong": "Use cases at ⁨{name}⁩ — ⁨{done}⁩ of {total} ⁨{status}⁩",
+    "statusPlanned": "Planned",
+    "statusTesting": "Testing",
+    "statusLive": "Live",
+    "statusNone": "Nothing recorded",
+    "wordPlanned": "planned",
+    "wordTesting": "in testing",
+    "wordLive": "live",
+    "retired": "Retired",
+    "retiredHint": "This capability was hidden in the catalogue. It still counts here, because this organization is recorded against it.",
+    "goals": "Goals",
+    "goalsFor": "Goals for ⁨{name}⁩",
+    "goalsNone": "No goals set",
+    "goalsNoneHint": "A goal is what this branch is measured against: a date, and how many are meant to be there by it.",
+    "goalAdd": "Add a goal",
+    "goalEditOne": "Edit ⁨{goal}⁩",
+    "goalDeleteOne": "Delete ⁨{goal}⁩",
+    "goalDeleteTitle": "Delete this goal?",
+    "goalDeleteBody": "⁨{goal}⁩ goes for everyone. Nothing an organization has reached changes.",
+    "goalUnnamed": "the goal due ⁨{date}⁩",
+    "goalCount": "⁨{reached}⁩ of ⁨{target}⁩ arrived by ⁨{date}⁩",
+    "goalCountStage": "⁨{reached}⁩ of ⁨{target}⁩ at ⁨{stage}⁩ or beyond by ⁨{date}⁩",
+    "goalDate": "Arrived by ⁨{date}⁩",
+    "goalStage": "At ⁨{stage}⁩ or beyond by ⁨{date}⁩",
+    "goalStageGone": "a rung that is no longer on the ladder",
+    "goalBehind": {
+      "one": "{count} behind",
+      "other": "{count} behind"
+    },
+    "goalUnstaged": {
+      "one": "{count} with no stage recorded",
+      "other": "{count} with no stage recorded"
+    },
+    "goalLeft": {
+      "one": "{count} day left",
+      "other": "{count} days left"
+    },
+    "goalOverdue": {
+      "one": "{count} day overdue",
+      "other": "{count} days overdue"
+    },
+    "goalDue": "Due today",
+    "goalLabelField": "Name",
+    "goalLabelArField": "Arabic name",
+    "goalStageField": "Rung",
+    "goalStageAny": "Any rung that counts as arrived",
+    "goalTargetField": "How many",
+    "goalTargetHint": "Leave it empty for a goal about this branch itself.",
+    "goalDateField": "By",
+    "goalErrDate": "Choose the date this is promised for.",
+    "goalAdded": "Added ⁨{goal}⁩",
+    "goalSaved": "Saved ⁨{goal}⁩",
+    "goalDeleted": "Deleted ⁨{goal}⁩"
+  }
+}

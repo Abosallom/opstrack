@@ -1,157 +1,122 @@
-# CoreTrack on iOS — build, run, and the road to the App Store
+# NphiesCore on iOS — what is done, what is left, and what only Aziz can do
 
-Status of this document: **the app has been built, installed, launched and
-photographed in the iOS Simulator**, re-verified end-to-end on 2026-07-30 at
-19:40–19:45 +0300 for Wave 5. Everything marked ✅ was observed, not assumed;
-everything marked ⬜ has not been done. The Wave-4 version of this gap was closed
-on the strength of a `cap sync` that had never been compiled, so the rule here
-is: if it is not reproducible from a command in this file, it does not get a tick.
+**Rewritten 2026-08-11, 10:36 +0300**, against the working tree on
+`feat/nphiescore-map`. Every value in §1 was read out of the file it lives in at
+that minute, with the command shown. Nothing in this document is inherited from
+the previous revision without being re-checked, because the previous revision
+described an app called **CoreTrack** with the bundle id **`app.opstrack`**, and
+both of those are now wrong.
 
-> **Why Wave 4b's run looked unverifiable.** The Wave-4b critic checked
-> `~/Library/Developer/Xcode/DerivedData` for an `App-*` build and found nothing
-> newer than 2026-07-14, so it could not confirm a real compile. That check was
-> looking in the wrong place, and the conclusion "no build happened" was wrong.
-> The `Claude Code iOS Simulator` MCP `build` action does **not** use Xcode's
-> shared DerivedData — it builds into its own sandbox:
->
-> ```
-> ~/Library/Application Support/Claude/simulator-builds/<hash>/DerivedData/
->   Build/Products/Debug-iphonesimulator/App.app
-> logs/build-<n>-<id>.log        # full xcodebuild transcript, one per build
-> ```
->
-> Look there, or pass an explicit `-derivedDataPath`, before concluding a build
-> never ran. §2 below records the build ids and the exact artefact path.
+**How to read the marks.** ✅ means *observed at the time stated, by the command
+quoted*. ⬜ means not done. ⚠ means done but since invalidated by a later change,
+which is a state this document previously had no way to express and needed.
+
+> **The one caution that governs the whole file.** This was written while
+> several agents were landing the NphiesCore rename in the same worktree. §1's
+> identity values were correct at 10:36 and are the most likely thing here to
+> have moved by the time you read it. Re-run the four commands in §1.1 before
+> you trust the table; they take five seconds.
 
 ---
 
-## 1. What exists
+## 1. Identity, as it actually stands
 
-| Piece | State |
-| --- | --- |
-| Capacitor | 8.4.2, iOS platform via **Swift Package Manager** (`ios/App/CapApp-SPM`), pinned to `capacitor-swift-pm 8.4.2` |
-| Plugins | `@capacitor/app`, `keyboard`, `splash-screen`, `status-bar` — 4, all resolved by `cap sync` |
-| Display name | **CoreTrack** — `CFBundleDisplayName` in `ios/App/App/Info.plist`, plus `appName` in the root `capacitor.config.json` (both, per `docs/WAVE5-NOTES.md` §1) |
-| Bundle id | `app.opstrack` — **deliberately not renamed.** Identity swaps once, cleanly, at the NphiesCore launch cut |
-| Deployment target | iOS 15.0 · `TARGETED_DEVICE_FAMILY = 1,2` (iPhone + iPad) |
-| Web layer | `dist/` copied into `ios/App/App/public` by `cap sync` (both are gitignored) |
-| JS ↔ native seam | `src/lib/native.ts` — status bar, splash dismissal, resume/pause listeners. No-op on web. |
+| Piece | Value | Where it lives |
+| --- | --- | --- |
+| Display name | **NphiesCore** | `CFBundleDisplayName` in `ios/App/App/Info.plist`; `appName` in `capacitor.config.json` |
+| Bundle id | **`app.nphiescore`** | `PRODUCT_BUNDLE_IDENTIFIER` in both build configurations of `ios/App/App.xcodeproj/project.pbxproj`; `appId` in `capacitor.config.json` |
+| Marketing version | **1.1.0** | `MARKETING_VERSION` (pbxproj:310, :332) |
+| Build number | **1** | `CURRENT_PROJECT_VERSION` (pbxproj:303, :325) |
+| `package.json` version | **1.0.1** | ⚠ **disagrees with `MARKETING_VERSION` right now** — see §7.1 |
+| Capacitor | 8.4.2, iOS via Swift Package Manager (`ios/App/CapApp-SPM`), pinned to `capacitor-swift-pm 8.4.2` | |
+| Plugins | `@capacitor/app`, `keyboard`, `splash-screen`, `status-bar` | compiled from source into the app target |
+| Deployment target | iOS 15.0 · `TARGETED_DEVICE_FAMILY = 1,2` | |
+| Privacy manifest | **present and registered in the build** | `ios/App/App/PrivacyInfo.xcprivacy`, wired as `AC1DB0A5E9FC4B1D8E2F0001` (file ref) + `…0002` (Resources phase) |
+| Export compliance | `ITSAppUsesNonExemptEncryption = false` | Info.plist |
+| Localizations | `[en, ar]` | `CFBundleLocalizations` |
+| Device capability | `arm64` | `UIRequiredDeviceCapabilities` |
+| ATS | **no `NSAppTransportSecurity` key**, deliberately | Info.plist — Supabase already satisfies default ATS |
+| Scene manifest | **absent** | see §3.2 |
+| App icon | 1024×1024, **no alpha** | `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png` |
+| Signing team | **none set** | ⬜ `DEVELOPMENT_TEAM` is absent from pbxproj |
 
-`ios/App/App/public` and `ios/App/App/capacitor.config.json` are **generated** and
-gitignored. Never hand-edit them; edit `capacitor.config.json` at the repo root
-and re-run `cap sync`.
+### 1.1 The four commands that regenerate that table
+
+```bash
+node -p "require('./package.json').version"
+grep -nE 'PRODUCT_BUNDLE_IDENTIFIER|MARKETING_VERSION|CURRENT_PROJECT_VERSION|DEVELOPMENT_TEAM' \
+  ios/App/App.xcodeproj/project.pbxproj
+for k in CFBundleDisplayName ITSAppUsesNonExemptEncryption CFBundleLocalizations \
+         UIRequiredDeviceCapabilities NSAppTransportSecurity UIApplicationSceneManifest; do
+  printf '%-34s ' "$k"; /usr/libexec/PlistBuddy -c "Print :$k" ios/App/App/Info.plist 2>&1 | tr '\n' ' '; echo
+done
+sips -g pixelWidth -g pixelHeight -g hasAlpha \
+  ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+```
+
+`ios/App/App/public` and `ios/App/App/capacitor.config.json` are **generated**
+and gitignored. Never hand-edit them; edit `capacitor.config.json` at the repo
+root and re-run `cap sync`.
 
 ---
 
-## 2. Reproducing the build and run
+## 2. Building and running it
 
 ```bash
 npm run build          # tsc -b && vite build  → dist/
 npx cap sync ios       # dist/ → ios/App/App/public, regenerates plugin wiring
 
-# Build for the simulator (headless, no Xcode UI):
+# Simulator build, headless:
 xcodebuild -project ios/App/App.xcodeproj -scheme App \
   -configuration Debug -destination 'generic/platform=iOS Simulator' build
 
 # Install + launch on a booted simulator:
 xcrun simctl boot 'iPhone 17 Pro'          # if nothing is booted
 xcrun simctl install booted /path/to/App.app
-xcrun simctl launch booted app.opstrack
+xcrun simctl launch booted app.nphiescore
 xcrun simctl io booted screenshot shot.png
 ```
 
-`npm run ios:run` (`cap run ios`) wraps the same thing when Xcode's toolchain is
-fully selected.
+`npm run ios:run` (`cap run ios`) wraps the same thing.
 
-### ✅ Verified on 2026-07-30, 19:40–19:45 +0300 (Wave 5 re-verification)
+**Where the MCP `build` action puts its artefacts** — this cost a whole review
+cycle once, because a critic checked Xcode's shared DerivedData, found nothing,
+and concluded no build had happened:
 
-- Host: macOS 25.5.0 (arm64), **Xcode 26.6 (17F113)**, iOS 26.5 runtime
-  (23F77), simulator **iPhone 17 Pro**, udid
-  `7FA10093-79B4-47BA-913D-B08BE39F823E`, already booted.
-- **Build succeeded, 0 warnings**, five consecutive times (MCP build ids
-  `build-8` … `build-12`, 1–2 s each incremental). Artefact:
-  `~/Library/Application Support/Claude/simulator-builds/2843076fc792ae8f/DerivedData/Build/Products/Debug-iphonesimulator/App.app`
-- SPM resolved clean: `capacitor-swift-pm @ 8.4.2` plus the four local plugin
-  packages — no network failure, no unresolved graph.
-- Binary is universal: `lipo -info App` → `x86_64 arm64`. `codesign -dv` →
-  `Identifier=app.opstrack`, `Signature=adhoc`, `TeamIdentifier=not set`
-  (expected — simulator builds need no signing account).
-- Installed and launched three times; pids `43285`, `43429`, `43608`, each
-  confirmed alive in `xcrun simctl spawn <udid> launchctl list` as
-  `UIKitApplication:app.opstrack`.
-- **Rename verified in the built product, not just the source:**
-  `PlistBuddy -c "Print :CFBundleDisplayName"` on the *installed* bundle inside
-  the simulator's container prints `CoreTrack`.
-- `NSAppTransportSecurity` confirmed absent from the built `Info.plist`;
-  `CFBundleLocalizations` present as `[en, ar]`.
-- Log review is **no longer a clean bill of health** — see the `UIScene` finding
-  in §3. The Wave-4 claim "No errors in ... log stream" was too generous: it
-  matched on the string `error`, which hits debug-level category names like
-  `com.apple.BoardServices:XPCErrors`. Filter on the *level* column instead:
-  ```bash
-  xcrun simctl spawn <udid> log show --last 3m \
-    --predicate 'process == "App"' --style compact \
-    | awk '$3 == "E" || $3 == "F"'
-  ```
+```
+~/Library/Application Support/Claude/simulator-builds/<hash>/DerivedData/
+  Build/Products/Debug-iphonesimulator/App.app
+logs/build-<n>-<id>.log        # full xcodebuild transcript, one per build
+```
 
-- `src/lib/native.test.ts` — 12 tests pass, covering the other half of the claim:
-  every `lib/native.ts` export is a no-op when no bridge is on `globalThis`.
+Look there, or pass an explicit `-derivedDataPath`, before concluding a build
+never ran.
 
-Screenshots live under `docs/EVIDENCE/shots/`, per the capture-kit convention in
-`docs/EVIDENCE/wave4-live-proof.md` §0.1. All three: iPhone 17 Pro, iOS 26.5,
-1206×2622 native (402×874 CSS px), locale `en` / `dir=ltr`, light theme (the
-simulator's appearance, resolved through the theme's `auto` setting).
+### 2.1 ⚠ The last verified device run is now stale evidence
 
-| File | Screen | Captured | Asset source |
-| --- | --- | --- | --- |
-| `ios-sim-signin-production-bundle.png` | Sign-in | 19:40:16 +0300 | **Production bundle** from `dist/`, loaded out of the app bundle |
-| `ios-sim-followups-shell-preview.png` | Follow-ups | 19:44:20 +0300 | Dev-mode bundle + `?shell` (see below) |
-| `ios-sim-board-shell-preview.png` | Board | 19:44:55 +0300 | Dev-mode bundle + `?shell` (see below) |
+A full build → install → launch → screenshot cycle **was** verified on
+2026-07-30, 19:40–19:45 +0300: five consecutive clean builds (MCP ids `build-8`
+… `build-12`), three launches with live pids, a universal binary
+(`lipo -info` → `x86_64 arm64`), and `PlistBuddy` reading the display name back
+out of the *installed* bundle inside the simulator container.
 
-The simulator clock is legible in each PNG (`19:40`, `19:44`, `19:44`) and
-matches the capture times above, so the three images are self-dating.
+That run is kept here because the method is still right, and it is marked ⚠
+rather than ✅ because **it verified a different app**: display name *CoreTrack*,
+bundle id *app.opstrack*, version *1.0.1*. All three have changed. The three
+screenshots under `docs/EVIDENCE/shots/` are from that run and therefore show
+the old wordmark. They are engineering evidence of the shell working, not
+evidence about the current build, and they are **not** store assets.
 
-Described, so the text is the evidence and the PNG is the backup:
+**Nothing on the current identity has been built, installed or launched.** That
+is the first thing to redo, and it is mechanical.
 
-- **Sign-in** — card reading **"Sign in to CoreTrack"** under a **"CoreTrack"**
-  wordmark and lightning-bolt app mark, "Accounts are created by your admin.",
-  fields "Username or email" (placeholder `ahmed.otaibi`) and "Password" with a
-  "Show" toggle, a primary "Sign in" button, and "First time here? Claim your
-  account". The `العربية` locale switch sits top-right of the card. Evidence
-  *of*: the production WKWebView bundle boots, React paints, and **the CoreTrack
-  rename is live in the shipped iOS payload** — not just in the repo. Also note
-  what is *absent*: no SSO/provider buttons, consistent with the Wave-5 SSO strip.
-- **Follow-ups** — header "Follow-ups" with bell / display / `العربية` / gear
-  icons clearing the Dynamic Island; "What needs you today, in one list.";
-  segmented "Everyone | Mine" (Everyone active) and "Comfortable | Compact"
-  (Comfortable active), plus "Refresh"; a "Search titles, no…" field truncated by
-  the narrow viewport, a "Filter" disclosure, and "0 items need attention";
-  centred empty state — checklist glyph over "Nothing needs you right now",
-  "Overdue, due, quiet, blocked and unowned items all land here." and a
-  "Capture something" button; the capture FAB bottom-end; bottom tab bar
-  "Follow-ups · Board · Tracks · Meetings · Dashboard" with Follow-ups active and
-  underlined. Evidence *of*: safe-area insets resolve non-zero — the header sits
-  clear of the Dynamic Island and the tab bar clear of the home indicator.
-- **Board** — header "Board"; "Everything in flight, in a column per whatever
-  you're grouping by."; "Search titles, notes" + "Mine" + "Filter" + "0 items";
-  "GROUP BY Status | Track | Owner | Priority" (Status active); "CARD DENSITY
-  Comfortable | Compact" (Comfortable active); "Refresh"; the drag affordance
-  copy "Press and hold a card to pick it up, then drag it onto another column —
-  that changes its status, track, owner or priority, whichever you're grouped by.
-  Swipe anywhere to move between columns."; a "NEW" column with count `0` and a
-  dashed drop zone "Nothing in New / Drag a card here, or add one with the +
-  button.", with the next column clipped at the inline edge to show horizontal
-  scroll. Evidence *of*: the dynamic board renders and scrolls inside the
-  WKWebView, with Board active in the tab bar.
+### 2.2 Photographing a signed-in screen without an account
 
-**Why two of the three are a dev-mode bundle, stated plainly:** the signed-in
-screens sit behind Supabase auth, and `?shell` — the fake-session preview in
-`src/App.tsx` — is guarded by `import.meta.env.DEV`, which Vite compiles to the
-literal `false` in a production build, so the branch is tree-shaken away
-entirely. Photographing Follow-ups and Board without real credentials therefore
-needs a bundle where `DEV` is genuinely true.
-
-Reproduce it like this — **no dev server and no edit to any tracked file**:
+The signed-in screens sit behind Supabase auth, and `?shell` — the fake-session
+preview in `src/App.tsx` — is guarded by `import.meta.env.DEV`, which Vite
+compiles to the literal `false` in a production build and tree-shakes away. So a
+dev-mode bundle is needed, and it can be produced **without a dev server and
+without editing a tracked file**:
 
 ```bash
 # 1. A bundle where import.meta.env.DEV is actually true.
@@ -165,307 +130,334 @@ rm -rf ios/App/App/public && cp -R /tmp/dist-shell ios/App/App/public
 #    before the module script, so location is already correct at first paint:
 #    <script>history.replaceState(null,'','/?shell#/followups');</script>
 
-# 3. Rebuild, then uninstall-before-install (see the service-worker note below).
-xcrun simctl uninstall <udid> app.opstrack
-xcrun simctl install  <udid> /path/to/App.app && xcrun simctl launch <udid> app.opstrack
+# 3. Rebuild, then uninstall-before-install (see the trap below).
+xcrun simctl uninstall <udid> app.nphiescore
+xcrun simctl install  <udid> /path/to/App.app && xcrun simctl launch <udid> app.nphiescore
 
 # 4. Put the tree back — this restores the production payload from dist/.
 npx cap sync ios
 ```
 
-Two traps worth writing down, both of which cost a cycle here:
+Two traps, both of which cost a cycle:
 
-1. **`--mode development` is not enough.** Vite derives `import.meta.env.DEV`
-   from `NODE_ENV`, and `vite build` pins `NODE_ENV=production` regardless of
-   `--mode`. The tell is cheap: `grep -c 'has("shell")' <chunk>.js` returns 0 on
-   a production bundle and non-zero once `DEV` is really true (the dev bundle
-   also grows — 1537 KiB precache vs 1213 KiB, because it is unminified).
-   Grepping for the bare substring `shell` is *not* a valid check: React's own
-   `shellSuspendCounter` matches it in every build.
+1. **`--mode development` is not enough.** The cheap tell:
+   `grep -c 'has("shell")' <chunk>.js` returns 0 on a production bundle and
+   non-zero once `DEV` is really true. Grepping for the bare substring `shell`
+   is **not** a valid check — React's own `shellSuspendCounter` matches it in
+   every build.
 2. **`install` over an existing install keeps the old service worker.** The PWA
-   precaches `index.html`, so a re-install served the *previous* bundle's HTML
-   and the app fell through to the sign-in screen with the new payload sitting
-   unused on disk. `simctl uninstall` first — it drops the WKWebView data store
-   along with the app.
+   precaches `index.html`, so a re-install serves the *previous* bundle's HTML.
+   `simctl uninstall` first; it drops the WKWebView data store with the app.
 
-This replaces Wave 4b's approach, which temporarily pointed
-`capacitor.config.json` at `http://localhost:5173`. That works, but it mutates a
-**tracked** file, and a parallel Wave-5 agent was editing that same file during
-this sitting. Overwriting `ios/App/App/public` touches nothing git tracks —
-`cap sync` regenerates it — so there is no window in which a tracked file is
-wrong. Confirmed afterwards: `ios/App/App/public/index.html` contains no
-`replaceState` bootstrap and the payload has no `?shell` guard, i.e. the tree is
-back on the production bundle.
-
-**That is still the real WKWebView in the real simulator running the real React
-app** — native shell, plugins, safe-area insets and tab bar are all genuine; only
-the JS build mode differs. A signed-in screenshot of the *production* bundle
-still requires a real account and is listed as ⬜ below.
+Screenshots need a real settle delay — allow ~8–9 s for install → launch →
+WKWebView paint, and *look at* the PNG rather than trusting the exit code. A
+capture taken immediately after `launch` is an all-black frame.
 
 ---
 
-## 3. What the real builds surfaced, and what was done
+## 3. Findings that are still open
 
-### ✅ Display name reads CoreTrack (Wave 5)
+### 3.1 ✅ Checked and correct, left alone
 
-`CFBundleDisplayName` was still `OpsTrack`. Set to `CoreTrack`, matching
-`appName` in the root `capacitor.config.json` (landed in parallel by the Wave-5
-rename agent). Verified in the **built and installed** bundle, not just the
-source — see §2. The bundle id stays `app.opstrack` on purpose
-(`docs/WAVE5-NOTES.md` §1): renaming it now would orphan the installed PWA and
-stored state mid-testing. `NphiesCore` appears nowhere yet, by directive.
+- **`UIViewControllerBasedStatusBarAppearance = true`** — this is what
+  `@capacitor/status-bar` *requires*. Flipping it to `false`, a common "fix",
+  breaks `StatusBar.setStyle()`.
+- **Safe areas** — `env(safe-area-inset-*)` is used across `app-shell.css`,
+  `global.css`, `signin.css`, `claim.css`, `privacy.css`, `tree.css`,
+  `meetings.css`, `confirm.css`. `index.html` sets `viewport-fit=cover`, which
+  is what makes those insets non-zero.
+- **Rubber-band overscroll** — `global.css` sets `overscroll-behavior-y: none`
+  on `html, body`.
+- **Launch screen** — `LaunchScreen.storyboard` uses `systemBackgroundColor` and
+  the `Splash` imageset has `-dark` variants.
+- **ATS** — `nscurl --ats-diagnostics --verbose https://<ref>.supabase.co`
+  returned `Result : PASS` with an **empty** ATS dictionary. Re-run that command
+  before anyone adds `NSAllowsArbitraryLoads` "to be safe"; it would buy nothing
+  and cost an encryption-justification round.
 
-### ⬜ `UIScene` lifecycle — real, reproducible, deliberately NOT fixed here
+### 3.2 ⬜ `UIScene` lifecycle — real, reproducible, deliberately not fixed
 
 Every launch logs one **Fault**-level runtime issue:
 
 ```
-F  App[43608] [com.apple.runtime-issues:UIKit App Config] `UIScene` lifecycle
+F  App[…] [com.apple.runtime-issues:UIKit App Config] `UIScene` lifecycle
    will soon be required. Failure to adopt will result in an assert in the future.
 ```
 
-Reproduced on all three launches (pids 43285, 43429, 43608). It is genuine, not
-simulator noise: `ios/App/App/AppDelegate.swift` is the classic Capacitor
-template with a bare `var window: UIWindow?` and no `UISceneDelegate`, and
-`Info.plist` has **no** `UIApplicationSceneManifest` (0 occurrences). Today it is
-only a warning; Apple's wording says a future SDK turns it into an assert — i.e.
-a launch crash on a newer iOS.
+Genuine, not simulator noise: `ios/App/App/AppDelegate.swift` is the stock
+Capacitor delegate with a bare `var window: UIWindow?` and no `UISceneDelegate`,
+and `Info.plist` still has **no** `UIApplicationSceneManifest` (re-verified
+2026-08-11). Today a warning; Apple's wording says a future SDK makes it an
+assert — a launch crash on a newer iOS.
 
-Left unfixed on purpose, and this is a judgement call worth stating: adopting
-scene lifecycle means a new `SceneDelegate.swift`, a scene manifest, and moving
-window setup out of `AppDelegate` — Swift source changes to the Capacitor
-bridge's own entry point. That is well outside "ios/ config fixes", it is the
-kind of change that wants a real device test, and Capacitor 8.4.2 does not ship
-scene support upstream yet. **Track it as a release-blocking item for whichever
-iOS SDK makes it an assert, not for v1.0.0.** Check whether Capacitor has adopted
-scenes upstream before hand-rolling it.
+Left alone on purpose: adopting scenes means a new `SceneDelegate.swift`, a
+scene manifest, and moving window setup out of `AppDelegate` — Swift changes to
+the Capacitor bridge's own entry point, wanting a real-device test, on a version
+of Capacitor that has not adopted scenes upstream. **Track it as blocking for
+whichever iOS SDK makes it an assert, not for this release.** Check whether
+Capacitor has adopted scenes upstream before hand-rolling it.
 
-For the record, the other Error-level lines in the log are environment noise, not
-app defects, and should not be chased: `CoreHaptics` failing to open
-`hapticpatternlibrary.plist` (absent from the simulator runtime),
+For the record, the other Error-level lines in the log are environment noise and
+should not be chased: `CoreHaptics` failing to open `hapticpatternlibrary.plist`,
 `RemoteTextInput` "Can only set suggestions for an active session", WebKit
-`ResourceLoadStatistics` "Unable to hide query parameters from script", and
-`extensionkit` failing to resolve `com.apple.WebKit.Networking`.
+`ResourceLoadStatistics`, and `extensionkit` failing to resolve
+`com.apple.WebKit.Networking`. Filter the log by *level*, not by the string
+`error`, which hits debug-level category names:
 
-### ✅ ATS — no exception needed, and none was added
-
-The suspicion going in was that App Transport Security would block the Supabase
-host. It does not. Apple's own diagnostic:
-
-```
-$ nscurl --ats-diagnostics --verbose https://lrysgpbkmuqgzsjesfkr.supabase.co
-Default ATS Secure Connection
-ATS Dictionary: {}
-Result : PASS
+```bash
+xcrun simctl spawn <udid> log show --last 3m \
+  --predicate 'process == "App"' --style compact | awk '$3 == "E" || $3 == "F"'
 ```
 
-The host already satisfies ATS (TLS 1.2+, forward secrecy, SHA-256) with an
-**empty** ATS dictionary. `Info.plist` therefore carries **no
-`NSAppTransportSecurity` key**, and a comment there records this evidence.
-Adding `NSAllowsArbitraryLoads` "to be safe" would buy nothing and cost an App
-Review encryption-justification round. Re-run the command above before anyone
-adds an exception.
+---
 
-### ✅ `UIRequiredDeviceCapabilities`: `armv7` → `arm64`
+## 4. Privacy — three separate artefacts, and only one of them is a document
 
-The Capacitor template ships `armv7`, the 32-bit instruction set. The deployment
-target is iOS 15.0 — every device that can install this app is 64-bit, and no
-supported device advertises `armv7`. Changed to `arm64`; re-verified with a
-clean `simctl uninstall` + `install` + `launch`.
+Apple's requirements here are three different things that are routinely
+confused. All three must agree with each other and with the app.
 
-### ✅ `ITSAppUsesNonExemptEncryption = false`
+### 4.1 ✅ The privacy policy page — built this run
 
-Absent this key, App Store Connect blocks **every** upload behind the export
-compliance questionnaire. The only cryptography is OS-provided HTTPS/TLS, which
-is exempt under the standard-encryption clause.
+`src/pages/Privacy.tsx` + `src/pages/privacy.css` +
+`src/locales/{en,ar}/privacy.json`. It is written **about this app**, not from a
+template: every claim was read out of the source first — the tables from
+migrations 0001, 0004, 0011, 0020 and 0021; the visibility rules from the RLS
+policies in those same files; the AI section from `buildSystemPrompt()` in
+`supabase/functions/capture-assist/index.ts` and from 0020's header (which
+states in the migration itself that the ledger carries no prompt text); the push
+paragraph from `verdictFor()` in `src/lib/push.ts`, which returns `unsupported`
+for a native build, so the iOS app creates no push subscription at all; the
+deletion paragraph from `case 'delete'` in
+`supabase/functions/admin-members/index.ts`, including its three refusals.
 
-### ✅ `CFBundleLocalizations = [en, ar]`
+**The URL, which is what App Store Connect actually wants:**
 
-The app ships a complete Arabic tree with an RTL layout, but localisation is done
-in JS, not `.lproj` bundles — so iOS and the App Store listing would have
-advertised English only.
+```
+https://abosallom.github.io/opstrack/#/privacy
+```
 
-### ✅ Checked and found already correct (left alone)
+Three things about that string:
 
-- **`UIViewControllerBasedStatusBarAppearance = true`** — this is what
-  `@capacitor/status-bar` *requires* (`node_modules/@capacitor/status-bar/README.md`).
-  Flipping it to `false`, a common "fix", would break `StatusBar.setStyle()`.
-- **Safe areas** — `env(safe-area-inset-*)` is already used across
-  `app-shell.css`, `global.css`, `signin.css`, `claim.css`, `tree.css`,
-  `meetings.css`, `confirm.css`. Header clears the Dynamic Island and the tab bar
-  clears the home indicator in the screenshots.
-- **Viewport** — `index.html` already sets `viewport-fit=cover`, which is what
-  makes those insets non-zero.
-- **Rubber-band overscroll** — `global.css` already sets
-  `overscroll-behavior-y: none` on `html, body`, so the WKWebView background does
-  not show through. (`native.ts` stamps `data-native="ios"` for this purpose; no
-  stylesheet needs it, and none was added.)
-- **Launch screen** — `LaunchScreen.storyboard` uses `systemBackgroundColor` and
-  the `Splash` imageset has proper `-dark` variants, so the launch image adapts.
-- **App icon** — 1024×1024, **no alpha channel**. This is a hard App Store
-  rejection gate and it passes (`sips -g hasAlpha`).
-- **`ios.backgroundColor: "#101519"`** in `capacitor.config.json` correctly
-  matches the dark theme's `--bg`. Kept. (The PWA manifest disagrees — see §5.)
+1. The route is mounted on **both** sides of the auth gate, so it resolves for a
+   reviewer with no credentials. That is the whole reason for the `standalone`
+   prop in `Privacy.tsx`.
+2. The `#` is not optional — `src/main.tsx` uses `HashRouter`, because GitHub
+   Pages is static hosting with no URL rewriting.
+3. ⚠ **It changes the day the domain cut-over lands.** The `/nphiescore/`
+   base-path move is CANCELLED — `nphiescore.com` was bought on 19 Aug 2026 and
+   supersedes it ([`DOMAIN-CUTOVER.md`](DOMAIN-CUTOVER.md)). A Pages project site
+   with a custom domain serves at the apex, so this URL becomes
+   `https://nphiescore.com/#/privacy` — shorter than either predecessor, and the
+   one to give Apple. Set the App Store Connect field **after** the cut-over, or
+   set it now and remember to update it.
+
+⬜ **The page is not wired yet.** It is a work unit that does not own
+`src/App.tsx` or `src/locales/index.ts`. Until the integrator applies those two
+diffs the route does not exist and all 68 strings render as their own dot paths
+(measured: 68 distinct `privacy.*` paths in the rendered markup). The diffs are
+in that unit's handoff.
+
+### 4.2 ✅ `PrivacyInfo.xcprivacy` — landed this run, by a different unit
+
+`ios/App/App/PrivacyInfo.xcprivacy`, registered in `project.pbxproj` in both the
+file-reference list and the Resources build phase. **A manifest that is not in
+Copy Bundle Resources is invisible to the upload check and looks exactly like
+having none.** Verify after any `cap sync`:
+
+```bash
+/usr/libexec/PlistBuddy -c Print \
+  "$(xcodebuild -showBuildSettings -project ios/App/App.xcodeproj \
+     -target App 2>/dev/null | awk -F' = ' '/ BUILT_PRODUCTS_DIR/{print $2}')"/App.app/PrivacyInfo.xcprivacy
+```
+
+It declares `NSPrivacyTracking = false`, an empty `NSPrivacyAccessedAPITypes`
+(with a long, checkable argument for why Capacitor 8 needs no `CA92.1`), and
+four collected types — email address, name, user ID, other user content — all
+linked, none used for tracking, all for App Functionality. Its own header
+carries the evidence. **This is enforced at upload, not at review**, so it is
+required for internal TestFlight and not only for a public release.
+
+Note the one thing that reads like a contradiction and is not: the manifest says
+the app talks to exactly one host. That is true of the **device** — the Claude
+call is made server-side by an edge function, so nothing on the phone ever
+opens a connection to `api.anthropic.com`. The privacy *page* describes the
+whole path, including that server hop, which is the right scope for a policy and
+the wrong scope for the manifest.
+
+### 4.3 ⬜ The App Store Connect privacy questionnaire
+
+The "nutrition label". It is answered in the web console, it must match §4.2
+field for field, and **only Aziz can do it** — it needs the App Store Connect
+record to exist first. Answer it from `PrivacyInfo.xcprivacy`, not from memory.
 
 ---
 
-## 4. Remaining checklist — everything ⬜ below is still outstanding
+## 5. Account deletion — the gap, stated plainly
 
-### Signing and identity
-- ⬜ **No `DEVELOPMENT_TEAM`** anywhere in `project.pbxproj` (0 occurrences), and
-  `CODE_SIGN_IDENTITY` is the legacy string `"iPhone Developer"`. A real Apple
-  Developer Program team must be set before anything runs on hardware.
-- ✅ Apple Developer Program membership — **Aziz has an account**
-  (`docs/WAVE5-NOTES.md` §3). Submission is no longer externally blocked. Claude
-  must never handle the Apple ID password or 2FA: either he signs into Xcode once
-  (Settings ▸ Accounts), which enables automatic signing, or he provides an App
-  Store Connect API key (.p8 + key id + issuer id), stored gitignored like the
-  Supabase token.
-- ⬜ App ID / bundle id `app.opstrack` registered on the developer portal.
-- ⬜ Provisioning profile (automatic signing needs the team first).
+**Apple's rule (App Review 5.1.1(v)):** an app that offers account *creation*
+must also offer an easily discoverable way to *initiate* account deletion from
+inside the app.
 
-### Versioning
-- ✅ **Closed again at v1.0.1**, and the bullet below is why this line now has a
-  history. `package.json` is `1.0.1` and `MARKETING_VERSION` is `1.0.1`, set by
-  hand in both build configurations of `project.pbxproj` by the v1.0.1 Gate
-  agent. `CURRENT_PROJECT_VERSION` stays `1`: it is the build number, it is not
-  the marketing version, and it increments per upload rather than per release —
-  and no upload has happened.
-  - At **v1.0.0** these read `1.0.0` and `1.0`, which was also correct: Apple's
-    field is a 1-to-3-component string and `1.0` and `1.0.0` are the same version
-    to App Store Connect. `1.0.1` and `1.0` are **not**, which is why the bump
-    could not be skipped this time. The prediction in the next bullet came true
-    on the very next release, exactly as written.
-- ⬜ **They are still two hand-maintained numbers, and they drifted on the very
-  next bump** — v1.0.1 moved `package.json` and left `project.pbxproj` behind
-  until someone noticed, which is the failure mode, not a hypothetical.
-  `package.json` is the source of truth — Vite already inlines it as
-  `__APP_VERSION__` (Settings › About renders it; every export is stamped with
-  it). Nothing propagates it into `project.pbxproj`. The fix is a `cap sync`
-  companion script that writes `MARKETING_VERSION` from `pkg.version` before an
-  archive. The original judgement was to write it "the first time an archive is
-  actually cut — not before, because until then there is nothing to disagree with
-  in the wild", and that still holds on the risk argument: nothing shipped, so
-  nothing was wrong anywhere a user could see. But it cost a manual edit and a
-  paragraph of prose on a release that touched no native code at all, so the
-  balance has moved. **Write the script at the next bump whether or not an
-  archive is cut.**
+**What this app actually does**, from
+`supabase/functions/admin-members/index.ts`:
 
-### Privacy — likely the biggest remaining item
-- ⬜ **No `PrivacyInfo.xcprivacy` in the app target.** Capacitor's own frameworks
-  ship theirs (`node_modules/@capacitor/ios/.../PrivacyInfo.xcprivacy`), which
-  covers *their* required-reason API use, but the app has none of its own. It
-  must declare `NSPrivacyCollectedDataTypes` for what CoreTrack actually collects:
-  email address and name (account creation), plus user content (entries, notes,
-  meeting lines), all linked to identity and not used for tracking. Add it via
-  Xcode (File ▸ New ▸ App Privacy File) so the resource is registered in
-  `project.pbxproj` correctly — hand-editing the pbxproj for this is not worth
-  the risk of wedging every other builder.
-- ⬜ App Store Connect privacy "nutrition label" questionnaire, which must agree
-  with that file.
+- Deletion exists and works: Settings → Members → Delete, which calls
+  `deleteMember()` (`src/api/members.ts:468`) → the edge function's
+  `case 'delete'` → `admin.auth.admin.deleteUser()`. It is **admin-only**.
+- The server refuses three things: deleting **yourself** (`self_delete`),
+  deleting the **last remaining admin** (`last_admin`), and deleting the
+  **workspace owner** (`bootstrap_admin`).
+- Consequence: **there is no path by which any user deletes their own account,
+  and no path at all for an administrator's own account short of the Supabase
+  dashboard.**
 
-### Device and distribution
-- ⬜ **Never run on a physical iPhone.** Simulator only, so far. The simulator
-  does not exercise real network transitions, background suspension, push, real
-  keyboard behaviour, or actual thermal/perf characteristics.
-- ⬜ Offline behaviour (`store/outbox.ts` + `lib/cache.ts`) never exercised in the
-  app with real airplane-mode transitions — this is the feature most likely to
-  behave differently on-device.
-- ⬜ Release-configuration build (everything so far is `Debug`).
-- ⬜ Archive + upload to App Store Connect / TestFlight.
-- ⬜ App Store listing: name, subtitle, description, keywords, support URL,
-  privacy policy URL (**required**), category, age rating.
-- ⬜ Marketing screenshots at Apple's required sizes — the images in
-  `docs/EVIDENCE/shots/` are engineering evidence, not store assets.
-- ⬜ Demo account for App Review — the app is invite-only and every screen past
-  sign-in is gated, so review **will** reject without working credentials in the
-  review notes.
+**Why that is not immediately fatal, and where it becomes fatal.** Internal
+TestFlight distribution does not go through App Review at all (§6), so nothing
+enforces 5.1.1(v) today. It becomes blocking the moment a build is submitted for
+review — external TestFlight or the store. There is also a reasonable argument
+that this app is exempt in spirit, since the *user* never creates an account:
+accounts are provisioned by an administrator and the user only claims one. That
+argument is worth making in the review notes; it is not worth *relying* on.
 
-### Decisions someone has to make
-- ⬜ **Orientation.** `Info.plist` allows portrait + both landscapes on iPhone,
-  but the PWA manifest declares `orientation: 'portrait'`. In landscape an
-  iPhone 17 Pro is 956 CSS px wide, which crosses the 768px breakpoint and
-  switches to the desktop sidebar layout on a 440px-tall screen. Left as-is
-  deliberately — narrowing supported orientations is a product decision, not a
-  config cleanup. Verify landscape or restrict iPhone to portrait.
-- ⬜ The Supabase **anon key is baked into the JS bundle**. That is normal and by
-  design (RLS is the actual access control), but it does mean the key is
-  extractable from the `.ipa`. Confirm RLS coverage is complete before shipping —
-  see `docs/EXECUTION-PLAN.md` and the migration series.
+**What closing it properly costs**, so the decision is informed rather than
+deferred by accident:
+
+1. A `delete-self` action in `admin-members` that takes only the caller's own
+   JWT, keeps the `last_admin` and `bootstrap_admin` guards, and drops the
+   `self_delete` guard for that action only.
+2. A destructive card in `src/pages/Settings.tsx` — confirm dialog, typed
+   confirmation, then sign-out — plus its strings in `settings.json`.
+3. One sentence changed in `privacy.deleteSelf` in both locales, which today
+   correctly says there is no self-service delete **yet**.
+
+Until (1)–(3) land, the privacy page's honest description is the mitigation, and
+it names the person who can act.
 
 ---
 
-## 5. Gaps found outside this task's ownership
+## 6. Internal TestFlight — what it removes and what it does not
 
-Reported, not fixed, because these files belong to other Wave-4b builders:
+Aziz chose **internal** TestFlight distribution (App Store Connect team members
+holding a role, up to 100 people, up to 100 devices each). That choice is worth
+writing down precisely, because it deletes a lot of the classic checklist and
+none of the hard parts.
 
-- ~~**`vite.config.ts` + `index.html` disagree with the dark theme.**~~ **Fixed
-  at the v1.0.0 release cut.** The report was right and understated the spread:
-  the manifest and `index.html` said `#101215`, `src/lib/theme.ts` said `#0f1115`
-  dark and `#f7f8fa` light, and the real `--bg` in `src/styles/global.css` is
-  `#101519` dark and `#f4f6f8` light — four declarations of one colour, three of
-  them wrong, each with a comment claiming it matched. `capacitor.config.json`
-  was the only correct one. All four now agree, measured against
-  `getComputedStyle` on the deployed origin rather than read off the source.
-  It mattered here more than the "three characters" framing suggests: Android
-  paints the PWA splash with `background_color`, so the drift was most visible
-  on precisely the install this release ships for.
+**Removed — do not spend time on these now:**
+
+- **App Review and Beta App Review.** Internal testing skips both. External
+  TestFlight groups need Beta App Review; internal groups do not.
+- **Marketing screenshots** at Apple's device sizes.
+- **Store listing copy** — name, subtitle, description, keywords, promotional
+  text, support/marketing URLs as *listing* fields.
+- **Age rating questionnaire** and category selection.
+- **A demo account for App Review.** Worth keeping in mind for later: the app is
+  invite-only and every screen past sign-in is gated, so a public submission
+  *will* be rejected without working credentials in the review notes.
+
+**Not removed — every one of these still bites:**
+
+- **Apple Developer Program membership and a signing team.** Aziz has the
+  account; `DEVELOPMENT_TEAM` is still unset in `project.pbxproj`.
+- **The App ID / bundle id registered on the developer portal** — now
+  `app.nphiescore`, which is a *new* identifier and has certainly never been
+  registered.
+- **A Release-configuration, distribution-signed archive.** Everything built so
+  far is Debug for the simulator.
+- **The upload-time automated checks**, which include the privacy manifest and
+  required-reason API validation (`ITMS-9105x`). This is why §4.2 is required
+  now.
+- **Export compliance** (`ITSAppUsesNonExemptEncryption`) — already set.
+- **App icons** — already correct, 1024×1024 with no alpha.
+- **Version and build numbers.** Every upload needs a `CURRENT_PROJECT_VERSION`
+  higher than the last one for the same `MARKETING_VERSION`. The build number is
+  still `1` and no upload has happened, so `1` is correct exactly once.
+- **The App Store Connect app record itself**, which is what everything above
+  hangs off. Only Aziz can create it.
+- **App privacy information.** Apple's console gates distribution on it in ways
+  that have changed more than once. *Unverified here:* whether an internal-only
+  TestFlight build can be distributed with the questionnaire blank. It costs
+  fifteen minutes to fill in from §4.2 and removes the question.
 
 ---
 
-## 6. Note for whoever runs the simulator next
+## 7. Remaining checklist
 
-The `Claude Code iOS Simulator` MCP splits cleanly in two on this machine:
+### 7.1 Mechanical — no Apple account needed, any agent can do these
 
-- **`build` works.** Used for every build in §2 (ids `build-8` … `build-12`).
-- **`control` does not** — `attach`, `launch` and the `screenshot` action all
-  fail, every time, with this exact text:
+- ⬜ **Wire the privacy route.** Two diffs, in the handoff for the privacy unit:
+  `src/App.tsx` (lazy import, a route on each side of the auth gate, a
+  `titleKeyFor` branch, a Settings link) and `src/locales/index.ts` (two imports
+  and two namespace-map entries). Without the second one the page renders 68 dot
+  paths.
+- ⚠ **Reconcile the version numbers.** `package.json` says `1.0.1`;
+  `MARKETING_VERSION` says `1.1.0`. This is the third time these two have
+  drifted, and the previous revision of this document predicted it in writing.
+  **`package.json` is the source of truth** — Vite already inlines it as
+  `__APP_VERSION__`, Settings › About renders it, every export is stamped with
+  it, and the privacy page prints it. Write the `cap sync` companion script that
+  sets `MARKETING_VERSION` from `pkg.version` **now**, not at the next bump; the
+  argument for deferring it ("nothing has shipped, so nothing is wrong where a
+  user can see it") has now cost three manual edits.
+- ⬜ **Rebuild and re-verify on the current identity.** §2.1 — the whole of the
+  simulator evidence is about `app.opstrack`/CoreTrack and proves nothing about
+  `app.nphiescore`/NphiesCore. Redo build → install → launch → screenshot, and
+  read `CFBundleDisplayName` back out of the *installed* bundle.
+- ⬜ **Retake the evidence screenshots** once the map is the landing screen; the
+  three under `docs/EVIDENCE/shots/` show the old wordmark and the pre-map
+  navigation.
+- ⬜ **Offline behaviour on a real device.** `store/outbox.ts` + `lib/cache.ts`
+  have never been exercised with real airplane-mode transitions. This is the
+  feature most likely to behave differently on hardware.
+- ⬜ **Decide the orientation question.** `Info.plist` allows portrait and both
+  landscapes on iPhone; the PWA manifest declares `orientation: 'portrait'`. In
+  landscape an iPhone 17 Pro is 956 CSS px wide, which crosses the 768px
+  breakpoint into the desktop sidebar layout on a 440px-tall screen. Either
+  verify landscape or restrict iPhone to portrait — it is a product decision,
+  not a config cleanup.
+- ⬜ **Self-service account deletion** — §5, items (1)–(3). Not blocking for
+  internal TestFlight; blocking for anything that touches App Review.
 
-  > Xcode is installed but not selected. Run `sudo xcode-select -s
-  > /Applications/Xcode.app/Contents/Developer` to use the Claude Code iOS
-  > Simulator.
+### 7.2 Aziz only — nobody else can do these
 
-**Do not take that message at face value, and do not stop at it.** The toolchain
-is demonstrably fine: `xcode-select -p` prints
-`/Applications/Xcode.app/Contents/Developer`, `xcodebuild -version` prints
-Xcode 26.6 (17F113), `xcodebuild -showsdks` lists the iOS 26.5 simulator SDK,
-`xcrun simctl` works, and the MCP's own `build` action compiled the project five
-times through that same toolchain. A message blaming Xcode selection cannot be
-the whole story when the compiler works.
+1. **Sign Xcode into the Apple Developer account** (Xcode ▸ Settings ▸ Accounts),
+   which enables automatic signing and populates `DEVELOPMENT_TEAM`. *Or*
+   provide an App Store Connect API key (`.p8` + key id + issuer id), stored
+   gitignored the way the Supabase token is. **Claude must never handle the
+   Apple ID password or the 2FA code.**
+2. **Register the App ID `app.nphiescore`** on the developer portal.
+3. **Create the App Store Connect record** — this is the thing every remaining
+   item hangs off.
+4. **Set the privacy policy URL** in App Information (§4.1) — `https://nphiescore.com/#/privacy`
+   once the domain cut-over has landed, and check that it has before typing it.
+5. **Answer the App Privacy questionnaire** (§4.3) from
+   `PrivacyInfo.xcprivacy`.
+6. **Archive and upload** — Xcode ▸ Product ▸ Archive with a Release
+   configuration, then Distribute App ▸ TestFlight Internal Only. Watch for an
+   `ITMS-` email; the privacy-manifest check fires here.
+7. **Add the internal testers** and hand out the TestFlight invitations.
 
-Two things are true at once, and only one of them is fixable with sudo:
+---
 
-1. `/var/db/xcode_select_link` really is **absent** (`ls` → No such file or
-   directory). `xcode-select -p` still answers because it falls back to the
-   default Xcode when no link is set. So `sudo xcode-select -s
-   /Applications/Xcode.app/Contents/Developer` is a legitimate thing to run and
-   may well satisfy a strict preflight that stats that path directly.
-2. The host app additionally reports the feature as **switched off**, in its own
-   capability list: `"iosSimulator": {"status": "unsupported", "reason": "iOS
-   Simulator is disabled by its rollout flag"}` (likewise `iosSimulatorH264`).
-   **No sudo command changes a server-side rollout flag.**
+## 8. Standing hazards
 
-So: run the sudo command, by all means — but if `attach` still fails afterwards,
-that is expected and it is not a broken Mac. The live panel is gated by (2), and
-the only honest thing to do at that point is what was done here.
-
-**What was used instead, disclosed rather than glossed:** `xcrun simctl` —
-Apple's own CLI, driving the same CoreSimulator backend the MCP itself wraps —
-for `uninstall` / `install` / `launch` / `io ... screenshot` / `spawn ... log
-show`. This is not a generic screen-scraper: `simctl io screenshot` reads the
-simulator framebuffer directly, which is the same image path the MCP screenshot
-action uses, at the same native 1206×2622. No pixel-level UI automation was
-involved, and no on-screen tapping was possible — which is exactly why each
-`?shell` screen had to be pinned by route and relaunched rather than reached by
-tapping the tab bar.
-
-Two mechanical notes for the next sitting:
-
-- The MCP `build` action's `udid` argument rejected a genuinely booted device
-  ("No booted simulator named …" for a udid that `simctl list devices booted`
-  showed as `Booted`). Omit `udid` and let it build for
-  `generic/platform=iOS Simulator`; that works and is what §2 used.
-- Screenshots need a real settle delay. Capturing immediately after `launch`
-  caught the launch transition and produced an all-black frame. Allow ~8–9 s for
-  install → launch → WKWebView paint before `simctl io screenshot`, and *look at*
-  the resulting PNG rather than trusting the exit code.
+- **The Supabase anon key is baked into the JS bundle**, and therefore into the
+  `.ipa`. That is normal and by design — RLS is the actual access control — but
+  it means the key is extractable. It only stays safe while RLS coverage is
+  complete; see the migration series and `docs/EXECUTION-PLAN.md`.
+- **`@opstrack.internal` is not a leftover and must never be renamed.** It is
+  the synthetic sign-in domain for every admin-provisioned account, and those
+  are real rows in `auth.users`. Renaming it locks every member out. The bundle
+  id moving to `app.nphiescore` does **not** imply this should follow.
+- **The MCP `Claude Code iOS Simulator` `control` action does not work on this
+  machine**, and its error message blames Xcode selection, which is a red
+  herring: `build` compiles through the same toolchain. Two things are true at
+  once — `/var/db/xcode_select_link` really is absent (so
+  `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` is a
+  legitimate thing to run), *and* the host reports the feature as
+  `"iosSimulator": {"status": "unsupported", "reason": "… disabled by its
+  rollout flag"}`, which no sudo command changes. If `attach` still fails after
+  the sudo, that is expected and the Mac is not broken. Use `xcrun simctl` —
+  Apple's own CLI over the same CoreSimulator backend — for
+  `uninstall`/`install`/`launch`/`io … screenshot`/`spawn … log show`.
+- **The MCP `build` action's `udid` argument rejects genuinely booted devices.**
+  Omit it and let it build for `generic/platform=iOS Simulator`.

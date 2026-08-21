@@ -30,9 +30,6 @@ export interface TitledRoute {
  */
 export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): string {
   if (pathname.startsWith('/entry/')) return 'route.entry'
-  // Checked before the NAV scan: /tracks/:id is one track's log, not the track
-  // index, and the header is the only thing that says which screen this is.
-  if (pathname.startsWith('/tracks/')) return 'route.trackDetail'
   // Same shape, one level deeper. The three meeting sub-screens are ordered
   // longest-first for the same reason the admin block below is: '/meetings/'
   // matches all three, so a shorter test placed above them would title triage
@@ -42,21 +39,33 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   if (pathname.startsWith('/meetings/') && pathname.endsWith('/minutes')) return 'route.minutes'
   if (pathname.startsWith('/meetings/') && pathname.endsWith('/triage')) return 'meeting.triage'
   if (pathname.startsWith('/meetings/')) return 'route.meeting'
+  // The meetings INDEX, which the NAV scan below used to answer. It was a tab;
+  // the collapse left the rail with one destination (the map), so the index has
+  // to be titled here — and it has to sit BELOW the three deeper tests, which
+  // all require the trailing slash this one deliberately does not.
+  if (pathname.startsWith('/meetings')) return 'route.meetings'
   const hit = nav.find((n) => pathname === n.to)
   if (hit) return hit.titleKey
   // Most specific first. All four admin paths also match the plain '/settings'
   // prefix below, so a shorter test placed earlier would title every one of
   // them "Settings".
-  // Two screens outside every nav, named out of their OWN namespaces rather
-  // than through route.* — the same call the vocabulary screen makes below:
-  // `digest.title` and `notif.title` already ship in both languages, and a
-  // route.* twin would only ever hold the same two strings.
+  // Outside every nav, named out of its OWN namespace rather than through
+  // route.* — the same call the vocabulary screen makes below: `digest.title`
+  // already ships in both languages and a route.* twin would only ever hold the
+  // same word. (`/notifications` was its twin here and went with its page: the
+  // inbox history is the map's `what-changed` lens now, so the only path
+  // starting that way is '/settings/notifications', handled far below — and it
+  // must not be claimed up here.)
   if (pathname.startsWith('/digest')) return 'digest.title'
-  if (pathname.startsWith('/notifications')) return 'notif.title'
-  // Same rule as digest/notifications: `mindtree.title` already ships in both
+  // Same rule as digest: `mindtree.title` already ships in both
   // languages and a route.mindtree twin would only ever hold the same word.
   // Above the '/settings' test for the reason the whole file exists.
   if (pathname.startsWith('/mindtree')) return 'mindtree.title'
+  // Same precedent as digest/notifications/mindtree: `privacy.title` already
+  // ships in both languages and a route.privacy twin would only ever hold the
+  // same word. The screen is in neither nav, so this header is the only chrome
+  // that names it.
+  if (pathname.startsWith('/privacy')) return 'privacy.title'
   if (pathname === '/settings/tracks/new') return 'admin.tracks.add'
   if (pathname.startsWith('/settings/tracks/')) return 'admin.tracks.edit'
   if (pathname.startsWith('/settings/tracks')) return 'admin.tracks.title'
@@ -92,6 +101,16 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   // '/settings/tracks/:id/groups' should find this rule already in the right
   // place rather than discover the ordering by shipping a mistitled header.
   if (pathname.startsWith('/settings/groups')) return 'groups.title'
+  // The three screens 0023/0024/0025 added, on exactly the groups precedent:
+  // each names itself out of its own namespace, because `structure.title`,
+  // `catalogue.title` and `roles.title` already ship in both languages and a
+  // `route.*` twin would only ever hold the same words — and would be a second
+  // row an admin cannot tell apart on the Terminology screen.
+  if (pathname.startsWith('/settings/structure')) return 'structure.title'
+  if (pathname.startsWith('/settings/catalogue')) return 'catalogue.title'
+  if (pathname.startsWith('/settings/roles')) return 'roles.title'
+  // Settings › Jira, on the same precedent — the screen renders no h1 of its own.
+  if (pathname.startsWith('/settings/jira')) return 'jira.title'
   // Settings › AI assist. Same precedent as vocabulary/recurring/terminology/
   // groups: it names itself out of its own namespace, because 'ai.title' already
   // ships in both languages and a route.ai twin would only ever hold the same
@@ -102,5 +121,9 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   if (pathname.startsWith('/settings/export')) return 'export.title'
   if (pathname.startsWith('/settings/notifications')) return 'push.title'
   if (pathname.startsWith('/settings')) return 'route.settings'
-  return 'route.followups'
+  // THE FALLBACK IS THE MAP. It used to be the follow-ups list, which was the
+  // app's landing route; that route is gone and this one is where App.tsx sends
+  // everything it does not recognise, so the header cannot name a screen the
+  // router will never show.
+  return 'mindtree.title'
 }

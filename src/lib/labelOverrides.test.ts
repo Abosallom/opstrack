@@ -50,7 +50,7 @@ function err(result: ReturnType<typeof validateOverride>): string {
 
 describe('overrideKey', () => {
   it('is the plain path for a plain key and path.category for a form', () => {
-    expect(overrideKey('nav.board')).toBe('nav.board')
+    expect(overrideKey('nav.map')).toBe('nav.map')
     expect(overrideKey('zz.counted', 'few')).toBe('zz.counted.few')
   })
 })
@@ -296,7 +296,7 @@ describe('bidi', () => {
   })
 
   it('trims the ends but keeps the inside verbatim', () => {
-    expect(ok(validateOverride('nav.board', 'Board', '  Wall  chart ', 'en'))).toBe('Wall  chart')
+    expect(ok(validateOverride('nav.map', 'Map', '  Wall  chart ', 'en'))).toBe('Wall  chart')
   })
 
   // THE ONE LITERAL THE TOKEN PASS CANNOT SEE. A digit range is not a

@@ -38,7 +38,7 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { isConfigured } from '../api/supabase'
-import { IconArrowStart, IconBolt, IconKey, IconShieldCheck, IconUser } from '../components/icons'
+import { IconArrowStart, IconKey, IconRing, IconShieldCheck, IconUser } from '../components/icons'
 import { t, useLocale } from '../lib/i18n'
 import { MIN_PASSWORD_LENGTH, claimAccount } from '../store/auth'
 import { setLocaleSetting } from '../store/settings'
@@ -214,7 +214,7 @@ export default function Claim(): ReactElement {
       <div className="card claim-card">
         <div className="claim-brand">
           <span className="claim-mark" aria-hidden="true">
-            <IconBolt size={16} />
+            <IconRing size={16} />
           </span>
           <span className="claim-brand-name">{t('app.name')}</span>
           {/* The only language control before sign-in — the header's toggle

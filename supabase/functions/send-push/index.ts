@@ -490,8 +490,10 @@ function pushKind(kind: string): PushKind | null {
  *
  * `path` is a hash route, not a URL: the service worker resolves it against its
  * own registration scope, so the same payload works on `localhost:5173`, on
- * `abosallom.github.io/opstrack/` and inside the installed PWA without this
- * function knowing where the app is deployed.
+ * `abosallom.github.io/opstrack/`, on `nphiescore.com` after the domain
+ * cut-over, and inside the installed PWA — without this function ever knowing
+ * where the app is deployed. That is why the move to a custom domain needed no
+ * edit here; note that existing SUBSCRIPTIONS do not survive it (DOMAIN-CUTOVER §4).
  */
 export function buildPayload(row: QueuedNotification): string | null {
   const kind = pushKind(row.kind)

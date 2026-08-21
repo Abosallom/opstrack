@@ -37,18 +37,29 @@
 // and would sign out every tester's live session for zero gain. The client
 // setup here is idiomatic and correct; the defect is the DEPLOYMENT TARGET.
 //
-// THE FIX, and it belongs to the NphiesCore launch cut that docs/WAVE5-NOTES.md
-// §1 already schedules for "repo+URL+bundle id+storage migration": give the app
-// an origin of its own — `public/CNAME` plus a matching Vite `base`, on a
-// subdomain of a domain the owner controls (he already runs this pattern on
-// Aldewaniah-App) — and add that origin to the Supabase Auth redirect URLs.
-// Two owner-side mitigations shrink the blast radius until then, neither of
-// them in this repo: pin or vendor that chart.js tag in portfolio-sim, and turn
-// on refresh-token rotation with reuse detection plus a shorter access-token
-// TTL in Supabase Auth.
+// THE FIX IS IN FLIGHT. `nphiescore.com` was bought on 19 Aug 2026 and this repo
+// now carries `public/CNAME`, so the app gets an origin of its own and the four
+// siblings above stop sharing its localStorage. Note what did NOT have to
+// change: this file predicted "`public/CNAME` plus a matching Vite `base`", but
+// a Pages PROJECT site with a custom domain serves at the APEX — `/`, not
+// `/opstrack/` — and vite.config's `base: './'` was already path-portable, so
+// the CNAME is the whole of the code change. See src/lib/appBase.test.ts, which
+// asserts the resolver is right on both sides of the cut-over.
 //
-// UNTIL THAT LANDS, every repo published under abosallom.github.io is
-// security-critical to this tracker and is in scope for review.
+// THE CUT-OVER IS NOT DONE UNTIL ALL THREE LAND — docs/DOMAIN-CUTOVER.md is the
+// runbook: the DNS records at the registrar, this artifact deployed to `main`,
+// and `https://nphiescore.com/**` in the Supabase Auth redirect allow-list with
+// the Site URL moved. Miss the third and sign-in mails still deliver people onto
+// the shared origin, which is this whole comment's failure mode wearing a new
+// hostname.
+//
+// UNTIL ALL THREE LAND, every repo published under abosallom.github.io is
+// security-critical to this tracker and is in scope for review. The two
+// owner-side mitigations still apply meanwhile, neither of them in this repo:
+// pin or vendor that chart.js tag in portfolio-sim, and turn on refresh-token
+// rotation with reuse detection plus a shorter access-token TTL in Supabase
+// Auth. The second is worth keeping AFTER the move too — it is the only one of
+// the two that survives the origin change as a live defence.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 

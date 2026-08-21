@@ -12,14 +12,14 @@ import NotificationBell from './components/NotificationBell'
 // — a shortcut that works on the second press is worse than none. It renders
 // null until something opens it, so the mount itself costs one listener.
 import CommandPalette from './components/CommandPalette'
+// EAGER, unlike every page below, and deliberately: ModeFrame is 107 lines of
+// chrome that the lazy mode page renders INSIDE, so loading it with the page
+// would leave a reader looking at a spinner with no way back to the map. It is
+// the map's way out and the way back in — see docs/MAP-CONTRACT.md §U7.
+import ModeFrame from './components/map/ModeFrame'
 import {
-  IconBolt,
-  IconChart,
-  IconChecklist,
-  IconColumns,
   IconGear,
   IconLayers,
-  IconMic,
   IconMonitor,
   IconMoon,
   IconSun,
@@ -30,11 +30,12 @@ import { t, useLocale } from './lib/i18n'
 // of that file. The nav table below is passed in rather than imported by it.
 import { titleKeyFor } from './lib/routeTitle'
 import { startRealtime, stopRealtime } from './api/realtime'
-import { useAuth } from './store/auth'
+import { resetPermissions, useAuth, useHasPerm, useIsAdmin } from './store/auth'
 import { loadConfig } from './store/config'
 import { loadTrackSlas, resetEntries, startEntriesRealtime } from './store/entries'
 import { loadMembers, resetMembers } from './store/members'
 import { resetMeetings } from './store/meetings'
+import { resetPortfolio } from './store/portfolio'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
 import { resetAi } from './store/ai'
 import { resetNudges } from './store/nudges'
@@ -54,19 +55,18 @@ const SignIn = lazy(() => import('./pages/SignIn'))
 // account. `store/auth.claimAccount()` signs the member in on success, so this
 // route unmounts itself — see the note on the signed-out branch below.
 const Claim = lazy(() => import('./pages/Claim'))
-const Capture = lazy(() => import('./pages/Capture'))
-const FollowUps = lazy(() => import('./pages/FollowUps'))
-const Board = lazy(() => import('./pages/Board'))
-// The two halves of the Tracks tab. Wave 3 split the shared placeholder that
-// used to serve both: /tracks is the distribution TREE (every active track with
-// its open work, for handing items out), /tracks/:id is one track's
-// chronological log. Two files, two prefixes — `.tree-` and `.tl-`.
-const TracksIndex = lazy(() => import('./pages/tracks/TracksIndex'))
-const TrackTimeline = lazy(() => import('./pages/tracks/TrackTimeline'))
-// The map half of the same job: /tracks is what is open, /mindtree is the shape
-// of it. Reached from the List | Map switcher on /tracks, not from a sixth nav
-// destination — the tab bar is capped at five and a second tracks-shaped
-// entry would dilute both.
+// Password recovery, and it is signed-OUT on purpose. store/auth.ts withholds
+// the session a recovery link creates (see adopt()), so a reader redeeming one
+// is on this branch holding a credential the UI deliberately refuses to publish
+// until the new password lands. Not mounted on the signed-in side: a signed-in
+// reader has no recovery to redeem, and that branch's catch-all already sends
+// /reset to /mindtree.
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+// THE ONE DESTINATION. Capture, follow-ups, the board, the tracks index, the
+// track timeline, the dashboard and the notification history were seven routes
+// and are now five lenses and a panel on this one — see docs/MAP-CONTRACT.md §1.
+// Their pages, their sheets and their tests are gone; every guarantee those
+// tests held is restated in src/components/map/*.test.tsx.
 const Mindtree = lazy(() => import('./pages/Mindtree'))
 const Entry = lazy(() => import('./pages/Entry'))
 // The overlay half of the same module, mounted once at the root (below). Lazy
@@ -83,11 +83,7 @@ const MeetingsIndex = lazy(() => import('./pages/meetings/MeetingsIndex'))
 const MeetingLive = lazy(() => import('./pages/meetings/MeetingLive'))
 const MeetingTriage = lazy(() => import('./pages/meetings/MeetingTriage'))
 const MeetingMinutes = lazy(() => import('./pages/meetings/MeetingMinutes'))
-const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Digest = lazy(() => import('./pages/Digest'))
-// The inbox HISTORY. The bell in the header is the peek at it, and it is not
-// lazy — it lives in the chrome, so it is part of every screen.
-const Notifications = lazy(() => import('./pages/Notifications'))
 const Settings = lazy(() => import('./pages/Settings'))
 // Admin config. Under pages/settings/ rather than pages/, because pages/Tracks.tsx
 // is already the per-track timeline — two Tracks.tsx in one directory is a
@@ -98,9 +94,21 @@ const TrackEditor = lazy(() => import('./pages/settings/TrackEditor'))
 // TracksAdmin: the two screens write two tables, and an admin who only wants to
 // rename a track should not pay for the group editor's palette to find out.
 const GroupsAdmin = lazy(() => import('./pages/settings/GroupsAdmin'))
+// The tree BELOW tracks (0023) and the catalogue that tree is measured against
+// (0023/0024). Two chunks rather than one for the reason GroupsAdmin is its own:
+// an admin renaming a phase should not pay for the capability list to load.
+const StructureAdmin = lazy(() => import('./pages/settings/StructureAdmin'))
+const JiraAdmin = lazy(() => import('./pages/settings/JiraAdmin'))
+const CatalogueAdmin = lazy(() => import('./pages/settings/CatalogueAdmin'))
+// Roles & permissions (0025). The STRICTEST gate in the file, and the one that
+// did not move to a narrower key: what is ticked here is what is_admin() answers
+// at 183 policy call sites. The RLS gate is has_perm('members.manage'), which
+// only the system Admin role carries; this only avoids offering an editor to
+// someone every write refuses.
+const RolesAdmin = lazy(() => import('./pages/settings/RolesAdmin'))
 const VocabularyAdmin = lazy(() => import('./pages/settings/VocabularyAdmin'))
 const Terminology = lazy(() => import('./pages/settings/Terminology'))
-// NOT route-gated on admin, unlike the three above: the screen renders the
+// NOT route-gated at all, unlike the three above: the screen renders the
 // schedule read-only for a member and hides its own edit affordances, because
 // "what is going to be raised for me next Sunday" is everybody's question.
 const RecurringAdmin = lazy(() => import('./pages/settings/RecurringAdmin'))
@@ -114,74 +122,44 @@ const NotificationPrefs = lazy(() => import('./pages/settings/NotificationPrefs'
 // person's capture lines leave the browser, which is nobody else's setting to
 // hold.
 const AiSettings = lazy(() => import('./pages/settings/AiSettings'))
+// The privacy policy. Mounted on BOTH sides of the auth gate below: App Store
+// Connect needs a URL a reviewer with no credentials can open, and Settings
+// needs the same page for a member who is already signed in.
+const Privacy = lazy(() => import('./pages/Privacy'))
 
 /* ---------- navigation model ---------- */
 
 interface NavDest {
   to: string
   icon: IconComponent
-  /** Short label for the sidebar row / tab. */
+  /** Short label for the sidebar row. */
   navKey: string
   /** Longer label for the header — "Quick capture" vs the tab's "Capture". */
   titleKey: string
-  /** Tabs are capped at five; capture reaches mobile through the FAB instead. */
-  inTabBar: boolean
 }
 
-// One list is the single source of truth for both navs. The two renderers below
-// are thin — they differ only in element names, because app-shell.css styles
-// .sidebar and .tabbar completely differently and swaps them with `display` at
-// the 768px breakpoint. A `display: none` nav is out of the accessibility tree
-// and the tab order too, so the hidden one can never steal a tap or a Tab stop.
+// TWO DESTINATIONS, AND THE SECOND ONE IS SETTINGS. Six tabs became two rows,
+// because the six screens became five lens chips and a panel on one route
+// (docs/MAP-CONTRACT.md §0-§1). Everything the tab bar used to reach is still
+// one tap away — from a chip on the map, from `MapModeBar` for the two modes,
+// or from the gear in the header — so what was deleted is the SWITCHING, not
+// the destinations.
+//
+// `inTabBar` went with the tab bar itself. Under 768px the map fills the
+// viewport and `MapCapture` is docked at its block end; a five-slot bar under
+// that composer would have covered the one input the whole design exists to put
+// under a thumb, to offer a choice of one. The phone's navigation is now the
+// lens chips, the mode bar and the header gear — see the `.tabbar` deletion in
+// app-shell.css and U7's re-measure of `.mt-commit-bar`.
 const NAV: NavDest[] = [
   {
-    to: '/capture',
-    icon: IconBolt,
-    navKey: 'nav.capture',
-    titleKey: 'route.capture',
-    inTabBar: false,
-  },
-  {
-    to: '/followups',
-    icon: IconChecklist,
-    navKey: 'nav.followups',
-    titleKey: 'route.followups',
-    inTabBar: true,
-  },
-  { to: '/board', icon: IconColumns, navKey: 'nav.board', titleKey: 'route.board', inTabBar: true },
-  {
-    // POINTS AT THE MAP, not the list. Tracks and Mindtree are one job in two
-    // views — the `List | Map` switcher on both screens is what makes them one
-    // destination rather than two — and the owner asked for the map to be the
-    // main thing. The tab bar is capped at five (see `inTabBar` above), so
-    // promoting the map means changing which view this tab OPENS, never adding
-    // a sixth destination that would shrink every target on a phone.
-    // `/tracks` keeps working: it is still routed, still linked from the
-    // switcher, and any existing deep link or bookmark still resolves.
     to: '/mindtree',
     icon: IconLayers,
-    navKey: 'nav.tracks',
-    // `mindtree.title`, not a route.* twin — routeTitle.ts:56 already decided
-    // that for this screen and says why. The header title comes from there
-    // anyway; this field only matters if a NAV entry ever needs a longer form.
+    // `nav.map`, not `nav.tracks`: this row no longer stands for one of six
+    // screens, it stands for the app. `mindtree.title` is the longer form —
+    // routeTitle.ts already decided that for this screen and says why.
+    navKey: 'nav.map',
     titleKey: 'mindtree.title',
-    inTabBar: true,
-  },
-  // No short nav.* form exists for these two: their route labels are already
-  // single words, so a second key would only ever hold the same string.
-  {
-    to: '/meetings',
-    icon: IconMic,
-    navKey: 'route.meetings',
-    titleKey: 'route.meetings',
-    inTabBar: true,
-  },
-  {
-    to: '/dashboard',
-    icon: IconChart,
-    navKey: 'route.dashboard',
-    titleKey: 'route.dashboard',
-    inTabBar: true,
   },
 ]
 
@@ -210,7 +188,14 @@ function BootSplash(): ReactElement {
 
 /* ---------- shell chrome ---------- */
 
-/** Persistent inline-start rail at 768px and up. */
+/**
+ * Persistent inline-start rail at 768px and up — and now the ONLY nav.
+ *
+ * It renders NAV (the map) and then Settings in its footer, which is the whole
+ * of "Map + Settings and nothing else". Under 768px it is `display: none` and
+ * nothing replaces it: the phone's navigation is the lens chips, `MapModeBar`
+ * and the header's gear, all of which are on the map itself.
+ */
 function Sidebar(): ReactElement {
   return (
     <nav className="sidebar" aria-label={t('nav.primary')}>
@@ -241,26 +226,6 @@ function Sidebar(): ReactElement {
           <span className="nav-label">{t('route.settings')}</span>
         </NavLink>
       </div>
-    </nav>
-  )
-}
-
-/** Fixed bottom bar under 768px. Exactly five tabs — see NAV. */
-function TabBar(): ReactElement {
-  return (
-    <nav className="tabbar" aria-label={t('nav.primary')}>
-      {NAV.filter((n) => n.inTabBar).map(({ to, icon: Icon, navKey }) => (
-        <NavLink
-          key={to}
-          to={to}
-          className={({ isActive }) => `tabbar-item${isActive ? ' active' : ''}`}
-        >
-          <span className="tabbar-icon">
-            <Icon />
-          </span>
-          <span className="tabbar-label">{t(navKey)}</span>
-        </NavLink>
-      ))}
     </nav>
   )
 }
@@ -332,6 +297,17 @@ function AppHeader({ titleKey }: { titleKey: string }): ReactElement {
 }
 
 /* ---------- app ---------- */
+
+/**
+ * Is this route a full-bleed STAGE rather than a document?
+ *
+ * ONE PREDICATE, here, because `.main-content`'s padding is this file's and the
+ * decision to spend or not spend it is a fact about the route. `/` redirects to
+ * `/mindtree`, so both spellings are the map.
+ */
+function isMapRoute(pathname: string): boolean {
+  return pathname === '/' || pathname === '/mindtree' || pathname.startsWith('/mindtree/')
+}
 
 function Shell({ children }: { children: ReactNode }): ReactElement {
   const { pathname } = useLocation()
@@ -456,6 +432,11 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // call above, the store only filled when a sheet was opened, so the leak
       // needed a coincidence; now it is guaranteed without this line.
       resetMembers()
+      // Portfolio is the sixth, and it is CONFIDENTIALITY like the first three
+      // rather than staleness: it holds every organization's capability links
+      // and every node's open counts, which is the whole map's data for one
+      // workspace. store/signOutReset.test.ts fails until this line exists.
+      resetPortfolio()
       // Meetings is the fifth, and the argument for it is STALENESS rather than
       // confidentiality — `meetings_select` and `meeting_lines_select` are both
       // `is_member()`, so every teammate may read every meeting anyway. What
@@ -503,6 +484,15 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // last session's business, and restoring a drill-in under the NEXT account
       // would open somebody else's screen on a branch they did not choose.
       resetMindtree()
+      // Tenth, and the one this file's own route guards read: the permission
+      // set. It is not confidential — every member may read `role_permissions`,
+      // which is what lets the client mirror the policy at all — but it is
+      // WHOSE. Left standing, the next account signing in on this tab is offered
+      // the previous one's screens for the length of a profile round trip, and
+      // an Admin signing out in front of a member is the case that matters. The
+      // store re-answers `false` for everything until the new profile's grants
+      // land, which is the safe direction: the database refuses either way.
+      resetPermissions()
     }
   }, [])
 
@@ -516,19 +506,41 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
             land; global.css suppresses the ring for exactly this programmatic
             case. aria-label names the landmark with the route, so the move is
             an announcement rather than a silent jump. */}
-        <main className="main-content" id="main" tabIndex={-1} aria-label={t(titleKey)}>
+        <main
+          className="main-content"
+          id="main"
+          tabIndex={-1}
+          aria-label={t(titleKey)}
+          /**
+           * THE FULL-BLEED OPT-IN, AND THE ROUTE SETS IT — the shell renders ONE
+           * `<main>` for every screen and must not guess which of them is a map.
+           *
+           * `.main-content` carries the document padding every list, form and
+           * settings page wants and a stage does not: 28px each side and 26/64
+           * block, which is 188px of a 1600px viewport spent framing a drawing
+           * that should be touching the edges. The map used to claw it back with
+           * negative margins copied from this file's own numbers, which is a
+           * drift hazard that had a comment admitting it. The attribute makes
+           * the padding zero at the source instead — see `mindtree.css`.
+           */
+          data-fullbleed={isMapRoute(pathname) ? '' : undefined}
+        >
           {children}
         </main>
       </div>
-      <TabBar />
-      {/* Capture is the app's reason to exist, so on mobile it gets a thumb-
-          reachable FAB instead of one of the five tab slots. Hidden on the
-          capture screen itself, where it would only cover the input. */}
-      {pathname !== '/capture' && (
-        <NavLink to="/capture" className="fab" aria-label={t('route.capture')}>
-          <IconBolt size={26} />
-        </NavLink>
-      )}
+      {/* THE FAB IS GONE, AND THAT IS HOW OPEN TASK #67 CLOSES.
+          It existed to put capture under a thumb without spending a tab slot,
+          and it cost two taps: one on the FAB, one on the input the route it
+          navigated to had just mounted. `components/map/MapCapture.tsx` is now
+          mounted at the block end of the map — the landing route — so the first
+          tap lands on a real input inside a real user activation, which is what
+          raises a software keyboard. Wiring the FAB to `focusMapCapture()`
+          instead (the contract's other option) would have left a control on top
+          of the composer it duplicates: app-shell.css docked `.fab` at
+          `74px + safe-area` and map-capture.css docks the bar across roughly
+          53px–117px + safe-area, so they overlapped on the inline end at 375px.
+          On the mode routes, where the composer is not mounted, the way to
+          capture is the way back to the map — one tap on ModeFrame's trail. */}
     </div>
   )
 }
@@ -552,13 +564,52 @@ export default function App(): ReactElement {
   const preview = useShellPreview()
   const loading = preview ? false : auth.loading
   const session = preview ? ({ user: { id: 'preview' } } as never) : auth.session
-  // Route-level admin gate, in addition to whatever the pages themselves do.
-  // A member who bookmarks /settings/tracks should land back on Settings, not
-  // watch an editable list render and then have every save rejected by RLS.
-  // The preview session has no profiles row at all, so it is admitted
-  // explicitly — otherwise `?shell` could never reach these screens, which is
-  // the only way to review them without a Supabase project.
-  const isAdmin = preview || auth.profile?.role === 'admin'
+  // Route-level permission gates, in addition to whatever the pages themselves
+  // do. A member who bookmarks /settings/tracks should land back on Settings,
+  // not watch an editable list render and then have every save rejected by RLS.
+  //
+  // THREE QUESTIONS, NOT ONE, AND THEY MIRROR 0025'S POLICIES KEY FOR KEY.
+  // Migration 0025 re-points the write policies on `tracks`, `track_groups`,
+  // `map_nodes`, `map_node_kinds`, `use_cases`, `vocab_options` and
+  // `label_overrides` — and the eight RPCs that write them — at
+  // `has_perm('structure.edit')` / `has_perm('vocab.edit')`, which the Director
+  // role holds and `workspace.admin` no longer implies directly. So the routes
+  // below ask for the key the table asks for:
+  //
+  //   structure.edit  — /settings/tracks, /settings/tracks/new,
+  //                     /settings/tracks/:id, /settings/groups,
+  //                     /settings/structure
+  //   vocab.edit      — /settings/catalogue, /settings/vocabulary,
+  //                     /settings/terminology
+  //   workspace.admin — /settings/roles, /settings/members. Unchanged, and
+  //                     deliberately: creating, deleting and re-roling PEOPLE is
+  //                     the power withheld from Director, and `roles` /
+  //                     `role_permissions` stay on `members.manage`, which only
+  //                     the system Admin role carries. A Director who could edit
+  //                     the roles table would be one click from Admin.
+  //
+  // THE ROUTE AND THE SCREEN MUST ASK THE SAME QUESTION. Each page below
+  // re-checks with the same key and renders its own <Navigate>; a row that
+  // admitted someone the screen then bounces is worse than no row at all,
+  // because the redirect happens after the chunk has loaded and reads as a
+  // crash. Both are still COSMETIC — RLS is what refuses the writes.
+  //
+  // `useHasPerm` reads `role_permissions` for the signed-in profile and falls
+  // back to the legacy `profiles.role` when 0025 has not been applied (or the
+  // profile has no `role_id`), so a workspace without the roles tables behaves
+  // exactly as it did before this split: admin sees everything, member sees
+  // none of it.
+  //
+  // NO `preview ||` ON THESE THREE, unlike `loading` and `session` above. The
+  // dev-only `?shell` flag now lives INSIDE store/auth's answer — it was carried
+  // there verbatim from the seven screen-local copies this replaces — so
+  // repeating it here would be two implementations of one escape hatch. It would
+  // also be a conditional hook call: `preview || useHasPerm(...)` short-circuits
+  // the call, and the hook order would change the moment somebody appends
+  // `?shell` to the URL.
+  const canEditStructure = useHasPerm('structure.edit')
+  const canEditVocab = useHasPerm('vocab.edit')
+  const isAdmin = useIsAdmin()
   // Subscribing at the root re-renders the whole tree on a language switch, so
   // every t() call picks up the new bundle. t() is a plain function; without a
   // subscription React has no way to know its output went stale.
@@ -585,6 +636,25 @@ export default function App(): ReactElement {
                   below and this route ceases to exist mid-submit. That is why
                   the screen has no success panel. */}
               <Route path="/claim" element={<Claim />} />
+              {/* Both halves of password recovery: asking for a link, and
+                  setting the password one arrived with. ABOVE the catch-all for
+                  the same reason /privacy is — below `path="*"` it would
+                  redirect to sign-in and every recovery link this workspace ever
+                  emails would be dead on arrival.
+
+                  Required, not optional: SignIn.tsx renders
+                  <Navigate to="/reset" /> for a live recovery, so without this
+                  line the catch-all sends it straight back and the two routes
+                  loop. */}
+              <Route path="/reset" element={<ResetPassword />} />
+              {/* The public half of the privacy policy, and the URL App Store
+                  Connect is given — a reviewer opens it with no credentials.
+                  ABOVE the catch-all deliberately: below `path="*"` it would
+                  redirect to sign-in and the reviewer would see a login wall
+                  where the policy was promised. `standalone` makes the page
+                  draw its own frame, heading, language toggle and way back,
+                  because out here there is no shell to supply them. */}
+              <Route path="/privacy" element={<Privacy standalone />} />
               {/* Anything else while signed out lands on sign-in. `replace` so
                   the back button does not bounce between the two. */}
               <Route path="*" element={<Navigate to="/signin" replace />} />
@@ -599,89 +669,188 @@ export default function App(): ReactElement {
   return (
     <>
       <Shell>
-        {/* One boundary for all the lazy routes, INSIDE Shell so the tab
-            bar, header and sign-out survive a screen that crashes — the user
+        {/* One boundary for all the lazy routes, INSIDE Shell so the rail,
+            the header and sign-out survive a screen that crashes — the user
             can navigate out of the failure instead of being left on a page
             whose only control is Reload. `resetKey` is what makes that work:
             leaving the route clears the error. */}
         <ErrorBoundary resetKey={pathname}>
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
-              {/* WHERE YOU LAND FOLLOWS THE PERSON. An admin runs several tracks
-                  and opens the app asking "where is everything and who has
-                  what" — the map answers that. A member owns a handful of items
-                  and asks "what do I do now" — Follow-ups answers that, and the
-                  map would be noise on their first screen. One line, no
-                  preference machinery, and either is one press from the other. */}
-              <Route
-                path="/"
-                element={<Navigate to={isAdmin ? '/mindtree' : '/followups'} replace />}
-              />
+              {/* EVERYONE LANDS ON THE MAP, and the person no longer changes
+                  the answer. The split used to send an admin to the map and a
+                  member to Follow-ups, because the map could not answer "what
+                  do I do now". It can now: `needs-me` is the DEFAULT lens and
+                  its panel is the follow-ups list, real DOM, beside the canvas
+                  — so the member's first screen is the list they had, and the
+                  admin's is the picture they had, at one URL. */}
+              <Route path="/" element={<Navigate to="/mindtree" replace />} />
               {/* Signed in, so the sign-in route is dead — send it home rather
                   than showing a form that cannot do anything. */}
-              <Route path="/signin" element={<Navigate to="/followups" replace />} />
-              <Route path="/capture" element={<Capture />} />
-              <Route path="/followups" element={<FollowUps />} />
-              <Route path="/board" element={<Board />} />
-              <Route path="/tracks" element={<TracksIndex />} />
+              <Route path="/signin" element={<Navigate to="/mindtree" replace />} />
               <Route path="/mindtree" element={<Mindtree />} />
-              <Route path="/tracks/:id" element={<TrackTimeline />} />
               {/* The entry as a PAGE — a URL somebody was sent. Every in-app
                   tap opens the same detail surface as an overlay instead, via
-                  openEntry() and the host mounted at the root below. */}
+                  openEntry() and the host mounted at the root below. STAYS a
+                  real route under the collapse: it is the target of every push
+                  notification, chat link and phone share sheet. */}
               <Route path="/entry/:id" element={<Entry />} />
-              <Route path="/meetings" element={<MeetingsIndex />} />
+              {/* THE MODES, and the frame is applied HERE rather than inside
+                  the five pages. Fast typing and a printed document both fight
+                  a canvas, so these stay real routes — a route is exactly how
+                  you leave and come back with Back, print and paste intact —
+                  and `ModeFrame` is the single way back to the map.
+                  WRAPPING AT THE ROUTE IS THE SAFE SHAPE, not merely the cheap
+                  one: `startMeetingsRealtime()` is ref-counted by the two
+                  screens that render lines and `flushLinePlans()` runs in the
+                  triage screen's unmount cleanup, so a frame that changed where
+                  those screens MOUNT would silently lose a second attendee's
+                  lines or the last triage decision. `element=` cannot change
+                  that, and it covers each page's early-return branches too.
+                  `titleKey` is exactly what lib/routeTitle.ts resolves for the
+                  same path, so the trail and the <main> landmark's name cannot
+                  disagree. */}
+              <Route
+                path="/meetings"
+                element={
+                  <ModeFrame titleKey="route.meetings">
+                    <MeetingsIndex />
+                  </ModeFrame>
+                }
+              />
               {/* Ranked by React Router, not by order: '/meetings/:id/triage'
                   and '/meetings/:id/minutes' both out-rank '/meetings/:id'
                   because a static segment beats a dynamic one, so no id can be
                   read as a sub-screen and no sub-screen as an id. */}
-              <Route path="/meetings/:id" element={<MeetingLive />} />
-              <Route path="/meetings/:id/triage" element={<MeetingTriage />} />
-              <Route path="/meetings/:id/minutes" element={<MeetingMinutes />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/digest" element={<Digest />} />
-              <Route path="/notifications" element={<Notifications />} />
+              <Route
+                path="/meetings/:id"
+                element={
+                  <ModeFrame titleKey="route.meeting" wide>
+                    <MeetingLive />
+                  </ModeFrame>
+                }
+              />
+              <Route
+                path="/meetings/:id/triage"
+                element={
+                  <ModeFrame titleKey="meeting.triage" wide>
+                    <MeetingTriage />
+                  </ModeFrame>
+                }
+              />
+              <Route
+                path="/meetings/:id/minutes"
+                element={
+                  <ModeFrame titleKey="route.minutes" wide>
+                    <MeetingMinutes />
+                  </ModeFrame>
+                }
+              />
+              <Route
+                path="/digest"
+                element={
+                  <ModeFrame titleKey="digest.title">
+                    <Digest />
+                  </ModeFrame>
+                }
+              />
+              {/* The same page inside the shell: no `standalone`, so it draws
+                  no <h1> of its own — the app header already renders one from
+                  titleKeyFor(). */}
+              <Route path="/privacy" element={<Privacy />} />
               <Route path="/settings" element={<Settings />} />
-              {/* Admin config hangs off /settings rather than taking a top-level
-                  route: NAV is capped at five tab-bar slots, and these screens
-                  are reached from the Settings page. React Router ranks the
+              {/* Configuration hangs off /settings rather than taking a
+                  top-level route: NAV is two rows and these screens are reached
+                  from the Settings page. React Router ranks the
                   static '/new' above the dynamic ':id' regardless of order, so
-                  creating cannot be mistaken for editing a track called "new". */}
+                  creating cannot be mistaken for editing a track called "new".
+
+                  Tracks are the top of the structure tree, so all three rows ask
+                  for `structure.edit` — the key 0025 put on the `tracks` write
+                  policies and on reorder_tracks()/delete_track_reassign(). */}
               <Route
                 path="/settings/tracks"
-                element={isAdmin ? <TracksAdmin /> : <Navigate to="/settings" replace />}
+                element={canEditStructure ? <TracksAdmin /> : <Navigate to="/settings" replace />}
               />
               <Route
                 path="/settings/tracks/new"
-                element={isAdmin ? <TrackEditor /> : <Navigate to="/settings" replace />}
+                element={canEditStructure ? <TrackEditor /> : <Navigate to="/settings" replace />}
               />
               <Route
                 path="/settings/tracks/:id"
-                element={isAdmin ? <TrackEditor /> : <Navigate to="/settings" replace />}
+                element={canEditStructure ? <TrackEditor /> : <Navigate to="/settings" replace />}
               />
               {/* Groups sit one level above tracks and are gated identically.
                   Renaming a group or moving a track between the two halves
                   changes what every other member's filters, board and digest
-                  say, so it is admin work in the same sense the track editor
-                  is. 0018's RLS is the real authority; this only avoids
-                  offering an editor to someone every write refuses. */}
+                  say, so it is structure work in the same sense the track editor
+                  is — and 0025 says so too: `track_groups` writes take
+                  `structure.edit`. 0018's RLS is the real authority; this only
+                  avoids offering an editor to someone every write refuses. */}
               <Route
                 path="/settings/groups"
-                element={isAdmin ? <GroupsAdmin /> : <Navigate to="/settings" replace />}
+                element={canEditStructure ? <GroupsAdmin /> : <Navigate to="/settings" replace />}
+              />
+              {/* The tree BELOW tracks, gated exactly as the tree above them is.
+                  0023's RLS is the real authority (`map_nodes` writes take
+                  `structure.edit` since 0025); this only avoids offering an
+                  editor to someone every write refuses. */}
+              <Route
+                path="/settings/structure"
+                element={
+                  canEditStructure ? <StructureAdmin /> : <Navigate to="/settings" replace />
+                }
+              />
+              {/* The Jira reader (read-only). Gated exactly like Structure:
+                  it reads `map_nodes` and `use_cases` to match against, and the
+                  edge function re-verifies the caller itself. */}
+              <Route
+                path="/settings/jira"
+                element={canEditStructure ? <JiraAdmin /> : <Navigate to="/settings" replace />}
+              />
+              {/* The catalogue edits the WORDS the tree is described with, so
+                  `vocab.edit` — 0025 puts `use_cases` on that key.
+
+                  ⚠ IT IS THE ONE SCREEN 0025 SPLITS DOWN THE MIDDLE: its second
+                    section writes `map_node_kinds`, which is `structure.edit`.
+                    One key had to gate the route, and `vocab.edit` is the one
+                    the screen is named for and the one its ten-row half writes.
+                    Nobody is affected today — Admin and Director both hold both
+                    keys, and no other role holds either — so this is recorded
+                    rather than designed around. CatalogueAdmin.tsx's header
+                    carries the same note and what to do if a vocab-only role is
+                    ever minted. */}
+              <Route
+                path="/settings/catalogue"
+                element={canEditVocab ? <CatalogueAdmin /> : <Navigate to="/settings" replace />}
+              />
+              {/* Roles decide what every OTHER gate answers, so this one is the
+                  strictest of them, and it does NOT move to a narrower key. 0025
+                  gates the two tables on has_perm('members.manage'), which only
+                  the system Admin role carries; a Director who could edit
+                  `role_permissions` would be one click from Admin. The screen
+                  itself still reads the legacy `profiles.role`, which is
+                  equivalent while only the system Admin role holds
+                  `workspace.admin`. */}
+              <Route
+                path="/settings/roles"
+                element={isAdmin ? <RolesAdmin /> : <Navigate to="/settings" replace />}
               />
               <Route
                 path="/settings/vocabulary"
-                element={isAdmin ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
+                element={canEditVocab ? <VocabularyAdmin /> : <Navigate to="/settings" replace />}
               />
               {/* Terminology rewrites what every screen SAYS, for everyone, so
-                  it is gated exactly like the vocabulary editor above. 0017's
-                  RLS is the real authority; this only avoids offering an
-                  editable list of 1,665 labels to someone every write refuses. */}
+                  it is gated exactly like the vocabulary editor above —
+                  `label_overrides` writes and reset_label_overrides() both take
+                  `vocab.edit`. 0017's RLS is the real authority; this only
+                  avoids offering an editable list of 1,665 labels to someone
+                  every write refuses. */}
               <Route
                 path="/settings/terminology"
-                element={isAdmin ? <Terminology /> : <Navigate to="/settings" replace />}
+                element={canEditVocab ? <Terminology /> : <Navigate to="/settings" replace />}
               />
-              {/* No isAdmin ternary — see the lazy import. A member reads the
+              {/* No permission ternary — see the lazy import. A member reads the
                   schedule; the page itself withholds the editing. */}
               <Route path="/settings/recurring" element={<RecurringAdmin />} />
               {/* Members mints credentials — a one-time invite code that is
@@ -709,7 +878,13 @@ export default function App(): ReactElement {
                   screen rather than a line in the Settings list. */}
               <Route path="/settings/ai" element={<AiSettings />} />
               <Route path="/settings/notifications" element={<NotificationPrefs />} />
-              <Route path="*" element={<Navigate to="/followups" replace />} />
+              {/* THE SEVEN COLLAPSED ROUTES LAND HERE. /capture, /followups,
+                  /board, /tracks, /tracks/:id, /dashboard and /notifications
+                  are gone, so an old bookmark, an old tab or a link somebody
+                  pasted last week resolves to the map rather than to a blank
+                  screen. The lens they wanted is one chip away, and the map is
+                  where every one of those questions is now answered. */}
+              <Route path="*" element={<Navigate to="/mindtree" replace />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>

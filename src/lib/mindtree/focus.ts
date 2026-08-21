@@ -14,9 +14,10 @@
 //
 // ── THE ONE IDEA THIS FILE IS BUILT ON ─────────────────────────────────────
 //
-// A MindNode id IS ITS PATH: `root/track:<id>/group:<key>/entry:<id>`, with
-// every dynamic segment percent-encoded (model.ts's `nodeId`). Two consequences,
-// and the whole module falls out of them:
+// A MindNode id IS ITS PATH: `root/track:<id>/entity:<id>/group:<key>/entry:<id>`,
+// with every dynamic segment percent-encoded (model.ts's `nodeId`) and the
+// `entity:` run repeating for as many levels of the hierarchy as the branch has.
+// Two consequences, and the whole module falls out of them:
 //
 //  1. THE ANCESTOR CHAIN OF AN ID IS COMPUTABLE FROM THE STRING, with no tree in
 //     hand. `encodeURIComponent` escapes `/` as %2F, so a segment can never
@@ -25,12 +26,13 @@
 //
 //  2. WHICH IS WHY A FOCUS SURVIVES A REGROUP. Switch the dimension from status
 //     to owner and every `group:` segment in the tree is replaced — the focused
-//     id `root/track:X/group:blocked` now names nothing. But its PREFIX
-//     `root/track:X` still names the same track, because ring 1 does not depend
-//     on the dimension. So the fallback is not a guess or a heuristic: it is the
-//     longest prefix of the requested id that still exists. The reader lands on
-//     the track they were inside, one ring out, rather than on a blank screen or
-//     back at the top of the map.
+//     id `root/track:X/entity:Org1/group:blocked` now names nothing. But its
+//     PREFIX `root/track:X/entity:Org1` still names the same organization,
+//     because the STRUCTURAL rings — the track and everything hanging off it —
+//     do not depend on the dimension. So the fallback is not a guess or a
+//     heuristic: it is the longest prefix of the requested id that still exists.
+//     The reader lands in the branch they were inside, one ring out, rather than
+//     on a blank screen or back at the top of the map.
 //
 // THE FALLBACK IS THE FEATURE, not the error path. A focus id reaches this
 // module from three places that can all go stale under the reader: a URL somebody
@@ -44,13 +46,23 @@
 // request to draw one card, which is not a view of anything. Such a request
 // falls back to the parent, so `?focus=<some entry leaf>` degrades to the group
 // that holds it rather than to a single node floating in an empty canvas.
+//
+// WITH ONE EXCEPTION, AND IT IS AN EXCEPTION OF KIND RATHER THAN OF DEGREE. An
+// `entity` node is a PLACE — an organization being onboarded — and focusing it
+// opens a panel of facts about that place (its account manager, its use-case
+// matrix, its vendor) which exist whether or not any work is filed under it. The
+// canvas stopped being the whole view when the panel arrived; "an empty canvas"
+// is now half a screen beside a full one, and an Org with zero open issues is
+// precisely the Org somebody wants to inspect. See `canFocus`.
 
 import {
   isMindDimension,
+  KIND_ROLE,
   ROOT_ID,
   visibleChildren,
   type MindDimension,
   type MindNode,
+  type MindNodeKind,
 } from './model'
 
 // ── the view ───────────────────────────────────────────────────────────────
@@ -148,18 +160,286 @@ export function resolveFocus(root: MindNode, requested: string | null): FocusVie
 /**
  * Is this node worth making the whole screen?
  *
- * Only the childless rule, deliberately — NOT a check on `kind`. A `more` fold
- * has children and focusing it ("show me the tail") is a legitimate view; an
- * `entry` leaf has none and focusing it would draw a single card on an empty
- * canvas. Keying on the shape rather than the kind means a fifth node kind
- * inherits the right behaviour without editing this function.
+ * THE SHAPE RULE FIRST, and it is still the default. A `more` fold has children
+ * and focusing it ("show me the tail") is a legitimate view; an `entry` leaf has
+ * none and focusing it would draw a single card on an empty canvas. An empty
+ * active track lands there too, and correctly: model.ts draws it because "which
+ * track has nothing on it" is worth seeing ON the map, but a screen containing
+ * only that node answers nothing. Keying on shape rather than kind is what lets
+ * a new node kind inherit the right behaviour without editing this function.
  *
- * An empty active track lands here too, and correctly: model.ts draws it as a
- * node because "which track has nothing on it" is worth seeing on the map, but
- * a screen containing only that node answers nothing.
+ * THEN THE ONE KIND THAT OVERRIDES IT. An `entity` node — an organization, a
+ * phase, a programme in the hierarchy below the track — is a PLACE, not a
+ * bucket, and the difference is what its focus DRAWS. A group with nothing in it
+ * has nothing to say; an Org with nothing in it has an account manager, a
+ * vendor, and a use-case matrix reading "6 of 9 live", none of which depend on
+ * any work being filed there. That is the whole shape of the question "which Org
+ * is behind?" — and an Org with zero open issues is one of the answers.
+ *
+ * THIS FUNCTION'S HEADER USED TO ARGUE THE OPPOSITE, and the argument was sound
+ * when the canvas was the entire view. It is not any more: the panel is half the
+ * screen, so "a single card on an empty canvas" is no longer a description of
+ * what a childless entity focus produces. The shape rule was never about
+ * childlessness for its own sake — it was about landing the reader somewhere
+ * that answers nothing. An entity always answers something.
+ *
+ * A childless entity is still reachable by fallback in the other direction: a
+ * stale `entity:` id that names nothing at all fails `trailTo` and climbs, so
+ * this exception widens what may be focused, never what may be invented.
  */
 export function canFocus(node: MindNode): boolean {
-  return node.children.length > 0
+  return node.children.length > 0 || isPlaceKind(node.kind)
+}
+
+/**
+ * Node kinds that are PLACES — see `canFocus`.
+ *
+ * A TOTAL RECORD RATHER THAN A COMPARISON, and that is the wave-6 lesson written
+ * into the smallest function it applies to. `kind === 'entity'` absorbs every
+ * kind that is ever added and switches the exception off for it in silence; a
+ * `Record<MindNodeKind, …>` is a compile error until somebody decides. The union
+ * grew by one this wave and this is the shape that made the decision unavoidable
+ * rather than the shape that would have hidden it.
+ *
+ * ⚠ NOT `KIND_ROLE[kind] === 'place'`, and the difference is the question. The
+ * role table answers "is this structure, may the camera frame it", which is true
+ * of the ROOT and of a TRACK as well — and neither belongs in this exception.
+ * This asks the narrower one `canFocus` needs: "does framing this node still
+ * answer something when it holds nothing". An Organization does (an account
+ * manager, a vendor, a capability matrix). A COHORT does too, one ring out —
+ * "the 41 organizations on Integrating" is an answer whether or not any work is
+ * filed under them, and the cohort ring is the picture of it. A `track` does not
+ * (model.ts draws an empty one so that "which track has nothing on it" is
+ * visible ON the map, which is a different claim from "make it the screen"), and
+ * the root is the workspace rather than a place in it.
+ */
+const ANSWERS_WHEN_EMPTY: Readonly<Record<MindNodeKind, boolean>> = Object.freeze({
+  root: false,
+  track: false,
+  entity: true,
+  cohort: true,
+  group: false,
+  more: false,
+  entry: false,
+})
+
+function isPlaceKind(kind: MindNodeKind): boolean {
+  return ANSWERS_WHEN_EMPTY[kind]
+}
+
+// ── where the map opens ────────────────────────────────────────────────────
+//
+// THE ROOT IS NOT A LEGIBLE OPENING FRAME AND CANNOT BE MADE ONE, and that is
+// arithmetic rather than a bug. worlds.ts's own table gives a six-wide tier a
+// parent/child diameter ratio of 3.83 — 1.94 octaves — so a five-tier workspace
+// spans eleven octaves and a camera that shows the whole of it cannot show an
+// organization. Measured on the 400-organization fixture at the shipped opening
+// camera: `children[1]: card=1`, and the account manager's six type cards are
+// four tiers below the frame at 0.086 px of text.
+//
+// So the map opens on THE READER'S OWN WORLD. Everything below is the pure half
+// of that: which node id the opening camera should be struck around, given the
+// tree and who is looking at it. `useMapFocus` calls it where the persisted
+// focus default currently resolves, and the precedence there is the whole of the
+// feature's politeness:
+//
+//     ?focus= in the URL   beats   the persisted focus
+//     the persisted focus  beats   this resolver          ← yesterday's dive wins
+//     this resolver        beats   ROOT_ID                ← and this is new
+//
+// NEVER PERSISTED. A default that wrote itself into the store would stop being a
+// default after one paint and would then travel into `?focus=` on the next
+// mirror pass — so a link somebody shared would carry the SENDER's book to the
+// recipient. `useMapFocus` only writes back on `missingId !== null`, and this
+// resolver returns ids that resolve, which is asserted in focus.test.ts.
+
+/**
+ * Node kinds the dive may enter — worlds.ts's `STRUCTURAL_KINDS`, restated.
+ *
+ * RESTATED RATHER THAN IMPORTED because worlds.ts declares it privately and
+ * because the two are answering different questions off the same list: worlds.ts
+ * asks "may the camera stop here", this asks "is this a ring of the workspace or
+ * content drawn inside one". They agree today and a divergence would be a
+ * defect, which is why the set is spelled the same way.
+ *
+ * ── AND IT IS NOW `KIND_ROLE`, WHICH IS WHAT THE ROLE TABLE IS FOR ──────────
+ *
+ * `kind === 'root' || kind === 'track' || kind === 'entity'` was one of the
+ * twenty-seven `===` chains wave 6 converted, and it was among the worst of
+ * them: it does not red when the union grows, it answers `false` for the new
+ * kind, and `false` here means a cohort ring the camera cannot stop on, a
+ * breadcrumb that skips it, and a `?focus=` that climbs past it — the whole
+ * feature, silently absent. `KIND_ROLE`'s `'place'` IS this list (model.ts says
+ * so where it declares the table), so this is now one lookup that cannot be
+ * forgotten instead of three comparisons that were.
+ *
+ * A `cohort` IS ENTERED. "The 96 organizations Sara manages" is a ring of the
+ * workspace: the camera stops on it, the breadcrumb names it, and the dive goes
+ * through it to the organizations inside. That is the entire argument for the
+ * kind existing — see worlds.ts's `STRUCTURAL_KINDS` and the design's §1.6.
+ *
+ * ⚠ DIVEABLE IS NOT FILEABLE. `dropRules.isFilingKind` is the narrower table —
+ * `track` and `entity`, the two kinds whose `bucketKey` is a row id — and a
+ * cohort is the node that proves the two questions are different: you may fly
+ * into one and you may not file anything on one.
+ *
+ * Exported for `pages/map/useMapKeyboard.isDiveTarget`, which asked the same
+ * question with a third copy of the comparison and would have been a third site
+ * to forget. It stays a FUNCTION rather than a re-export of the table so this
+ * file keeps naming the question it is asking.
+ */
+export function isStructuralKind(kind: MindNodeKind): boolean {
+  return KIND_ROLE[kind] === 'place'
+}
+
+/**
+ * Roles that open on the WORKSPACE rather than on a book of their own.
+ *
+ * An admin or an owner reading this map is running the programme, not working a
+ * cohort; framing them on the two organizations that happen to name them is
+ * worse than framing them on the whole of Onboarding. That is the design's own
+ * table — *admin / owner → the Onboarding track world* — and it is the only
+ * thing `role` decides here.
+ *
+ * `'owner'` is not a `UserRole` at this commit (`types.ts:44` is
+ * `'admin' | 'member'`) and is listed anyway: 0025 moved authority onto
+ * `role_id`/`has_perm`, the role NAME is what a surface will hand this, and a
+ * set that has to be edited to keep working when the workspace names its top
+ * role is a set that will be edited late.
+ */
+const WORKSPACE_ROLES: ReadonlySet<string> = new Set(['admin', 'owner'])
+
+/**
+ * WHERE THE MAP OPENS FOR THIS READER — a node id, or null for "the drawn root",
+ * which is the caller's own fallback and the answer when the reader owns nothing
+ * and the workspace has nothing narrower to offer.
+ *
+ * PURE, TOTAL, and no store: it takes the tree the surface already built and the
+ * two facts about the reader that `useMapModel` already returns.
+ *
+ * ── TWO WAYS A NODE CAN BE YOURS, and they are the two the workspace spells ──
+ *
+ *  1. IT IS YOU. `MindNode.bucketKey` carries "a track id, a map-node id, a
+ *     status key, AN OWNER KEY" (model.ts:196) — so a bucket cut on a PERSON
+ *     carries that person's member id, and `bucketKey === meId` is "this ring is
+ *     my book" with no lookup at all. That is exactly what wave 6's
+ *     `?by=manager` cohort node will be, and it is what the render gate's `am:`
+ *     tier stands in for.
+ *  2. IT NAMES YOU. `managerOf(bucketKey)` is `map_nodes.account_manager_id` for
+ *     a real hierarchy node. It is an ARGUMENT and not a field on the tree
+ *     because `useMapModel.ts:250` deliberately drops that column on the way in
+ *     — "a node's integrator is a fact the PANEL shows, and a model that carried
+ *     it would invalidate the whole tree every time somebody typed a character
+ *     into that field" — and this module may not reach a store to go and find
+ *     it. Omitted, the resolver simply finds fewer nodes. It never guesses.
+ *
+ * ── THE RULE ────────────────────────────────────────────────────────────────
+ *
+ * Mark every structural node that is yours by either test, WITHOUT descending
+ * past a mark (a mark's whole subtree is one book, not a book per organization).
+ * Then walk down from the root for as long as ONE child still holds every mark.
+ * That lands on:
+ *
+ *   · your own node, when you have one — an account manager on their cohort;
+ *   · the smallest world containing your whole book, when it is spread — an
+ *     associate director on their span;
+ *   · the workspace opening (below) when nothing is yours.
+ *
+ * The descent stops OUTSIDE a childless node, because a camera framed on one
+ * card is not an opening. An account manager whose entire book is one
+ * organization therefore opens on the ring that organization sits in, which is
+ * their cohort by another road.
+ *
+ * ── WHAT THIS CANNOT DO YET, NAMED RATHER THAN FUDGED ───────────────────────
+ *
+ * An ASSOCIATE DIRECTOR has no column. `map_nodes` carries `account_manager_id`
+ * and nothing else about people, so an AD is found only when the AD tier is
+ * itself a node they own (test 1) or when a future `managerOf` answers for them.
+ * Until then an AD lands on the workspace opening, which is the whole of
+ * Onboarding — one ring wider than their span and never wrong.
+ */
+export function defaultFocusFor(
+  meId: string | null,
+  role: string,
+  tree: MindNode,
+  managerOf?: (bucketKey: string) => string | null,
+): string | null {
+  const workspace = workspaceOpeningId(tree)
+  if (meId === null || meId === '' || WORKSPACE_ROLES.has(role)) return workspace
+
+  const owns = (node: MindNode): boolean => {
+    const key = node.bucketKey
+    if (key === null || key === '' || !isStructuralKind(node.kind)) return false
+    if (key === meId) return true
+    return managerOf !== undefined && managerOf(key) === meId
+  }
+  const marks = (node: MindNode): number => {
+    if (owns(node)) return 1
+    let total = 0
+    for (const child of node.children) total += marks(child)
+    return total
+  }
+
+  const total = marks(tree)
+  if (total === 0) return workspace
+
+  let at = tree
+  for (;;) {
+    let next: MindNode | null = null
+    for (const child of at.children) {
+      if (marks(child) === total) {
+        next = child
+        break
+      }
+    }
+    // A childless node is a card, not a picture — stop one ring out. `at` is
+    // reached only through a child that held every mark, so it always has
+    // children and `canFocus` is satisfied by shape.
+    if (next === null || next.children.length === 0) break
+    at = next
+  }
+  return at === tree ? workspace : at.id
+}
+
+/**
+ * THE WORKSPACE'S OWN OPENING WORLD — the deepest ring that still shows
+ * everything, which is the design's *"admin / owner → the Onboarding track
+ * world"* row written so that it does not have to know the word "Onboarding".
+ *
+ * A CHAIN OF SINGLE CHILDREN IS NOT A PICTURE. `root` draws a pill and one
+ * track; framing it spends the entire screen saying "there is one track", and
+ * the reader has to dive once before the map has told them anything. So the
+ * opening descends while there is EXACTLY ONE structural child, and stops at the
+ * first ring that branches — which on this workspace is the Onboarding track
+ * world holding its two directorates, and on a two-track workspace is the root,
+ * unchanged.
+ *
+ * ⚠ AN EMPTY TRACK COUNTS AS A BRANCH. model.ts draws a track with nothing on it
+ * because "which track has nothing on it" is worth seeing ON the map, and a
+ * descent that skipped past it because it holds no children would delete that
+ * answer from the opening frame. The `children.length` test below is on the node
+ * being descended INTO — a lone child with nothing under it is one card, and one
+ * card is not an opening — never on its siblings.
+ *
+ * Null when it never moved: null is "the drawn root", so an unfocused map keeps
+ * its clean URL and its existing behaviour rather than gaining a `?focus=` that
+ * says the same thing.
+ */
+function workspaceOpeningId(tree: MindNode): string | null {
+  let at = tree
+  for (;;) {
+    let only: MindNode | null = null
+    let count = 0
+    for (const child of at.children) {
+      if (!isStructuralKind(child.kind)) continue
+      count += 1
+      if (count > 1) break
+      only = child
+    }
+    if (count !== 1 || only === null || only.children.length === 0) break
+    at = only
+  }
+  return at === tree ? null : at.id
 }
 
 // ── the tree walks ─────────────────────────────────────────────────────────
@@ -227,10 +507,22 @@ export function ancestorIdsOf(id: string): string[] {
 /**
  * The part of a focus id that SURVIVES A CHANGE OF DIMENSION.
  *
- * Ring 1 is tracks and does not depend on the axis; every ring below it is cut
- * on the axis, so a `group:` segment spelled under `status` names nothing under
- * `owner`. This trims to the deepest prefix that is still meaningful — normally
- * `root/track:X` — and returns null when nothing above the axis is left.
+ * THE STRUCTURAL RINGS ARE AXIS-INDEPENDENT; the axis rings are not. `track:` is
+ * ring 1 and `entity:` is every ring the hierarchy hangs below it — both are
+ * spelled by the SHAPE of the workspace, which a dimension chip does not touch.
+ * Everything from the first `group:` outward is cut on the axis, so a `group:`
+ * segment spelled under `status` names nothing under `owner`. This trims to the
+ * deepest prefix that is still meaningful — `root/track:X/entity:OB/entity:Org1`
+ * where there is a hierarchy, `root/track:X` where there is not — and returns
+ * null when nothing above the axis is left.
+ *
+ * KEEPING `entity:` IS NOT A REFINEMENT, IT IS THE SAME BUG AS THE ORIGINAL ONE.
+ * A reader standing in `…/entity:Org1/group:blocked` who flips the chip would
+ * otherwise be trimmed all the way back to the TRACK — three rings out, past the
+ * OB phase and past the Org — which is precisely the teleport the paragraph
+ * below was written to stop, just at a larger radius. It would also fail
+ * SILENTLY: `resolveFocus` finds the track, draws it, and reports no fallback,
+ * so nothing on screen says the reader was moved.
  *
  * WHY IT EXISTS AT ALL, when `resolveFocus` already recovers: because the call
  * site that drops a focus on regroup was clearing it to NULL, and null is not
@@ -250,10 +542,27 @@ export function dimensionStableId(id: string | null): string | null {
   const parts = id.split('/')
   const kept: string[] = []
   for (const part of parts) {
-    // `root` and `track:` are axis-independent. `group:`, `more` and `entry:`
-    // are not — a group is the axis itself, and both of the others are drawn
-    // inside one.
-    if (part !== ROOT_ID && !part.startsWith('track:')) break
+    // `root`, `track:`, `entity:` and `cohort:` are axis-independent — they are
+    // the tree's SHAPE. `group:`, `more` and `entry:` are not: a group IS the
+    // axis, and both of the others are drawn inside one.
+    //
+    // A COHORT IS CUT BY `?by=`, WHICH THIS CHIP DOES NOT TOUCH. Flipping
+    // Status → Owner re-buckets the ENTRIES under an organization and leaves
+    // every cohort ring exactly where it was, so breaking at one throws an
+    // account manager standing in their own book back to the track — past their
+    // cohort, past the type ring, past the organization. Three rings, and
+    // silently: trimming reports no fallback (that is the point of trimming
+    // rather than leaning on `resolveFocus`), so nothing on screen would say the
+    // reader had been moved. At 400 organizations every focus below the track
+    // ring has a `cohort:` segment in it, so this is the ordinary case.
+    if (
+      part !== ROOT_ID &&
+      !part.startsWith('track:') &&
+      !part.startsWith('entity:') &&
+      !part.startsWith('cohort:')
+    ) {
+      break
+    }
     kept.push(part)
   }
   if (kept.length <= 1) return null
@@ -411,25 +720,84 @@ export function viewFromParams(p: URLSearchParams): MindtreeUrlView {
 
 /**
  * A node id's grammar, per model.ts's `nodeId`: `root` followed by
- * `track:`/`group:`/`entry:` segments carrying percent-encoded values, plus the
- * bare `more` fold.
+ * `track:`/`entity:`/`group:`/`entry:` segments carrying percent-encoded values,
+ * plus the bare `more` fold.
  *
  * THE VALUE MAY BE EMPTY, which is not sloppiness — `NO_VALUE` is the empty
  * string, so the untracked pile is literally `root/track:` and the unassigned
  * bucket is `.../group:`. A stricter pattern would drop a focus on the two
  * buckets an ops lead cares most about.
  *
- * The character class is exactly what `encodeURIComponent` can emit.
+ * `more` KEEPS ITS BARE FORM. It is the one segment with no value to carry — a
+ * fold is identified by its position, not by a key — and `.../more` is the id
+ * model.ts actually mints. Nothing about the hierarchy changes that.
+ *
+ * `cohort:` IS HERE BECAUSE A COHORT IS A WORLD, AND A WORLD IS SHAREABLE. This
+ * is the one line without which wave 6 would have shipped a silent defect: a
+ * cohort is in `STRUCTURAL_KINDS`, so the camera stops on one and `useMapUrl`
+ * mirrors it into `?focus=` — and a grammar that did not know the word would
+ * have rejected the id on the way back in, which does not fall back loudly. It
+ * fails to `wholeMap` with `missingId` NEVER SET (a rejected id never reaches
+ * `resolveFocus`), so the link somebody pasted opens the whole map with nothing
+ * on screen saying why. Exactly the shipping bug `MAX_SEGMENTS` was raised from
+ * 6 to fix, one grammar rule further out.
+ *
+ * The character class is exactly what `encodeURIComponent` can emit — so a
+ * cohort's key may carry its axis and its value in one segment
+ * (`cohort:manager%3A<uuid>`) without a new rule here.
  */
-const SEGMENT = /^(?:(?:track|group|entry):[A-Za-z0-9\-_.!~*'()%]*|more)$/
+const SEGMENT = /^(?:(?:track|entity|cohort|group|entry):[A-Za-z0-9\-_.!~*'()%]*|more)$/
 
 /**
- * Long enough for the deepest real id many times over, short enough that a
- * pathological query string cannot make the walk above interesting. Depth is
- * five segments at most (root/track/group/more/entry).
+ * THE TWO BOUNDS ARE ONE DECISION, and the decision is the database's.
+ *
+ * 0023's `map_node_depth` trigger caps the hierarchy at SIX levels below the
+ * track, so the deepest id this app can mint is
+ *
+ *     root · track: · entity: ×6 · group: · more · entry:
+ *     ─┬──   ──┬───   ───┬────     ──┬───   ─┬──   ──┬───
+ *      1   +   1    +    6      +    1    +  1   +   1     = 11 segments
+ *
+ * That plus one was `MAX_SEGMENTS = 12`, so the parser rejects only ids the
+ * schema could not have produced. THE OLD VALUE OF 6 WAS A SHIPPING BUG, not a
+ * conservative margin: Aziz's own example path,
+ * `root/track:UHR/entity:OB/entity:Org1/group:blocked/entry:X`, is EXACTLY six,
+ * so one further level of nesting made `parseFocusId` return null — and a
+ * rejected id never reaches `resolveFocus`, so `missingId` is never set and the
+ * shared link opens the whole map with nothing on screen saying why.
+ *
+ * ── AND WAVE 6 ADDED A SECOND TERM, WHICH IS WHY THIS NUMBER MOVED AGAIN ────
+ *
+ * `groupEntities` inserts `cohort:` segments between a structural node and the
+ * organizations under it, and it RECURSES: a bucket still over the ring cap is
+ * re-cut by the next key in the grouping ladder. The ladder is four keys long
+ * (stage · manager · type · vendor), each spendable once, so one grouping site
+ * can nest at most four cohorts — and there is a grouping site at the track and
+ * at each of the six entity levels the depth trigger allows:
+ *
+ *     7 grouping sites × 4 ladder keys = 28 cohort segments, worst case
+ *
+ * 11 + 28 = 39, plus one, is 40. It takes only 25 organizations that agree on
+ * all four keys to exhaust the ladder at one site, so this is not a decorative
+ * margin — it is the same rule as before ("reject only what the schema could not
+ * have produced") applied to a schema that now has cohorts in it. The cost of
+ * being wrong in this direction is a shared link that silently opens the whole
+ * map; the cost of being wrong in the other is an ancestor walk over 40 short
+ * strings.
+ *
+ * The length follows from the same arithmetic. The widest segment is a `group:`
+ * carrying a percent-encoded owner name (`group:` + up to ~3× a display name);
+ * twelve segments of a uuid-bearing worst case was ~520 characters, and a cohort
+ * segment measures 62 at its widest axis word: `cohort:` plus `cohortKeyOf`'s own `cohort:<axis>:<uuid>`
+ * with its colons percent-encoded (model.ts:746, `nodeId` at :789). 28 of those
+ * is ~1 740, for ~2 260 all told. 4 096 keeps the same clear factor of two while
+ * still being far too short for a query string to make the walk interesting.
+ *
+ * `store/mindtree.ts`'s `MAX_NODE_ID` is the same number for the same reason —
+ * it bounds persisted collapse ids, which are these ids. Move them together.
  */
-const MAX_FOCUS_LEN = 512
-const MAX_SEGMENTS = 6
+const MAX_FOCUS_LEN = 4096
+const MAX_SEGMENTS = 40
 
 function parseFocusId(raw: string | null): string | null {
   if (raw === null || raw === '' || raw.length > MAX_FOCUS_LEN) return null

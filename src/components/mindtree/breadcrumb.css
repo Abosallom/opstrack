@@ -31,8 +31,12 @@
      …on hover          `.btn-ghost:hover` (--text) 12.61 / 15.14 on --bg-elev-2
      current location   (--text)                    15.74 / 16.44 on --bg
      the chevron        (--text-faint)               6.40 / 5.11 on --bg
+     the elision mark   (--text-faint)               5.92 / 5.54 on --bg-elev
+                                                     5.13 / 4.71 on --bg-elev-2
    Every one is a theme token — this component paints no track hue, so there is
-   no admin-chosen hex to sweep and the figures are exact.
+   no admin-chosen hex to sweep and the figures are exact. The elision mark is
+   TEXT and clears 4.5:1 on all three surfaces, which is why it is `--text-faint`
+   and not a lighter one: it is quiet by size and weight, never by dilution.
 
    SPACING is on the 4px grid. */
 
@@ -44,11 +48,19 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  /* WRAPS, never scrolls. The trail is at most four hops deep (model.ts's tree
-     is root → track → group → more → entry, and focus.ts refuses the leaf), so
-     there is nothing to fold — and a crumb that has scrolled out of a horizontal
+  /* WRAPS, never scrolls — and the REASON changed even though the declaration
+     did not. It used to be that the trail was at most four hops deep by
+     construction (model.ts's tree is root → track → group → more → entry), so
+     there was nothing to fold. That bound is gone: the trail is now the
+     department path the camera is in, as deep as the admin configured. What
+     keeps the row short is `visibleCrumbs` in Breadcrumb.tsx, which caps the
+     DRAWN row at the root plus two near hops plus the current location.
+
+     So the row is at most four boxes and an elision mark and wrapping is a
+     safety net rather than a layout. Scrolling would still be wrong for the
+     same reason it always was: a crumb that has scrolled out of a horizontal
      strip is a crumb the reader has to find before they can press it, which
-     breaks the one promise this component makes: the root is ALWAYS one press
+     breaks the one promise this component makes — the root is ALWAYS one press
      away. */
   column-gap: 2px;
   /* 8px between wrapped lines, not 4: two rows of `.btn` targets need the
@@ -93,6 +105,21 @@
   /* Optically centred against the button's cap height rather than its 44px box,
      which is mostly padding. */
   margin-inline: 2px;
+}
+
+/* The worlds between the root and the near hops, as ONE mark.
+   Not a control and not a hit target: it stands for a set rather than a place,
+   and the way to any member of that set is to zoom out past it. Sized and
+   weighted down rather than faded — `--text-faint` is a measured token and
+   clears 4.5:1 on every surface this bar sits on; `opacity` would composite it
+   toward its backdrop and hand that measurement back. */
+.mtree-crumbbar-gap {
+  flex: 0 0 auto;
+  padding-inline: 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-faint);
 }
 
 .mtree-crumbbar-here {

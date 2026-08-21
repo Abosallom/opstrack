@@ -54,6 +54,20 @@ import { t } from '../lib/i18n'
 import { useTrackLabel } from '../lib/labels'
 import { canEditEntry } from '../lib/permissions'
 import { pushOverlay } from '../lib/overlayStack'
+import { viewToParams } from '../lib/mindtree/focus'
+import {
+  DEFAULT_PORTFOLIO_BY,
+  DEFAULT_PORTFOLIO_RISK,
+  LENS_KEY,
+  MAP_LENSES,
+  type MapLens,
+  type PortfolioBy,
+} from '../lib/mindtree/lens'
+import { ROOT_ID } from '../lib/mindtree/model'
+// The composer is mounted on the map, so `c` is a focus() when the reader is
+// already there and a navigation when they are not — see the `capture` case in
+// run().
+import { focusMapCapture } from './map/MapCapture'
 import {
   focusSearchField,
   focusSurfaceStart,
@@ -67,7 +81,11 @@ import {
   type HotkeyHit,
   type RankRow,
 } from '../lib/hotkeys'
-import { useAuth } from '../store/auth'
+// Type-only: the palette needs the KEY UNION to type its per-row gate, and
+// nothing else from api/roles. A value import would pull the whole permission
+// catalogue into this chunk to spell five string literals.
+import type { PermissionKey } from '../api/roles'
+import { useAuth, useHasPerm, useIsAdmin } from '../store/auth'
 import { useActiveTracks, useTrackMap } from '../store/config'
 import { loadEntries, refreshEntries, setStatus, useEntryList } from '../store/entries'
 import { getOpenEntryId, openEntry, stepEntry } from '../store/entrySheet'
@@ -123,6 +141,25 @@ export interface PaletteScreen {
 }
 
 /**
+ * A destination App.tsx withholds, and THE KEY IT WITHHOLDS IT ON.
+ *
+ * The key is per ROW rather than per table because 0025 stopped the admin block
+ * being one thing: `structure.edit` opens Groups, Structure and Tracks to the
+ * Director, `vocab.edit` opens Catalogue, Vocabulary and Terminology, and Roles
+ * and Members stay on `workspace.admin`. A table that was still all-or-nothing
+ * would offer a Director either five rows they cannot open or none of the six
+ * they can.
+ *
+ * `PermissionKey` rather than `string`: api/roles owns that union, so a key
+ * renamed there is a compile error here rather than a row nobody is ever
+ * offered. CommandPalette.test.tsx asserts each row's key equals the one App.tsx
+ * guards the same path with.
+ */
+export interface AdminPaletteScreen extends PaletteScreen {
+  permKey: PermissionKey
+}
+
+/**
  * Every screen the palette can reach without being an admin.
  *
  * Its own table rather than App.tsx's NAV, which is not exported and belongs to
@@ -156,19 +193,13 @@ export interface PaletteScreen {
  * withhold a member's own screen from a member.
  */
 export const SCREENS: readonly PaletteScreen[] = [
-  { to: '/capture', labelKey: 'route.capture' },
-  { to: '/followups', labelKey: 'route.followups' },
-  { to: '/board', labelKey: 'route.board' },
-  { to: '/tracks', labelKey: 'route.tracks' },
-  // The map half of the tracks job. It is in no nav — its designed entry is the
-  // List | Map switcher on /tracks — which makes it exactly the kind of screen
-  // this table earns its keep on, and it named itself out of its own namespace
-  // for the reason the two Wave-4b rows below give.
+  // THE APP. Capture, follow-ups, the board, the tracks index, the dashboard and
+  // the notification history were six rows here and are now five LENSES on this
+  // one — see LENSES below, and docs/MAP-CONTRACT.md §1. It keeps naming itself
+  // out of its own namespace for the reason the two Wave-4b rows below give.
   { to: '/mindtree', labelKey: 'mindtree.title' },
   { to: '/meetings', labelKey: 'route.meetings' },
-  { to: '/dashboard', labelKey: 'route.dashboard' },
   { to: '/digest', labelKey: 'digest.title' },
-  { to: '/notifications', labelKey: 'notif.title' },
   { to: '/settings', labelKey: 'route.settings' },
   { to: '/settings/recurring', labelKey: 'route.recurring' },
   // The two Wave-4b screens that were missing. Named out of their OWN
@@ -188,29 +219,235 @@ export const SCREENS: readonly PaletteScreen[] = [
   // states what leaves the browser is exactly the screen someone goes looking
   // for by typing its name rather than by scrolling a settings list.
   { to: '/settings/ai', labelKey: 'ai.title' },
+  // The privacy policy. Named out of its own namespace on the same rule as
+  // digest/notif/mindtree above — `privacy.title` already ships in both
+  // languages. It is in no nav (its designed entries are Settings › About and
+  // the App Store listing), which is exactly the kind of screen this table
+  // exists for.
+  { to: '/privacy', labelKey: 'privacy.title' },
+]
+
+/* ─────────────────────────── the map's own links ───────────────────────── */
+
+/** The one route the whole application is built around. */
+const MAP_PATH = '/mindtree'
+
+/**
+ * The lens param, spelled the way pages/map/useMapUrl.ts reads it.
+ *
+ * A COPY OF ITS `P_LENS`, and the copy is a decision rather than laziness: that
+ * constant is module-private, and importing from useMapUrl would drag
+ * store/mindtree and two react-router hooks into a component whose entire test
+ * suite runs under `environment: 'node'` with no DOM. So the copy is PINNED
+ * instead — CommandPalette.test.tsx reads `P_LENS` out of that file's source and
+ * fails if the two ever spell it differently. That is the same "derive the
+ * expectation from the thing that is actually true" move the App.tsx route parse
+ * in the same test makes, and for the same reason: a copy nobody checks is how a
+ * link stops working in silence.
+ *
+ * `?stage=` IS DELIBERATELY NEVER WRITTEN HERE. Every lens implies its stage and
+ * `mapParamsForLens` omits the param whenever the two agree; the only lens these
+ * links use beyond the five chips is `shape`, whose stage is `map`. Writing it
+ * would put a redundant param in front of every reader for a case that
+ * round-trips without it.
+ */
+const LENS_PARAM = 'lens'
+
+/**
+ * The portfolio's two controls, spelled the way that same file reads them.
+ *
+ * COPIES, PINNED THE SAME WAY `LENS_PARAM` IS — CommandPalette.test.tsx reads
+ * `P_BY` and `P_RISK` out of useMapUrl.ts's source and fails if either side
+ * respells one. The alternative to a pinned copy is importing the hook, which
+ * this file cannot do (see above); the alternative to pinning it is a link that
+ * stops working in silence, because a `?by=` the map does not recognise is
+ * simply "no opinion" and the row lands on the default view with no error.
+ *
+ * UNLIKE `?stage=`, THESE ARE SPELLED OUT IN FULL even when they agree with the
+ * default. A palette row is a thing a person reads, copies out of the address
+ * bar and sends to someone; `/mindtree?lens=portfolio&by=stage&risk=1` says what
+ * it will show, and `mapPortfolioFromParams` reads the redundant form back
+ * identically, so nothing downstream can tell the difference.
+ */
+const BY_PARAM = 'by'
+const RISK_PARAM = 'risk'
+
+/**
+ * The manager facet, as lib/entryFilter.ts's codec carries it.
+ *
+ * A THIRD PINNED COPY, and the one with the most to lose: `manager=` is how "My
+ * organizations" says WHOSE. Comma-joined uuids rather than repeated params,
+ * which is that codec's own split — `tag`/`vendor` repeat because they are free
+ * text a person types, and these are ids.
+ */
+const MANAGER_PARAM = 'manager'
+
+/**
+ * A link to the map: a lens, and optionally the node it opens focused.
+ *
+ * ONE FUNCTION FOR EVERY MAP DESTINATION THE PALETTE HAS, so the five lens rows
+ * and the track rows cannot drift apart on the query shape. The focus half is
+ * written by `viewToParams` rather than concatenated: lib/mindtree/focus.ts owns
+ * the `?focus=` name and the "root is not a focus" rule, and a second opinion
+ * about either is exactly how a shared link stops round-tripping.
+ */
+export function mapHref(lens: MapLens, focusId: string | null = null): string {
+  const params = viewToParams(new URLSearchParams([[LENS_PARAM, lens]]), {
+    focusId,
+    dimension: null,
+  })
+  return `${MAP_PATH}?${params.toString()}`
+}
+
+/**
+ * The id of the map node a track's branch is drawn as.
+ *
+ * `nodeId()` in lib/mindtree/model.ts is private, so this restates its one rule
+ * — `root/track:<percent-encoded id>` — and CommandPalette.test.tsx pins the
+ * restatement against a tree `buildMindtree()` actually builds rather than
+ * against this sentence. `encodeURIComponent` is a no-op on the uuids that reach
+ * it today and is still what model.ts does, so the two keep agreeing on the day
+ * a track key is not a uuid.
+ */
+export function trackFocusId(trackId: string): string {
+  return `${ROOT_ID}/track:${encodeURIComponent(trackId)}`
+}
+
+/**
+ * The five lenses, as palette rows.
+ *
+ * NOT in SCREENS, and the difference is exactly the guarantee
+ * CommandPalette.test.tsx enforces: every entry in SCREENS must be a path
+ * App.tsx routes, and none of these is one. A lens is a QUERY on the single map
+ * route — `/mindtree?lens=numbers` — so a row here dead-ends only if `/mindtree`
+ * itself stops being routed, which the SCREENS row above already asserts.
+ *
+ * WHY THEY ARE ROWS AT ALL. Typing "board" or "dashboard" into the palette was
+ * how five of these surfaces were reached before the collapse, and the muscle
+ * memory does not go away because the architecture did. Without these rows the
+ * only way to a lens is a chip on a screen you first have to be looking at.
+ *
+ * `LENS_KEY` rather than five literals: lib/mindtree/lens.ts owns the lens↔label
+ * mapping and MapLensBar renders from the same table, so the palette row and the
+ * chip it lands on can never read differently. MAP_LENSES fixes the order.
+ */
+export const LENSES: readonly PaletteScreen[] = MAP_LENSES.map((lens) => ({
+  to: mapHref(lens),
+  labelKey: LENS_KEY[lens],
+}))
+
+/**
+ * A link to one reading of the portfolio: a grouping and the exception cut.
+ *
+ * `mapHref('portfolio')` and then the two params, rather than a second
+ * `viewToParams` composition — there is no focus on any of these rows and adding
+ * one would be a claim about a drill-in nobody made.
+ */
+export function portfolioHref(by: PortfolioBy, risk: boolean): string {
+  return `${mapHref('portfolio')}&${BY_PARAM}=${by}&${RISK_PARAM}=${risk ? '1' : '0'}`
+}
+
+/**
+ * The four morning questions, as palette rows.
+ *
+ * ONE CHIP, FOUR ROWS, AND THAT IS THE WHOLE TRADE. `MapLensBar` carries six
+ * chips because nine is a two-screen pan on a 375px phone, so stalled, workload,
+ * vendor cohorts and progress collapsed into ONE chip with a `?by=` control
+ * behind it. That would have cost three of the four questions their
+ * one-interaction guarantee — a reader would tap Portfolio and then tap again —
+ * if these rows did not exist. They are the compensation, and they are not
+ * optional: delete them and the collapse becomes a demotion.
+ *
+ * NOT IN `LENSES`, which is derived from `MAP_LENSES` and must stay derived: one
+ * row per lens, in the chip order, is what keeps the palette and the chip bar
+ * saying the same thing. These are four readings of ONE lens, so they are their
+ * own table — and the row that `LENSES` already contributes for `portfolio`
+ * lands on the default view, which is the first of these four. That repetition
+ * is deliberate: "Portfolio" is what someone types who wants the screen, and
+ * "Stalled organizations" is what someone types who wants the answer.
+ *
+ * ⚠ THE `risk` VALUES ARE NOT DECORATION. The stalled row is the ONLY one that
+ * keeps the exception cut. Workload has to sum to every organization or the
+ * five books do not add up to the workspace; vendors has to count whole cohorts
+ * or "one fix unblocks N" is a lie; progress has to carry the organizations with
+ * nothing open or the denominator flatters itself. Turning `risk` on for any of
+ * the three silently answers a different question with the same-looking table.
+ */
+export const PORTFOLIO_VIEWS: readonly PaletteScreen[] = [
+  // Spelled through the two constants rather than as `('stage', true)`, so this
+  // row and the chip's own default state are the SAME view by construction —
+  // which is the claim budget E1 makes and the one a reader would otherwise have
+  // to check by hand.
+  {
+    to: portfolioHref(DEFAULT_PORTFOLIO_BY, DEFAULT_PORTFOLIO_RISK),
+    labelKey: 'mindtree.portfolioViewStalled',
+  },
+  { to: portfolioHref('manager', false), labelKey: 'mindtree.portfolioViewWorkload' },
+  { to: portfolioHref('vendor', false), labelKey: 'mindtree.portfolioViewVendors' },
+  { to: portfolioHref('phase', false), labelKey: 'mindtree.portfolioViewProgress' },
 ]
 
 /**
- * Admin-only screens.
+ * "My organizations" — the AM's own book, from anywhere.
+ *
+ * BUILT, NOT LISTED, because it names a person: the id is the signed-in reader's
+ * and there is no such row for a session that has none. That is the same shape
+ * as `trackCandidates`, and it carries the same hazard — a destination assembled
+ * at call time is invisible to a test that walks a table — so the "never
+ * navigates anywhere App.tsx does not route" case RUNS this builder rather than
+ * reading it.
+ *
+ * `risk=0`, deliberately: an account manager opening their own book wants all
+ * eighty organizations, not the subset that is late. The stalled cut is one chip
+ * away and is what the first palette row above is for.
+ */
+export function myOrgsHref(memberId: string): string {
+  return `${portfolioHref(DEFAULT_PORTFOLIO_BY, false)}&${MANAGER_PARAM}=${encodeURIComponent(memberId)}`
+}
+
+/**
+ * The screens App.tsx withholds, each with the key it is withheld on.
  *
  * Kept out of SCREENS rather than filtered from it at render time so the
- * distinction is visible in the source: App.tsx route-gates all three, and
- * offering a member a row that bounces them back to /settings is worse than not
+ * distinction is visible in the source: App.tsx route-gates every row, and
+ * offering someone a row that bounces them back to /settings is worse than not
  * offering it. /settings/recurring is NOT here — that screen is deliberately
  * readable by everyone and withholds its own editing.
  *
- * The split is asserted against App.tsx too: the test reads which routes carry
- * the `isAdmin` ternary, so a row in the wrong table is a failure rather than a
- * member bouncing off a screen the palette just promised them.
+ * ONE KEY PER ROW, NOT ONE PER TABLE, since 0025. The eight rows are three
+ * groups: structure, words, people. A Director holds the first two keys and not
+ * the third, so this table has to be able to offer six rows and withhold two —
+ * an all-or-nothing table would make Cmd-K the last place the Director role is
+ * still invisible.
+ *
+ * The split is asserted against App.tsx twice over: the test reads which routes
+ * carry a permission ternary (so a row in the wrong table is a failure rather
+ * than someone bouncing off a screen the palette just promised them) and which
+ * NAME each one carries (so a row's key here and the route's key there cannot
+ * drift apart).
  */
-export const ADMIN_SCREENS: readonly PaletteScreen[] = [
+export const ADMIN_SCREENS: readonly AdminPaletteScreen[] = [
   // Above tracks, the level it sits above — the same coarse-to-fine reading
   // order the filter bar's facets and the Settings page's two cards use.
-  { to: '/settings/groups', labelKey: 'groups.title' },
-  { to: '/settings/tracks', labelKey: 'admin.tracks.title' },
-  { to: '/settings/vocabulary', labelKey: 'vocabadmin.title' },
-  { to: '/settings/terminology', labelKey: 'terminology.title' },
-  { to: '/settings/members', labelKey: 'route.members' },
+  { to: '/settings/groups', labelKey: 'groups.title', permKey: 'structure.edit' },
+  { to: '/settings/tracks', labelKey: 'admin.tracks.title', permKey: 'structure.edit' },
+  // Below tracks: the tree (0023), then the catalogue that tree is measured
+  // against (0024). Same coarse-to-fine order, continued one level down.
+  { to: '/settings/structure', labelKey: 'structure.title', permKey: 'structure.edit' },
+  // The read-only Jira reader, on the same key App.tsx gates its route with.
+  { to: '/settings/jira', labelKey: 'jira.title', permKey: 'structure.edit' },
+  // ⚠ The catalogue writes `use_cases` (vocab.edit) in one half and
+  //   `map_node_kinds` (structure.edit) in the other. `vocab.edit` is the key
+  //   App.tsx gates the route on, so it is the key this row must carry — a row
+  //   offered on a key the route refuses is exactly the drift the test forbids.
+  //   CatalogueAdmin.tsx's header owns the note.
+  { to: '/settings/catalogue', labelKey: 'catalogue.title', permKey: 'vocab.edit' },
+  { to: '/settings/vocabulary', labelKey: 'vocabadmin.title', permKey: 'vocab.edit' },
+  { to: '/settings/terminology', labelKey: 'terminology.title', permKey: 'vocab.edit' },
+  // A role is what a member holds, so it sits directly above them (0025) — and
+  // both stay on `workspace.admin`, the power withheld from Director.
+  { to: '/settings/roles', labelKey: 'roles.title', permKey: 'workspace.admin' },
+  { to: '/settings/members', labelKey: 'route.members', permKey: 'workspace.admin' },
 ]
 
 /**
@@ -226,11 +463,28 @@ export const ADMIN_SCREENS: readonly PaletteScreen[] = [
  * reach from the palette. At 8 the blank-query list stopped at Notifications and
  * neither Settings nor Recurring was ever offered — found in the browser pass
  * rather than in a test, which is what a browser pass is for.
+ *
+ * AND IT HAPPENED AGAIN, TO THE SAME ARITHMETIC, WHEN THE LENSES ARRIVED. The
+ * `screens` group is three tables now — SCREENS, then LENSES, then ADMIN_SCREENS
+ * — and this sum was left counting two of them. `rankQuery` takes `slice(0,
+ * limit)` on a blank query, so an admin's nineteen candidates were cut to
+ * fourteen and the five that fell off the end were the whole admin block:
+ * Groups, Tracks, Vocabulary, Terminology and Members were offered to nobody
+ * until they typed something. LENSES is not optional in this sum — anything the
+ * builder can return has to be counted here, or the tail of the list is a set of
+ * screens the palette silently withholds.
+ *
+ * IT IS FIVE TABLES NOW, AND ONE OF THEM IS CONDITIONAL. `PORTFOLIO_VIEWS` is
+ * flat; "My organizations" is one row that exists only for a signed-in reader.
+ * The cap has to be the LARGEST list the builder can return, so the `+ 1` is
+ * unconditional even though the row is not — a cap that bites only when someone
+ * is signed in is the same defect twice removed, and it would drop the admin
+ * block for exactly the people who have one.
  */
 const GROUP_CAP: Readonly<Record<GroupId, number>> = {
   entries: 8,
   tracks: 6,
-  screens: SCREENS.length + ADMIN_SCREENS.length,
+  screens: SCREENS.length + LENSES.length + PORTFOLIO_VIEWS.length + 1 + ADMIN_SCREENS.length,
   actions: 6,
 }
 
@@ -297,7 +551,37 @@ export function entryCandidates(
   })
 }
 
-/** The active tracks, each row opening that track's timeline. */
+/**
+ * The active tracks, each row opening that track's BRANCH ON THE MAP.
+ *
+ * ── THE DEAD LINK THIS REPLACES, AND WHY NOTHING SAW IT ────────────────────
+ *
+ * This navigated to `/tracks/<id>` until the collapse deleted that route, and it
+ * kept navigating there afterwards. The failure is worse than a 404 precisely
+ * because App.tsx has no 404: the catch-all redirects anything it does not
+ * recognise to `/mindtree`, so a reader typed a track name, pressed Enter, and
+ * landed on the map at whatever they were already looking at — no error, no
+ * focus, no sign the palette had not understood them.
+ *
+ * It shipped because this destination is BUILT rather than LISTED. The registry
+ * case in the test walks the SCREENS table, which is the only place a path was
+ * ever written down; a path assembled from a uuid at call time was invisible to
+ * it in both directions. The test now runs EVERY builder that takes a `navigate`
+ * and checks where it actually sends the reader, against App.tsx's route table
+ * with the catch-all excluded — which is the only shape of check that could have
+ * caught this one.
+ *
+ * ── WHY `shape`, FOCUSED, AND NOT ONE OF THE OTHER FOUR ────────────────────
+ *
+ * The deleted screen answered "what is in this track and how is it doing".
+ * `shape` focused on the track's node draws exactly that — the branch, its ring-2
+ * groups and their counts — and `subjectForLens` opens the branch panel beside
+ * the canvas, which is the list half of what the timeline was. The other four
+ * lenses are questions about the whole workspace (what needs me, what changed,
+ * the board, the numbers), so a track focus under them would answer a question
+ * nobody asked and would silently override a lens the reader chose for a
+ * different reason.
+ */
 export function trackCandidates(
   tracks: readonly Track[],
   trackLabel: TrackLabelFn,
@@ -307,7 +591,7 @@ export function trackCandidates(
     item: {
       id: `track:${track.id}`,
       label: trackLabel(track),
-      run: () => navigate(`/tracks/${track.id}`),
+      run: () => navigate(mapHref('shape', trackFocusId(track.id))),
     },
     // BOTH names, in both languages, whichever the UI is showing: an English
     // UI still has to find a track whose only memorable name is Arabic. This
@@ -319,13 +603,44 @@ export function trackCandidates(
 /**
  * The screens this viewer may go to.
  *
- * The admin table is APPENDED rather than merged and re-sorted, so an admin sees
- * the same twelve rows in the same order a member does and the three extra ones
- * after them — a list that reorders itself by role is a list nobody builds
- * muscle memory on.
+ * The admin table is APPENDED rather than merged and re-sorted, so everyone sees
+ * the same twelve rows in the same order and whichever of the eight extra ones
+ * they hold the key for after them — a list that reorders itself by role is a
+ * list nobody builds muscle memory on. A Director's list is therefore the
+ * member's twelve, then six; an admin's is the member's twelve, then eight.
+ *
+ * `holds` RATHER THAN A ROLE, and that is the whole change 0025 asks for here.
+ * The caller owns the question — the component passes store/auth's hooks, the
+ * tests pass a predicate — and this function only decides which rows the answers
+ * admit and in what order. Passing a role would have put a fourth copy of "who
+ * is an admin" in a file that renders a list.
+ *
+ * `meId` IS NULL FOR A SESSION WITH NO PROFILE, and the "My organizations" row
+ * is then ABSENT rather than pointing at an empty facet. `?manager=` with
+ * nothing after it is not "everybody" and it is not "me": it is a filter that
+ * matches nothing, and a palette row that reliably produces an empty table is
+ * worse than a row that is not offered. Same call the component already makes
+ * for `canEditEntry` — null, never a stand-in.
  */
-export function screenCandidates(role: UserRole, navigate: NavigateFn): RankRow<Row>[] {
-  const screens = role === 'admin' ? [...SCREENS, ...ADMIN_SCREENS] : SCREENS
+export function screenCandidates(
+  holds: (key: PermissionKey) => boolean,
+  navigate: NavigateFn,
+  meId: string | null = null,
+): RankRow<Row>[] {
+  // The lenses sit after the plain routes and before the admin block, so the
+  // shared prefix of every viewer's list is unchanged — the property the
+  // "leaving the shared order alone" case pins. The four portfolio readings and
+  // the reader's own book follow the lens they are readings OF, for the same
+  // reason: coarse to fine, and never reordered by who is looking.
+  const mine: readonly PaletteScreen[] =
+    meId === null ? [] : [{ to: myOrgsHref(meId), labelKey: 'mindtree.portfolioViewMine' }]
+  const screens = [
+    ...SCREENS,
+    ...LENSES,
+    ...PORTFOLIO_VIEWS,
+    ...mine,
+    ...ADMIN_SCREENS.filter((s) => holds(s.permKey)),
+  ]
   return screens.map((screen) => ({
     item: {
       id: `screen:${screen.to}`,
@@ -476,7 +791,23 @@ export default function CommandPalette(): ReactElement {
   // `null`, never a stand-in: canEditEntry() tests the signed-out case first, so
   // a placeholder id would satisfy the open policy for a session that has none.
   const meId = profile?.id ?? null
+  // STILL THE LEGACY COLUMN, and correctly: `role` below feeds canEditEntry(),
+  // whose rule is `created_by === meId || owner_id === meId || role === 'admin'`
+  // — an ENTRY-level question 0025 did not touch. Only the SCREEN list moved to
+  // permission keys.
   const role: UserRole = profile?.role ?? 'member'
+  // EVERY KEY, AS A TOTAL RECORD, so the compiler is the thing that notices when
+  // api/roles adds one: a new member of `PermissionKey` fails this literal, and
+  // the alternative — a predicate with a `default:` arm — would silently answer
+  // for a key nobody wired up. Five unconditional hook calls; store/auth reads
+  // one Set, so each is a `has()`.
+  const held: Readonly<Record<PermissionKey, boolean>> = {
+    'workspace.admin': useIsAdmin(),
+    'structure.edit': useHasPerm('structure.edit'),
+    'vocab.edit': useHasPerm('vocab.edit'),
+    'members.manage': useHasPerm('members.manage'),
+    'capture.write': useHasPerm('capture.write'),
+  }
 
   /* ---------- the candidate lists ---------- */
 
@@ -500,7 +831,7 @@ export default function CommandPalette(): ReactElement {
   // is a dependency the value does not read and a linter is right to reject it.
   // The labels have to be recomputed on a language switch, and the cheapest
   // honest way to guarantee that is to recompute them always.
-  const screenRows = screenCandidates(role, navigate)
+  const screenRows = screenCandidates((key) => held[key], navigate, meId)
   const actionRows = actionCandidates({
     cycleTheme: () => setTheme(nextThemeAfter(theme)),
     switchLanguage: () => setLocaleSetting(locale === 'en' ? 'ar' : 'en'),
@@ -612,7 +943,44 @@ export default function CommandPalette(): ReactElement {
     (hit: HotkeyHit) => {
       switch (hit.id) {
         case 'capture':
-          navigate('/capture')
+          // THE COMPOSER FIRST, THEN THE SCREEN IT LIVES ON.
+          //
+          // On the map the bar is already mounted at the block end, so `c` puts
+          // the caret in it with NO navigation at all — and because this call is
+          // inside the keydown, it is inside the user-activation stack, which is
+          // what raises a software keyboard.
+          //
+          // OFF THE MAP IT IS A NAVIGATION, and dropping that fallback is what
+          // made this a silent no-op on roughly half the application.
+          // focusMapCapture() answers false whenever the bar is not mounted —
+          // every mode route (/meetings*, /digest) and everything under
+          // /settings — and this case discarded the answer. lib/hotkeys' own
+          // `allowedAtDepth` still says "`c` navigates", the cheatsheet still
+          // lists it under "Anywhere", and MAP-CONTRACT §5 asks for
+          // focusMapCapture() "with the old navigate as the fallback". The old
+          // navigate went to /capture, which the collapse deleted; the map is
+          // where that screen went, so that is where this goes. "This screen has
+          // no composer" may be a defensible policy, but it has to be SAID, and
+          // changing the screen to the one place capture lives says it louder
+          // than any toast — with no string to translate and no other file to
+          // touch.
+          //
+          // `/mindtree` BARE, with no `?lens=`, which is the reader's own choice
+          // being kept rather than a param forgotten: a URL carrying no lens
+          // means "keep the persisted one" (mapLensFromParams returns null for
+          // it), and somebody who pressed `c` asked for the box, not for a
+          // different view of their workspace. pages/Mindtree mounts the
+          // composer at every lens and every stage, so the box is there whatever
+          // they get back.
+          //
+          // THE CARET DOES NOT FOLLOW ACROSS THE NAVIGATION, and that is the
+          // honest cost. pages/Mindtree is lazy, so the bar mounts some frames
+          // after this call; a focus() taken then is outside the user-activation
+          // stack that raises a phone keyboard, and a timer that reached in after
+          // the route settled would steal the caret from a reader who had already
+          // started doing something else. One more `c` on arrival takes it, and
+          // that press is the cheap one — the reader is now on the map.
+          if (!focusMapCapture()) navigate(MAP_PATH)
           return
         case 'palette':
           // A toggle, so the chord that opened it also closes it — which is what

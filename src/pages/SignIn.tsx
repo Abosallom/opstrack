@@ -11,6 +11,13 @@
 //   contains '@' → "email me a sign-in link"  (sendOtp)
 //   no '@'       → "first time? claim your account"  (→ /claim)
 //
+// AND ONE DOOR THAT DOES NOT BRANCH: "Forgot your password?" is offered to both
+// kinds of account, because /reset is the screen that owns the branch — an
+// emailed recovery link for a real address, and the admin-reissues-the-invite
+// path for a username, which cannot be sent anything at all. Until it existed a
+// forgotten password was terminal for every account in this workspace, the
+// admin's included: there is nobody above him to reset it.
+//
 // A LINK, NOT A CODE (WAVE2-NOTES §1). Supabase's free tier refuses
 // email-template changes, so the mail it sends always contains a magic link and
 // never a visible {{ .Token }}. The screen that promised "a 6-digit code" was
@@ -60,12 +67,12 @@ import {
 // inside the tap that asked for it, and the field being focused does not exist
 // until this state change has been applied.
 import { flushSync } from 'react-dom'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { isConfigured } from '../api/supabase'
-import { IconArrowStart, IconBolt, IconKey, IconMail, IconUser } from '../components/icons'
+import { IconArrowStart, IconKey, IconMail, IconRing, IconUser } from '../components/icons'
 import { toast } from '../components/toast'
 import { t, useLocale } from '../lib/i18n'
-import { sendOtp, signInPassword, verifyOtp } from '../store/auth'
+import { sendOtp, signInPassword, useAuth, verifyOtp } from '../store/auth'
 import { setLocaleSetting } from '../store/settings'
 import './signin.css'
 
@@ -88,6 +95,13 @@ type ErrorField = 'identifier' | 'code' | null
 export default function SignIn(): ReactElement {
   const locale = useLocale()
   const configured = isConfigured()
+  // The ONLY thing this screen reads from the auth store, and it is here rather
+  // than in App.tsx because this is where a recovery landing arrives. Supabase
+  // sends its recovery link to this deployment's base URL (store/auth's
+  // requestPasswordReset explains why it cannot carry `#/reset` itself), so
+  // after supabase-js strips the tokens the hash is empty, the catch-all route
+  // sends the reader here, and this is the door that has to forward them.
+  const { recovery } = useAuth()
 
   const [mode, setMode] = useState<Mode>('credentials')
   const [identifier, setIdentifier] = useState('')
@@ -291,6 +305,14 @@ export default function SignIn(): ReactElement {
     submittedCode.current = null
   }
 
+  // AFTER every hook, never before one: this is a render-time redirect, and the
+  // rules of hooks do not care what is returned, only that nothing above is
+  // skipped. A live recovery link belongs on /reset — the store withholds its
+  // session precisely so that App.tsx keeps rendering this signed-out tree, and
+  // without this line the reader would sit on a sign-in form holding a key they
+  // cannot use. `replace` so Back does not bounce between the two.
+  if (recovery === 'active') return <Navigate to="/reset" replace />
+
   const errorNode = error ? (
     <p className="field-error signin-error" id="signin-error" role="alert">
       {error}
@@ -304,7 +326,7 @@ export default function SignIn(): ReactElement {
       <div className="card signin-card">
         <div className="signin-brand">
           <span className="signin-mark" aria-hidden="true">
-            <IconBolt size={16} />
+            <IconRing size={16} />
           </span>
           <span className="signin-brand-name">{t('app.name')}</span>
           {/* The ONLY language control that exists before sign-in. The header's
@@ -335,6 +357,20 @@ export default function SignIn(): ReactElement {
           <form className="signin-form" onSubmit={(e) => void submitPassword(e)} noValidate>
             <h2 className="signin-title">{t('signin.heading')}</h2>
             <p className="signin-sub">{t('signin.subtitle')}</p>
+
+            {/* A link that arrived dead — reused, or older than the ten minutes
+                `mailer_otp_exp` allows — redirects here carrying `error_code` in
+                the hash instead of tokens, and HashRouter throws that hash away
+                on the first render. store/auth.ts reads it at module scope so
+                that this sentence is still available to say. It covers a stale
+                sign-in link and a stale reset link alike, because the URL does
+                not distinguish them and neither should a sentence that would
+                otherwise have to guess. */}
+            {recovery === 'expired' ? (
+              <p className="signin-note" role="status">
+                {t('signin.linkDead')}
+              </p>
+            ) : null}
 
             <div className="signin-fields">
               <div className="field">
@@ -451,7 +487,24 @@ export default function SignIn(): ReactElement {
               </Link>
             )}
 
-            {/* Nothing follows the alternatives slot. Wave 4b mounted
+            {/* THE RECOVERY DOOR, and it is offered to BOTH kinds of account —
+                which is the point. A username account cannot be sent anything,
+                but its owner is the one most likely to be locked out (they were
+                handed a password once, in person, and never typed it into a
+                password manager), and until this link existed the product said
+                nothing at all about what to do. /reset branches on the '@' and
+                tells each kind the truth: a link for a real inbox, and the
+                admin-reissues-your-code path for an account that has none.
+
+                A <Link>, not a button that starts sending: the branch has a
+                whole screen of explanation behind it for half the readers, and
+                .signin-link is already a 44px target with a visible focus ring
+                from global.css. */}
+            <Link className="signin-link" to="/reset">
+              {t('signin.forgotPassword')}
+            </Link>
+
+            {/* Nothing follows the recovery link. Wave 4b mounted
                 `<SsoButtons />` here — a Microsoft Entra button that rendered only
                 once `/auth/v1/settings` reported `external.azure: true`, which it
                 never did. WAVE5-NOTES §2 removed the provider outright: the

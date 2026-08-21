@@ -35,13 +35,88 @@
   min-inline-size: 0;
 }
 
+/* ---------- the route's own box ----------
+
+   THE THREE PADDING NUMBERS ARE TOKENS, AND THAT IS A DRIFT FIX RATHER THAN A
+   TIDY-UP. `pages/mindtree.css` cancels this padding from the inside with
+   negative margins — the only way for a child to undo a parent's padding without
+   naming the parent — and until now it did so by COPYING these three numbers by
+   hand. Its own comment names the hazard: "if they drift, the map is misaligned
+   by the difference". `--app-header-block-size` already travels this exact route
+   for exactly this reason, so the tokens are declared here, this rule is
+   rendered FROM them, and the sheet that has to cancel them reads them instead
+   of remembering them.
+
+   Declared on `.main-content` itself rather than on `:root`: they are this box's
+   geometry, they change at the 768px breakpoint below, and a descendant is the
+   only thing that needs to see them. */
 .main-content {
+  --main-pad-block-start: 22px;
+  --main-pad-block-end: 56px;
+  --main-pad-inline: 18px;
   flex: 1 1 auto;
   min-inline-size: 0;
   inline-size: 100%;
   max-inline-size: 1180px;
-  padding-block: 22px 56px;
-  padding-inline: 18px;
+  padding-block: var(--main-pad-block-start) var(--main-pad-block-end);
+  padding-inline: var(--main-pad-inline);
+}
+
+/* ---------- full bleed ----------
+
+   THE LAST STRUCTURAL PIXEL-THIEF ON THE MAP SCREEN, and it is here rather than
+   in the map's own sheet because `.main-content` is not that sheet's to style
+   (§1.0.7 — one class, one owner).
+
+   MEASURED: at 1600x900 the map's stage renders 1180px wide inside a viewport
+   that has 1368px available after the 232px sidebar. `max-inline-size: 1180px`
+   is costing the drawing 188px — 14% of the width it could have — on the one
+   route in this app whose entire job is a picture. Every other route is a
+   document, and a 1180px measure is a reading-width decision that is right for
+   all of them, which is why the cap stays and an OPT-IN is what changes.
+
+   `data-fullbleed` is an attribute the ROUTE sets, not a class the shell
+   guesses: the shell renders one `<main>` for every screen and has no business
+   knowing which of them is a map. Reported to the integrator — `App.tsx`'s
+   `<main className="main-content">` takes `data-fullbleed` when the route is the
+   map, and nothing else in this file needs to change.
+
+   The inline padding goes to zero with the cap, because a stage that spans the
+   viewport and then insets itself by 28px is a stage with a 28px frame nobody
+   asked for — and `mindtree.css` cancels that padding anyway, so leaving it
+   would mean two rules undoing each other across a file boundary. The BLOCK
+   padding is left alone: the map cancels it deliberately (its stage is
+   `100dvh - header`) and a route that opts into full bleed without a fixed-height
+   stage still wants its block rhythm.
+
+   ── THE DESIGN PADDING GOES TO ZERO. THE NOTCH ARITHMETIC MAY NOT. ──────────
+
+   `zero` WAS TOO BLUNT, AND THE CASCADE IS WHY IT WAS NOT OBVIOUS. This rule is
+   `.main-content[data-fullbleed]` — a class AND an attribute, specificity
+   (0,2,0) — and the phone breakpoint below re-declares `--main-pad-inline` on
+   `.main-content`, specificity (0,1,0). Higher specificity wins regardless of
+   source order, so on the map route this `0px` beat the phone value at every
+   width. The phone value is not a design number: it is
+   `max(14px, env(safe-area-inset-left), env(safe-area-inset-right))`, and the
+   two `env()` terms are the DEVICE saying where its own glass is rounded or
+   interrupted. Zeroing them let the map's chrome run under a notch, and it did
+   it silently — `mindtree.css`'s phone block still carries a comment claiming
+   "the inline gutters are KEPT here", written when they were.
+
+   So the 14/18/28px DESIGN padding is what full bleed cancels, and the safe-area
+   floor survives it. On every non-notched viewport — including the 375x812 and
+   1600x900 the rebuild was measured at — both `env()` terms are `0px`, `max()`
+   is `0px`, and this is byte-for-byte the behaviour of the `0px` it replaces.
+   It differs only where a device says it must.
+
+   IT IS NOT A SUBSTITUTE FOR THE 8px THE MAP'S OWN ROWS STATE. This is the
+   floor under the whole stage; `.mtree-rail`, `.mtree-foot` and
+   `.mdive[data-compact]` still state their own gutter, because a control flush
+   against the glass reads as sheared whether or not there is a notch behind
+   it. */
+.main-content[data-fullbleed] {
+  max-inline-size: none;
+  --main-pad-inline: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
 }
 
 /* ---------- sidebar (>= 768px) ---------- */
@@ -284,150 +359,20 @@
   flex: 0 0 auto;
 }
 
-/* ---------- bottom tab bar (< 768px) ---------- */
+/* ---------- the bottom tab bar and the capture FAB: DELETED ----------
+   `.tabbar`, `.tabbar-item`, `.tabbar-icon`, `.tabbar-label`, `.tab-badge` and
+   `.fab` lived here, ~120 lines of them, and they went with the six-destination
+   navigation they belonged to (docs/MAP-CONTRACT.md §1). Under 768px the map is
+   now the whole viewport and `components/map/map-capture.css` docks the composer
+   across roughly 53px–117px + safe-area at its block end. A five-slot bar and a
+   floating button both landed on top of that composer, and the composer is the
+   thing being reached for — so the bar is gone, the FAB is gone, and the phone's
+   navigation is the lens chips, `MapModeBar` and the header's gear.
 
-.tabbar {
-  position: fixed;
-  inset-inline: 0;
-  inset-block-end: 0;
-  z-index: 80;
-  display: flex;
-  align-items: stretch;
-  background: color-mix(in srgb, var(--bg-elev) 92%, transparent);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
-  border-block-start: 1px solid var(--border);
-  /* Home-indicator clearance. Without this the last row of tab labels sat
-     under the iPhone gesture bar and the outer tabs were unhittable. */
-  padding-block-end: env(safe-area-inset-bottom, 0px);
-  padding-inline: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
-}
-
-.tabbar-item {
-  /* Five equal tabs. min-inline-size: 0 is what lets them fit a 320px
-     viewport instead of overflowing the bar. */
-  flex: 1 1 0;
-  min-inline-size: 0;
-  min-block-size: 52px;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding-block: 7px 6px;
-  padding-inline: 2px;
-  color: var(--text-dim);
-  transition: color 0.15s ease;
-}
-
-.tabbar-item.active,
-.tabbar-item[aria-current='page'] {
-  color: var(--accent);
-}
-
-/* Active marker, centred by margin-inline: auto inside a zeroed inline inset
-   rather than by a 50% offset + translateX — the percentage form resolves off
-   the wrong edge in RTL and the bar drifted off the tab in Arabic. */
-.tabbar-item.active::before,
-.tabbar-item[aria-current='page']::before {
-  content: '';
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline: 0;
-  inline-size: 26px;
-  block-size: 3px;
-  margin-inline: auto;
-  border-radius: 0 0 3px 3px;
-  background: var(--accent);
-}
-
-/* Fixed 24px box, not just line-height: 0. The badge below is positioned
-   against this element, and when the icon was allowed to collapse to its
-   content height the badge landed on top of the tab label instead of on the
-   icon's corner. */
-.tabbar-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  flex: 0 0 auto;
-  inline-size: 24px;
-  block-size: 24px;
-  line-height: 0;
-  transition: transform 0.15s ease;
-}
-
-.tabbar-icon svg {
-  inline-size: 24px;
-  block-size: 24px;
-}
-
-.tabbar-item:active .tabbar-icon {
-  transform: scale(0.88);
-}
-
-.tabbar-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-inline-size: 100%;
-}
-
-/* Badge pinned to the icon's trailing-top corner; inset-inline-end follows the
-   direction so it never covers the glyph in Arabic. */
-.tab-badge {
-  position: absolute;
-  inset-block-start: -5px;
-  inset-inline-end: -11px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-inline-size: 16px;
-  block-size: 16px;
-  padding-inline: 4px;
-  border-radius: 999px;
-  background: var(--red);
-  color: var(--bg); /* see .nav-badge — white fails on the dark theme's --red */
-  font-size: 10px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  border: 2px solid var(--bg-elev);
-  box-sizing: content-box;
-}
-
-/* ---------- floating capture button (< 768px) ----------
-   Capture is the app's reason to exist and must be reachable in one thumb
-   movement from any tab, so it floats above the bar rather than living in it. */
-
-.fab {
-  position: fixed;
-  inset-inline-end: 16px;
-  inset-block-end: calc(74px + env(safe-area-inset-bottom, 0px));
-  z-index: 81;
-  inline-size: 56px;
-  block-size: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
-  box-shadow: var(--shadow);
-  border: none;
-}
-
-.fab:active {
-  transform: scale(0.94);
-}
-
-.fab:focus-visible {
-  outline-color: var(--text);
-}
+   TWO NUMBERS ELSEWHERE WERE MEASURED AGAINST THIS BAR and were corrected in the
+   same change: `.main-content`'s mobile `padding-block-end` below, and
+   `pages/meetings/meetings.css`'s `.mt-commit-bar` offset (contract risk 7). Any
+   other `72px`/`74px` block-end clearance in this repo is now suspect. */
 
 /* ---------- offline banner ----------
    The strip stays on screen while the user keeps working — captures queue in the
@@ -501,10 +446,13 @@
 .toast-host {
   position: fixed;
   inset-inline: 0;
-  /* Clears the tab bar AND the capture FAB stacked above it (74px offset +
-     56px tall + 8px gap). A toast sitting at tab-bar height covered the FAB
-     exactly when it is most wanted — the "Entry captured / Undo" toast fires
-     at the moment the user wants to capture the next thing. */
+  /* WAS the tab bar plus the capture FAB stacked above it (74 + 56 + 8). Both
+     are deleted; the number is KEPT because what stands there now is the map's
+     composer, which docks across roughly 53px–117px + safe-area at its tallest
+     (chip strip + problems panel — see map-capture.css). 138px still clears it,
+     and it clears it for the same reason the FAB clearance existed: the "Entry
+     captured / Undo" toast fires at the exact moment the reader wants to type
+     the next thing, so it must never land on the field. */
   inset-block-end: calc(138px + env(safe-area-inset-bottom, 0px));
   z-index: 95;
   display: flex;
@@ -576,10 +524,20 @@
     flex-direction: column;
   }
 
+  /* 84px WAS the tab bar (52px) plus the FAB's overhang. Both are gone, so
+     what is left is an ordinary block-end margin plus the home indicator. The
+     map does NOT rely on this: `.mtree` clears its own composer through
+     `--map-composer-block-size` (pages/mindtree.css), which is the only element
+     that can, since the composer's height is measured at runtime. */
+  /* The TOKENS are retuned, not the `padding` declarations — that is the whole
+     point of routing them through custom properties, and it is what lets
+     `mindtree.css` cancel the right numbers at every width with one rule
+     instead of three copies. */
   .main-content {
-    padding-block: 16px calc(84px + env(safe-area-inset-bottom, 0px));
+    --main-pad-block-start: 16px;
+    --main-pad-block-end: calc(20px + env(safe-area-inset-bottom, 0px));
     /* Symmetric notch padding — see the note at the top of this file. */
-    padding-inline: max(14px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+    --main-pad-inline: max(14px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   }
 
   /* Retunes the header AND the offline strip's sticky offset in one move —
@@ -596,18 +554,15 @@
     display: flex;
   }
 
-  .tabbar,
-  .fab {
-    display: none;
-  }
-
   .main-content {
-    padding-block: 26px 64px;
-    padding-inline: 28px;
+    --main-pad-block-start: 26px;
+    --main-pad-block-end: 64px;
+    --main-pad-inline: 28px;
   }
 
-  /* No tab bar to clear, so toasts drop to the corner and stop covering the
-     centre of the list. */
+  /* No composer docked at the block end on a wide viewport — the capture bar
+     sits in the shell's flow there — so toasts drop to the corner and stop
+     covering the centre of the panel. */
   .toast-host {
     inset-inline-start: auto;
     inset-block-end: 20px;
@@ -633,14 +588,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tabbar-item,
-  .tabbar-icon,
   .nav-item {
     transition: none;
-  }
-
-  .tabbar-item:active .tabbar-icon,
-  .fab:active {
-    transform: none;
   }
 }

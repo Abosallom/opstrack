@@ -221,12 +221,16 @@ async function countReferencing(table: string, trackId: string): Promise<number>
  */
 export async function getTrackUsage(id: string): Promise<ApiResult<TrackUsage>> {
   if (!supabase) return notConfigured()
-  const [entries, meetings, templates] = await Promise.all([
+  const [entries, meetings, templates, nodes] = await Promise.all([
     countReferencing('entries', id),
     countReferencing('meetings', id),
     countReferencing('recurring_templates', id),
+    // 0023. Before that migration applies the table does not exist, and
+    // countReferencing() warns and answers 0 — which is the honest answer while
+    // there is no hierarchy, not a silent one.
+    countReferencing('map_nodes', id),
   ])
-  return { ok: true, data: { entries, meetings, templates } }
+  return { ok: true, data: { entries, meetings, templates, nodes } }
 }
 
 // ── SLA overrides (0006) ────────────────────────────────────────────────────
@@ -330,7 +334,9 @@ export async function deleteTrack(
   if (!supabase) return notConfigured()
 
   const before = await getTrackUsage(id)
-  const moved: TrackUsage = before.ok ? before.data : { entries: 0, meetings: 0, templates: 0 }
+  const moved: TrackUsage = before.ok
+    ? before.data
+    : { entries: 0, meetings: 0, templates: 0, nodes: 0 }
 
   const { error } = await supabase.rpc('delete_track', {
     p_id: id,

@@ -28,7 +28,7 @@ import { isPluralNode, type PluralNode } from './plural'
 import type { LabelOverrideMap } from '../types'
 
 /** A plain string in both trees. */
-const PLAIN = 'nav.board'
+const PLAIN = 'nav.map'
 /** A string carrying one fenced placeholder in both trees. */
 const TOKEN = 'entry.createdBy'
 /** A plural node in both trees — two forms in English, six in Arabic. */
