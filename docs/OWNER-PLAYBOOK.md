@@ -2,7 +2,7 @@
 
 **Written for Aziz, alone at his desk, 13 August 2026. Revised 19 August** when
 `nphiescore.com` was bought — that adds Step 3b and cancels the queued
-`/nphiescore/` move. The revamp is built: forty commits
+`/nphiescore/` move. The revamp is built: forty-one commits
 on `feat/map-hierarchy`, nothing pushed. Everything below is either a step
 only you can take, or a judgement only you can make. Each step says what it needs, what you
 will see, and what happens after.
@@ -15,7 +15,7 @@ will see, and what happens after.
 |---|---|---|---|
 | 0 | Rotate the exposed credentials | ✅ done | `.env.supabase-admin` deleted |
 | 1 | The SQL sitting (0026 / 0027 / 0028) | ❌ **not landed** | all five objects 404 on the live project — see the self-check below |
-| 2 | Tell me — I import the 400-org demo | ⏳ waits on 1 | — |
+| 2 | Tell me — I import a demo: the 400-org file or the 72-org slice | ⏳ waits on 1 | — |
 | 3 | Redeploy `jira-read` | ❓ unverifiable from outside | redoing it is free and idempotent |
 | 3b | **The domain — DNS for `nphiescore.com`** | ❌ new, 19 Aug | bought; records not yet added — [`DOMAIN-CUTOVER.md`](DOMAIN-CUTOVER.md) |
 | 4 | Provision the 16 people | ❌ not done | `profiles` holds 2 rows — **do 3b first**, see below |
@@ -33,11 +33,13 @@ bottom of the results panel went unseen. The 30-second self-check, safe to paste
 
 ```sql
 select relname from pg_class
- where relname in ('map_node_stages','map_node_progress','map_node_goals','jira_settings')
+ where relname in ('map_node_stages','map_node_progress','map_node_goals',
+                   'jira_settings','map_node_branches')
  order by 1;
 ```
 
-Four rows = the sitting landed. Zero = it did not, whatever the Editor seemed to say.
+**Five rows = the sitting landed.** Zero = it did not, whatever the Editor seemed to say. Four
+rows means `0029` alone is missing — the other three took and it is the only file to re-paste.
 
 ---
 
@@ -78,8 +80,19 @@ the SQL Editor.** The one-screen version:
 | again | the same 4 NOTICEs |
 | `supabase/migrations/0028_jira_settings.sql` | 3 NOTICEs, no ERROR |
 | again | the same 3 NOTICEs |
+| `supabase/migrations/0029_org_identity.sql` | **5** NOTICEs, no ERROR |
+| again | the same 5 NOTICEs |
 | the runbook §5 verification queries | the expected rows, exactly |
-| the runbook §6 canary query | `f_0025 = true`, `w_0025 = 1` — **unchanged** |
+| the runbook §6 canary query | `f_0025 = true`, `w_0025 = 1`, `x_0025 = 0` — **unchanged** |
+
+**All three canary columns, not two.** `x_0025` is the one to read first even though it is
+last: `x_0025 = 1` is the **escalation breach** and the most serious result that query can
+return — `role_permissions` is writable by a Director key, so anyone holding Director can open
+the roles screen and grant themselves `workspace.admin`. Nothing in this repo writes that
+policy. Fix it before anything else. (`f_0025 = false` means `is_admin()` no longer calls
+`has_perm` and custom roles have quietly stopped being honoured; `w_0025 = 0` means
+`map_nodes_insert` went back to `is_admin()` and the Director role grants nothing on the tree.
+Both of those are repaired by re-applying `0025`, and only `0025`.)
 
 Three rules, each argued in the runbook:
 
@@ -103,15 +116,43 @@ clock stops).
 
 ---
 
-## Step 2 — Tell me, and I import the 400-org demo (your part: one message)
+## Step 2 — Tell me, and I import a demo (your part: one message)
 
-Say **"SQL is done"** (or anything like it). Then I, at the keyboard:
+Say **"SQL is done"** (or anything like it). **Two files are ready and you pick one** — say
+which, or say nothing and I use the 400:
 
-1. Dry-run `docs/templates/structure.demo.csv` against the live project and read the plan
-   (~400 creates, 280 stages, 40 goals, 812 use-case links)
-2. Apply it in one shot — the undo manifest is written to `docs/EVIDENCE/import-runs/` and
+| File | Size | What it is for |
+|---|---|---|
+| `docs/templates/structure.demo.csv` | 437 rows, **400 organizations**, root `UHR > Demo Portfolio` | The stress case: what the canvas, the roll-up and the importer have to survive |
+| `docs/templates/structure.slice.csv` | 83 rows, **72 organizations**, root `UHR > Demo Slice` | The one to *look at*: same lenses, one screen, and it comes back out in a few seconds instead of a few minutes |
+
+They hang under **different roots**, so the workspace can hold both and either can be undone
+without touching the other. **Both need Step 1 done first, and for the same reason:** each one
+fills the `stage`, `target_date` and `target` columns, so against a project where 0026 and 0027
+have not been run the planner refuses the whole file **by name** — `stage_tables_missing` /
+`goal_table_missing` — before it writes anything.
+
+Then I, at the keyboard — **and the first item is first for a reason, not for tidiness**:
+
+1. **Take back the old 22-node demo via its own manifest, BEFORE anything new goes on.** The
+   12 August demo is still standing on the live project (its manifest is the only file in
+   `docs/EVIDENCE/import-runs/`, and nothing has undone it), and its root is
+   `UHR > Demo Portfolio` — **the same path the new 400-org file claims for its own root.**
+   Undone now, while it is still one clean branch of 22, it comes off in one command. Undone
+   *after* the new import, it does not come off at all: the new file's 437 nodes hang under
+   that same root, so `scripts/lib/importManifest.mjs` refuses the root by name
+   (`code: 'children'` — "child node(s) this import did not create") and deletes only the 21
+   nodes below it. The root then belongs to no manifest on disk — the old one refuses it, and
+   the new one never created it, it *adopted* it — and a node called "Demo Portfolio" is left
+   standing in the real workspace with nothing that can remove it but hand-deletion.
+2. Dry-run the file you picked against the live project and read the plan (the 400: 438
+   creates, 0 updates, 280 stages, 40 goals, 812 use-case links; the slice: 84 creates, 50
+   stages, 12 goals, 134 use-case links). **Those numbers are the post-undo numbers** — run
+   the 400 before item 1 and it reads `437 … 1 to update`, with 22 lines under *in the app but
+   not in this file* and a move warning on `Rimal Polyclinic`. If you see that shape, item 1
+   has not happened yet; stop and do it.
+3. Apply it in one shot — the undo manifest is written to `docs/EVIDENCE/import-runs/` and
    committed, so the whole demo remains one command from gone
-3. Take back the old 22-node demo via its own manifest
 4. Run the live half of the verification: the audit-row checks, the paged-read proofs, the
    canary again
 
@@ -238,8 +279,13 @@ measurable has already been measured.
 2. **The purple.** The accent, the chips, the selection. *Does it read as the nphies ring
    now, or still blue?*
 3. **The Portfolio chip.** Its badge is the at-risk count. Tap it: the stalled list, longest
-   stuck first. Tap **Team** — five books plus the unassigned pile. Tap **Vendors** — the
-   120-org cohort should dominate. *Is this your morning answer?*
+   stuck first. Tap **Team** — **two named managers and one large unassigned pile.** Team
+   buckets by the organization's *own* `account_manager_id`, and the demo only names the two
+   people who have accounts: you on Account Book One, Nasser Alabri on Account Book Two. Books
+   Three, Four and Five carry no manager on any row, so they land in the pile — deliberately;
+   Step 4 is what gives them names. Three buckets is the lens working, not a bug. Tap
+   **Vendors** — on the 400-org file the 120-org cohort should dominate. *Is this your morning
+   answer?*
 4. **Change a stage.** Tap a row's stage cell, pick a rung. No dialog; an undo toast. Press
    undo once to see it restore. *Two taps?*
 5. **Find an org.** Type four letters of any demo hospital into the search. *Is it there,
@@ -295,7 +341,7 @@ unchanged file does nothing, and every apply writes an undo manifest.
 
 ## Step 8 — Push and deploy (your word)
 
-Forty commits sit local on `feat/map-hierarchy`, with **no upstream** — `main` is
+Forty-one commits sit local on `feat/map-hierarchy`, with **no upstream** — `main` is
 still at 2 August, so the live site today is the app as it stood *before* the whole
 revamp. The deploy only fires on a push to `main`.
 
@@ -334,6 +380,7 @@ When you're satisfied with the tour:
 | [`docs/PENDING-MIGRATIONS.md`](PENDING-MIGRATIONS.md) | The permanent record of what is applied and what is pending, with the canary query |
 | [`docs/templates/README.md`](templates/README.md) | **Step 7.** Filling the CSV — every column, every trap |
 | `docs/templates/structure.csv` / `.example.csv` / `.demo.csv` | The empty template, the readable example, the 400-org demo |
+| `docs/templates/structure.slice.csv` | The **72-org** demo under its own root `UHR > Demo Slice` — the one that undoes in seconds. Needs 0026 + 0027 (Step 1) or it is refused by name |
 | [`docs/RUNBOOK.md`](RUNBOOK.md) | Operations: tokens, secrets, invite codes, recovery |
 | [`docs/PEOPLE.md`](PEOPLE.md) | The roster behind Step 4 |
 | [`supabase/functions/jira-read/README.md`](../supabase/functions/jira-read/README.md) | **Step 5.** The Jira function: secrets, security model, revocation |

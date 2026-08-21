@@ -934,12 +934,13 @@ function settleOne<T>(
  * of its own for the reason the hierarchy did: `useJiraEnabled()` decides whether
  * a link EXISTS on surfaces already rendering from here.
  *
- *   * TWO OF THE EIGHT FAIL ON EVERY LOAD TODAY, and shipping that way is the
- *     plan rather than a risk taken: 0026 is applied by hand AFTER this wave
- *     lands, so `map_node_stages` and `map_node_progress` answer 42P01 until it
- *     is. Both go through settle() like everything else — a warn, the previous
- *     rows, no stamp — which is why the app has to be correct on both sides of
- *     that moment without a flag, a version check or a second code path.
+ *   * THREE OF THE EIGHT FAIL ON EVERY LOAD TODAY, and shipping that way is the
+ *     plan rather than a risk taken: 0026 and 0028 are applied by hand AFTER
+ *     this wave lands, so `map_node_stages`, `map_node_progress` and
+ *     `jira_settings` all answer 42P01 until they are. All three go through
+ *     settle() like everything else — a warn, the previous rows, no stamp —
+ *     which is why the app has to be correct on both sides of that moment
+ *     without a flag, a version check or a second code path.
  *
  *   * `loadedAt` is stamped on the TRACKS read ALONE, exactly as it always has
  *     been, and the three new reads change nothing about that. Groups are a lens
@@ -949,7 +950,10 @@ function settleOne<T>(
  *     would refire the whole load on every component mount, forever. That is a retry
  *     storm this store did not have yesterday, introduced by an additive feature, on
  *     the app's most-mounted read. It is also not hypothetical THIS time: the live
- *     workspace runs 0022 and the migration is applied by hand.
+ *     workspace is applied through 0025 — 0023, 0024 and 0025 landed on 12 Aug
+ *     2026 — and 0026, 0027 and 0028 have never been run against any database,
+ *     so the three reads named above 404 on it right now
+ *     (docs/PENDING-MIGRATIONS.md).
  *   * A failed read of any of the other four leaves its previous data in place
  *     rather than writing `[]` over it — see settle() above.
  *   * `Promise.all`, not eight awaits: one round trip's latency, not eight, on the

@@ -17,6 +17,11 @@ import { readFileSync } from 'node:fs'
 
 import { describe, it, expect } from 'vitest'
 
+// The slice generator, IMPORTED RATHER THAN SHELLED OUT TO, so the bytes it
+// would write can be compared against the bytes it wrote. Importing it runs
+// nothing: `main()` is guarded behind an `import.meta.url` check there.
+import { build as buildSlice, verify as verifySlice, render as renderSlice } from '../make-demo-slice.mjs'
+
 import {
   parseCsv,
   parseStructureCsv,
@@ -968,19 +973,50 @@ const SEEDED_USE_CASES = [
   'Clinical Notes',
 ]
 
+/**
+ * Every template on disk, BY NAME.
+ *
+ * ⚠ A NEW TEMPLATE THAT IS NOT ON THIS LIST SHIPS UNCHECKED. The two tests below
+ * iterate it rather than a directory listing — a listing would quietly start
+ * asserting things about a file somebody dropped in the folder — so adding a
+ * generator (`make-demo-slice.mjs` was the fourth) means adding its output here
+ * in the same commit. The header identity is the property that matters: all four
+ * are written against ONE header read out of `structure.csv`, and a template
+ * that drifted from it would import every use-case status into the wrong column.
+ */
+const TEMPLATE_FILES = [
+  'structure.csv',
+  'structure.example.csv',
+  'structure.demo.csv',
+  'structure.slice.csv',
+]
+
 describe('the shipped templates', () => {
-  it('all three files begin with a UTF-8 BOM — without it Excel destroys the Arabic', () => {
-    for (const name of ['structure.csv', 'structure.example.csv', 'structure.demo.csv']) {
+  it('every file begins with a UTF-8 BOM — without it Excel destroys the Arabic', () => {
+    for (const name of TEMPLATE_FILES) {
       const bytes = readFileSync(new URL(name, TEMPLATE_DIR))
       expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf])
     }
   })
 
-  it('all three files carry the SAME header, and it matches 0024 exactly and in order', () => {
+  it('every file carries the SAME header, and it matches 0024 exactly and in order', () => {
     const headerOf = (name) => parseCsv(readTemplate(name))[0].cells
-    expect(headerOf('structure.example.csv')).toEqual(headerOf('structure.csv'))
-    expect(headerOf('structure.demo.csv')).toEqual(headerOf('structure.csv'))
+    for (const name of TEMPLATE_FILES.slice(1)) {
+      expect(headerOf(name)).toEqual(headerOf('structure.csv'))
+    }
     expect(headerOf('structure.csv')).toEqual([...FIXED_COLUMNS, ...SEEDED_USE_CASES])
+  })
+
+  // ⚠ A TEMPLATE NOBODY DOCUMENTED IS A TEMPLATE NOBODY CAN RUN. The slice
+  // shipped in `docs/templates/` referenced by nothing an owner reads — not the
+  // file table, not the playbook — while carrying a precondition (0026 + 0027
+  // applied, or the import is refused by name) that no other template has. The
+  // failure that produces is concrete: run it against today's live project, get
+  // `stage_tables_missing`, and have no page saying the sitting comes first. So
+  // the table on the page beside the files has to name every one of them.
+  it('the README names every template that ships beside it', () => {
+    const readme = readFileSync(new URL('README.md', TEMPLATE_DIR), 'utf8')
+    for (const name of TEMPLATE_FILES) expect(readme).toContain(`](${name})`)
   })
 
   it('the empty template parses to zero rows and zero problems', () => {
@@ -1444,6 +1480,202 @@ describe('THE DEMO FILE, against the live workspace it is meant for', () => {
     const before = demoWorkspace()
     const after = applyToSnapshot(before, planCsv(DEMO, before).actions)
     const second = planCsv(DEMO, after)
+    expect(codes(second)).toEqual([])
+    expect(second.actions).toEqual([])
+  })
+})
+
+// ── the slice file ──────────────────────────────────────────────────────────
+//
+// `structure.slice.csv` is the OTHER file destined for the live project, and it
+// shipped with two assertions to its name: a BOM and a header. Everything that
+// makes it importable — zero refusals, one implied node, one deletable root, no
+// two siblings colliding in English or Arabic, no path reaching a seventh level,
+// an empty second plan — was stated in a comment inside a generator nobody opens
+// before importing. Those are the same properties the demo block above pins, on
+// a file with a HARDER precondition than the demo file has (0026 and 0027 both
+// applied, or the whole import is refused by name), so they are pinned here in
+// the same shape.
+//
+// ⚠ AND ONE MORE, WHICH THE DEMO BLOCK DOES NOT NEED: THE BYTES.
+// `make-demo-slice.mjs` promises at its line 3 that re-running writes the same
+// file, and that promise is what makes the committed CSV reviewable as a diff.
+// Nothing enforced it. Its own `verify()` measures COUNTS, and every count in
+// that file stays inside its band under a reshuffle — so a `Math.random()`, a
+// `new Date()`, or a `pick()` inserted before the stem draw would churn all 83
+// rows, pass every gate, and arrive as a diff a reviewer reads as noise. The
+// first test below re-runs the generator in memory and compares the bytes,
+// which is the only assertion that notices.
+//
+// That byte pin is also what makes the exact counts below safe to state. The
+// demo block argues — correctly, for a file regenerated whenever its shape is
+// retuned — that a pinned count is a test that fails on every retune and proves
+// nothing. Here a retune fails the byte comparison FIRST, in the same run, so
+// stating 72 and 83 costs nothing extra and buys something: they are the numbers
+// `docs/templates/README.md` and `docs/OWNER-PLAYBOOK.md` quote at the owner, and
+// a retune that moves them fails beside the prose that would otherwise go stale.
+
+describe('THE SLICE FILE, against the live workspace it is meant for', () => {
+  const SLICE = readTemplate('structure.slice.csv')
+
+  const RECORDS = parseCsv(SLICE)
+  const HEAD = RECORDS[0].cells
+  const FILE_ROWS = RECORDS.slice(1).map((r) => {
+    const cell = (name) => r.cells[HEAD.indexOf(name)] ?? ''
+    return {
+      path: cell('path').split('>').map((s) => s.trim()),
+      kind: cell('kind'),
+      vendor: cell('vendor'),
+      accountManager: cell('account_manager'),
+      nameAr: cell('name_ar'),
+      descriptionAr: cell('description_ar'),
+      stage: cell('stage'),
+      targetDate: cell('target_date'),
+      target: cell('target'),
+      statuses: SEEDED_USE_CASES.map((name) => cell(name)).filter((v) => v !== ''),
+    }
+  })
+  const FILE_ORGS = FILE_ROWS.filter((r) => r.kind === 'Organization')
+
+  const plan = planCsv(SLICE, demoWorkspace())
+  const count = (kind) => plan.actions.filter((a) => a.kind === kind).length
+
+  // ⚠ THE ONE TEST THAT MAKES THE HEADER'S FIRST PROMISE TRUE. `build()` is
+  // imported rather than shelled out to, so this costs milliseconds; `main()`
+  // is guarded behind an `import.meta.url` check in the generator precisely so
+  // that importing it here writes nothing into `docs/templates/`.
+  it('REGENERATES BYTE FOR BYTE — the determinism the file is committed on', () => {
+    const built = buildSlice()
+    // The generator's own gates, run against the rows this test just built:
+    // a green byte comparison against a file that failed `verify()` would be
+    // two wrongs agreeing.
+    expect(() => verifySlice(built)).not.toThrow()
+    expect(renderSlice(built)).toBe(SLICE)
+  })
+
+  it('refuses nothing, and plans exactly what the file holds', () => {
+    expect(codes(plan)).toEqual([])
+    expect(plan.summary.rows).toBe(FILE_ROWS.length)
+    expect(plan.summary.create).toBe(FILE_ROWS.length + plan.summary.createImplied)
+    expect(count('set-use-case')).toBe(FILE_ROWS.reduce((n, r) => n + r.statuses.length, 0))
+    expect(count('set-stage')).toBe(FILE_ROWS.filter((r) => r.stage !== '').length)
+    expect(count('create-goal')).toBe(FILE_ROWS.filter((r) => r.targetDate !== '').length)
+    expect(plan.summary.update).toBe(0)
+    expect(plan.summary.clearLinks).toBe(0)
+    expect(plan.summary.newUseCases).toBe(0)
+    expect(plan.summary.movedGoals).toBe(0)
+  })
+
+  // The size IS the argument for this file's existence: four hundred rows do
+  // not come back out in a few seconds and seventy-two do.
+  it('is the small one — 83 rows, 72 organizations, five levels below the track', () => {
+    expect(FILE_ROWS.length).toBe(83)
+    expect(FILE_ORGS.length).toBe(72)
+    expect(Math.max(...FILE_ROWS.map((r) => r.path.length - 1))).toBe(5)
+  })
+
+  it('hangs every node under one deletable root — this IS the reset', () => {
+    const created = pathsOf(plan, 'create-node')
+    expect(created[0]).toBe('UHR > Demo Slice')
+    expect(created.every((p) => p === 'UHR > Demo Slice' || p.startsWith('UHR > Demo Slice > '))).toBe(true)
+    // Every ROW too, not only every create — the prose in the generator's
+    // summary says "every row hangs under UHR > Demo Slice" and this is it.
+    expect(FILE_ROWS.every((r) => r.path[0] === 'UHR' && r.path[1] === 'Demo Slice')).toBe(true)
+    // `UHR > OB` is the one real node, and `Demo Portfolio` is the OTHER demo
+    // root: a workspace may hold both, and undoing either leaves the other.
+    expect(created.some((p) => p.startsWith('UHR > OB'))).toBe(false)
+    expect(created.some((p) => p.startsWith('UHR > Demo Portfolio'))).toBe(false)
+    expect(plan.actions.some((a) => a.kind === 'update-node')).toBe(false)
+  })
+
+  it('leaves exactly one intermediate implied, and names which one', () => {
+    const implied = plan.actions.filter((a) => a.kind === 'create-node' && a.implied)
+    expect(implied.map((a) => a.path.join(' > '))).toEqual([
+      'UHR > Demo Slice > Associate Directorate Beta > Account Book Three > Pharmacies',
+    ])
+    expect(FILE_ROWS.some((r) => r.path.join(' > ') === implied[0].path.join(' > '))).toBe(false)
+  })
+
+  it('writes no use-case cell that is not one of the three legal statuses', () => {
+    const seen = new Set(FILE_ROWS.flatMap((r) => r.statuses))
+    expect([...seen].sort()).toEqual([...USE_CASE_STATUSES].sort())
+  })
+
+  it('stays inside 0023 — the depth cap and both name-length checks', () => {
+    for (const row of FILE_ROWS) {
+      expect(row.path.length - 1).toBeLessThanOrEqual(MAX_NODE_DEPTH)
+      for (const segment of row.path) expect(segment.length).toBeLessThanOrEqual(MAX_NAME_LENGTH)
+      expect(row.nameAr.length).toBeLessThanOrEqual(MAX_NAME_LENGTH)
+    }
+  })
+
+  // ⚠ TWO OF THE FOUR ACCOUNT BOOKS ARE FLAT, so organizations of different
+  // types are SIBLINGS there — a hospital and a laboratory drawn from the same
+  // stem queue would collide under one parent. `map_nodes_sibling_name_uidx`
+  // and its Arabic twin would kill the apply MID-DEPTH, with part of the tree
+  // already written. The planner refuses that before it starts, so the zero
+  // above already covers it; this states the property the generator's
+  // draw-without-replacement exists to guarantee, so a retune that switched to
+  // a per-type queue fails here by name rather than as an anonymous refusal.
+  it('has no two siblings sharing a name, in either language', () => {
+    const byParent = new Map()
+    for (const row of FILE_ROWS) {
+      const parent = row.path.slice(0, -1).join(' > ')
+      byParent.set(parent, [...(byParent.get(parent) ?? []), row])
+    }
+    for (const [parent, kids] of byParent) {
+      const names = kids.map((k) => k.path[k.path.length - 1])
+      expect([parent, new Set(names).size]).toEqual([parent, names.length])
+      const arabic = kids.map((k) => k.nameAr).filter((n) => n !== '')
+      expect([parent, new Set(arabic).size]).toEqual([parent, arabic.length])
+    }
+  })
+
+  it('reaches every rung of the ladder, piles up on Integrating, and leaves 22 blank', () => {
+    const tally = new Map()
+    for (const a of plan.actions.filter((x) => x.kind === 'set-stage')) {
+      tally.set(a.stageName, (tally.get(a.stageName) ?? 0) + 1)
+    }
+    expect([...tally.keys()].sort()).toEqual(STAGES.map((s) => s.name).sort())
+    // The two numbers the docs quote: the pile that becomes the stalled list
+    // once `expected_days` is set on `Integrating`, and the "nobody has said"
+    // bucket, which is a different fact from `Not started`.
+    expect(tally.get('Integrating')).toBe(18)
+    expect(FILE_ORGS.filter((o) => o.stage === '').length).toBe(22)
+    const sorted = [...tally.entries()].sort((a, b) => b[1] - a[1])
+    expect(sorted[0][0]).toBe('Integrating')
+    expect(sorted[0][1]).toBeGreaterThan(sorted[1][1] * 1.5)
+  })
+
+  it('names only the two members who actually resolve', () => {
+    const named = [...new Set(FILE_ROWS.map((r) => r.accountManager).filter(Boolean))].sort()
+    expect(named).toEqual(['Aziz', 'Nasser Alabri'])
+  })
+
+  it('names no vendor that could be mistaken for a real integrator', () => {
+    expect(plan.summary.vendors.every((v) => v.name.startsWith('Demo Vendor '))).toBe(true)
+  })
+
+  // The Arabic column is not a translation exercise — it is the half of the
+  // pairing that has to WRAP, and it is the half that shipped as one line at
+  // every breakpoint until `EXTRA_LINE_AR` existed. Both halves of the rule
+  // Arabic applies to a counted noun are checked, because the plural form is
+  // what an Arabic-first reader sees as broken on first glance.
+  it('puts RTL wrapping on screen, and counts its nouns the way Arabic does', () => {
+    const arabic = FILE_ROWS.map((r) => r.descriptionAr).filter((d) => d !== '')
+    expect(arabic.filter((d) => d.length > 200).length).toBeGreaterThanOrEqual(2)
+    // 11–99 takes a SINGULAR accusative tamyiz. A plural there — `بـ 34 غرف` —
+    // is the bug the n-aware `SIZE_PHRASE_AR` band exists to prevent. The
+    // lookahead is what keeps `غرف` from matching the correct `غرفةً`.
+    for (const description of arabic) {
+      expect(description).not.toMatch(/بـ (?:1[1-9]|[2-9]\d) (?:غرف|منصات|أجهزة|نوافذ)(?![ء-ي])/u)
+    }
+  })
+
+  it('THE SECOND PLAN IS EMPTY — an interrupted apply is fixed by re-running', () => {
+    const before = demoWorkspace()
+    const after = applyToSnapshot(before, planCsv(SLICE, before).actions)
+    const second = planCsv(SLICE, after)
     expect(codes(second)).toEqual([])
     expect(second.actions).toEqual([])
   })

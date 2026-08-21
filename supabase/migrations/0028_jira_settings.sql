@@ -493,6 +493,7 @@ declare
   v_default    text;
   v_touch_def  text;
   v_audit_def  text;
+  v_audit_type smallint;
   v_sel        text;
   v_ins        text;
   v_upd        text;
@@ -554,14 +555,32 @@ begin
       coalesce(v_touch_def, '(absent)');
   end if;
 
-  select pg_get_triggerdef(t.oid) into v_audit_def
+  -- ⚠ THE EVENT SET IS READ OUT OF tgtype AND NOT OUT OF THE RENDERED TEXT, and
+  --   an earlier cut of this file could NEVER HAVE APPLIED because it did the
+  --   opposite. pg_get_triggerdef() does not echo the order the events were
+  --   written: `tgtype` is a bitmask with no order in it, and
+  --   pg_get_triggerdef_worker() in ruleutils.c always renders INSERT, then
+  --   DELETE, then UPDATE, then TRUNCATE. `after insert or update or delete`
+  --   above therefore reads back as `AFTER INSERT OR DELETE OR UPDATE`, the
+  --   substring 'AFTER INSERT OR UPDATE OR DELETE' never occurs, and this probe
+  --   raised on a trigger that is CORRECT — rolling the whole file back on the
+  --   first run and every run after it. (The `BEFORE INSERT OR UPDATE` test above
+  --   survives only because two events happen to match the canonical order; the
+  --   bitmask is the form that cannot be broken by a rename of nothing at all.)
+  --   Bits: 1 = FOR EACH ROW, 2 = BEFORE, 4 = INSERT, 8 = DELETE, 16 = UPDATE,
+  --   32 = TRUNCATE, 64 = INSTEAD OF. `& 60` is the whole event set, so `= 28` is
+  --   "these three and nothing else". Fixed in the same wave as 0029, which
+  --   inherited the defect from here.
+  select pg_get_triggerdef(t.oid), t.tgtype into v_audit_def, v_audit_type
     from pg_trigger t join pg_class c on c.oid = t.tgrelid
    where c.relname = 'jira_settings' and t.tgname = 'jira_settings_audit_trg';
 
   if v_audit_def is null
-     or position('AFTER INSERT OR UPDATE OR DELETE' in upper(v_audit_def)) = 0 then
+     or (v_audit_type::int & 60) <> 28   -- INSERT | DELETE | UPDATE, exactly those
+     or (v_audit_type::int &  1) <>  1   -- FOR EACH ROW
+     or (v_audit_type::int &  2) <>  0 then  -- AFTER, not BEFORE
     raise exception
-      'NphiesCore 0028 FAILED: jira_settings_audit_trg is missing or is not AFTER INSERT OR UPDATE OR DELETE (it is: %). Turning Jira on changes what every member sees on every screen; with no trail there is no record of who did it.',
+      'NphiesCore 0028 FAILED: jira_settings_audit_trg is missing or is not AFTER INSERT OR UPDATE OR DELETE FOR EACH ROW (it is: %). Turning Jira on changes what every member sees on every screen; with no trail there is no record of who did it.',
       coalesce(v_audit_def, '(absent)');
   end if;
 

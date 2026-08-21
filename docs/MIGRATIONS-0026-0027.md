@@ -324,10 +324,22 @@ boot path — it belongs in the lazy portfolio store, not `store/config`.
 
 ## 7. After both files are live
 
-Run the `PENDING-MIGRATIONS.md` verification query unchanged and confirm **`f_0025 = true` and
-`w_0025 > 0`.** Neither file redefines anything `0023` / `0024` / `0025` owns — no
-`create or replace` and no `drop` in either file targets an object those files created — so the
-canary must be exactly what it was before. If it moved, something else ran.
+Run the `PENDING-MIGRATIONS.md` verification query unchanged and confirm **all three canary
+columns: `f_0025 = true`, `w_0025 = 1`, `x_0025 = 0`.** That is the same reading
+[`RUN-0026-0027-0028.md`](RUN-0026-0027-0028.md) §6.1 prescribes, and §6.1 is the authority —
+if this paragraph and that one ever disagree, §6.1 wins. Neither file redefines anything
+`0023` / `0024` / `0025` owns — no `create or replace` and no `drop` in either file targets an
+object those files created — so the canary must be exactly what it was before. If it moved,
+something else ran.
+
+**Read `x_0025` first even though it is last.** `x_0025 = 1` is the **escalation breach**: a
+policy exists that lets a Director key write `role_permissions`, so anyone holding Director can
+open the roles screen and grant themselves `workspace.admin`. Nothing in this repo writes that
+policy. Fix it before anything else on this page. A two-column check — `f_0025` and `w_0025`
+alone — reads green while that hole is open, which is why it is not the check. (`f_0025 = false`
+means `is_admin()` no longer calls `has_perm` and custom roles have quietly stopped being
+honoured; `w_0025 = 0` means `map_nodes_insert` went back to `is_admin()` and the Director role
+grants nothing on the tree. Both are repaired by re-applying `0025`, and only `0025`.)
 
 Then, in the app (these are the things a probe cannot see, because `now()` does not move inside one
 transaction):

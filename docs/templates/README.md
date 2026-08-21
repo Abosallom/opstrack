@@ -10,15 +10,18 @@ would do, then apply it.**
 | [`structure.csv`](structure.csv) | The empty template. Header row only. **This is the file you fill in.** |
 | [`structure.example.csv`](structure.example.csv) | The same header, filled in with invented data, so you can see the shape before you type anything. |
 | [`structure.demo.csv`](structure.demo.csv) | Invented organizations, **made to be run**, so the map is full while the real structure is still being collected. It can be taken back out exactly — see [The demo data](#the-demo-data). |
+| [`structure.slice.csv`](structure.slice.csv) | The same idea at a size you can undo in a few seconds: **72 organizations** under their own root, `UHR > Demo Slice`. **Needs `0026` and `0027` applied first** — it fills the stage and goal columns, and the demo file's 400 rows do not. See [The smaller slice](#the-smaller-slice-72-organizations). |
 
 Everything in the example file is a placeholder — the hospitals, the vendors and
 the people are all made up. It is there to be read, not imported: the people it
 names have no accounts, so an import of it is refused. The demo file is invented
 too, but it is invented to run.
 
-**If the real structure is not collected yet, start with the demo file.** It
-fills the map today and comes back out exactly when the real one arrives:
-[The demo data](#the-demo-data).
+**If the real structure is not collected yet, start with one of the two demo
+files.** Either fills the map today and comes back out exactly when the real one
+arrives: [The demo data](#the-demo-data) for the 400-organization file, or
+[The smaller slice](#the-smaller-slice-72-organizations) for the 72-organization
+one that undoes in seconds.
 
 ---
 
@@ -56,45 +59,76 @@ meant to be run, not only read. Import it and the map is full.
 **It is here because an empty map cannot be judged.** A workspace holding one
 node under one track answers none of the questions the app exists to answer: the
 tiers do not nest, the Organization panel has nothing beside it, the vendor
-grouping has one vendor to group, and "6 of 9 live" is a sentence with nothing
+grouping has one vendor to group, and "6 of 10 live" is a sentence with nothing
 behind it. Deciding whether a screen works needs something on the screen.
 Collecting the real structure takes weeks. This takes a minute — and, which is
 the point, it comes back out in a minute.
 
 Everything in it is made up: the organizations, their Arabic names, the vendors,
-the descriptions, every use-case status. It is shaped rather than random — four
-waves of deliberately unequal size, sixteen organizations, and four vendors
-across fourteen of them so the vendor grouping has more than a token to group
-and *no vendor recorded* is represented too. The states each screen has to
-render are all present on purpose: two sites with every capability live, three
-with nothing recorded at all, one with a vendor but no capability, one with a
-capability but no vendor, a laboratory whose scope is genuinely narrow, and
-several mid-migration. A map where every branch looks the same tests nothing.
+the descriptions, every stage, every goal, every use-case status. It is shaped
+rather than random — **437 rows describing 400 organizations**, under two
+associate directorates of deliberately unequal size (275 organizations and 125),
+five account books (104, 92, 79, 67 and 58) — of which only **two name a
+manager**, because only two people have accounts, so the **Team** lens renders
+two named buckets and one large unassigned pile rather than five — and six facility types
+under each book: hospitals, clinics, polyclinics, laboratories, imaging centres
+and pharmacies. Six vendors are spread across 360 of the 400, so the vendor
+grouping has more than a token to group — and *no vendor recorded* is
+represented too, on the other 40. The states each screen has to render are all
+present on purpose: 6 sites with all ten capabilities live, 180 with no
+capability recorded at all, 160 with a vendor but nothing integrated, 20
+integrating something for a vendor nobody wrote down, 54 with neither a stage
+nor a capability, and the rest mid-migration. A map where every branch looks the
+same tests nothing.
 
-The 67 statuses are **33 `live`, 16 `testing`, 18 `planned`**, and that split is
-deliberate too: `Wave 4` reads as a branch that has barely started (1 live, 3
-testing, 9 planned) while `Wave 1` and `Wave 2` carry the finished sites. A
-dataset that is two-thirds `live` everywhere puts every progress affordance —
-the *6 of 9 live* matrix, any roll-up, any colour ramp — at the top of its range
+The 812 statuses are **105 `live`, 238 `testing`, 469 `planned`**, and that
+split is deliberate too: `Associate Directorate Beta` reads as a branch that has
+barely started (7 live, 76 testing, 156 planned) while `Associate Directorate
+Alpha` carries the finished sites (98 live, 162 testing, 313 planned). A dataset
+that is two-thirds `live` everywhere puts every progress affordance — the
+*6 of 10 live* matrix, any roll-up, any colour ramp — at the top of its range
 and never draws the interesting end of the scale.
+
+**280 organizations stand on a stage and 120 stand on none**, because the
+absence of a progress row is a state too and it is the one the app reads as
+*nobody has said*. The 280 are spread over all seven seeded rungs — 34
+`Not started`, 46 `Kickoff`, 112 `Integrating`, 41 `Testing/UAT`, 22
+`Go-live ready`, 19 `Live`, 6 `Paused` — because a ladder with an empty rung on
+it cannot be read as a ladder, and the Stalled lens has nothing to show without
+a `Paused` beside the rest. **Forty rows carry a goal**, in both shapes: six
+count-form goals on the tiers that commit to a number (*120 organizations by
+30 June 2027* on Directorate Alpha, *45 by 31 December 2026* on Account Book
+One, and four more) and thirty-four single-node dates on individual
+organizations. `Account Book Five` carries no goal at all, so a book with
+nothing committed against it is on the screen too.
 
 Three decisions worth knowing before you judge what you see:
 
 * **Nothing in it is a real name.** The vendors are `Demo Vendor Alpha` through
-  `Delta` rather than plausible integrator names, and no tier or organization
+  `Zeta` rather than plausible integrator names, and no tier or organization
   borrows a real cluster, city or facility. That is not timidity — a screenshot
   of the vendor view showing a real integrator with an invented book of business
   is a screenshot that misstates somebody's business inside a Nphies PMO.
-* **The four tiers are `Wave 1`–`Wave 4`, typed `Phase`.** `Programme`, `Phase`
-  and `Organization` are the only kinds the catalogue seeds, so the names were
-  chosen to match the kind they carry. If your real structure wants a `Cluster`
-  or a `Department` tier, add the kind in **Settings › Catalogue** *before* the
-  real import — the demo is not making that decision for you.
-* **`Areej Day Surgery Unit` is completely bare** — no Arabic name, no account
-  manager, no vendor, no description, no capability. It is there so the empty
+* **Only two kinds are used, and the two middle tiers deliberately carry none.**
+  `UHR > Demo Portfolio` and the two associate directorates are typed
+  `Programme`; the 400 leaves are typed `Organization`; the five account books
+  and the thirty facility-type levels beneath them carry **no `kind` at all**
+  (34 of those 35 have rows of their own, for their goals and their
+  descriptions; the thirty-fifth is the implied node below).
+  `Programme`, `Phase` and `Organization` are the only
+  kinds the catalogue seeds, and none of those three is the word for an account
+  manager's book — so the demo leaves the cell blank rather than borrowing
+  `Phase` for something that is not a phase. If your real structure wants a
+  `Cluster`, an `Account Book` or a `Department` tier, add the kind in
+  **Settings › Catalogue** *before* the real import — the demo is not making
+  that decision for you.
+* **`Anwa Family Clinic` and `Rimal Imaging Centre` are completely bare** — no
+  Arabic name, no account manager, no vendor, no description, no stage, no
+  capability, in two different account books. They are there so the empty
   Organization panel can be looked at, because that is what most of the map will
-  look like on day one of the real import. Its own row says nothing about that
-  on purpose: a description in it would be the one thing stopping it being empty.
+  look like on day one of the real import. Their own rows say nothing about that
+  on purpose: a description in one would be the one thing stopping it being
+  empty.
 
 The only values in it that are *not* invented are the ones that cannot be: the
 track it hangs from (`UHR`), the capability column names, and the two account
@@ -103,12 +137,14 @@ gets no exemption from any rule on this page.
 
 **It all hangs off one node, `UHR > Demo Portfolio`,** whose description says so
 in both languages. That is on purpose: one branch is one thing to find, look at,
-and take away. It does cost one tier: the deepest demo path is five segments
-(`UHR > Demo Portfolio > Wave 1 > Sarab Group > Ghadeer Family Medicine
-Centre`), so what you are looking at is **one level deeper than the real
-structure will be** once it hangs directly off `UHR`. Read the nesting with that
-one-tier offset in mind; the wrapper is what makes the reset one branch instead
-of twenty-two.
+and take away. **And it costs no tier.** The deepest demo path is six segments
+(`UHR > Demo Portfolio > Associate Directorate Alpha > Account Book One >
+Hospitals > Bahar Maternity Hospital`), which is the shape the real import
+already has — `UHR > Onboarding > <directorate> > <account manager's book> >
+<type> > organization`. The wrapper stands exactly where `Onboarding` will
+stand, so the nesting you are reading is the nesting you will get, with no
+offset to correct for. It still leaves one level spare against the limit of six
+below the track, and it is what makes the reset one branch instead of 438.
 
 It goes through the same planner as any other file. Same dry run, same refusals,
 same behaviour on a second run. There is no demo mode:
@@ -118,13 +154,68 @@ node scripts/import-structure.mjs docs/templates/structure.demo.csv
 node scripts/import-structure.mjs docs/templates/structure.demo.csv --apply
 ```
 
-The dry run against the workspace as it stands today reports what the file is
-built to report — **22 nodes to create, 0 to update, 67 use-case links to set,
-0 refusals** — and lists `UHR > OB`, the node that was already there, under *in
-the app but not in this file*, untouched. **Nothing in this file updates
-anything**, and that is what makes its removal exact rather than approximate:
-see [what it puts back, and what it cannot](#what-it-puts-back-and-what-it-cannot),
+**It names stages and dates, so `0026` and `0027` have to be applied first** —
+until they are, this file is refused by name before anything is written, and the
+refusal says which migration is missing; see
+[Before either column can do anything](#before-either-column-can-do-anything).
+
+**⚠ The old 22-node demo has to come out first, and the plan is different until
+it does.** The 12 August demo run is still applied to the live project — its
+manifest is the only file in `docs/EVIDENCE/import-runs/` and no undo has ever
+been recorded — and its root is `UHR > Demo Portfolio`, **the same path row 2 of
+this file claims.** So there are two plans, and only one of them is the one this
+page is about:
+
+Against a workspace holding **only `UHR > OB`** — that is, once the old demo has
+been taken back — the dry run reports what the file is built to report:
+
+```
+Summary: 438 node(s) to create (1 implied) · 0 to update · 812 use-case link(s)
+to set · 0 to clear · 0 new capabilities · 280 stage(s) to record · 40 goal(s)
+to write · 0 to move · 0 refusal(s)
+```
+
+**438 nodes from 437 rows**, and the one implied node is this page's own rule
+demonstrated in the file that ships: `… > Account Book Five > Polyclinics` has
+no row of its own and is created from the paths beneath it — see
+[Rows for the levels in between are optional](#rows-for-the-levels-in-between-are-optional).
+The plan also lists `UHR > OB`, the node that was already there, under *in
+the app but not in this file*, untouched — one line, and the only line.
+**Nothing in this file updates anything**, and that is what makes its removal
+exact rather than approximate: see
+[what it puts back, and what it cannot](#what-it-puts-back-and-what-it-cannot),
 none of which bites a file that only creates.
+
+Against the workspace **as it stands right now**, with the old demo still on it,
+the same command instead prints:
+
+```
+Summary: 437 node(s) to create (1 implied) · 1 to update · 812 use-case link(s)
+to set · 0 to clear · 0 new capabilities · 280 stage(s) to record · 40 goal(s)
+to write · 0 to move · 0 refusal(s)
+```
+
+…with **22** entries under *in the app but not in this file* — `UHR > OB` plus
+the 21 surviving `Wave 1`–`Wave 4` nodes — and a `looks_like_a_move` warning
+saying `UHR > Demo Portfolio > Wave 1 > Rimal Polyclinic` already exists while
+`… > Account Book Four > Polyclinics > Rimal Polyclinic` would be created.
+
+**If that is the plan on your screen, stop: it means the old demo is still
+there.** The `1 to update` is `UHR > Demo Portfolio` itself — the old root being
+**adopted** as the parent of the new 437 rather than created, because its
+description still reads *"…reset the map before the real structure is
+imported"* where this file says *"…reset the workspace before…"*. An adopted
+root is the one node the new run's manifest cannot delete, since a manifest only
+removes what its own run **created**. And the old manifest cannot delete it
+either by then: `UHR > Demo Portfolio` would have two children that import did
+not create, so the undo refuses the root with `code: 'children'` and takes only
+the 21 nodes beneath it. Run the two imports in that order and a node called
+"Demo Portfolio" is left standing in the real workspace with nothing on disk
+that can remove it.
+
+So: **undo the old demo, then dry-run this file.** Step 2 of
+[`OWNER-PLAYBOOK.md`](../OWNER-PLAYBOOK.md) takes them in that order, and the
+438/0-update block above is what you should see when it is your turn.
 
 **Nothing in the database says "demo".** A node written by this importer has
 `source = 'local'`, and so does every node created by hand in the app; there is
@@ -135,14 +226,83 @@ file, on disk, listing exactly what that run created. **Keep it.** It is the onl
 record of which rows came from this file.
 
 Losing it is survivable *for this file only*, and only because of the shape
-above: `UHR > Demo Portfolio` is one branch, so you could delete it in the app
-by hand — deepest node first, because a node with children underneath it cannot
-be deleted. That is twenty-two confirmations instead of one command. Keep the
-manifest.
+above: `UHR > Demo Portfolio` is one branch, so you could in principle delete it
+in the app by hand — deepest node first, because a node with children underneath
+it cannot be deleted. That is **438 confirmations** instead of one command,
+every one of them a chance to take a real node with it, and at this size it is a
+fallback nobody would actually finish. Keep the manifest.
+
+### The smaller slice (72 organizations)
+
+`structure.slice.csv` is the same idea at a size you can take back out in a few
+seconds. **83 rows describing 72 organizations**, five levels below the track,
+under a root of its own: **`UHR > Demo Slice`**. It is written by
+`npm run demo:slice` from one seed, so re-running it writes the same bytes and
+the committed file is reviewable as a diff.
+
+**Which of the two you want depends on what you are looking at.**
+`structure.demo.csv` is the stress case — four hundred organizations is what the
+canvas, the roll-up and the importer have to survive, and it is the file to
+import if that is the question. The slice is the file for the day you want a
+workspace to *look at*, knowing the real Master Status Report is coming and all
+of this has to come back out. Four hundred rows do not undo in a few seconds;
+seventy-two do.
+
+**The two roots are independent.** `UHR > Demo Slice` and `UHR > Demo Portfolio`
+are different branches, so a workspace can hold both at once and you can undo
+either without touching the other — which is the point of giving the slice its
+own root rather than filing it under the demo's. Everything on this page about
+the demo file applies to it unchanged: same planner, same dry run, same
+refusals, same manifest, same undo.
+
+```sh
+node scripts/import-structure.mjs docs/templates/structure.slice.csv
+node scripts/import-structure.mjs docs/templates/structure.slice.csv --apply
+```
+
+**⚠ It needs `0026` and `0027` applied first, exactly as the demo file does.**
+The slice fills `stage`, `target_date` and `target` on purpose — a slice with no
+ladder and no goals cannot show the two lenses it exists for — so against a
+project where those migrations have not been run, the planner refuses the whole
+import **by name** before it reads a single value:
+`stage_tables_missing` and `goal_table_missing`. If you see either code, the
+sitting in [`RUN-0026-0027-0028.md`](../RUN-0026-0027-0028.md) is what is
+missing, not the file. See
+[Before either column can do anything](#before-either-column-can-do-anything).
+
+What it is shaped to put on screen: **18 of the 72 on `Integrating`** against 8
+on the next-largest rung, which is the bottleneck the stage lens exists to draw;
+**22 on no rung at all** (*nobody has said*, which is a different fact from
+`Not started`); three `Paused`; all seven rungs occupied; and twelve goals, five
+of them dated before the day the file was cut, so the goal panel draws its red
+as well as its black — the 400-organization file has no overdue goal at all.
+
+One shape in it is there for the canvas rather than for the lenses: **`Account
+Book One` holds 26 organizations as direct children**, with no facility-type
+level under it, which puts one ring over the grouping cap. Note what that means
+on screen — the canvas opens **ungrouped**, so that ring first draws as 26
+unnamed marks, which is what a ring past the cap looks like when nobody has
+asked for a cut. Press any grouping chip on it (or open it at `?by=stage`) and
+it cohorts **by stage**: every organization in that book carries the same
+account manager and the same kind on purpose, so stage is the only axis left
+with more than one bucket. That is the ring worth looking at.
+
+**One thing it cannot do on import day, and no CSV can.** The **Stalled** lens
+(`?risk=1`) is empty, correctly, and shows the *no threshold set* banner
+instead. Stalled means *days on this rung past the expected days*, and both
+halves are out of a spreadsheet's reach: `expected_days` ships unset on every
+rung deliberately, and `stage_changed_at` is written only by 0026's own trigger,
+so every organization reads zero days in stage the moment it is imported. To
+turn that lens on: give `Integrating` an expected days in **Settings ›
+Catalogue** — the banner goes — and let the clock run. Two weeks later the
+eighteen `Integrating` organizations are the stalled pile, which is why that
+rung is the largest one in the file.
 
 ### Taking it out when the real data arrives
 
-Remove the demo **first**, then import the real file:
+This is written about the demo file; the slice comes out the same way, through
+its own manifest and its own root. Remove the demo **first**, then import the
+real file:
 
 ```sh
 # 1 & 2. Remove the demo — dry run, then apply. See "Taking an import back".
@@ -259,7 +419,7 @@ import wrote is deleted; a goal it *moved* is moved back.
 
 > **⚠ Putting a stage back resets its clock.** The database re-stamps the
 > arrival time on any write, including this one, so a node the undo returns to
-> `Integration` will read *"in this stage since today"*. The plan says
+> `Integrating` will read *"in this stage since today"*. The plan says
 > `time-in-stage is reset by this undo` beside every stage it touches. The tree
 > is restored; the history of how long it sat there is not.
 
@@ -353,8 +513,8 @@ nearest rung it *does* have suggested:
 
 ```
 no stage named `Tesing/UAT` on UHR > Onboarding > Al Faridah General Hospital.
-Did you mean `Testing/UAT`? The ladder is: Kickoff → Integration → Testing/UAT
-→ Live → Closed.
+Did you mean `Testing/UAT`? The ladder is: Not started → Kickoff → Integrating
+→ Testing/UAT → Go-live ready → Live → Paused.
 ```
 
 Matching is case-insensitive, and the Arabic name of a rung matches too — the

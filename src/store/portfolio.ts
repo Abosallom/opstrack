@@ -256,8 +256,10 @@ export function loadPortfolio(nodeIds: readonly string[], force = false): Promis
       // precedent: letting a read that 404s until a migration is applied by hand
       // hold `loadedAt` at null would refire the whole 4,000-row load on every
       // mount and every focus, forever. That is a retry storm introduced by an
-      // additive feature, and it is not hypothetical — the live workspace runs
-      // 0026 and 0027 is Aziz's next sitting. `accepted` rather than
+      // additive feature, and it is not hypothetical — the live workspace is
+      // applied through 0025 and no further, so 0026, 0027 and 0028 are all
+      // still Aziz's next sitting and this counts read 404s on every load
+      // today (docs/PENDING-MIGRATIONS.md). `accepted` rather than
       // `linkResult.ok` for the same reason settle() hands the flag back: the
       // rows and the clock cannot drift apart the way two `if` chains do.
       if (accepted) usePortfolioStore.setState({ loadedAt: Date.now() })

@@ -21,9 +21,11 @@ that warns about it, to the one reader who is alone at a SQL Editor and trusting
 
 ## Status — 13 August 2026
 
-**Three files are pending.** `0023`, `0024` and `0025` are applied to the live project
-(`lrysgpbkmuqgzsjesfkr`) and there is live data sitting on top of them.
-`0026_map_node_stages.sql`, `0027_map_node_goals_and_counts.sql` and `0028_jira_settings.sql` are
+**Four files are pending**, re-probed against the live project on **21 August 2026** — every
+one of the five objects still answers 404. `0023`, `0024` and `0025` are applied to the live
+project (`lrysgpbkmuqgzsjesfkr`) and there is live data sitting on top of them.
+`0026_map_node_stages.sql`, `0027_map_node_goals_and_counts.sql`, `0028_jira_settings.sql` and
+`0029_org_identity.sql` are
 **written and have never been run against any database** — they are in the pending table below,
 each with a "verify live by" query that is runnable the moment it is applied, and each comes back
 out of that table in the same sitting it goes in.
