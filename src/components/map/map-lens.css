@@ -82,7 +82,14 @@
    to reserve a strip of page in the hope the chips are scrolled into it. */
 .mlens[data-compact] {
   position: fixed;
-  inset-inline: 0;
+  /* ⚠ NOT `inset-inline: 0`. In landscape on a notched phone the cutout and the
+     rounded corners eat the first and last few millimetres of the viewport, and
+     this bar spanned into them — so the first lens chip sat under the notch on
+     a device held one way round. The composer directly above it pads for this
+     (map-capture.css); the omission one line below it was conspicuous rather
+     than principled. */
+  inset-inline-start: env(safe-area-inset-left);
+  inset-inline-end: env(safe-area-inset-right);
   /* Above the composer, which is fixed at the true block end and publishes its
      own height (including the home-indicator inset) into this variable. */
   inset-block-end: var(--map-composer-block-size, 0px);

@@ -56,12 +56,28 @@
 // "`sizeForCount` floors every node at the 44px the rest of the app is held
 // to". That is true in DRAWING UNITS and false in CSS pixels: the whole map
 // lives inside a fitted viewBox, and `fitToViewBox` exists to shrink it — at
-// the fit this screen used to open at, a 44-unit node measured 10 px. The floor
-// only reaches the screen if the FIT has a floor too, which is why
-// pages/Mindtree.tsx now refuses to fit below `MIN_TARGET_PX / nodeSize.height`
-// and lets a big map overflow into the pan instead. This component's guarantee
-// is therefore: every node is at least `nodeSize.height` units tall and the
-// card is the only target; the page owns the units-to-pixels half.
+// the fit this screen used to open at, a 44-unit node measured 10 px.
+//
+// ⚠ AND THE SENTENCE THAT USED TO STAND HERE WAS FALSE. It said "pages/
+//   Mindtree.tsx now refuses to fit below `MIN_TARGET_PX / nodeSize.height`".
+//   There is no such refusal and there is no `MIN_TARGET_PX` outside
+//   `lib/mindtree/radial.ts`, which sizes the drawing this screen no longer
+//   uses. The far end of the zoom is `cameraBounds.maxWidth = wholeMapFit.width`
+//   (pages/map/useMapGeometry.ts) — exactly "the whole map fits" — and at 104
+//   organizations on a 375px phone that puts a 54-unit card at about 14 CSS px.
+//
+//   THAT IS NOT A DEFECT AND IT IS DELIBERATELY NOT BEING FIXED WITH A FLOOR. A
+//   floor at the fit would make "see the whole programme" unreachable on the one
+//   device the owner says is primary, to protect a tap nobody makes at that
+//   size: the LOD bands render a node that small as grain, with no name on it
+//   to aim at. Zoomed out is a PICTURE; zoomed in is a target surface. What was
+//   wrong was the comment claiming a guarantee the code does not make, which is
+//   worse than the gap it was describing — the next reader would have built on
+//   it.
+//
+// This component's guarantee is therefore: every node is at least
+// `nodeSize.height` units tall and the card is the only target. Whether that
+// reaches 44 CSS px depends on the camera, and the camera is the page's.
 //
 // WHAT THE RADIAL LAYOUT COST THIS FILE, and what it deliberately did not. The
 // map now places nodes on rings around a hub instead of in left-to-right rows,

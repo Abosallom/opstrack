@@ -96,7 +96,10 @@
      rounded to 136 on the 4px grid. */
 .mmode[data-compact] {
   position: fixed;
-  inset-inline-end: 0;
+  /* The landscape notch, for the reason `.mlens[data-compact]` states — this is
+     the half of the pair pinned at the inline END, so it is the half that meets
+     the cutout when the phone is held the other way round. */
+  inset-inline-end: env(safe-area-inset-right);
   inset-block-end: var(--map-composer-block-size, 0px);
   /* 72: one above the lens rail's 71, which is one above the sheet's 70. */
   z-index: 72;

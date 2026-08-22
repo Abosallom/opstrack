@@ -487,8 +487,19 @@
   min-inline-size: 0;
 }
 
+/* ⚠ THIS WAS 32px, AND IT WAS THE SMALLEST CONTROL IN THE SHELL. Every other
+   interactive element in this app carries a 44px floor — `.btn` states it,
+   `.chip` reaches it through an overlay, the SVG nodes floor their own hit rects
+   — and the one control that sat under it was UNDO, on a surface that removes
+   itself on a timer. The consequence of a miss here is not "tap again": the
+   toast is gone and the thing it offered to undo is not.
+
+   `.tap-44` is the house overlay for exactly this — a small visual box with a
+   full-size target — and it grows in the block axis only so it cannot steal
+   taps from a neighbour. The visual box stays 32px; the target does not. */
 .toast-action {
   flex: 0 0 auto;
+  position: relative;
   min-block-size: 32px;
   padding-block: 5px;
   padding-inline: 10px;
@@ -496,6 +507,14 @@
   color: var(--accent);
   font-weight: 700;
   font-size: 14px;
+}
+
+.toast-action::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  /* (44 − 32) / 2 = 6 each side. */
+  inset-block: -6px;
 }
 
 .toast.error {
