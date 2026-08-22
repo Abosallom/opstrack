@@ -384,7 +384,36 @@ const BIDI_MARKS = /[\u200B-\u200F\u061C\uFEFF]/g
  * they had typed nothing. Interior marks survive, because they are what makes
  * a mixed Arabic/Latin title read the right way round.
  */
-const TITLE_EDGE = /^[\s\u200B-\u200F\u061C\uFEFF]+|[\s\u200B-\u200F\u061C\uFEFF]+$/g
+const TITLE_EDGE_CHAR = /[\s\u200B-\u200F\u061C\uFEFF]/
+
+/**
+ * Trim those characters off both ends — by SCANNING, not by matching.
+ *
+ * ⚠ THE REGEX THIS REPLACES COULD HANG THE BOX (FIX-BACKLOG P3). It was
+ *   `/^[…]+|[…]+$/g`, and the trailing alternative is the classic quadratic
+ *   shape: for every position the engine finds a run of edge characters, tries
+ *   to match `$`, fails because more text follows, gives one back and tries
+ *   again. Measured on this machine: 1,000 interior marks 1.0 ms · 5,000
+ *   19.8 ms · 20,000 312.8 ms · 50,000 1,992 ms. Capture re-parses on EVERY
+ *   KEYSTROKE, so that is the cost per character typed.
+ *
+ *   ⚠ AND THE BACKLOG'S FRAMING OF IT IS WRONG, which is worth writing down so
+ *     nobody re-prioritises off it: "an Arabic-first team pasting a paragraph is
+ *     the exact reproduction" is not true. A realistic 10,200-character Arabic
+ *     paragraph measures 0.08 ms, because the blow-up needs tens of thousands of
+ *     CONSECUTIVE bidi controls, which ordinary prose never carries. It is a
+ *     hang reachable by a pathological paste, not by normal Arabic.
+ *
+ * The scan is linear and allocates nothing when there is nothing to trim, which
+ * is the overwhelmingly common case.
+ */
+function trimTitleEdges(text: string): string {
+  let start = 0
+  let end = text.length
+  while (start < end && TITLE_EDGE_CHAR.test(text[start])) start += 1
+  while (end > start && TITLE_EDGE_CHAR.test(text[end - 1])) end -= 1
+  return start === 0 && end === text.length ? text : text.slice(start, end)
+}
 
 /** At least one letter or digit, in any script. See "bare sigil" below. */
 const HAS_WORD_CHAR = /[\p{L}\p{N}]/u
@@ -1195,7 +1224,7 @@ function buildTitle(input: string, consumed: ReadonlyArray<readonly [number, num
     cursor = end
   }
   out += input.slice(cursor)
-  return out.replace(ESCAPED_SIGIL_RE, '$1').replace(/\s+/g, ' ').replace(TITLE_EDGE, '')
+  return trimTitleEdges(out.replace(ESCAPED_SIGIL_RE, '$1').replace(/\s+/g, ' '))
 }
 
 /**

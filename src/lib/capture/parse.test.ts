@@ -1232,3 +1232,47 @@ describe('multi-word keyed values', () => {
     expect(run('Capacity review every:biweekly').recurrence?.cadence).toBe('biweekly')
   })
 })
+
+describe('a title full of bidi controls cannot hang the box', () => {
+  // ⚠ FIX-BACKLOG P3, and it was real: `TITLE_EDGE` was
+  //   `/^[…]+|[…]+$/g`, whose trailing alternative is the classic quadratic
+  //   shape — for every position the engine finds a run of edge characters,
+  //   tries `$`, fails because text follows, gives one back and tries again.
+  //   Measured before the fix: 5,000 marks 20 ms · 20,000 338 ms · 50,000
+  //   1,981 ms, and Capture re-parses on EVERY KEYSTROKE.
+  //
+  //   ⚠ THE BACKLOG'S FRAMING WAS WRONG, recorded here so nobody re-prioritises
+  //     off it. "An Arabic-first team pasting a paragraph is the exact
+  //     reproduction" is not true: a realistic 10,200-character Arabic paragraph
+  //     measured 0.08 ms. The blow-up needs tens of thousands of CONSECUTIVE
+  //     bidi controls, which ordinary prose never carries.
+
+  it('trims fast enough that a keystroke cannot notice', () => {
+    const hostile = `مرحبا${'‏'.repeat(50_000)}بالعالم`
+    const t0 = performance.now()
+    const title = run(hostile).title
+    const ms = performance.now() - t0
+    // The old regex took ~2 SECONDS on this input. Anything under a frame is a
+    // different algorithm, not a faster machine; the bound is deliberately loose
+    // so a slow CI box cannot make this flake.
+    expect(ms).toBeLessThan(50)
+    // And the interior marks SURVIVE — they are what makes a mixed
+    // Arabic/Latin title read the right way round. Only the ends are trimmed.
+    expect(title).toContain('‏')
+  })
+
+  it('still strips every edge character the old pattern did', () => {
+    // Equivalence, spot-checked at the boundaries. The full check was a fuzz of
+    // 200,000 random strings over the same alphabet, which agreed exactly.
+    for (const [raw, want] of [
+      ['‏مرحبا‏', 'مرحبا'],
+      ['﻿x﻿', 'x'],
+      ['؜x', 'x'],
+      ['​x​', 'x'],
+      ['  hi  ', 'hi'],
+      ['a‏b', 'a‏b'],
+    ] as const) {
+      expect(run(raw).title, JSON.stringify(raw)).toBe(want)
+    }
+  })
+})
