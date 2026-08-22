@@ -1,0 +1,499 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Giving your app its own web address</title>
+<!--BASECSS-->
+<style>
+.zone { border: 1px solid var(--rule); border-radius: 2.5mm; overflow: hidden; background: #fff; }
+.zrow { display: grid; grid-template-columns: 16mm 1fr 2.1fr 13mm; align-items: center;
+        font-size: 9.4pt; border-top: 1px solid var(--rule); min-height: 8.4mm; padding: 0 2.5mm; }
+.zrow:first-child { border-top: 0; }
+.zhead { background: var(--paper); font-size: 7.6pt; letter-spacing: 0.8pt; text-transform: uppercase;
+         color: var(--ink-3); font-weight: 650; min-height: 6.6mm; }
+.ztype { font-family: "SF Mono", Menlo, monospace; font-size: 7.8pt; font-weight: 700; color: #fff;
+         background: var(--accent-mid); border-radius: 1mm; padding: 0.9mm 0; text-align: center; width: 13mm; }
+.ztype.aaaa { background: #4e8fbf; font-size: 7pt; }
+.ztype.cname { background: #6f8f4e; font-size: 7pt; }
+.zname, .zval, .zttl { font-family: "SF Mono", Menlo, monospace; }
+.zname { font-weight: 700; }
+.zval { color: var(--ink-2); white-space: nowrap; font-size: 8.8pt; }
+.zttl { color: var(--ink-3); font-size: 8.2pt; text-align: right; }
+.zrow.del { background: var(--bad-soft); }
+.zrow.del .zval, .zrow.del .zname { text-decoration: line-through; color: var(--bad); }
+.zrow.add { background: var(--ok-soft); }
+.zrow.chg { background: var(--warn-soft); }
+.nav { display: flex; align-items: center; flex-wrap: wrap; gap: 2mm; margin-bottom: 5mm; }
+.nav span { background: #fff; border: 1px solid var(--accent-line); border-radius: 1.5mm;
+            padding: 2mm 3mm; font-size: 9.6pt; font-weight: 600; }
+.nav span.last { background: var(--accent); color: #fff; border-color: var(--accent); }
+.nav em { color: var(--accent-mid); font-style: normal; font-size: 12pt; }
+.form { border: 1px solid var(--accent-line); border-radius: 2.5mm; background: #fff; padding: 5mm; }
+.fgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
+.fld label { display: block; font-size: 7.6pt; letter-spacing: 0.7pt; text-transform: uppercase;
+             color: var(--ink-3); font-weight: 650; margin-bottom: 1.4mm; }
+.fld .inp { border: 1px solid #c8c4d4; border-radius: 1.4mm; padding: 2.4mm 2.8mm; background: #fff;
+            font-family: "SF Mono", Menlo, monospace; font-size: 9.4pt; min-height: 9mm; }
+.fld .inp.filled { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.btn { display: inline-block; background: var(--accent); color: #fff; border-radius: 1.6mm;
+       padding: 2.6mm 6mm; font-size: 10pt; font-weight: 650; margin-top: 4mm; }
+.four { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2.5mm 4mm; margin-top: 4mm; }
+.four div { display: grid; grid-template-columns: 6mm 1fr; gap: 2mm; align-items: center;
+            font-family: "SF Mono", Menlo, monospace; font-size: 10.4pt; font-weight: 700;
+            background: var(--accent-soft); padding: 2.6mm 3mm; border-radius: 1.5mm; }
+.four .sq { width: 4.4mm; height: 4.4mm; border: 1.5px solid var(--accent); border-radius: 1mm; background: #fff; }
+.prog { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2mm; margin-top: 4mm; }
+.prog span { font-size: 8pt; text-align: center; padding: 2.4mm 1mm; border-radius: 1.5mm;
+             background: var(--paper); border: 1px solid var(--rule); color: var(--ink-3); font-weight: 600; }
+.prog span.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.prog span.done { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+.phone { display: grid; grid-template-columns: 1fr 12mm 1fr; align-items: center; gap: 0; margin: 5mm 0; }
+.pcard { border: 1px solid var(--rule); border-radius: 2.5mm; padding: 5mm; text-align: center; background: #fff; }
+.pcard .big { font-size: 13pt; font-weight: 700; margin-bottom: 2mm; }
+.pcard .sub { font-size: 9.6pt; color: var(--ink-3); line-height: 1.5; }
+.pcard.now { border-color: var(--bad-line); background: var(--bad-soft); }
+.pcard.now .big { color: var(--bad); }
+.pcard.next { border-color: var(--ok-line); background: var(--ok-soft); }
+.pcard.next .big { color: var(--ok); }
+.arrow { text-align: center; color: var(--accent); font-size: 17pt; }
+</style></head><body>
+
+<!-- 1 · cover -->
+<section class="page">
+  <div class="kicker">Your step 1 &middot; about 15 minutes &middot; nothing can break</div>
+  <h1>Giving your app its own<br>web address</h1>
+  <p class="lede">Right now your tracker lives at a long address that belongs to something else.
+  You have bought <b>nphiescore.com</b>. This guide takes you through the one job that makes that
+  address point at your app &mdash; nine small entries typed into a form at Hostinger.</p>
+
+  <p>You do not need to understand how any of it works. Every term is explained on page 2, every
+  entry is shown filled in, and page 9 checks your work for you.</p>
+
+  <div class="phone">
+    <div class="pcard now">
+      <div class="big">Today</div>
+      <div class="sub">Someone types <b>nphiescore.com</b> and lands on a Hostinger holding page.
+      Your app is somewhere else entirely.</div>
+    </div>
+    <div class="arrow">&#10230;</div>
+    <div class="pcard next">
+      <div class="big">After</div>
+      <div class="sub">Someone types <b>nphiescore.com</b> and the internet knows to fetch your app
+      from GitHub, where it is published.</div>
+    </div>
+  </div>
+
+  <div class="box ok">
+    <h4>You genuinely cannot break anything today</h4>
+    <small>Nobody uses <code>nphiescore.com</code> yet &mdash; not you, not Nasser, not the app.
+    The only thing living at that address is a holding page you are replacing. If you type something
+    wrong, you fix the row and try again. There is nothing here to lose and nothing to back up first.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="box acc">
+    <h4>Why this is worth doing before anything else</h4>
+    <small>Two reasons. First, it is slow &mdash; not your part, which is fifteen minutes, but the
+    part afterwards where the rest of the internet learns the new answer. That happens on its own,
+    in the background, and it may take a few hours. Starting it early means it is finished by the
+    time anything else needs it. Second, it is a genuine safety fix: your app currently shares its
+    web address with three unrelated little apps, and sharing an address means sharing the place
+    browsers keep your sign-in. Its own address ends that.</small>
+  </div>
+  <div class="foot"><span>NphiesCore &middot; giving the app its own address</span><span>1 / 10</span></div>
+</section>
+
+<!-- 2 · words -->
+<section class="page">
+  <div class="head"><span class="step-no">?</span><div><h2>The words you will see</h2>
+  <small>Six of them, and then they stop being mysterious. Come back here whenever one turns up.</small></div></div>
+
+  <div class="defs">
+    <div class="def"><div class="w">DNS</div><div class="m">The internet's phone book. Every website
+      address has to be looked up in it to find the actual machine that answers. Today
+      <b>nphiescore.com</b> is in the book with the wrong number; you are correcting the entry.</div></div>
+
+    <div class="def"><div class="w">A record<span class="mono">type: A</span></div><div class="m">One line in
+      the phone book: <i>this name</i> &rarr; <i>this number</i>. You will add four of them, all for
+      the same name, because GitHub answers on four different machines and wants all four listed.</div></div>
+
+    <div class="def"><div class="w">AAAA record<span class="mono">type: AAAA</span></div><div class="m">Exactly the
+      same idea, for the newer, longer style of internet address &mdash; the ones with colons in them.
+      Some phones and networks can only use these, so you list both kinds. Said aloud: &ldquo;quad A&rdquo;.</div></div>
+
+    <div class="def"><div class="w">CNAME record<span class="mono">type: CNAME</span></div><div class="m">A forwarding
+      note rather than a number: <i>&ldquo;don't ask me, go and look up this other name instead.&rdquo;</i>
+      You will use exactly one, so that <b>www.nphiescore.com</b> works as well as the plain version.</div></div>
+
+    <div class="def"><div class="w">@<span class="mono">the Name field</span></div><div class="m">Shorthand for
+      &ldquo;the domain itself, with nothing in front&rdquo; &mdash; that is, <b>nphiescore.com</b>
+      rather than <b>www.</b>nphiescore.com or <b>mail.</b>nphiescore.com. Eight of your nine entries
+      use <code>@</code>.</div></div>
+
+    <div class="def"><div class="w">TTL<span class="mono">a number of seconds</span></div><div class="m">How long other
+      computers are allowed to remember an answer before asking again. <code>3600</code> is one hour.
+      It is the least important field on the form &mdash; whatever it is set to, the entry works.</div></div>
+  </div>
+
+  <div class="box acc" style="margin-top:6mm">
+    <h4>And one thing that is <i>not</i> a word you need &mdash; &ldquo;propagation&rdquo;</h4>
+    <small>You will see this word if you search for help. All it means is: the rest of the world is
+    still remembering the old answer and has not asked again yet. It sorts itself out. Nothing is
+    wrong, nothing needs fixing, and there is no button that makes it go faster.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The words you will see</span><span>2 / 10</span></div>
+</section>
+
+<!-- 3 · before -->
+<section class="page">
+  <div class="head"><span class="step-no">&#10003;</span><div><h2>Before you start</h2>
+  <small>Two things to have, and one thing to know.</small></div></div>
+
+  <div class="act"><span class="n">1</span><div class="t"><b>Your Hostinger sign-in.</b>
+    The same account that bought <b>nphiescore.com</b> on 18 August. If you are not sure the password
+    is to hand, find it now rather than halfway through.</div></div>
+
+  <div class="act"><span class="n">2</span><div class="t"><b>This guide, open beside the browser.</b>
+    Printed, or on a second screen. You will be copying exact values, and the whole reason those
+    values are printed large is so they can be copied without squinting.</div></div>
+
+  <div class="box warn">
+    <h4>The one thing to know: there will be a gap where nothing works</h4>
+    <small>Between page 5 (where you delete the old entries) and page 8 (where you finish adding the
+    new ones), <b>nphiescore.com</b> answers nothing at all. That is normal and expected. Nobody is
+    using the address, so nobody notices. Do not stop in the middle and worry &mdash; just carry on
+    to the end of page 8.</small>
+  </div>
+
+  <h3 style="margin-top:6mm">What is in the phone book right now</h3>
+  <p>Checked directly, on 21 August at 16:14 UTC. Two entries, both put there automatically by
+  Hostinger when you bought the domain:</p>
+
+  <div class="zone">
+    <div class="zrow zhead"><span>Type</span><span>Name</span><span>Points to</span><span>TTL</span></div>
+    <div class="zrow"><span class="ztype">A</span><span class="zname">@</span><span class="zval">2.57.91.91</span><span class="zttl">14400</span></div>
+    <div class="zrow"><span class="ztype cname">CNAME</span><span class="zname">www</span><span class="zval">nphiescore.com</span><span class="zttl">14400</span></div>
+  </div>
+
+  <div class="box ok" style="margin-top:5mm">
+    <h4>There is no email set up on this domain, and that makes today simpler</h4>
+    <small>If there were, there would be entries you must not touch. There are none &mdash; checked.
+    So every entry you can see is one you are replacing, and you do not have to be careful about
+    which is which.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span>Find</span><span>Delete</span><span>A</span><span>AAAA</span><span>www</span></div>
+  <div class="foot"><span>Before you start</span><span>3 / 10</span></div>
+</section>
+
+<!-- 4 · find -->
+<section class="page">
+  <div class="head"><span class="step-no">1</span><div><h2>Find the right page</h2>
+  <small>Four clicks from signing in.</small></div></div>
+
+  <div class="nav">
+    <span>hpanel.hostinger.com</span><em>&rsaquo;</em>
+    <span>Domains</span><em>&rsaquo;</em>
+    <span>nphiescore.com</span><em>&rsaquo;</em>
+    <span>DNS / Nameservers</span><em>&rsaquo;</em>
+    <span class="last">DNS records</span>
+  </div>
+
+  <div class="act"><span class="n">1</span><div class="t">Go to <b>hpanel.hostinger.com</b> and sign in.
+    <span class="saw">You land on a dashboard with your services listed.</span></div></div>
+
+  <div class="act"><span class="n">2</span><div class="t">Click <b>Domains</b> in the top menu, then click
+    <b>nphiescore.com</b> in the list.
+    <span class="saw">A page about that one domain, with a menu down the left side.</span></div></div>
+
+  <div class="act"><span class="n">3</span><div class="t">In that left menu, click <b>DNS / Nameservers</b>.
+    <span class="saw">A page in two halves: a form at the top headed something like <b>Add new record</b>,
+    and a list of existing records underneath, each with a delete button.</span></div></div>
+
+  <p><b>That page is where all of today's work happens.</b> You will use the form at the top nine
+  times and the delete buttons twice. Nothing else on it needs touching.</p>
+
+  <div class="box bad">
+    <h4>One thing on that page to leave completely alone</h4>
+    <small>Somewhere on it there is a section called <b>Nameservers</b>, showing two addresses ending
+    in <code>dns-parking.com</code>. Those look like leftovers from the holding page. <b>They are not
+    &mdash; they are what makes everything else on this page work.</b> If you change them, or click
+    anything offering &ldquo;use custom nameservers&rdquo;, every entry you are about to type stops
+    counting. Scroll past that section and do not come back to it.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="on">Find</span><span>Delete</span><span>A</span><span>AAAA</span><span>www</span></div>
+  <div class="foot"><span>Step 1 &middot; find the right page</span><span>4 / 10</span></div>
+</section>
+
+<!-- 5 · delete -->
+<section class="page">
+  <div class="head"><span class="step-no">2</span><div><h2>Delete the two old entries</h2>
+  <small>Both of them. They point at the holding page you are replacing.</small></div></div>
+
+  <p>In the list at the bottom of the page, find these two rows and delete each one. Hostinger will
+  ask you to confirm; say yes.</p>
+
+  <div class="zone">
+    <div class="zrow zhead"><span>Type</span><span>Name</span><span>Points to</span><span>TTL</span></div>
+    <div class="zrow del"><span class="ztype">A</span><span class="zname">@</span><span class="zval">2.57.91.91</span><span class="zttl">14400</span></div>
+    <div class="zrow del"><span class="ztype cname">CNAME</span><span class="zname">www</span><span class="zval">nphiescore.com</span><span class="zttl">14400</span></div>
+  </div>
+
+  <div class="box ok" style="margin-top:5mm">
+    <h4>There is no undo, and none is needed</h4>
+    <small>You are about to write both of these again with different values, on pages 6 and 8.
+    Deleting them is not a loss of anything.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>If the list shows other rows as well</h4>
+    <small>Delete anything whose <b>Name</b> is <code>@</code> or <code>www</code>. Leave everything
+    else. You may also see a greyed-out pair of <b>NS</b> rows that will not let you delete them
+    &mdash; that is normal, and they are meant to stay.</small>
+  </div>
+
+  <div class="box warn">
+    <h4>From here until the end of page 8, the address answers nothing</h4>
+    <small>If you go and type <b>nphiescore.com</b> into a browser right now, you will get an error.
+    <b>This is the expected middle of the job, not a mistake.</b> Keep going.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">Find</span><span class="on">Delete</span><span>A</span><span>AAAA</span><span>www</span></div>
+  <div class="foot"><span>Step 2 &middot; delete the old entries</span><span>5 / 10</span></div>
+</section>
+
+<!-- 6 · A -->
+<section class="page">
+  <div class="head"><span class="step-no">3</span><div><h2>Add four <span class="mono">A</span> entries</h2>
+  <small>The same form, filled in four times. Only the last number changes.</small></div></div>
+
+  <p>Fill the form at the top of the page exactly like this, then press <b>Add record</b>:</p>
+
+  <div class="form">
+    <div class="fgrid">
+      <div class="fld"><label>Type</label><div class="inp filled">A</div></div>
+      <div class="fld"><label>Name</label><div class="inp filled">@</div></div>
+      <div class="fld"><label>Points to</label><div class="inp filled">185.199.108.153</div></div>
+      <div class="fld"><label>TTL</label><div class="inp filled">3600</div></div>
+    </div>
+    <div class="btn">Add record</div>
+  </div>
+
+  <p style="margin-top:5mm">Then do it three more times, changing <b>only</b> the &ldquo;Points to&rdquo;
+  value. Tick each one off as it appears in the list below the form:</p>
+
+  <div class="four">
+    <div><span class="sq"></span><span>185.199.108.153</span></div>
+    <div><span class="sq"></span><span>185.199.110.153</span></div>
+    <div><span class="sq"></span><span>185.199.109.153</span></div>
+    <div><span class="sq"></span><span>185.199.111.153</span></div>
+  </div>
+
+  <div class="box acc" style="margin-top:6mm">
+    <h4>If the Name field will not accept <code>@</code></h4>
+    <small>Some versions of the form want the full name instead. Type <code>nphiescore.com</code>.
+    It means the same thing. What you must <b>not</b> type in this field is <code>www</code> &mdash;
+    that entry comes later, on page 8.</small>
+  </div>
+
+  <div class="box warn">
+    <h4>All four, even though it feels repetitive</h4>
+    <small>These are four doors into the same building. GitHub opens and closes individual doors over
+    time without telling anyone. If you list only one and that is the door being closed, your app
+    goes down one day for no visible reason. Four entries is what makes that impossible.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">Find</span><span class="done">Delete</span><span class="on">A</span><span>AAAA</span><span>www</span></div>
+  <div class="foot"><span>Step 3 &middot; the four A entries</span><span>6 / 10</span></div>
+</section>
+
+<!-- 7 · AAAA -->
+<section class="page">
+  <div class="head"><span class="step-no">4</span><div><h2>Add four <span class="mono">AAAA</span> entries</h2>
+  <small>Same four doors, written the newer way. Only one group of digits changes.</small></div></div>
+
+  <p>Same form. Change <b>Type</b> to <b>AAAA</b> this time:</p>
+
+  <div class="form">
+    <div class="fgrid">
+      <div class="fld"><label>Type</label><div class="inp filled">AAAA</div></div>
+      <div class="fld"><label>Name</label><div class="inp filled">@</div></div>
+      <div class="fld"><label>Points to</label><div class="inp filled" style="font-size:8.4pt">2606:50c0:8000::153</div></div>
+      <div class="fld"><label>TTL</label><div class="inp filled">3600</div></div>
+    </div>
+    <div class="btn">Add record</div>
+  </div>
+
+  <p style="margin-top:5mm">Then three more, changing only <b>8000</b> to <b>8001</b>, <b>8002</b>,
+  <b>8003</b>:</p>
+
+  <div class="four">
+    <div><span class="sq"></span><span>2606:50c0:8000::153</span></div>
+    <div><span class="sq"></span><span>2606:50c0:8002::153</span></div>
+    <div><span class="sq"></span><span>2606:50c0:8001::153</span></div>
+    <div><span class="sq"></span><span>2606:50c0:8003::153</span></div>
+  </div>
+
+  <div class="box bad" style="margin-top:6mm">
+    <h4>The two colons together are correct &mdash; do not &ldquo;tidy&rdquo; them</h4>
+    <small>In this style of address, <code>::</code> is a deliberate shorthand meaning &ldquo;a run of
+    zeros goes here&rdquo;. <code>2606:50c0:8000::153</code> is complete and correct exactly as printed.
+    If you change it to a single colon, the form will happily accept it and it will simply never work.
+    Copy character for character, including the <code>::153</code> at the end.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Why bother with a second set at all</h4>
+    <small>Mobile networks increasingly hand out only this newer kind of address. A phone on such a
+    network will ask for the <b>AAAA</b> entry, find nothing, and give up &mdash; so the app would work
+    for some of your team and not others, with nothing on screen to explain why. Four more rows now
+    prevents a fault that is very hard to be told about.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">Find</span><span class="done">Delete</span><span class="done">A</span><span class="on">AAAA</span><span>www</span></div>
+  <div class="foot"><span>Step 4 &middot; the four AAAA entries</span><span>7 / 10</span></div>
+</section>
+
+<!-- 8 · www -->
+<section class="page">
+  <div class="head"><span class="step-no">5</span><div><h2>Add the <span class="mono">www</span> entry</h2>
+  <small>The last one. Nine of nine.</small></div></div>
+
+  <div class="form">
+    <div class="fgrid">
+      <div class="fld"><label>Type</label><div class="inp filled">CNAME</div></div>
+      <div class="fld"><label>Name</label><div class="inp filled">www</div></div>
+      <div class="fld"><label>Points to</label><div class="inp filled" style="font-size:8.4pt">abosallom.github.io.</div></div>
+      <div class="fld"><label>TTL</label><div class="inp filled">3600</div></div>
+    </div>
+    <div class="btn">Add record</div>
+  </div>
+
+  <div class="box bad" style="margin-top:6mm">
+    <h4>Read the &ldquo;Points to&rdquo; value twice before you press Add</h4>
+    <small>It is <code>abosallom.github.io.</code> &mdash; <b>the GitHub address, not your own domain.</b>
+    This is the single most common way this job goes wrong, because the obvious guess is to point
+    <b>www</b> at <b>nphiescore.com</b> &mdash; which is exactly what the entry you deleted on page 5
+    was doing. It has to name GitHub, because GitHub is what actually answers.
+    <br><br>There is no <code>https://</code> and no <code>/opstrack</code> in this field. Just the name.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>The full stop at the end</h4>
+    <small><code>abosallom.github.io.</code> &mdash; note the dot after <b>io</b>. It means &ldquo;that
+    is the complete name, do not add my domain onto the end of it&rdquo;. Some forms need it, others
+    ignore it, and Hostinger may add or remove it for you when you save. <b>Either way is fine</b> and
+    page 9 will catch it if it went wrong.</small>
+  </div>
+
+  <div class="box ok">
+    <h4>That is the whole job at Hostinger</h4>
+    <small>Nine entries. You do not need to buy anything, enable anything, or use Hostinger's
+    &ldquo;connect a website&rdquo; wizard &mdash; that would point the domain at Hostinger's own
+    hosting, which is the opposite of what you have just set up.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">Find</span><span class="done">Delete</span><span class="done">A</span><span class="done">AAAA</span><span class="on">www</span></div>
+  <div class="foot"><span>Step 5 &middot; the www entry</span><span>8 / 10</span></div>
+</section>
+
+<!-- 9 · check -->
+<section class="page">
+  <div class="head"><span class="step-no">6</span><div><h2>Check your work</h2>
+  <small>Two ways to do this. Pick whichever you prefer &mdash; they answer the same question.</small></div></div>
+
+  <h3>The easy way &mdash; in a browser</h3>
+  <p>Go to <b>dnschecker.org</b>, type <b>nphiescore.com</b> in the box, choose <b>A</b> from the
+  dropdown, and press search. You are looking for the four numbers ending <b>108</b>, <b>109</b>,
+  <b>110</b>, <b>111</b>. Then change the dropdown to <b>AAAA</b>, and finally to <b>CNAME</b> with
+  <b>www.nphiescore.com</b> in the box.</p>
+
+  <h3 style="margin-top:5mm">The precise way &mdash; in Terminal</h3>
+  <p>Press <b>&#8984; + Space</b>, type <b>Terminal</b>, press <b>Enter</b>. A window with text in it
+  opens. Paste these one line at a time, pressing Enter after each:</p>
+
+  <div class="term"><span class="c">$</span> dig +short nphiescore.com A
+<span class="g">185.199.108.153
+185.199.109.153
+185.199.110.153
+185.199.111.153</span>
+
+<span class="c">$</span> dig +short nphiescore.com AAAA
+<span class="g">2606:50c0:8000::153      </span><span class="c">(and the other three)</span>
+
+<span class="c">$</span> dig +short www.nphiescore.com CNAME
+<span class="g">abosallom.github.io.</span></div>
+
+  <p>The order the lines come back in does not matter &mdash; it shuffles deliberately. What matters
+  is the <b>count</b>: four, four, and one.</p>
+
+  <div class="box warn">
+    <h4>If you get nothing back, or still see <code>2.57.91.91</code></h4>
+    <small>Nothing is wrong. Other computers were told to remember the old answer for four hours, and
+    that time has not run out yet. <b>Make a cup of tea, or leave it until tomorrow, and run it
+    again.</b> There is nothing to fix and no way to hurry it.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Do not judge this by visiting the website</h4>
+    <small><b>https://nphiescore.com</b> will <i>not</i> show your app yet, and that is correct.
+    GitHub does not know about the domain until I publish the app to it, which is a later step and
+    mine. Expect an error page. The checks above are the whole test.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">Find</span><span class="done">Delete</span><span class="done">A</span><span class="done">AAAA</span><span class="done">www</span></div>
+  <div class="foot"><span>Step 6 &middot; check your work</span><span>9 / 10</span></div>
+</section>
+
+<!-- 10 · done -->
+<section class="page">
+  <div class="kicker">You are done</div>
+  <h2 style="font-size:22pt; margin-bottom:4mm">Tell me, and stop there</h2>
+  <p class="lede">Send me one message saying the checks came back right. That is the end of your part
+  of this job. Everything below happens next, and most of it is mine.</p>
+
+  <h3 style="margin-top:5mm">Tick these off before you close the tab</h3>
+  <div class="ck">
+    <div><span class="sq"></span><span>The two old entries are gone from the list</span></div>
+    <div><span class="sq"></span><span>Four <b>A</b> entries, all named <code>@</code>, ending 108 / 109 / 110 / 111</span></div>
+    <div><span class="sq"></span><span>Four <b>AAAA</b> entries, all named <code>@</code>, with 8000 / 8001 / 8002 / 8003 in the middle</span></div>
+    <div><span class="sq"></span><span>One <b>CNAME</b> named <code>www</code>, pointing at <b>abosallom.github.io.</b></span></div>
+    <div><span class="sq"></span><span>The Nameservers section still says <code>dns-parking.com</code> &mdash; untouched</span></div>
+  </div>
+
+  <div class="box acc" style="margin-top:6mm">
+    <h4>What happens after you tell me</h4>
+    <small>I publish the app to the new address and check it came up properly. Then three short jobs
+    come back to you, and I will write them up the same way as this: telling Supabase about the new
+    address so sign-in emails point at the right place, confirming ownership of the domain with
+    GitHub, and switching on the padlock once GitHub has finished issuing the certificate &mdash;
+    which can take up to a day and is normal.</small>
+  </div>
+
+  <div class="box warn">
+    <h4>One thing to expect, so it is not a surprise</h4>
+    <small>When the app moves to the new address, <b>you and Nasser will be signed out once</b> and
+    will need to sign in again. If either of you has added the app to a phone home screen, that icon
+    will need removing and adding again from the new address. Your accounts and passwords are
+    untouched &mdash; it is only the browser forgetting where it put things. This is exactly why we
+    are moving now, while it affects two people rather than eighteen.</small>
+  </div>
+
+  <div class="box ok">
+    <h4>And if you change your mind, it all comes back</h4>
+    <small>Every part of this is reversible. The app can be put back at its old address whenever you
+    want, and these entries can stay where they are in the meantime, pointing at nothing, costing
+    nothing.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Checked against the live domain, 21 August 2026</span><span>10 / 10</span></div>
+</section>
+</body></html>

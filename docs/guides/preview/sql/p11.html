@@ -1,0 +1,169 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Switching on the parts of the app that are waiting</title>
+<style>
+/* Shared print styling for the owner guides. A4, drawn UI, no external assets.
+   Sized for someone reading this for the first time: larger type, more air,
+   one idea per block. */
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #14131a; background: #fff;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+:root {
+  --ink: #14131a; --ink-2: #3f3b4a; --ink-3: #6f6a7d;
+  --accent: #5a4aa8; --accent-mid: #7b72c4; --accent-soft: #f1eefb; --accent-line: #cfc6ee;
+  --ok: #1f7a4d; --ok-soft: #e8f6ee; --ok-line: #a8dcc0;
+  --warn: #9a5b00; --warn-soft: #fdf2e0; --warn-line: #f0cf95;
+  --bad: #a3222b; --bad-soft: #fdeced; --bad-line: #f2bcc0;
+  --rule: #e4e1ec; --paper: #faf9fd;
+}
+.page {
+  width: 210mm; height: 296.6mm; padding: 16mm 16mm 14mm;
+  page-break-after: always; position: relative; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.page:last-child { page-break-after: auto; }
+.foot {
+  position: absolute; left: 16mm; right: 16mm; bottom: 8mm;
+  display: flex; justify-content: space-between;
+  font-size: 8pt; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 2.5mm;
+}
+h1 { font-size: 29pt; line-height: 1.12; margin: 0 0 4mm; letter-spacing: -0.6pt; }
+h2 { font-size: 18pt; margin: 0 0 2mm; letter-spacing: -0.3pt; line-height: 1.2; }
+h3 { font-size: 10.5pt; margin: 0 0 2.5mm; letter-spacing: 0.4pt; text-transform: uppercase; color: var(--accent); }
+h3 .mono { text-transform: none; }
+p  { font-size: 11pt; line-height: 1.6; margin: 0 0 4mm; color: var(--ink-2); }
+.lede { font-size: 12.5pt; line-height: 1.55; color: var(--ink-2); }
+small { font-size: 9.4pt; color: var(--ink-3); line-height: 1.55; display: block; }
+b, strong { color: var(--ink); font-weight: 650; }
+code, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9.4pt; }
+code { background: var(--accent-soft); padding: 0.6mm 1.4mm; border-radius: 1mm; color: var(--accent); }
+.step-no {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 11mm; height: 11mm; border-radius: 50%; background: var(--accent); color: #fff;
+  font-size: 14pt; font-weight: 700; margin-right: 4mm; flex: none;
+}
+.head { display: flex; align-items: center; margin-bottom: 6mm; }
+.head h2 { margin: 0; }
+.head h2 .mono { font-size: 16pt; font-weight: 700; }
+.kicker { font-size: 8.4pt; letter-spacing: 1.5pt; text-transform: uppercase; color: var(--accent-mid);
+          margin-bottom: 3mm; font-weight: 650; }
+.box { border: 1px solid var(--rule); border-radius: 2.5mm; padding: 5mm; background: var(--paper); margin-bottom: 4.5mm; }
+.box.ok   { background: var(--ok-soft);   border-color: var(--ok-line); }
+.box.warn { background: var(--warn-soft); border-color: var(--warn-line); }
+.box.bad  { background: var(--bad-soft);  border-color: var(--bad-line); }
+.box.acc  { background: var(--accent-soft); border-color: var(--accent-line); }
+.box h4 { margin: 0 0 2mm; font-size: 10.5pt; }
+.box p:last-child, .box small:last-child { margin-bottom: 0; }
+.box.ok h4   { color: var(--ok); }
+.box.warn h4 { color: var(--warn); }
+.box.bad h4  { color: var(--bad); }
+.box.acc h4  { color: var(--accent); }
+.term {
+  background: #16151d; color: #e6e3ee; border-radius: 2.5mm; padding: 4mm 4.5mm;
+  font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9pt; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word; margin-bottom: 4mm;
+}
+.term .c { color: #8f8aa3; } .term .g { color: #7ee0a8; } .term .y { color: #f0c674; }
+.term .r { color: #f2909a; } .term .p { color: #b9a9ee; }
+.grow { flex: 1 1 auto; }
+
+/* ── beginner-guide components ───────────────────────────────────────────── */
+/* A definition: the word, then what it means in one plain sentence. */
+.defs { display: grid; gap: 3mm; }
+.def { display: grid; grid-template-columns: 34mm 1fr; gap: 4mm; align-items: start;
+       border-bottom: 1px solid var(--rule); padding-bottom: 3mm; }
+.def:last-child { border-bottom: 0; }
+.def .w { font-weight: 700; font-size: 10.5pt; color: var(--accent); }
+.def .w .mono { font-size: 9.6pt; display: block; color: var(--ink-3); font-weight: 400; margin-top: 0.6mm; }
+.def .m { font-size: 10pt; line-height: 1.55; color: var(--ink-2); }
+/* A thing to do, with what you will see when it worked. */
+.act { display: grid; grid-template-columns: 9mm 1fr; gap: 4mm; margin-bottom: 5mm; align-items: start; }
+.act .n { background: var(--accent); color: #fff; border-radius: 50%; width: 8mm; height: 8mm; flex: none;
+          display: flex; align-items: center; justify-content: center; font-size: 10.5pt; font-weight: 700; }
+.act .t { font-size: 11pt; line-height: 1.55; color: var(--ink-2); }
+.act .t b { color: var(--ink); }
+.act .saw { display: block; margin-top: 1.8mm; font-size: 9.4pt; color: var(--ok);
+            background: var(--ok-soft); border-left: 2px solid var(--ok-line); padding: 2mm 3mm; border-radius: 0 1.5mm 1.5mm 0; }
+/* Tick-off list. */
+.ck { display: grid; gap: 2.5mm; }
+.ck div { display: grid; grid-template-columns: 6mm 1fr; gap: 3mm; align-items: start; font-size: 10.2pt; color: var(--ink-2); }
+.ck .sq { width: 4.6mm; height: 4.6mm; border: 1.5px solid var(--accent-mid); border-radius: 1mm; margin-top: 0.9mm; }
+
+</style>
+<style>
+.editor { border: 1px solid #c8c4d4; border-radius: 2.5mm; overflow: hidden; background: #fff; }
+.ebar { background: #efedf5; border-bottom: 1px solid #d8d4e2; padding: 2.5mm 3mm; display: flex;
+        align-items: center; gap: 2.5mm; font-size: 9pt; }
+.pill { background: #fff; border: 1px solid #c8c4d4; border-radius: 1.4mm; padding: 1.6mm 3mm;
+        font-size: 8.6pt; font-weight: 600; }
+.pill.proj { border-color: var(--accent); color: var(--accent); font-family: "SF Mono", Menlo, monospace; font-size: 8pt; }
+.runbtn { margin-left: auto; background: var(--ok); color: #fff; border-radius: 1.4mm;
+          padding: 1.8mm 4mm; font-size: 8.6pt; font-weight: 700; }
+.ebody { padding: 4mm; font-family: "SF Mono", Menlo, monospace; font-size: 8.6pt; color: var(--ink-3);
+         min-height: 14mm; background: #fdfdff; }
+.files { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin: 5mm 0; }
+.fcard { border: 1px solid var(--accent-line); border-radius: 2.5mm; overflow: hidden; background: #fff; }
+.fcard .ft { background: var(--accent); color: #fff; padding: 2.5mm; text-align: center;
+             font-size: 12pt; font-weight: 700; font-family: "SF Mono", Menlo, monospace; }
+.fcard .fb { padding: 3mm; text-align: center; }
+.fcard .cnt { font-size: 10.5pt; font-weight: 700; color: var(--ok); }
+.fcard small { font-size: 8.4pt; margin-top: 1.5mm; }
+.prog { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2mm; margin-top: 4mm; }
+.prog span { font-size: 8pt; text-align: center; padding: 2.4mm 1mm; border-radius: 1.5mm; font-family: "SF Mono", Menlo, monospace;
+             background: var(--paper); border: 1px solid var(--rule); color: var(--ink-3); font-weight: 600; }
+.prog span.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.prog span.done { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+/* tighter numbered steps, so ten of them fit one page */
+.act { grid-template-columns: 8mm 1fr; gap: 3.5mm; margin-bottom: 3.2mm; }
+.act .n { width: 7mm; height: 7mm; font-size: 9.2pt; }
+.act .t { font-size: 10.2pt; line-height: 1.5; }
+.act .saw { margin-top: 1.2mm; font-size: 9pt; padding: 1.6mm 2.6mm; }
+.act .term { margin: 1.6mm 0 0; font-size: 8.6pt; padding: 3mm 3.5mm; }
+.kbd { display: inline-block; border: 1px solid #c0bcd0; border-bottom-width: 2px; border-radius: 1.4mm;
+       padding: 0.3mm 1.6mm; background: #fff; font-size: 9.6pt; font-weight: 650; color: var(--ink);
+       font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+.expect { display: grid; grid-template-columns: 16mm 1fr; gap: 3mm; align-items: center;
+          border-left: 3px solid var(--ok-line); padding: 2.6mm 0 2.6mm 3.5mm; margin: 0 0 3.2mm; background: var(--ok-soft);
+          border-radius: 0 2mm 2mm 0; }
+.expect .n { font-size: 16pt; font-weight: 700; color: var(--ok); text-align: center;
+             background: none; width: auto; height: auto; border-radius: 0; display: block; }
+.expect .d { font-size: 9.8pt; color: var(--ink-2); line-height: 1.45; }
+</style></head><body style="margin:0"><section class="page">
+  <div class="kicker">If something looks wrong</div>
+  <h2 style="font-size:20pt; margin-bottom:4mm">Three things that look like failures and are not</h2>
+
+  <div class="box"><h4>A line containing <span class="mono">SKIPPED</span></h4>
+    <small>One half of a self-test could not run here. <b>Everything was still installed correctly</b>
+    and the other half ran in full. Given how your roles are set up you should not see this &mdash; but
+    if you do, mention it to me and carry on.</small></div>
+
+  <div class="box"><h4>A line saying the ladder <span class="mono">has been edited</span></h4>
+    <small>The stage names are no longer the originals, so you have renamed them. Correct and expected
+    if you have got that far. Not an error.</small></div>
+
+  <div class="box" style="margin-bottom:6mm"><h4>The green <span class="mono">Success. No rows returned</span></h4>
+    <small>This is what success looks like for these files. They are not meant to return a table
+    &mdash; their output is the grey lines above it. <b>&ldquo;No rows returned&rdquo; is good
+    news.</b></small></div>
+
+  <h2 style="font-size:17pt; margin-bottom:3mm">What a real problem looks like</h2>
+  <div class="term"><span class="r">ERROR:  NphiesCore 0026 FAILED: &lt;a sentence saying what is wrong&gt;</span></div>
+  <p>Red, and beginning with <b>ERROR</b>. When this happens <b>nothing at all was changed</b> &mdash;
+  the file undid itself completely. Send me the sentence; fixing it and running again costs nothing.</p>
+
+  <div class="box bad">
+    <h4>The one mistake nothing can catch for you</h4>
+    <small><b>Renaming the seven stages before all eight runs are done.</b> The file finds the stages by
+    name. Rename them to your own words first and it will not recognise them, will assume they are
+    missing, and will add all seven English originals back &mdash; leaving fourteen stages, seven of
+    which nobody wants, in every menu.
+    <br><br>Fixable by deleting the extras, but tedious. <b>Finish all eight runs, then rename.</b></small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>If something looks wrong</span><span>11 / 12</span></div>
+</section></body></html>

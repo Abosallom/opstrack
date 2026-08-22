@@ -165,9 +165,25 @@ import { useStageLabel } from '../../lib/labels'
 // `it()` body is another. The name is lib/mapNodes.ts's published contract and
 // stays; the alias is the one-line fence at every call site that is not a hook
 // position. Renaming the import does not rename the export.
-import { useCaseProgress as computeUseCaseProgress, type UseCaseProgress } from '../../lib/mapNodes'
+import {
+  stageIndex,
+  useCaseProgress as computeUseCaseProgress,
+  type UseCaseProgress,
+} from '../../lib/mapNodes'
+// THE SHARED ARITHMETIC — the same `stageReading` the portfolio's table, its chip
+// badge and the map's stats walk read, so the panel's "68 days" is the table's
+// "68 days" by construction rather than by coincidence.
+import { stageReading } from '../../lib/portfolio/fields'
 import { useHasPerm } from '../../store/auth'
-import { useAllUseCases, useMapNodeMap, useMapNodeStages, useStageMap } from '../../store/config'
+import {
+  useAllUseCases,
+  useMapNodeMap,
+  useMapNodeStages,
+  useNodeProgress,
+  useStageMap,
+} from '../../store/config'
+import { useFilterContext } from '../../store/entries'
+import { mergeProgress, usePendingStages } from '../../store/stageOverlay'
 import { useMemberMap } from '../../store/members'
 import type { Member } from '../../api/members'
 import type { MapNode, MapNodeStage, MapNodeUseCase, UseCase, UseCaseStatus } from '../../types'
@@ -258,12 +274,43 @@ export interface MapBranchDetailProps {
   nodeId: string | null
   /** `MindNode.entityType`: Programme, Phase, Organization. A caption, never a condition. */
   kindName: string | null
+  /**
+   * What sits AT OR UNDER this node — the open work and the silence — off the
+   * SAME two sources the canvas beside it was drawn from.
+   *
+   * TWO SOURCES FOR TWO FACTS, and the split is the tree's rather than a
+   * convenience. `open` is `MindNode.count`, which is what the picture actually
+   * drew after the reader's filter; `quietDays` is `NodeStats.quietDays`, the
+   * post-order minimum `collectStats` folds over every entry leaf, folds and
+   * collapsed branches included. Re-deriving either one here would be a second
+   * answer under exactly the filters nobody tests — MindtreeTable's rule, at the
+   * seam where the panel meets the canvas.
+   *
+   * OPTIONAL, and the absence is a real state: until the integrator threads
+   * `model.stats` through `MapBranch`, the two rows do not render at all, which
+   * is the honest reading of "nobody has counted this" and never a zero.
+   */
+  rollup?: { open: number; quietDays: number | null } | null
 }
 
-export default function MapBranchDetail({ nodeId, kindName }: MapBranchDetailProps): ReactElement | null {
+export default function MapBranchDetail({
+  nodeId,
+  kindName,
+  rollup,
+}: MapBranchDetailProps): ReactElement | null {
   const locale = useLocale()
   const nodeById = useMapNodeMap()
   const memberById = useMemberMap()
+  /**
+   * THE TWO INHERITED FACETS, off `FilterContext`'s one ancestor walk. The panel
+   * used to read the raw `map_nodes` columns while the filter, the portfolio's
+   * rows and the map's cohort rings all read the inherited ones — one screen,
+   * two definitions of "vendor" — and this is the read that ends that.
+   */
+  const ctx = useFilterContext()
+  const storedProgress = useNodeProgress()
+  const pending = usePendingStages()
+  const stageById = useStageMap()
   // The FULL catalogue, hidden rows included: a capability retired this morning
   // is still one this organization integrated, and the denominator must not
   // shrink underneath yesterday's number. lib/mapNodes.ts drops the hidden rows
@@ -327,6 +374,38 @@ export default function MapBranchDetail({ nodeId, kindName }: MapBranchDetailPro
     [catalogue, links, nodeId],
   )
 
+  /**
+   * The store's progress rows with this tab's unconfirmed rung on top.
+   *
+   * WITHOUT THE MERGE THE CLOCK LIES IN THE MOST VISIBLE WAY THERE IS: the rung
+   * control sits three rows above the day count, so choosing a new rung would
+   * leave "68 days" beside it until a round trip landed — which reads as the
+   * write having failed on the one screen where the write and its consequence
+   * are two centimetres apart.
+   */
+  const merged = useMemo(() => mergeProgress(storedProgress, pending), [storedProgress, pending])
+
+  /**
+   * The stage triad — the SAME `stageReading` the portfolio's rows are built
+   * from, the same one the map's stats walk clocks the card with.
+   */
+  const reading = useMemo(() => {
+    if (nodeId === null) return null
+    // `ctx.today` rather than `Date.now()` in the dependency list, and `now`
+    // read inside the body: the reading's only use of the clock is whole
+    // calendar days, so re-running per render would recompute the same integer.
+    // PortfolioStage.tsx and useMapModel.ts carry the same suppression.
+    const now = new Date()
+    return stageReading(nodeId, {
+      stages: stageIndex(merged, stageById),
+      progressById: merged,
+      // NO WORKSPACE FLOOR IN v1 — PortfolioStage's decision, kept as one.
+      fallbackStallDays: null,
+      now,
+    })
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId, merged, stageById, ctx.today])
+
   const node: MapNode | undefined = nodeId === null ? undefined : nodeById.get(nodeId)
 
   // NO BAND, rather than an empty one. Not an entity (a track, a bucket, the
@@ -342,8 +421,14 @@ export default function MapBranchDetail({ nodeId, kindName }: MapBranchDetailPro
     <DetailBand
       name={localName(node, locale)}
       kindName={kindName}
-      manager={managerLabel(memberById, node.account_manager_id)}
-      vendor={node.vendor}
+      // INHERITED, WITH THE ROW AS THE FALLBACK — the `inherited ?? raw`
+      // coalesce lib/portfolio/rows.ts and useMapModel.ts both spell out, so
+      // one organization has one manager and one integrator on every surface.
+      manager={managerLabel(memberById, ctx.managerOfNode?.get(nodeId) ?? node.account_manager_id)}
+      vendor={ctx.vendorOfNode?.get(nodeId) ?? node.vendor}
+      daysInStage={reading?.days ?? null}
+      atRisk={reading?.atRisk ?? false}
+      rollup={rollup ?? null}
       progress={progress}
       labelOf={(useCase) => localName(useCase, locale)}
       loading={loading}
@@ -364,10 +449,36 @@ export interface DetailBandProps {
   /** The node's own name, already resolved for the locale. */
   name: string
   kindName: string | null
-  /** Null renders the em-dash; see managerLabel() for why "gone" is not null. */
+  /**
+   * The INHERITED account manager, resolved. Null renders the em-dash; see
+   * managerLabel() for why "gone" is not null.
+   *
+   * ⚠ THE EM-DASH MEANS SOMETHING NARROWER THAN IT USED TO. It was "this row's
+   *   `account_manager_id` column is null"; it is now "nobody is accountable for
+   *   this organization ANYWHERE UP THE CHAIN". An organization with a blank
+   *   column under a Phase that has a manager reads the Phase's person, which is
+   *   what the filter has always meant by `?manager=` and what the portfolio's
+   *   table has always shown — the panel was the surface disagreeing.
+   */
   manager: string | null
-  /** `''` is "not recorded" — the column is `not null default ''`, never null. */
+  /** The INHERITED vendor, same rule and same rewritten dash. `''` is "not
+   *  recorded anywhere up the chain" — the column is `not null default ''`. */
   vendor: string
+  /**
+   * Whole calendar days on the current rung, or null when nothing is recorded —
+   * `stageReading`, the one arithmetic three surfaces share.
+   */
+  daysInStage: number | null
+  /** `daysInStage > expected_days`, terminal and paused stopping the clock. */
+  atRisk: boolean
+  /**
+   * Open work and quiet under this node, off the SAME walk the canvas reads.
+   *
+   * Absent until the integrator threads `model.stats` through `MapBranch`, and
+   * the rows do not render while it is — an absent roll-up is "nobody has
+   * counted", which is a different fact from a zero and must not print as one.
+   */
+  rollup?: { open: number; quietDays: number | null } | null
   progress: UseCaseProgress
   labelOf: (useCase: UseCase) => string
   loading: boolean
@@ -396,6 +507,9 @@ export function DetailBand({
   kindName,
   manager,
   vendor,
+  daysInStage,
+  atRisk,
+  rollup,
   progress,
   labelOf,
   loading,
@@ -440,6 +554,56 @@ export function DetailBand({
             {vendor.trim() === '' ? <NotRecorded /> : isolate(vendor)}
           </dd>
         </div>
+        {/* THE PORTFOLIO'S OWN FOUR NUMBERS, IN THE PANEL'S OWN WORDS.
+            `mindtree.colInStage`, `colRisk`, `colOpen` and `colQuiet` are the
+            table's column headings reused as field labels rather than restated
+            — the reader who renames "In stage" in Settings renames it on both
+            surfaces, which is the whole promise a shared key makes. The VALUES
+            come off `stageReading` and the canvas's walk; only the wrapping is
+            this band's. */}
+        <div className="mbr-field">
+          <dt className="mbr-field-k">{t('mindtree.colInStage')}</dt>
+          <dd className="mbr-field-v">
+            {daysInStage === null ? (
+              <NotRecorded />
+            ) : (
+              t('mindtree.portfolioDays', { count: daysInStage })
+            )}
+          </dd>
+        </div>
+        {/* NO VERDICT WITHOUT A CLOCK. "Inside its stage time" about an
+            organization nobody has staged is a reassurance nobody earned, so
+            the row reads the dash until there is a day count to judge. */}
+        <div className="mbr-field">
+          <dt className="mbr-field-k">{t('mindtree.colRisk')}</dt>
+          <dd className="mbr-field-v">
+            {daysInStage === null ? (
+              <NotRecorded />
+            ) : (
+              t(atRisk ? 'mindtree.portfolioAtRisk' : 'mindtree.portfolioOnTrack')
+            )}
+          </dd>
+        </div>
+        {rollup != null && (
+          <>
+            <div className="mbr-field">
+              <dt className="mbr-field-k">{t('mindtree.colOpen')}</dt>
+              <dd className="mbr-field-v">{rollup.open}</dd>
+            </div>
+            <div className="mbr-field">
+              <dt className="mbr-field-k">{t('mindtree.colQuiet')}</dt>
+              {/* `OrgRow`'s renderer exactly: null is "nothing has ever been
+                  filed here", which is not a zero and must not print as one. */}
+              <dd className="mbr-field-v">
+                {rollup.quietDays === null ? (
+                  <NotRecorded />
+                ) : (
+                  t('mindtree.portfolioDays', { count: rollup.quietDays })
+                )}
+              </dd>
+            </div>
+          </>
+        )}
       </dl>
 
       {/* THE MATRIX, and it is the visually dominant element on the band: it is

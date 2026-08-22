@@ -1,0 +1,202 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Switching on the parts of the app that are waiting</title>
+<style>
+/* Shared print styling for the owner guides. A4, drawn UI, no external assets.
+   Sized for someone reading this for the first time: larger type, more air,
+   one idea per block. */
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #14131a; background: #fff;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+:root {
+  --ink: #14131a; --ink-2: #3f3b4a; --ink-3: #6f6a7d;
+  --accent: #5a4aa8; --accent-mid: #7b72c4; --accent-soft: #f1eefb; --accent-line: #cfc6ee;
+  --ok: #1f7a4d; --ok-soft: #e8f6ee; --ok-line: #a8dcc0;
+  --warn: #9a5b00; --warn-soft: #fdf2e0; --warn-line: #f0cf95;
+  --bad: #a3222b; --bad-soft: #fdeced; --bad-line: #f2bcc0;
+  --rule: #e4e1ec; --paper: #faf9fd;
+}
+.page {
+  width: 210mm; height: 296.6mm; padding: 16mm 16mm 14mm;
+  page-break-after: always; position: relative; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.page:last-child { page-break-after: auto; }
+.foot {
+  position: absolute; left: 16mm; right: 16mm; bottom: 8mm;
+  display: flex; justify-content: space-between;
+  font-size: 8pt; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 2.5mm;
+}
+h1 { font-size: 29pt; line-height: 1.12; margin: 0 0 4mm; letter-spacing: -0.6pt; }
+h2 { font-size: 18pt; margin: 0 0 2mm; letter-spacing: -0.3pt; line-height: 1.2; }
+h3 { font-size: 10.5pt; margin: 0 0 2.5mm; letter-spacing: 0.4pt; text-transform: uppercase; color: var(--accent); }
+h3 .mono { text-transform: none; }
+p  { font-size: 11pt; line-height: 1.6; margin: 0 0 4mm; color: var(--ink-2); }
+.lede { font-size: 12.5pt; line-height: 1.55; color: var(--ink-2); }
+small { font-size: 9.4pt; color: var(--ink-3); line-height: 1.55; display: block; }
+b, strong { color: var(--ink); font-weight: 650; }
+code, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9.4pt; }
+code { background: var(--accent-soft); padding: 0.6mm 1.4mm; border-radius: 1mm; color: var(--accent); }
+.step-no {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 11mm; height: 11mm; border-radius: 50%; background: var(--accent); color: #fff;
+  font-size: 14pt; font-weight: 700; margin-right: 4mm; flex: none;
+}
+.head { display: flex; align-items: center; margin-bottom: 6mm; }
+.head h2 { margin: 0; }
+.head h2 .mono { font-size: 16pt; font-weight: 700; }
+.kicker { font-size: 8.4pt; letter-spacing: 1.5pt; text-transform: uppercase; color: var(--accent-mid);
+          margin-bottom: 3mm; font-weight: 650; }
+.box { border: 1px solid var(--rule); border-radius: 2.5mm; padding: 5mm; background: var(--paper); margin-bottom: 4.5mm; }
+.box.ok   { background: var(--ok-soft);   border-color: var(--ok-line); }
+.box.warn { background: var(--warn-soft); border-color: var(--warn-line); }
+.box.bad  { background: var(--bad-soft);  border-color: var(--bad-line); }
+.box.acc  { background: var(--accent-soft); border-color: var(--accent-line); }
+.box h4 { margin: 0 0 2mm; font-size: 10.5pt; }
+.box p:last-child, .box small:last-child { margin-bottom: 0; }
+.box.ok h4   { color: var(--ok); }
+.box.warn h4 { color: var(--warn); }
+.box.bad h4  { color: var(--bad); }
+.box.acc h4  { color: var(--accent); }
+.term {
+  background: #16151d; color: #e6e3ee; border-radius: 2.5mm; padding: 4mm 4.5mm;
+  font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9pt; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word; margin-bottom: 4mm;
+}
+.term .c { color: #8f8aa3; } .term .g { color: #7ee0a8; } .term .y { color: #f0c674; }
+.term .r { color: #f2909a; } .term .p { color: #b9a9ee; }
+.grow { flex: 1 1 auto; }
+
+/* ── beginner-guide components ───────────────────────────────────────────── */
+/* A definition: the word, then what it means in one plain sentence. */
+.defs { display: grid; gap: 3mm; }
+.def { display: grid; grid-template-columns: 34mm 1fr; gap: 4mm; align-items: start;
+       border-bottom: 1px solid var(--rule); padding-bottom: 3mm; }
+.def:last-child { border-bottom: 0; }
+.def .w { font-weight: 700; font-size: 10.5pt; color: var(--accent); }
+.def .w .mono { font-size: 9.6pt; display: block; color: var(--ink-3); font-weight: 400; margin-top: 0.6mm; }
+.def .m { font-size: 10pt; line-height: 1.55; color: var(--ink-2); }
+/* A thing to do, with what you will see when it worked. */
+.act { display: grid; grid-template-columns: 9mm 1fr; gap: 4mm; margin-bottom: 5mm; align-items: start; }
+.act .n { background: var(--accent); color: #fff; border-radius: 50%; width: 8mm; height: 8mm; flex: none;
+          display: flex; align-items: center; justify-content: center; font-size: 10.5pt; font-weight: 700; }
+.act .t { font-size: 11pt; line-height: 1.55; color: var(--ink-2); }
+.act .t b { color: var(--ink); }
+.act .saw { display: block; margin-top: 1.8mm; font-size: 9.4pt; color: var(--ok);
+            background: var(--ok-soft); border-left: 2px solid var(--ok-line); padding: 2mm 3mm; border-radius: 0 1.5mm 1.5mm 0; }
+/* Tick-off list. */
+.ck { display: grid; gap: 2.5mm; }
+.ck div { display: grid; grid-template-columns: 6mm 1fr; gap: 3mm; align-items: start; font-size: 10.2pt; color: var(--ink-2); }
+.ck .sq { width: 4.6mm; height: 4.6mm; border: 1.5px solid var(--accent-mid); border-radius: 1mm; margin-top: 0.9mm; }
+
+</style>
+<style>
+.editor { border: 1px solid #c8c4d4; border-radius: 2.5mm; overflow: hidden; background: #fff; }
+.ebar { background: #efedf5; border-bottom: 1px solid #d8d4e2; padding: 2.5mm 3mm; display: flex;
+        align-items: center; gap: 2.5mm; font-size: 9pt; }
+.pill { background: #fff; border: 1px solid #c8c4d4; border-radius: 1.4mm; padding: 1.6mm 3mm;
+        font-size: 8.6pt; font-weight: 600; }
+.pill.proj { border-color: var(--accent); color: var(--accent); font-family: "SF Mono", Menlo, monospace; font-size: 8pt; }
+.runbtn { margin-left: auto; background: var(--ok); color: #fff; border-radius: 1.4mm;
+          padding: 1.8mm 4mm; font-size: 8.6pt; font-weight: 700; }
+.ebody { padding: 4mm; font-family: "SF Mono", Menlo, monospace; font-size: 8.6pt; color: var(--ink-3);
+         min-height: 14mm; background: #fdfdff; }
+.files { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin: 5mm 0; }
+.fcard { border: 1px solid var(--accent-line); border-radius: 2.5mm; overflow: hidden; background: #fff; }
+.fcard .ft { background: var(--accent); color: #fff; padding: 2.5mm; text-align: center;
+             font-size: 12pt; font-weight: 700; font-family: "SF Mono", Menlo, monospace; }
+.fcard .fb { padding: 3mm; text-align: center; }
+.fcard .cnt { font-size: 10.5pt; font-weight: 700; color: var(--ok); }
+.fcard small { font-size: 8.4pt; margin-top: 1.5mm; }
+.prog { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2mm; margin-top: 4mm; }
+.prog span { font-size: 8pt; text-align: center; padding: 2.4mm 1mm; border-radius: 1.5mm; font-family: "SF Mono", Menlo, monospace;
+             background: var(--paper); border: 1px solid var(--rule); color: var(--ink-3); font-weight: 600; }
+.prog span.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.prog span.done { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+/* tighter numbered steps, so ten of them fit one page */
+.act { grid-template-columns: 8mm 1fr; gap: 3.5mm; margin-bottom: 3.2mm; }
+.act .n { width: 7mm; height: 7mm; font-size: 9.2pt; }
+.act .t { font-size: 10.2pt; line-height: 1.5; }
+.act .saw { margin-top: 1.2mm; font-size: 9pt; padding: 1.6mm 2.6mm; }
+.act .term { margin: 1.6mm 0 0; font-size: 8.6pt; padding: 3mm 3.5mm; }
+.kbd { display: inline-block; border: 1px solid #c0bcd0; border-bottom-width: 2px; border-radius: 1.4mm;
+       padding: 0.3mm 1.6mm; background: #fff; font-size: 9.6pt; font-weight: 650; color: var(--ink);
+       font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+.expect { display: grid; grid-template-columns: 16mm 1fr; gap: 3mm; align-items: center;
+          border-left: 3px solid var(--ok-line); padding: 2.6mm 0 2.6mm 3.5mm; margin: 0 0 3.2mm; background: var(--ok-soft);
+          border-radius: 0 2mm 2mm 0; }
+.expect .n { font-size: 16pt; font-weight: 700; color: var(--ok); text-align: center;
+             background: none; width: auto; height: auto; border-radius: 0; display: block; }
+.expect .d { font-size: 9.8pt; color: var(--ink-2); line-height: 1.45; }
+</style></head><body style="margin:0"><section class="page">
+  <div class="head"><span class="step-no">6</span><div><h2>The safety check, in full</h2>
+  <small>Copy this whole block into the big box and run it. It reads only &mdash; it changes nothing.</small></div></div>
+
+  <div class="term" style="font-size:6.2pt; line-height:1.4; padding:3.5mm">select
+  (select count(*) from public.track_groups)                                              as g_0018,
+  (select count(*) from information_schema.columns
+     where table_schema=&#x27;public&#x27; and table_name=&#x27;tracks&#x27;  and column_name=&#x27;group_id&#x27;)     as c_0018,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+     where n.nspname=&#x27;public&#x27; and p.proname=&#x27;nudge_entry&#x27;)                                as f_0019,
+  (select count(*) from information_schema.tables
+     where table_schema=&#x27;public&#x27; and table_name=&#x27;ai_usage&#x27;)                               as t_0020,
+  (select count(*) from information_schema.columns
+     where table_schema=&#x27;public&#x27; and table_name=&#x27;notification_prefs&#x27;
+       and column_name=&#x27;ai_enabled&#x27;)                                                      as c_0021,
+  (pg_get_functiondef(&#x27;public.entries_guard_insert()&#x27;::regprocedure)
+     like &#x27;%nudged_by        := null%&#x27;)                                                   as f_0022,
+  (select pg_get_constraintdef(oid) from pg_constraint
+     where conname=&#x27;claim_counters_scope_ck&#x27;)                                             as scopes,
+  (select count(*) from public.map_node_kinds)                                            as k_0023,
+  (select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid
+     where c.relname=&#x27;map_nodes&#x27; and t.tgname=&#x27;map_nodes_tree_ck_trg&#x27;
+       and t.tgdeferrable and t.tginitdeferred)                                           as d_0023,
+  (select pg_get_indexdef(i.indexrelid) ilike &#x27;%nulls not distinct%&#x27;
+     from pg_index i join pg_class c on c.oid=i.indexrelid
+    where c.relname=&#x27;map_nodes_sibling_name_uidx&#x27;)                                        as n_0023,
+  (select count(*) from public.use_cases)                                                 as u_0024,
+  (select count(*) from information_schema.tables
+     where table_schema=&#x27;public&#x27; and table_name=&#x27;map_node_use_cases&#x27;)                     as t_0024,
+  (select count(*) from information_schema.columns
+     where table_schema=&#x27;public&#x27; and table_name=&#x27;entries&#x27; and column_name=&#x27;node_id&#x27;)      as c_0024,
+  (select count(*) from pg_trigger
+     where tgrelid=&#x27;public.entries&#x27;::regclass and tgname=&#x27;entries_map_sync&#x27;)              as g_0024,
+  (select count(*) from public.roles)                                                     as r_0025,
+  (select count(*) from public.role_permissions where granted)                            as p_0025,
+  (select count(*) from public.profiles where role_id is null)                            as n_0025,
+  (pg_get_functiondef(&#x27;public.is_admin()&#x27;::regprocedure) like &#x27;%has_perm%&#x27;)                as f_0025,
+  (select count(*) from information_schema.columns
+     where table_schema=&#x27;public&#x27; and table_name=&#x27;profiles&#x27; and column_name=&#x27;position&#x27;)    as c_0025,
+  -- the amendment, both directions. The first must be true and the second false;
+  -- `w_0025 = false` means the Director role grants nothing, and `x_0025 = true`
+  -- means a Director can grant themselves workspace.admin.
+  (select count(*) from pg_policies
+     where schemaname=&#x27;public&#x27; and tablename=&#x27;map_nodes&#x27; and policyname=&#x27;map_nodes_insert&#x27;
+       and coalesce(with_check,&#x27;&#x27;) like &#x27;%structure.edit%&#x27;)                               as w_0025,
+  (select count(*) from pg_policies
+     where schemaname=&#x27;public&#x27; and tablename=&#x27;role_permissions&#x27;
+       and policyname=&#x27;role_permissions_update&#x27;
+       and (coalesce(qual,&#x27;&#x27;)||coalesce(with_check,&#x27;&#x27;)) like &#x27;%structure.edit%&#x27;)          as x_0025;</div>
+
+  <div class="expect"><div class="n">&#10003;</div><div class="d">Of all the columns that come back,
+    read these three: <code>x_0025</code> must be <b>0</b> &middot;
+    <code>f_0025</code> must be <b>true</b> &middot; <code>w_0025</code> must be <b>1</b>.
+    <br><b>Read <code>x_0025</code> first.</b> If it is ever 1, stop and tell me straight away &mdash;
+    it would mean anyone holding Director could give themselves full control.</div></div>
+
+  <div class="box acc">
+    <h4>Ignore every other column &mdash; and where this came from</h4>
+    <small>The rest are a fingerprint of everything set up before today; I compare them if anything
+    ever looks odd. You only ever need the three above.
+    <br><br>Printed here on 21 August 2026 from <code>docs/PENDING-MIGRATIONS.md</code> so this guide
+    is self-contained. If the two ever disagree, <b>the file in the repository is the real one.</b></small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">Open</span><span class="done">0026</span><span class="done">0027</span><span class="done">0028</span><span class="done">0029</span><span class="on">Check</span></div>
+  <div class="foot"><span>Step 6 &middot; the safety check</span><span>10 / 12</span></div>
+</section></body></html>

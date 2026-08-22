@@ -1,0 +1,140 @@
+# w6-geometry → integrator
+
+Three edits in files this unit does not own, plus three verifications that
+CLOSE items the design listed as work. Nothing here is optional-but-nice: item 1
+is a latent synthetic-id leak and item 2 is a stated invariant ("move them
+together") that this unit's change broke on one side.
+
+---
+
+## 1. MindtreeTable.tsx — a cohort's synthetic key must not become `nodeKey`
+
+`buildTableRows`' walk carries `nodeKey` down as "which Org is this row under",
+and `filterForCell` writes it straight into `FilterState.mapNodeIds`, whose
+header says in as many words: *"`nodeKey` is `map_nodes.id`"*. A `cohort`'s
+`bucketKey` is `cohort:manager:<uuid>` — `cohortKeyOf`, minted with a prefix a
+uuid cannot hold — and the walk takes it unconditionally.
+
+Today no row escapes with one, because `groupEntities` only ever buckets ENTITY
+plans, so every cohort has entity children that overwrite the key one step later.
+That is a guarantee held in another module, defended by nothing here, and the
+symptom if it ever slips is a filter scoped to a node that does not exist —
+silent, and shaped exactly like "the count says 3 and the list shows 0".
+
+`isStructural` in that file is written as a NEGATIVE and needs no edit: it
+already recurses into `cohort` (its header explains why, and it was right).
+
+```diff
+--- a/src/components/mindtree/MindtreeTable.tsx
++++ b/src/components/mindtree/MindtreeTable.tsx
+@@ -420,13 +420,19 @@
+       if (!isStructural(child)) continue
+
+       // A structural node's own bucket key is its map-node id; it inherits the
+       // one above it only if it somehow has none, so `nodeKey` is always the
+       // DEEPEST answer to "which Org is this row under".
++      //
++      // ⚠ EXCEPT A COHORT, WHOSE KEY IS NOT A ROW. `?by=` puts a `cohort` step
++      // between a track and its organizations, and its `bucketKey` is
++      // `cohortKeyOf`'s synthetic `cohort:manager:<uuid>`. `filterForCell`
++      // writes `nodeKey` into `FilterState.mapNodeIds`, which is documented
++      // there as `map_nodes.id`, so taking it would scope a drill-in to a node
++      // that does not exist. A cohort is TRANSPARENT here for the same reason
++      // `dropRules.foldPath` and `actions.branchRefAt` skip it.
+       // `retired || child.retired` — the flag ACCUMULATES down the path: an
+       // archived Org inside a live programme marks its own rows, and a live Org
+       // under an archived track keeps its track's mark.
+       walk(
+         child,
+         track,
+         [...parts, labelText(child.label)],
+-        child.bucketKey ?? nodeKey,
++        child.kind === 'cohort' ? nodeKey : (child.bucketKey ?? nodeKey),
+         retired || child.retired,
+       )
+```
+
+Suggested test (same file's suite): build a grouped tree, take any row beneath a
+cohort, assert `row.nodeKey` never starts with `'cohort:'`.
+
+---
+
+## 2. store/mindtree.ts — `MAX_NODE_ID` moves with `MAX_FOCUS_LEN`
+
+`focus.ts`'s bound block ends *"`store/mindtree.ts`'s `MAX_NODE_ID` is the same
+number for the same reason — it bounds persisted collapse ids, which are these
+ids. Move them together."* This unit raised `MAX_FOCUS_LEN` 1024 → 4096 (and
+`MAX_SEGMENTS` 12 → 40) because `groupEntities` can insert up to 28 `cohort:`
+segments of 62 characters each; the arithmetic is written out in that file. The
+store side must move with it or a device silently drops the collapse preference
+for exactly the ids the URL now accepts.
+
+```diff
+--- a/src/store/mindtree.ts
++++ b/src/store/mindtree.ts
+@@ -148,7 +148,7 @@
+  * Still a cap rather than no cap: `localStorage` is user-writable and this value
+  * is read synchronously before the first frame.
+  */
+-const MAX_NODE_ID = 1024
++const MAX_NODE_ID = 4096
+```
+
+`store/mindtree.test.ts:175` is the test that pins the number ("the only test
+that pins it") and needs the same edit.
+
+---
+
+## 3. mapZoomReach.test.tsx — one cohort case for `isDiveTarget`
+
+`isDiveTarget` now reads `focus.isStructuralKind` instead of a third copy of
+`root|track|entity`, so a cohort is a world you fly INTO rather than a leaf that
+opens the sidebar. That is a behaviour change with no assertion in the suite that
+owns the function's tests:
+
+```ts
+it('dives into a cohort rather than opening the org sidebar on it', () => {
+  const cohort = { ...node, kind: 'cohort', bucketKey: cohortKeyOf('manager', 'sara'),
+                   children: [orgNode] }
+  expect(isDiveTarget(cohort)).toBe(true)
+})
+```
+
+The failure it guards is specific: with the old comparison a cohort answered
+`false`, so Enter on the biggest ring on the screen called `dive.details(id)` and
+handed a synthetic key to the organization panel.
+
+---
+
+## 4. model.ts — one sentence in `KIND_ROLE`'s doc is now inaccurate
+
+> `worlds.ts`' STRUCTURAL_KINDS and `focus.ts`' `isPlaceKind` are this row.
+
+The first half is exactly right and this unit made it true (`STRUCTURAL_KINDS`
+gained `'cohort'`; `focus.isStructuralKind` is now literally
+`KIND_ROLE[kind] === 'place'`). The second half is not: `focus.isPlaceKind` is
+`canFocus`'s narrower exception — "does framing this node still answer something
+when it holds nothing" — which is `entity` and `cohort` and deliberately NOT
+`root` or `track`. focus.ts's header argues the exclusion at length (an empty
+track is drawn so that "which track has nothing on it" is visible, which is a
+different claim from "make it the screen"). Suggested: replace `isPlaceKind`
+with `focus.ts`' `isStructuralKind` in that sentence.
+
+---
+
+## 5. THREE VERIFICATIONS — design §1.6's site list overcounts by three
+
+- **`lib/capture/parse.ts:460` needs NO change, as predicted.** Its
+  `found.kind === 'track'` is a `TokenKind` from the capture grammar (`#track` in
+  typed text), a different union from `MindNodeKind` entirely. parse.ts is FROZEN
+  and stays untouched.
+- **`MapCapture.tsx:998` and `:1092` are the same `TokenKind`**, not the node
+  kind — `KIND_SIGIL`/`KIND_LABEL` in that file are `Record<TokenKind, string>`.
+  Neither is part of the audit. The design's 27 is therefore 24 real sites.
+- **`MapBranch.tsx` needs no functional change.** `:224 trackIdOf` walks the path
+  for `kind === 'track'` and finds it through a cohort; `:713 bandScope` sends a
+  cohort to `path.find(kind === 'track')`, which is the right answer (a cohort
+  has no `map_nodes` row for the band to read); `:657 entityIdOf(node)` already
+  returns null for one by construction, so no org sidebar mounts on a cohort.
+  `:398` is a comment. A one-line comment naming the cohort case at `:713` would
+  be welcome and is not required.

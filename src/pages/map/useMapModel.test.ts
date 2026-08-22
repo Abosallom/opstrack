@@ -64,7 +64,8 @@ vi.hoisted(() => {
 })
 
 import { DEFAULT_NODE_SIZE, type NodeSize } from '../../lib/mindtree/layout'
-import type { UseCaseProgress } from '../../lib/mapNodes'
+import type { StageIndex, UseCaseProgress } from '../../lib/mapNodes'
+import type { Entry, MapNodeProgress, MapNodeStage } from '../../types'
 import { MIND_GROUPINGS, cohortKeyOf, type MindNode } from '../../lib/mindtree/model'
 import { PORTFOLIO_BYS } from '../../lib/mindtree/lens'
 import type { MapNodeUseCase, UseCase, UseCaseStatus } from '../../types'
@@ -73,6 +74,56 @@ import type { MapNodeUseCase, UseCase, UseCaseStatus } from '../../types'
 // arrive after the shims above have run.
 const { BY_FOR_GROUPING, CANVAS_GROUPINGS, GROUPING_FOR_BY, collectProgress, collectSizes, collectStats } =
   await import('./useMapModel')
+const { buildPortfolioRows } = await import('../../lib/portfolio/rows')
+const { stageIndex } = await import('../../lib/mapNodes')
+
+/* ── the stats walk's input, as one fixture three kinds of case can bend ── */
+
+/** A fixed instant, so "68 days on this rung" is a fact rather than a Tuesday. */
+const NOW = new Date('2026-03-10T00:00:00.000Z')
+const TODAY = '2026-03-10'
+
+/**
+ * Everything `collectStats` needs and cannot know, with every clock stopped and
+ * every lookup empty. A case supplies only the half it is about — which is what
+ * the options object bought over four positional arguments.
+ */
+function statsInput(over: Partial<Parameters<typeof collectStats>[1]> = {}): Parameters<
+  typeof collectStats
+>[1] {
+  return {
+    entryById: new Map<string, Entry>(),
+    isUnassigned: () => false,
+    stages: { byId: new Map(), ofNode: () => null } satisfies StageIndex,
+    progressById: new Map<string, Pick<MapNodeProgress, 'stage_changed_at'>>(),
+    fallbackStallDays: null,
+    now: NOW,
+    today: TODAY,
+    ...over,
+  }
+}
+
+/** An entry, cut to the one column the quiet fold reads. */
+function leaf(id: string, lastActivityAt: string): [string, Entry] {
+  return [id, { last_activity_at: lastActivityAt } as Entry]
+}
+
+/** A rung. `expected_days` is the only field the clock contract branches on. */
+function rung(over: Partial<MapNodeStage> & Pick<MapNodeStage, 'id'>): MapNodeStage {
+  return {
+    name: over.id,
+    name_ar: '',
+    sort_order: 0,
+    expected_days: null,
+    terminal: false,
+    paused: false,
+    hidden: false,
+    color: null,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    ...over,
+  } as MapNodeStage
+}
 
 /* ────────────────────────────── fixtures ────────────────────────────── */
 
@@ -418,7 +469,7 @@ describe('collectStats — how many organizations are under a node', () => {
 
   it('counts the members of a cohort, and never the cohort itself', () => {
     const out = new Map<string, ReturnType<typeof collectStats>>()
-    collectStats(grouped(), new Map(), () => false, out)
+    collectStats(grouped(), statsInput(), out)
 
     expect(out.get('c-live')?.orgs).toBe(3)
     expect(out.get('c-new')?.orgs).toBe(1)
@@ -433,7 +484,7 @@ describe('collectStats — how many organizations are under a node', () => {
   it('is not the same number as `count`, which is the work beneath', () => {
     const out = new Map<string, ReturnType<typeof collectStats>>()
     const tree = grouped()
-    collectStats(tree, new Map(), () => false, out)
+    collectStats(tree, statsInput(), out)
     // 30 open items, 3 organizations. The two are read from different places
     // and the spoken name says both; a fixture where they happened to be equal
     // could not fail if the sentence read the wrong one.
@@ -449,11 +500,182 @@ describe('collectStats — how many organizations are under a node', () => {
       count: 1,
       children: [org('a', 1, [node({ id: 'e1', kind: 'entry', entryId: 'e1', count: 1 })])],
     })
-    collectStats(tree, new Map(), () => false, out)
+    collectStats(tree, statsInput(), out)
     expect(out.get('e1')?.orgs).toBe(0)
     // The organization counts ITSELF, which is what makes a ring of one read
     // "1 organization" rather than "0".
     expect(out.get('a')?.orgs).toBe(1)
+  })
+
+  /* ── the two facts the walk gained, and their two different scopes ── */
+
+  it('clocks an organization’s rung and leaves the structure unclocked', () => {
+    /* THE TRIAD IS A `map_nodes` FACT AND DOES NOT FOLD. A track is not standing
+       on a rung and neither is the workspace; a walk that rolled a stage clock
+       upward would have to invent an aggregate no column anywhere prints. */
+    const tree = node({
+      id: 'root',
+      kind: 'root',
+      children: [node({ id: 'track', kind: 'track', children: [org('riyadh', 4)] })],
+    })
+    const out = new Map<string, ReturnType<typeof collectStats>>()
+    const stages = new Map([['kick', rung({ id: 'kick', expected_days: 30 })]])
+    const progress = new Map([
+      ['riyadh', { node_id: 'riyadh', stage_id: 'kick' } as MapNodeProgress],
+    ])
+    collectStats(
+      tree,
+      statsInput({
+        stages: stageIndex(progress, stages),
+        // 2026-01-01 → 2026-03-10 is 68 days, and 68 > 30.
+        progressById: new Map([['riyadh', { stage_changed_at: '2026-01-01T00:00:00.000Z' }]]),
+      }),
+      out,
+    )
+
+    expect(out.get('riyadh')).toMatchObject({ daysInStage: 68, atRisk: true, stallDays: 30 })
+    expect(out.get('track')).toMatchObject({ daysInStage: null, atRisk: false, stallDays: null })
+    expect(out.get('root')).toMatchObject({ daysInStage: null, atRisk: false })
+  })
+
+  it('rolls the quietest leaf up through groups and collapsed branches, null where nothing is filed', () => {
+    /* QUIET IS THE ONE FACT THAT GENUINELY FOLDS, and it must fold through the
+       nodes that get no row of their own: a status bucket is not a place, but
+       the silence under it is real silence, and a number that changed when
+       somebody clicked a branch open would be reporting the picture. */
+    const tree = node({
+      id: 'root',
+      kind: 'root',
+      children: [
+        node({
+          id: 'track',
+          kind: 'track',
+          children: [
+            org('riyadh', 2, [
+              node({
+                id: 'group:blocked',
+                kind: 'group',
+                bucketKey: 'blocked',
+                children: [
+                  node({ id: 'e1', kind: 'entry', entryId: 'e1' }),
+                  node({ id: 'e2', kind: 'entry', entryId: 'e2' }),
+                ],
+              }),
+            ]),
+            org('hail', 0),
+          ],
+        }),
+      ],
+    })
+    tree.children[0].children[0].collapsed = true
+
+    const out = new Map<string, ReturnType<typeof collectStats>>()
+    collectStats(
+      tree,
+      statsInput({
+        entryById: new Map([
+          leaf('e1', '2026-03-08T00:00:00.000Z'),
+          leaf('e2', '2026-01-05T00:00:00.000Z'),
+        ]),
+      }),
+      out,
+    )
+
+    // The most recently touched item is what "how quiet is this" means: two
+    // days, not the sixty-four of the older one.
+    expect(out.get('riyadh')?.quietDays).toBe(2)
+    expect(out.get('track')?.quietDays).toBe(2)
+    expect(out.get('root')?.quietDays).toBe(2)
+    // AND NOT A ZERO. "nothing has ever been filed here" is a different fact
+    // from "something was touched today" and the two must not print alike.
+    expect(out.get('hail')?.quietDays).toBeNull()
+  })
+
+  it('agrees with the portfolio row about at risk and about quiet — one arithmetic, two walks', () => {
+    /* THE DRIFT-CATCHER. The map's walk and the portfolio's builder are two
+       traversals of one tree by two files for two surfaces, and they share
+       `stageReading`, `quietLeafDays` and `minQuiet` precisely so that "does the
+       card say what the table says" answers ALWAYS rather than USUALLY. This
+       case is what goes red the day one of them grows a fourth copy. */
+    const entity = (id: string, count: number, children: MindNode[] = []): MindNode =>
+      node({ id: `entity:${id}`, kind: 'entity', bucketKey: id, count, children })
+
+    const tree = node({
+      id: 'root',
+      kind: 'root',
+      children: [
+        node({
+          id: 'track',
+          kind: 'track',
+          bucketKey: 'uhr',
+          children: [
+            entity('riyadh', 2, [
+              node({ id: 'e1', kind: 'entry', entryId: 'e1' }),
+              node({ id: 'e2', kind: 'entry', entryId: 'e2' }),
+            ]),
+            entity('jeddah', 0),
+          ],
+        }),
+      ],
+    })
+    const stages = new Map([
+      ['kick', rung({ id: 'kick', expected_days: 30 })],
+      ['live', rung({ id: 'live', expected_days: 10, terminal: true })],
+    ])
+    const progressRows = new Map([
+      ['riyadh', { node_id: 'riyadh', stage_id: 'kick' } as MapNodeProgress],
+      ['jeddah', { node_id: 'jeddah', stage_id: 'live' } as MapNodeProgress],
+    ])
+    const stamps = new Map([
+      ['riyadh', { stage_changed_at: '2026-01-01T00:00:00.000Z' }],
+      ['jeddah', { stage_changed_at: '2025-01-01T00:00:00.000Z' }],
+    ])
+    const entryById = new Map([
+      leaf('e1', '2026-03-08T00:00:00.000Z'),
+      leaf('e2', '2026-01-05T00:00:00.000Z'),
+    ])
+
+    const out = new Map<string, ReturnType<typeof collectStats>>()
+    collectStats(
+      tree,
+      statsInput({
+        entryById,
+        stages: stageIndex(progressRows, stages),
+        progressById: stamps,
+      }),
+      out,
+    )
+
+    const rows = buildPortfolioRows({
+      root: tree,
+      nodeById: new Map(),
+      stages: stageIndex(progressRows, stages),
+      progressById: stamps,
+      fallbackStallDays: null,
+      labelOf: (n) => (n.label.kind === 'text' ? n.label.text : n.label.key),
+      listSep: ', ',
+      stageNameOf: (st) => st.name,
+      managerNameOf: () => null,
+      vendorOfNode: new Map(),
+      managerOfNode: new Map(),
+      progressByNode: null,
+      entryById,
+      today: TODAY,
+      now: NOW,
+    })
+
+    expect(rows.length).toBe(2)
+    for (const row of rows) {
+      const stat = out.get(`entity:${row.nodeId}`)
+      expect(stat?.atRisk).toBe(row.atRisk)
+      expect(stat?.daysInStage).toBe(row.daysInStage)
+      expect(stat?.stallDays).toBe(row.stallDays)
+      expect(stat?.quietDays).toBe(row.quietDays)
+    }
+    // And the fixture is not vacuous: one of them IS stuck and one of them is
+    // terminal, so a pair of nulls could not have passed the loop above.
+    expect(out.get('entity:riyadh')).toMatchObject({ atRisk: true, daysInStage: 68, quietDays: 2 })
+    expect(out.get('entity:jeddah')).toMatchObject({ atRisk: false, quietDays: null })
   })
 })
 

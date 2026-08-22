@@ -166,6 +166,8 @@ const fx = vi.hoisted(() => {
     profile: { id: string; displayName: string; role: 'admin' | 'member'; locale: null } | null
     rowFilters: unknown[]
     countFilters: unknown[]
+    /** `map_nodes` rows, for the fixtures that focus an ORGANIZATION. */
+    mapNodes: { id: string; name: string; name_ar: string; account_manager_id: string | null; vendor: string }[]
   } = {
     entries,
     health: new Map(entries.map((e) => [e.id, health(e.id)])),
@@ -175,6 +177,7 @@ const fx = vi.hoisted(() => {
     profile: { id: 'u1', displayName: 'Me', role: 'member', locale: null },
     rowFilters: [],
     countFilters: [],
+    mapNodes: [],
   }
 
   return { ago, entry, health, track, entries, statuses, priorities, net, pmo, legacy, members, state, mem }
@@ -218,6 +221,19 @@ vi.mock('../../store/entries', async () => {
     loadEntries: () => Promise.resolve(),
     refreshEntries: () => Promise.resolve(),
     patchEntry: () => Promise.resolve({ ok: false, error: 'common.error' }),
+    // MapBranchDetail reads the INHERITED vendor and manager now, and
+    // inheritance is one ancestor walk published by this store. Empty maps
+    // rather than absent ones: every read below coalesces to the node's own
+    // column, so an empty context is the previous behaviour exactly, and a
+    // fixture that wants to prove inheritance fills them in.
+    useFilterContext: () => ({
+      meId: 'u1',
+      today: new Date().toISOString().slice(0, 10),
+      groupOfTrack: new Map(),
+      ancestryOfNode: new Map(),
+      vendorOfNode: new Map(),
+      managerOfNode: new Map(),
+    }),
   }
 })
 
@@ -259,12 +275,45 @@ vi.mock('../../store/config', () => ({
   // every fixture below focuses a track or the root, never an `entity`, so the
   // band renders null and these are the reads that must not throw on the way to
   // that decision. A case that focuses an Org has to fill them in.
-  useMapNodeMap: () => new Map(),
+  useMapNodeMap: () => new Map(fx.state.mapNodes.map((n) => [n.id, n])),
   useAllUseCases: () => [],
+  // The stage clock's two reads. The detail band calls both unconditionally —
+  // hooks run before it decides there is no organization to describe — so they
+  // must answer for a track focus as well. Empty is the right default: with no
+  // ladder and no progress row there is no rung, which is what every fixture
+  // below that is not about the clock is describing.
+  useStageMap: () => new Map(),
+  useNodeProgress: () => new Map(),
+  useMapNodeStages: () => [],
+  publishNodeProgress: () => {},
 }))
 
 vi.mock('../../store/auth', () => ({
   useAuth: () => ({ session: null, profile: fx.state.profile, loading: false }),
+  // `MapBranchGoals` mounts beside the detail band on an ENTITY focus, and it
+  // gates its editor on a PERMISSION rather than on the role word. Every
+  // fixture in this file that focuses an organization walks through it.
+  useHasPerm: () => false,
+}))
+
+/**
+ * The goals band opens a request on mount. Nothing resolves during a static
+ * render, but the module still has to import, and mocking it keeps api/supabase
+ * — and therefore createClient — out of the graph, exactly as api/timeline is
+ * mocked above for the history band.
+ */
+vi.mock('../../api/goals', () => ({
+  listNodeGoals: () => new Promise<never>(() => {}),
+  createNodeGoal: () => new Promise<never>(() => {}),
+  updateNodeGoal: () => new Promise<never>(() => {}),
+  deleteNodeGoal: () => new Promise<never>(() => {}),
+}))
+
+/** The detail band's own fetch, for the same reason. */
+vi.mock('../../api/map', () => ({
+  listNodeUseCases: () => new Promise<never>(() => {}),
+  setNodeStage: () => new Promise<never>(() => {}),
+  deleteNodeProgress: () => new Promise<never>(() => {}),
 }))
 
 vi.mock('../../store/entrySheet', () => ({ openEntry: () => {} }))
@@ -286,7 +335,10 @@ const { getLocale } = await import('../../lib/i18n')
 type MindNode = ReturnType<typeof buildMindtree>
 
 /** The tree the shell would have built, for the fixture as it currently stands. */
-function tree(collapsed: ReadonlySet<string> = new Set()): MindNode {
+function tree(
+  collapsed: ReadonlySet<string> = new Set(),
+  entities: MindEntityFixture[] = [],
+): MindNode {
   return buildMindtree({
     entries: fx.state.entries,
     health: fx.state.health,
@@ -298,7 +350,7 @@ function tree(collapsed: ReadonlySet<string> = new Set()): MindNode {
       sortOrder: tr.sort_order,
       archived: tr.archived,
     })),
-    entities: [],
+    entities,
     vocab: fx.statuses,
     members: fx.members,
     dimension: 'status',
@@ -317,10 +369,39 @@ interface RenderOptions {
   /** The query string the panel reads its own decisions out of. */
   url?: string
   collapsed?: ReadonlySet<string>
+  /** Organizations to draw, as `buildMindtree` takes them. Empty by default. */
+  entities?: MindEntityFixture[]
+  /**
+   * The canvas's per-node roll-up, as the integrator will thread it.
+   *
+   * ABSENT BY DEFAULT, which is the state every other case in this file renders
+   * in and the state the app itself is in until `Mindtree.tsx` is edited — so
+   * the default proves the prop is genuinely optional rather than merely typed
+   * that way.
+   */
+  stats?: Map<string, { quietDays: number | null }>
 }
 
-function render({ focus, filter, url = '/', collapsed }: RenderOptions = {}): string {
-  const root = tree(collapsed)
+/** `MindEntity`, as much of it as a fixture needs to say. */
+interface MindEntityFixture {
+  id: string
+  trackId: string
+  parentId: string | null
+  label: string
+  sortOrder: number
+  archived: boolean
+  typeKey: string | null
+}
+
+function render({
+  focus,
+  filter,
+  url = '/',
+  collapsed,
+  entities,
+  stats,
+}: RenderOptions = {}): string {
+  const root = tree(collapsed, entities)
   const view = resolveFocus(root, focus ?? null)
   const el: ReactElement = (
     <MemoryRouter initialEntries={[url]}>
@@ -330,6 +411,7 @@ function render({ focus, filter, url = '/', collapsed }: RenderOptions = {}): st
         filter={filter ?? EMPTY_FILTER}
         dimension="status"
         textOf={(label) => (label.kind === 'key' ? t(label.key, label.vars) : label.text)}
+        stats={stats as never}
         onFocus={() => {}}
         compact={false}
         announce={() => {}}
@@ -373,6 +455,7 @@ afterEach(() => {
   fx.state.profile = { id: 'u1', displayName: 'Me', role: 'member', locale: null }
   fx.state.rowFilters = []
   fx.state.countFilters = []
+  fx.state.mapNodes = []
   fx.mem.clear()
 })
 
@@ -668,6 +751,80 @@ describe('the filter the panel hands over', () => {
 
   it('leaves the rows alone when the flag is absent', () => {
     expect(render()).toContain('Core switch upgrade')
+  })
+})
+
+/* ──────────── the org panel's roll-up, threaded from the canvas ────────── */
+//
+// U5's fourth item, at the seam this component owns. The org panel shows the
+// SAME field set the portfolio's table and the map card show, and the two
+// numbers it cannot compute for itself — the open work under a node and the
+// silence under it — are threaded down from `useMapModel`'s single post-order
+// walk rather than recomputed here. Recomputing them would be a second
+// arithmetic over one tree, which is the failure MindtreeTable's header and
+// lib/portfolio/rows.ts's both open by naming.
+
+describe('the org panel reads the walk the picture was drawn by', () => {
+  const org: MindEntityFixture = {
+    id: 'org-1',
+    trackId: 't-net',
+    parentId: null,
+    label: 'Riyadh General',
+    sortOrder: 0,
+    archived: false,
+    typeKey: 'Organization',
+  }
+
+  /** The tree-node id model.ts mints for that organization, found rather than
+   *  spelled: the id's SHAPE is model.ts's business, not this file's. */
+  function entityNodeId(): string {
+    const found: string[] = []
+    const walk = (n: MindNode): void => {
+      if (n.kind === 'entity') found.push(n.id)
+      for (const child of n.children) walk(child)
+    }
+    walk(tree(new Set(), [org]))
+    expect(found.length).toBe(1)
+    return found[0]
+  }
+
+  it('hands the roll-up to the panel, and renders nothing where the integrator has not threaded it', () => {
+    fx.state.mapNodes = [
+      { id: 'org-1', name: 'Riyadh General', name_ar: '', account_manager_id: null, vendor: '' },
+    ]
+    const id = entityNodeId()
+
+    // WITHOUT THE PROP — the state `Mindtree.tsx` is in until its one-line diff
+    // lands. Absent is "nobody has counted", which is a different fact from a
+    // zero, so the two rows are gone rather than showing 0.
+    const bare = render({ focus: id, entities: [org] })
+    expect(bare).toContain('mbr-detail')
+    expect(bare).not.toContain(esc(t('mindtree.colQuiet')))
+
+    // WITH IT — the quiet number is the walk's, and `open` is the node's own
+    // `count`, which is what the picture drew after the reader's filter.
+    const threaded = render({
+      focus: id,
+      entities: [org],
+      stats: new Map([[id, { quietDays: 3 }]]),
+    })
+    expect(threaded).toContain(esc(t('mindtree.colOpen')))
+    expect(threaded).toContain(esc(t('mindtree.colQuiet')))
+    expect(threaded).toContain(esc(t('mindtree.portfolioDays', { count: 3 })))
+  })
+
+  it('prints the dash rather than a nought when nothing has ever been filed under it', () => {
+    fx.state.mapNodes = [
+      { id: 'org-1', name: 'Riyadh General', name_ar: '', account_manager_id: null, vendor: '' },
+    ]
+    const id = entityNodeId()
+    const html = render({
+      focus: id,
+      entities: [org],
+      stats: new Map([[id, { quietDays: null }]]),
+    })
+    expect(html).toContain(esc(t('mindtree.colQuiet')))
+    expect(html).toContain(esc(t('mapnode.notRecorded')))
   })
 })
 

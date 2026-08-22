@@ -69,14 +69,20 @@
 // MindtreeTable's EM_DASH note ("'no items' and 'zero of them are late' are
 // different facts") applied to three more columns.
 
-import { diffDays, instantToIsoDate, type IsoDate, type IsoInstant } from '../dates'
+import type { IsoDate } from '../dates'
 import { MANAGER_NONE, type FilterState } from '../entryFilter'
-import { daysInStage, isAtRisk, resolveStallDays } from '../lifecycle'
 import { entityIdOf, type StageIndex, type UseCaseProgress } from '../mapNodes'
 import type { PortfolioBy } from '../mindtree/lens'
 import type { MindNode } from '../mindtree/model'
 import { normalizeSearch } from '../text'
 import type { Entry, MapNode, MapNodeProgress, MapNodeStage } from '../../types'
+// THE SHARED HALF, and it moved rather than being copied. `stageReading` used to
+// be private to this file and shared by its two exports; the map's stats walk
+// and the org panel need the identical three facts, so the function went to
+// lib/portfolio/fields.ts and this file became one of four callers. The
+// quiet arithmetic split the same way: the leaf's day count and the
+// null-propagating minimum are shared, the WALKS that fold them are not.
+import { minQuiet, quietLeafDays, stageReading, type NodeFields } from './fields'
 
 /* ══════════════════════════ the controls ══════════════════════════ */
 
@@ -116,15 +122,23 @@ export function portfolioShowsRows(
 
 /* ══════════════════════════ the rows ══════════════════════════ */
 
-/** One organization. Every column the table draws, already resolved. */
-export interface PortfolioRow {
+/**
+ * One organization. Every column the table draws, already resolved.
+ *
+ * IT EXTENDS `NodeFields` RATHER THAN RESTATING IT. The twelve members that used
+ * to be spelled out here are the same twelve the map card and the org panel
+ * show, and this table's own shape is what the shared set was extracted from —
+ * so the extraction is `extends`, `tsc` proves the shapes identical on every
+ * build, and a thirteenth shared fact cannot arrive on one surface only. What
+ * stays below is what is genuinely a TABLE's business: a React key, a walk
+ * order, resolved captions and the trail as parts.
+ */
+export interface PortfolioRow extends NodeFields {
   /** The map-node id, and the React key. Unique by construction. */
   key: string
   /** Position in the TREE's walk, so every sort has a total tiebreak and the
    *  third header click can restore the order the picture is drawn in. */
   order: number
-  /** `map_nodes.id` — what `filterForOrgRow` narrows to. */
-  nodeId: string
   /** The organization's own name, resolved for the locale by the caller. */
   name: string
   /**
@@ -142,36 +156,10 @@ export interface PortfolioRow {
   parentId: string | null
   /** That ancestor's resolved label, or '' when there is none. */
   parentName: string
-  /** The rung, or null when nobody has said. */
-  stageId: string | null
   /** The rung's name in this locale, or null. Never compared against; a caption. */
   stageName: string | null
-  /**
-   * The rung's `sort_order`, or null when there is none — THE STAGE COLUMN'S
-   * SORT KEY, and the reason the name is never it. Sorting the process
-   * alphabetically puts "Go-live ready" before "Kickoff"; the ladder's own order
-   * is the one a reader means by "sort by stage", in either language.
-   */
-  stageOrder: number | null
-  /** Whole calendar days on this rung, or null when nothing is recorded. */
-  daysInStage: number | null
-  /** `daysInStage > expected_days`, with terminal and paused stopping the clock. */
-  atRisk: boolean
-  /** The rung's own expectation after the coalesce chain, or null when unset. */
-  stallDays: number | null
-  managerId: string | null
   /** Through the roster, never as stored text. Null renders the em-dash. */
   managerName: string | null
-  /** The EFFECTIVE vendor — nearest self-or-ancestor. `''` is "not recorded". */
-  vendor: string
-  /** That vendor folded, so 'Acme' and 'acme ' are one cohort. `''` when blank. */
-  vendorFold: string
-  /** `useCaseProgress`, this organization alone. Null while nobody has looked. */
-  progress: UseCaseProgress | null
-  /** Open items AT OR UNDER this node, after the filter — OFF THE NODE. */
-  open: number
-  /** Days since anything under it was last touched, or null when nothing is. */
-  quietDays: number | null
 }
 
 /** Everything the builder needs and cannot know. All of it injected. */
@@ -211,6 +199,18 @@ export interface PortfolioInput {
    * vendor identically.
    */
   vendorOfNode: ReadonlyMap<string, string>
+  /**
+   * node id → the nearest self-or-ancestor account manager, `null` when there is
+   * none anywhere up the chain — `FilterContext.managerOfNode`, built by the
+   * SAME store/entries walk that builds `vendorOfNode` and the ancestry.
+   *
+   * A MISSING KEY FALLS BACK TO THE ROW'S OWN COLUMN, mirroring the vendor line
+   * above: a caller that has no context map yet gets the previous behaviour
+   * rather than four hundred organizations with nobody accountable for them. A
+   * `null` VALUE is the opposite fact — the walk ran and found nobody — and it
+   * is the one `MANAGER_NONE` asks about.
+   */
+  managerOfNode: ReadonlyMap<string, string | null>
   /** `useCaseProgress` per node — `progressByNode`. Null while nobody has looked. */
   progressByNode: ReadonlyMap<string, UseCaseProgress> | null
   /** `useEntryMap()`. Read for `last_activity_at` and for nothing else. */
@@ -219,65 +219,6 @@ export interface PortfolioInput {
   today: IsoDate
   /** The same instant as `today`, as a Date, for lib/lifecycle's day arithmetic. */
   now: Date
-}
-
-/**
- * The stage reading for ONE node — the three facts every caller of this module
- * needs and the one place they are computed.
- *
- * PRIVATE, AND SHARED BY THE TWO EXPORTS, which is the whole reason it exists:
- * `buildPortfolioRows` fills a table and `countAtRisk` fills a chip badge, and
- * the gate's own yes/no question is whether those two numbers are the same. Two
- * copies of this expression would answer that question "usually".
- */
-function stageReading(
-  nodeId: string,
-  input: Pick<PortfolioInput, 'stages' | 'progressById' | 'fallbackStallDays' | 'now'>,
-): { stage: MapNodeStage | null; days: number | null; stallDays: number | null; atRisk: boolean } {
-  const stage = input.stages.ofNode(nodeId)
-  const changedAt: IsoInstant | null = input.progressById.get(nodeId)?.stage_changed_at ?? null
-  const days = daysInStage(changedAt, input.now)
-  const stallDays = resolveStallDays(stage, input.fallbackStallDays)
-  // The clock stops on a rung the ladder cannot resolve too: `terminal: false,
-  // paused: false` is the honest reading of "no rung", and `isAtRisk` already
-  // answers false whenever `days` or `stallDays` is null, which is every such
-  // node. Spelled out rather than left to that coincidence.
-  const clock = stage === null ? { terminal: false, paused: false } : stage
-  return { stage, days, stallDays, atRisk: isAtRisk(days, stallDays, clock) }
-}
-
-/**
- * Days since anything under this node was last touched, or null when nothing is.
- *
- * The whole subtree, collapsed branches and "+N more" tails included —
- * `collectStats`' rule and its reason: a table that only counted what the
- * picture happened to be showing would report a different silence every time
- * somebody clicked a branch.
- *
- * NULL, NEVER ZERO, FOR AN EMPTY ORGANIZATION. "nothing has ever been filed
- * here" and "something was touched today" are different facts and the column
- * must not print them alike.
- */
-function quietDaysUnder(
-  node: MindNode,
-  entryById: ReadonlyMap<string, Entry>,
-  today: IsoDate,
-): number | null {
-  let quietest: number | null = null
-  const walk = (n: MindNode): void => {
-    if (n.kind === 'entry') {
-      const entry = n.entryId === null ? undefined : entryById.get(n.entryId)
-      if (entry === undefined) return
-      // Clamped at 0 for `daysInStage`'s reason: a `last_activity_at` a few
-      // seconds ahead of the reader's clock is "just now", not "-1 days quiet".
-      const days = Math.max(0, diffDays(instantToIsoDate(entry.last_activity_at), today))
-      if (quietest === null || days < quietest) quietest = days
-      return
-    }
-    for (const child of n.children) walk(child)
-  }
-  walk(node)
-  return quietest
 }
 
 /**
@@ -291,72 +232,128 @@ function quietDaysUnder(
  * The exception cut is NOT applied here. `risk` narrows a population and this
  * function builds one; `portfolioRowsFor` composes the two so that the roll-up
  * and the rows can be cut by the same expression rather than by two.
+ *
+ * ── ONE PASS FOR THE QUIET COLUMN, AND WHY THE SHAPE CHANGED ──────────────
+ *
+ * `quietDays` used to be a helper called ONCE PER ORGANIZATION, each call
+ * walking that organization's whole subtree. That is O(n · entity-nesting-depth)
+ * rather than O(n) — not quadratic, and cheap while the hierarchy was two levels
+ * deep — and it multiplies exactly where 0023's arbitrary-depth hierarchy puts
+ * organizations inside organizations, because every entry under a leaf Org is
+ * re-walked once for each Org above it.
+ *
+ * It is folded into this walk instead, post-order: `walk` RETURNS the quietest
+ * leaf beneath the node it was given, an entity's row is patched with its own
+ * subtree's answer the moment that answer comes back, and each ancestor takes
+ * the minimum of what its children returned. Every entry is visited exactly
+ * once no matter how deep the nesting goes. That matters more now than it did:
+ * the same number is on the map card's roll-up and the org panel's `<dl>`, so
+ * the cost of getting it wrong is paid three times rather than once.
  */
 export function buildPortfolioRows(input: PortfolioInput): PortfolioRow[] {
   const rows: PortfolioRow[] = []
 
+  /** @returns the fewest days of silence anywhere beneath `node`, or null. */
   const walk = (
     node: MindNode,
     parts: readonly string[],
     parent: { id: string | null; name: string },
     retired: boolean,
-  ): void => {
+  ): number | null => {
+    let quietest: number | null = null
+
     for (const child of node.children) {
-      // Entries, groups and "+N more" are not organizations and hold none.
-      if (child.kind === 'entry' || child.kind === 'group' || child.kind === 'more') continue
+      if (child.kind === 'entry') {
+        // THE ONLY PLACE SILENCE IS MEASURED. An entry the filter kept out of
+        // the working set has no row here to read `last_activity_at` off, and
+        // `undefined` contributes nothing rather than a zero.
+        const entry = child.entryId === null ? undefined : input.entryById.get(child.entryId)
+        if (entry !== undefined) {
+          quietest = minQuiet(quietest, quietLeafDays(entry.last_activity_at, input.today))
+        }
+        continue
+      }
+
+      if (child.kind === 'group' || child.kind === 'more') {
+        // No row and no trail step — a status bucket is not a place, and a
+        // "+N more" tail is a fold rather than somewhere work is filed — but
+        // the silence UNDER one is real silence, and the reader must not see a
+        // different quiet column depending on which branches happen to be open.
+        // That was the deleted helper's rule and it is kept here under the new
+        // shape: walk through it, emit nothing for it, take its minimum.
+        quietest = minQuiet(quietest, walk(child, parts, parent, retired))
+        continue
+      }
 
       const label = input.labelOf(child)
       const mark = retired || child.retired
       const nodeId = entityIdOf(child)
 
-      if (nodeId !== null) {
-        const record = input.nodeById.get(nodeId)
-        const reading = stageReading(nodeId, input)
-        const vendor = input.vendorOfNode.get(nodeId) ?? record?.vendor ?? ''
-        rows.push({
-          key: nodeId,
-          order: rows.length,
-          nodeId,
-          name: label,
-          trailParts: parts,
-          // A blank step is dropped rather than rendered as a stray comma —
-          // `buildTableRows` filters for the same reason, and doing it once
-          // keeps the sort key and the visible cell agreeing about how many
-          // steps the path has.
-          trailLabel: parts.filter((part) => part !== '').join(input.listSep),
-          retired: mark,
-          parentId: parent.id,
-          parentName: parent.name,
-          stageId: reading.stage?.id ?? null,
-          stageName: reading.stage === null ? null : input.stageNameOf(reading.stage),
-          stageOrder: reading.stage?.sort_order ?? null,
-          daysInStage: reading.days,
-          atRisk: reading.atRisk,
-          stallDays: reading.stallDays,
-          managerId: record?.account_manager_id ?? null,
-          managerName: input.managerNameOf(record?.account_manager_id ?? null),
-          vendor,
-          vendorFold: normalizeSearch(vendor.trim()),
-          progress: input.progressByNode?.get(nodeId) ?? null,
-          // OFF THE NODE, never re-walked: `count` is what the picture drew,
-          // and the two must be the same number or the toggle changes the
-          // answer (MindtreeTable's rule).
-          open: child.count,
-          quietDays: quietDaysUnder(child, input.entryById, input.today),
-        })
+      if (nodeId === null) {
+        // RECURSE THROUGH IT REGARDLESS. The hierarchy is arbitrary-depth
+        // (0023): an Organization can hold Organizations, and a two-level walk
+        // would drop every one of them off the table while the picture beside
+        // it kept drawing them. `buildTableRows` recurses for the identical
+        // reason. A node with no `map_nodes` row behind it adds a trail STEP
+        // without becoming anybody's `parentId`.
+        quietest = minQuiet(quietest, walk(child, [...parts, label], parent, mark))
+        continue
       }
 
-      // RECURSE THROUGH IT REGARDLESS. The hierarchy is arbitrary-depth (0023):
-      // an Organization can hold Organizations, and a two-level walk would drop
-      // every one of them off the table while the picture beside it kept
-      // drawing them. `buildTableRows` recurses for the identical reason.
-      walk(
-        child,
-        [...parts, label],
-        nodeId === null ? parent : { id: nodeId, name: label },
-        mark,
-      )
+      const record = input.nodeById.get(nodeId)
+      const reading = stageReading(nodeId, input)
+      const vendor = input.vendorOfNode.get(nodeId) ?? record?.vendor ?? ''
+      // THE INHERITED PERSON, on the same `inherited ?? raw` coalesce the vendor
+      // line above has always used, and it closes a real defect rather than
+      // tidying one up: `inPortfolioScope` admitted an organization by its
+      // INHERITED manager while `bucketOf(row, 'manager')` bucketed it by the
+      // RAW column, so `?manager=X&by=manager` filed X's inherited
+      // organizations under "Nobody named" — narrowed to a person, and grouped
+      // under nobody. One rule, one map, one answer.
+      const managerId = input.managerOfNode.get(nodeId) ?? record?.account_manager_id ?? null
+      const at = rows.length
+      rows.push({
+        key: nodeId,
+        order: at,
+        nodeId,
+        name: label,
+        trailParts: parts,
+        // A blank step is dropped rather than rendered as a stray comma —
+        // `buildTableRows` filters for the same reason, and doing it once
+        // keeps the sort key and the visible cell agreeing about how many
+        // steps the path has.
+        trailLabel: parts.filter((part) => part !== '').join(input.listSep),
+        retired: mark,
+        parentId: parent.id,
+        parentName: parent.name,
+        stageId: reading.stage?.id ?? null,
+        stageName: reading.stage === null ? null : input.stageNameOf(reading.stage),
+        stageOrder: reading.stage?.sort_order ?? null,
+        daysInStage: reading.days,
+        atRisk: reading.atRisk,
+        stallDays: reading.stallDays,
+        managerId,
+        managerName: input.managerNameOf(managerId),
+        vendor,
+        vendorFold: normalizeSearch(vendor.trim()),
+        progress: input.progressByNode?.get(nodeId) ?? null,
+        // OFF THE NODE, never re-walked: `count` is what the picture drew,
+        // and the two must be the same number or the toggle changes the
+        // answer (MindtreeTable's rule).
+        open: child.count,
+        // Patched two lines down, once the subtree has answered. Pushed as null
+        // rather than left off so the object's shape is complete at every
+        // instant — a row that briefly lacked a declared field is the shape a
+        // future `Object.freeze` or a spread would silently drop.
+        quietDays: null,
+      })
+
+      const below = walk(child, [...parts, label], { id: nodeId, name: label }, mark)
+      rows[at].quietDays = below
+      quietest = minQuiet(quietest, below)
     }
+
+    return quietest
   }
 
   walk(input.root, [], { id: null, name: '' }, input.root.retired)

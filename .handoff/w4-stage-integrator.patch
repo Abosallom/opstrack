@@ -1,0 +1,119 @@
+# w4-stage → integrator. Two edits in files this unit does not own.
+#
+# Apply from the repo root:  git apply .handoff/w4-stage-integrator.patch
+# (Verified with `git apply --check` against a0ce5ad + this unit's tree.)
+#
+# NEITHER IS A BUILD BLOCKER. `npx tsc -b`, `npx oxlint`, `npx vitest run` and
+# `npx vite build` are all green in this unit's tree WITHOUT them. One is a
+# performance fix the store's own header asked for by name; the other is a
+# terminology placement the lens design's locale ledger specified. Both are
+# named here rather than smuggled into a file another unit owns.
+#
+#  1. src/store/config.ts — `publishNodeProgress()`.
+#
+#     THE STORE'S OWN HEADER NAMES THIS CALLER. `invalidateConfig`'s comment:
+#     "A PROGRESS WRITE IS THE ONE HIGH-FREQUENCY CALLER… routing every one of
+#     them through here refetches all eight reads — up to 400 map nodes and a
+#     ~250KB cache write — to publish one row the caller already has in hand…
+#     a targeted publisher is a small addition when a caller needs one. Named so
+#     that the wave which builds that screen finds the note instead of the
+#     symptom." That wave is this one and that screen is the portfolio: an
+#     account manager setting stages down a list of forty fires forty full
+#     refetches today.
+#
+#     `PortfolioStage.tsx` calls `invalidateConfig()` after every accepted write
+#     and is CORRECT as it stands — the note's own "it ships this way at one
+#     stage change per minute". WITH THIS PATCH APPLIED, the follow-up is four
+#     lines in that file: `writeStage` already holds the STORED row back from
+#     `setNodeStage`, so returning it instead of a boolean and calling
+#     `publishNodeProgress(row)` in place of `invalidateConfig()` is a rename
+#     rather than a redesign. The optimistic overlay retires itself against
+#     `progressByNodeId` either way, so nothing about the undo, the bulk summary
+#     or the reconciliation changes.
+#
+#  2. src/lib/labelSections.ts — three `portfolio*` prefix rules.
+#
+#     The keys are reachable and BOTH LOCALE GATES ARE GREEN WITHOUT THIS: an
+#     unmatched key falls to the namespace default (`entryFields`), which is
+#     where the `col*` headings correctly belong. What the rules buy is the
+#     TERMINOLOGY SCREEN's grouping, which the design's locale ledger specifies —
+#     `portfolio` → actions, `portfolioEmpty` → emptyStates, `portfolioNo` →
+#     messages, on longest-prefix-wins — so an owner renaming "Only past their
+#     stage" finds it beside the other verbs instead of among the column
+#     headings. `labelSections.test.ts` was run with the patch applied: 25/25.
+#
+diff --git a/src/lib/labelSections.ts b/src/lib/labelSections.ts
+index adb5b99..c19d67b 100644
+--- a/src/lib/labelSections.ts
++++ b/src/lib/labelSections.ts
+@@ -402,10 +402,23 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
+         section: 'actions',
+       },
+       { prefixes: ['empty', 'branchEmpty'], section: 'emptyStates' },
++      // THE PORTFOLIO'S THREE, ON LONGEST-PREFIX-WINS. `portfolio` alone is the
++      // stage's verbs and controls — the `?by=` chips, the risk toggle, the bulk
++      // action, the two drill buttons — which are things a person presses, so
++      // they group with the other actions. The two longer prefixes peel off what
++      // is NOT a verb: `portfolioEmpty*` is what the table says when there is
++      // nothing in it, and `portfolioNo*` is what it says when the workspace has
++      // not been configured yet — a message about the READ in exactly the sense
++      // `nodesPartial` below is.
++      //
++      // The `col*` keys are deliberately absent and fall to the namespace
++      // default (`entryFields`), which is where a column heading belongs.
++      { prefixes: ['portfolio'], section: 'actions' },
++      { prefixes: ['portfolioEmpty'], section: 'emptyStates' },
+       // `nodesPartial` joins the errors rather than the states it sits beside on
+       // screen: it is a sentence about the READ, like every other message here,
+       // and the reader who retitles it is retitling a warning.
+-      { prefixes: ['err', 'nodesPartial'], section: 'messages' },
++      { prefixes: ['err', 'nodesPartial', 'portfolioNo'], section: 'messages' },
+     ],
+   },
+ 
+diff --git a/src/store/config.ts b/src/store/config.ts
+index 0c43218..31c0a5f 100644
+--- a/src/store/config.ts
++++ b/src/store/config.ts
+@@ -1095,6 +1095,41 @@ export function invalidateConfig(): void {
+   void loadConfig(true)
+ }
+ 
++/**
++ * Publish ONE node's progress row, without refetching the workspace.
++ *
++ * THE TARGETED PUBLISHER `invalidateConfig`'s note above asks for, built for the
++ * caller it names: `setNodeStage` is an account manager's ordinary daily action,
++ * and a reader moving forty organizations down the portfolio would otherwise
++ * fire forty full reloads of all eight reads to publish forty rows the writer
++ * already had in hand. `saveJiraConfig` is the precedent — publish what the
++ * write returned and rebuild nothing else.
++ *
++ * NOTHING DERIVED SPANS THIS LIST. `deriveAll` builds `progressByNodeId` from
++ * `mapNodeProgress` and nothing more — no ordering, no roll-up, no cross-table
++ * join — so replacing one row is the whole of the update. That is what makes a
++ * targeted publisher legitimate here and not for, say, a map node, whose row
++ * feeds `mapChildren`, `mapRoots` and the ancestry walk.
++ *
++ * THE ROW IS THE STORED ONE, never the input: `setNodeStage` returns what the
++ * database wrote, INCLUDING the `stage_changed_at` the stamp trigger owns and no
++ * client may send. Publishing the input instead would put a stamp on screen that
++ * a reload would disagree with.
++ *
++ * The cache is rewritten with it, so a reload inside the 30-second window shows
++ * the change rather than the row it replaced.
++ */
++export function publishNodeProgress(row: MapNodeProgress): void {
++  const held = useConfigStore.getState()
++  const rows = held.mapNodeProgress.some((r) => r.node_id === row.node_id)
++    ? held.mapNodeProgress.map((r) => (r.node_id === row.node_id ? row : r))
++    : [...held.mapNodeProgress, row]
++  const byId = new Map(held.progressByNodeId)
++  byId.set(row.node_id, row)
++  useConfigStore.setState({ mapNodeProgress: rows, progressByNodeId: byId })
++  writeRowCache(MAP_NODE_PROGRESS_CACHE_KEY, rows)
++}
++
+ /**
+  * Save the Jira configuration and publish what the database stored.
+  *

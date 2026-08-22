@@ -6,8 +6,13 @@
    the handoff note asks for the registry line to be added.
 
    It carries three families that live in three different files:
-     · `.mtree-node*`, `.mtree-edge*` — components/mindtree/MindNode.tsx and
-       MindEdge.tsx, which import no stylesheet of their own;
+     · `.mtree-node*`, `.mtree-edge*`, `.mtree-block*` —
+       components/mindtree/MindNode.tsx, MindEdge.tsx and MindBlock.tsx, which
+       import no stylesheet of their own. `.mtree-block*` is the newest of the
+       three and it is the mark that REPLACES `.mtree-edge*` on the flat tidy
+       tree: one container per parent instead of one connector per child. Both
+       families are declared here because both are drawn by the same canvas and
+       only one of them is on screen at a time;
      · `.mtree-tbl*` — components/mindtree/MindtreeTable.tsx, same;
      · everything else — pages/Mindtree.tsx, the screen that imports this file.
    One sheet for a feature whose components exist only inside it: the
@@ -149,6 +154,23 @@
        rather than tolerated; see `.mtree-node:focus-visible .mtree-node-box`.
      root outline + legend chip (--field-border)
        on --bg-elev-2                            3.26 / 3.10
+     block container border (--mtree-ink), on
+       the canvas / on a container fill           6.55 / 5.10 · 6.61 / 5.12
+     node outline, on a container fill            6.61 / 5.12
+     focus stroke (--accent), on a container
+       fill — what an empty card exposes          5.12 / 11.29
+
+   ── AND THE ONE TEXT ROW THE BLOCK CONTAINERS MOVED ─────────────────────────
+
+   The empty organization's label used to sit on the bare canvas and now sits on
+   a container fill, which is the row that CUT the fill's percentage:
+
+     empty-organization label (--text-faint),
+       on the 5% container fill                   5.68 / 4.58
+
+   Both sets were re-run by the same 5/channel sweep as the tables above, and the
+   `---------- block containers ----------` rule below carries the working —
+   including the 6% that fails and is therefore not shipped.
 
    ── ADDED BY THE CONTINUOUS DIVE ────────────────────────────────────────────
 
@@ -962,6 +984,152 @@
   stroke-width: 3;
 }
 
+/* ---------- block containers ---------- */
+
+/* ONE ROUNDED RECTANGLE PER PARENT, HOLDING ITS WHOLE SUBTREE, painted behind
+   the cards — the mark that REPLACES the per-child connectors on the vertical
+   wrapped tidy tree. `lib/mindtree/blocks.ts` argues the geometry at length and
+   `components/mindtree/MindBlock.tsx` argues the markup; this block owns the
+   ink, and the ink is the half with a measurement attached to it.
+
+   WHY THERE IS A FILL AT ALL, given that a border alone would draw the same
+   boundary. Because the containers NEST four deep, and four concentric outlines
+   with nothing between them read as a frame, not as a hierarchy. A tint gives
+   the enclosed region a surface, so an inner container is visibly a region
+   INSIDE another region rather than a fifth line on the same ground.
+
+   THE TINT IS OPAQUE, AND THAT IS THE WHOLE OF WHY IT IS SAFE. `color-mix(…,
+   var(--bg))` resolves against the CANVAS, not against whatever happens to be
+   underneath, so nesting does NOT composite: the depth-4 container is the same
+   colour as the depth-1 container it sits inside, and a tree ten levels deep
+   produces the same one surface a tree two levels deep does. A translucent fill
+   would have stacked — 5% over 5% over 5% over 5% is 18.5% — and every ratio
+   below would have had to be quoted per depth AND left unbounded for a deeper
+   tree than the one that was measured. One recipe, one surface, one row.
+
+   ⚠ 5% IS A CEILING, NOT A TASTE, and the binding constraint is the EMPTY
+     organization: `.mtree-node[data-empty] .mtree-node-box` paints `transparent`
+     on purpose, so an empty card's `--text-faint` label is composited straight
+     onto whatever is behind the card — which used to be the bare canvas
+     (5.92 / 5.54, the row in this file's header) and is now this fill. Swept
+     over the full sRGB cube at 5/channel, 143,312 hues, in both themes, by the
+     method this file's header states:
+
+       --text-faint on the container fill, 4%    5.83 / 4.68
+       --text-faint on the container fill, 5%    5.68 / 4.58  ← shipped
+       --text-faint on the container fill, 6%    5.52 / 4.48  ← FAILS 4.5:1
+       --text-faint on the container fill, 8%    5.20 / 4.28  ← FAILS 4.5:1
+
+     The light theme runs out first, at a margin of 0.08 over WCAG 1.4.3's 4.5:1,
+     and 6% is over the line. Anything that wants a stronger tint has to give the
+     empty card a fill first, and the empty card's `transparent` is itself a
+     decision this sheet argues (a card the drawing deliberately leaves hollow).
+
+   NON-TEXT — 3:1, every figure the same sweep, dark / light
+     container border (--mtree-ink), vs the canvas        6.55 / 5.10
+     …vs the container fill it is nested inside            6.61 / 5.12
+     node outline (--mtree-ink), vs the container fill     6.61 / 5.12
+     focus ring (--accent), vs the container fill —
+       the surface an empty card's `transparent` exposes   5.12 / 11.29
+
+   THE FILL ITSELF IS NOT HELD TO 3:1 AGAINST THE CANVAS, and the reason is the
+   one WCAG 1.4.11 states rather than an exemption taken here: the ratio is owed
+   by the mark that IDENTIFIES a component, and what identifies a container is
+   its border, which clears 6.55 / 5.10. The tint is a surface behind other
+   marks — the same standing this sheet already gives `--mtree-fill`, which
+   measures 1.04 against the canvas at worst and is never asked to.
+
+   AND THE CARD DOES NOT DISSOLVE INTO IT. A node's own fill is 16% of the track
+   over `--bg-elev` and the container's is 5% over `--bg`, which for a
+   pathological hue can land within 1.04 of each other — so what keeps a card
+   readable as a card on top of its own container is its OUTLINE, at 6.61 / 5.12.
+   That is the same argument this sheet already makes for the progress
+   underscore, and it is why the outline is the one mark on a card that is never
+   thinned. */
+
+.mtree-block {
+  --track-color: var(--track-c-dark, var(--field-border));
+  --mtree-ink: color-mix(in srgb, var(--track-color) 35%, var(--text));
+  --mtree-block-fill: color-mix(in srgb, var(--track-color) 5%, var(--bg));
+}
+
+[data-theme='light'] .mtree-block {
+  --track-color: var(--track-c-light, var(--track-c-dark, var(--field-border)));
+}
+
+/* THE RAMP IS DECLARED FROM THE FLOOR UP, and the direction is not a formatting
+   preference: the base rule is the QUIETEST width and the three rules under it
+   step the shallow depths back up, so a container deeper than the table falls to
+   the floor by simply not matching anything. That is `blocks.ts`'s `PAD_MIN`
+   restated in ink — the padding table stops at four and floors, and so does
+   this — and it is the reason there is no `:not([data-depth='1']):not(…)` chain
+   here. A ramp written the other way round (base = trunk, steps down) would need
+   a new selector every time somebody nested a tree one level deeper, and the
+   sixth level would silently draw at the TRUNK's weight, which is the one
+   mistake this whole rule exists to prevent. */
+.mtree-block-box {
+  fill: var(--mtree-block-fill);
+  stroke: var(--mtree-ink);
+  stroke-width: 0.8;
+}
+
+/* The deeper the container, the quieter its boundary, so the eye reads the
+   outermost territory first and walks inward — BY WIDTH, never by opacity, for
+   the reason the connector rule above gives and this sheet's header measures:
+   fading a stroke composites it toward its ground and hands the certified ratio
+   back. The four figures above are all at full strength and stay true at every
+   width.
+
+   WHY FOUR STEPS AND NOT TWO. It shipped as 1.5 / 1.5 / 1 / 1, which is a ramp
+   on paper and no ramp at all in the picture: at the whole-tree camera's 0.343
+   scale those are 0.51px and 0.34px, a difference no reader can see, so every
+   container wore one weight and the eye got no help ranking four nested
+   territories. Worse, the ranking it needed most was the one the GEOMETRY works
+   against — `blocks.ts`'s padding shrinks with depth, so the channel between two
+   siblings WIDENS with depth (12 units between the two directorates, 24 between
+   the deepest type blocks) and the most important division in the drawing is
+   drawn in the narrowest gutter. Spacing cannot be traded back (that ladder is
+   two arithmetic constraints, both asserted in `blocks.test.ts`), so the
+   emphasis is bought in stroke instead: 2 / 1.5 / 1.1 / 0.8 is a 2.5x spread
+   end to end, which reads at both cameras.
+
+   ⚠ THE CEILING IS THE PADDING LADDER, and it is why the trunk is 2 and not 3.
+     A child's container sits exactly 3 units inside its parent's on the flank
+     they share an outermost card on (15 → 12 → 9 → 6), and a stroke is centred
+     on its own edge, so the two borders eat HALF their width each out of that
+     3-unit strip. The worst pair here is 2 and 1.5 — 1.0 + 0.75 — which leaves
+     1.25 units of clear fill between the root frame and a directorate's. At 3
+     and 2 it would be 0.5, and at the overview camera two borders 0.17px apart
+     are one thicker border: the drawing would have gained a rule it does not
+     mean. */
+.mtree-block[data-depth='1'] .mtree-block-box {
+  stroke-width: 2;
+}
+
+.mtree-block[data-depth='2'] .mtree-block-box {
+  stroke-width: 1.5;
+}
+
+.mtree-block[data-depth='3'] .mtree-block-box {
+  stroke-width: 1.1;
+}
+
+/* The stub — the ONE mark that says which card owns this container, and the only
+   thing standing between a parent card and reading as a straggler of the group
+   ABOVE it. It is heavier than every container border but the trunk's, and that
+   is a deliberate inversion of "quieter with depth": the ramp above ranks
+   TERRITORIES, and this mark is not a territory boundary — it is the single
+   statement of ownership left after 152 per-child connectors were removed, and
+   it has to hold that job at a depth where the boundary it lands on is drawn at
+   0.8. One line per parent can afford the ink that one line per child could
+   not. */
+.mtree-block-stub {
+  fill: none;
+  stroke: var(--mtree-ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
 /* ---------- nodes ---------- */
 
 .mtree-node {
@@ -1134,7 +1302,26 @@ svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
   letter-spacing: calc(-0.1px * var(--mtree-world, 1));
 }
 
-.mtree-node[data-kind='entry'] .mtree-node-label {
+/* A CARD WITH NOTHING BENEATH IT IS SET LIGHTER THAN A CARD THAT HOLDS THINGS,
+   and the axis is CHILDREN, not `kind`.
+
+   It was `[data-kind='entry']`, which is the same sentence about the radial
+   map's leaf and is simply the wrong question here: on the vertical tidy tree
+   an Organization is `kind: 'entity'` — the same kind its type block, its book
+   and its directorate carry — so every one of the 120 leaves was being set at a
+   BRANCH's 600 and the drawing had no typographic hierarchy at all. Name, size,
+   ink and weight were identical from the root to the last organization, and a
+   reader panning at 1:1 who lands on one card had nothing in the letterforms to
+   tell them whether they were looking at a directorate or at a leaf. `entry`
+   nodes are still covered — an issue never has children — so this replaces that
+   rule rather than joining it.
+
+   WEIGHT AND NOT SIZE, and the constant above says why in one line: `CHAR_PX` is
+   calibrated at 12.5px and a second font size would silently invalidate the
+   truncation budget on the card it applies to. Weight is free of that budget as
+   long as it goes DOWN from the calibrated 600, which is the standing rule this
+   sheet already writes there, and 500 is the step it already uses. */
+.mtree-node:not([data-branch]) .mtree-node-label {
   font-weight: 500;
 }
 
@@ -1150,6 +1337,32 @@ svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
   font-family: var(--font);
   font-size: calc(11.5px * var(--mtree-world, 1));
   font-weight: 700;
+}
+
+/* AND "HEAVIER" IS ONE STEP HEAVIER THAN THE LABEL BESIDE IT, which is a
+   RELATION and not the constant 700 the rule above reads as on its own.
+
+   The rule above was written when every label on the tree was 600, so one step
+   up was 700 everywhere and the relation and the constant were the same number.
+   Setting a childless card's label to 500 broke that silently: on a leaf the
+   count then stood TWO steps over its own name, so a card read "**4** — Org
+   027" — the numeral first, the thing it counts second — and a directorate
+   aggregating 138 organizations carried a numeral of exactly the same weight as
+   a leaf holding one item. The typographic hierarchy this sheet had just built
+   in the labels was being flattened again one line to the right.
+
+   SO THE STEP IS RESTORED WHERE IT WAS LOST, on the same `[data-branch]` axis
+   and in the same direction, and the count column ends up saying what the label
+   column says: a branch's number is the loud one. It costs nothing anywhere
+   else — `COUNT_SLOT` is a worst-case advance reservation and a lighter face
+   can only spend less of it, so no card's truncation budget moves, and this is
+   still a step DOWN from a calibrated weight, which is the standing rule that
+   makes weight free of `CHAR_PX` at all.
+
+   The count keeps its own size and its own ink: this rule changes which of two
+   marks on a leaf card is the loudest, not how either of them is found. */
+.mtree-node:not([data-branch]) .mtree-node-count {
+  font-weight: 600;
 }
 
 /* A bucket the workspace retired that still holds work — an archived track, a

@@ -1,0 +1,439 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Your part while the map is rebuilt</title>
+<!--BASECSS-->
+<style>
+.when { display: grid; grid-template-columns: 26mm 1fr; gap: 4mm; align-items: start;
+        border-bottom: 1px solid var(--rule); padding: 3.4mm 0; }
+.when:last-child { border-bottom: 0; }
+.when .w { font-size: 8pt; font-weight: 700; letter-spacing: 0.8pt; text-transform: uppercase;
+           color: var(--accent); padding-top: 0.8mm; }
+.when .b { font-size: 10.4pt; line-height: 1.5; color: var(--ink-2); }
+.when .b b { color: var(--ink); }
+.mins { display: inline-block; font-size: 7.4pt; font-weight: 700; letter-spacing: 0.6pt;
+        background: var(--accent-soft); color: var(--accent); border-radius: 1mm;
+        padding: 0.6mm 1.8mm; margin-left: 2mm; vertical-align: 1.2px; }
+.mins.me { background: var(--paper); color: var(--ink-3); border: 1px solid var(--rule); }
+.tot { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin: 5mm 0; }
+.tot div { border-radius: 2.5mm; padding: 5mm; text-align: center; }
+.tot .a { background: var(--accent-soft); border: 1px solid var(--accent-line); }
+.tot .b2 { background: var(--paper); border: 1px solid var(--rule); }
+.tot .n { font-size: 24pt; font-weight: 700; line-height: 1; margin-bottom: 2mm; }
+.tot .a .n { color: var(--accent); }
+.tot .b2 .n { color: var(--ink-3); }
+.tot .l { font-size: 9.6pt; color: var(--ink-2); line-height: 1.45; }
+.nav { display: flex; align-items: center; flex-wrap: wrap; gap: 2mm; margin-bottom: 5mm; }
+.nav span { background: #fff; border: 1px solid var(--accent-line); border-radius: 1.5mm;
+            padding: 2mm 3mm; font-size: 9.6pt; font-weight: 600; }
+.nav span.last { background: var(--accent); color: #fff; border-color: var(--accent); }
+.nav em { color: var(--accent-mid); font-style: normal; font-size: 12pt; }
+.rung { display: grid; grid-template-columns: 8mm 1fr 30mm 22mm; gap: 3mm; align-items: center;
+        font-size: 9.6pt; border-top: 1px solid var(--rule); padding: 2.2mm 0; }
+.rung:first-of-type { border-top: 0; }
+.rung .n { color: var(--ink-3); font-size: 8.4pt; }
+.rung .en { font-weight: 650; }
+.rung .ar { font-family: "SF Mono", Menlo, monospace; font-size: 8.4pt; color: var(--ink-3); }
+.rung .d { font-family: "SF Mono", Menlo, monospace; font-size: 8.4pt; color: var(--accent);
+           background: var(--accent-soft); border-radius: 1mm; padding: 1mm 2mm; text-align: center; }
+.rung.head { border-top: 0; font-size: 7.4pt; letter-spacing: 0.7pt; text-transform: uppercase;
+             color: var(--ink-3); font-weight: 650; }
+.prog { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2mm; margin-top: 4mm; }
+.prog span { font-size: 7.6pt; text-align: center; padding: 2.4mm 1mm; border-radius: 1.5mm;
+             background: var(--paper); border: 1px solid var(--rule); color: var(--ink-3); font-weight: 600; }
+.prog span.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.prog span.done { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+</style></head><body>
+
+<!-- 1 · cover -->
+<section class="page">
+  <div class="kicker">While the map is rebuilt &middot; two done, four to go</div>
+  <h1>Your part</h1>
+  <p class="lede">The map is being rebuilt as a proper tree you can configure, and a long list of
+  features is going in behind it. Almost all of that is mine. <b>You have already done two of your
+  six</b> &mdash; the stage names and the Jira connection. About forty minutes of yours remain.</p>
+
+  <div class="tot">
+    <div class="a"><div class="n">~40 min</div><div class="l"><b>Still yours</b>, across four
+      sittings. The longest is twenty minutes; the next is five.</div></div>
+    <div class="b2"><div class="n">Hours</div><div class="l"><b>Mine</b>, between your sittings.
+      You do not need to be at the keyboard for any of it.</div></div>
+  </div>
+
+  <div class="box bad">
+    <h4>One thing is still switched off, and only you can switch it on</h4>
+    <small>Checked against your live project just now:
+    <br><br>&#10003; <b>All seven stages now have their Arabic name.</b> Done &mdash; the Arabic app
+    reads as Arabic in the place that matters most.
+    <br><br>&#10003; <b>Jira is connected.</b> Done, on a properly scoped read-only token.
+    <br><br>&#10007; <b>All seven stages still have no &ldquo;expected days&rdquo;.</b> That is the
+    documented off-switch for the at-risk count and the whole Stalled view &mdash; and about half
+    the new features read from it. <b>Five minutes, and it is the last thing standing between you
+    and a working portfolio.</b></small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="box acc">
+    <h4>Step 2 is now the whole of your urgent list</h4>
+    <small>Five minutes, on a screen you were on an hour ago. Everything else can wait until I
+    ask.</small>
+  </div>
+  <div class="foot"><span>NphiesCore &middot; your part</span><span>1 / 9</span></div>
+</section>
+
+<!-- 2 · when -->
+<section class="page">
+  <div class="head"><span class="step-no">&#9776;</span><div><h2>When each thing happens</h2>
+  <small>Purple is yours. Grey is mine and needs nothing from you.</small></div></div>
+
+  <div class="when"><span class="w" style="color:var(--ok)">&#10003; Done</span><div class="b" style="color:var(--ink-3)">
+    <b style="color:var(--ink-3)">1 &middot; Name your seven stages, in both languages.</b>
+    <br>All seven carry Arabic now.</div></div>
+
+  <div class="when"><span class="w" style="color:var(--bad)">Now</span><div class="b">
+    <b>2 &middot; Say how long is too long on each rung.</b><span class="mins">5 min</span>
+    <br>The only thing left on your urgent list. Switches on at-risk, the Stalled view, and much of
+    what is being built.</div></div>
+
+  <div class="when"><span class="w" style="color:var(--ok)">&#10003; Done</span><div class="b" style="color:var(--ink-3)">
+    <b style="color:var(--ink-3)">3 &middot; Make a read-only Jira token and set three secrets.</b>
+    <br>Connected, on a scoped read-only token. Field mapping comes later, with me.</div></div>
+
+  <div class="when"><span class="w">Whenever</span><div class="b">
+    <b>4 &middot; Hand out the sixteen invite codes.</b><span class="mins">10 min</span>
+    <br>All eighteen accounts exist; only you and Nasser have ever signed in.</div></div>
+
+  <div class="when"><span class="w">Mine</span><div class="b" style="color:var(--ink-3)">
+    Rebuild the map as a vertical tree, make it configurable, and keep rendering it and looking at
+    it until it is right.<span class="mins me">no input needed</span></div></div>
+
+  <div class="when"><span class="w">Then you</span><div class="b">
+    <b>5 &middot; Look at the new map and tell me what is wrong.</b><span class="mins">15 min</span>
+    <br>I will send you pictures first, then a link.</div></div>
+
+  <div class="when"><span class="w">Mine</span><div class="b" style="color:var(--ink-3)">
+    Fix what you named. Build the features behind it &mdash; search, saved views, trends, the
+    programme forecast.<span class="mins me">no input needed</span></div></div>
+
+  <div class="when"><span class="w">Last</span><div class="b">
+    <b>6 &middot; The final walk-through, then say the word.</b><span class="mins">20 min</span>
+    <br>I publish it.</div></div>
+
+  <div class="grow"></div>
+  <div class="box acc">
+    <h4>How long is the whole thing?</h4>
+    <small>The new map itself is the first thing you will see, and it comes with pictures so you can
+    judge it before it is anywhere near your live site. The features behind it land in waves after
+    that, each one reviewable on its own. <b>Nothing goes live until step 6.</b></small>
+  </div>
+  <div class="foot"><span>When each thing happens</span><span>2 / 9</span></div>
+</section>
+
+<!-- 3 · stages -->
+<section class="page">
+  <div class="head"><span class="step-no">1</span><div><h2>Name your seven stages</h2>
+  <small>Ten minutes. In both languages, because Arabic is deliberately blank.</small></div></div>
+
+  <div class="nav"><span>nphiescore.com</span><em>&rsaquo;</em><span>Settings</span><em>&rsaquo;</em>
+    <span class="last">Catalogue</span></div>
+
+  <p>Scroll to the stages section. These are the seven rungs an organization climbs. They shipped
+  with English placeholders and <b>no Arabic at all</b> &mdash; on purpose, because a guessed
+  translation looks exactly like a reviewed one on screen, and nobody would ever catch it.</p>
+
+  <div class="box" style="padding:4mm">
+    <div class="rung head"><span></span><span>English &mdash; as shipped</span><span>Arabic &mdash; yours to write</span><span></span></div>
+    <div class="rung"><span class="n">1</span><span class="en">Not started</span><span class="ar">(empty)</span><span></span></div>
+    <div class="rung"><span class="n">2</span><span class="en">Kickoff</span><span class="ar">(empty)</span><span></span></div>
+    <div class="rung"><span class="n">3</span><span class="en">Integrating</span><span class="ar">(empty)</span><span></span></div>
+    <div class="rung"><span class="n">4</span><span class="en">Testing/UAT</span><span class="ar">(empty)</span><span></span></div>
+    <div class="rung"><span class="n">5</span><span class="en">Go-live ready</span><span class="ar">(empty)</span><span></span></div>
+    <div class="rung"><span class="n">6</span><span class="en">Live</span><span class="ar">(empty)</span><span></span></div>
+    <div class="rung"><span class="n">7</span><span class="en">Paused</span><span class="ar">(empty)</span><span></span></div>
+  </div>
+
+  <div class="act" style="margin-top:5mm"><span class="n">1</span><div class="t">Change the English
+    words to whatever your programme actually calls these stages. If CHI's five words are what
+    people say out loud, use those.</div></div>
+  <div class="act"><span class="n">2</span><div class="t">Write the Arabic for each one.
+    <span class="saw">The screen marks the ones still untranslated, so you can see your progress.</span></div></div>
+
+  <div class="box ok">
+    <h4>Renaming is completely safe now</h4>
+    <small>There was a window where renaming these would have caused trouble; it closed when you
+    finished the four SQL files. Rename freely. <b>Two of them carry a meaning that is not their
+    name</b>, and it follows the rung, not the word: one rung counts as <i>arrived</i> (currently
+    <b>Live</b>) and one <i>stops the clock</i> (currently <b>Paused</b>). Rename them and the
+    meaning goes with them.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="on">1 Stages</span><span>2 Days</span><span>3 Jira</span><span>4 Codes</span><span>5 Look</span><span>6 Go</span></div>
+  <div class="foot"><span>Step 1 &middot; name your stages</span><span>3 / 9</span></div>
+</section>
+
+<!-- 4 · days -->
+<section class="page">
+  <div class="head"><span class="step-no">2</span><div><h2>Say how long is too long</h2>
+  <small>Five minutes, same screen. This is the highest-value five minutes on your list.</small></div></div>
+
+  <p>Beside each rung there is a box called <b>expected days</b>. It means: <i>if an organization
+  sits on this rung longer than this, something is wrong.</i> Every one of them is empty today.</p>
+
+  <div class="box bad">
+    <h4>While they are empty, these are all switched off</h4>
+    <small>The <b>at-risk count</b> on the Portfolio button &mdash; permanently zero, which reads
+    as &ldquo;nothing is stuck&rdquo;. The <b>Stalled view</b> &mdash; empty for every organization.
+    The <b>longest-stuck-first ordering</b> &mdash; nothing to order by. And roughly half of the new
+    features being built read from this number.
+    <br><br>This is deliberate, not a bug: a threshold nobody chose is a number the app would start
+    chasing your team with. <b>It waits for you to choose.</b></small>
+  </div>
+
+  <div class="box" style="padding:4mm">
+    <div class="rung head"><span></span><span>Rung</span><span></span><span>Days</span></div>
+    <div class="rung"><span class="n">1</span><span class="en">Not started</span><span class="ar">leave empty &mdash; no clock</span><span class="d">&mdash;</span></div>
+    <div class="rung"><span class="n">2</span><span class="en">Kickoff</span><span class="ar">how long should this take?</span><span class="d">?</span></div>
+    <div class="rung"><span class="n">3</span><span class="en">Integrating</span><span class="ar">usually the longest</span><span class="d">?</span></div>
+    <div class="rung"><span class="n">4</span><span class="en">Testing/UAT</span><span class="ar"></span><span class="d">?</span></div>
+    <div class="rung"><span class="n">5</span><span class="en">Go-live ready</span><span class="ar">should be short</span><span class="d">?</span></div>
+    <div class="rung"><span class="n">6</span><span class="en">Live</span><span class="ar">arrived &mdash; leave empty</span><span class="d">&mdash;</span></div>
+    <div class="rung"><span class="n">7</span><span class="en">Paused</span><span class="ar">clock stops here anyway</span><span class="d">&mdash;</span></div>
+  </div>
+
+  <div class="box ok" style="margin-top:4mm">
+    <h4>Only the middle four need a number &mdash; and guessing is fine</h4>
+    <small>Leaving one empty means <b>that rung has no clock</b>; nothing on it is ever called stuck.
+    That is the right answer for <b>Not started</b>, <b>Live</b> and <b>Paused</b>. The middle four
+    earn a number, because that is where an organization can quietly sit for months.
+    <br><br>Put in your best guess today. Once the tool starts recording how long each rung
+    <i>actually</i> takes &mdash; one of the things being built &mdash; you can replace the guess
+    with the measured number. <b>An approximate clock beats no clock.</b></small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 Stages</span><span class="on">2 Days</span><span>3 Jira</span><span>4 Codes</span><span>5 Look</span><span>6 Go</span></div>
+  <div class="foot"><span>Step 2 &middot; how long is too long</span><span>4 / 9</span></div>
+</section>
+
+<!-- 5 · jira -->
+<section class="page">
+  <div class="head"><span class="step-no">&#10003;</span><div><h2>The Jira token &mdash; done</h2>
+  <small>Connected on a scoped read-only token. Kept for reference, and for the next person.</small></div></div>
+
+  <div class="box ok" style="margin-bottom:5mm">
+    <h4>Connected</h4>
+    <small>Your token is the <b>scoped read-only</b> kind &mdash; the better one, and the one you
+    said was all this account could issue. It took a change to the program rather than a downgrade
+    to your token, which was the right way round.
+    <br><br><b>Nothing is configured yet, and that is expected.</b> Test connection proves the
+    credential; it saves nothing. Choosing which Jira fields carry the organization and the use
+    case is a later sitting, and I will walk you through it.</small>
+  </div>
+
+  <div class="act"><span class="n">1</span><div class="t">Go to
+    <b>id.atlassian.com/manage-profile/security/api-tokens</b> and choose
+    <b>Create API token with scopes</b> &mdash; the read-only kind.</div></div>
+
+  <div class="act"><span class="n">2</span><div class="t">Tick <b>only the read ones</b> &mdash; the
+    scopes beginning <code>read:</code>, for Jira work and Jira users. Nothing saying
+    <code>write:</code>, <code>manage:</code> or <code>delete:</code>. The <b>label</b> Atlassian
+    asks for is only a name on its own list and is used nowhere else.
+    <span class="saw">The token appears <b>once</b>. Copy it somewhere safe before closing the page.</span></div></div>
+
+  <div class="act"><span class="n">3</span><div class="t">In Supabase: <b>Edge Functions</b> &rarr;
+    <b>Secrets</b> &rarr; <b>Add new secret</b>. Do this <b>three times</b>. The
+    <b>Name</b> must be typed exactly as printed here &mdash; it is not a label you choose:
+    <div class="term" style="margin:2mm 0 0"><span class="y">JIRA_BASE_URL</span>    https://your-site.atlassian.net
+<span class="y">JIRA_EMAIL</span>       the Atlassian account email
+<span class="y">JIRA_API_TOKEN</span>   the token from step 2</div>
+    <span class="saw">Three separate secrets, not one. Just the site in the URL &mdash; nothing
+    after <code>.net</code>.</span></div></div>
+
+  <div class="box bad" style="margin: -1mm 0 4mm 12mm">
+    <h4>The mistake this step invites</h4>
+    <small>The names on the left are <b>fixed</b>. The program looks for those three words and
+    nothing else &mdash; give a secret any other name and it is invisible, however correct its value
+    is. In particular <b>do not name a secret after the label you gave the token at Atlassian</b>;
+    that label lives only on Atlassian's own list.
+    <br><br>If Test connection says a secret is missing, this is almost always why. Go back to the
+    secrets list and check the three names character for character.</small>
+  </div>
+
+  <div class="act"><span class="n">4</span><div class="t"><b>Wait for me to say the program is
+    ready</b> &mdash; see the next page. Then in the app: <b>Settings</b> &rarr; <b>Jira</b> &rarr;
+    <b>Test connection</b>.
+    <span class="saw">Green, naming the account and site it signed in as. Red names exactly which of
+    the three secrets is wrong &mdash; it never shows you the value.</span></div></div>
+
+  <div class="box ok">
+    <h4>Nothing is written to Jira, ever</h4>
+    <small>The read-only guarantee here is <b>ours, not the token's</b>: the program can call four
+    Jira addresses and no others, and its own tests check that by reading its source code, so a
+    change that allowed writing would fail the build. You get a preview of what it read and what it
+    matched to; nothing changes on either side.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 Stages</span><span class="done">2 Days</span><span class="on">3 Jira</span><span>4 Codes</span><span>5 Look</span><span>6 Go</span></div>
+  <div class="foot"><span>Step 3 &middot; the Jira token</span><span>5 / 9</span></div>
+</section>
+
+<!-- 5b · waiting on me -->
+<section class="page">
+  <div class="head"><span class="step-no">&#10003;</span><div><h2>What that took, and why</h2>
+  <small>Kept because it explains a trap that cost an evening, and the next person should not pay it again.</small></div></div>
+
+  <p>If you ever see <i>&ldquo;Jira refused that email and token&rdquo;</i> on a token you know is
+  good, this is almost certainly why.</p>
+
+  <div class="box acc">
+    <h4>What is actually going on</h4>
+    <small>A read-only scoped token is <b>only accepted at a different Jira address</b> from the
+    ordinary one. Atlassian's own documentation:
+    <div class="term" style="margin:2mm 0; font-size:8.2pt">You need to call the Atlassian API to use API tokens with scopes
+for Jira <span class="y">https://api.atlassian.com/ex/jira/{cloudId}</span></div>
+    The program used to call only your normal site address, so a scoped token was refused there
+    &mdash; even though it was valid and the email was right. <b>It now looks up your site's cloud
+    id and uses the other address automatically.</b></small>
+  </div>
+
+  <div class="box ok">
+    <h4>Your settings stay exactly as they are</h4>
+    <small><code>JIRA_BASE_URL</code> is your normal site address, <b>not</b> the gateway one quoted
+    above. The program works the rest out for itself, tries your site first, and only falls back to
+    the gateway when a token needs it &mdash; so a different kind of token would still work
+    tomorrow.</small>
+  </div>
+
+  <div class="box warn">
+    <h4>The mistake worth remembering</h4>
+    <small>I first asked you to make a scoped token, then &mdash; when it was refused &mdash; asked
+    you to downgrade to an unscoped one so my code could stay unchanged. That was the wrong trade,
+    and you were right that this account could not do it anyway. <b>The fix belonged in the
+    program.</b></small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 Stages</span><span class="done">2 Days</span><span class="on">3 Jira</span><span>4 Codes</span><span>5 Look</span><span>6 Go</span></div>
+  <div class="foot"><span>Step 3 &middot; what that took</span><span>6 / 9</span></div>
+</section>
+
+<!-- 6 · codes -->
+<section class="page">
+  <div class="head"><span class="step-no">4</span><div><h2>Hand out the sixteen codes</h2>
+  <small>Ten minutes, and it is the only step with something you can lose.</small></div></div>
+
+  <p>All eighteen accounts exist. <b>Only you and Nasser have ever signed in</b> &mdash; checked
+  live. The other sixteen are waiting for their codes.</p>
+
+  <div class="act"><span class="n">1</span><div class="t">Find the sixteen codes you copied out of
+    Terminal when you ran the account step.</div></div>
+  <div class="act"><span class="n">2</span><div class="t">Give each person theirs directly &mdash;
+    a message, in person, however you like. <b>Not in a group chat</b>, and not to me.</div></div>
+  <div class="act"><span class="n">3</span><div class="t">Tell them: go to
+    <b>https://nphiescore.com/</b>, click <b>First time here?</b>, enter the code, choose a
+    password.
+    <span class="saw">They are in. Their username was fixed when the account was made and cannot
+    be changed.</span></div></div>
+
+  <div class="box bad">
+    <h4>If you no longer have the codes</h4>
+    <small>They exist nowhere else &mdash; not in a file, not in the database, not recoverable by
+    me. That is deliberate. <b>Tell me and I will scrap and recreate the accounts that need it</b>,
+    which prints fresh codes. It is cheap right now, while nobody is using them, and awkward once
+    someone is.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Then check one screen</h4>
+    <small><b>Settings &rarr; Roles.</b> The two senior experts should hold <b>Director</b>; the
+    three account managers stay <b>Member</b>. That split is what the whole permission design was
+    built around &mdash; recording progress is the team's job, deciding shape and commitments is
+    yours. Checked live, the roles are already right: two admins, seven Directors, nine Members.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 Stages</span><span class="done">2 Days</span><span class="done">3 Jira</span><span class="on">4 Codes</span><span>5 Look</span><span>6 Go</span></div>
+  <div class="foot"><span>Step 4 &middot; the invite codes</span><span>7 / 9</span></div>
+</section>
+
+<!-- 7 · look -->
+<section class="page">
+  <div class="head"><span class="step-no">5</span><div><h2>Look at the new map</h2>
+  <small>Fifteen minutes, when I send it. This is the step the whole rebuild is for.</small></div></div>
+
+  <p>I will send you <b>pictures first</b> &mdash; the new tree rendered at several sizes, in
+  English and Arabic, on desktop and phone &mdash; before it is anywhere near your live site. Then
+  a link you can click through.</p>
+
+  <p><b>Your job is to say what is wrong.</b> Not to be polite about it. One sentence per thing is
+  plenty, and &ldquo;I don't know why but I don't like it&rdquo; is a useful sentence &mdash; I can
+  usually find the reason.</p>
+
+  <h3 style="margin-top:5mm">What to check, in order</h3>
+  <div class="act"><span class="n">1</span><div class="t"><b>Can you see the shape of the
+    programme?</b> That is the job you gave the map. Open it and see whether the whole structure is
+    legible at a glance &mdash; not one manager's corner of it.</div></div>
+  <div class="act"><span class="n">2</span><div class="t"><b>Can you read the names?</b> The old map
+    drew hundreds of unlabelled dots. If any organization is a shape with no name, say so.</div></div>
+  <div class="act"><span class="n">3</span><div class="t"><b>Does it look like your programme?</b>
+    The colour, the words, the density. Would you put this on a screen in front of a
+    director?</div></div>
+  <div class="act"><span class="n">4</span><div class="t"><b>Then Arabic, then your phone.</b> Same
+    questions. Arabic should be a mirror image, not a squeeze.</div></div>
+
+  <div class="box acc">
+    <h4>You will also get a settings screen for it</h4>
+    <small>What each box shows, how big things are, how deep it opens, what drives the colour, how
+    the branches are sorted. <b>With a live preview beside the controls</b>, so you can see a change
+    as you make it rather than saving and hunting for it. If the shipped defaults are wrong for you,
+    that screen is the fix &mdash; and telling me the defaults are wrong is also a useful
+    sentence.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 Stages</span><span class="done">2 Days</span><span class="done">3 Jira</span><span class="done">4 Codes</span><span class="on">5 Look</span><span>6 Go</span></div>
+  <div class="foot"><span>Step 5 &middot; look at the map</span><span>8 / 9</span></div>
+</section>
+
+<!-- 8 · what I'm building -->
+<section class="page">
+  <div class="kicker">Meanwhile</div>
+  <h2 style="font-size:20pt; margin-bottom:4mm">What I am building between your sittings</h2>
+  <p class="lede">So the wait makes sense. This came out of benchmarking the tools a programme
+  director will have used &mdash; Asana, Smartsheet, Wrike, Jira Align, Miro, XMind &mdash; against
+  what you have.</p>
+
+  <div class="box acc">
+    <h4>The map itself</h4>
+    <small>A vertical tree with real connectors and real names, that opens on the whole programme.
+    It collapses, it searches, and it has a settings screen with a live preview.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Memory &mdash; the biggest gap, and it is invisible</h4>
+    <small>Right now the tool records <b>where each organization is</b>, but not <b>where it has
+    been</b>. So it cannot answer &ldquo;are we moving faster than last month&rdquo;, &ldquo;how long
+    does Testing actually take&rdquo;, or &ldquo;will we hit December&rdquo; &mdash; even though your
+    target dates are already stored. I am adding that memory. It starts recording the day it ships,
+    so the sooner it lands the sooner the answers exist.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>The three things a director would notice were missing</h4>
+    <small><b>Search</b> &mdash; typing a hospital's name and finding it on the map.
+    <b>A stated red/amber/green with a reason</b>, beside the one the clock works out, so a manager
+    who knows better can say so. <b>A go-live forecast</b> &mdash; the line of organizations live
+    against your plan, and whether you will make the date.</small>
+  </div>
+
+  <div class="box ok">
+    <h4>And nothing goes near your live site until you say so</h4>
+    <small>Every round is rendered and reviewed as pictures first. The live site keeps working
+    exactly as it does now, the whole time.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 Stages</span><span class="done">2 Days</span><span class="done">3 Jira</span><span class="done">4 Codes</span><span class="done">5 Look</span><span class="on">6 Go</span></div>
+  <div class="foot"><span>Checked against your live project, 21 August 2026</span><span>9 / 9</span></div>
+</section>
+</body></html>

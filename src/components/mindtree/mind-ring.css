@@ -282,12 +282,45 @@
   visibility: hidden;
 }
 
-/* THE PROGRESS UNDERSCORE. Length is the encoding; there is deliberately no
-   track behind the unfilled remainder, because the box's own PAD inset already
-   marks both ends and a diluted track would hand back the measured ratio. The
-   ink is the branch ink AT FULL STRENGTH — 6.35 / 5.53 on a node fill, already
-   in pages/mindtree.css's matrix. Inherited, not redeclared: this mark is drawn
-   inside `.mtree-node`, which resolved the pair. */
+/* THE PROGRESS UNDERSCORE AND THE RAIL IT IS READ AGAINST. Length is the
+   encoding, and as of this pass the WHOLE that length is a share of is drawn:
+   `.mring-rail` spans the full budget on every card that has a total, and
+   `.mring-progress` paints the filled part on top of it.
+
+   ⚠ THIS SHEET USED TO SAY "there is deliberately no track behind the unfilled
+     remainder". The sentence is withdrawn, and the reason it gave is not: what
+     it refused was a track in the card's outline ink AT 20%, and a diluted mark
+     composites toward the surface under it and hands its measured ratio back.
+     That is still forbidden and nothing here does it. Both rules below paint
+     `--mtree-ink` AT FULL STRENGTH — 6.35 / 5.53 on a node fill, already in
+     pages/mindtree.css's matrix — so the pair adds NO row to that table and no
+     new recipe to this sheet. The rail is told apart from the bar by being A
+     THIRD of its height, which is the same instrument mindtree.css's container
+     ramp uses and for the same stated reason: width costs no contrast at all.
+
+     What the withdrawn sentence got wrong is that the box's PAD inset does not
+     mark the ends of anything a reader can see. Without the far end drawn,
+     4-of-4 and 4-of-6 are one mark at two lengths, and — the reading that
+     actually matters — "0 of N live" and "no progress data at all" were the
+     same card, 22 of the 153 in the current shot. MindNode.tsx's
+     `PROGRESS_RAIL_H` carries the full argument, including why the rail is
+     bottom-aligned rather than centred (a centred half-unit rail is a diluted
+     line arrived at through antialiasing, which is the same offence by another
+     road) and what the two marks do to each other at the overview camera.
+
+   ⚠ THE STEP WAS 2:1 AND IS NOW 3:1, and the extra unit went on the BAR. Once
+     every card with a total carries a full-budget rail, length stops separating
+     the two ENDS of the scale: a 0-of-N card draws a line across the whole
+     budget and a 142.9-of-144 card draws a line across the whole budget, and
+     the only difference left is thickness. At 2:1 that difference was one
+     device pixel at 1:1, between two readings that mean opposite things, on the
+     scan an account manager runs most often. `PROGRESS_H` in MindNode.tsx
+     carries the arithmetic and the census. Nothing in THIS sheet changes for
+     it — the pair is still one ink at full strength and still one rule.
+
+   Both inherit rather than redeclare: they are drawn inside `.mtree-node`,
+   which resolved the pair. */
+.mring-rail,
 .mring-progress {
   fill: var(--mtree-ink);
 }

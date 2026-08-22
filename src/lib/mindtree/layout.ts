@@ -22,29 +22,60 @@
 //               parent is collapsed, or the depth limit stops here. Pre-order is
 //               also the order `role="tree"` wants its DOM in, so the renderer
 //               maps `nodes` straight out.
-//   2. COLUMNS  x is a function of DEPTH ONLY. Every node at depth d starts at
-//               the same inline offset, and the column is as wide as its widest
-//               node. Nodes are size-encoded (count → area, clamped), so without
-//               a column the ring would ripple and the eye would lose the ring
-//               structure that is the whole point of the picture.
-//   3. PACK     y comes from a post-order pass with CONTOURS. Each subtree
-//               reports the top and bottom edge it occupies at every one of its
-//               rows; the next sibling is dropped down by exactly enough to
-//               clear that contour at every shared row, and no further. That is
-//               what makes a tidy tree tidy: a deep bushy branch pushes its
-//               neighbour aside only at the rows where the two actually meet.
-//               A parent then sits centred between its first and last child.
+//  1b. TRANSPOSE for the vertical orientation only: every node's width and
+//               height are swapped, once, on the way in. See below.
+//   2. COLUMNS  the depth coordinate is a function of DEPTH ONLY. Every node at
+//               depth d starts at the same offset, and the column is as wide as
+//               its widest node. Nodes are size-encoded (count → area, clamped),
+//               so without a column the ring would ripple and the eye would lose
+//               the ring structure that is the whole point of the picture.
+//   3. PACK     the sibling coordinate comes from a post-order pass with
+//               CONTOURS. Each subtree reports the leading and trailing edge it
+//               occupies at every one of its rows; the next sibling is pushed
+//               along by exactly enough to clear that contour at every shared
+//               row, and no further. That is what makes a tidy tree tidy: a deep
+//               bushy branch pushes its neighbour aside only at the rows where
+//               the two actually meet. A parent then sits centred between its
+//               first and last child.
+//  2'+3'. BLOCKS  under `wrap: true`, steps 2 and 3 are replaced wholesale by
+//               packBlocks(): every subtree is measured into a box and every box
+//               is placed in its parent's grid. See that function's header for
+//               what wrapping costs and why it is a different engine rather than
+//               a decoration on the contour packer.
 //   4. RESOLVE  local frames are collapsed into absolute coordinates, the whole
-//               drawing is normalised to origin (0,0), and — if the reader is in
-//               Arabic — mirrored.
+//               drawing is normalised to origin (0,0), transposed back to screen
+//               space if it was transposed on the way in, and — if the reader is
+//               in Arabic — mirrored.
+//
+// THE VERTICAL DRAWING IS THE HORIZONTAL ONE REFLECTED ABOUT y = x, AND THAT IS
+// ALL IT IS. Steps 2, 3 and 4 above are already written in axis-neutral terms
+// without ever having been told: step 2 puts DEPTH on local x using a node's
+// local width, step 3 packs SIBLINGS on local y using a node's local height. So
+// "layout space" is defined here, for both orientations, as
+//
+//     local x = the DEPTH axis      local y = the SIBLING axis
+//
+// and the top-down drawing is bought by swapping each node's size once on the
+// way in and swapping every coordinate back once on the way out. `pack()`, the
+// column pass, the frame resolution, the normalisation and the mirror are then
+// literally the same code running on the same numbers — there is no `if
+// (vertical)` anywhere between the transpose and the emit, no second copy of the
+// packing to keep in step, and "vertical is the transpose of horizontal" is a
+// theorem the test suite can assert against the frozen horizontal numbers rather
+// than a coincidence a second snapshot would have to be maintained to protect.
 //
 // RTL IS A MIRROR, APPLIED ONCE, AT THE END. SVG has no logical properties (see
 // components/charts/geometry.ts's header for the same problem in the charts), so
 // direction has to be an input somewhere. It is an input to exactly one
-// statement in this file: every rect and every edge point is reflected about the
-// bounds' vertical centre line. Nothing else in the packing knows which way the
-// reader reads, which is why `mirror symmetry` is assertable as an equality
-// rather than as a second, hand-checked layout.
+// statement in this file: the finished picture is reflected about its own
+// vertical centre line — THE SCREEN's x axis, always. Which LOGICAL axis that
+// turns out to be follows from the orientation and is not something the mirror
+// knows or should know: it is the depth axis when depth runs horizontally, and
+// the sibling axis when depth runs vertically. Either way it is what an Arabic
+// reader means by "mirrored", and either way nothing in the packing knows which
+// direction the reader reads, which is why `mirror symmetry` is assertable as an
+// equality rather than as a second, hand-checked layout. The one thing that
+// would break it is a flip applied inside layout space; do not move it there.
 //
 // COMPLEXITY is O(n · depth) in the worst case, and the depth here is the ring
 // model: workspace → track → group → entry. The contour merge only ever walks
@@ -61,6 +92,17 @@
 
 /** LTR grows toward the right; RTL is the same drawing, mirrored. */
 export type Direction = 'ltr' | 'rtl'
+
+/**
+ * Which screen axis DEPTH runs along.
+ *
+ * 'horizontal' — depth to the inline end, siblings down the block axis — is the
+ * drawing this file has always made and the only one any existing caller asks
+ * for, which is why it is the absent default rather than a written one. See the
+ * transpose note in layoutMindtree for why adding the second orientation cost
+ * one pass and four ternaries instead of a second packing algorithm.
+ */
+export type Orientation = 'horizontal' | 'vertical'
 
 export interface NodeSize {
   width: number
@@ -104,10 +146,45 @@ export interface LayoutInputNode {
 }
 
 export interface Gap {
-  /** Between one ring and the next, along the inline axis. */
+  /**
+   * Between one ring and the next, along the DEPTH axis — the inline axis in the
+   * horizontal orientation, the block axis in the vertical one. In a wrapped
+   * block it is also the clearance between one row of the block and the next,
+   * because a row boundary inside a block is a boundary along the depth axis and
+   * nothing else: the row below starts a fresh set of rings.
+   */
   depth: number
-  /** The minimum clearance between two nodes sharing a row. */
+  /**
+   * The minimum clearance between two nodes sharing a row — i.e. along the
+   * SIBLING axis. In a wrapped block it is also the clearance between one column
+   * of the block and the next, for the mirror-image reason.
+   */
   sibling: number
+  /**
+   * The clearance between two sibling cells WHEN THOSE CELLS ARE THEMSELVES
+   * BLOCKS rather than single rectangles. Defaults to three times `sibling`.
+   *
+   * WHY THIS EXISTS, measured. With one gap doing both jobs, a parent's eleven
+   * cards sat `sibling` apart from each other AND its whole eleven-card grid sat
+   * `sibling` apart from the next parent's. Eleven cards and six grids then read
+   * as one continuous band: you could see rows, and you could not see which
+   * parent any row belonged to. The hierarchy was present in the coordinates and
+   * absent from the picture.
+   *
+   * Proximity is the only cue a grid has for grouping — there are no containers
+   * and no rules between blocks — so the gap between groups has to be visibly
+   * larger than the gap inside one, or there are no groups. This is the number
+   * that makes the drawing say what the tree means.
+   */
+  group?: number
+  /**
+   * The clearance between two ROWS of one wrapped block. Defaults to
+   * `sibling * 1.6`.
+   *
+   * Explicitly NOT `depth`: the rows of a block are the same generation as each
+   * other, and spacing them like parent-to-child tears one block into stripes.
+   */
+  row?: number
 }
 
 export interface LayoutOptions<N extends LayoutInputNode = LayoutInputNode> {
@@ -136,6 +213,31 @@ export interface LayoutOptions<N extends LayoutInputNode = LayoutInputNode> {
   depthLimit?: number
   direction?: Direction
   /**
+   * Which way the tree grows. 'horizontal' (the default) puts depth on x and
+   * spreads siblings down y; 'vertical' puts depth on y and spreads siblings
+   * across x. It is the SAME drawing reflected about y = x — see the transpose
+   * in layoutMindtree — so every invariant this file holds holds in both, and
+   * layout.test.ts asserts the vertical drawing by composing the frozen
+   * horizontal numbers rather than freezing a second set to rot beside them.
+   *
+   * Read by layoutMindtree only. The polar and containment layouts have their
+   * own geometry and ignore it, exactly as they ignore `expandAll`.
+   */
+  orientation?: Orientation
+  /**
+   * Arrange each parent's children as a BLOCK of rows rather than one line.
+   *
+   * 396 organisations in one row per parent is a canvas thirty-six screens wide,
+   * which is a ribbon nobody pans to the end of; the same 396 in a block is two
+   * screens across and four down, which is a page you scroll. The cost is stated
+   * plainly because it is real: a block consumes the depth axis per row, so the
+   * rings stop being globally aligned and the tidy contour tuck is replaced by a
+   * uniform grid. That regularity IS the feature — see packBlocks().
+   *
+   * Off by default, so the existing drawing is untouched.
+   */
+  wrap?: boolean
+  /**
    * Lay out EVERY child, whatever the model says about `collapsed`.
    *
    * The containment layout (worlds.ts) is the only caller, and it is not a
@@ -158,6 +260,12 @@ export interface ResolvedLayoutOptions {
   gap: Gap
   depthLimit: number
   direction: Direction
+  /** Absent means 'horizontal'. Written only when the caller asked for the other
+   *  one, so `layout.options` stays value-for-value what every existing caller
+   *  already receives. Read it as `=== 'vertical'`, never as `=== 'horizontal'`. */
+  orientation?: Orientation
+  /** Absent means false. Same rule, same reason. */
+  wrap?: boolean
   /** Only ever set by the containment layout. Absent means false, so the
    *  resolved options of every existing caller are unchanged value-for-value. */
   expandAll?: boolean
@@ -224,9 +332,11 @@ export interface MindtreeEdge {
   readonly childId: string
   /** The CHILD's depth, so an edge can be styled per ring. */
   readonly depth: number
-  /** On the parent's inline-end edge, vertically centred. */
+  /** On the parent's DEPTH-END face, centred on the sibling axis: the inline-end
+   *  edge when depth runs horizontally, the bottom edge when it runs vertically. */
   readonly start: Point
-  /** On the child's inline-start edge, vertically centred. */
+  /** On the child's DEPTH-START face, centred on the sibling axis — the mirror
+   *  image of `start`, and the reason a connector meets both cards square-on. */
   readonly end: Point
   readonly c1: Point
   readonly c2: Point
@@ -314,9 +424,10 @@ export const DEFAULT_LAYOUT_OPTIONS: Readonly<ResolvedLayoutOptions> = Object.fr
 })
 
 /**
- * Where the Bézier handles sit, as a share of the horizontal run between the two
- * nodes. A half-run on each side is the classic mind-map S: it leaves both ends
- * horizontal, so a connector meets a card square-on at every zoom level.
+ * Where the Bézier handles sit, as a share of the run along the DEPTH AXIS
+ * between the two nodes. A half-run on each side is the classic mind-map S: it
+ * leaves both ends perpendicular to the faces they touch, so a connector meets a
+ * card square-on at every zoom level and in either orientation.
  */
 const EDGE_CURVE = 0.5
 
@@ -336,70 +447,122 @@ export function layoutMindtree<N extends LayoutInputNode>(
   options: LayoutOptions<N> = {},
 ): MindtreeLayout<N> {
   const opts = resolveLayoutOptions(options)
+  const vertical = opts.orientation === 'vertical'
 
   // 1. BUILD — shared verbatim with radial.ts, which is the only reason the
   //    `role="tree"` output cannot diverge by shape: pre-order, depth limit,
   //    collapsed rule and hiddenChildCount all come from ONE function.
   const work = buildLayoutNodes(root, opts, options.sizeOf)
 
-  // 2. COLUMNS — x is a function of depth alone.
-  const colWidth: number[] = []
+  // 1b. TRANSPOSE. The vertical drawing is the horizontal one reflected about
+  //     y = x, and that is ALL it is. Swap every node's size here and the whole
+  //     of phases 2–4 runs unchanged in "layout space" — local x is the depth
+  //     axis, local y is the sibling axis — with no second copy of the packing
+  //     and no `if (vertical)` anywhere inside it. The swap is undone in exactly
+  //     one place: the emit loop below, which is where layout space becomes
+  //     screen space. Two field writes per node, so a thousand-node drawing pays
+  //     for its second orientation in microseconds.
+  if (vertical) {
+    for (const node of work) {
+      const across = node.width
+      node.width = node.height
+      node.height = across
+    }
+  }
+
   let maxDepth = 0
-  for (const node of work) {
-    colWidth[node.depth] = Math.max(colWidth[node.depth] ?? 0, node.width)
-    if (node.depth > maxDepth) maxDepth = node.depth
-  }
-  const colX: number[] = []
-  let cursor = 0
-  for (let d = 0; d <= maxDepth; d += 1) {
-    colX[d] = cursor
-    cursor += colWidth[d] + opts.gap.depth
+  for (const node of work) if (node.depth > maxDepth) maxDepth = node.depth
+
+  if (opts.wrap === true) {
+    // 2'+3'. BLOCKS — one engine in place of columns-and-contours, because the
+    //        two cannot be mixed inside one tree without synthesising a
+    //        multi-row contour for every grid subtree. See packBlocks().
+    packBlocks(work[0], opts.gap)
+  } else {
+    // 2. COLUMNS — the depth coordinate is a function of depth alone.
+    const colWidth: number[] = []
+    for (const node of work) {
+      colWidth[node.depth] = Math.max(colWidth[node.depth] ?? 0, node.width)
+    }
+    const colX: number[] = []
+    let cursor = 0
+    for (let d = 0; d <= maxDepth; d += 1) {
+      colX[d] = cursor
+      cursor += colWidth[d] + opts.gap.depth
+    }
+
+    // 3. PACK
+    pack(work[0], opts.gap.sibling)
+
+    // 3b. Local frames collapsed into absolute layout coordinates. Pre-order
+    //     guarantees a parent's frame offset is known before its children need
+    //     it, so this is one linear pass and not a second recursion.
+    for (const node of work) {
+      node.frame = node.parent === null ? 0 : node.parent.frame + node.shift
+      node.x = colX[node.depth]
+      node.y = node.localY + node.frame
+    }
   }
 
-  // 3. PACK
-  pack(work[0], opts.gap.sibling)
-
-  // 4. RESOLVE. Pre-order guarantees a parent's frame offset is known before its
-  //    children need it, so this is one linear pass and not a second recursion.
+  // 4. BOUNDS, and normalise to the origin. Only the SIBLING axis can go
+  //    negative: the packing works in whatever frame the first leaf happened to
+  //    establish, which is routinely below zero. The DEPTH axis starts at 0
+  //    under both engines — colX[0] is 0, and a block's box is placed at the
+  //    origin — so `maxX` is seeded at 0 and there is no second normalisation to
+  //    add here. A drawing that starts at (0,0) is what makes the viewBox, the
+  //    export and the RTL mirror all trivial.
   let minY = Number.POSITIVE_INFINITY
   let maxY = Number.NEGATIVE_INFINITY
   let maxX = 0
   for (const node of work) {
-    node.frame = node.parent === null ? 0 : node.parent.frame + node.shift
-    node.x = colX[node.depth]
-    node.y = node.localY + node.frame
     if (node.y < minY) minY = node.y
     if (node.y + node.height > maxY) maxY = node.y + node.height
     if (node.x + node.width > maxX) maxX = node.x + node.width
   }
-  // Normalise to the origin. The packing works in whatever frame the first leaf
-  // happened to establish, which is routinely negative; a drawing that starts at
-  // (0,0) is what makes the viewBox, the export and the RTL mirror all trivial.
   for (const node of work) node.y -= minY
 
-  const width = maxX
-  const height = maxY - minY
+  // The extents are still in layout space, so which one is the picture's width
+  // is the last thing the orientation decides.
+  const alongDepth = maxX
+  const alongSibling = maxY - minY
+  const width = vertical ? alongSibling : alongDepth
+  const height = vertical ? alongDepth : alongSibling
   const bounds: Bounds = { minX: 0, minY: 0, maxX: width, maxY: height, width, height }
 
   // The mirror. `width - x - w` reflects a rect about the drawing's centre line;
-  // a point is reflected as `width - x`. This is the ONLY place direction is read.
+  // a point is reflected as `width - x`. This is the ONLY place direction is
+  // read, and it reads SCREEN x in both orientations — see the header.
   const rtl = opts.direction === 'rtl'
   const flipRect = (x: number, w: number): number => (rtl ? width - x - w : x)
   const flipPoint = (x: number): number => (rtl ? width - x : x)
+
+  // Layout space → screen space, mirror included. This is the one statement the
+  // orientation is allowed to reach, and every edge point goes through it so the
+  // curve cannot drift from the rects it connects.
+  const point = (x: number, y: number): Point =>
+    vertical ? { x: flipPoint(y), y: x } : { x: flipPoint(x), y }
 
   const nodes: PositionedNode<N>[] = []
   const byId = new Map<string, PositionedNode<N>>()
   const edges: MindtreeEdge[] = []
 
   for (const node of work) {
+    // Sizes were swapped on the way in, so in the vertical orientation
+    // `node.height` IS the true screen width. A rectangle reflects about y = x
+    // together with its coordinates or not at all.
+    const nodeX = vertical ? node.y : node.x
+    const nodeY = vertical ? node.x : node.y
+    const nodeW = vertical ? node.height : node.width
+    const nodeH = vertical ? node.width : node.height
+
     const positioned: PositionedNode<N> = {
       id: node.id,
       node: node.source,
       depth: node.depth,
-      x: flipRect(node.x, node.width),
-      y: node.y,
-      width: node.width,
-      height: node.height,
+      x: flipRect(nodeX, nodeW),
+      y: nodeY,
+      width: nodeW,
+      height: nodeH,
       parentId: node.parent === null ? null : node.parent.id,
       childIds: node.children.map((c) => c.id),
       index: node.index,
@@ -414,22 +577,26 @@ export function layoutMindtree<N extends LayoutInputNode>(
 
     if (node.parent !== null) {
       const parent = node.parent
-      // Computed in LTR space and mirrored with everything else, so the mirror
-      // cannot drift from the rects it connects.
-      const sx = parent.x + parent.width
-      const sy = parent.y + parent.height / 2
-      const ex = node.x
-      const ey = node.y + node.height / 2
-      const run = ex - sx
+      // Still computed in LAYOUT space, where "the parent's depth-end face,
+      // centred on the sibling axis" is ONE expression covering both
+      // orientations — and where "both handles keep their own endpoint's sibling
+      // coordinate" is one expression for "the curve meets both cards
+      // square-on". point() then transposes and mirrors them along with the
+      // rects, so the connector cannot drift from what it connects.
+      const px = parent.x + parent.width
+      const py = parent.y + parent.height / 2
+      const cx = node.x
+      const cy = node.y + node.height / 2
+      const run = cx - px
       edges.push({
         id: `${parent.id}->${node.id}`,
         parentId: parent.id,
         childId: node.id,
         depth: node.depth,
-        start: { x: flipPoint(sx), y: sy },
-        end: { x: flipPoint(ex), y: ey },
-        c1: { x: flipPoint(sx + run * EDGE_CURVE), y: sy },
-        c2: { x: flipPoint(ex - run * EDGE_CURVE), y: ey },
+        start: point(px, py),
+        end: point(cx, cy),
+        c1: point(px + run * EDGE_CURVE, py),
+        c2: point(cx - run * EDGE_CURVE, cy),
       })
     }
   }
@@ -458,9 +625,11 @@ export interface LayoutWorkNode<N extends LayoutInputNode = LayoutInputNode> {
   children: LayoutWorkNode<N>[]
   index: number
   hiddenChildCount: number
-  /** Top edge, in this subtree's own frame. */
+  /** The subtree's own leading edge ALONG THE SIBLING AXIS, in its own frame.
+   *  Unused by the block engine, which places boxes outright. */
   localY: number
-  /** How far this subtree's frame sits below its parent's frame. */
+  /** How far this subtree's frame sits past its parent's frame, along the
+   *  sibling axis. Unused by the block engine. */
   shift: number
   /** Accumulated frame offset — the sum of `shift` up the ancestor chain. */
   frame: number
@@ -560,8 +729,9 @@ function build<N extends LayoutInputNode>(
 // ── 3. pack ────────────────────────────────────────────────────────────────
 
 /**
- * The top and bottom edge a subtree occupies at each of its rows, indexed by
- * depth RELATIVE to the subtree's own root (0 = the root's own row).
+ * The leading and trailing edge — along the SIBLING axis — that a subtree
+ * occupies at each of its rows, indexed by depth RELATIVE to the subtree's own
+ * root (0 = the root's own row).
  *
  * This is the contour that makes the tree tidy. Two arrays rather than the
  * threaded pointers of Buchheim's linear-time variant, because the threads
@@ -645,6 +815,302 @@ function pack<N extends LayoutInputNode>(node: LayoutWorkNode<N>, gapSibling: nu
   return contour
 }
 
+// ── 3'. blocks ─────────────────────────────────────────────────────────────
+
+/**
+ * A whole subtree's extent, in LAYOUT space: `depth` along the axis depth runs
+ * on, `sibling` along the axis siblings spread on. Orientation-free, like
+ * everything else between the transpose and the emit — which is what lets the
+ * test suite assert the vertical block drawing as the transpose of the
+ * horizontal one instead of freezing a second set of numbers for it.
+ */
+interface Box {
+  depth: number
+  sibling: number
+}
+
+interface BlockPlan {
+  box: Box
+  /** Cells across the sibling axis. 1 for a leaf and for an only child. */
+  columns: number
+  /**
+   * The uniform cell — the largest CHILD BOX, and emphatically not the largest
+   * child RECTANGLE. A cell has to hold a whole subtree: two children in the
+   * same column of different rows share a sibling interval by construction, so
+   * if the cell were only node-sized their descendants would land in the same
+   * depth band at the same sibling interval and collide. Sizing the cell to the
+   * subtree is what makes "no two rectangles anywhere overlap" true rather than
+   * merely usually true.
+   */
+  cellDepth: number
+  cellSibling: number
+  /** The grid's own sibling extent, which the parent is centred on. */
+  blockSibling: number
+  /**
+   * The two gaps this plan was MEASURED with, carried so that placeBlock spaces
+   * the grid with the identical numbers.
+   *
+   * They are stored rather than recomputed because measurement and placement
+   * disagreeing by one gap is not a cosmetic fault — it is an overlap, and it
+   * would appear only on the tree shapes where `nested` differs between the two
+   * calls. Deriving a number twice from the same inputs is a bug waiting for a
+   * refactor to separate the derivations; deriving it once and passing it cannot
+   * drift.
+   */
+  sibGap: number
+  rowGap: number
+}
+
+/**
+ * The target shape of a block, as a ratio of its sibling extent to its depth
+ * extent.
+ *
+ * Two, because two is a page you scroll rather than a ribbon you pan. The
+ * measurement that produced this feature: 396 organisations under one parent, at
+ * the default card, come out 21 cells by 19 — a little over two screens across
+ * on a 1728-wide window — against a single row of 71,268 units, which is
+ * thirty-six screens of panning to reach the last one. Wider than tall rather
+ * than square because a screen is wider than it is tall and because the reader
+ * scrolls down far more comfortably than sideways.
+ */
+/**
+ * How much more air a block gets around it than a card does, when `gap.group` is
+ * not given. Three is the smallest ratio at which a grid of grids reads as
+ * separate groups rather than one band, judged by looking at a 396-organization
+ * render rather than by arithmetic.
+ */
+const DEFAULT_GROUP_RATIO = 3
+
+/**
+ * How much more air sits between two ROWS of one block than between two columns
+ * of it. Just over one, because the rows are siblings and the eye only needs to
+ * be able to count them — not to read a generation change that is not there.
+ */
+const DEFAULT_ROW_RATIO = 1.6
+
+const BLOCK_ASPECT = 2
+
+/**
+ * How many columns a parent's block gets.
+ *
+ * TWO RULES, and they are different rules on purpose. The HARD one is discrete
+ * and absolute: a block is never deeper in CELLS than it is wide, so two
+ * children never stack into what reads as a chain and a connector to the second
+ * one never has to cross the first. The SOFT one is BLOCK_ASPECT, measured on
+ * the block's real extents rather than on its cell counts, so that a wide cell
+ * and a tall cell get different column counts out of the same fan-out — which is
+ * the whole reason the target is stated as a shape and not as a magic number of
+ * columns.
+ *
+ * Every candidate is tried. That is O(fan-out) per parent and therefore O(n)
+ * over the tree, which is cheap enough that the alternative — a closed form that
+ * would have to be re-derived every time the scoring changed — buys nothing. The
+ * comparison is a strict `<` on a ratio distance, so a tie keeps the FEWER
+ * columns and the answer is a pure function of the child boxes and the gaps: no
+ * clock, no accumulation order, nothing a second run on the same input could
+ * decide differently. `depth` is at least one unit — sizes floor at 1 and rows
+ * at 1 — so the division is total.
+ */
+function blockColumns(
+  count: number,
+  cellSibling: number,
+  cellDepth: number,
+  sibGap: number,
+  rowGap: number,
+): number {
+  if (count <= 1) return 1
+  let best = count
+  let bestScore = Number.POSITIVE_INFINITY
+  for (let columns = 1; columns <= count; columns += 1) {
+    const rows = Math.ceil(count / columns)
+    if (columns < rows) continue
+    const sibling = columns * cellSibling + (columns - 1) * sibGap
+    const depth = rows * cellDepth + (rows - 1) * rowGap
+    const ratio = sibling / depth
+    // Distance from the target measured multiplicatively, so being twice as wide
+    // as the target scores the same as being half as wide. An additive distance
+    // would treat "nearly square" as close and "very wide" as far, which is
+    // backwards for a shape ratio.
+    const score = ratio >= BLOCK_ASPECT ? ratio / BLOCK_ASPECT : BLOCK_ASPECT / ratio
+    if (score < bestScore) {
+      bestScore = score
+      best = columns
+    }
+  }
+  return best
+}
+
+/**
+ * PHASES 2 AND 3, FOR THE BLOCK DRAWING: every subtree measured into a box, then
+ * every box placed inside its parent's grid.
+ *
+ * WHY THIS REPLACES THE CONTOUR PACKER RATHER THAN DECORATING IT. Wrapping and
+ * globally-aligned rings are not both available, and the proof is short. Take a
+ * parent P whose children are laid out in a grid with the depth bands preserved.
+ * Children c0 (row 0, column 0) and ck (row 1, column 0) are both at depth d+1
+ * and, by construction of a grid, occupy the SAME interval on the sibling axis.
+ * If either has drawn children, those grandchildren live in band d+2 — one band,
+ * shared by the whole drawing — at sibling intervals inside their parent's. Two
+ * of them therefore occupy the same rectangle. Overlap, guaranteed, not merely
+ * possible.
+ *
+ * So a block consumes the depth axis per row, and depth coordinates become local
+ * to a box. THAT IS THE TRADE, and it is signed: under `wrap: true`, nodes at
+ * the same depth in different rows of a block sit at different depth
+ * coordinates, and the rings are no longer globally aligned. What survives, and
+ * what was actually asked for, is regularity PER PARENT: straight column lines,
+ * straight row lines, uniform cells, every one of a parent's children in the
+ * same shaped slot as its siblings.
+ *
+ * WHY NO TWO RECTANGLES CAN OVERLAP, which is a strictly stronger invariant than
+ * the per-band one the contour packer earns. By induction, every node's
+ * rectangle lies inside its own box: it spans [x, x + node.width] ⊆ [x, x +
+ * box.depth] on the depth axis, and being centred inside `box.sibling >=
+ * node.height` it lies inside the box on the sibling axis too. The grid assigns
+ * each child a cell; cells are disjoint, their pitch being cell + gap on both
+ * axes; the grid begins one `gap.depth` past the parent's own rectangle, so the
+ * parent clears all of it; and each child's box sits inside its cell. Disjoint
+ * boxes contain disjoint drawings, so no two rectangles anywhere in the picture
+ * intersect — cousins included, different depths included.
+ *
+ * WHAT IT COSTS, so nobody is surprised by it later: one child with three
+ * hundred descendants beside a leaf sibling makes EVERY cell that big, and the
+ * leaf floats alone in the middle of one. That is the literal reading of "all
+ * children of one parent use a uniform cell size", and it is what makes the grid
+ * a true grid rather than a masonry wall. If it bites on real data the upgrade
+ * is the CSS-`auto`-rows shape — cell sibling extent uniform across the block,
+ * cell depth extent per row — which keeps both sets of grid lines straight at
+ * the cost of making blockColumns O(fan-out²) per parent.
+ *
+ * Two passes rather than one, because a block's cell size is the largest child
+ * box and nothing can be placed until all of them are known. Both are O(n), and
+ * both recurse — the same stack exposure `pack()` already has, and for the same
+ * reason: the trees this draws are rings deep, not thousands deep.
+ */
+function packBlocks<N extends LayoutInputNode>(root: LayoutWorkNode<N>, gap: Gap): void {
+  const plans = new Map<LayoutWorkNode<N>, BlockPlan>()
+  measureBlock(root, gap, plans)
+  placeBlock(root, 0, 0, gap, plans)
+}
+
+function measureBlock<N extends LayoutInputNode>(
+  node: LayoutWorkNode<N>,
+  gap: Gap,
+  plans: Map<LayoutWorkNode<N>, BlockPlan>,
+): Box {
+  const kids = node.children
+  if (kids.length === 0) {
+    // A leaf's box is its own rectangle. The three cell numbers are meaningless
+    // for it and placeBlock returns before it reads them.
+    const box: Box = { depth: node.width, sibling: node.height }
+    plans.set(node, {
+      box,
+      columns: 1,
+      cellDepth: 0,
+      cellSibling: 0,
+      blockSibling: 0,
+      sibGap: 0,
+      rowGap: 0,
+    })
+    return box
+  }
+
+  let cellDepth = 0
+  let cellSibling = 0
+  for (const kid of kids) {
+    const kidBox = measureBlock(kid, gap, plans)
+    if (kidBox.depth > cellDepth) cellDepth = kidBox.depth
+    if (kidBox.sibling > cellSibling) cellSibling = kidBox.sibling
+  }
+
+  // A cell that contains a grid needs more air around it than a cell that is one
+  // rectangle. `nested` asks the only question that matters: does ANY child of
+  // this node have children of its own? If so every cell in this grid is spaced
+  // as a group, including the childless ones — a uniform grid with two different
+  // column gaps in it is not a grid.
+  const nested = kids.some((kid) => kid.children.length > 0)
+  const groupGap = gap.group ?? gap.sibling * DEFAULT_GROUP_RATIO
+  const sibGap = nested ? groupGap : gap.sibling
+  // THE ROW GAP INSIDE A BLOCK IS NOT THE RING GAP, and using one for the other
+  // was a real defect visible in the first rendered picture. `gap.depth` is the
+  // distance from a parent to its children — it has to clear a stub and read as
+  // descent. A row boundary inside a wrapped block is neither: those two rows
+  // are SIBLINGS, the same generation, split only because the block ran out of
+  // width. Spacing them like generations at 46 against a 14 column gutter made
+  // vertical neighbours read as strangers and the grid look torn.
+  //
+  // A row gap slightly larger than the column gutter is what a wrapped grid
+  // wants: enough that the rows are countable, little enough that the block
+  // still reads as one object.
+  const rowGap = nested ? groupGap : (gap.row ?? Math.round(gap.sibling * DEFAULT_ROW_RATIO))
+
+  const columns = blockColumns(kids.length, cellSibling, cellDepth, sibGap, rowGap)
+  const rows = Math.ceil(kids.length / columns)
+  const blockSibling = columns * cellSibling + (columns - 1) * sibGap
+  const blockDepth = rows * cellDepth + (rows - 1) * rowGap
+
+  const box: Box = {
+    // The parent's own rectangle, then the ring gap, then the grid.
+    depth: node.width + gap.depth + blockDepth,
+    // A parent wider than its whole fan is the thing that sets the box's sibling
+    // extent; usually it is the other way round.
+    sibling: Math.max(node.height, blockSibling),
+  }
+  plans.set(node, { box, columns, cellDepth, cellSibling, blockSibling, sibGap, rowGap })
+  return box
+}
+
+function placeBlock<N extends LayoutInputNode>(
+  node: LayoutWorkNode<N>,
+  x: number,
+  y: number,
+  gap: Gap,
+  plans: Map<LayoutWorkNode<N>, BlockPlan>,
+): void {
+  // measureBlock ran over the whole tree first, so every node has a plan.
+  const plan = plans.get(node) as BlockPlan
+  // The node's own rectangle heads its box, centred on the box's sibling extent:
+  // a parent points at the MIDDLE OF ITS BLOCK, whether that block is one cell
+  // or four hundred. That is the wrapped restatement of the Reingold–Tilford
+  // rule, and it is deliberately not the old "centred between the first and last
+  // child" — with a ragged last row the first child is in column 0 and the last
+  // is somewhere in the middle, so their midpoint is not the block's and a parent
+  // written that way would point off to one side of its own fan.
+  node.x = x
+  node.y = y + (plan.box.sibling - node.height) / 2
+
+  const kids = node.children
+  if (kids.length === 0) return
+
+  const blockX = x + node.width + gap.depth
+  const blockY = y + (plan.box.sibling - plan.blockSibling) / 2
+  for (let i = 0; i < kids.length; i += 1) {
+    const kid = kids[i]
+    // Row-major, so `childIds` reads left to right and then down — which is what
+    // keeps the keyboard walk and the `role="tree"` order matching the picture.
+    const row = Math.floor(i / plan.columns)
+    const column = i % plan.columns
+    const kidBox = (plans.get(kid) as BlockPlan).box
+    placeBlock(
+      kid,
+      // Rows are FLUSH to their row line, so every cell in a row starts its own
+      // rings at exactly the same depth and the row reads as a row.
+      blockX + row * (plan.cellDepth + plan.rowGap),
+      // Columns are CENTRED, so a narrow subtree sits under the middle of its
+      // column instead of hugging one edge of it. Note what this composes to for
+      // the node itself: centring the box in the cell and then the rectangle in
+      // the box telescopes to "the rectangle is centred in the cell", whatever
+      // the box in between was — which is why every child in a column shares a
+      // centre line even when their subtrees are wildly different sizes.
+      blockY +
+        column * (plan.cellSibling + plan.sibGap) +
+        (plan.cellSibling - kidBox.sibling) / 2,
+      gap,
+      plans,
+    )
+  }
+}
+
 // ── options ────────────────────────────────────────────────────────────────
 
 /**
@@ -670,6 +1136,18 @@ export function resolveLayoutOptions<N extends LayoutInputNode>(
       // the one thing this file exists to make impossible.
       depth: positive(gap.depth, DEFAULT_GAP.depth, 0),
       sibling: positive(gap.sibling, DEFAULT_GAP.sibling, 0),
+      // Carried ONLY when the caller gave one, for the same reason `expandAll`
+      // is: `layout.options` is a value that three suites deep-compare, so the
+      // resolved gap of every caller that does not ask for a group gap has to be
+      // byte-for-byte the two-key object it has always been. When it is absent
+      // `measureBlock` falls back to `sibling * DEFAULT_GROUP_RATIO`, so the
+      // default lives in exactly one place and is not restated here.
+      ...(gap.group === undefined
+        ? {}
+        : { group: positive(gap.group, DEFAULT_GAP.sibling * DEFAULT_GROUP_RATIO, 0) }),
+      ...(gap.row === undefined
+        ? {}
+        : { row: positive(gap.row, DEFAULT_GAP.sibling * DEFAULT_ROW_RATIO, 0) }),
     },
     // The root is always drawn: a limit below zero would return an empty picture
     // for a workspace that has work in it. A missing or infinite limit means the
@@ -683,6 +1161,13 @@ export function resolveLayoutOptions<N extends LayoutInputNode>(
     // three test suites and serialised by the export — so the resolved shape of
     // every caller that does not ask for this is byte-for-byte what it was.
     ...(options.expandAll === true ? { expandAll: true } : {}),
+    // Same rule, and it is the whole reason `orientation` is an optional key
+    // rather than a required one with a 'horizontal' default: a resolved shape
+    // that gained a key would fail the byte-for-byte pin in layout.test.ts and
+    // the three `layout.options` deep-compares, for a value every existing
+    // caller already means by saying nothing.
+    ...(options.orientation === 'vertical' ? { orientation: 'vertical' as const } : {}),
+    ...(options.wrap === true ? { wrap: true } : {}),
   }
 }
 
@@ -792,6 +1277,79 @@ export interface ViewBoxFit {
   readonly y: number
   readonly width: number
   readonly height: number
+}
+
+/**
+ * The rectangle a branch occupies: a node's own rect unioned with every DRAWN
+ * descendant's. Zoom-to-branch is this, handed straight to fitToViewBox —
+ * `fitToViewBox(subtreeBounds(layout, id) ?? layout.bounds, viewport)` — which
+ * is why it reads immediately above that function rather than beside the layout.
+ *
+ * A FUNCTION AND NOT A FIELD, deliberately, and the reason is the same one that
+ * keeps `orientation` off the resolved options unless it is asked for. Every
+ * node already carries `childIds` and every layout carries `byId`, so this is
+ * derivable in one walk by whichever caller wants it; a `subtree` rect on
+ * PositionedNode would put a number nobody reads on every node of a thousand-node
+ * drawing, and a key on `Bounds` or on the layout itself would break the
+ * deep-equality assertions that are the entire point of layout.test.ts. Callers
+ * memoise it against the layout they are already memoising.
+ *
+ * UNLIKE `layout.bounds`, THIS IS NOT NORMALISED. minX and minY are where the
+ * branch actually is, because "where is it" is the whole question a camera is
+ * asking; a rectangle helpfully moved to the origin would fly the camera to the
+ * corner of the map every time.
+ *
+ * Returns null for an id the DRAWING does not contain — a collapsed branch's
+ * child, a node past the depth limit, a selection left over from a previous
+ * tree — so a caller falls back to the full bounds rather than framing a NaN.
+ * That is a different question from "is it in the model", and this function only
+ * answers the drawing's one.
+ *
+ * Reads nothing but `byId` and `childIds`, so it is equally right for the linear
+ * drawing, the polar one and the containment one, in either direction and either
+ * orientation — hence `DrawnLayout` rather than `MindtreeLayout` as the
+ * parameter.
+ */
+export function subtreeBounds<N extends LayoutInputNode>(
+  layout: DrawnLayout<N>,
+  id: string,
+): Bounds | null {
+  const root = layout.byId.get(id)
+  if (root === undefined) return null
+
+  let minX = root.x
+  let minY = root.y
+  let maxX = root.x + root.width
+  let maxY = root.y + root.height
+
+  // Iterative, because the drawing this walks can be a thousand rings deep — the
+  // chain fixture in layout.test.ts is exactly that — and a camera helper is not
+  // the place to spend the stack. `pop()` rather than `shift()` because min and
+  // max are commutative, so the traversal order cannot change the answer and the
+  // cheaper end of the array wins.
+  //
+  // The visited set makes the walk total over ANY DrawnLayout, including one a
+  // caller assembled by hand: buildLayoutNodes already guarantees a forest, so
+  // this costs one Set to make "the tab hung" impossible for the layout that
+  // does not come from there.
+  const pending: string[] = [...root.childIds]
+  const seen = new Set<string>([id])
+  while (pending.length > 0) {
+    const nextId = pending.pop() as string
+    if (seen.has(nextId)) continue
+    seen.add(nextId)
+    const positioned = layout.byId.get(nextId)
+    if (positioned === undefined) continue
+
+    if (positioned.x < minX) minX = positioned.x
+    if (positioned.y < minY) minY = positioned.y
+    if (positioned.x + positioned.width > maxX) maxX = positioned.x + positioned.width
+    if (positioned.y + positioned.height > maxY) maxY = positioned.y + positioned.height
+
+    for (const childId of positioned.childIds) pending.push(childId)
+  }
+
+  return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY }
 }
 
 /**

@@ -31,7 +31,9 @@
 // answer (budget E1): every organization past its rung's expectation, sorted
 // longest-stuck first, with no second interaction. The chip's badge is the same
 // number as the row count — `countAtRisk` and `buildPortfolioRows` share
-// `stageReading` in lib/portfolio/rows.ts precisely so those two cannot drift.
+// `stageReading` in lib/portfolio/fields.ts precisely so those two cannot drift,
+// and the map card and the org panel now read the same function for the same
+// reason.
 //
 // ── THE STAGE IS EDITABLE FROM THE ROW, AND THAT REVERSES A v1 DECISION ────
 //
@@ -81,15 +83,18 @@
 // changes down a list are forty small publishes rather than forty full reloads.
 //
 // The optimism still comes first, because even one round trip is a round trip
-// the reader must not wait for. So the new rung is held HERE, in a module-level map with a
-// `useSyncExternalStore` subscription — components/toast.tsx's shape and its
-// stated reason: two surfaces need one answer and neither is the other's parent.
-// The table and the org panel therefore agree the instant either one writes.
-// Each entry RETIRES ITSELF the moment store/config reports the same rung —
-// which the targeted publisher makes the very next render — so the overlay can
-// never mask a stage a second account manager set; and an entry
-// for a node the workspace no longer has is dropped outright, which is what
-// empties it on sign-out.
+// the reader must not wait for. So the new rung is held in a module-level map
+// with a `useSyncExternalStore` subscription — components/toast.tsx's shape and
+// its stated reason: several surfaces need one answer and none of them is
+// another's parent. That map is `store/stageOverlay.ts`, which is where it moved
+// once the map's own stats walk became a third reader; this file keeps the half
+// that writes it, because that half is the half that touches `api/map`. The
+// table, the org panel and the canvas therefore agree the instant any one of
+// them writes. Each entry RETIRES ITSELF the moment store/config reports the
+// same rung — which the targeted publisher makes the very next render — so the
+// overlay can never mask a stage a second account manager set; and an entry for
+// a node the workspace no longer has is dropped outright, which is what empties
+// it on sign-out.
 
 import {
   useCallback,
@@ -98,7 +103,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactElement,
 } from 'react'
 import { Link } from 'react-router-dom'
@@ -148,6 +152,14 @@ import {
   useStageMap,
 } from '../../store/config'
 import { useEntryMap, useFilterContext } from '../../store/entries'
+import {
+  dropPending,
+  mergeProgress,
+  readPendingStages,
+  resolveStageId,
+  setPending,
+  usePendingStages,
+} from '../../store/stageOverlay'
 import { usePortfolioLinks, usePortfolioTruncated } from '../../store/portfolio'
 import type { MapNodeProgress, MapNodeStage } from '../../types'
 import './portfolio.css'
@@ -167,55 +179,19 @@ const CLEAR_VALUE = 'clear'
 
 /* ══════════════════ the optimistic overlay ══════════════════ */
 //
-// See the header. A module-level store with a `useSyncExternalStore` view, so
-// the row and the org panel agree the instant either of them writes.
-
-/** node id → the rung this tab just wrote, before store/config has caught up. */
-const pendingStage = new Map<string, string | null>()
-let snapshot: ReadonlyMap<string, string | null> = new Map()
-const listeners = new Set<() => void>()
-
-function publish(): void {
-  // A FRESH MAP PER PUBLISH, and the same one returned until the next: under
-  // `useSyncExternalStore` a getSnapshot that built a new object per call would
-  // report "changed" forever. store/config.ts's header opens with the loop.
-  snapshot = new Map(pendingStage)
-  for (const listener of listeners) listener()
-}
-
-function subscribeStage(fn: () => void): () => void {
-  listeners.add(fn)
-  return () => {
-    listeners.delete(fn)
-  }
-}
-
-function readStage(): ReadonlyMap<string, string | null> {
-  return snapshot
-}
-
-/** What this tab has written and the store has not yet confirmed. */
-export function usePendingStages(): ReadonlyMap<string, string | null> {
-  return useSyncExternalStore(subscribeStage, readStage, readStage)
-}
-
-/**
- * The rung one node stands on, with this tab's own unconfirmed write on top.
- *
- * THE ONE PLACE BOTH SURFACES ASK. `undefined` from `progress` means nobody has
- * said anything; `null` means somebody cleared it; and the overlay can carry
- * either. Collapsing the three is the failure store/config's `useNodeProgress`
- * header spends a paragraph on.
- */
-export function resolveStageId(
-  nodeId: string,
-  progress: ReadonlyMap<string, Pick<MapNodeProgress, 'stage_id'>>,
-  pending: ReadonlyMap<string, string | null>,
-): string | null {
-  const held = pending.get(nodeId)
-  if (held !== undefined) return held
-  return progress.get(nodeId)?.stage_id ?? null
-}
+// IT LIVES IN store/stageOverlay.ts NOW, and the split is by what each half
+// touches rather than by what reads it. The PASSIVE half — the module-level map,
+// its `useSyncExternalStore` view, `mergeProgress` and `resolveStageId` — moved,
+// because `useMapModel`'s stats walk and the org panel's `<dl>` both have to see
+// this tab's unconfirmed write or they clock a rung from the stamp it replaced.
+// A page hook importing a component for its module state is the wrong direction;
+// a store module importing nothing but React is the right one.
+//
+// The ACTIVE half stayed here, below, with the control that owns the decisions:
+// `writeStage`, `retractStage`, `undoStage` and `useStageReconcile` all reach
+// for `api/map` and `store/config`, which is exactly what a pure overlay must
+// not, and which is why moving them would have bought nothing but a longer
+// import graph.
 
 /**
  * Record where one organization got to — optimistically, with no dialog.
@@ -230,12 +206,10 @@ export function resolveStageId(
  * which failed."
  */
 async function writeStage(nodeId: string, stageId: string | null): Promise<boolean> {
-  pendingStage.set(nodeId, stageId)
-  publish()
+  setPending(nodeId, stageId)
   const result = await setNodeStage(nodeId, stageId)
   if (!result.ok) {
-    pendingStage.delete(nodeId)
-    publish()
+    dropPending(nodeId)
     return false
   }
   /**
@@ -279,12 +253,10 @@ async function writeStage(nodeId: string, stageId: string | null): Promise<boole
  * that the rung is gone.
  */
 async function retractStage(nodeId: string): Promise<boolean> {
-  pendingStage.set(nodeId, null)
-  publish()
+  setPending(nodeId, null)
   const result = await deleteNodeProgress(nodeId)
   if (!result.ok) {
-    pendingStage.delete(nodeId)
-    publish()
+    dropPending(nodeId)
     return false
   }
   invalidateConfig()
@@ -329,16 +301,17 @@ function useStageReconcile(
   nodeById: ReadonlyMap<string, unknown>,
 ): void {
   useEffect(() => {
-    if (pendingStage.size === 0) return
-    let changed = false
-    for (const [nodeId, stageId] of pendingStage) {
-      const settled = progress.get(nodeId)?.stage_id ?? null
-      if (settled === stageId || !nodeById.has(nodeId)) {
-        pendingStage.delete(nodeId)
-        changed = true
-      }
+    const pending = readPendingStages()
+    if (pending.size === 0) return
+    // Collected before anything is dropped: `dropPending` publishes, and a
+    // publish while the map it was read from is still being iterated is the
+    // shape a future listener could re-enter this effect through.
+    const settled: string[] = []
+    for (const [nodeId, stageId] of pending) {
+      const stored = progress.get(nodeId)?.stage_id ?? null
+      if (stored === stageId || !nodeById.has(nodeId)) settled.push(nodeId)
     }
-    if (changed) publish()
+    for (const nodeId of settled) dropPending(nodeId)
   }, [progress, nodeById])
 }
 
@@ -422,36 +395,6 @@ function usePortfolioScope(
 const EMPTY_ANCESTRY: ReadonlyMap<string, readonly string[]> = new Map()
 const EMPTY_MANAGERS: ReadonlyMap<string, string | null> = new Map()
 const EMPTY_VENDORS: ReadonlyMap<string, string> = new Map()
-
-/**
- * The store's progress rows with this tab's unconfirmed writes applied.
- *
- * A NEW ROW IS SYNTHESISED WITH `stage_changed_at = now`, because a rung the
- * reader just chose was arrived at just now — reading the OLD stamp would leave
- * the "in stage" column showing sixty-eight days beside a rung the organization
- * reached a second ago, which reads as the write having failed.
- */
-function mergeProgress(
-  progress: ReadonlyMap<string, MapNodeProgress>,
-  pending: ReadonlyMap<string, string | null>,
-): Map<string, MapNodeProgress> {
-  const merged = new Map(progress)
-  if (pending.size === 0) return merged
-  const stamp = new Date().toISOString()
-  for (const [nodeId, stageId] of pending) {
-    const held = merged.get(nodeId)
-    merged.set(nodeId, {
-      node_id: nodeId,
-      stage_id: stageId,
-      // Null exactly when the rung is null — `map_node_progress_stage_chk`'s
-      // invariant, kept on the optimistic row so the two never disagree.
-      stage_changed_at: stageId === null ? null : stamp,
-      updated_at: held?.updated_at ?? stamp,
-      updated_by: held?.updated_by ?? null,
-    })
-  }
-  return merged
-}
 
 /* ══════════════════ the columns ══════════════════ */
 
@@ -620,7 +563,12 @@ export default function PortfolioStage({
         listSep: t('mindtree.listSep'),
         stageNameOf: stageLabelOf,
         managerNameOf,
-        vendorOfNode: ctx.vendorOfNode ?? new Map<string, string>(),
+        vendorOfNode: ctx.vendorOfNode ?? EMPTY_VENDORS,
+        // THE INHERITED PERSON, beside the inherited integrator, and off the
+        // same walk. Without it the `?by=manager` roll-up bucketed by the raw
+        // column while `inPortfolioScope` admitted by the inherited one, so an
+        // organization narrowed to by `?manager=X` could land in "Nobody named".
+        managerOfNode: ctx.managerOfNode ?? EMPTY_MANAGERS,
         progressByNode: progressByNodeId,
         entryById,
         today: ctx.today,
@@ -991,13 +939,37 @@ export default function PortfolioStage({
                   ))}
                 </tbody>
                 <tfoot>
+                  {/* TEN CELLS, AND THE COUNT IS ARITHMETIC RATHER THAN A HABIT:
+                      the header row is the tick column plus `ROW_COLUMNS`, so a
+                      footer row is `ROW_COLUMNS.length + 1` = 10 cells wide. The
+                      spanned `<th>` swallows the first five (tick · org · stage ·
+                      in-stage · at-risk) and five `<td>` follow, one per
+                      remaining column, in the header's own order.
+
+                      IT WAS NINE, and being one short is not a cosmetic defect:
+                      an HTML table lays cells out by POSITION, so the missing
+                      tenth slid `totals.open` one column to the start of where
+                      it belongs and printed the open total under "Progress",
+                      where it reads as a capabilities figure. The quiet column
+                      had no footer cell at all. Nothing on screen said so.
+
+                      ONLY `open` IS TOTALLED, deliberately. A sum of days in
+                      stage is not a quantity anybody has a use for, at-risk is
+                      already the chip's badge above the table, and a summed
+                      progress fraction would be a number with two different
+                      denominators in it. */}
                   <tr className="pf-total">
                     <th scope="row" colSpan={5}>
                       {t('mindtree.portfolioTotal', { count: totals.orgs })}
                     </th>
+                    {/* manager */}
                     <td />
+                    {/* vendor */}
+                    <td />
+                    {/* progress */}
                     <td />
                     <td className="pf-num tabular">{totals.open}</td>
+                    {/* quiet */}
                     <td />
                   </tr>
                 </tfoot>

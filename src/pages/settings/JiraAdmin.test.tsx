@@ -813,18 +813,25 @@ describe('a missing secret is a sentence, not a 500', () => {
   })
 
   it('carries a key for every code the deployed function can return', () => {
-    // The two halves of one wire contract. `JiraCode` is the union in
-    // supabase/functions/jira-read/index.ts; a code with no entry here renders
-    // as a generic sentence, which is the failure this unit exists to avoid.
-    const FUNCTION_CODES = [
-      'not_signed_in', 'forbidden', 'invalid_body', 'unknown_operation',
-      'invalid_jql', 'invalid_fields', 'invalid_page_token',
-      'missing_secret', 'bad_base_url', 'bad_email',
-      'jira_unauthorized', 'jira_forbidden', 'jira_not_found', 'jira_gone',
-      'jira_bad_request', 'jira_rate_limited', 'jira_unavailable',
-      'jira_bad_response', 'jira_timeout', 'jira_unreachable', 'server_error',
-    ]
+    // The two halves of one wire contract — and NOT a hand-copied list, for the
+    // same reason the mapper's codes above are read off map.ts itself: a
+    // twenty-fourth code added to the function's union must fail HERE, rather
+    // than render as a generic sentence at a reader in production. The old
+    // hand-typed list had already fallen silently two behind the union, which
+    // is the exact failure a subset check over a stale list cannot see.
+    const FN_SOURCE = readFileSync(
+      new URL('../../../supabase/functions/jira-read/index.ts', import.meta.url),
+      'utf8',
+    )
+    const unionBlock =
+      /export type JiraCode =([\s\S]*?)\n\nexport interface JiraFailure/.exec(FN_SOURCE)?.[1] ?? ''
+    const FUNCTION_CODES = [...unionBlock.matchAll(/\|\s*'([a-z_]+)'/g)].map((m) => m[1])
+    // Both directions. A server code with no client sentence renders generic;
+    // a client key with no server code is a stale entry nobody can ever hit.
+    // An empty FUNCTION_CODES (the extraction regex gone stale) fails the
+    // second assertion with every key orphaned, so the derivation guards itself.
     expect(FUNCTION_CODES.filter((c) => !(c in JIRA_ERROR_KEYS))).toEqual([])
+    expect(Object.keys(JIRA_ERROR_KEYS).filter((c) => !FUNCTION_CODES.includes(c))).toEqual([])
   })
 
   it('has a key in both bundles for every code it can map', () => {
@@ -1081,8 +1088,13 @@ describe('bidi', () => {
     // `JIRA_BASE_URL` and `jira-read` are Latin runs inside RTL prose. Without
     // an isolate the underscores and hyphens beside them resolve to the
     // paragraph and the secret's name reads back to front — which is worse than
-    // useless on the one sentence whose whole job is to name it exactly.
-    for (const key of ['errNoBaseUrl', 'errNoEmail', 'errNoToken', 'connSecrets']) {
+    // useless on the one sentence whose whole job is to name it exactly. The two
+    // route sentences carry `JIRA_EMAIL` and `JIRA_BASE_URL` inside the same RTL
+    // prose, so they are held to the same fence.
+    for (const key of [
+      'errNoBaseUrl', 'errNoEmail', 'errNoToken', 'connSecrets',
+      'errGatewayUnauthorized', 'errCloudIdUnresolved',
+    ]) {
       const value = AR_FLAT.get(key) ?? ''
       expect(value, key).toContain(FSI)
       expect(value, key).toContain(PDI)

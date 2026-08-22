@@ -45,7 +45,7 @@
 
 import type { CSSProperties } from 'react'
 import type { MindNodeView } from '../../components/mindtree/MindNode'
-import type { MindNode } from '../../lib/mindtree/model'
+import { KIND_ROLE, type MindNode } from '../../lib/mindtree/model'
 
 /**
  * A track colour pair, exactly as `trackStyle.trackVars()` produces it and
@@ -353,10 +353,30 @@ export function viewsFor(tree: MindNode): ReadonlyMap<string, MindNodeView> {
       count: String(n.count),
       toggleHint: n.children.length === 0 ? null : `Collapse ${text}`,
       breachHint: n.health.slaBreached ? 'Past deadline' : null,
-      // The underscore only means anything where the roll-up covers the node,
-      // which is every structural node and no leaf — `useMapModel` returns null
-      // for the rest and this does the same.
-      progress: n.children.length === 0 ? null : { done: live, total: n.count },
+      // WHO GETS AN UNDERSCORE — `KIND_ROLE[kind] === 'place'`, which is
+      // `useMapModel.collectProgress`'s own guard copied verbatim rather than
+      // paraphrased, because the paraphrase was WRONG and the pictures were
+      // wrong with it.
+      //
+      // It read `children.length === 0 ? null : …`, with a comment claiming that
+      // "the roll-up covers every structural node and no leaf" and that
+      // `useMapModel` returns null for the rest. It does not. `collectProgress`
+      // pushes the node's OWN `entityIdOf` into `nodeIds` before it walks any
+      // children, so an Organization with nothing under it is still a place
+      // holding one organization — itself — and the app draws it a bar. What is
+      // actually skipped is a `bucket` (a "+N more" fold, a group) and a `leaf`
+      // (an `entry` is an ISSUE, and "3 of 9 live" under one bug report is a
+      // category error), and both of those are kinds, not child counts.
+      //
+      // The cost of the paraphrase was 120 organizations drawn without a mark
+      // they carry in the product, in the only pictures anyone judges the tidy
+      // tree from — so the one thing every leaf card in the drawing has, its
+      // underscore, was the one thing no picture had ever tested for fit.
+      //
+      // An EMPTY organization still draws nothing, and by arithmetic rather than
+      // by a branch: `count` 0 makes `total` 0, and `MindNode` requires
+      // `total > 0`. The hollow dashed card stays hollow.
+      progress: KIND_ROLE[n.kind] === 'place' ? { done: live, total: n.count } : null,
       // An Organization's second line: account manager, then vendor. Null on
       // every department, exactly as `secondaryOf` returns null off a row it
       // cannot find.

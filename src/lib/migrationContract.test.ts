@@ -433,3 +433,41 @@ describe('R3-LEAD-1: a handover is bookkeeping, not activity', () => {
     }
   })
 })
+
+/**
+ * 0030 — `map_view_settings`, the one row that says how the map draws.
+ *
+ * The file's own three probe blocks are the authority and they run in the SQL
+ * Editor. These are the CI-side half, and they defend the two decisions in that
+ * file that a later reader is most likely to "tidy": the single-value CHECK on
+ * `colour_by`, which reads like an oversight and is a deliberate register of the
+ * fact that exactly one hue source exists; and the shape-only CHECK on
+ * `node_fields`, which reads like an omission and is the layering 0028 argued
+ * for at length — the database checks shape, the client drops and counts.
+ */
+describe('0030: the map view settings singleton stays inside the map\'s own refusals', () => {
+  const sql = (): string => files().find((f) => f.name === '0030_map_view_settings.sql')?.sql ?? ''
+
+  it('exists, so nothing below passes vacuously', () => {
+    // The same guard the top of this file applies to the glob, applied to one
+    // file: a rename would otherwise make both assertions below trivially true.
+    expect(sql()).not.toBe('')
+  })
+
+  it('colour_by cannot name a hue source that does not exist', () => {
+    // model.ts:71-79 "COLOUR IS INHERITED, NEVER PICKED" and 0023:49-55's refusal:
+    // the CHECK widens only in the migration that ships a second source. Widened
+    // hopefully — `in ('track','kind','stage')` — it lets a save name a source
+    // nothing can resolve, and the map renders colourless with no error anywhere.
+    expect(sql()).toMatch(/check \(colour_by in \('track'\)\)/)
+  })
+
+  it('node_fields is shape-checked and never vocabulary-checked', () => {
+    // 0028's status_map layering: the DATABASE checks shape, the CLIENT drops and
+    // counts. A CHECK on the field names could only refuse, and the day the field
+    // list changes it makes the saved row unwritable AND the fix unreachable,
+    // because the screen's save carries the whole object it is replacing.
+    expect(sql()).toContain("jsonb_typeof(node_fields) = 'object'")
+    expect(sql()).not.toMatch(/node_fields[\s\S]{0,200}?jsonb_path_exists/)
+  })
+})

@@ -186,6 +186,8 @@ import {
   type PanelSubject,
 } from '../lib/mindtree/lens'
 import { ancestorWorlds, layoutWorlds, worldAt } from '../lib/mindtree/worlds'
+import { layoutMindtree } from '../lib/mindtree/layout'
+import { asPreviewLayout, wantsTreePreview } from './map/treePreview'
 import {
   MIND_GROUPINGS,
   type MindGrouping,
@@ -625,10 +627,32 @@ export default function Mindtree(): ReactElement {
    * `worlds.ts`'s two card rules — wave 1's frozen contract and a different
    * unit's change.
    */
-  const layout = useMemo(
-    () => layoutWorlds<MindNodeModel>(focus.drawnRoot, { direction: rtl ? 'rtl' : 'ltr' }),
-    [focus.drawnRoot, rtl],
+  /**
+   * TEMPORARY: `?tree=1` swaps the containment drawing for the vertical wrapped
+   * tidy tree, through the disc bridge in ./map/treePreview.
+   *
+   * It is a flag and not a replacement because the camera still reads discs —
+   * see that file. When the camera takes rectangles this whole conditional, the
+   * bridge and the flag go, and `layoutMindtree` becomes the only call here.
+   */
+  const treePreview = wantsTreePreview(
+    typeof window === 'undefined' ? '' : window.location.search,
+    typeof window === 'undefined' ? '' : window.location.hash,
   )
+  const layout = useMemo(() => {
+    if (treePreview) {
+      return asPreviewLayout(
+        layoutMindtree<MindNodeModel>(focus.drawnRoot, {
+          direction: rtl ? 'rtl' : 'ltr',
+          orientation: 'vertical',
+          wrap: true,
+          nodeSize: { width: 132, height: 54 },
+          gap: { depth: 46, sibling: 14 },
+        }),
+      )
+    }
+    return layoutWorlds<MindNodeModel>(focus.drawnRoot, { direction: rtl ? 'rtl' : 'ltr' })
+  }, [focus.drawnRoot, rtl, treePreview])
 
   const geo = useMapGeometry({
     layout,
@@ -1760,6 +1784,13 @@ export default function Mindtree(): ReactElement {
                 matchesById={matchesById}
                 matchWedgesById={matchWedgesById}
                 getView={model.getView}
+                // THE ONE PLACE THAT KNOWS WHICH DRAWING WAS JUST BUILT. The
+                // tidy tree is FLAT: no level of detail, no rims, no per-child
+                // connectors — see MapCanvas's `flat` prop, which also explains
+                // why it cannot be worked out from the layout (the preview
+                // bridge invents a `worldD` for every node, so "has worlds"
+                // answers the wrong question for the very drawing it describes).
+                flat={treePreview}
                 rtl={rtl}
                 hintId={hintId}
                 dimensionLabel={model.dimensionLabel}

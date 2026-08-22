@@ -1,0 +1,189 @@
+--- a/src/pages/settings/StructureAdmin.tsx
++++ b/src/pages/settings/StructureAdmin.tsx
+@@ -497,11 +497,11 @@
+       setErrorKey(nodeResult.error)
+       return
+     }
+-    setNodes(nodeResult.data)
++    setNodes(nodeResult.data.rows)
+     // A failed KIND read is not a failed screen. The kinds are a chip and a
+     // picker; the tree is the point, and refusing to draw it because the
+     // vocabulary above it did not load would be the wrong trade.
+-    if (kindResult.ok) setKinds(kindResult.data)
++    if (kindResult.ok) setKinds(kindResult.data.rows)
+   }, [])
+ 
+   useEffect(() => {
+--- a/src/pages/settings/JiraAdmin.tsx
++++ b/src/pages/settings/JiraAdmin.tsx
+@@ -233,8 +233,8 @@
+       if (!n.ok || !u.ok) {
+         setCatalogueError(n.ok ? (u.ok ? null : u.error) : n.error)
+       } else {
+-        setNodes(n.data)
+-        setUseCases(u.data)
++        setNodes(n.data.rows)
++        setUseCases(u.data.rows)
+         setCatalogueError(null)
+       }
+       setCatalogueReady(true)
+--- a/src/pages/settings/CatalogueAdmin.tsx
++++ b/src/pages/settings/CatalogueAdmin.tsx
+@@ -76,7 +76,7 @@
+   deleteUseCase,
+   listMapNodeKinds,
+   listMapNodes,
+-  listNodeUseCases,
++  listNodeUseCasesFor,
+   listUseCases,
+   reorderMapNodeKinds,
+   updateMapNodeKind,
+@@ -214,10 +214,9 @@
+     // unusable without the first two. The last two are ADVISORY — they produce
+     // the counts the delete confirmations name — so a failure there sets the
+     // usage map to null rather than failing the screen.
+-    const [useCaseResult, kindResult, linkResult, nodeResult] = await Promise.all([
++    const [useCaseResult, kindResult, nodeResult] = await Promise.all([
+       listUseCases(true),
+       listMapNodeKinds(),
+-      listNodeUseCases(),
+       listMapNodes(true),
+     ])
+     if (!alive.current) return
+@@ -225,17 +224,30 @@
+     if (!useCaseResult.ok) {
+       setErrorKey(useCaseResult.error)
+       setUseCases([])
+-      setKinds(kindResult.ok ? kindResult.data : [])
++      setKinds(kindResult.ok ? kindResult.data.rows : [])
+       return
+     }
+     if (!kindResult.ok) {
+       setErrorKey(kindResult.error)
+-      setUseCases(useCaseResult.data)
++      setUseCases(useCaseResult.data.rows)
+       setKinds([])
+       return
+     }
+-    setUseCases(useCaseResult.data)
+-    setKinds(kindResult.data)
++    setUseCases(useCaseResult.data.rows)
++    setKinds(kindResult.data.rows)
++
++    // THE LINK READ MOVED BELOW THE NODE READ, and the serial round trip is the
++    // price of a read that can no longer be unbounded: listNodeUseCases lost its
++    // optional argument (api/map.ts), so the bulk form names the nodes it is
++    // about. It is asked for exactly the nodes counted above, which also makes
++    // the count's denominator explicit instead of implied. Advisory, like the
++    // node read: a failure sets the usage map to null rather than failing the
++    // screen. `alive` is re-checked because this await is a second chance to
++    // land after the screen has gone.
++    const linkResult = await listNodeUseCasesFor(
++      nodeResult.ok ? nodeResult.data.rows.map((n) => n.id) : [],
++    )
++    if (!alive.current) return
+ 
+     if (linkResult.ok) {
+       // DISTINCT NODES, not rows: the pair is the primary key, so one
+@@ -243,7 +255,7 @@
+       // count is already the organization count. Counted through a Set anyway,
+       // so the sentence stays true if the join ever grows a third key column.
+       const seen = new Map<string, Set<string>>()
+-      for (const link of linkResult.data) {
++      for (const link of linkResult.data.rows) {
+         const nodes = seen.get(link.use_case_id) ?? new Set<string>()
+         nodes.add(link.node_id)
+         seen.set(link.use_case_id, nodes)
+@@ -259,7 +271,7 @@
+       // does on a live one, and a count that quietly skipped them would
+       // under-report what the delete is about to touch.
+       const counts = new Map<string, number>()
+-      for (const node of nodeResult.data) {
++      for (const node of nodeResult.data.rows) {
+         if (node.kind_id === null) continue
+         counts.set(node.kind_id, (counts.get(node.kind_id) ?? 0) + 1)
+       }
+--- a/src/pages/settings/CatalogueAdmin.test.tsx
++++ b/src/pages/settings/CatalogueAdmin.test.tsx
+@@ -105,7 +105,7 @@
+   return {
+     listUseCases: record('listUseCases'),
+     listMapNodeKinds: record('listMapNodeKinds'),
+-    listNodeUseCases: record('listNodeUseCases'),
++    listNodeUseCasesFor: record('listNodeUseCasesFor'),
+     listMapNodes: record('listMapNodes'),
+     createUseCase: record('createUseCase'),
+     updateUseCase: record('updateUseCase'),
+--- a/src/pages/Mindtree.tsx
++++ b/src/pages/Mindtree.tsx
+@@ -188,6 +188,7 @@
+   FRAME_FILL_PHONE,
+ } from './map/mapMotion'
+ import { refreshEntries } from '../store/entries'
++import { useMapNodesTruncated } from '../store/config'
+ import { useMapLens } from './map/useMapLens'
+ import { useMapCursor } from './map/useMapCursor'
+ import { useMapDrag, useMapDragPressing } from './map/useMapDrag'
+@@ -312,6 +313,14 @@
+   const { filter, setFilter } = useMapUrlFilter()
+ 
+   const model = useMapModel(compact, locale, filter)
++  // TWO TRUNCATIONS, TWO SENTENCES, and they are not the same fact. `model.truncated`
++  // is the ENTRIES clamp (useMapModel.ts:187's `useEntriesTruncated()`) — the work
++  // filed under the map is a window, so the counts are low. This one is the
++  // HIERARCHY clamp (store/config.ts's `mapNodesTruncated`, set from api/map.ts's
++  // paged read): organizations themselves are missing, so rings a reader is looking
++  // for are not drawn at all. Collapsing them into one sentence would tell somebody
++  // hunting a named org that the numbers are approximate.
++  const nodesTruncated = useMapNodesTruncated()
+ 
+   /**
+    * The reader asked for less motion. Read ONCE, here, and threaded down —
+@@ -1040,11 +1049,12 @@
+               18x6px box of border and background at the canvas's start corner —
+               measured in the browser at 1600x900 with no tracks. The island and
+               the component must agree about having nothing to say. */}
+-          {(onMap && diveTrail.length > 1) || model.truncated ? (
++          {(onMap && diveTrail.length > 1) || model.truncated || nodesTruncated ? (
+             <div className="mtree-isle mtree-work">
+               {onMap && <Breadcrumb trail={diveTrail} onFocus={flyToId} />}
+ 
+               {model.truncated && <p className="mtree-note">{t('mindtree.truncated')}</p>}
++              {nodesTruncated && <p className="mtree-note">{t('mindtree.nodesPartial')}</p>}
+             </div>
+           ) : null}
+         </div>
+--- a/src/lib/labelSections.ts
++++ b/src/lib/labelSections.ts
+@@ -392,7 +392,10 @@
+         section: 'actions',
+       },
+       { prefixes: ['empty', 'branchEmpty'], section: 'emptyStates' },
+-      { prefixes: ['err'], section: 'messages' },
++      // `nodesPartial` joins the errors rather than the states it sits beside on
++      // screen: it is a sentence about the READ, like every other message here,
++      // and the reader who retitles it is retitling a warning.
++      { prefixes: ['err', 'nodesPartial'], section: 'messages' },
+     ],
+   },
+ 
+--- a/src/locales/en/mindtree.json
++++ b/src/locales/en/mindtree.json
+@@ -180,6 +180,7 @@
+       "other": "+{count} more items"
+     },
+     "nodeName": "⁨{label}⁩, {detail}",
++    "nodesPartial": "Only part of the hierarchy is loaded, so some organizations are missing from this map.",
+     "openEntry": "Open ⁨{title}⁩",
+     "panelBranch": "Inside ⁨{label}⁩",
+     "panelChanges": "The record of changes",
+--- a/src/locales/ar/mindtree.json
++++ b/src/locales/ar/mindtree.json
+@@ -226,6 +226,7 @@
+       "other": "{count} بند إضافي"
+     },
+     "nodeName": "⁨{label}⁩، {detail}",
++    "nodesPartial": "جزء من التسلسل فقط محمَّل، لذلك تنقص هذه الخريطة بعض المنشآت.",
+     "openEntry": "فتح ⁨{title}⁩",
+     "panelBranch": "داخل ⁨{label}⁩",
+     "panelChanges": "سجلّ التغييرات",

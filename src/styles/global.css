@@ -21,15 +21,26 @@
    So the ratios below are annotated against all three surfaces —
    --bg / --bg-elev / --bg-elev-2 — and the number that matters is the smallest.
 
+   LIFTED, 22 Aug 2026, on the owner's "make the site overall brighter a little".
+   The three surfaces went up by 10 points each. That is not a free change: the
+   palette had 0.13 of headroom above the 4.5 floor at its worst pair (--accent
+   on --bg-elev-2, 4.63), so raising the ground without raising the ink would
+   have put the accent below AA on the surface it is most often read on. So the
+   two inks that could not afford it moved with it — --text-faint and --accent,
+   both by holding hue and saturation and lifting lightness, which is the same
+   pair strategy the ring hexes already use. --text and --text-dim had room and
+   did not move. Every ratio in the comments below was recomputed against the
+   new surfaces; none of them is inherited from the old ones.
+
    Direction and theme are applied on <html> by src/lib/theme.ts and
    src/lib/i18n.ts (data-theme + dir + lang). No CSS here reads a physical
    direction: layout uses logical properties only, so RTL needs no mirror rules. */
 
 :root {
   /* ---------- surfaces (dark, default) ---------- */
-  --bg: #101519;
-  --bg-elev: #171d23;
-  --bg-elev-2: #212932;
+  --bg: #1a1f23;
+  --bg-elev: #21272d;
+  --bg-elev-2: #2b333c;
   /* Dividers and card outlines only — 1.46:1 on --bg, deliberately quiet.
      Form-control boundaries need to be identifiable on their own and use
      --field-border below instead. */
@@ -41,9 +52,9 @@
   --field-border: #6b7886;
 
   /* ---------- text ---------- */
-  --text: #e9eef4; /* 15.74 / 14.56 / 12.61 on bg / elev / elev-2 */
-  --text-dim: #a8b4c0; /*  8.71 /  8.05 /  6.97  — AA at every elevation */
-  --text-faint: #8d9aa8; /*  6.40 /  5.92 /  5.13  — worst case 5.13:1, AA */
+  --text: #e9eef4; /* 14.24 / 12.92 / 10.97 on bg / elev / elev-2 */
+  --text-dim: #a8b4c0; /* 7.87 / 7.15 / 6.06 — AA at every elevation */
+  --text-faint: #909daa; /* 6.00 / 5.45 / 4.62 — worst case 4.62:1, AA */
 
   /* ---------- accent ----------
      nphies VIOLET — the middle of the brand ring, not its cold end.
@@ -80,9 +91,9 @@
        pages/mindtree.css holds the working, and that sheet now RE-DERIVES the
        rows it used to quote. Rotate this token again and those blends must be
        swept again — holding luminance buys nothing there. */
-  --accent: #9884d6; /* 5.78 / 5.34 / 4.63 on bg / elev / elev-2 — AA on all three */
-  --accent-hover: #a894de; /* 5.57 worst surface */
-  --accent-soft: rgba(152, 132, 214, 0.16);
+  --accent: #a28fda; /* 5.91 / 5.37 / 4.56 on bg / elev / elev-2 — AA on all three */
+  --accent-hover: #b09ce2; /* 5.30 worst surface */
+  --accent-soft: rgba(162, 143, 218, 0.16);
   /* Foreground for text sitting ON a filled accent surface. RE-DERIVED, not
      carried over: the old #08111c was a BLUE-black tuned to a blue accent, and
      a violet accent does not take the same ink. This is the same near-black at

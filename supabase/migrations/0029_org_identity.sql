@@ -330,7 +330,7 @@
 -- `map_nodes` and silently strip the Director role of the whole tree
 -- (docs/PENDING-MIGRATIONS.md:47).
 --
--- ⚠ ONE KNOWN DEFECT IS LEFT ALONE HERE ON PURPOSE, AND IT IS 0030'S.
+-- ⚠ ONE KNOWN DEFECT IS LEFT ALONE HERE ON PURPOSE, AND IT IS 0031'S.
 --   `map_node_use_cases_touch()` (0024:527-534) pins `created_by` and the else
 --   arm's `updated_by` FLAT, which is FIX-BACKLOG R2-DB-1 — the same defect 0015
 --   and 0019 fixed on `entries`, and the one this file's own
@@ -340,12 +340,12 @@
 --   because restating a live function from a file whose subject is a different
 --   table is how 0023/0024 re-runs strip the Director role in the first place.
 --   It is named here so the next file inherits a task and not a surprise:
---   0030 restates map_node_use_cases_touch() with the `case` and the third
+--   0031 restates map_node_use_cases_touch() with the `case` and the third
 --   branch, and probes it the way probe 5 below probes this table.
 --   `map_node_goals_touch()` (0027:485 and 0027:500, both columns) and
 --   `map_node_progress_touch()` (0026:871, the updated_by half only — that table
 --   has no created_by) carry it too, and both files are still unapplied, so
---   whoever runs them next can fix it in place rather than in 0030.
+--   whoever runs them next can fix it in place rather than in 0031.
 --
 --
 -- ═══ THE TOKEN CONTRACT WITH src/lib/pgError.ts ═══

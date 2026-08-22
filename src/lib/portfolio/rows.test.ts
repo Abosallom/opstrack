@@ -212,6 +212,11 @@ function input(over: Partial<PortfolioInput> = {}): PortfolioInput {
     stageNameOf: (s) => s.name,
     managerNameOf: (id) => (id === null ? null : (NAMES[id] ?? 'Someone who left')),
     vendorOfNode: new Map([...nodes.values()].map((n) => [n.id, n.vendor])),
+    // EMPTY BY DEFAULT, and every existing expectation in this file depends on
+    // that: a missing key falls back to the row's own `account_manager_id`,
+    // which is exactly what the builder read before inheritance arrived. A case
+    // that wants the inherited person supplies the map itself.
+    managerOfNode: new Map<string, string | null>(),
     progressByNode: null,
     entryById: new Map<string, Entry>(),
     today: TODAY,
@@ -440,6 +445,101 @@ describe('null and zero are different answers', () => {
     // The most recently touched item is what "how quiet is this" means: two
     // days, not the sixty-four of the older one.
     expect(byId(rows, 'riyadh').quietDays).toBe(2)
+  })
+
+  it('folds quiet through a status GROUP, not only through direct children', () => {
+    /* THE RECURSION THE ONE-PASS REWRITE HAD TO KEEP. Quiet used to be a helper
+       called once per organization that walked the whole subtree, so it reached
+       through a `group` for free; the fold now lives in the row walk, which
+       SKIPS groups because a status bucket is not a place and gets no row. If
+       it skipped them for the fold as well, every organization whose items are
+       bucketed by status — which is the map's default dimension — would report
+       "nothing has ever been filed here". Nothing pinned that before. */
+    const withWork = tree()
+    const riyadh = withWork.children[0].children[0].children[0]
+    riyadh.children.push(
+      mind({
+        id: 'group:blocked',
+        kind: 'group',
+        bucketKey: 'blocked',
+        children: [
+          mind({ id: 'e1', kind: 'entry', entryId: 'e1' }),
+          mind({ id: 'e2', kind: 'entry', entryId: 'e2' }),
+        ],
+      }),
+    )
+    const entries = new Map<string, Entry>([
+      ['e1', { last_activity_at: '2026-01-05T00:00:00.000Z' } as Entry],
+      ['e2', { last_activity_at: '2026-03-08T00:00:00.000Z' } as Entry],
+    ])
+    const rows = buildPortfolioRows(input({ root: withWork, entryById: entries }))
+    expect(byId(rows, 'riyadh').quietDays).toBe(2)
+    // And it keeps climbing: the Phase above it is as quiet as its quietest
+    // organization, which is what makes a roll-up row mean anything.
+    expect(byId(rows, 'ob').quietDays).toBe(2)
+  })
+
+  it('leaves an ancestor null when nothing at all is filed beneath it', () => {
+    // `minQuiet` propagates null rather than collapsing it to zero, which is
+    // the difference between "nobody has touched this in 0 days" and "nobody
+    // has ever filed anything here".
+    const rows = buildPortfolioRows(input())
+    expect(byId(rows, 'ob').quietDays).toBeNull()
+  })
+})
+
+/* ─────────────────── the inherited account manager ─────────────────── */
+
+describe('one person, however far up the chain they sit', () => {
+  it('buckets by the INHERITED manager — the same person the filter admits', () => {
+    /* THE DEFECT THIS CLOSES. `inPortfolioScope` admits an organization by the
+       INHERITED manager (`FilterContext.managerOfNode`, store/entries' one
+       ancestor walk) while `bucketOf(row, 'manager')` bucketed it by the RAW
+       column. So `?manager=sara&by=manager` narrowed to Sara's book and then
+       filed the inherited half of it under "Nobody named" — a roll-up whose
+       one visible row contradicted the filter that produced it. */
+    const inherited = new Map<string, string | null>([['hail', 'sara']])
+    const rows = buildPortfolioRows(input({ managerOfNode: inherited }))
+    const hail = byId(rows, 'hail')
+    // The raw column is still null; the ROW says Sara, because the chain does.
+    expect(nodeMap().get('hail')?.account_manager_id).toBeNull()
+    expect(hail.managerId).toBe('sara')
+    expect(hail.managerName).toBe('Sara')
+
+    const groups = rollUpPortfolio(rows, 'manager', ladder(), (st) => st.name)
+    const sara = groups.find((g) => g.key === 'sara')
+    expect(sara?.nodeIds).toContain('hail')
+    expect(groups.find((g) => g.unnamed)?.nodeIds ?? []).not.toContain('hail')
+  })
+
+  it('admits the same organization it buckets, under ?manager=', () => {
+    const inherited = new Map<string, string | null>([
+      ['hail', 'sara'],
+      ['riyadh', 'sara'],
+      ['jeddah', 'sara'],
+      ['najran', 'sara'],
+      ['dammam', 'bandar'],
+      ['tabuk', 'bandar'],
+      ['ob', null],
+    ])
+    const rows = buildPortfolioRows(input({ managerOfNode: inherited }))
+    const scope: PortfolioScope = {
+      ...PORTFOLIO_SCOPE_ALL,
+      managerIds: ['sara'],
+      managerOfNode: inherited,
+    }
+    const seen = portfolioRowsFor(rows, { by: 'manager', risk: false }, scope).map((r) => r.nodeId)
+    expect(seen).toContain('hail')
+    // One rule, one map: what the filter admits is what the roll-up buckets.
+    expect(byId(rows, 'hail').managerId).toBe('sara')
+  })
+
+  it('falls back to the row when the chain has no answer for a node', () => {
+    // An ABSENT key is a cold start, not an unassigned organization: the raw
+    // column stands in rather than four hundred rows moving to "Nobody named".
+    const rows = buildPortfolioRows(input({ managerOfNode: new Map() }))
+    expect(byId(rows, 'riyadh').managerId).toBe('sara')
+    expect(byId(rows, 'hail').managerId).toBeNull()
   })
 })
 

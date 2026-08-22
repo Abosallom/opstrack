@@ -147,6 +147,8 @@
     "errNoEmail": "JIRA_EMAIL is not set on the jira-read function. Jira Cloud authenticates the account's email address together with its API token.",
     "errNoToken": "JIRA_API_TOKEN is not set on the jira-read function. Create the token in your Atlassian account and add it in the Supabase dashboard.",
     "errBadCredentials": "Jira refused that email and token. The token may have been revoked, or it may belong to a different account.",
+    "errGatewayUnauthorized": "Jira refused the token at the scoped-token address as well. Check the token carries the read scopes for Jira work and Jira users, and that JIRA_EMAIL is the account that created it.",
+    "errCloudIdUnresolved": "That site did not say which Jira cloud it is, so the address a scoped token needs could not be worked out. Check JIRA_BASE_URL is exactly your site address, with nothing after it.",
     "errNoSuchSite": "There is no Jira site at that address. Check JIRA_BASE_URL in the Supabase dashboard.",
     "errJiraForbidden": "That account authenticated, but Jira will not let it read this. Check the account's Jira permissions.",
     "errRateLimited": "Jira is rate-limiting this account right now. Wait a moment and try again.",

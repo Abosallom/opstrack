@@ -641,14 +641,82 @@ describe('the progress underscore', () => {
   const widthOf = (markup: string): number =>
     Number(/class="mring-progress"[^>]*width="([\d.]+)"/.exec(markup)?.[1] ?? Number.NaN)
 
-  it('encodes the live share as LENGTH, with nothing behind the remainder', () => {
+  const railWidthOf = (markup: string): number =>
+    Number(/class="mring-rail"[^>]*width="([\d.]+)"/.exec(markup)?.[1] ?? Number.NaN)
+
+  it('encodes the live share as LENGTH, against a rail that draws the whole', () => {
     const markup = render(props('card'))
     // 6 of 9, in a 168-wide box inset 12 both sides: (168-24) x 2/3 = 96.
     expect(widthOf(markup)).toBeCloseTo(96, 6)
-    // One rect for the underscore and one for the box. No third rect: a track
-    // behind the remainder would be a diluted mark, and dilution hands the
-    // measured ratio back.
-    expect([...markup.matchAll(/<rect/g)]).toHaveLength(2)
+    // And the whole it is two-thirds OF is on the page: the rail spans the same
+    // 144-unit budget, so "full" is a length the reader can see rather than one
+    // they have to assume. Three rects — the box, the rail, the bar.
+    expect(railWidthOf(markup)).toBeCloseTo(144, 6)
+    expect([...markup.matchAll(/<rect/g)]).toHaveLength(3)
+  })
+
+  it('draws a bare rail for a card that is 0 of N, which used to draw nothing', () => {
+    // THE READING THE RAIL WAS ADDED FOR. Before it, this card and a card with
+    // no progress pair at all emitted byte-identical markup, and "nothing is
+    // live on this account" is the single most important thing a leaf card can
+    // say. It is now a full-length rail with no bar standing on it.
+    const base = props('card')
+    const markup = render({
+      ...base,
+      view: { ...base.view, progress: { done: 0, total: 9 } },
+    })
+    expect(railWidthOf(markup)).toBeCloseTo(144, 6)
+    expect(markup).not.toContain('mring-progress')
+  })
+
+  const railGeom = (markup: string): { y: number; h: number } => {
+    const m = /class="mring-rail" x="[\d.-]+" y="([\d.-]+)"[^>]*height="([\d.]+)"/.exec(markup)
+    return { y: Number(m?.[1]), h: Number(m?.[2]) }
+  }
+  const barGeom = (markup: string): { y: number; h: number } => {
+    const m = /class="mring-progress" x="[\d.-]+" y="([\d.-]+)"[^>]*height="([\d.]+)"/.exec(markup)
+    return { y: Number(m?.[1]), h: Number(m?.[2]) }
+  }
+
+  it('spends no contrast on the rail — it is the bar’s own ink at a third its height', () => {
+    // The rail is told apart from the bar by HEIGHT and by nothing else: no
+    // opacity, no second colour, no diluted ink. Both rules resolve
+    // `--mtree-ink` in mind-ring.css, so what this file can check is the
+    // geometry that carries the distinction — and that the two share a bottom
+    // edge, which is what keeps a sub-unit rail off a half-pixel row.
+    const markup = render(props('card'))
+    const rail = railGeom(markup)
+    const bar = barGeom(markup)
+    expect(rail.h).toBeCloseTo(bar.h / 3, 6)
+    expect(rail.y + rail.h).toBeCloseTo(bar.y + bar.h, 6)
+    // No opacity on either mark, in the markup or anywhere it could be set.
+    expect(markup).not.toMatch(/class="mring-(rail|progress)"[^>]*opacity/)
+  })
+
+  it('keeps two units of height between a near-full bar and a bare rail', () => {
+    // THE ONE THING SEPARATING TWO OPPOSITE READINGS. A card at 0-of-N draws a
+    // line across the whole budget; a card at 142.9-of-144 draws a line across
+    // the whole budget. LENGTH cannot tell them apart at that end of the scale
+    // and the count cannot either, because the count is the total and not the
+    // live figure — so the entire discriminator is the bar's extra height, and
+    // this asserts it is worth more than one device pixel at 1:1. Eleven of the
+    // 153 cards in the shoot are past 92% full, so this is an ordinary row of
+    // healthy accounts, not a corner case.
+    const base = props('card')
+    const nearFull = render({
+      ...base,
+      view: { ...base.view, progress: { done: 143, total: 144 } },
+    })
+    const none = render({
+      ...base,
+      view: { ...base.view, progress: { done: 0, total: 144 } },
+    })
+    // Both draw a rail of the same full budget: length says nothing here.
+    expect(railWidthOf(nearFull)).toBeCloseTo(railWidthOf(none), 6)
+    expect(widthOf(nearFull)).toBeGreaterThan(0.99 * railWidthOf(nearFull))
+    expect(none).not.toContain('mring-progress')
+    // And the height step that is left carries the whole distinction.
+    expect(barGeom(nearFull).h - railGeom(nearFull).h).toBeGreaterThanOrEqual(2)
   })
 
   it('grows from the reading start, mirrored', () => {
@@ -661,10 +729,70 @@ describe('the progress underscore', () => {
     expect(xOf(ltr) + widthOf(ltr)).toBe(168 - xOf(rtl))
   })
 
-  it('is absent when there is nothing to say', () => {
+  it('is absent when there is nothing to say — rail included', () => {
+    // `progress: null` is "we hold no figure for this node", which is now a
+    // DIFFERENT card from "the figure is zero" above. Both marks have to go, or
+    // the distinction the rail was added to draw is undrawn again.
     const none = props('card')
     const markup = render({ ...none, view: { ...none.view, progress: null } })
     expect(markup).not.toContain('mring-progress')
+    expect(markup).not.toContain('mring-rail')
+  })
+})
+
+describe('the breach mark’s corner', () => {
+  const dotOf = (markup: string): { cx: number; cy: number; r: number } => {
+    const m = /class="mtree-breach"[\s\S]*?<circle cx="([\d.-]+)" cy="([\d.-]+)" r="([\d.]+)"/.exec(
+      markup,
+    )
+    return { cx: Number(m?.[1]), cy: Number(m?.[2]), r: Number(m?.[3]) }
+  }
+
+  it('leaves the count enough air to read as a card mark, not a flag on the numeral', () => {
+    // THE DOT AND THE COUNT ARE ONE COLUMN. Both sit at the reading end of the
+    // card — the dot in the block-start corner, the count centred on the card's
+    // own middle — so on a breached card they stack, and if the joint between
+    // them closes the pair reads as a single mark: a FLAGGED NUMBER, as though
+    // the breach qualified the open count, rather than "there is a breach in
+    // here". The worst case is the root's three-digit numeral, which is the
+    // widest thing that ever sits under this dot.
+    //
+    // The ascender is computed the way a typographer measures it rather than
+    // asserted as a magic number: the count is an 11.5px face centred on the
+    // card's middle (`dominantBaseline="central"`), and a cap height of ~0.72em
+    // puts its top half of that above the centre line.
+    const markup = render(props('card'))
+    const dot = dotOf(markup)
+    const countCentre = 44 / 2
+    const countAscender = countCentre - (11.5 * 0.72) / 2
+    expect(countAscender - (dot.cy + dot.r)).toBeGreaterThanOrEqual(6)
+  })
+
+  it('stays inside the card’s rounded corner while it does it', () => {
+    // The air above is bought by moving the dot toward the corner, and the
+    // corner is an arc: `rx={10}` centres it on (width-10, 10). If the dot's far
+    // point passes that radius the mark hangs off the card, which is a worse
+    // fault than the one the move fixed. Checked rather than eyeballed.
+    const markup = render(props('card'))
+    const dot = dotOf(markup)
+    const corner = { x: 168 - 10, y: 10 }
+    expect(Math.hypot(dot.cx - corner.x, dot.cy - corner.y) + dot.r).toBeLessThanOrEqual(10)
+    // And it clears the card's own block-start edge, keyline included (1.5).
+    expect(dot.cy - dot.r - 1.5).toBeGreaterThan(0)
+  })
+
+  it('rides the READING end, so the block-start band’s other corner stays free', () => {
+    // The obvious alternative fix for the joint above — move the breach to the
+    // opposite corner — is not available, and this is what says so in code. The
+    // dot mirrors with the script, which means it is always in the corner the
+    // reader ends a line at, and the corner it is NOT in is `tickX`, which the
+    // selection tick owns so that a ticked AND breached item shows both marks.
+    // The block axis has no mirror, so `cy` is the same number in both scripts.
+    const ltr = dotOf(render(props('card')))
+    const rtl = dotOf(render(props('card', { rtl: true })))
+    expect(ltr.cx).toBe(168 - 12)
+    expect(rtl.cx).toBe(12)
+    expect(rtl.cy).toBe(ltr.cy)
   })
 })
 

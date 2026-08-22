@@ -29,10 +29,19 @@
 // ═══ WHAT IS NOT ASSERTED, AND CANNOT BE HERE ═══
 //
 // That any of this works against a real Jira Cloud site. Nobody on this fleet
-// has a credential, by design. `jiraCall()` is not exercised at all: no network
-// call is made and no `fetch` is stubbed. The first honest test of the wire is
-// Aziz pressing `ping` against his own site. Said plainly here rather than
-// implied by a green suite.
+// has a credential, by design. `jiraCall()` is not exercised at all, and NO
+// REAL NETWORK CALL IS MADE ANYWHERE IN THIS FILE. The first honest test of the
+// wire is Aziz pressing `ping` against his own site. Said plainly here rather
+// than implied by a green suite.
+//
+// ⚠ ONE `fetch` IS STUBBED, AND ONLY ONE. §10 replaces `globalThis.fetch` for
+//   the duration of a handful of tests about `fetchCloudId()` — index.ts's
+//   SECOND outbound call, the unauthenticated `/_edge/tenant_info` lookup. The
+//   property those tests exist to hold is an ABSENCE ("this request carries no
+//   Authorization header"), and an absence on the wire cannot be observed by
+//   reading a return value. The stub is installed in a `beforeEach`, restored in
+//   an `afterEach`, and asserts on the arguments it was handed. `jiraCall` is
+//   still never stubbed and still never called.
 //
 // ⚠ ONE THING MOVED OUT OF THAT PARAGRAPH, AND IT MOVED FOR A REASON. This
 //   header used to say the `search` paging loop was "UNPROVEN except by
@@ -46,10 +55,14 @@
 //   cannot prove is that the real endpoint behaves like the model. Both halves
 //   matter; neither is the other.
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  ATLASSIAN_GATEWAY_ORIGIN,
   ENDPOINTS,
+  NO_GATEWAY_SENTENCE,
+  ROUTE_CACHE_TTL_MS,
+  TENANT_INFO,
   DEFAULT_SEARCH_FIELDS,
   FIELDS_CAP,
   FIELDS_PER_SEARCH,
@@ -60,11 +73,18 @@ import {
   SEARCH_MAX_PAGES,
   SEARCH_MAX_RESULTS,
   assertReadOnlyEndpoints,
+  assertTenantInfoIsRead,
   basicAuthHeader,
+  callWithRoute,
   clampCount,
   clampOffset,
+  clearRouteCache,
   collectSearchPages,
+  fetchCloudId,
   firstNonAsciiPosition,
+  gatewayApiRoot,
+  isCloudId,
+  isCredentialRefusal,
   isOperation,
   issueUrl,
   looksLikeEmail,
@@ -81,9 +101,14 @@ import {
   validateFields,
   validateJql,
   validatePageToken,
+  withApiRoot,
+  type CloudIdResult,
+  type JiraCallResult,
+  type JiraCredential,
   type JiraEndpoint,
   type JiraFieldOut,
   type PageReader,
+  type ParsedBaseUrl,
 } from './index.ts'
 
 /* ──────────────────────── reading the file off disk ─────────────────────── */
@@ -122,10 +147,43 @@ function count(src: string, re: RegExp): number {
 /* ═════════════════════ 1. the structural promises ════════════════════════ */
 
 describe('read-only is a property of the file, not a convention', () => {
-  it('calls fetch exactly once, and only through jiraCall', async () => {
+  it('calls fetch exactly twice, once in jiraCall and once in fetchCloudId', async () => {
+    // THIS TEST USED TO SAY "exactly once" AND LOOSENING IT WAS THE WHOLE
+    // DECISION. index.ts §7 added a FIFTH outbound URL — the unauthenticated
+    // `/_edge/tenant_info` lookup that finds the cloud id for a scoped API
+    // token — and a second `fetch` is a second place a credential could go on
+    // the wire. So the count is pinned at two AND each one is pinned to the
+    // function it must live in; a third, or one of these moving somewhere the
+    // allow-list does not reach, fails here.
     const code = stripComments(await readSource())
-    expect(count(code, /\bfetch\s*\(/g)).toBe(1)
-    expect(count(code, /\bawait fetch\(/g)).toBe(1)
+    expect(count(code, /\bfetch\s*\(/g)).toBe(2)
+    expect(count(code, /\bawait fetch\(/g)).toBe(2)
+
+    const jiraCallAt = code.indexOf('async function jiraCall(')
+    const cloudIdAt = code.indexOf('export async function fetchCloudId(')
+    expect(jiraCallAt).toBeGreaterThan(-1)
+    expect(cloudIdAt).toBeGreaterThan(jiraCallAt)
+
+    const first = code.indexOf('await fetch(')
+    const second = code.indexOf('await fetch(', first + 1)
+    expect(first).toBeGreaterThan(jiraCallAt)
+    expect(first).toBeLessThan(cloudIdAt)
+    expect(second).toBeGreaterThan(cloudIdAt)
+  })
+
+  it('sends an Authorization header on exactly ONE of those two fetches', async () => {
+    // The property that matters is not "two fetches" but "one credential". The
+    // tenant_info lookup is public; attaching Basic auth to it would put the
+    // whole Atlassian account on a request that cannot use it.
+    const code = stripComments(await readSource())
+    expect(count(code, /Authorization:\s*basicAuthHeader\(/g)).toBe(1)
+    // `Authorization` also appears on the two SUPABASE clients, carrying the
+    // CALLER's own JWT rather than a Jira secret. The Jira-credential form is
+    // the one that must stay at one, and it must sit inside jiraCall — i.e.
+    // before fetchCloudId, which is the next function that touches the network.
+    const authAt = code.indexOf('Authorization: basicAuthHeader(')
+    expect(authAt).toBeGreaterThan(code.indexOf('async function jiraCall('))
+    expect(authAt).toBeLessThan(code.indexOf('export async function fetchCloudId('))
   })
 
   it('never writes an HTTP verb as a literal at the call site', async () => {
@@ -1096,5 +1154,521 @@ describe('#5 — the paging loop never reads an issue it does not return', () =>
     expect(r.value.pages).toBe(2)
     expect(r.value.nextPageToken).toBe('at-200')
     expect(r.value.truncated).toBe(true)
+  })
+})
+
+/* ═══════ 10. the second route: an API token WITH SCOPES (index.ts §7) ══════ */
+
+/**
+ * ⚠ WHAT THIS SECTION IS ABOUT. Atlassian mints two kinds of API token and they
+ *   are not called at the same host. A CLASSIC token works at
+ *   `https://site.atlassian.net/rest/api/3/...`; a token WITH SCOPES must be
+ *   called at `https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3/...` and
+ *   answers 401 at the site — the SAME 401 a revoked classic token answers,
+ *   which is what made this expensive to diagnose.
+ *
+ *   Two things had to stay true while teaching index.ts both routes, and both
+ *   are asserted here rather than promised: the ALLOW-LIST is untouched (paths
+ *   are still `/rest/api/3/` literals, still validated by the same assertion),
+ *   and the classic token's behaviour is UNCHANGED — one request, one route, no
+ *   lookup, no extra host.
+ */
+
+const CLOUD_ID = '1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d'
+
+function cred(overrides: Partial<JiraCredential> = {}): JiraCredential {
+  const r = readCredential({
+    baseUrl: 'https://acme.atlassian.net',
+    email: 'aziz@example.com',
+    token: 'ATATT-not-a-real-token-0000',
+  })
+  if (!r.ok) throw new Error('fixture credential did not parse')
+  return { ...r.value, ...overrides }
+}
+
+function refusal(status: 401 | 403 | 404 | 429): JiraCallResult {
+  const m = mapJiraStatus(status)
+  return { ok: false, failure: m.failure, status: m.status, headers: m.headers }
+}
+
+const OK: JiraCallResult = { ok: true, status: 200, data: { accountId: 'a1' } }
+
+/** Records every apiRoot it is asked to call, and answers per-root. */
+function attempts(answer: (apiRoot: string) => JiraCallResult) {
+  const roots: string[] = []
+  return {
+    roots,
+    attempt: (c: JiraCredential) => {
+      roots.push(c.apiRoot)
+      return Promise.resolve(answer(c.apiRoot))
+    },
+  }
+}
+
+function resolver(result: CloudIdResult) {
+  const calls: string[] = []
+  return {
+    calls,
+    resolveCloudId: (base: ParsedBaseUrl) => {
+      calls.push(base.origin)
+      return Promise.resolve(result)
+    },
+  }
+}
+
+const CLOUD_OK: CloudIdResult = { ok: true, cloudId: CLOUD_ID }
+
+describe('the fifth outbound URL is constrained like the other four', () => {
+  it('is its own frozen constant and NOT an ENDPOINTS entry', async () => {
+    // Putting it in ENDPOINTS would have forced assertReadOnlyEndpoints() to
+    // grow an exception to `startsWith('/rest/api/3/')`, and an allow-list whose
+    // validator has an exception proves nothing. So: still four entries, still
+    // all under /rest/api/3/, and the fifth URL lives elsewhere.
+    expect(Object.keys(ENDPOINTS).sort()).toEqual(['fieldList', 'jqlSearch', 'myself', 'projectSearch'])
+    for (const ep of Object.values(ENDPOINTS) as JiraEndpoint[]) {
+      expect(ep.path.startsWith('/rest/api/3/')).toBe(true)
+    }
+    expect(() => assertReadOnlyEndpoints()).not.toThrow()
+    expect(Object.values(ENDPOINTS).map((e) => (e as JiraEndpoint).path)).not.toContain(TENANT_INFO.path)
+
+    expect(Object.isFrozen(TENANT_INFO)).toBe(true)
+    expect(TENANT_INFO.path).toBe('/_edge/tenant_info')
+    expect(TENANT_INFO.verb).toBe('GET')
+    // A path and a verb. Nothing that could smuggle a body or a header in.
+    expect(Object.keys(TENANT_INFO).sort()).toEqual(['path', 'verb'])
+
+    // And the assertion is wired at module load, not merely exported.
+    const code = stripComments(await readSource())
+    expect(code).toMatch(/^assertTenantInfoIsRead\(\)$/m)
+    expect(code).toMatch(/^assertReadOnlyEndpoints\(\)$/m)
+  })
+
+  it('validates the constant on its own, with no host', () => {
+    expect(() => assertTenantInfoIsRead()).not.toThrow()
+  })
+
+  it('accepts a host that came out of parseBaseUrl', () => {
+    const r = parseBaseUrl('https://acme.atlassian.net')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(() => assertTenantInfoIsRead(r.value)).not.toThrow()
+  })
+
+  it('REFUSES a host that did not come out of parseBaseUrl', () => {
+    // The shape of the object is structurally satisfiable in TypeScript, which
+    // is exactly why the assertion re-parses rather than trusting the type. Each
+    // of these is a hand-built ParsedBaseUrl that parseBaseUrl would have
+    // rejected or normalised differently.
+    const forged: ParsedBaseUrl[] = [
+      { origin: 'http://acme.atlassian.net', hostname: 'acme.atlassian.net', atlassianCloud: true },
+      { origin: 'https://acme.atlassian.net/evil', hostname: 'acme.atlassian.net', atlassianCloud: true },
+      { origin: 'https://attacker.example.com', hostname: 'attacker.example.com', atlassianCloud: true },
+      { origin: 'https://ACME.atlassian.net', hostname: 'acme.atlassian.net', atlassianCloud: true },
+      { origin: 'https://acme.atlassian.net', hostname: 'other.atlassian.net', atlassianCloud: true },
+      { origin: 'https://10.0.0.4', hostname: '10.0.0.4', atlassianCloud: true },
+    ]
+    for (const base of forged) expect(() => assertTenantInfoIsRead(base)).toThrow()
+  })
+
+  it('REFUSES a host that is not Atlassian Cloud, even a well-formed one', () => {
+    const r = parseBaseUrl('https://jira.example.com')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.atlassianCloud).toBe(false)
+    expect(() => assertTenantInfoIsRead(r.value)).toThrow(/not a \*\.atlassian\.net site/)
+  })
+
+  it('names exactly one foreign host in the whole source file', async () => {
+    // A reviewer must be able to grep for every host this function can reach and
+    // find the owner's own site plus this one. The literal appears once, as a
+    // standalone string bound to a named constant.
+    const code = stripComments(await readSource())
+    expect(count(code, /['"`]https:\/\/api\.atlassian\.com['"`]/g)).toBe(1)
+    expect(code).toMatch(/ATLASSIAN_GATEWAY_ORIGIN = 'https:\/\/api\.atlassian\.com'/)
+    expect(code).toMatch(/\$\{ATLASSIAN_GATEWAY_ORIGIN\}\/ex\/jira\//)
+  })
+
+  it('builds the gateway root from a shape-checked cloud id and nothing else', async () => {
+    expect(gatewayApiRoot(CLOUD_ID)).toBe(`${ATLASSIAN_GATEWAY_ORIGIN}/ex/jira/${CLOUD_ID}`)
+    // The one URL-shaped concatenation in jiraCall, pinned: apiRoot + a literal
+    // path out of the frozen allow-list. Never caller text, on either route.
+    const code = stripComments(await readSource())
+    expect(code).toMatch(/new URL\(cred\.apiRoot \+ ep\.path\)/)
+    expect(code).not.toMatch(/new URL\(cred\.base\.origin \+ ep\.path\)/)
+  })
+
+  it.each([
+    ['a path traversal', '../../evil'],
+    ['a host', 'evil.example.com'],
+    ['a scheme', 'https://evil.example.com'],
+    ['an encoded slash', '1a2b%2Fevil'],
+    ['a query', 'abcdefgh?x=1'],
+    ['too short', 'abc'],
+    ['a non-string', 42],
+    ['empty', ''],
+  ])('refuses to route through %s', (_label, bad) => {
+    expect(isCloudId(bad)).toBe(false)
+    expect(() => gatewayApiRoot(bad as string)).toThrow(/not a cloud id/)
+  })
+
+  it('accepts the UUID Atlassian actually sends, without hard-coding UUID', () => {
+    expect(isCloudId(CLOUD_ID)).toBe(true)
+    expect(isCloudId('abcdefgh')).toBe(true)
+  })
+})
+
+describe('the tenant_info lookup sends no credential', () => {
+  const realFetch = globalThis.fetch
+  let seen: { url: string; init: RequestInit | undefined }[] = []
+  let reply: () => Response
+
+  beforeEach(() => {
+    seen = []
+    reply = () => new Response(JSON.stringify({ cloudId: CLOUD_ID }), { status: 200 })
+    globalThis.fetch = ((url: string, init?: RequestInit) => {
+      seen.push({ url: String(url), init })
+      return Promise.resolve(reply())
+    }) as typeof fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  function base(): ParsedBaseUrl {
+    const r = parseBaseUrl('https://acme.atlassian.net')
+    if (!r.ok) throw new Error('fixture base did not parse')
+    return r.value
+  }
+
+  it('GETs exactly the documented URL, with no query and no body', async () => {
+    const r = await fetchCloudId(base())
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.cloudId).toBe(CLOUD_ID)
+    expect(seen).toHaveLength(1)
+    expect(seen[0].url).toBe('https://acme.atlassian.net/_edge/tenant_info')
+    expect(seen[0].init?.method).toBe('GET')
+    expect(seen[0].init?.body).toBeUndefined()
+  })
+
+  it('sends NO Authorization header — the whole point of the endpoint', async () => {
+    // The secret is passed in, because it is needed to REDACT anything that
+    // comes back. It must not appear on the request.
+    const token = 'ATATT-super-secret-value'
+    await fetchCloudId(base(), [token, basicAuthHeader('aziz@example.com', token)])
+    const headers = (seen[0].init?.headers ?? {}) as Record<string, string>
+    expect(Object.keys(headers)).toEqual(['Accept'])
+    expect(headers.Authorization).toBeUndefined()
+    expect(JSON.stringify(seen[0])).not.toContain(token)
+    expect(JSON.stringify(seen[0])).not.toContain('Basic ')
+  })
+
+  it('never asks a non-Cloud host for a cloud id — and refuses it typed, not thrown', async () => {
+    // The assertion inside is as strict as ever — the describe above proves it
+    // still throws bare for every forged base. What is proven HERE is the
+    // boundary: a request-path caller gets a typed refusal with the route
+    // code, never an uncaught throw that the top-level catch would flatten
+    // into server_error and "Something went wrong". And no request leaves.
+    const r = parseBaseUrl('https://jira.example.com')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const out = await fetchCloudId(r.value)
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(out.failure.code).toBe('jira_cloud_id_unresolved')
+    expect(out.status).toBe(502)
+    expect(out.failure.jiraStatus).toBeUndefined()
+    expect(out.failure.error).toMatch(/before any request/)
+    expect(seen).toHaveLength(0)
+  })
+
+  it('refuses a forged base typed too, and never contacts the forged host', async () => {
+    // A ParsedBaseUrl is structurally satisfiable, which is why the assertion
+    // re-parses. This proves the refusal of a forgery is ALSO a typed refusal:
+    // the guard's whole value is against a future caller, and a future caller
+    // is exactly who must not turn it into a 500.
+    const forged: ParsedBaseUrl = {
+      origin: 'https://attacker.example.com',
+      hostname: 'attacker.example.com',
+      atlassianCloud: true,
+    }
+    const out = await fetchCloudId(forged)
+    expect(out.ok).toBe(false)
+    if (out.ok) return
+    expect(out.failure.code).toBe('jira_cloud_id_unresolved')
+    expect(out.failure.jiraStatus).toBeUndefined()
+    expect(seen).toHaveLength(0)
+  })
+
+  it('reports an HTTP failure as its own code, not as a bad credential', async () => {
+    reply = () => new Response(JSON.stringify({ errorMessages: ['nope'] }), { status: 404 })
+    const r = await fetchCloudId(base())
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.failure.code).toBe('jira_cloud_id_unresolved')
+    expect(r.status).toBe(502)
+    expect(r.failure.jiraStatus).toBe(404)
+    expect(r.failure.error).toMatch(/answered HTTP 404/)
+  })
+
+  it('redacts the token out of whatever the lookup answered', async () => {
+    const token = 'ATATT-super-secret-value'
+    reply = () => new Response(JSON.stringify({ errorMessages: [`saw ${token}`] }), { status: 400 })
+    const r = await fetchCloudId(base(), [token])
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(JSON.stringify(r)).not.toContain(token)
+    expect(r.failure.detail).toContain('[redacted]')
+  })
+
+  it('names a non-JSON answer rather than throwing on the parse', async () => {
+    reply = () => new Response('<html>a login page</html>', { status: 200 })
+    const r = await fetchCloudId(base())
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.failure.code).toBe('jira_cloud_id_unresolved')
+    expect(r.failure.error).toMatch(/not JSON/)
+  })
+
+  it.each([
+    ['a missing cloudId', {}],
+    ['a cloudId that is a path', { cloudId: '../../evil' }],
+    ['a cloudId that is a URL', { cloudId: 'https://evil.example.com' }],
+    ['a cloudId that is not a string', { cloudId: 7 }],
+  ])('refuses %s, and does not quote it back', (_label, body) => {
+    reply = () => new Response(JSON.stringify(body), { status: 200 })
+    return fetchCloudId(base()).then((r) => {
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.failure.code).toBe('jira_cloud_id_unresolved')
+      expect(r.failure.error).toMatch(/without a usable cloudId/)
+      // Header §6: describe the shape, never quote the value that was rejected.
+      expect(r.failure.error).not.toContain('evil')
+    })
+  })
+
+  it('reports an unreachable lookup without pretending Jira answered', async () => {
+    globalThis.fetch = (() => Promise.reject(new TypeError('dns'))) as typeof fetch
+    const r = await fetchCloudId(base())
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.failure.code).toBe('jira_cloud_id_unresolved')
+    expect(r.failure.jiraStatus).toBeUndefined()
+    expect(r.failure.error).toMatch(/could not be reached/)
+  })
+})
+
+describe('callWithRoute — the site first, the gateway only if it has to', () => {
+  beforeEach(clearRouteCache)
+  afterEach(clearRouteCache)
+
+  it('leaves a CLASSIC token exactly as it was: one call, the site, no lookup', async () => {
+    // THE NO-REGRESSION TEST. If this ever needs two attempts or a cloud id,
+    // every working installation just got slower and started talking to a host
+    // it never talked to before.
+    const a = attempts(() => OK)
+    const res = await resolver({ ok: false, status: 502, failure: { code: 'server_error', error: 'x' } })
+    const out = await callWithRoute({ cred: cred(), attempt: a.attempt, resolveCloudId: res.resolveCloudId })
+    expect(out.result.ok).toBe(true)
+    expect(out.routing).toEqual({ route: 'site' })
+    expect(a.roots).toEqual(['https://acme.atlassian.net'])
+    expect(res.calls).toEqual([])
+  })
+
+  it('falls back to the gateway when the site answers 401', async () => {
+    const gatewayRoot = `${ATLASSIAN_GATEWAY_ORIGIN}/ex/jira/${CLOUD_ID}`
+    const a = attempts((root) => (root === gatewayRoot ? OK : refusal(401)))
+    const res = resolver(CLOUD_OK)
+    const out = await callWithRoute({ cred: cred(), attempt: a.attempt, resolveCloudId: res.resolveCloudId })
+    expect(out.result.ok).toBe(true)
+    expect(out.routing).toEqual({ route: 'gateway', cloudId: CLOUD_ID })
+    // Site first, ALWAYS, then exactly one retry. Not the other way round.
+    expect(a.roots).toEqual(['https://acme.atlassian.net', gatewayRoot])
+    expect(res.calls).toEqual(['https://acme.atlassian.net'])
+  })
+
+  it('falls back on a 403 too, and on nothing else', async () => {
+    for (const status of [401, 403] as const) {
+      clearRouteCache()
+      const a = attempts((root) => (root.startsWith(ATLASSIAN_GATEWAY_ORIGIN) ? OK : refusal(status)))
+      const out = await callWithRoute({ cred: cred(), attempt: a.attempt, resolveCloudId: resolver(CLOUD_OK).resolveCloudId })
+      expect(out.routing.route).toBe('gateway')
+      expect(a.roots).toHaveLength(2)
+    }
+    for (const status of [404, 429] as const) {
+      clearRouteCache()
+      const a = attempts(() => refusal(status))
+      const res = resolver(CLOUD_OK)
+      const out = await callWithRoute({ cred: cred(), attempt: a.attempt, resolveCloudId: res.resolveCloudId })
+      expect(out.routing).toEqual({ route: 'site' })
+      expect(a.roots).toHaveLength(1)
+      expect(res.calls).toEqual([])
+      expect(out.result.ok).toBe(false)
+    }
+  })
+
+  it('classifies which failures are worth a second door', () => {
+    expect(isCredentialRefusal(refusal(401))).toBe(true)
+    expect(isCredentialRefusal(refusal(403))).toBe(true)
+    expect(isCredentialRefusal(refusal(404))).toBe(false)
+    expect(isCredentialRefusal(refusal(429))).toBe(false)
+    expect(isCredentialRefusal(OK)).toBe(false)
+  })
+
+  it('NEVER sends a non-Cloud host to api.atlassian.com', async () => {
+    // A custom domain or a Data Center install has no cloud id, and its hostname
+    // is not Atlassian's to receive. The 401 stays a 401 — same code, same
+    // status, same first sentence — with one sentence added saying why no
+    // gateway was tried, which is the difference between "your token is bad" and
+    // "your token cannot reach this kind of site at all".
+    const dc = cred({ base: { origin: 'https://jira.example.com', hostname: 'jira.example.com', atlassianCloud: false } })
+    const a = attempts(() => refusal(401))
+    const res = resolver(CLOUD_OK)
+    const out = await callWithRoute({ cred: dc, attempt: a.attempt, resolveCloudId: res.resolveCloudId })
+
+    expect(a.roots).toEqual(['https://jira.example.com'])
+    expect(res.calls).toEqual([])
+    expect(out.routing).toEqual({ route: 'site' })
+    expect(out.result.ok).toBe(false)
+    if (out.result.ok) return
+    expect(out.result.failure.code).toBe('jira_unauthorized')
+    expect(out.result.status).toBe(502)
+    expect(out.result.failure.jiraStatus).toBe(401)
+    expect(out.result.failure.error).toContain(mapJiraStatus(401).failure.error)
+    expect(out.result.failure.error).toContain(NO_GATEWAY_SENTENCE.trim())
+    expect(out.result.failure.error).toMatch(/not tried/)
+  })
+
+  it('reports an unresolvable cloud id as its OWN diagnosis', async () => {
+    // Three failures, three sentences: this one is "the lookup did not answer",
+    // which is not the same problem as "the token is wrong" and does not have
+    // the same fix.
+    const a = attempts(() => refusal(401))
+    const res = resolver({
+      ok: false,
+      status: 502,
+      failure: { code: 'jira_cloud_id_unresolved', error: 'preface. The lookup answered HTTP 503.', jiraStatus: 503 },
+    })
+    const out = await callWithRoute({ cred: cred(), attempt: a.attempt, resolveCloudId: res.resolveCloudId })
+    expect(a.roots).toEqual(['https://acme.atlassian.net'])
+    expect(out.routing).toEqual({ route: 'site' })
+    expect(out.result.ok).toBe(false)
+    if (out.result.ok) return
+    expect(out.result.failure.code).toBe('jira_cloud_id_unresolved')
+    expect(out.result.status).toBe(502)
+  })
+
+  it('reports a gateway refusal distinctly from a site refusal', async () => {
+    const a = attempts(() => refusal(401))
+    const out = await callWithRoute({ cred: cred(), attempt: a.attempt, resolveCloudId: resolver(CLOUD_OK).resolveCloudId })
+    expect(a.roots).toHaveLength(2)
+    expect(out.routing).toEqual({ route: 'gateway', cloudId: CLOUD_ID })
+    expect(out.result.ok).toBe(false)
+    if (out.result.ok) return
+    expect(out.result.failure.code).toBe('jira_gateway_unauthorized')
+    // Still 502 with the upstream status inside — header §6's convention holds.
+    expect(out.result.status).toBe(502)
+    expect(out.result.failure.jiraStatus).toBe(401)
+    expect(out.result.failure.error).toMatch(/gateway rejected the credential too/)
+    expect(out.result.failure.error).toMatch(/read:jira-work/)
+    // The cloud id IS quoted, deliberately: it is public, it was accepted rather
+    // than rejected, and it is what the owner needs to check the token against.
+    expect(out.result.failure.error).toContain(CLOUD_ID)
+    // The token is not, and neither is anything shaped like one.
+    expect(JSON.stringify(out.result)).not.toContain('ATATT')
+  })
+
+  it('relays a non-credential gateway failure untouched', async () => {
+    const a = attempts((root) => (root.startsWith(ATLASSIAN_GATEWAY_ORIGIN) ? refusal(429) : refusal(401)))
+    const out = await callWithRoute({ cred: cred(), attempt: a.attempt, resolveCloudId: resolver(CLOUD_OK).resolveCloudId })
+    expect(out.result.ok).toBe(false)
+    if (out.result.ok) return
+    expect(out.result.failure.code).toBe('jira_rate_limited')
+    expect(out.result.status).toBe(429)
+  })
+
+  it('remembers the working route so the next call skips the failed attempt', async () => {
+    const gatewayRoot = `${ATLASSIAN_GATEWAY_ORIGIN}/ex/jira/${CLOUD_ID}`
+    const answer = (root: string) => (root === gatewayRoot ? OK : refusal(401))
+
+    const first = attempts(answer)
+    const res = resolver(CLOUD_OK)
+    await callWithRoute({ cred: cred(), attempt: first.attempt, resolveCloudId: res.resolveCloudId })
+    expect(first.roots).toEqual(['https://acme.atlassian.net', gatewayRoot])
+
+    // Same isolate, second request: straight to the door that opened.
+    const second = attempts(answer)
+    const out = await callWithRoute({ cred: cred(), attempt: second.attempt, resolveCloudId: res.resolveCloudId })
+    expect(second.roots).toEqual([gatewayRoot])
+    expect(out.routing).toEqual({ route: 'gateway', cloudId: CLOUD_ID })
+    // And the cloud id was looked up ONCE, not once per call.
+    expect(res.calls).toHaveLength(1)
+  })
+
+  it('lets the remembered route expire, so a rotated token heals itself', async () => {
+    const gatewayRoot = `${ATLASSIAN_GATEWAY_ORIGIN}/ex/jira/${CLOUD_ID}`
+    const t0 = 1_000_000
+    const answer = (root: string) => (root === gatewayRoot ? OK : refusal(401))
+    await callWithRoute({ cred: cred(), attempt: attempts(answer).attempt, resolveCloudId: resolver(CLOUD_OK).resolveCloudId, now: t0 })
+
+    const later = attempts(() => OK)
+    const out = await callWithRoute({
+      cred: cred(),
+      attempt: later.attempt,
+      resolveCloudId: resolver(CLOUD_OK).resolveCloudId,
+      now: t0 + ROUTE_CACHE_TTL_MS + 1,
+    })
+    expect(later.roots).toEqual(['https://acme.atlassian.net'])
+    expect(out.routing).toEqual({ route: 'site' })
+  })
+
+  it('forgets a remembered gateway route the moment it stops working', async () => {
+    const gatewayRoot = `${ATLASSIAN_GATEWAY_ORIGIN}/ex/jira/${CLOUD_ID}`
+    await callWithRoute({
+      cred: cred(),
+      attempt: attempts((root) => (root === gatewayRoot ? OK : refusal(401))).attempt,
+      resolveCloudId: resolver(CLOUD_OK).resolveCloudId,
+    })
+
+    // The token is replaced with a classic one: the gateway now refuses.
+    const rotated = attempts(() => refusal(401))
+    const out = await callWithRoute({ cred: cred(), attempt: rotated.attempt, resolveCloudId: resolver(CLOUD_OK).resolveCloudId })
+    expect(rotated.roots).toEqual([gatewayRoot])
+    expect(out.result.ok).toBe(false)
+    if (out.result.ok) return
+    expect(out.result.failure.code).toBe('jira_gateway_unauthorized')
+
+    // …and the NEXT request probes from the site again rather than spending the
+    // rest of the TTL failing at a door that used to open.
+    const after = attempts(() => OK)
+    const back = await callWithRoute({ cred: cred(), attempt: after.attempt, resolveCloudId: resolver(CLOUD_OK).resolveCloudId })
+    expect(after.roots).toEqual(['https://acme.atlassian.net'])
+    expect(back.routing).toEqual({ route: 'site' })
+  })
+
+  it('never mutates the credential it was handed', async () => {
+    const c = cred()
+    await callWithRoute({
+      cred: c,
+      attempt: attempts((root) => (root.startsWith(ATLASSIAN_GATEWAY_ORIGIN) ? OK : refusal(401))).attempt,
+      resolveCloudId: resolver(CLOUD_OK).resolveCloudId,
+    })
+    expect(c.apiRoot).toBe('https://acme.atlassian.net')
+    expect(withApiRoot(c, 'https://x').apiRoot).toBe('https://x')
+    expect(c.token).toBe('ATATT-not-a-real-token-0000')
+  })
+})
+
+describe('readCredential starts every credential at the site root', () => {
+  it('sets apiRoot to the origin, never to the gateway', () => {
+    const c = cred()
+    expect(c.apiRoot).toBe('https://acme.atlassian.net')
+    expect(c.apiRoot).not.toContain('api.atlassian.com')
+    // apiRoot + a path literal is the whole URL, on either route.
+    expect(c.apiRoot + ENDPOINTS.myself.path).toBe('https://acme.atlassian.net/rest/api/3/myself')
+    expect(gatewayApiRoot(CLOUD_ID) + ENDPOINTS.myself.path).toBe(
+      `${ATLASSIAN_GATEWAY_ORIGIN}/ex/jira/${CLOUD_ID}/rest/api/3/myself`,
+    )
   })
 })
