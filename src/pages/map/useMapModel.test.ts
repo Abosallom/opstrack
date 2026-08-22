@@ -446,6 +446,122 @@ describe('collectProgress — the roll-up, in one post-order pass', () => {
 // director — the ONE failure mode a synthetic ring introduces that the tree
 // never had — so the number the spoken name uses is pinned here.
 
+/* ─────────── the number a branch card draws, and the mix under it ─────────── */
+//
+// THE DEFECT. `count` is the OPEN WORK beneath a node, so a workspace of
+// eighty-five organizations with nine open items draws "0" on every branch that
+// holds a hospital — the wrong number on the wrong box for an onboarding
+// tracker. `orgs` cannot be that number either: it counts every `map_nodes` row
+// at or below, and a directorate is a row, so a division holding eighteen
+// hospitals answers nineteen with itself in the total. `orgsBelow` is the one a
+// card may print, and these are its edges.
+
+describe('collectStats — the tally a branch may print', () => {
+  /** A directorate holding two departments: three organizations, then one. */
+  function division(): MindNode {
+    return node({
+      id: 'root',
+      kind: 'root',
+      count: 0,
+      children: [
+        org('dir', 0, [
+          org('dept-a', 0, [org('h1', 0), org('h2', 0), org('h3', 0)]),
+          org('dept-b', 0, [org('h4', 0)]),
+        ]),
+      ],
+    })
+  }
+
+  it('counts the organizations under a node and never the places holding them', () => {
+    const out = new Map<string, ReturnType<typeof collectStats>>()
+    collectStats(division(), statsInput(), out)
+
+    // `orgs` is every entity at or below — four hospitals, two departments and
+    // the directorate itself. True, and not what a card means by "under here".
+    expect(out.get('dir')?.orgs).toBe(7)
+    expect(out.get('dir')?.orgsBelow).toBe(4)
+    expect(out.get('dept-a')?.orgsBelow).toBe(3)
+    expect(out.get('root')?.orgsBelow).toBe(4)
+    // AN ORGANIZATION HAS NONE UNDER IT, which is what sends its own card back
+    // to the open-work count — the number an organization's card owes.
+    expect(out.get('h1')?.orgsBelow).toBe(0)
+  })
+
+  it('treats a department with one organization as a place, not as the organization', () => {
+    // The off-by-one that a `orgs - 1` shortcut would hide: `dept-b` holds ONE
+    // hospital and is not itself one, and both facts have to survive.
+    const out = new Map<string, ReturnType<typeof collectStats>>()
+    collectStats(division(), statsInput(), out)
+    expect(out.get('dept-b')?.orgsBelow).toBe(1)
+    expect(out.get('h4')?.orgsBelow).toBe(0)
+  })
+
+  it('counts an entity with nothing under it as an organization, whatever it is called', () => {
+    // `map_nodes` gives a department and a hospital the same kind, so the end of
+    // the dive is a SHAPE — nothing below — and not a name. A department nobody
+    // has filled in yet behaves as an organization, correctly: there is nothing
+    // in there to go into. Entries under it do not change that.
+    const out = new Map<string, ReturnType<typeof collectStats>>()
+    collectStats(
+      node({
+        id: 'root',
+        kind: 'root',
+        count: 1,
+        children: [org('empty-dept', 1, [node({ id: 'e1', kind: 'entry', entryId: 'e1', count: 1 })])],
+      }),
+      statsInput(),
+      out,
+    )
+    expect(out.get('root')?.orgsBelow).toBe(1)
+    expect(out.get('empty-dept')?.orgsBelow).toBe(0)
+    expect(out.get('e1')?.orgsBelow).toBe(0)
+  })
+
+  it('folds live and at-risk over those organizations, and over nothing else', () => {
+    // A COUNT FOLDS WHERE A CLOCK DOES NOT — `NodeStats`' own line. "How many of
+    // the four are live" is `count(*) where terminal` over a subtree, which is
+    // the arithmetic the portfolio's group rows already print; `daysInStage`
+    // stays where it was, on the organization alone.
+    const live = rung({ id: 'live', terminal: true })
+    const slow = rung({ id: 'slow', expected_days: 5 })
+    const out = new Map<string, ReturnType<typeof collectStats>>()
+    collectStats(
+      division(),
+      statsInput({
+        stages: {
+          byId: new Map([
+            ['live', live],
+            ['slow', slow],
+          ]),
+          // The directorate is on a terminal rung too — and must not be counted,
+          // because it is not one of the organizations.
+          ofNode: (id: string) => (id === 'h1' || id === 'h2' || id === 'dir' ? live : slow),
+        } satisfies StageIndex,
+        // h4 has been on a five-day rung for thirty days; h3 arrived today.
+        progressById: new Map([
+          ['h3', { stage_changed_at: '2026-03-10T00:00:00.000Z' }],
+          ['h4', { stage_changed_at: '2026-02-08T00:00:00.000Z' }],
+        ]),
+      }),
+      out,
+    )
+    expect(out.get('root')?.liveBelow).toBe(2)
+    expect(out.get('dept-a')?.liveBelow).toBe(2)
+    expect(out.get('dept-b')?.liveBelow).toBe(0)
+    expect(out.get('root')?.riskBelow).toBe(1)
+    expect(out.get('dept-b')?.riskBelow).toBe(1)
+    expect(out.get('dept-a')?.riskBelow).toBe(0)
+    // The organization's OWN reading is untouched and still where it was.
+    expect(out.get('h4')?.atRisk).toBe(true)
+    expect(out.get('h4')?.live).toBe(false)
+    expect(out.get('h1')?.live).toBe(true)
+    // …and a place standing on a rung reports its own `live` without ever
+    // adding itself to the fold.
+    expect(out.get('dir')?.live).toBe(true)
+    expect(out.get('dir')?.liveBelow).toBe(2)
+  })
+})
+
 describe('collectStats — how many organizations are under a node', () => {
   /** Two stage cohorts under one track: 3 organizations and 1. */
   function grouped(): MindNode {
