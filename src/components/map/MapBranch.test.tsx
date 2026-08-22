@@ -263,6 +263,13 @@ vi.mock('../../store/members', () => ({
 }))
 
 vi.mock('../../store/config', () => ({
+  // The three `NodeEditor` reads. It renders NOTHING without `structure.edit`,
+  // which `useHasPerm` answers false for in this suite, so an empty roster and
+  // an empty kind list keep every assertion in this file describing the same
+  // markup — the same bargain the stage picker's empty ladder strikes above.
+  useMapNodes: () => fx.state.mapNodes,
+  useMapNodeKinds: () => [],
+  invalidateConfig: () => {},
   // Built from `state.tracks` so a case that swaps a track's definition (the
   // suggested-tags case below) changes BOTH the roster and the lookup — two
   // sources of one track is how a fixture starts lying.

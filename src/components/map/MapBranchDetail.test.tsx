@@ -85,6 +85,13 @@ vi.mock('../../api/map', () => ({
 }))
 
 vi.mock('../../store/config', () => ({
+  // The three `NodeEditor` reads. It renders NOTHING without `structure.edit`,
+  // which `useHasPerm` answers false for in this suite, so an empty roster and
+  // an empty kind list keep every assertion in this file describing the same
+  // markup — the same bargain the stage picker's empty ladder strikes above.
+  useMapNodes: () => fx.state.nodes,
+  useMapNodeKinds: () => [],
+  invalidateConfig: () => {},
   useMapNodeMap: () => new Map(fx.state.nodes.map((n) => [n.id, n])),
   useAllUseCases: () => [],
   // The three the STAGE PICKER reads. The band mounts it now (the read-only-v1
@@ -100,6 +107,9 @@ vi.mock('../../store/config', () => ({
 }))
 
 vi.mock('../../store/members', () => ({
+  // `NodeEditor`'s manager picker. Empty: it renders nothing without
+  // `structure.edit`, which this suite does not hold.
+  useMembers: () => [],
   useMemberMap: () => new Map(fx.members.map((m) => [m.id, m])),
 }))
 

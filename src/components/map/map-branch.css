@@ -856,3 +856,55 @@
   display: flex;
   gap: 8px;
 }
+
+/* ── EDITING AN ORGANIZATION IN THE PANEL ──────────────────────────────────
+   See NodeEditor.tsx for why the fields live here rather than only in
+   Settings ▸ Structure, and why the destructive control is Archive.
+
+   The form REPLACES the read-only pairs rather than sitting under them (the
+   band hides its `<dl>` while this is open), so no field is on the screen twice
+   with one copy stale. */
+.mbr-edit-row {
+  display: flex;
+  margin-block-end: 10px;
+}
+
+.mbr-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-block-end: 4px;
+}
+
+.mbr-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mbr-edit-k {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.mbr-edit-hint {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-faint);
+}
+
+/* WRAPS RATHER THAN SCROLLS. This panel is a bottom sheet on a phone, where the
+   row has about 300px to work with and four controls do not fit across it. */
+.mbr-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Pushed to the far end so the destructive control is nowhere near Save — they
+   are the two buttons a thumb is most likely to confuse under time pressure. */
+.mbr-edit-archive {
+  margin-inline-start: auto;
+}

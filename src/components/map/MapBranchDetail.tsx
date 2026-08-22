@@ -148,6 +148,7 @@ import {
   type MapNodeGoalInput,
 } from '../../api/goals'
 import { listNodeUseCases } from '../../api/map'
+import NodeEditor from './NodeEditor'
 import { confirm } from '../Confirm'
 // The stage control and the optimistic write behind it. ONE control mounted
 // twice — see the header's note on the reversed read-only decision.
@@ -411,6 +412,12 @@ export default function MapBranchDetail({
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId, merged, stageById, ctx.today])
 
+  /**
+   * Whether the field form is open, lifted out of `NodeEditor` so the band can
+   * hide the read-only pairs the form replaces — see `DetailBandProps.editing`.
+   */
+  const [editing, setEditing] = useState(false)
+
   const node: MapNode | undefined = nodeId === null ? undefined : nodeById.get(nodeId)
 
   // NO BAND, rather than an empty one. Not an entity (a track, a bucket, the
@@ -444,6 +451,13 @@ export default function MapBranchDetail({
       // do not run under `renderToStaticMarkup`, so a band that mounted the
       // connected picker itself could only ever be tested in its loading state.
       stage={<StagePicker nodeId={nodeId} name={localName(node, locale)} />}
+      // THE REST OF THE FIELDS, WRITABLE. Same shape as `stage` above and for
+      // the same reason. `NodeEditor` renders nothing at all without
+      // `structure.edit`, so a reader who cannot write sees the band exactly as
+      // it was rather than a disabled control explaining a screen they will
+      // never use.
+      editor={<NodeEditor nodeId={nodeId} onEditingChange={setEditing} />}
+      editing={editing}
     />
   )
 }
@@ -499,6 +513,18 @@ export interface DetailBandProps {
    * state and links to the screen that fixes it.
    */
   stage?: ReactNode
+  /**
+   * The organization's own fields, as a form — `NodeEditor`, passed as a NODE
+   * for the reason `stage` is: this band must stay renderable without a store.
+   */
+  editor?: ReactNode
+  /**
+   * True while that form is open, so the read-only pairs it replaces stand
+   * down. The flag is LIFTED rather than decided here because the band is
+   * presentational and the editor owns the state; showing both at once would
+   * put each field on the screen twice, once stale.
+   */
+  editing?: boolean
 }
 
 /**
@@ -520,6 +546,8 @@ export function DetailBand({
   loading,
   error,
   stage,
+  editor,
+  editing = false,
 }: DetailBandProps): ReactElement {
   useLocale()
   const { rows, done, total, linked } = progress
@@ -535,7 +563,9 @@ export function DetailBand({
         )}
       </div>
 
-      <dl className="mbr-fields">
+      {editor}
+
+      <dl className="mbr-fields" hidden={editing}>
         {/* THE STAGE FIRST, because it is the one field on this band that is
             also a CONTROL, and because "where has this got to" is the question
             an account manager opens the panel with. The `<dd>` holds the picker
