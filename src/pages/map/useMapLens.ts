@@ -94,6 +94,7 @@ import {
   useMindLens,
   useMindPanelOpen,
   useMindView,
+  useMindViewPinned,
 } from '../../store/mindtree'
 
 /**
@@ -186,8 +187,29 @@ export function useMapLens(options: {
   const { focusNodeId, compact, announce } = options
 
   const lens = useMindLens()
-  const table = useMindView() === 'table'
   const storedPanelOpen = useMindPanelOpen()
+
+  /**
+   * ⚠ PICTURE OR LEDGER — AND ON A PHONE THE WIDTH ANSWERS UNTIL THE READER DOES.
+   *
+   * The tidy tree fits a hundred and four organizations into roughly fourteen
+   * CSS pixels each at 375px: a smear of unlabelled specks on the device the
+   * owner says is primary. The ledger is the SAME tree rendered as a scrollable
+   * list, and it is the honest default there.
+   *
+   * It is a default and not an override. `viewPinned` is false until the reader
+   * uses the map⇄ledger toggle, and the moment they do their choice wins at
+   * every width and for good — silently ignoring an explicit choice would be
+   * worse than the smear it fixes. On a wide screen nothing changes: the
+   * picture is readable there and stays the default.
+   *
+   * The pin exists because `view` alone could not tell "never chose" from
+   * "chose the picture" — both read `'map'`. store/mindtree.ts carries that
+   * argument in full.
+   */
+  const stored = useMindView()
+  const pinned = useMindViewPinned()
+  const table = pinned ? stored === 'table' : compact
 
   const stage = stageWithTable(lens, table)
 

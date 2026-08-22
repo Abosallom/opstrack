@@ -154,6 +154,27 @@ const MAX_NODE_ID = 4096
 export interface MindtreePrefs {
   dimension: MindDimension
   view: MindtreeView
+  /**
+   * Has the reader ever CHOSEN between the picture and the ledger?
+   *
+   * ⚠ WHY A SECOND FIELD RATHER THAN A THIRD VALUE ON `view`. `MindtreeView` is
+   *   a closed union that `stageWithTable` switches on totally, and a nullable
+   *   third state would put "not chosen" into every place that asks "which
+   *   one" — including the URL, which carries `?stage=` and cannot express it.
+   *
+   * WHAT IT IS FOR. On a 375px phone the tidy tree fits a hundred and four
+   *   organizations into about fourteen CSS pixels each: a smear of unlabelled
+   *   specks, and the device the owner says is primary. The ledger is the same
+   *   tree as a scrollable list and is the honest default THERE and only there.
+   *   But `view` defaults to `'map'`, so a phone that had never chosen was
+   *   indistinguishable from one that had chosen the picture — and silently
+   *   overriding a reader's actual choice is worse than the smear.
+   *
+   *   Unpinned, the WIDTH decides. Pinned, the READER decides, at every width
+   *   and for good. `setMindView` is the only thing that pins it, so the pin is
+   *   set by exactly the act it describes.
+   */
+  viewPinned: boolean
   density: MindDensity
   /**
    * WHAT THE SHELL IS FOR — the chip that picks the stage and the panel subject
@@ -205,6 +226,7 @@ export interface MindtreePrefs {
 const DEFAULT_PREFS: MindtreePrefs = {
   dimension: 'status',
   view: 'map',
+  viewPinned: false,
   density: 'comfortable',
   lens: DEFAULT_LENS,
   panelOpen: true,
@@ -283,6 +305,9 @@ export function readMindtreePrefs(): MindtreePrefs {
     return {
       dimension: isMindDimension(rec.dimension) ? rec.dimension : DEFAULT_PREFS.dimension,
       view: isMindtreeView(rec.view) ? rec.view : DEFAULT_PREFS.view,
+      // A record written before this field existed is UNPINNED, which is the
+      // right reading: nobody who saved it was answering this question.
+      viewPinned: rec.viewPinned === true,
       // Absent on every device that persisted before this shipped, which is the
       // ordinary case rather than the exceptional one — a missing field takes
       // the default exactly as a malformed one does.
@@ -321,6 +346,7 @@ interface MindtreeState {
   /* persisted */
   dimension: MindDimension
   view: MindtreeView
+  viewPinned: boolean
   density: MindDensity
   lens: MapLens
   panelOpen: boolean
@@ -359,6 +385,7 @@ function initialState(): MindtreeState {
   return {
     dimension: prefs.dimension,
     view: prefs.view,
+    viewPinned: prefs.viewPinned,
     density: prefs.density,
     lens: prefs.lens,
     panelOpen: prefs.panelOpen,
@@ -379,6 +406,7 @@ function persist(s: MindtreeState): void {
   writePrefs({
     dimension: s.dimension,
     view: s.view,
+    viewPinned: s.viewPinned,
     density: s.density,
     lens: s.lens,
     panelOpen: s.panelOpen,
@@ -408,7 +436,15 @@ function updatePrefs(patch: Partial<MindtreeState>): void {
       next.panelOpen === s.panelOpen &&
       next.focus === s.focus &&
       next.collapsedByDim === s.collapsedByDim &&
-      next.openedByDim === s.openedByDim
+      next.openedByDim === s.openedByDim &&
+      // ⚠ `viewPinned` BELONGS IN THIS GUARD AND WAS MISSING FROM IT. Without
+      //   this line the pin can never be set on the one device that needs it:
+      //   a fresh phone stores `view: 'map'` and RENDERS the ledger, because
+      //   `useMapLens` lets the width decide until the reader does. The reader
+      //   presses "Map" — `setMindView('map')` — and every field compared above
+      //   is unchanged, so this returns `s`, the pin is never recorded, and the
+      //   button is dead for precisely the reader it was added for.
+      next.viewPinned === s.viewPinned
     ) {
       return s
     }
@@ -425,8 +461,14 @@ export function setMindDimension(dimension: MindDimension): void {
   updatePrefs({ dimension })
 }
 
+/**
+ * Choose the picture or the ledger — and PIN that choice.
+ *
+ * The pin is set here and nowhere else, because this function is the only act
+ * that means "I have decided". See `MindtreePrefs.viewPinned`.
+ */
 export function setMindView(view: MindtreeView): void {
-  updatePrefs({ view })
+  updatePrefs({ view, viewPinned: true })
 }
 
 export function setMindDensity(density: MindDensity): void {
@@ -680,6 +722,11 @@ export function useMindDimension(): MindDimension {
 
 export function useMindView(): MindtreeView {
   return useMindtreeStore((s) => s.view)
+}
+
+/** Whether the reader has chosen — see `MindtreePrefs.viewPinned`. */
+export function useMindViewPinned(): boolean {
+  return useMindtreeStore((s) => s.viewPinned)
 }
 
 export function useMindDensity(): MindDensity {

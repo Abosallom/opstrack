@@ -55,7 +55,7 @@
 
 import { useEffect, useRef, type ReactElement } from 'react'
 import { Link } from 'react-router-dom'
-import { IconFile, IconMic } from '../icons'
+import { IconColumns, IconFile, IconLayers, IconMic } from '../icons'
 import { t } from '../../lib/i18n'
 import { loadMeetings, useMeetings } from '../../store/meetings'
 import './map-mode.css'
@@ -72,12 +72,18 @@ export interface MapModeBarProps {
   compact: boolean
   exporting: boolean
   onExport: (kind: 'svg' | 'png' | 'copy') => void
+  /** True when the ledger is drawn rather than the picture. */
+  table: boolean
+  /** Swap between them. Pins the reader's choice — see store/mindtree. */
+  onToggleView: (next: 'map' | 'table') => void
 }
 
 export default function MapModeBar({
   compact,
   exporting,
   onExport,
+  table,
+  onToggleView,
 }: MapModeBarProps): ReactElement {
   const meetings = useMeetings()
   const exportRef = useRef<HTMLDetailsElement | null>(null)
@@ -152,6 +158,33 @@ export default function MapModeBar({
       // MapLensBar and MapPanel take the same value from the same place.
       data-compact={compact ? '' : undefined}
     >
+      {/* ── PICTURE OR LEDGER ────────────────────────────────────────────
+          ⚠ THIS CONTROL DID NOT EXIST. It rode at the foot of `MapDiveRail`,
+            which was unmounted when the chrome around the canvas was quieted —
+            and the rail's own comment admitted the consequence: "the accessible
+            table is reachable only by `?stage=table` while this is off". A
+            drag-free, low-motion reading of the whole tree was left behind a
+            hand-typed URL.
+
+            It matters more now than it did then. On a phone the ledger is the
+            DEFAULT (useMapLens: the width decides until the reader does), so
+            without this button a phone reader could not get to the picture at
+            all, and a desktop reader could not get to the list. */}
+      <button
+        type="button"
+        className="mmode-item btn btn-sm btn-ghost tap-44"
+        onClick={() => onToggleView(table ? 'map' : 'table')}
+        // The label names WHERE THE PRESS GOES, not where the reader is. A
+        // toggle labelled with its current state is the oldest ambiguity in
+        // interface design and it is one word either way.
+        aria-label={table ? t('mindtree.stageMap') : t('mindtree.stageTable')}
+        title={table ? t('mindtree.stageMap') : t('mindtree.stageTable')}
+      >
+        {table ? <IconLayers size={16} /> : <IconColumns size={16} />}
+        <span className={textClass}>
+          {table ? t('mindtree.stageMap') : t('mindtree.stageTable')}
+        </span>
+      </button>
       <Link className="mmode-item btn btn-sm btn-ghost tap-44" to={MEETINGS_ROUTE}>
         <IconMic size={16} />
         <span className={textClass}>{t('meeting.title')}</span>

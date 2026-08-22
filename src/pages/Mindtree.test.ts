@@ -368,3 +368,59 @@ describe('the composition calls its hooks in the order the drag layer forces', (
     expect(drag()).not.toContain('root: drawnRoot')
   })
 })
+
+describe('every memo that renders chrome lists the lens members it reads', () => {
+  // ⚠ THE BUG THIS EXISTS TO STOP, caught in a browser and not by any test.
+  //
+  //   `shellIsle` is a `useMemo` holding the lens bar and the mode bar. Its
+  //   dependency list named `lens.lens` and `lens.setLens` but not `lens.stage`,
+  //   which the map⇄ledger toggle's label is computed from. So pressing the
+  //   toggle swapped the canvas — that reads the store directly — while the
+  //   button kept the label it was built with: press "Map", get the map, and the
+  //   button still says "Table". A control naming where the reader is standing
+  //   instead of where the press goes is the exact ambiguity the label was
+  //   written to avoid, reintroduced by a stale render.
+  //
+  //   It survived one browser pass by ACCIDENT. A count in the same dep list
+  //   changed in the tick after the first press and dragged a fresh render in
+  //   with it, so the first toggle looked right and the second froze.
+  //
+  //   React's `exhaustive-deps` rule would catch this; it is not among the rules
+  //   this repo runs. So the check is here, in the terms of this file: whatever
+  //   a chrome memo READS off `lens`, it must also DEPEND on.
+  const isle = (name: string): { body: string; deps: string } => {
+    const src = page()
+    const at = src.indexOf(`const ${name} = useMemo(`)
+    expect(at, `${name} not found — has it been renamed?`).toBeGreaterThan(-1)
+    // The memo ends at the dep array, which is the last `[` ... `],\n  )` before
+    // the next top-level `const`. Cheap and exact enough: the deps of a useMemo
+    // are its final argument.
+    const end = src.indexOf('\n  )', at)
+    const chunk = src.slice(at, end)
+    const depAt = chunk.lastIndexOf('\n    [')
+    return { body: chunk.slice(0, depAt), deps: chunk.slice(depAt) }
+  }
+
+  for (const name of ['shellIsle', 'lensIsle', 'canvasIsle']) {
+    const src = page()
+    if (!src.includes(`const ${name} = useMemo(`)) continue
+    it(`${name} depends on every lens member its body reads`, () => {
+      const { body, deps } = isle(name)
+      // ⚠ BOTH HALVES ARE STRIPPED OF COMMENTS, and the dependency half is the
+      //   one that matters. The prose explaining WHY `lens.stage` belongs in
+      //   this list sits inside the list, so a check that read the deps raw
+      //   passed on its own explanation — it went green against a file with the
+      //   two dependencies deleted. A guard that cannot fail is worse than none,
+      //   because it is counted.
+      const strip = (text: string): string =>
+        text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
+      const code = strip(body)
+      const listed = strip(deps)
+      const read = [...new Set(code.match(/\blens\.[A-Za-z]+/g) ?? [])].sort()
+      expect(read.length, `${name} reads nothing off lens`).toBeGreaterThan(0)
+      for (const member of read) {
+        expect(listed, `${name} reads ${member} but does not depend on it`).toContain(member)
+      }
+    })
+  }
+})

@@ -1606,12 +1606,32 @@ export default function Mindtree(): ReactElement {
             portfolio: atRiskCount,
           }}
         />
-        <MapModeBar compact={compact} exporting={toolbar.exporting} onExport={toolbar.runExport} />
+        <MapModeBar
+          compact={compact}
+          exporting={toolbar.exporting}
+          onExport={toolbar.runExport}
+          // ⚠ `lens.setStage` HAS HAD NO CALLER SINCE THE DIVE RAIL WAS
+          //   UNMOUNTED. It already refuses a stage the lens does not allow,
+          //   pins the reader's choice through `setMindView`, and announces the
+          //   change — every part of the behaviour was written and none of it
+          //   was reachable. This button is the caller it was waiting for.
+          table={lens.stage === 'table'}
+          onToggleView={lens.setStage}
+        />
       </div>
     ),
     [
       lens.lens,
       lens.setLens,
+      // ⚠ `lens.stage` AND `lens.setStage` ARE DEPENDENCIES OF THIS MEMO, and
+      //   leaving them out froze the toggle's LABEL while the canvas beneath it
+      //   changed: press it, the ledger appears, and the button still reads
+      //   "Table" — a control naming the place the reader is already standing.
+      //   It survived a browser check once by luck, because a count in this same
+      //   list happened to change in the tick after the first press and dragged
+      //   a fresh render in with it. The second press had no such accident.
+      lens.stage,
+      lens.setStage,
       compact,
       attentionCount,
       changesCount,

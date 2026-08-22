@@ -67,6 +67,9 @@ describe('readMindtreePrefs — every field validated', () => {
     expect(m.readMindtreePrefs()).toEqual({
       dimension: 'status',
       view: 'map',
+      // Never chosen — the width decides on a phone until the reader does.
+      // See MindtreePrefs.viewPinned.
+      viewPinned: false,
       density: 'comfortable',
       // The map shell's two: the lens a device that has never chosen lands on —
       // 'shape', because the map is now somewhere a reader CHOOSES to go — `/`
@@ -249,6 +252,33 @@ describe('the persisted half', () => {
     // return a new Set on every render, which under useSyncExternalStore reads
     // as "the snapshot changed", forever.
     expect(m.getMindtreeState().collapsedIds.has('root/track:t-1')).toBe(true)
+  })
+
+  it('RECORDS THE PIN EVEN WHEN THE VIEW DOES NOT MOVE', async () => {
+    // ⚠ THE REGRESSION THIS FILE EXISTS TO HOLD. `updatePrefs` returns the old
+    //   state untouched when nothing it compares has changed — the guard that
+    //   stops a no-op write. `viewPinned` was not among the fields it compared,
+    //   and the omission was invisible until the map got a phone default:
+    //
+    //   A fresh phone stores `view: 'map'` and RENDERS the ledger, because
+    //   `useMapLens` lets the width decide until the reader does. The reader
+    //   presses "Map". `setMindView('map')` sets the view to what it already
+    //   was, the guard sees nothing changed, and the pin is dropped on the
+    //   floor — so the button does nothing, forever, for exactly the reader it
+    //   was added for. The pin is the whole payload of that press.
+    const store = install()
+    const m = await load()
+
+    expect(m.getMindtreeState().view).toBe('map')
+    expect(m.getMindtreeState().viewPinned).toBe(false)
+
+    m.setMindView('map') // the same view — and a real decision
+
+    expect(m.getMindtreeState().viewPinned).toBe(true)
+    const saved: unknown = JSON.parse(store.getItem(KEY) as string)
+    // And it must reach the DISK, not just the store: the pin's entire job is
+    // to outlive the tab it was made in.
+    expect(saved).toMatchObject({ view: 'map', viewPinned: true })
   })
 
   it('keeps each axis its own rings', async () => {

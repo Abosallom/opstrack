@@ -91,12 +91,27 @@ const frame = (props: { titleKey: string; wide?: boolean }, body = 'THE MODE'): 
     </MemoryRouter>,
   )
 
-const bar = (compact = false, exporting = false): string =>
-  renderToStaticMarkup(
+const bar = (
+  compact = false,
+  exporting: boolean | { table?: boolean } = false,
+): string => {
+  // The second argument grew an object form so the toggle's two labels can be
+  // rendered without a third positional flag nobody reading the call could
+  // decode. A bare boolean still means `exporting`, as every existing call
+  // expects.
+  const opts = typeof exporting === 'boolean' ? { exporting } : { exporting: false, ...exporting }
+  return renderToStaticMarkup(
     <MemoryRouter initialEntries={['/mindtree']}>
-      <MapModeBar compact={compact} exporting={exporting} onExport={() => {}} />
+      <MapModeBar
+        compact={compact}
+        exporting={opts.exporting ?? false}
+        onExport={() => {}}
+        table={('table' in opts ? opts.table : false) ?? false}
+        onToggleView={() => {}}
+      />
     </MemoryRouter>,
   )
+}
 
 const inLocale = <T,>(locale: 'en' | 'ar', run: () => T): T => {
   setLocale(locale)
@@ -222,22 +237,44 @@ describe('MapModeBar — the entrances that replace a tab slot', () => {
     }
   })
 
-  it('contributes exactly TWO persistent targets, whatever is inside the disclosure', () => {
+  it('contributes exactly THREE persistent targets, whatever is inside the disclosure', () => {
     // THE BUDGET THIS COMPONENT SPENDS OF THE SCREEN'S TWELVE. What a reader
-    // sees at rest is the Meetings link and the export summary; everything else
-    // is behind one press. A third persistent target here would have to be
-    // argued for against the map, which is what the whole row is covering.
+    // sees at rest is the map⇄ledger toggle, the Meetings link and the export
+    // summary; everything else is behind one press. The old count was TWO under
+    // a note saying a third "would have to be argued for against the map, which
+    // is what the whole row is covering". Here is the argument:
+    //
+    //   THE TOGGLE IS NOT A FEATURE COMPETING FOR THE ROW. It is the only route
+    //   between two views that both already exist. It rode at the foot of
+    //   `MapDiveRail`, and when that was unmounted its own comment recorded the
+    //   consequence — "the accessible table is reachable only by
+    //   `?stage=table`". A drag-free, low-motion reading of the tree sat behind
+    //   a hand-typed URL, which is not a place a reader can go.
+    //
+    //   AND ON A PHONE IT IS LOAD-BEARING BOTH WAYS. `useMapLens` now defaults a
+    //   compact viewport to the ledger, because the tidy tree fits 104
+    //   organizations into ~14px each at 375px. Without this button a phone
+    //   reader could not reach the picture at all — so the target it spends is
+    //   the one that stops covering the map from meaning hiding it.
     for (const compact of [false, true]) {
       const html = bar(compact)
       const persistent = html.slice(0, html.indexOf('mmode-export-menu'))
-      expect((persistent.match(/tap-44/g) ?? []).length, String(compact)).toBe(2)
+      expect((persistent.match(/tap-44/g) ?? []).length, String(compact)).toBe(3)
     }
   })
 
   it('keeps a 44px hit area on every target at every width, menu included', () => {
     for (const compact of [false, true]) {
-      expect((bar(compact).match(/tap-44/g) ?? []).length, String(compact)).toBe(3)
+      expect((bar(compact).match(/tap-44/g) ?? []).length, String(compact)).toBe(4)
     }
+  })
+
+  it('labels the toggle with WHERE THE PRESS GOES, not where the reader is', () => {
+    // The oldest ambiguity in interface design, and it is one word either way:
+    // a toggle showing "Table" while the table is open reads as a state to half
+    // its readers and as a destination to the other half.
+    expect(bar(false, { table: false })).toContain(t('mindtree.stageTable'))
+    expect(bar(false, { table: true })).toContain(t('mindtree.stageMap'))
   })
 
   it('labels both destinations in both languages', () => {
