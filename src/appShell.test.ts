@@ -20,10 +20,26 @@
 // sheet agree about which width shows what, which is where the defect was.
 
 import { describe, expect, it } from 'vitest'
-import fs from 'node:fs'
 
-const app = fs.readFileSync(new URL('./App.tsx', import.meta.url), 'utf8')
-const shell = fs.readFileSync(new URL('./app-shell.css', import.meta.url), 'utf8')
+/**
+ * Source through `import.meta.glob('?raw')` rather than `node:fs`, for the
+ * reason lib/localeReach.test.ts spells out: tsconfig.app.json pins
+ * `types: ["vite/client"]`, and adding "node" would leak node globals into the
+ * type space of every app file. `tsc -b` catches the shortcut; its incremental
+ * cache can hide it for a while first, which is how it reached a commit here.
+ */
+const SOURCES: Record<string, string> = import.meta.glob(['./App.tsx', './app-shell.css'], {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+function source(suffix: string): string {
+  const hit = Object.entries(SOURCES).find(([path]) => path.endsWith(suffix))?.[1]
+  if (hit === undefined) throw new Error(`${suffix} not found by import.meta.glob`)
+  return hit
+}
+const app = source('/App.tsx')
+const shell = source('/app-shell.css')
 
 describe('every NAV destination is reachable under 768px', () => {
   it('renders the destinations in the header, from NAV rather than by hand', () => {
