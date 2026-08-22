@@ -1753,6 +1753,32 @@ export default function Mindtree(): ReactElement {
               HELD IN A MEMO ABOVE — see `shellIsle`. */}
           {shellIsle}
 
+          {/* ── THE WAY OUT OF A FILTER ────────────────────────────────────
+              ⚠ FILTERS WERE A ONE-WAY DOOR. They can still be SET from several
+              mounted places — a portfolio row drills in with `?node=`, a
+              Numbers tile jumps with a facet — but `filterIsle`, which held the
+              chips that showed what was on and the control that cleared them,
+              is gated off below. The only mounted way back was the button
+              inside the "nothing matches these filters" empty state, which
+              appears only when the filter matches NOTHING. Narrow the view to
+              three organizations and there was no way out but the address bar.
+
+              So the clear is unconditional on a filter being set, rather than
+              on it having emptied the screen. It costs a row only while
+              something is filtered, which is the state a reader needs telling
+              about anyway. */}
+          {!isFilterEmpty(filter) && (
+            <div className="mtree-clearbar">
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => setFilter({ ...EMPTY_FILTER })}
+              >
+                {t('mindtree.clearFilters')}
+              </button>
+            </div>
+          )}
+
           {/* WHAT THE RINGS ARE MADE OF — on the control row with every other
               control, and no longer alone on a second row at the opposite edge
               of the screen from the row it belongs to. It sits AFTER the modes

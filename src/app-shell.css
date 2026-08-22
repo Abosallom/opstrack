@@ -581,6 +581,35 @@
   color: var(--text);
 }
 
+/* ⚠ THE HEADER TITLE STANDS DOWN TOO, AND IT IS NOT A LOSS. Measured at 375px
+   with six controls beside it, it resolved to THIRTY-FIVE PIXELS — an ellipsis
+   and one letter. A title truncated to nothing is worse than no title: it
+   occupies the row, it names nothing, and a reader learns to ignore the one
+   place a screen says what it is.
+
+   Two things now carry that job better than it did. The active destination has
+   a filled pill (`.app-header-dest[aria-current]` above), and every screen
+   renders its own heading in its own content where there is room for the whole
+   sentence.
+
+   `sr-only` RATHER THAN `display: none`, because this element is the document's
+   `<h1>`: hiding it outright would leave the page with no top-level heading for
+   a screen reader to land on, which is a real regression traded for a cosmetic
+   gain. It keeps its place in the accessibility tree and gives up its pixels. */
+@media (max-width: 767px) {
+  .app-header-title {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
 /* Preferences that stand down on a phone so navigation can have the room —
    both are in Settings, which is one tap away through the gear. App.tsx carries
    the measurement that decided it. */

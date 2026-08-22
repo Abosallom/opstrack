@@ -103,6 +103,14 @@ export const IconLayers = icon(
   </>,
 )
 
+/** Search — the magnifier that opens the command palette on a touch screen. */
+export const IconSearch = icon(
+  <>
+    <circle cx="10.5" cy="10.5" r="6.5" />
+    <path d="m15.5 15.5 5 5" />
+  </>,
+)
+
 /** Meetings — a microphone, for meeting mode's live capture. */
 export const IconMic = icon(
   <>

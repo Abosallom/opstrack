@@ -2529,3 +2529,15 @@ svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
     display: none !important;
   }
 }
+
+/* THE FILTER ESCAPE HATCH — see Mindtree.tsx's mark for why it is unconditional
+   on a filter being set rather than on the filter having emptied the screen.
+
+   It sits in the control row's flow and takes a full row of its own only while
+   a filter is on, so the quiet map the owner asked for stays quiet: with no
+   filter set, this element is not rendered at all. */
+.mtree-clearbar {
+  display: flex;
+  justify-content: flex-start;
+  padding-inline: 2px;
+}

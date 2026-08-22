@@ -46,7 +46,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import type { PermissionKey } from '../api/roles'
-import type { Entry, Track } from '../types'
+import type { Entry, MapNode, Track } from '../types'
 
 const fx = vi.hoisted(() => {
   // lib/i18n reads localStorage at module scope and Sheet reads matchMedia
@@ -77,6 +77,7 @@ const fx = vi.hoisted(() => {
   /** What the mocked stores answer with, and what the mocked doers recorded. */
   const state = {
     entries: [] as Entry[],
+    nodes: [] as MapNode[],
     tracks: [] as Track[],
     role: 'member' as 'admin' | 'member',
     opened: [] as { id: string; list: string[] | undefined }[],
@@ -101,6 +102,10 @@ vi.mock('../store/auth', () => ({
 vi.mock('../store/config', () => ({
   useActiveTracks: () => fx.state.tracks,
   useTrackMap: () => new Map(fx.state.tracks.map((tr) => [tr.id, tr])),
+  // The organizations group. Empty here on purpose: the mount tests below assert
+  // the palette renders NOTHING until it is opened, and what it would have
+  // listed is `organizationCandidates`' own business, proved as a pure function.
+  useMapNodes: () => fx.state.nodes,
 }))
 vi.mock('../store/entries', () => ({
   useEntryList: () => fx.state.entries,
@@ -142,6 +147,7 @@ const {
   actionCandidates,
   default: CommandPalette,
   entryCandidates,
+  organizationCandidates,
   mapHref,
   myOrgsHref,
   nextThemeAfter,
@@ -833,10 +839,51 @@ describe('nextThemeAfter', () => {
   })
 })
 
+describe('organizationCandidates', () => {
+  const nodes = [
+    { id: 'n1', name: 'Al Hamra Hospital', name_ar: 'مستشفى الحمراء' },
+    { id: 'n2', name: 'Yanbu National Hospital', name_ar: '' },
+  ] as MapNode[]
+  const label = (n: Pick<MapNode, 'name' | 'name_ar'>) => n.name
+
+  it('offers every organization, which is the search the map lost', () => {
+    // ⚠ `filterIsle` is gated off in Mindtree.tsx, and it held the only mounted
+    // type-ahead over these names. With a hundred and four of them, what was
+    // left on the canvas was pinching until the labels resolve. The palette had
+    // the right shape and simply did not index the rows.
+    const rows = organizationCandidates(nodes, label, () => {})
+    expect(rows).toHaveLength(2)
+    expect(rows.map((r) => r.item.label)).toEqual(['Al Hamra Hospital', 'Yanbu National Hospital'])
+  })
+
+  it('is findable by its ARABIC name from an English UI, and the reverse', () => {
+    // trackCandidates' stated reason, and it matters more here: an organization
+    // whose only memorable name is Arabic is unfindable if the fold follows the
+    // interface language.
+    const rows = organizationCandidates(nodes, label, () => {})
+    const fields = rows[0]?.fields.join(' ') ?? ''
+    expect(fields).toContain('hamra')
+    expect(fields).toContain('الحمراء')
+  })
+
+  it('opens the panel rather than flying the camera', () => {
+    // The same destination the dead type-ahead used and the same one the
+    // portfolio table's rows use — arriving from two places lands you in one.
+    const seen: string[] = []
+    organizationCandidates(nodes, label, (to: string) => void seen.push(to))[0]?.item.run([])
+    expect(seen[0]).toBe(mapHref('shape', 'n1'))
+  })
+
+  it('carries a stable id that cannot collide with a track or an entry', () => {
+    expect(organizationCandidates(nodes, label, () => {})[0]?.item.id).toBe('node:n1')
+  })
+})
+
 /* ═════════════════════════════ 3. the ranking ════════════════════════════ */
 
 const sources = (over: Partial<Parameters<typeof rankPalette>[1]> = {}) => ({
   entries: [],
+  organizations: [],
   tracks: [],
   screens: [],
   actions: [],
@@ -844,7 +891,7 @@ const sources = (over: Partial<Parameters<typeof rankPalette>[1]> = {}) => ({
 })
 
 describe('rankPalette', () => {
-  it('keeps the four groups in their fixed order, entries first', () => {
+  it('keeps the five groups in their fixed order, entries first', () => {
     const model = rankPalette(
       '',
       sources({

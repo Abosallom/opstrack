@@ -11,7 +11,7 @@ import NotificationBell from './components/NotificationBell'
 // would mean the first Cmd-K of a session opens nothing while a request goes out
 // — a shortcut that works on the second press is worse than none. It renders
 // null until something opens it, so the mount itself costs one listener.
-import CommandPalette from './components/CommandPalette'
+import CommandPalette, { openCommandPalette } from './components/CommandPalette'
 // EAGER, unlike every page below, and deliberately: ModeFrame is 107 lines of
 // chrome that the lazy mode page renders INSIDE, so loading it with the page
 // would leave a reader looking at a spinner with no way back to the map. It is
@@ -24,6 +24,7 @@ import {
   IconLayers,
   IconMonitor,
   IconMoon,
+  IconSearch,
   IconSun,
   type IconComponent,
 } from './components/icons'
@@ -319,7 +320,26 @@ function AppHeader({ titleKey }: { titleKey: string }): ReactElement {
             <Icon size={20} />
           </NavLink>
         ))}
-        {/* First in the row, and eagerly imported: the bell is chrome, so it is
+        {/* ── SEARCH, AND ON A PHONE IT IS THE ONLY ONE ─────────────────────
+            The command palette opens on `K` and on `/` and on nothing else, so
+            on a touch device it did not exist. That was survivable while it
+            indexed ten entries and one track. It now also indexes the hundred
+            and four ORGANIZATIONS — the map's own filter bar, which held the
+            only other type-ahead over those names, is gated off — so without a
+            button there is no way to find a hospital by name on a phone at all.
+
+            It sits after the three destinations and before the bell, so the row
+            reads as NAVIGATION then TOOLS rather than interleaving the two. */}
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon"
+          aria-label={t('cmd.title')}
+          title={t('cmd.title')}
+          onClick={openCommandPalette}
+        >
+          <IconSearch size={20} />
+        </button>
+        {/* Eagerly imported: the bell is chrome, so it is
             on every screen, and its unread count is the one thing here that
             changes without the user doing anything. It owns its own popover
             (sheet under 768px) and its own realtime subscription; Shell already

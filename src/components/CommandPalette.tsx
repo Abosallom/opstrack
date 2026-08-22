@@ -51,7 +51,7 @@ import { useNavigate } from 'react-router-dom'
 import Cheatsheet from './Cheatsheet'
 import { toast } from './toast'
 import { t } from '../lib/i18n'
-import { useTrackLabel } from '../lib/labels'
+import { useNodeLabel, useTrackLabel } from '../lib/labels'
 import { canEditEntry } from '../lib/permissions'
 import { pushOverlay } from '../lib/overlayStack'
 import { viewToParams } from '../lib/mindtree/focus'
@@ -86,18 +86,18 @@ import {
 // catalogue into this chunk to spell five string literals.
 import type { PermissionKey } from '../api/roles'
 import { useAuth, useHasPerm, useIsAdmin } from '../store/auth'
-import { useActiveTracks, useTrackMap } from '../store/config'
+import { useActiveTracks, useMapNodes, useTrackMap } from '../store/config'
 import { loadEntries, refreshEntries, setStatus, useEntryList } from '../store/entries'
 import { getOpenEntryId, openEntry, stepEntry } from '../store/entrySheet'
 import { setLocaleSetting, setTheme, useSettings } from '../store/settings'
 import { useVocabLabel } from '../store/vocab'
-import type { Entry, EntryStatus, Track, UserRole } from '../types'
+import type { Entry, EntryStatus, MapNode, Track, UserRole } from '../types'
 import type { ThemePref } from '../lib/theme'
 import './cmd.css'
 
 /* ──────────────────────────────── the rows ─────────────────────────────── */
 
-type GroupId = 'entries' | 'tracks' | 'screens' | 'actions'
+type GroupId = 'entries' | 'organizations' | 'tracks' | 'screens' | 'actions'
 
 /**
  * Fixed order, entries first.
@@ -106,10 +106,16 @@ type GroupId = 'entries' | 'tracks' | 'screens' | 'actions'
  * mixed result list legible, and interleaving an action between two entries by
  * score produces a list nobody can scan. Ranking happens WITHIN a group.
  */
-const GROUP_ORDER: readonly GroupId[] = ['entries', 'tracks', 'screens', 'actions']
+// ORGANIZATIONS SIT SECOND, above tracks and below entries. They are the most
+// numerous thing in this workspace by two orders of magnitude — a hundred and
+// four against ten entries and one track — and they are what a reader typing a
+// hospital name is looking for. Entries keep the top slot because a query that
+// matches one is a query about a specific piece of work.
+const GROUP_ORDER: readonly GroupId[] = ['entries', 'organizations', 'tracks', 'screens', 'actions']
 
 const GROUP_LABEL: Readonly<Record<GroupId, string>> = {
   entries: 'cmd.groupEntries',
+  organizations: 'cmd.groupOrganizations',
   tracks: 'cmd.groupTracks',
   screens: 'cmd.groupScreens',
   actions: 'cmd.groupActions',
@@ -495,6 +501,10 @@ export const ADMIN_SCREENS: readonly AdminPaletteScreen[] = [
  */
 const GROUP_CAP: Readonly<Record<GroupId, number>> = {
   entries: 8,
+  // Higher than tracks', because the group it caps is a hundred and four rows
+  // rather than one, and a reader who types three letters of a hospital name
+  // wants to see the near misses.
+  organizations: 8,
   tracks: 6,
   screens: SCREENS.length + LENSES.length + PORTFOLIO_VIEWS.length + 1 + ADMIN_SCREENS.length,
   actions: 6,
@@ -609,6 +619,44 @@ export function trackCandidates(
     // UI still has to find a track whose only memorable name is Arabic. This
     // is lib/text.ts's own reason for not locale-switching its folds.
     fields: [foldField(trackLabel(track)), foldField(`${track.name} ${track.name_ar}`)],
+  }))
+}
+
+/**
+ * The ORGANIZATIONS on the map, by name.
+ *
+ * ⚠ THIS IS THE SEARCH THE APP LOST. `filterIsle` — the map's filter bar, and
+ *   with it the type-ahead that found one of a hundred and four organizations
+ *   by name — is gated off in Mindtree.tsx because the chrome around the canvas
+ *   was noise. That was the right call about the CHROME and it took the only
+ *   mounted way to find a hospital with it: what remains on the canvas is
+ *   pinching until the labels resolve.
+ *
+ *   The palette already had the right shape for the job and simply did not
+ *   index these rows. It indexes entries and tracks, of which the live
+ *   workspace holds ten and one; the hundred and four things a reader actually
+ *   looks for were the ones missing.
+ *
+ * BOTH NAMES, IN BOTH LANGUAGES, for `trackCandidates`' stated reason: an
+ * English UI still has to find an organization whose memorable name is Arabic.
+ *
+ * IT OPENS THE PANEL RATHER THAN FLYING THE CAMERA. `mapHref('shape', id)` is
+ * the same destination the dead type-ahead used and the same one the portfolio
+ * table's rows use, so arriving from the palette and arriving from a table land
+ * a reader in one place rather than two.
+ */
+export function organizationCandidates(
+  nodes: readonly MapNode[],
+  nodeLabel: (node: Pick<MapNode, 'name' | 'name_ar'>) => string,
+  navigate: NavigateFn,
+): RankRow<Row>[] {
+  return nodes.map((node) => ({
+    item: {
+      id: `node:${node.id}`,
+      label: nodeLabel(node),
+      run: () => navigate(mapHref('shape', node.id)),
+    },
+    fields: [foldField(nodeLabel(node)), foldField(`${node.name} ${node.name_ar}`)],
   }))
 }
 
@@ -780,6 +828,31 @@ export function shouldRestoreFocus(probe: FocusRestoreProbe): boolean {
 
 /* ─────────────────────────────── the palette ───────────────────────────── */
 
+/* ─────────────────────────── the imperative seam ──────────────────────────── */
+
+/**
+ * The mounted palette's opener, so a BUTTON can reach it.
+ *
+ * ⚠ WITHOUT THIS THE PALETTE DOES NOT EXIST ON A PHONE. It opens on `K` and on
+ *   `/` and on nothing else — `lib/hotkeys` is the only caller — so on a touch
+ *   device with no hardware keyboard there was no way to reach it at all. That
+ *   mattered little while it indexed ten entries and one track; it matters a
+ *   great deal now that it is also the only search over a hundred and four
+ *   organizations (see `organizationCandidates`).
+ *
+ * Same shape as `MapCapture.focusMapCapture()` and for the same reason: the
+ * caller is the app header, which is outside the React subtree that owns this
+ * state. One module-level slot rather than a registry, because the shell mounts
+ * exactly one palette — a second instance would take the slot and the first
+ * would stop answering, which is a visible bug rather than a silent one.
+ */
+let liveOpen: (() => void) | null = null
+
+/** Open the command palette. No-op when it is not mounted. */
+export function openCommandPalette(): void {
+  liveOpen?.()
+}
+
 export default function CommandPalette(): ReactElement {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -794,6 +867,8 @@ export default function CommandPalette(): ReactElement {
   const optionEls = useRef(new Map<number, HTMLElement>())
 
   const entries = useEntryList()
+  const organizations = useMapNodes()
+  const nodeLabel = useNodeLabel()
   const tracks = useActiveTracks()
   const trackMap = useTrackMap()
   const trackLabel = useTrackLabel()
@@ -836,6 +911,14 @@ export default function CommandPalette(): ReactElement {
     [tracks, trackLabel, navigate],
   )
 
+  // MEMOISED with the entries, and for the identical reason: folding a hundred
+  // and four names twice each is the expensive half of a keystroke, and it
+  // changes only when the roster or the language does.
+  const organizationRows = useMemo<RankRow<Row>[]>(
+    () => organizationCandidates(organizations, nodeLabel, navigate),
+    [organizations, nodeLabel, navigate],
+  )
+
   // NOT MEMOISED, and both for the same reason. There are fifteen screens and
   // four actions, so rebuilding them costs nothing — and the dependency that
   // would make a memo CORRECT is one React cannot express: t() answers for
@@ -862,7 +945,13 @@ export default function CommandPalette(): ReactElement {
   // every entry title, is what the memo above is for.
   const model = rankPalette(
     query,
-    { entries: entryRows, tracks: trackRows, screens: screenRows, actions: actionRows },
+    {
+      entries: entryRows,
+      organizations: organizationRows,
+      tracks: trackRows,
+      screens: screenRows,
+      actions: actionRows,
+    },
     active,
   )
   const { count, flat, at } = model
@@ -873,6 +962,23 @@ export default function CommandPalette(): ReactElement {
     setOpen(false)
     setQuery('')
     setActive(0)
+  }, [])
+
+  /**
+   * Publish the opener while mounted.
+   *
+   * The cleanup clears the slot ONLY IF IT IS STILL OURS — StrictMode runs the
+   * next effect before this cleanup on a double invoke, and blindly nulling
+   * would leave the live palette unreachable from the header button. This is
+   * `NodeCard`'s `openDismiss === dismiss` rule, which is where the hazard was
+   * found the first time.
+   */
+  useEffect(() => {
+    const mine = () => setOpen(true)
+    liveOpen = mine
+    return () => {
+      if (liveOpen === mine) liveOpen = null
+    }
   }, [])
 
   useEffect(() => {
