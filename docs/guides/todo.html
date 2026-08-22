@@ -1,0 +1,286 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>What to do now</title>
+<!--BASECSS-->
+<style>
+.big { font-size: 46pt; font-weight: 700; color: var(--accent); line-height: 1; }
+.card5 { display: grid; gap: 3mm; }
+.row5 { display: grid; grid-template-columns: 13mm 1fr 22mm; gap: 4mm; align-items: center;
+        border: 1px solid var(--rule); border-radius: 2.5mm; padding: 4mm; background: #fff; }
+.row5 .n { font-size: 19pt; font-weight: 700; color: var(--accent); text-align: center; }
+.row5 .t { font-size: 12pt; font-weight: 650; color: var(--ink); line-height: 1.3; }
+.row5 .t small { font-size: 9.6pt; font-weight: 400; margin-top: 0.8mm; }
+.row5 .m { font-size: 9.4pt; font-weight: 700; color: var(--accent); text-align: right; }
+.row5.done { background: var(--ok-soft); border-color: var(--ok-line); }
+.row5.done .n, .row5.done .m { color: var(--ok); }
+.do { font-size: 13pt; line-height: 1.5; color: var(--ink); margin-bottom: 4mm; }
+.do b { color: var(--accent); }
+.see { background: var(--ok-soft); border: 1px solid var(--ok-line); border-radius: 2.5mm;
+       padding: 4mm 5mm; font-size: 11pt; line-height: 1.5; color: var(--ok); margin-bottom: 4mm; }
+.see b { color: var(--ok); }
+.url { background: #16151d; color: #7ee0a8; border-radius: 2.5mm; padding: 4.5mm 5mm;
+       font-family: "SF Mono", Menlo, monospace; font-size: 12pt; text-align: center;
+       margin-bottom: 4mm; word-break: break-all; }
+.nav2 { display: flex; align-items: center; flex-wrap: wrap; gap: 2mm; margin-bottom: 4mm; }
+.nav2 span { background: #fff; border: 1px solid var(--accent-line); border-radius: 1.5mm;
+             padding: 2.4mm 3.4mm; font-size: 11pt; font-weight: 650; }
+.nav2 span.last { background: var(--accent); color: #fff; border-color: var(--accent); }
+.nav2 em { color: var(--accent-mid); font-style: normal; font-size: 13pt; }
+</style></head><body>
+
+<!-- 1 -->
+<section class="page">
+  <div class="kicker">Checked against your live project just now</div>
+  <h1>What to do now</h1>
+  <p class="lede">Five things. About <b>half an hour</b> in total. They are in the order I would
+  do them &mdash; the first one takes two minutes and is the interesting one.</p>
+
+  <div class="card5" style="margin-top:6mm">
+    <div class="row5"><span class="n">1</span><div class="t">Look at the new map
+      <small>Tell me what is wrong with it</small></div><span class="m">2 min</span></div>
+    <div class="row5"><span class="n">2</span><div class="t">Put a number of days on each stage
+      <small>Switches on the &ldquo;stuck&rdquo; warnings</small></div><span class="m">5 min</span></div>
+    <div class="row5"><span class="n">3</span><div class="t">Run one more SQL file
+      <small>Same as last time. It is called 0030</small></div><span class="m">10 min</span></div>
+    <div class="row5"><span class="n">4</span><div class="t">Press Test connection for Jira
+      <small>I fixed the problem you hit</small></div><span class="m">2 min</span></div>
+    <div class="row5"><span class="n">5</span><div class="t">Give your team their codes
+      <small>16 people still cannot sign in</small></div><span class="m">10 min</span></div>
+    <div class="row5 done"><span class="n">&#10003;</span><div class="t">Arabic names for the stages
+      <small>You did this &mdash; all seven have Arabic now</small></div><span class="m">done</span></div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="box acc">
+    <h4>Nothing here can break anything</h4>
+    <small>Every one of these is either looking at something, typing a number, or pasting a file
+    that checks its own work. The site keeps running throughout.</small>
+  </div>
+  <div class="foot"><span>NphiesCore &middot; what to do now</span><span>1 / 7</span></div>
+</section>
+
+<!-- 2 -->
+<section class="page">
+  <div class="head"><span class="step-no">1</span><div><h2>Look at the new map</h2>
+  <small>Two minutes. This is the thing you said looked terrible.</small></div></div>
+
+  <p class="do">Open this address. The <b>?tree=1</b> on the end is what shows the new drawing.</p>
+  <div class="url">nphiescore.com/#/mindtree?tree=1</div>
+
+  <div class="see"><b>You should see</b> a proper family tree. Your programme at the top, then the
+  two directorates, then each manager, then their organizations &mdash; every one a box with its
+  name, its number, and a red dot if it is in trouble.</div>
+
+  <p class="do">Now take the <b>?tree=1</b> off the end and load it again. That is the old drawing,
+  so you can compare them side by side.</p>
+
+  <div class="box warn">
+    <h4>Two things are still wrong, and I already know about them</h4>
+    <small><b>Sliding and zooming feels a bit odd.</b> The part of the app that moves the picture
+    around still thinks in circles. I am rewriting it.
+    <br><br><b>The whole tree leaves empty space above and below.</b> It is very wide and not very
+    tall, so fitting it sideways wastes the top and bottom. Being able to fold branches shut is
+    what fixes that, and it comes with the same piece of work.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>What I need from you</h4>
+    <small>One message. What looks wrong, in your own words. &ldquo;I don't know why but I don't
+    like it&rdquo; is genuinely useful &mdash; I can usually find the reason. Do not be polite
+    about it.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>1 &middot; look at the map</span><span>2 / 7</span></div>
+</section>
+
+<!-- 3 -->
+<section class="page">
+  <div class="head"><span class="step-no">2</span><div><h2>How many days is too long?</h2>
+  <small>Five minutes. The most useful five minutes on this list.</small></div></div>
+
+  <div class="nav2"><span>nphiescore.com</span><em>&rsaquo;</em><span>Settings</span><em>&rsaquo;</em>
+    <span class="last">Catalogue</span></div>
+
+  <p class="do">Find your seven stages. Beside each one is a box for <b>expected days</b>.
+  All seven are empty right now.</p>
+
+  <div class="see"><b>It means:</b> if a hospital sits on this stage longer than this many days,
+  something is wrong and the app should say so.</div>
+
+  <div class="box bad">
+    <h4>While they are all empty</h4>
+    <small>The <b>at-risk number</b> stays on zero forever &mdash; which reads as &ldquo;nothing is
+    stuck&rdquo;. The <b>Stalled list</b> is empty for everyone. And nothing can be sorted by
+    &ldquo;stuck the longest&rdquo;.</small>
+  </div>
+
+  <p class="do">Fill in a number for the <b>middle four</b> only:</p>
+
+  <div class="box" style="padding:4mm">
+    <div class="rung head" style="display:grid;grid-template-columns:1fr 26mm;gap:3mm;font-size:8pt;letter-spacing:.7pt;text-transform:uppercase;color:var(--ink-3);font-weight:650;padding-bottom:2mm"><span>Stage</span><span style="text-align:right">Days</span></div>
+    <div style="display:grid;grid-template-columns:1fr 26mm;gap:3mm;font-size:10.6pt;padding:2mm 0;border-top:1px solid var(--rule);color:var(--ink-3)"><span>Not started</span><span style="text-align:right">leave empty</span></div>
+    <div style="display:grid;grid-template-columns:1fr 26mm;gap:3mm;font-size:10.6pt;padding:2mm 0;border-top:1px solid var(--rule);font-weight:650"><span>Kickoff</span><span style="text-align:right;color:var(--accent)">put a number</span></div>
+    <div style="display:grid;grid-template-columns:1fr 26mm;gap:3mm;font-size:10.6pt;padding:2mm 0;border-top:1px solid var(--rule);font-weight:650"><span>Integrating</span><span style="text-align:right;color:var(--accent)">put a number</span></div>
+    <div style="display:grid;grid-template-columns:1fr 26mm;gap:3mm;font-size:10.6pt;padding:2mm 0;border-top:1px solid var(--rule);font-weight:650"><span>Testing/UAT</span><span style="text-align:right;color:var(--accent)">put a number</span></div>
+    <div style="display:grid;grid-template-columns:1fr 26mm;gap:3mm;font-size:10.6pt;padding:2mm 0;border-top:1px solid var(--rule);font-weight:650"><span>Go-live ready</span><span style="text-align:right;color:var(--accent)">put a number</span></div>
+    <div style="display:grid;grid-template-columns:1fr 26mm;gap:3mm;font-size:10.6pt;padding:2mm 0;border-top:1px solid var(--rule);color:var(--ink-3)"><span>Live</span><span style="text-align:right">leave empty</span></div>
+    <div style="display:grid;grid-template-columns:1fr 26mm;gap:3mm;font-size:10.6pt;padding:2mm 0;border-top:1px solid var(--rule);color:var(--ink-3)"><span>Paused</span><span style="text-align:right">leave empty</span></div>
+  </div>
+
+  <div class="box ok" style="margin-top:4mm">
+    <h4>Guess. Really.</h4>
+    <small>A rough number today beats no number. Later the app will measure how long each stage
+    <i>actually</i> takes, and you can replace your guess with the real figure.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>2 &middot; days per stage</span><span>3 / 7</span></div>
+</section>
+
+<!-- 4 -->
+<section class="page">
+  <div class="head"><span class="step-no">3</span><div><h2>Run one more SQL file</h2>
+  <small>Ten minutes. Exactly like the four you already did.</small></div></div>
+
+  <p class="do">It is called <b>0030</b>. It makes room for the map settings screen &mdash; so you
+  can change how the tree looks without me.</p>
+
+  <div class="act"><span class="n">1</span><div class="t">In Terminal, these two lines:
+    <div class="term">cd /Users/aziz/Claude/nphiescore
+pbcopy &lt; supabase/migrations/0030_map_view_settings.sql</div>
+    <span class="saw">Nothing appears to happen. That is right &mdash; the file is now copied.</span></div></div>
+
+  <div class="act"><span class="n">2</span><div class="t">Go to the Supabase <b>SQL Editor</b>, same
+    as last time. Click in the big box, press <b>&#8984;A</b> then <b>Delete</b>, then
+    <b>&#8984;V</b>.</div></div>
+
+  <div class="act"><span class="n">3</span><div class="t">Press <b>&#8984;&#9166;</b>. Wait a few seconds.</div></div>
+
+  <div class="act"><span class="n">4</span><div class="t"><b>Count the grey lines.</b>
+    <div class="see" style="margin:2mm 0 0"><b>5 grey lines. No red line.</b></div></div></div>
+
+  <div class="act"><span class="n">5</span><div class="t"><b>Do it a second time.</b>
+    <b>&#8984;A</b>, <b>Delete</b>, <b>&#8984;V</b>, <b>&#8984;&#9166;</b>.
+    <span class="saw">5 grey lines again, saying the same things. Then you are done.</span></div></div>
+
+  <div class="box acc">
+    <h4>Why twice, again</h4>
+    <small>Same reason as before: it proves the file can be run again safely, so if anything ever
+    needs repairing the answer is simply &ldquo;run it again&rdquo;.</small>
+  </div>
+
+  <div class="box ok">
+    <h4>If you skip this one, nothing breaks</h4>
+    <small>The app works fine without it &mdash; it just uses my settings instead of yours. You can
+    do this whenever.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>3 &middot; the 0030 file</span><span>4 / 7</span></div>
+</section>
+
+<!-- 5 -->
+<section class="page">
+  <div class="head"><span class="step-no">4</span><div><h2>Try Jira again</h2>
+  <small>Two minutes. I fixed the thing that was blocking you.</small></div></div>
+
+  <div class="nav2"><span>nphiescore.com</span><em>&rsaquo;</em><span>Settings</span><em>&rsaquo;</em>
+    <span>Jira</span><em>&rsaquo;</em><span class="last">Test connection</span></div>
+
+  <div class="see"><b>Change nothing first.</b> Your token is fine. Your three secrets are fine.
+  Just press the button.</div>
+
+  <div class="box acc">
+    <h4>What was wrong</h4>
+    <small>Your read-only token is only accepted at a different Jira address from the ordinary one.
+    The program was knocking on the wrong door, so Jira said no to a perfectly good token.
+    <b>It now knows about both doors</b> and tries them in turn.</small>
+  </div>
+
+  <div class="box ok">
+    <h4>If it works</h4>
+    <small>It turns green and names the account and the Jira site it signed in as. That is the whole
+    test. Tell me and I will help you with the next part &mdash; matching your Jira projects to your
+    organizations.</small>
+  </div>
+
+  <div class="box warn">
+    <h4>If it still says no</h4>
+    <small>Send me the exact words. The message names which of the three secrets it thinks is wrong,
+    and it never shows the value, so it is safe to copy to me as it is.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>4 &middot; Jira</span><span>5 / 7</span></div>
+</section>
+
+<!-- 6 -->
+<section class="page">
+  <div class="head"><span class="step-no">5</span><div><h2>Give your team their codes</h2>
+  <small>Ten minutes. Sixteen people cannot sign in yet.</small></div></div>
+
+  <div class="see"><b>Right now:</b> 18 accounts exist. Only <b>you and Nasser</b> have ever signed
+  in. The other 16 are waiting.</div>
+
+  <div class="act"><span class="n">1</span><div class="t">Find the sixteen codes you copied out of
+    Terminal when you made the accounts.</div></div>
+
+  <div class="act"><span class="n">2</span><div class="t">Send each person <b>their own</b> code.
+    Directly &mdash; not in a group chat, and not to me.</div></div>
+
+  <div class="act"><span class="n">3</span><div class="t">Tell them what to do with it:
+    <div class="see" style="margin:2mm 0 0">Go to <b>nphiescore.com</b> &rarr; click
+    <b>First time here?</b> &rarr; type the code &rarr; choose a password.</div></div></div>
+
+  <div class="box bad">
+    <h4>If you have lost the codes</h4>
+    <small>They exist nowhere else &mdash; not in a file, not in the database, not with me. That is
+    on purpose. <b>Just tell me</b> and I will make new accounts for whoever needs one, which prints
+    fresh codes. Easy now; awkward once people are using them.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>5 &middot; the invite codes</span><span>6 / 7</span></div>
+</section>
+
+<!-- 7 -->
+<section class="page">
+  <div class="kicker">After that</div>
+  <h2 style="font-size:21pt; margin-bottom:5mm">What I do next</h2>
+
+  <div class="box acc">
+    <h4>Make the tree the normal view</h4>
+    <small>Rewrite the part that slides and zooms the picture so it understands boxes instead of
+    circles. Then the <b>?tree=1</b> goes away and the tree is simply what you see. Branches will
+    fold shut, which is what stops 400 organizations becoming a wall.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Put real demo data in</h4>
+    <small>You still have 22 made-up organizations from an old trial, and none of them has a stage.
+    I will swap them for 72 spread across all seven of your stages, so the screens have something
+    true to show. Say when.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Give the app a memory</h4>
+    <small>Today it knows where each hospital <b>is</b>, but not where it has <b>been</b>. So it
+    cannot answer &ldquo;are we going faster than last month&rdquo; or &ldquo;will we make
+    December&rdquo;. That is the biggest missing piece and it is next after the map.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Then the things a director expects</h4>
+    <small>Search for a hospital by name. A red/amber/green you set yourself, with a reason, beside
+    the one the app works out. And a forecast line showing whether you will hit your dates.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="box ok">
+    <h4>The short version</h4>
+    <small><b>Look at the map and tell me what is wrong.</b> Everything else on your list can happen
+    whenever you have a spare ten minutes.</small>
+  </div>
+  <div class="foot"><span>Checked against your live project, 22 August 2026</span><span>7 / 7</span></div>
+</section>
+</body></html>
