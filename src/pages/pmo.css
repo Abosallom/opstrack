@@ -579,3 +579,145 @@ a.pmo-jira:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ── the forms (components/pmo/PortfolioEditor.tsx) ─────────────────────── */
+
+/* ⚠ DESIGNED AT 375px FIRST, and the whole reason the grid below is written
+   the way it is. A project form is twelve fields; two columns of six on a
+   phone would give each label about 150px and wrap "This week's tasks" onto
+   three lines. So it is ONE column until there is genuinely room for two, and
+   `auto-fit` picks the moment rather than a breakpoint that has to be kept in
+   step with the field count.
+
+   LOGICAL PROPERTIES THROUGHOUT, like the rest of this file: the forms mirror
+   in Arabic with no second rule set, and the delete button lands on the
+   trailing edge in both directions because `margin-inline-start: auto` means
+   "push it away from the others" rather than "push it right". */
+
+.pmo-edit-row {
+  display: flex;
+  margin-block-start: 4px;
+}
+
+.pmo-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev-2);
+  margin-block-start: 8px;
+}
+
+.pmo-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+}
+
+.pmo-field {
+  min-inline-size: 0;
+}
+
+/* A note is a sentence, not a word: it takes the whole row wherever the grid
+   has more than one column. */
+.pmo-field-wide {
+  grid-column: 1 / -1;
+}
+
+.pmo-form-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.35;
+}
+
+.pmo-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  /* 44px so the whole row is the target, not just the 16px box inside it. */
+  min-block-size: 44px;
+}
+
+.pmo-check input {
+  inline-size: 20px;
+  block-size: 20px;
+  flex: none;
+}
+
+.pmo-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pmo-form-delete {
+  margin-inline-start: auto;
+}
+
+/* The objective card's two controls sit on one line and wrap on a phone. */
+.pmo-card-edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.pmo-card-edit .pmo-edit-row {
+  margin-block-start: 0;
+}
+
+/* The revenue register underneath the grid — one line per stored quarter,
+   because a cell in a 24-number table has nowhere to put a control a thumb
+   can hit. */
+.pmo-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pmo-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-block: 8px;
+  border-block-end: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.pmo-line-k {
+  font-weight: 600;
+  min-inline-size: 0;
+}
+
+.pmo-line-v {
+  color: var(--text-dim);
+}
+
+.pmo-line .pmo-edit-row {
+  margin-block-start: 0;
+  margin-inline-start: auto;
+}
+
+/* A key result's own edit control, on the row it belongs to. */
+.pmo-kr .pmo-edit-row {
+  margin-block-start: 0;
+  flex: none;
+}
+
+/* A form opened from inside a key-result row has to escape the row's flex
+   line, or twelve fields would try to sit beside a name. */
+.pmo-kr {
+  flex-wrap: wrap;
+}
+
+.pmo-kr .pmo-form {
+  flex-basis: 100%;
+}

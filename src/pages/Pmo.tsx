@@ -120,10 +120,12 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { AgingChart, ThroughputChart } from '../components/charts'
 import { EmptyState } from '../components/shared'
 import {
+  PortfolioActions,
   PortfolioInitiatives,
   PortfolioOkrs,
   PortfolioProjects,
   PortfolioRevenue,
+  PortfolioRisks,
 } from '../components/pmo/Portfolio'
 import { toast } from '../components/toast'
 // THE ONE RESOLVER FOR "who is accountable", imported rather than restated. An
@@ -633,15 +635,31 @@ export default function Pmo(): ReactElement {
             </>
           )}
           {tab === 'actions' && (
-            <Actions
-              rows={register}
-              sections={sections}
-              managerNameOf={managerNameOf}
-              focusEntry={focusEntry}
-              locale={locale}
-            />
+            <>
+              <Actions
+                rows={register}
+                sections={sections}
+                managerNameOf={managerNameOf}
+                focusEntry={focusEntry}
+                locale={locale}
+              />
+              {/* ⚠ 0031's OWN ACTION TABLE, UNDER THE CAPTURED REGISTER RATHER
+                  THAN MERGED INTO IT. The rows above are `entries` — captured
+                  work with health, an SLA clock and follow-up buckets. The
+                  section below is `pmo_actions`: the huddle's follow-up list,
+                  with up to two owners and a done stamp. A director asking
+                  "what is outstanding" should not have to pick a tab per
+                  system, and merging the two lists would claim they are one
+                  object when they are two. */}
+              <PortfolioActions />
+            </>
           )}
-          {tab === 'risks' && <Risks risks={risks} />}
+          {tab === 'risks' && (
+            <>
+              <Risks risks={risks} />
+              <PortfolioRisks />
+            </>
+          )}
           {tab === 'revenue' && <PortfolioRevenue />}
           {tab === 'okrs' && <PortfolioOkrs />}
         </>

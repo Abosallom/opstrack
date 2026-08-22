@@ -36,13 +36,36 @@ import { useJiraSettings } from '../../store/config'
 import { useMemberMap } from '../../store/members'
 import { loadPmo, usePmo, usePmoError, usePmoLoading, usePmoNeedsMigration } from '../../store/pmo'
 import type {
+  PmoAction,
   PmoInitiative,
   PmoKeyResult,
   PmoObjective,
   PmoObjectiveProgress,
   PmoProject,
   PmoRevenueLine,
+  PmoRisk,
 } from '../../types'
+// THE FORMS THAT FILL THESE TABLES IN. Each one renders NOTHING without the
+// permission 0031 gates its table on, so this file needs no branch of its own —
+// see `PortfolioEditor.tsx`'s header on why absence rather than a disabled
+// control.
+import {
+  ActionEditor,
+  InitiativeEditor,
+  KeyResultEditor,
+  ObjectiveEditor,
+  ProjectEditor,
+  RevenueEditor,
+  RiskEditor,
+} from './PortfolioEditor'
+import {
+  GRADE_LABEL,
+  INITIATIVE_STEPS,
+  PHASE_LABEL,
+  PROJECT_STEPS,
+  REGISTER_LABEL,
+  STATUS_LABEL,
+} from './vocab'
 
 /* ─────────────────────────── shared furniture ─────────────────────────── */
 
@@ -205,22 +228,34 @@ function Money({ amount, currency }: { amount: string | null; currency: string }
 }
 
 /**
- * ⚠ THE KEYS ARE LITERALS, NOT A TEMPLATE. `lib/localeReach.test.ts` scans
- *   source for quoted dotted strings and asserts each resolves in BOTH bundles;
- *   a `t(\`pmo.phase.${step}\`)` is invisible to it and ships missing in one
- *   language. `lens.ts` states the same rule about its own key tables.
+ * A titled block for the two sections this file grew when the forms landed.
+ *
+ * `pages/Pmo.tsx` has its own `Section` and this is deliberately not it: that
+ * one is a page-level component the page composes, and importing it here would
+ * make the page and its own section list circular. Same markup, so the two read
+ * as one page.
  */
-const PHASE_LABEL: Readonly<Record<string, () => string>> = {
-  start: () => t('pmo.phase.start'),
-  planning: () => t('pmo.phase.planning'),
-  execution: () => t('pmo.phase.execution'),
-  closure: () => t('pmo.phase.closure'),
-  evaluation: () => t('pmo.phase.evaluation'),
-  dissemination: () => t('pmo.phase.dissemination'),
+function OwnSection({
+  id,
+  title,
+  desc,
+  children,
+}: {
+  id: string
+  title: string
+  desc: string
+  children: ReactNode
+}): ReactElement {
+  return (
+    <section className="pmo-section" aria-labelledby={id}>
+      <h2 className="section-title" id={id}>
+        {title}
+      </h2>
+      <p className="muted pmo-desc">{desc}</p>
+      {children}
+    </section>
+  )
 }
-
-const PROJECT_STEPS = ['start', 'planning', 'execution', 'closure'] as const
-const INITIATIVE_STEPS = ['planning', 'execution', 'evaluation', 'dissemination'] as const
 
 /* ───────────────────────────── 1. projects ─────────────────────────────── */
 
@@ -231,16 +266,28 @@ export function PortfolioProjects(): ReactElement {
   const locale = useLocale()
   if (!ready || data === null) return <>{frame}</>
 
-  if (data.projects.length === 0) {
-    return <EmptyState title={t('pmo.projectsEmpty')} description={t('pmo.projectsEmptyHint')} />
-  }
-
   return (
-    <ul className="pmo-cards">
-      {data.projects.map((p) => (
-        <ProjectCard key={p.id} project={p} managerName={nameOf(members, p.manager_id)} locale={locale} />
-      ))}
-    </ul>
+    <>
+      {/* ⚠ THE ADD CONTROL SITS OUTSIDE THE EMPTY BRANCH, not inside the list.
+          An empty portfolio is precisely the state in which somebody needs to
+          add the first project, and an "add" button that only appears once
+          there is something to add is a screen you cannot start from. */}
+      <ProjectEditor />
+      {data.projects.length === 0 ? (
+        <EmptyState title={t('pmo.projectsEmpty')} description={t('pmo.projectsEmptyHint')} />
+      ) : (
+        <ul className="pmo-cards">
+          {data.projects.map((p) => (
+            <ProjectCard
+              key={p.id}
+              project={p}
+              managerName={nameOf(members, p.manager_id)}
+              locale={locale}
+            />
+          ))}
+        </ul>
+      )}
+    </>
   )
 }
 
@@ -271,6 +318,8 @@ function ProjectCard({
       <Progress actual={project.actual_pct} planned={project.planned_pct} />
 
       {project.note.trim() !== '' && <p className="pmo-card-note">{project.note}</p>}
+
+      <ProjectEditor project={project} />
     </li>
   )
 }
@@ -284,16 +333,24 @@ export function PortfolioInitiatives(): ReactElement {
   const locale = useLocale()
   if (!ready || data === null) return <>{frame}</>
 
-  if (data.initiatives.length === 0) {
-    return <EmptyState title={t('pmo.initEmpty2')} description={t('pmo.initEmptyHint2')} />
-  }
-
   return (
-    <ul className="pmo-cards">
-      {data.initiatives.map((i) => (
-        <InitiativeCard key={i.id} initiative={i} managerName={nameOf(members, i.manager_id)} locale={locale} />
-      ))}
-    </ul>
+    <>
+      <InitiativeEditor />
+      {data.initiatives.length === 0 ? (
+        <EmptyState title={t('pmo.initEmpty2')} description={t('pmo.initEmptyHint2')} />
+      ) : (
+        <ul className="pmo-cards">
+          {data.initiatives.map((i) => (
+            <InitiativeCard
+              key={i.id}
+              initiative={i}
+              managerName={nameOf(members, i.manager_id)}
+              locale={locale}
+            />
+          ))}
+        </ul>
+      )}
+    </>
   )
 }
 
@@ -328,6 +385,8 @@ function InitiativeCard({
       <Progress actual={initiative.actual_pct} planned={initiative.planned_pct} />
 
       {initiative.note.trim() !== '' && <p className="pmo-card-note">{initiative.note}</p>}
+
+      <InitiativeEditor initiative={initiative} />
     </li>
   )
 }
@@ -340,10 +399,6 @@ export function PortfolioRevenue(): ReactElement {
   const locale = useLocale()
   if (!ready || data === null) return <>{frame}</>
 
-  if (data.revenue.length === 0) {
-    return <EmptyState title={t('pmo.revenueEmpty')} description={t('pmo.revenueEmptyHint')} />
-  }
-
   // One row per project, four quarter columns — the source dashboard's shape.
   const byProject = new Map<string, PmoRevenueLine[]>()
   for (const line of data.revenue) {
@@ -352,7 +407,60 @@ export function PortfolioRevenue(): ReactElement {
     else held.push(line)
   }
   const nameById = new Map(data.projects.map((p) => [p.id, p.name]))
+  const projectOptions = data.projects.map((p) => ({ value: p.id, label: p.name }))
 
+  return (
+    <>
+      {/* ⚠ REVENUE CANNOT EXIST WITHOUT A PROJECT — `project_id` is NOT NULL in
+          0031, because a quarter's money that belongs to nothing sums into no
+          column on this table. So the form is not offered until there is
+          something to attach it to, and the reason is said out loud rather than
+          left as a select with no options in it. */}
+      {data.projects.length === 0 ? (
+        <p className="muted pmo-desc">{t('pmo.revenueNeedsProject')}</p>
+      ) : (
+        <RevenueEditor projects={projectOptions} defaultYear={new Date().getFullYear()} />
+      )}
+
+      {data.revenue.length === 0 ? (
+        <EmptyState title={t('pmo.revenueEmpty')} description={t('pmo.revenueEmptyHint')} />
+      ) : (
+        <>
+          <RevenueTable byProject={byProject} nameById={nameById} locale={locale} />
+          {/* THE TABLE IS THE READING; THIS IS THE REGISTER. A quarter cell is
+              one of twenty-four numbers in a grid and has nowhere to hang an
+              edit control that a thumb could hit at 375px, so the rows are
+              listed once more underneath, each with its own. */}
+          <ul className="pmo-lines">
+            {data.revenue.map((line) => (
+              <li className="pmo-line" key={line.id}>
+                <span className="pmo-line-k">{nameById.get(line.project_id) ?? line.project_id}</span>
+                <span className="pmo-line-v tabular">
+                  {line.year} {t('pmo.quarter', { n: line.quarter })}
+                </span>
+                <RevenueEditor
+                  line={line}
+                  projects={projectOptions}
+                  defaultYear={line.year}
+                />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </>
+  )
+}
+
+function RevenueTable({
+  byProject,
+  nameById,
+  locale,
+}: {
+  byProject: ReadonlyMap<string, PmoRevenueLine[]>
+  nameById: ReadonlyMap<string, string>
+  locale: string
+}): ReactElement {
   return (
     <div className="pmo-tablewrap" role="region" aria-label={t('pmo.revenue')} tabIndex={0}>
       <table className="table pmo-rev">
@@ -410,10 +518,6 @@ export function PortfolioOkrs(): ReactElement {
   const members = useMemberMap()
   if (!ready || data === null) return <>{frame}</>
 
-  if (data.objectives.length === 0) {
-    return <EmptyState title={t('pmo.okrsEmpty')} description={t('pmo.okrsEmptyHint')} />
-  }
-
   const progressById = new Map(data.progress.map((p) => [p.objective_id, p]))
   const krsByObjective = new Map<string, PmoKeyResult[]>()
   for (const kr of data.keyResults) {
@@ -423,17 +527,24 @@ export function PortfolioOkrs(): ReactElement {
   }
 
   return (
-    <ul className="pmo-cards">
-      {data.objectives.map((o) => (
-        <ObjectiveCard
-          key={o.id}
-          objective={o}
-          progress={progressById.get(o.id) ?? null}
-          keyResults={krsByObjective.get(o.id) ?? []}
-          ownerName={nameOf(members, o.owner_id)}
-        />
-      ))}
-    </ul>
+    <>
+      <ObjectiveEditor />
+      {data.objectives.length === 0 ? (
+        <EmptyState title={t('pmo.okrsEmpty')} description={t('pmo.okrsEmptyHint')} />
+      ) : (
+        <ul className="pmo-cards">
+          {data.objectives.map((o) => (
+            <ObjectiveCard
+              key={o.id}
+              objective={o}
+              progress={progressById.get(o.id) ?? null}
+              keyResults={krsByObjective.get(o.id) ?? []}
+              ownerName={nameOf(members, o.owner_id)}
+            />
+          ))}
+        </ul>
+      )}
+    </>
   )
 }
 
@@ -486,10 +597,169 @@ function ObjectiveCard({
                   })
                 )}
               </span>
+              <KeyResultEditor objectiveId={objective.id} keyResult={kr} />
             </li>
           ))}
         </ul>
       )}
+
+      <div className="pmo-card-edit">
+        <ObjectiveEditor objective={objective} />
+        {/* THE KEY RESULT'S ADD CONTROL LIVES ON ITS OBJECTIVE, because
+            `objective_id` is NOT NULL and there is no other place a reader
+            could say which objective they meant. */}
+        <KeyResultEditor objectiveId={objective.id} />
+      </div>
+    </li>
+  )
+}
+
+/* ══════════════════ 5. the PMO's own actions and register ═══════════════ */
+//
+// ⚠ THESE ARE NOT THE `entries` REGISTERS THE ACTIONS AND RISKS TABS ALREADY
+//   SHOW. Those are captured work items with health, SLA and follow-up buckets,
+//   read through `lib/entrySections`. `pmo_actions` and `pmo_risks` are 0031's
+//   own tables: a huddle's follow-up list with up to two owners, and the source
+//   dashboard's Challenges/Risks grid. They sit UNDER the existing registers in
+//   the same two tabs rather than in tabs of their own, because a director
+//   asking "what is outstanding" should not have to know which of two systems a
+//   line was written in — but they are separately titled, because merging them
+//   into one list would silently claim they are the same object.
+//
+// They are also the only two sections here a member can write to without
+// `structure.edit`; see 0031's permission sentence.
+
+/** Project and initiative names in one lookup — an action may name either. */
+function scopeNames(data: {
+  projects: readonly PmoProject[]
+  initiatives: readonly PmoInitiative[]
+}): ReadonlyMap<string, string> {
+  const out = new Map<string, string>()
+  for (const p of data.projects) out.set(p.id, p.name)
+  for (const i of data.initiatives) out.set(i.id, i.name)
+  return out
+}
+
+function scopeLabel(
+  scope: ReadonlyMap<string, string>,
+  projectId: string | null,
+  initiativeId: string | null,
+): string | null {
+  const id = projectId ?? initiativeId
+  if (id === null) return null
+  return scope.get(id) ?? null
+}
+
+export function PortfolioActions(): ReactElement {
+  const { ready, frame } = usePortfolio()
+  const data = usePmo()
+  const members = useMemberMap()
+  if (!ready || data === null) return <>{frame}</>
+
+  const scope = scopeNames(data)
+
+  return (
+    <OwnSection id="pmo-own-actions" title={t('pmo.actionsOwn')} desc={t('pmo.actionsOwnDesc')}>
+      <ActionEditor />
+      {data.actions.length === 0 ? (
+        <EmptyState title={t('pmo.actionsOwnEmpty')} description={t('pmo.actionsOwnEmptyHint')} />
+      ) : (
+        <ul className="pmo-cards">
+          {data.actions.map((a) => (
+            <ActionRow key={a.id} action={a} members={members} scope={scope} />
+          ))}
+        </ul>
+      )}
+    </OwnSection>
+  )
+}
+
+function ActionRow({
+  action,
+  members,
+  scope,
+}: {
+  action: PmoAction
+  members: ReadonlyMap<string, { displayName: string }>
+  scope: ReadonlyMap<string, string>
+}): ReactElement {
+  return (
+    <li className="card pmo-card">
+      <div className="pmo-card-head">
+        <h3 className="pmo-card-name">{action.title}</h3>
+        <JiraRef ref={action.external_ref} />
+      </div>
+
+      <dl className="pmo-card-facts">
+        <Fact k={t('pmo.colOwner')} v={nameOf(members, action.owner_id)} />
+        <Fact k={t('pmo.owner2')} v={nameOf(members, action.owner2_id)} />
+        <Fact k={t('pmo.colScope')} v={scopeLabel(scope, action.project_id, action.initiative_id)} />
+        <Fact k={t('pmo.colDue')} v={action.due_date} />
+        {/* `done_at` NULL IS OPEN — 0031 keeps the timestamp rather than a
+            boolean so "5 complete" can become "closed this week" later. */}
+        <Fact
+          k={t('pmo.colStatus')}
+          v={action.done_at === null ? t('pmo.status.open') : t('pmo.projDone')}
+        />
+      </dl>
+
+      {action.detail.trim() !== '' && <p className="pmo-card-note">{action.detail}</p>}
+
+      <ActionEditor action={action} />
+    </li>
+  )
+}
+
+export function PortfolioRisks(): ReactElement {
+  const { ready, frame } = usePortfolio()
+  const data = usePmo()
+  if (!ready || data === null) return <>{frame}</>
+
+  const scope = scopeNames(data)
+
+  return (
+    <OwnSection id="pmo-own-risks" title={t('pmo.risksOwn')} desc={t('pmo.risksOwnDesc')}>
+      <RiskEditor />
+      {data.risks.length === 0 ? (
+        <EmptyState title={t('pmo.risksOwnEmpty')} description={t('pmo.risksOwnEmptyHint')} />
+      ) : (
+        <ul className="pmo-cards">
+          {data.risks.map((r) => (
+            <RiskRow key={r.id} risk={r} scope={scope} />
+          ))}
+        </ul>
+      )}
+    </OwnSection>
+  )
+}
+
+function RiskRow({
+  risk,
+  scope,
+}: {
+  risk: PmoRisk
+  scope: ReadonlyMap<string, string>
+}): ReactElement {
+  return (
+    <li className="card pmo-card">
+      <div className="pmo-card-head">
+        <h3 className="pmo-card-name">{risk.summary}</h3>
+        <JiraRef ref={risk.external_ref} />
+      </div>
+
+      <dl className="pmo-card-facts">
+        <Fact k={t('pmo.registerLabel')} v={REGISTER_LABEL[risk.register]()} />
+        <Fact k={t('pmo.colScope')} v={scopeLabel(scope, risk.project_id, risk.initiative_id)} />
+        {/* UNGRADED PRINTS "Nobody has said", never "Low". 0031 makes both
+            columns nullable precisely because a fresh register has neither. */}
+        <Fact k={t('pmo.level')} v={risk.level === null ? null : GRADE_LABEL[risk.level]()} />
+        <Fact k={t('pmo.impact')} v={risk.impact === null ? null : GRADE_LABEL[risk.impact]()} />
+        <Fact k={t('pmo.colStatus')} v={STATUS_LABEL[risk.status]()} />
+      </dl>
+
+      {risk.mitigation.trim() !== '' && <p className="pmo-card-note">{risk.mitigation}</p>}
+
+      <RiskEditor risk={risk} />
     </li>
   )
 }

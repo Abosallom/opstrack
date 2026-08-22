@@ -697,16 +697,54 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
         section: 'screenTitles',
       },
       { prefixes: ['needsMigration'], section: 'emptyStates' },
-      // The portfolio card vocabulary 0031 brought with it.
+      // The portfolio card vocabulary 0031 brought with it, and the form
+      // labels that fill those cards in. One rule, because a reader renaming
+      // "Budget" on the card is renaming the word above the box that sets it —
+      // they are the same label read twice and must not drift apart.
+      //
+      // ⚠ `quarter` ALSO CLAIMS `quarterLabel`, and `period` claims nothing
+      //   else because `periodHint` is pulled out by a longer prefix below.
       {
         prefixes: [
           'manager', 'budget', 'dates', 'period', 'kindLabel',
           'actual', 'planned', 'colProject', 'quarter', 'total', 'achieved', 'krReading',
+          'currentValue', 'detail', 'endDate', 'fieldName', 'fieldTitle', 'impact',
+          'initiativeOne', 'jiraKey', 'level', 'markDone', 'mitigation', 'noteGoal',
+          'noteTasks', 'owner2', 'phaseLabel', 'registerLabel', 'startDate', 'startValue',
+          'summaryLabel', 'targetValue', 'unit', 'year',
         ],
         section: 'entryFields',
       },
-      { prefixes: ['phase', 'kind'], section: 'healthStates' },
-      { prefixes: ['variance'], section: 'messages' },
+      // The closed vocabularies. `phase` would also claim `phaseLabel` and
+      // `register.` deliberately carries its dot so it cannot claim
+      // `registerLabel` — both of those are the FIELD's name rather than one of
+      // its values, and they live with the other field names above.
+      { prefixes: ['phase', 'kind', 'grade', 'register.', 'status'], section: 'healthStates' },
+      // Everything the forms ADD. `common.edit`, `common.save` and
+      // `common.cancel` are reused rather than restated, so the only new verbs
+      // here are the seven that name what is being added.
+      { prefixes: ['add'], section: 'actions' },
+      {
+        prefixes: [
+          'variance',
+          // THE REFUSALS. Each one is a sentence the form prints INSTEAD of
+          // saving, and every one of them is a thing the owner may want worded
+          // for his own readers — `errPct` in particular has to keep saying
+          // that blank is different from zero.
+          'err',
+          'delete',
+          'blankIsNobody',
+          'jiraKeyHint',
+          'periodHint',
+          'revenueNeedsProject',
+          'startValueHint',
+        ],
+        section: 'messages',
+      },
+      {
+        prefixes: ['notGraded', 'actionsOwnEmpty', 'risksOwnEmpty'],
+        section: 'emptyStates',
+      },
       {
         prefixes: [
           'notSaid', 'noProgress', 'okrNoKeyResults',
