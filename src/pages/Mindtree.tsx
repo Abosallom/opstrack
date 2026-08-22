@@ -907,6 +907,7 @@ export default function Mindtree(): ReactElement {
     setCurrentId: cursor.setCurrentId,
     toggleFold: focus.toggleFold,
     focusBranch: focus.focusBranch,
+    foldOnActivate: treePreview,
     openMenuFor: overlays.openMenuFor,
     textOf: model.textOf,
     setLive,
@@ -1301,7 +1302,14 @@ export default function Mindtree(): ReactElement {
    * used to gate the `Map | Table` pair this replaces — one question, one
    * answer, and it stays right if a sixth lens ever earns a third stage.
    */
-  const showLadder = onTree && allowedStages(lens.lens).length > 1
+  /**
+   * The dive rail is the containment drawing's verb: it walks the camera down
+   * through nested worlds. A tidy tree has no nesting to walk — its depth is
+   * the fold, not the zoom — so on the tree the rail is a control for a gesture
+   * that no longer exists. Hidden here rather than deleted because the rail
+   * comes back as a DEPTH rail when the camera is rewritten onto rectangles.
+   */
+  const showLadder = onTree && !treePreview && allowedStages(lens.lens).length > 1
 
   /**
    * The occlusion is reported by the panel and RETRACTED here.
@@ -1442,7 +1450,7 @@ export default function Mindtree(): ReactElement {
 
   const groupIsle = useMemo(
     () =>
-      onTree ? (
+      onTree && !treePreview ? (
         <div className="mtree-isle mtree-group">
           <MapToolbar
             dimension={model.dimension}
@@ -1544,7 +1552,7 @@ export default function Mindtree(): ReactElement {
             open: the other two groups stay at y=77, h=38, unmoved.
 
             HELD IN A MEMO ABOVE — see `filterIsle`. */}
-          {filterIsle}
+          {!treePreview && filterIsle}
 
           {/* THE FIVE DESTINATIONS AND THE TWO MODES, at the reading end of the
               same row, at every width and never behind a disclosure. Each chip
@@ -1555,7 +1563,7 @@ export default function Mindtree(): ReactElement {
               to be parented here: its DOM seat is what keeps the Tab order.
 
               HELD IN A MEMO ABOVE — see `shellIsle`. */}
-          {shellIsle}
+          {!treePreview && shellIsle}
 
           {/* WHAT THE RINGS ARE MADE OF — on the control row with every other
               control, and no longer alone on a second row at the opposite edge
@@ -1869,7 +1877,7 @@ export default function Mindtree(): ReactElement {
         )}
 
         {/* HELD IN A MEMO ABOVE — see `summaryIsle`. */}
-        {summaryIsle}
+        {!treePreview && summaryIsle}
       </div>
 
       {/* THE GHOST, THE REASON AND THE DRAG'S OWN LIVE REGION — outside the

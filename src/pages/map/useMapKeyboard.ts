@@ -208,6 +208,21 @@ export interface MapKeyboardOptions {
   setCurrentId: (id: string | null) => void
   toggleFold: (id: string) => void
   focusBranch: (nodeId: string | null) => void
+  /**
+   * TREE DRAWING: a tap on a branch OPENS IT, it does not fly to it.
+   *
+   * On the containment drawing a branch is a world you go inside, so a tap
+   * means "take me in" and the camera is the whole verb. A tidy tree has no
+   * inside — the children are already on the page, or they are folded away —
+   * so the same tap has to mean "show me these", and the only thing that can
+   * answer is the fold.
+   *
+   * Getting this wrong is what makes a tree feel dead: every tap moves the
+   * camera, nothing under the finger changes, and the drawing reads as a
+   * picture of a tree rather than a tree. Leaves are unaffected — they still
+   * open the panel, and the camera still does not move for them.
+   */
+  foldOnActivate?: boolean
   openMenuFor: (pos: PositionedNode<MindNodeModel>, at?: { x: number; y: number }) => void
   textOf: (label: MindLabel) => string
   setLive: (text: string) => void
@@ -301,6 +316,7 @@ export function useMapKeyboard({
   setCurrentId,
   toggleFold,
   focusBranch,
+  foldOnActivate = false,
   openMenuFor,
   textOf,
   setLive,
@@ -444,6 +460,19 @@ export function useMapKeyboard({
       // construction). Naming the kind here costs one comparison and makes the
       // one path that could send `manager:<uuid>` at a uuid column impossible
       // rather than merely unreachable.
+      // THE TREE'S TAP. Before the dive, because on a tree the dive is the
+      // wrong answer to this gesture — see `foldOnActivate`. A branch with
+      // children folds; everything else falls through unchanged, so a leaf
+      // still opens its panel and the camera still holds still for it.
+      //
+      // No announcement is made here on purpose: `aria-expanded` on the node
+      // changes with the fold and IS the announcement. A `setLive` beside it
+      // would say the same thing twice to a screen reader.
+      if (foldOnActivate && node.children.length > 0) {
+        toggleFold(node.id)
+        return
+      }
+
       if (dive !== undefined && isFlyableKind(node.kind)) {
         if (isDiveTarget(node) || node.kind === 'cohort') dive.into(node.id)
         else {
