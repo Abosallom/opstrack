@@ -72,7 +72,7 @@ import type { MapNodeUseCase, UseCase, UseCaseStatus } from '../../types'
 
 // Types are erased, so they come through static `import type` while the VALUES
 // arrive after the shims above have run.
-const { BY_FOR_GROUPING, CANVAS_GROUPINGS, GROUPING_FOR_BY, collectProgress, collectSizes, collectStats } =
+const { BY_FOR_GROUPING, CANVAS_GROUPINGS, GROUPING_FOR_BY, collectProgress, collectSizes, collectStats, openDepthFor } =
   await import('./useMapModel')
 const { buildPortfolioRows } = await import('../../lib/portfolio/rows')
 const { stageIndex } = await import('../../lib/mapNodes')
@@ -897,5 +897,46 @@ describe('the `?by=` bridge', () => {
     expect(GROUPING_FOR_BY.stage).toBe('stage')
     expect(GROUPING_FOR_BY.manager).toBe('manager')
     expect(GROUPING_FOR_BY.vendor).toBe('vendor')
+  })
+})
+
+/* ═══════════════ how deep the map opens, and why it is derived ═══════════ */
+
+describe('openDepthFor', () => {
+  const ent = (id: string, parentId: string | null) =>
+    ({ id, parentId, trackId: 't', label: id, sortOrder: 0, archived: false, typeKey: null }) as never
+
+  it('opens far enough to reach the organizations', () => {
+    // ⚠ THE FAILURE THIS EXISTS FOR, and it shipped. `OPEN_DEPTH = 1` closed
+    // every track, so the real workspace drew exactly three cards — the root,
+    // "UHR" and "No track" — while the root's own label read "104
+    // organizations, 82 of 1050 live". A picture showing three things under a
+    // heading counting a hundred and four is the "labelled 12, showing 3"
+    // failure model.ts spends its comments avoiding, reached from the far end.
+    //
+    // root ▸ track ▸ programme ▸ organization: entities start at tree depth 2,
+    // an organization sits one level below its programme, so 3.
+    const forest = [ent('ob', null), ...Array.from({ length: 5 }, (_, i) => ent(`org${i}`, 'ob'))]
+    expect(openDepthFor(forest)).toBe(3)
+  })
+
+  it('follows the hierarchy rather than a number somebody tuned', () => {
+    // A NUMBER WOULD ROT. `openDepth: 3` is right for exactly today's shape and
+    // hides everything again the day a phase is inserted between the programme
+    // and the organizations — silently, with the counts still reading 104.
+    const withPhase = [ent('ob', null), ent('phase', 'ob'), ent('org', 'phase')]
+    expect(openDepthFor(withPhase)).toBe(4)
+  })
+
+  it('answers for a flat forest and for no hierarchy at all', () => {
+    expect(openDepthFor([ent('a', null), ent('b', null)])).toBe(2)
+    expect(openDepthFor([])).toBe(2)
+  })
+
+  it('terminates on a parent cycle rather than spinning', () => {
+    // Unreachable through the API — 0029's depth trigger refuses it — and
+    // reachable from a stale cache, which is the case every guard in this
+    // module is written for.
+    expect(() => openDepthFor([ent('a', 'b'), ent('b', 'a')])).not.toThrow()
   })
 })

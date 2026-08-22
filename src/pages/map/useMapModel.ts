@@ -555,14 +555,49 @@ export const CANVAS_GROUPINGS: readonly MindGrouping[] = Object.freeze(
 const EMPTY_IDS: ReadonlySet<string> = new Set<string>()
 
 /**
- * The ring the map opens at: root + tracks, every track closed.
+ * ⚠ THE MAP USED TO OPEN AT `OPEN_DEPTH = 1` — root plus tracks, EVERY TRACK
+ *   CLOSED — and on the real workspace that drew exactly three cards:
+ *   "NphiesCore", "UHR" and "No track". A hundred and four organizations were
+ *   in the tree and none of them was on the screen. The root's own label read
+ *   "104 organizations, 82 of 1050 live" above a picture showing none of them,
+ *   which is the "labelled 12, showing 3" failure this module spends its
+ *   comments avoiding, arrived at from the other end.
  *
- * See model.ts's `openDepth` for the arithmetic. The short version is that the
- * canvas is bound on the BLOCK axis — a tidy tree stacks every visible node
- * down it — so ring 2 costs one row per populated track × group cell, and
- * thirty of those do not fit above 0.31. Six track cards do, at 1:1.
+ *   The old constant was not wrong when it was written and its arithmetic is
+ *   still in model.ts: six tracks × five populated statuses is thirty group
+ *   nodes, which fit only at 0.31 and render a 12.5px label at 3.9px. But every
+ *   term in it belongs to a drawing that no longer exists — "ring 2", the
+ *   radial fit — and to a workspace with six populated tracks. This one has ONE
+ *   active track, no grouping on the canvas by default, and its content is not
+ *   dimension buckets but organizations.
+ *
+ * SO IT IS DERIVED, NOT REPLACED WITH A DIFFERENT NUMBER. `openDepth: 3` would
+ * be right for exactly today's hierarchy — root ▸ track ▸ programme ▸
+ * organization — and would hide everything again the day somebody inserts a
+ * phase. This opens far enough to reach the deepest ENTITY, wherever it sits,
+ * because the entities are what a reader came to look at; the dimension buckets
+ * below them are still one tap away and still closed.
+ *
+ * Entities start at tree depth 2 (root 0, track 1), so an entity forest `d`
+ * levels deep needs `2 + d`.
  */
-const OPEN_DEPTH = 1
+export function openDepthFor(entities: readonly MindEntity[]): number {
+  const parentOf = new Map<string, string | null>()
+  for (const e of entities) parentOf.set(e.id, e.parentId)
+  let deepest = 0
+  for (const e of entities) {
+    let d = 0
+    let at = e.parentId
+    // Bounded by the number of entities: a cycle in `parent_id` is impossible
+    // through the API (0029's depth trigger) and would otherwise spin here.
+    for (let hops = 0; at !== null && hops <= entities.length; hops += 1) {
+      d += 1
+      at = parentOf.get(at) ?? null
+    }
+    if (d > deepest) deepest = d
+  }
+  return 2 + deepest
+}
 
 /**
  * INFERRED, not declared. Every field here is a store's own type and this hook
@@ -782,6 +817,9 @@ export function useMapModel(
     })
   }, [mapNodes, nodeKinds, nodeLabelOf, kindLabelOf])
 
+  /** How deep to open, read off the hierarchy itself — see `openDepthFor`. */
+  const openDepth = useMemo(() => openDepthFor(mindEntities), [mindEntities])
+
   /**
    * THE FIVE COLUMNS A COHORT MAY BE CUT ALONG, and not a sixth.
    *
@@ -998,7 +1036,7 @@ export function useMapModel(
         // No default collapse on a phone: `depthLimit: 1` in useMapGeometry
         // already draws one ring, and a branch marked collapsed under it would
         // draw nothing.
-        openDepth: compact ? undefined : OPEN_DEPTH,
+        openDepth: compact ? undefined : openDepth,
       }),
     [
       entries,
