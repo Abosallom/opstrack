@@ -807,3 +807,108 @@ describe('colour', () => {
     }
   })
 })
+
+/* ══════════════ the tidy tree's card — two rows, and whose number ══════════ */
+
+/**
+ * THE TWO DEFECTS THIS BLOCK STANDS GUARD OVER, both found by driving the live
+ * site rather than by reading a diff, and both about the same 168 x 54 box.
+ *
+ *   1. EVERY BRANCH WAS DRAWN "Associate …". The card's glyph budget is
+ *      `(width - PAD*2 - COUNT_SLOT) / CHAR_PX` and the app was authoring 132,
+ *      which is eleven glyphs — so four differently-named directorates rendered
+ *      as four identical cards.
+ *   2. EVERY BRANCH READ "0". `count` is the OPEN WORK beneath a node, and a
+ *      workspace of eighty-five organizations with nine open items therefore
+ *      drew a zero on every card that held a hospital.
+ *
+ * Rendered rather than reasoned about: `MindNode` is the only file that can turn
+ * a view model into rows of text, and the wrap and the numeral choice are both
+ * decisions it makes alone. `flat` is passed because both are the flat tree's —
+ * the containment drawing answers "the name does not fit" by hanging it outside
+ * the box, and the two answers may not both be live on one card.
+ */
+describe('the flat card holds a real name and a useful number', () => {
+  /** Every `.mtree-node-label` row, in document order. */
+  function labelRows(markup: string): readonly string[] {
+    return [...markup.matchAll(/<text class="mtree-node-label"[^>]*>([^<]*)<\/text>/g)].map(
+      (m) => m[1] as string,
+    )
+  }
+
+  /** The numeral in the count slot, and the baseline it sits on. */
+  function numeral(markup: string): { readonly text: string; readonly y: number } {
+    const m = markup.match(/<text class="mtree-node-count tabular"[^>]*y="([-\d.]+)"[^>]*>([^<]*)</)
+    if (m === null) throw new Error('no count drawn')
+    return { text: m[2] as string, y: Number(m[1]) }
+  }
+
+  const LONG = 'Associate Directorate Alpha'
+
+  it('wraps a name too long for one row instead of eliding it', () => {
+    const markup = render(
+      props('card', { flat: true, view: { ...props('card').view, label: LONG } }),
+    )
+    // 27 glyphs over two rows, whole: seventeen fit on the first (168 - 24 - 34
+    // over 6.2), the rest on the second, which pays no count slot.
+    expect(labelRows(markup)).toEqual(['⁨Associate⁩', '⁨Directorate Alpha⁩'])
+    expect(markup, 'nothing is elided').not.toContain('…')
+  })
+
+  it('breaks at a space, and mid-word only when there is no space to break at', () => {
+    const view = props('card').view
+    const solid = 'Riyadh-First-Health-Cluster-Node'
+    const rows = labelRows(
+      render(props('card', { flat: true, view: { ...view, label: solid } })),
+    )
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toBe(`⁨${solid.slice(0, 17)}⁩`)
+    // The tail still elides against the second row's own budget if it has to.
+    expect(rows.join('')).not.toContain(' ')
+  })
+
+  it('leaves a name that fits on one row alone, byte for byte', () => {
+    const markup = render(props('card', { flat: true }))
+    expect(labelRows(markup)).toEqual(['Onboarding'])
+    // …and the numeral stays on the card's centre line when there is one row.
+    expect(numeral(markup).y).toBe(22)
+  })
+
+  it('lifts the numeral onto the name\'s row when the card has two', () => {
+    // The second row is authored against the FULL inline room, so a numeral left
+    // on the centre line would sit between the rows with the longer one running
+    // under it.
+    const markup = render(
+      props('card', { flat: true, view: { ...props('card').view, label: LONG } }),
+    )
+    expect(numeral(markup).y).toBe(22 - 8)
+  })
+
+  it('draws the organizations under a branch, not the work filed under it', () => {
+    const view = { ...props('card').view, count: '0', orgs: '18' }
+    expect(numeral(render(props('card', { flat: true, view }))).text).toBe('18')
+    // An organization has none under it, so its card goes back to counting the
+    // work filed against it — which is the number an organization's card owes.
+    const leaf = { ...view, orgs: null }
+    expect(numeral(render(props('card', { flat: true, view: leaf }))).text).toBe('0')
+  })
+
+  it('gives the second row to the name and never to both', () => {
+    // `secondary` is a world OPENING and `flat` answers `card` at every zoom, so
+    // the two can never ask for the same baseline — asserted rather than traced.
+    const markup = render(
+      props('card', { flat: true, view: { ...props('card').view, label: LONG } }),
+    )
+    expect(markup).not.toContain('mring-secondary')
+  })
+
+  it('announces the whole name once, however many rows it is drawn over', () => {
+    // The <g> carries the untruncated, unwrapped name; every drawn row is
+    // decoration over it, so the second one may not be read out again.
+    const markup = render(
+      props('card', { flat: true, view: { ...props('card').view, label: LONG } }),
+    )
+    expect(markup).toContain('aria-label="Onboarding, 12 open, 6 of 9 live"')
+    expect(markup).toMatch(/<text class="mtree-node-label"[^>]*aria-hidden="true"[^>]*>⁨Directorate/)
+  })
+})
