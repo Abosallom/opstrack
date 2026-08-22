@@ -7,6 +7,8 @@ screen should look like after each one.
 All were written against a **live probe** rather than the prose in `docs/`, whose dates had
 drifted — the first three on 21 August 2026 16:14 UTC, `yours.pdf` on 22 August.
 
+⚠ **`next-steps.pdf` supersedes `yours.pdf` and `remaining.pdf`.** Both were written before the PMO portfolio existed and before the roster was probed against `auth.users`; the 22 August evening probe found 25 of 27 accounts have never been signed into, which is the fact the whole list now turns on.
+
 ⚠ **`yours.pdf` supersedes `next.pdf`.** `next.pdf` lists eight remaining steps against the
 state of 21 August; the probe on the 22nd found the workspace still holds only demo data and
 that the organisation list is in Jira, which collapses the owner's list to **one token now and
@@ -15,6 +17,7 @@ done or not yet reached.
 
 | File | Covers | Pages | Source of record |
 |---|---|---|---|
+| `next-steps.pdf` | **Start here.** The four things left that are yours: hand out 9 codes, reissue 16, put one project in the new portfolio, decide the 33 unowned organizations | 9 | A live probe of the database and auth users, 22 Aug 2026 |
 | `yours.pdf` | **What is on you, and nothing else.** One Jira token now, real email addresses later — plus the live check that found the workspace is still demo data | 8 | A live probe of the database, 22 Aug 2026 |
 | `next.pdf` | ~~Start here.~~ **Superseded — see above.** The eight remaining steps, with diagrams — what is done, what is next, who does each | 12 | OWNER-PLAYBOOK + the live probes |
 | `sql.pdf` | Step 1 in detail — the four SQL files, each run twice | 11 | RUN-0026-0027-0028 |

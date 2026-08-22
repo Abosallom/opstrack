@@ -1,0 +1,174 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>What is next</title>
+<style>
+/* Shared print styling for the owner guides. A4, drawn UI, no external assets.
+   Sized for someone reading this for the first time: larger type, more air,
+   one idea per block. */
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #14131a; background: #fff;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+:root {
+  --ink: #14131a; --ink-2: #3f3b4a; --ink-3: #6f6a7d;
+  --accent: #5a4aa8; --accent-mid: #7b72c4; --accent-soft: #f1eefb; --accent-line: #cfc6ee;
+  --ok: #1f7a4d; --ok-soft: #e8f6ee; --ok-line: #a8dcc0;
+  --warn: #9a5b00; --warn-soft: #fdf2e0; --warn-line: #f0cf95;
+  --bad: #a3222b; --bad-soft: #fdeced; --bad-line: #f2bcc0;
+  --rule: #e4e1ec; --paper: #faf9fd;
+}
+.page {
+  width: 210mm; height: 296.6mm; padding: 16mm 16mm 14mm;
+  page-break-after: always; position: relative; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.page:last-child { page-break-after: auto; }
+.foot {
+  position: absolute; left: 16mm; right: 16mm; bottom: 8mm;
+  display: flex; justify-content: space-between;
+  font-size: 8pt; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 2.5mm;
+}
+h1 { font-size: 29pt; line-height: 1.12; margin: 0 0 4mm; letter-spacing: -0.6pt; }
+h2 { font-size: 18pt; margin: 0 0 2mm; letter-spacing: -0.3pt; line-height: 1.2; }
+h3 { font-size: 10.5pt; margin: 0 0 2.5mm; letter-spacing: 0.4pt; text-transform: uppercase; color: var(--accent); }
+h3 .mono { text-transform: none; }
+p  { font-size: 11pt; line-height: 1.6; margin: 0 0 4mm; color: var(--ink-2); }
+.lede { font-size: 12.5pt; line-height: 1.55; color: var(--ink-2); }
+small { font-size: 9.4pt; color: var(--ink-3); line-height: 1.55; display: block; }
+b, strong { color: var(--ink); font-weight: 650; }
+code, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9.4pt; }
+code { background: var(--accent-soft); padding: 0.6mm 1.4mm; border-radius: 1mm; color: var(--accent); }
+.step-no {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 11mm; height: 11mm; border-radius: 50%; background: var(--accent); color: #fff;
+  font-size: 14pt; font-weight: 700; margin-right: 4mm; flex: none;
+}
+.head { display: flex; align-items: center; margin-bottom: 6mm; }
+.head h2 { margin: 0; }
+.head h2 .mono { font-size: 16pt; font-weight: 700; }
+.kicker { font-size: 8.4pt; letter-spacing: 1.5pt; text-transform: uppercase; color: var(--accent-mid);
+          margin-bottom: 3mm; font-weight: 650; }
+.box { border: 1px solid var(--rule); border-radius: 2.5mm; padding: 5mm; background: var(--paper); margin-bottom: 4.5mm; }
+.box.ok   { background: var(--ok-soft);   border-color: var(--ok-line); }
+.box.warn { background: var(--warn-soft); border-color: var(--warn-line); }
+.box.bad  { background: var(--bad-soft);  border-color: var(--bad-line); }
+.box.acc  { background: var(--accent-soft); border-color: var(--accent-line); }
+.box h4 { margin: 0 0 2mm; font-size: 10.5pt; }
+.box p:last-child, .box small:last-child { margin-bottom: 0; }
+.box.ok h4   { color: var(--ok); }
+.box.warn h4 { color: var(--warn); }
+.box.bad h4  { color: var(--bad); }
+.box.acc h4  { color: var(--accent); }
+.term {
+  background: #16151d; color: #e6e3ee; border-radius: 2.5mm; padding: 4mm 4.5mm;
+  font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9pt; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word; margin-bottom: 4mm;
+}
+.term .c { color: #8f8aa3; } .term .g { color: #7ee0a8; } .term .y { color: #f0c674; }
+.term .r { color: #f2909a; } .term .p { color: #b9a9ee; }
+.grow { flex: 1 1 auto; }
+
+/* ── beginner-guide components ───────────────────────────────────────────── */
+/* A definition: the word, then what it means in one plain sentence. */
+.defs { display: grid; gap: 3mm; }
+.def { display: grid; grid-template-columns: 34mm 1fr; gap: 4mm; align-items: start;
+       border-bottom: 1px solid var(--rule); padding-bottom: 3mm; }
+.def:last-child { border-bottom: 0; }
+.def .w { font-weight: 700; font-size: 10.5pt; color: var(--accent); }
+.def .w .mono { font-size: 9.6pt; display: block; color: var(--ink-3); font-weight: 400; margin-top: 0.6mm; }
+.def .m { font-size: 10pt; line-height: 1.55; color: var(--ink-2); }
+/* A thing to do, with what you will see when it worked. */
+.act { display: grid; grid-template-columns: 9mm 1fr; gap: 4mm; margin-bottom: 5mm; align-items: start; }
+.act .n { background: var(--accent); color: #fff; border-radius: 50%; width: 8mm; height: 8mm; flex: none;
+          display: flex; align-items: center; justify-content: center; font-size: 10.5pt; font-weight: 700; }
+.act .t { font-size: 11pt; line-height: 1.55; color: var(--ink-2); }
+.act .t b { color: var(--ink); }
+.act .saw { display: block; margin-top: 1.8mm; font-size: 9.4pt; color: var(--ok);
+            background: var(--ok-soft); border-left: 2px solid var(--ok-line); padding: 2mm 3mm; border-radius: 0 1.5mm 1.5mm 0; }
+/* Tick-off list. */
+.ck { display: grid; gap: 2.5mm; }
+.ck div { display: grid; grid-template-columns: 6mm 1fr; gap: 3mm; align-items: start; font-size: 10.2pt; color: var(--ink-2); }
+.ck .sq { width: 4.6mm; height: 4.6mm; border: 1.5px solid var(--accent-mid); border-radius: 1mm; margin-top: 0.9mm; }
+
+/* A key on the keyboard, drawn as a key cap. */
+.kbd { display: inline-block; border: 1px solid #c0bcd0; border-bottom-width: 2px; border-radius: 1.4mm;
+       padding: 0.3mm 1.6mm; background: #fff; font-size: 9.6pt; font-weight: 650; color: var(--ink);
+       font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+
+</style>
+<style>
+.stat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin: 5mm 0; }
+.stat > div { border-radius: 2mm; padding: 4.5mm 3mm; text-align: center; border: 1px solid var(--rule); background: #fff; }
+.stat .n { font-size: 22pt; font-weight: 700; line-height: 1; color: var(--accent); }
+.stat .l { font-size: 8.6pt; color: var(--ink-3); margin-top: 2mm; line-height: 1.35; }
+.stat .ok .n { color: var(--ok); } .stat .warn .n { color: var(--warn); }
+.stat .n, .stat .l { border: 0; padding: 0; background: none; }
+.bars { margin: 4mm 0 5mm; }
+.bar2 { display: grid; grid-template-columns: 38mm 1fr 16mm; gap: 3mm; align-items: center; margin-bottom: 2.4mm; }
+.bar2 .lbl { font-size: 9.6pt; font-weight: 650; color: var(--ink-2); }
+.bar2 .tr { background: var(--rule); border-radius: 1.4mm; height: 6mm; overflow: hidden; }
+.bar2 .fl { height: 100%; border-radius: 1.4mm; }
+.bar2 .v { font-size: 9.6pt; font-weight: 700; color: var(--ink-3); text-align: right; }
+.f-live { background: #1f7a4d; } .f-test { background: #c98a1a; } .f-plan { background: #b9b4c6; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 4mm; }
+.mini { border-radius: 2mm; padding: 4.5mm; border: 1px solid var(--rule); background: #fff; }
+.mini h4 { margin: 0 0 2.5mm; font-size: 10.5pt; }
+.mini p { font-size: 9.8pt; margin: 0; line-height: 1.55; }
+.who { display: inline-block; font-size: 8.2pt; font-weight: 700; letter-spacing: .7pt;
+  text-transform: uppercase; padding: 1.4mm 3mm; border-radius: 1.4mm; margin-bottom: 3mm; }
+.w-you { background: #fdf3e0; color: #9a6a12; border: 1px solid #f0dcb4; }
+.w-me  { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line); }
+.mins { float: right; font-size: 9.4pt; font-weight: 700; color: var(--ink-3); }
+.four { display: grid; gap: 2.6mm; margin: 5mm 0 0; }
+.four > div { display: grid; grid-template-columns: 8mm 1fr 20mm; gap: 4mm; align-items: center;
+  border: 1px solid var(--rule); border-radius: 2mm; padding: 3.4mm 4mm; background: #fff; }
+.four .s { background: var(--accent); color: #fff; border-radius: 50%; width: 7mm; height: 7mm;
+  display: flex; align-items: center; justify-content: center; font-size: 10pt; font-weight: 700; }
+.four .d { font-size: 10.2pt; color: var(--ink-2); line-height: 1.45; }
+.four .d b { color: var(--ink); }
+.four .m { font-size: 9pt; font-weight: 700; color: var(--ink-3); text-align: right; }
+</style></head><body style="margin:0"><section class="page">
+  <span class="who w-you">Yours</span><span class="mins">about 25 minutes</span>
+  <h2>Step 2 &mdash; the other sixteen need a new code</h2>
+  <p>Sixteen accounts were created earlier. Their codes were shown once, at the moment of
+  creation, and were not kept. This is normal and is how it is supposed to work. You issue each
+  of them a fresh one, from inside the app, one at a time.</p>
+
+  <div class="act"><span class="n">1</span><span class="t">
+    Sign in at <b>nphiescore.com</b> as yourself, then go to
+    <b>Settings &rarr; Members</b>.
+    <span class="saw">A list of all 27 people, with their username and role.</span></span></div>
+
+  <div class="act"><span class="n">2</span><span class="t">
+    Find a person who has not signed in and press <b>New code</b>.
+    <span class="saw">A confirmation appears: their current code stops working immediately, and
+    the new one is shown once.</span></span></div>
+
+  <div class="act"><span class="n">3</span><span class="t">
+    <b>Write the code down before you close that message.</b> This is the only time it is
+    visible. Then give it to that person the same way as Step 1.</span></div>
+
+  <div class="act"><span class="n">4</span><span class="t">
+    Repeat for each of the sixteen. Do them in whatever order suits &mdash; there is no
+    sequence, and stopping halfway breaks nothing.</span></div>
+
+  <div class="box acc">
+    <h4>This is also your password-reset button</h4>
+    <p>A username account has no mailbox, so there is nothing to send a reset link to. When
+    somebody forgets their password, <b>New code</b> is the answer &mdash; the same three
+    presses. Worth knowing now, because you will be asked.</p>
+  </div>
+
+  <div class="box warn">
+    <h4>Optional, and only if you want self-service resets</h4>
+    <p>If you give me the sixteen <b>real</b> email addresses later, they can reset their own
+    passwords by email and stop coming to you. It changes nothing else, and it is not needed for
+    anyone to start using the tracker.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Step 2 of 4</span><span>Page 5 of 9</span></div>
+</section></body></html>
