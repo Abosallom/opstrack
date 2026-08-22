@@ -1,0 +1,503 @@
+{
+ "takenAt": "2026-08-22T15:48:32.763Z",
+ "note": "account_manager_id set from the majority Jira assignee (>=60% of that organization’s tickets). Every one of these was NULL before.",
+ "plan": [
+  {
+   "nodeId": "817a1487-676c-4af1-8bde-97803723af90",
+   "org": "Aljedaani Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "fbe784de-7dc7-40bc-b11a-6ce440c821f3",
+   "org": "King Abdullah University",
+   "owner": "Khalid Alghamdi",
+   "pid": "1832cfd4-8d6a-4dd6-88f4-a6b2433b8c1a",
+   "share": 1
+  },
+  {
+   "nodeId": "9c80b3d5-66ad-4488-9bad-ed21290635e0",
+   "org": "Aseer (Vida Plus) Cluster",
+   "owner": "Khalid Almutairi",
+   "pid": "983a85e9-4b36-4f82-86d1-6907459d7763",
+   "share": 1
+  },
+  {
+   "nodeId": "b6c76f48-1452-4891-b93e-7cbd18206729",
+   "org": "Dr. Erfan & Bagedo General Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "ffe2642d-2768-4bdb-8c54-9efa3ce206ad",
+   "org": "Dar Alsalama",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 0.6
+  },
+  {
+   "nodeId": "0ffc0bb2-d90f-4e1a-8f71-ab3a189b772d",
+   "org": "Al Emies Group",
+   "owner": "Hind Almubaraki",
+   "pid": "80670098-427e-4b0b-af1b-d7b025e1bbcc",
+   "share": 0.67
+  },
+  {
+   "nodeId": "101eb372-4e54-4a43-a5d5-9d3c1a4f0779",
+   "org": "Tadawi Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 0.75
+  },
+  {
+   "nodeId": "bb19afe1-b04a-4da6-80bb-a2e41d1b5bf9",
+   "org": "Yanbu National Hospital",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 0.64
+  },
+  {
+   "nodeId": "c2fbbba0-488b-4340-b1e1-3cf6cf1a4ce3",
+   "org": "Dallah alahsa",
+   "owner": "Khalid Alghamdi",
+   "pid": "1832cfd4-8d6a-4dd6-88f4-a6b2433b8c1a",
+   "share": 0.89
+  },
+  {
+   "nodeId": "532cbbfb-fcb3-4bca-9e1e-d40451f15f37",
+   "org": "Dallah",
+   "owner": "Hind Almubaraki",
+   "pid": "80670098-427e-4b0b-af1b-d7b025e1bbcc",
+   "share": 1
+  },
+  {
+   "nodeId": "7d929a4e-00ae-4ced-b816-d2f49ccb2d06",
+   "org": "AlJazirah Hospital",
+   "owner": "Khalid Alghamdi",
+   "pid": "1832cfd4-8d6a-4dd6-88f4-a6b2433b8c1a",
+   "share": 1
+  },
+  {
+   "nodeId": "e896272d-372e-4340-bdee-64c25e7cf25d",
+   "org": "Raqeem Private",
+   "owner": "Riam Alnasser",
+   "pid": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+   "share": 1
+  },
+  {
+   "nodeId": "6f1129d6-1816-41ab-804a-fdc63950da97",
+   "org": "Ghassan Njeeb Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "021cac8e-110a-4011-947c-465456ae7d1e",
+   "org": "King Faisal Specialist Hospital and Research Centre (KFSHRC)",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 1
+  },
+  {
+   "nodeId": "c1bd236f-72c0-4033-aa71-ceb284600f5b",
+   "org": "Magrabi Hospital and Centers",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "fa4b8ab5-52e4-4feb-875d-6582f4e38b40",
+   "org": "My Clinic",
+   "owner": "Khalid Alghamdi",
+   "pid": "1832cfd4-8d6a-4dd6-88f4-a6b2433b8c1a",
+   "share": 1
+  },
+  {
+   "nodeId": "147d7859-6407-4d61-ac78-5ef0f9aa787f",
+   "org": "Prince Fahad bin Sultan",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 0.86
+  },
+  {
+   "nodeId": "97e7a62e-41bf-4dfb-8573-6b4f3fdd6ace",
+   "org": "Aster sanad Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "99c3ac7f-cb36-499d-8767-93af57a5391b",
+   "org": "GAMA Hospital",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 0.6
+  },
+  {
+   "nodeId": "6ac969a7-fb69-40e6-8711-8eff3ab0fa72",
+   "org": "Alnahda Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "aba0f284-d081-491a-824e-61f51bd54c58",
+   "org": "Alfalah Hospital",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 0.86
+  },
+  {
+   "nodeId": "87c1450a-e12e-4dc8-bbdf-2270aa751091",
+   "org": "Alfalah Hospita",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 1
+  },
+  {
+   "nodeId": "d6214ead-9205-4e65-9846-8249a0104aff",
+   "org": "Kingdom Hospital",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 0.75
+  },
+  {
+   "nodeId": "d0c9d1ee-9c02-4e4c-bff2-742695aa7ebe",
+   "org": "United Doctors Hospital",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 1
+  },
+  {
+   "nodeId": "ec6542f4-201e-43e5-9ef9-8cb606014e36",
+   "org": "Shefa Specialized Hopital",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 0.62
+  },
+  {
+   "nodeId": "3bdeb851-e3f0-4d69-a697-431171c9baf9",
+   "org": "Abeer Medical Group",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "297120a1-350e-4ba4-b369-7aefbaa9d12c",
+   "org": "AlZahra Madinah Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "31f40bf2-4945-4232-bdbe-4eb8504485d6",
+   "org": "Alansari Hospital",
+   "owner": "Khalid Almutairi",
+   "pid": "983a85e9-4b36-4f82-86d1-6907459d7763",
+   "share": 1
+  },
+  {
+   "nodeId": "99dedfaf-7a5a-4ba9-83c0-f3b37503fdff",
+   "org": "Aljouf",
+   "owner": "Riam Alnasser",
+   "pid": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+   "share": 0.8
+  },
+  {
+   "nodeId": "2aff5609-9e5b-490b-b168-7f8453dd63bb",
+   "org": "Tabuk",
+   "owner": "Riam Alnasser",
+   "pid": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+   "share": 0.83
+  },
+  {
+   "nodeId": "d8fcdae8-77ea-4ae7-98a1-c255290cc85c",
+   "org": "Taif University Hospital",
+   "owner": "Nawaf Alfaqih",
+   "pid": "67cdec68-8686-4d18-8e01-712cab1a1848",
+   "share": 1
+  },
+  {
+   "nodeId": "046c59ac-a53f-4aa0-bed3-d43ab431e170",
+   "org": "Magrabi Health Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "24008a44-ed34-4021-a4dd-05127e58a435",
+   "org": "Hail Cluster",
+   "owner": "Shatha Alhuwaytan",
+   "pid": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+   "share": 1
+  },
+  {
+   "nodeId": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+   "org": "Al Madinah Cluster",
+   "owner": "Shatha Alhuwaytan",
+   "pid": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+   "share": 1
+  },
+  {
+   "nodeId": "fe6cfeed-b858-4c63-8186-15f93277fa3b",
+   "org": "GNP",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "0a2b7383-cd45-45c8-9c11-ad602e7635da",
+   "org": "Anfas",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 0.83
+  },
+  {
+   "nodeId": "368ca4bb-5c77-4770-88e6-c92f832b92da",
+   "org": "Salamat",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 1
+  },
+  {
+   "nodeId": "6cfe9519-167c-4faa-8f7b-6c6165565910",
+   "org": "Al Hayat Group Hospital",
+   "owner": "Riam Alnasser",
+   "pid": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+   "share": 1
+  },
+  {
+   "nodeId": "af8ccf36-efe9-4366-90c1-a64e71ac0a6c",
+   "org": "Kings collage Hospital",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 1
+  },
+  {
+   "nodeId": "8b69456d-3fc1-4b13-8961-203f9baa388a",
+   "org": "Al Hamra Hospital",
+   "owner": "Khalid Alghamdi",
+   "pid": "1832cfd4-8d6a-4dd6-88f4-a6b2433b8c1a",
+   "share": 1
+  },
+  {
+   "nodeId": "1685a391-ef36-415b-a884-2ec5056967b3",
+   "org": "Almodawah Hospital",
+   "owner": "Hind Almubaraki",
+   "pid": "80670098-427e-4b0b-af1b-d7b025e1bbcc",
+   "share": 1
+  },
+  {
+   "nodeId": "428861e4-6812-4f37-b831-b99eed5598b9",
+   "org": "Almousa Hospital",
+   "owner": "Shatha Alhuwaytan",
+   "pid": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+   "share": 0.62
+  },
+  {
+   "nodeId": "0e354190-4451-4215-bbfe-f299fc5e9b50",
+   "org": "Al-anwar hospital",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 0.67
+  },
+  {
+   "nodeId": "6c826301-c2b8-4544-993d-6149493e42f7",
+   "org": "Aseer (Care Ware) Cluster",
+   "owner": "Shatha Alhuwaytan",
+   "pid": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+   "share": 0.62
+  },
+  {
+   "nodeId": "dadb88d7-9a3e-4f06-a6a5-5594f92e06b8",
+   "org": "AlSalama (Murgan)Hospital",
+   "owner": "Riam Alnasser",
+   "pid": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+   "share": 1
+  },
+  {
+   "nodeId": "3cf06d0f-c8b1-43f1-843f-1305f4ed5611",
+   "org": "Suliman Fakeeh Hospital",
+   "owner": "Riam Alnasser",
+   "pid": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+   "share": 0.83
+  },
+  {
+   "nodeId": "66c1ea0d-b2f3-47c4-89e3-dafbd164c5df",
+   "org": "AlSalama (Murjan) Hospital",
+   "owner": "Riam Alnasser",
+   "pid": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+   "share": 1
+  },
+  {
+   "nodeId": "0347d5f0-18af-4652-9eed-fe061703aa5a",
+   "org": "Alzahraa General Hospital (Qatif)",
+   "owner": "Khalid Almutairi",
+   "pid": "983a85e9-4b36-4f82-86d1-6907459d7763",
+   "share": 1
+  },
+  {
+   "nodeId": "6d4a3e94-f19c-42b9-b723-b9216ca4dcdc",
+   "org": "GNB hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "df7d8d12-0896-4c37-9197-7d1937ba1cda",
+   "org": "Al edwani Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 0.67
+  },
+  {
+   "nodeId": "0dfacea8-675f-424d-9750-ca3f15b9aba2",
+   "org": "Al Zafer Hospital in Najran",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 0.6
+  },
+  {
+   "nodeId": "6c14d741-7425-43dd-98b6-b862275f8c60",
+   "org": "Alyosif Hospital",
+   "owner": "Shatha Alhuwaytan",
+   "pid": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+   "share": 1
+  },
+  {
+   "nodeId": "93c3aa72-6d6d-45cc-8edb-5df619698338",
+   "org": "Mohammed Aldossary Hospital",
+   "owner": "Shatha Alhuwaytan",
+   "pid": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+   "share": 0.75
+  },
+  {
+   "nodeId": "7e9df36f-f30a-4bfe-b3c0-f470942e398d",
+   "org": "Aloysif Hospital",
+   "owner": "Shatha Alhuwaytan",
+   "pid": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+   "share": 1
+  },
+  {
+   "nodeId": "fdd52231-5086-4284-9e48-439ed86d3202",
+   "org": "Mohammed Fakeeh",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 0.62
+  },
+  {
+   "nodeId": "0168f516-8bd4-4c08-be54-e8c121c34f3d",
+   "org": "Al-Zobaidi Medical Group",
+   "owner": "Sara Alsaab",
+   "pid": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+   "share": 1
+  },
+  {
+   "nodeId": "399ed064-8530-4c75-9d30-54ecbca178ee",
+   "org": "Alsaedy Hospital",
+   "owner": "Khalid Almutairi",
+   "pid": "983a85e9-4b36-4f82-86d1-6907459d7763",
+   "share": 0.6
+  },
+  {
+   "nodeId": "e0df63b0-ac8c-4fde-8432-878a564ac46f",
+   "org": "Aya Hospital",
+   "owner": "Riam Alnasser",
+   "pid": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+   "share": 0.8
+  },
+  {
+   "nodeId": "468f2aa3-1be1-4b26-8d1b-9665a7632306",
+   "org": "Raqeem Private Tuwaiq",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "3a7847a8-e1ca-4e40-8ee6-dac3ac9c7410",
+   "org": "Dr. noor khan Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "6cf1b78c-40d5-4eab-b726-576fbf0bae89",
+   "org": "EHC",
+   "owner": "Shatha Alhuwaytan",
+   "pid": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+   "share": 1
+  },
+  {
+   "nodeId": "3b46ec97-436b-4f85-bf87-9dc2da5cb365",
+   "org": "AlZahra Qatif Hospital",
+   "owner": "Lama Alsmay",
+   "pid": "99d5e94d-1f1e-4dc1-8570-144de22a1ea7",
+   "share": 0.75
+  },
+  {
+   "nodeId": "da195ac8-5703-4de8-a5ce-6a45df28f58d",
+   "org": "Hamid Alahmdi Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "7e3d707f-820f-4255-8b13-422a36ee3604",
+   "org": "Dr Hassan Ghazzawi Hospital",
+   "owner": "Hussain Alharthi",
+   "pid": "7207a2a2-b285-440d-baec-5c57f962ac93",
+   "share": 1
+  },
+  {
+   "nodeId": "8eceaf51-559e-4a57-b5f4-e3066ecec9b2",
+   "org": "Al-Nahdi Pharmacy",
+   "owner": "Omar Almohsen",
+   "pid": "6657b9d1-afc6-440f-aba9-073b7508b82d",
+   "share": 1
+  },
+  {
+   "nodeId": "ad5253dd-0ae1-4329-994f-063b831ea14d",
+   "org": "Alsalam Hospital",
+   "owner": "Khalid Alghamdi",
+   "pid": "1832cfd4-8d6a-4dd6-88f4-a6b2433b8c1a",
+   "share": 1
+  },
+  {
+   "nodeId": "809ad92f-623a-4788-831f-c8fb6a046277",
+   "org": "Autism Spectrum virtual care Hospital",
+   "owner": "Dema Alkassim",
+   "pid": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+   "share": 1
+  },
+  {
+   "nodeId": "1610f12c-e1f4-42db-bc62-4f79766ed4c0",
+   "org": "Al Zafer Hospital",
+   "owner": "Shatha Alhuwaytan",
+   "pid": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+   "share": 1
+  },
+  {
+   "nodeId": "ddb0a897-93a7-47dc-a2f6-7c0b93d3becc",
+   "org": "Arrawdah General Hospital",
+   "owner": "Riam Alnasser",
+   "pid": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+   "share": 1
+  },
+  {
+   "nodeId": "a8e1262e-b534-4c9f-932f-c68f00121ae5",
+   "org": "HMC Hospital",
+   "owner": "Khalid Alghamdi",
+   "pid": "1832cfd4-8d6a-4dd6-88f4-a6b2433b8c1a",
+   "share": 1
+  },
+  {
+   "nodeId": "9549144e-e182-45cb-94d9-0a55e5a3e691",
+   "org": "Delta",
+   "owner": "Riam Alnasser",
+   "pid": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+   "share": 1
+  }
+ ]
+}

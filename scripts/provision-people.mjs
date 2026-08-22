@@ -204,6 +204,28 @@ const ROSTER = [
   { first: 'Sara', last: 'Alsaab', position: 'Integration Expert', roleIntent: 'member' },
   { first: 'Nada', last: 'Alsuwaida', position: 'Raqeeb Clinical Expert', roleIntent: 'member' },
   { first: 'Reema', last: 'Alsoairy', position: 'Developer', roleIntent: 'member' },
+  // ── THE ONBOARDING TEAM ────────────────────────────────────────────────
+  //
+  // ⚠ THE PEOPLE DOING THE WORK WERE NOT IN THE WORKSPACE. The eighteen above
+  //   are directors and associate directors; the nine below are the engineers
+  //   whose names are on the Jira tickets, and between them they carry 71 of
+  //   the 104 organizations on the map. `map_nodes.account_manager_id` is a
+  //   foreign key into `profiles`, so until these rows exist the map cannot
+  //   answer "who do I chase about Al Hamra Hospital" for two thirds of it —
+  //   and no member can ever be shown their own work, because the roster
+  //   excluded the workers.
+  //
+  //   Ordered by how many organizations each carries, which is also the order
+  //   in which their absence was costing something.
+  { first: 'Dema', last: 'Alkassim', position: 'Onboarding Engineer', roleIntent: 'member' },
+  { first: 'Riam', last: 'Alnasser', position: 'Onboarding Engineer', roleIntent: 'member' },
+  { first: 'Shatha', last: 'Alhuwaytan', position: 'Onboarding Engineer', roleIntent: 'member' },
+  { first: 'Khalid', last: 'Alghamdi', position: 'Onboarding Engineer', roleIntent: 'member' },
+  { first: 'Khalid', last: 'Almutairi', position: 'Onboarding Engineer', roleIntent: 'member' },
+  { first: 'Hind', last: 'Almubaraki', position: 'Onboarding Engineer', roleIntent: 'member' },
+  { first: 'Nawaf', last: 'Alfaqih', position: 'Onboarding Engineer', roleIntent: 'member' },
+  { first: 'Lama', last: 'Alsmay', position: 'Onboarding Engineer', roleIntent: 'member' },
+  { first: 'Omar', last: 'Almohsen', position: 'Onboarding Engineer', roleIntent: 'member' },
   {
     first: 'Abdulaziz',
     last: 'Alsaloom',
