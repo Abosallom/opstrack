@@ -21,11 +21,12 @@ that warns about it, to the one reader who is alone at a SQL Editor and trusting
 
 ## Status — 13 August 2026
 
-**Four files are pending**, re-probed against the live project on **21 August 2026** — every
-one of the five objects still answers 404. `0023`, `0024` and `0025` are applied to the live
+**Five files are pending**, re-probed against the live project on **21 August 2026** — every
+one of the five objects the first four of them own still answers 404, and `0030`'s table has
+never existed anywhere. `0023`, `0024` and `0025` are applied to the live
 project (`lrysgpbkmuqgzsjesfkr`) and there is live data sitting on top of them.
-`0026_map_node_stages.sql`, `0027_map_node_goals_and_counts.sql`, `0028_jira_settings.sql` and
-`0029_org_identity.sql` are
+`0026_map_node_stages.sql`, `0027_map_node_goals_and_counts.sql`, `0028_jira_settings.sql`,
+`0029_org_identity.sql` and `0030_map_view_settings.sql` are
 **written and have never been run against any database** — they are in the pending table below,
 each with a "verify live by" query that is runnable the moment it is applied, and each comes back
 out of that table in the same sitting it goes in.
@@ -336,6 +337,7 @@ applied in — the other half of that rule, and the half that once cost this fil
 | 0026 | `map_node_stages.sql` | wave 2 | `map_node_stages` on the 5-part configurable-list pattern (0018's) — name 1..40, `name_ar`, `sort_order`, `hidden`, `terminal`, `paused`, `expected_days` (NULL = no stalled threshold), no colour column, seven seeded and all renameable; plus `map_node_progress` (`node_id` pk → `map_nodes` on delete cascade, `stage_id`, `stage_changed_at`, `updated_at`, `updated_by`), member-writable because setting a stage is fieldwork and not configuration, with the stamp trigger as the only writer of `stage_changed_at` | before wave 2's client half is useful | 7 rows in `map_node_stages`, exactly 1 `terminal`; `map_node_progress` present with `map_node_progress_pkey` on `(node_id)`; `map_node_progress_stage_stamp_trg` is BEFORE INSERT OR UPDATE and sorts before `map_node_progress_touch_trg`; `reorder_map_node_stages`'s only argument is named `p_ids` |
 | 0027 | `map_node_goals_and_counts.sql` | wave 3 | `map_node_goals` (node_id cascade, label/`label_ar`, nullable `stage_id`, `target > 0`, `target_date`), written on `structure.edit` and audited; plus the `v_map_node_open_counts` view with `security_invoker = true` — mandatory, and its own probe reads `reloptions` to prove it | after 0026 | `map_node_goals` present; `v_map_node_open_counts`'s `reloptions` contains `security_invoker=true` (a view without it reads as its OWNER and hands every member counts RLS would have withheld) |
 | 0028 | `jira_settings.sql` | wave 7 | The saved Jira reading configuration, **one row**: `site_base_url`, the three field ids, `status_map jsonb`, `fold_arabic`, `jql`, **`enabled boolean not null default false`**, `updated_at`/`updated_by`. One-row-ness is a CHECKED SINGLETON KEY — a fixed uuid primary key plus `jira_settings_singleton_chk` — because the key alone stops a second row with the SAME id and nothing else. Member-read (every member's screens ask whether Jira is on), `structure.edit`-write, touch + `config_audit` triggers. NO seed row, NO credentials, NO sync state | any time — the client half is safe to ship first (see below) | `jira_settings` present; `pg_get_expr` of the `enabled` default contains `false`; `jira_settings_singleton_chk` exists; `jira_settings_select`'s `qual` contains `is_member` **and** `jira_settings_update`'s contains `structure.edit`; `select count(*) from jira_settings` is 0 until somebody saves on the Jira screen |
+| 0030 | `map_view_settings.sql` | wave ? | How the map draws, **ONE ROW**: `layout`/`open_depth`/card size/gaps/`sibling_wrap`/`grouping`/`sibling_sort`/`colour_by` (`track` only)/`node_fields` jsonb/`label_budget`. Checked singleton key ending `…0030`; member-read, `structure.edit`-write, touch + `config_audit`; **NO seed row**. Depends only on 0001/0002/0025 — never on 0026-0029 | any time — no client half exists yet | `map_view_settings` present; `pg_get_expr` of `layout`'s default contains `'worlds'`; `map_view_settings_singleton_chk` exists; `map_view_settings_select`'s `qual` contains `is_member` **and** `map_view_settings_update`'s contains `structure.edit`; `select count(*) from map_view_settings` is 0 |
 
 **0028 is the one file on this page whose client half is safe to ship before it is applied**, and
 that is a property of the design rather than a licence to be casual: `loadJiraSettings()` fails

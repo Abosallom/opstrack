@@ -60,10 +60,14 @@
 // This is the security property the whole feature rests on, so it is worth
 // stating the mechanism precisely rather than promising good behaviour.
 //
-//   (i)   `jiraCall()` is the ONLY place in this file where `fetch` is called
-//         against Jira. There is no second one. A reviewer checks this with
-//         one grep, and `index.test.ts` asserts the source contains exactly one
-//         `fetch(` against the Jira origin.
+//   (i)   `jiraCall()` is the ONLY place in this file where a JIRA REST call is
+//         made, and the only place a CREDENTIAL ever goes on the wire. There is
+//         a second `fetch` in this file — exactly one, `fetchCloudId()` — and it
+//         is not a Jira REST call, carries no Authorization header, and is
+//         constrained by its own frozen constant and its own assertion (§7).
+//         `index.test.ts` pins BOTH: exactly two `fetch(` in the source, the
+//         first inside `jiraCall`, the second inside `fetchCloudId`, and exactly
+//         one `Authorization:` header in the whole file.
 //   (ii)  `jiraCall()` does not take a URL. It takes a KEY from `ENDPOINTS`, a
 //         closed, frozen, four-entry allow-list, and reads the verb OUT of that
 //         entry. A caller cannot supply a path, cannot supply a verb, and
@@ -173,6 +177,74 @@
 // `validateFields` quotes the 40 leading characters of a bad field id, and
 // `validateJql` reports a length — because those came from the person reading
 // the message, in the same request, and are not read from a secret.
+//
+//
+// ═══ 7. TWO ROUTES TO THE SAME FOUR ENDPOINTS ═══
+//
+// Atlassian now mints TWO KINDS of API token and they are not called at the
+// same host.
+//
+//   CLASSIC (unscoped). The whole account, callable at the site itself:
+//     https://your-site.atlassian.net/rest/api/3/myself
+//
+//   SCOPED ("API token with scopes"). Atlassian's own documentation: "You need
+//   to call the Atlassian API to use API tokens with scopes for Jira
+//   https://api.atlassian.com/ex/jira/{cloudId}". Called at the site, a scoped
+//   token gets a 401 — the SAME 401 a revoked classic token gets, which is why
+//   this cost an evening before it was understood. It is not a bad credential;
+//   it is a credential at the wrong door.
+//
+// Aziz can only mint the scoped kind on his account. So this file reaches the
+// same four endpoints by either route, and NOTHING ABOUT §3 CHANGES:
+//
+//   THE ALLOW-LIST IS UNTOUCHED. `ENDPOINTS` still holds `/rest/api/3/...`
+//   literals and `assertReadOnlyEndpoints()` still requires every one of them to
+//   start with `/rest/api/3/`. The gateway prefix is applied WHERE THE URL IS
+//   BUILT (`cred.apiRoot`), never stored in the allow-list — because that list's
+//   job is "which Jira REST endpoints exist", and folding a host into it would
+//   make the one assertion that guards it stop meaning anything.
+//
+//   THE ROUTE IS DISCOVERED, NOT CONFIGURED. The first Jira call of a request
+//   goes to the site. Only if the site answers 401 or 403 — and only if the base
+//   URL is `*.atlassian.net` — is the cloud id looked up and the call retried
+//   once through the gateway. A classic token therefore behaves EXACTLY as it
+//   did before this section existed: one request, one route, no lookup. The
+//   working route is then cached per origin in the isolate for a few minutes, so
+//   a scoped token pays the failed site attempt once rather than per call.
+//
+//   A NON-CLOUD BASE URL IS NEVER SENT TO api.atlassian.com. The gateway serves
+//   Atlassian Cloud tenants; a custom domain or a Data Center install has no
+//   cloud id and no business having its hostname posted to Atlassian. For those,
+//   a 401 stays the 401 it always was, with one added sentence saying the
+//   gateway was not tried and why.
+//
+// ⚠ THE CLOUD-ID LOOKUP IS A FIFTH OUTBOUND URL, AND IT IS CONSTRAINED LIKE THE
+//   OTHER FOUR RATHER THAN TRUSTED BECAUSE IT IS "JUST A GET". It lives in its
+//   own frozen constant `TENANT_INFO`, is validated by its own
+//   `assertTenantInfoIsRead()` at module load AND immediately before every call,
+//   and it is deliberately NOT an `ENDPOINTS` entry: `/_edge/tenant_info` is not
+//   under `/rest/api/3/`, so adding it there would have meant weakening the
+//   assertion that makes that list a guarantee.
+//
+//   IT SENDS NO Authorization HEADER. `/_edge/tenant_info` is public — it is how
+//   a browser learns its own tenant before anyone signs in. Attaching Basic auth
+//   to it would put the whole Atlassian account on a request that does not need
+//   it and cannot use it: a gratuitous secret exposure with no upside. The token
+//   is passed to `fetchCloudId` for one purpose only, REDACTION of anything that
+//   comes back, and never reaches the request.
+//
+//   ITS HOST CANNOT COME FROM A CALLER. It takes a `ParsedBaseUrl`, and
+//   `assertTenantInfoIsRead()` RE-PARSES that origin through `parseBaseUrl()`
+//   before the fetch — so the only host this URL can ever name is one that has
+//   already passed every shape test in this file and ends `.atlassian.net`.
+//
+// AND THE FAILURES STAY AS PRECISE AS THE REST OF THIS FILE. "Jira rejected the
+// credential" is now three different diagnoses with three different fixes, so
+// they are three different sentences and two new codes: the cloud id could not
+// be resolved (`jira_cloud_id_unresolved`), the gateway itself refused the
+// credential (`jira_gateway_unauthorized` — a scoped token missing a scope), or
+// the site refused and there is no gateway to try (`jira_unauthorized`, plus the
+// sentence saying so).
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -276,6 +348,118 @@ export function assertReadOnlyEndpoints(): void {
 }
 
 assertReadOnlyEndpoints()
+
+/* ─────────────────── the fifth URL, and the second route ───────────────── */
+
+/**
+ * Atlassian's API gateway. The ONLY host in this file that is not the owner's
+ * own site, and the reason it is a named constant rather than a string inside a
+ * template is that a reviewer must be able to grep for every foreign host this
+ * function can name and find exactly one.
+ *
+ * `index.test.ts` asserts this literal appears exactly once in the source as a
+ * standalone string, so a second one cannot be introduced quietly.
+ */
+export const ATLASSIAN_GATEWAY_ORIGIN = 'https://api.atlassian.com'
+
+/**
+ * THE FIFTH OUTBOUND URL. See header §7.
+ *
+ * ⚠ WHY THIS IS NOT AN `ENDPOINTS` ENTRY, AND WHY THAT IS THE SECURE CHOICE.
+ *   `ENDPOINTS` means "every Jira REST endpoint this function can reach", and
+ *   the single assertion that makes it a guarantee is `path.startsWith(
+ *   '/rest/api/3/')`. `/_edge/tenant_info` is not a REST endpoint and is not
+ *   under that prefix, so putting it in that object would have forced that
+ *   assertion to grow an exception — and an allow-list with an exception in its
+ *   validator is an allow-list that no longer proves anything. It gets its own
+ *   frozen declaration and its own assertion instead, which is stricter than the
+ *   other four rather than looser: this one is pinned to an EXACT path, not to a
+ *   prefix.
+ *
+ * ⚠ NO Authorization HEADER EVER GOES ON THIS URL. It is public by design — a
+ *   signed-out browser reads it to learn which tenant it is looking at. Sending
+ *   the Basic header anyway would hand the whole Atlassian account to a request
+ *   that neither needs nor reads it, for no benefit at all.
+ */
+export const TENANT_INFO = Object.freeze({
+  path: '/_edge/tenant_info',
+  verb: 'GET',
+} as const)
+
+/**
+ * The sibling of `assertReadOnlyEndpoints()` for the fifth URL. Runs at module
+ * load with no argument (so a bad edit to the constant kills the isolate on the
+ * first request), and again with the base URL immediately before every call.
+ *
+ * ⚠ THE `base` ARGUMENT IS THE IMPORTANT HALF. A constant cannot go wrong on its
+ *   own; a HOST can. So this re-runs `parseBaseUrl()` over the origin it is about
+ *   to name and refuses anything that does not come back identical — which means
+ *   the only value that can reach this URL is one that already passed every shape
+ *   test in this file. Caller text cannot get here, because caller text has never
+ *   been through `parseBaseUrl()` and could not survive it if it were.
+ *
+ *   It also refuses a host that is not `*.atlassian.net`. A custom domain or a
+ *   Data Center install has no cloud id, and its hostname is not Atlassian's to
+ *   receive.
+ */
+export function assertTenantInfoIsRead(base?: ParsedBaseUrl): void {
+  if (!Object.isFrozen(TENANT_INFO)) {
+    throw new Error('[jira-read] TENANT_INFO is not frozen')
+  }
+  if (TENANT_INFO.verb !== 'GET') {
+    throw new Error(`[jira-read] the tenant_info lookup must be a GET: ${String(TENANT_INFO.verb)}`)
+  }
+  // EXACT, not a prefix. There is one tenant_info URL and this is it.
+  if (TENANT_INFO.path !== '/_edge/tenant_info') {
+    throw new Error(`[jira-read] the tenant_info path is not the documented one: ${TENANT_INFO.path}`)
+  }
+  if (/[?#]/.test(TENANT_INFO.path)) {
+    throw new Error('[jira-read] the tenant_info lookup may not carry a query string or a fragment')
+  }
+  // No body, and no third key that could smuggle one — or a header — in.
+  if (Object.keys(TENANT_INFO).length !== 2) {
+    throw new Error('[jira-read] the tenant_info constant grew a key; it may carry a path and a verb, nothing else')
+  }
+
+  if (base === undefined) return
+
+  const reparsed = parseBaseUrl(base.origin)
+  if (!reparsed.ok || reparsed.value.origin !== base.origin || reparsed.value.hostname !== base.hostname) {
+    // NOT quoted back, per header §6: this branch is unreachable from a value
+    // that came out of `parseBaseUrl`, so anything arriving here is a value of
+    // unknown provenance and quoting it is exactly the mistake to avoid.
+    throw new Error('[jira-read] refusing a tenant_info host that did not come out of parseBaseUrl')
+  }
+  if (!reparsed.value.atlassianCloud || !base.atlassianCloud) {
+    throw new Error('[jira-read] refusing a tenant_info lookup for a host that is not a *.atlassian.net site')
+  }
+}
+
+assertTenantInfoIsRead()
+
+/**
+ * A cloud id is an opaque tenant identifier — a UUID in every instance seen so
+ * far, which this deliberately does NOT assume, because a format Atlassian has
+ * never promised is not a thing to hard-code.
+ *
+ * What it DOES assume is the only part that matters for safety: the value is
+ * about to be spliced into a URL PATH, so it may contain nothing that could
+ * change that URL's shape. No slash, no dot, no colon, no percent, no query
+ * character. `gatewayApiRoot()` percent-encodes on top of this check, which is a
+ * no-op for every value that passes it and is kept anyway — same reasoning as
+ * `issueUrl()`.
+ */
+export function isCloudId(v: unknown): v is string {
+  return typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/.test(v)
+}
+
+/** `https://api.atlassian.com/ex/jira/<cloudId>` — the scoped-token route's root. */
+export function gatewayApiRoot(cloudId: string): string {
+  if (!isCloudId(cloudId)) {
+    throw new Error('[jira-read] refusing to build a gateway URL from a value that is not a cloud id')
+  }
+  return `${ATLASSIAN_GATEWAY_ORIGIN}/ex/jira/${encodeURIComponent(cloudId)}`
+}
 
 /* ──────────────────────────────── bounds ───────────────────────────────── */
 
@@ -382,6 +566,12 @@ export type JiraCode =
   | 'jira_rate_limited'
   | 'jira_unavailable'
   | 'jira_bad_response'
+  // the route — header §7. Both mean "the site refused the credential AND the
+  // gateway retry did not save it", split by WHICH half failed, because the two
+  // have different fixes: one is a lookup that did not answer, the other is a
+  // token whose scopes are wrong.
+  | 'jira_cloud_id_unresolved'
+  | 'jira_gateway_unauthorized'
   // Jira did not answer
   | 'jira_timeout'
   | 'jira_unreachable'
@@ -556,6 +746,20 @@ export interface JiraCredential {
   base: ParsedBaseUrl
   email: string
   token: string
+  /**
+   * WHERE `/rest/api/3/...` IS APPENDED. Header §7.
+   *
+   * `https://your-site.atlassian.net` for a classic token, or
+   * `https://api.atlassian.com/ex/jira/<cloudId>` for a token with scopes. It is
+   * a property of the CREDENTIAL rather than an argument to `jiraCall`, so that
+   * the one call site keeps taking an endpoint NAME and nothing else: a caller
+   * still cannot supply a path, a verb or a host, and the set of reachable URLs
+   * is still the four in `ENDPOINTS` — now crossed with two roots, both of which
+   * are built in this file from values that passed `parseBaseUrl`/`isCloudId`.
+   *
+   * `readCredential` always sets the SITE root. Only `withApiRoot()` changes it.
+   */
+  apiRoot: string
 }
 
 export type SecretResult =
@@ -633,7 +837,17 @@ export function readCredential(raw: {
   // but a paste out of the dashboard often does, and a token with a stray
   // newline fails as 401 "the credential was rejected" — which sends the owner
   // off to mint a second token that will fail the same way.
-  return { ok: true, value: { base: base.value, email, token: raw.token.trim() } }
+  // apiRoot STARTS AT THE SITE, always. Header §7: the route is discovered by
+  // trying, not configured, so a classic token never pays for the second one.
+  return {
+    ok: true,
+    value: { base: base.value, email, token: raw.token.trim(), apiRoot: base.value.origin },
+  }
+}
+
+/** A copy of the credential pointed at a different root. Header §7. */
+export function withApiRoot(cred: JiraCredential, apiRoot: string): JiraCredential {
+  return { ...cred, apiRoot }
 }
 
 /**
@@ -933,7 +1147,10 @@ async function jiraCall(
     throw new Error(`[jira-read] refusing to send a body to the GET endpoint ${name}`)
   }
 
-  const url = new URL(cred.base.origin + ep.path)
+  // `cred.apiRoot`, not `cred.base.origin` — header §7. Still a concatenation of
+  // two values this file built itself: a root from `parseBaseUrl`/`isCloudId`,
+  // and a path literal out of the frozen allow-list.
+  const url = new URL(cred.apiRoot + ep.path)
   for (const [k, v] of Object.entries(opts.query ?? {})) url.searchParams.set(k, v)
 
   const secrets = [cred.token, basicAuthHeader(cred.email, cred.token)]
@@ -1012,6 +1229,341 @@ async function jiraCall(
   } finally {
     clearTimeout(timer)
   }
+}
+
+/* ──────────────────────── which door, and how we know ──────────────────── */
+
+/** Which root answered. Reported by `ping` so the Settings screen can say so. */
+export type JiraRoute = 'site' | 'gateway'
+
+export interface JiraRouting {
+  route: JiraRoute
+  /** Set only on the gateway route. Not a secret — it is a tenant's public id. */
+  cloudId?: string
+}
+
+export interface CloudIdOk {
+  ok: true
+  cloudId: string
+}
+export interface CloudIdErr {
+  ok: false
+  failure: JiraFailure
+  status: number
+}
+export type CloudIdResult = CloudIdOk | CloudIdErr
+
+/**
+ * The one sentence every cloud-id failure opens with. Written once because the
+ * OWNER's question in all of these branches is the same — "why did my token not
+ * work" — and the answer's first half is the same too; only the second half,
+ * which says what actually broke, differs.
+ */
+const CLOUD_ID_PREFACE =
+  'Jira rejected the credential at the site address, so this function tried to look up the site’s cloud id and retry through Atlassian’s API gateway — which is where an API token WITH SCOPES has to be called — and the lookup did not answer with one.'
+
+function cloudIdFailure(why: string, jiraStatus?: number, detail?: string): CloudIdErr {
+  return {
+    ok: false,
+    status: 502,
+    failure: {
+      code: 'jira_cloud_id_unresolved',
+      error: `${CLOUD_ID_PREFACE} ${why}`,
+      jiraStatus,
+      detail,
+    },
+  }
+}
+
+/**
+ * ══ THE SECOND fetch IN THIS FILE, AND THE ONLY UNAUTHENTICATED ONE. ══
+ *
+ * `GET https://<site>.atlassian.net/_edge/tenant_info` -> `{ "cloudId": "…" }`.
+ *
+ * Everything that constrains it is stated at `TENANT_INFO` and in header §7; the
+ * three properties worth repeating where the `fetch` actually is:
+ *
+ *   NO Authorization HEADER. The endpoint is public. `secrets` is here for
+ *   `scrub`/`summarizeJiraError` — to REDACT anything that comes back — and is
+ *   never put on the request. Grep this function for `basicAuthHeader`: there
+ *   isn't one, and `index.test.ts` asserts that against the source text.
+ *
+ *   NO BODY, NO QUERY, NO CALLER TEXT. The verb comes out of the frozen
+ *   constant, the path is that constant, and the host is re-validated through
+ *   `parseBaseUrl` by the assertion on the first line.
+ *
+ *   THE URL IS CHECKED AFTER IT IS BUILT, not only before. `new URL(path, base)`
+ *   is a resolver, and a resolver is a thing that can surprise you; asserting the
+ *   result's origin, pathname and empty search costs one `if` and removes the
+ *   whole class.
+ */
+export async function fetchCloudId(
+  base: ParsedBaseUrl,
+  secrets: readonly string[] = [],
+): Promise<CloudIdResult> {
+  /*
+   * ⚠ THE GUARDS REFUSE — THEY DO NOT KILL THE REQUEST. `assertTenantInfoIsRead`
+   *   and the post-build URL check are assertions about values no request-path
+   *   caller can currently produce: `callWithRoute` only arrives here with a
+   *   base that came out of `parseBaseUrl` and is Atlassian Cloud, so both are
+   *   defence in depth against a FUTURE caller, not a live bug. But an assertion
+   *   that throws out of a request handler surfaces as `server_error` —
+   *   “Something went wrong”, the one sentence this file’s design exists to
+   *   avoid. So the throw is kept exactly as strict as it is (the strictness is
+   *   the point, and `assertTenantInfoIsRead()` still runs bare at module load)
+   *   and is caught HERE, at the boundary, and turned into the same typed
+   *   refusal every other failure in this function gets. The thrown message is
+   *   NOT relayed into the sentence — header §6: a value this function just
+   *   refused is a value of unknown provenance, and the cause is named in this
+   *   file’s own words instead.
+   */
+  let url: URL
+  try {
+    assertTenantInfoIsRead(base)
+    url = new URL(TENANT_INFO.path, base.origin)
+    if (url.origin !== base.origin || url.pathname !== TENANT_INFO.path || url.search || url.hash) {
+      throw new Error('[jira-read] the tenant_info URL did not come out as the frozen constant')
+    }
+  } catch {
+    console.error('[jira-read] tenant_info -> refused before any request was made')
+    return {
+      ok: false,
+      status: 502,
+      failure: {
+        code: 'jira_cloud_id_unresolved',
+        error:
+          'The cloud-id lookup was refused before any request was made: the base URL handed to it is not one this function’s own parser vouches for as a *.atlassian.net site. No host was contacted. A stored JIRA_BASE_URL cannot cause this — a bad one is refused earlier, as bad_base_url — so this points at the caller, not the configuration.',
+      },
+    }
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), JIRA_TIMEOUT_MS)
+
+  try {
+    const res = await fetch(url.toString(), {
+      // ⚠ FROM THE FROZEN CONSTANT, NEVER FROM AN ARGUMENT — same rule as
+      //   `ep.verb` in `jiraCall`, for the same reason.
+      method: TENANT_INFO.verb,
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    })
+
+    const text = await res.text()
+    let parsed: unknown = undefined
+    try {
+      parsed = text ? JSON.parse(text) : {}
+    } catch {
+      parsed = undefined
+    }
+
+    if (!res.ok) {
+      console.error(`[jira-read] tenant_info -> HTTP ${res.status}`)
+      return cloudIdFailure(
+        `The lookup answered HTTP ${res.status}. Check JIRA_BASE_URL is exactly your site address, e.g. https://your-site.atlassian.net with nothing after it.`,
+        res.status,
+        summarizeJiraError(parsed, secrets),
+      )
+    }
+    if (parsed === undefined) {
+      console.error('[jira-read] tenant_info -> 200 with a non-JSON body')
+      return cloudIdFailure(
+        'The lookup answered with something that is not JSON, which usually means JIRA_BASE_URL points at a web page rather than at a Jira Cloud site.',
+        res.status,
+      )
+    }
+
+    const cloudId = obj(parsed).cloudId
+    if (!isCloudId(cloudId)) {
+      console.error('[jira-read] tenant_info -> 200 with no usable cloudId')
+      // The SHAPE, not the value — header §6. A value that failed `isCloudId` is
+      // a value of unknown provenance and is never quoted back.
+      return cloudIdFailure(
+        'The lookup answered without a usable cloudId. Expected a JSON object with a "cloudId" of letters, digits and hyphens.',
+        res.status,
+      )
+    }
+
+    return { ok: true, cloudId }
+  } catch (e) {
+    const aborted = e instanceof Error && e.name === 'AbortError'
+    console.error(`[jira-read] tenant_info -> ${aborted ? 'timeout' : 'network failure'}`)
+    return cloudIdFailure(
+      aborted
+        ? `The lookup did not answer within ${Math.round(JIRA_TIMEOUT_MS / 1000)} seconds. Retry shortly.`
+        : 'The lookup could not be reached at all. Check JIRA_BASE_URL resolves, and that the site is not behind an IP allow-list that excludes Supabase.',
+    )
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/* ─────────────────────────── remembering the door ──────────────────────── */
+
+/**
+ * WHY A MODULE-LEVEL CACHE AND NOT A PER-REQUEST ONE. Supabase reuses an
+ * isolate across requests, so a module-level map survives between them — which
+ * is the whole point: with a scoped token, EVERY call would otherwise open with
+ * a site request that is known to 401. One wasted round trip per isolate is a
+ * cost worth paying to discover the route; one per call is not.
+ *
+ * ⚠ AND WHY IT EXPIRES. What is cached is a fact about a TOKEN, and tokens are
+ *   rotated: the owner can replace a scoped token with a classic one in the
+ *   dashboard and would otherwise keep hitting the gateway until the isolate
+ *   died. A few minutes is short enough that a rotation heals itself and long
+ *   enough that a burst of calls pays the probe once.
+ *
+ * It caches a ROUTE, never a credential and never a response. There is nothing
+ * in this map that is secret, and nothing in it that could authorise anything.
+ */
+export const ROUTE_CACHE_TTL_MS = 5 * 60_000
+
+/** A ceiling, not a target: there is one JIRA_BASE_URL per project. */
+export const ROUTE_CACHE_MAX_ORIGINS = 8
+
+export interface RouteCacheEntry extends JiraRouting {
+  expiresAt: number
+}
+
+const ROUTE_CACHE = new Map<string, RouteCacheEntry>()
+
+export function readRouteCache(origin: string, now: number = Date.now()): RouteCacheEntry | undefined {
+  const hit = ROUTE_CACHE.get(origin)
+  if (!hit || hit.expiresAt <= now) return undefined
+  return hit
+}
+
+export function writeRouteCache(origin: string, routing: JiraRouting, now: number = Date.now()): void {
+  // Bounded so a misconfiguration cannot grow this map without limit. Clearing
+  // wholesale costs one extra probe and keeps the bookkeeping to one line.
+  if (ROUTE_CACHE.size >= ROUTE_CACHE_MAX_ORIGINS && !ROUTE_CACHE.has(origin)) ROUTE_CACHE.clear()
+  ROUTE_CACHE.set(origin, { route: routing.route, cloudId: routing.cloudId, expiresAt: now + ROUTE_CACHE_TTL_MS })
+}
+
+/** Exported for the test suite, which must not inherit another test's route. */
+export function clearRouteCache(): void {
+  ROUTE_CACHE.clear()
+}
+
+/**
+ * "Jira looked at this credential and said no." 401 and 403 both mean the
+ * gateway is worth trying: a scoped token called at the site is a 401, and a
+ * site that has been told to reject unscoped access answers 403. Every other
+ * status — 404, 429, 5xx — is about something else and must not trigger a second
+ * request to a second host.
+ */
+export function isCredentialRefusal(r: JiraCallResult): boolean {
+  return !r.ok && (r.failure.jiraStatus === 401 || r.failure.jiraStatus === 403)
+}
+
+/**
+ * The sentence that makes a plain site 401 tell the whole truth on a host where
+ * no gateway retry was possible. Appended rather than replacing, because the
+ * original sentence is still the first thing to check.
+ */
+export const NO_GATEWAY_SENTENCE =
+  ' This site is not a *.atlassian.net address, so Atlassian’s API gateway was not tried: it serves Atlassian Cloud tenants only, and a custom domain or a Jira Data Center install has no cloud id. If the credential is an API token with scopes, it cannot reach this site at all — that kind of token is only callable through the gateway.'
+
+function annotateNoGateway(err: JiraCallErr): JiraCallErr {
+  return { ...err, failure: { ...err.failure, error: `${err.failure.error}${NO_GATEWAY_SENTENCE}` } }
+}
+
+function gatewayRefused(err: JiraCallErr, cloudId: string): JiraCallErr {
+  return {
+    ...err,
+    failure: {
+      ...err.failure,
+      code: 'jira_gateway_unauthorized',
+      // THE CLOUD ID IS QUOTED ON PURPOSE, and it is the one exception header §6
+      // allows for: it is not a secret, it is not a value that was REJECTED (it
+      // passed `isCloudId` and answered a live lookup), and it is the identifier
+      // the owner needs in front of him to check the token's scopes against the
+      // right tenant. Same shape of exception as `parseBaseUrl`'s hostname quote.
+      error: `Atlassian’s API gateway rejected the credential too (cloud id ${cloudId}). The site address refused it first, so this is the credential itself and not the route. If JIRA_API_TOKEN is an API token WITH SCOPES, check it has read:jira-work and read:jira-user and has not expired; if it is a classic token, check it is current and unrevoked and that the Atlassian account can see this site.`,
+    },
+  }
+}
+
+/**
+ * ══ THE ROUTE DECISION, AS A PURE FUNCTION OVER TWO INJECTED CALLS. ══
+ *
+ * `attempt` and `resolveCloudId` are arguments for the same reason
+ * `collectSearchPages` takes a `PageReader`: the ONE Jira `fetch` stays inside
+ * `jiraCall` and the ONE lookup `fetch` stays inside `fetchCloudId`, while the
+ * decision that chooses between them is exercised by fixtures rather than by a
+ * live site. A rule nobody can test is a rule nobody can keep.
+ *
+ * The order below is the security argument, so it is worth reading as one:
+ *
+ *   1. A REMEMBERED GATEWAY ROUTE IS USED DIRECTLY. Nothing else is remembered;
+ *      a remembered SITE route still just means "try the site", which is what
+ *      would have happened anyway.
+ *   2. OTHERWISE THE SITE IS TRIED FIRST. Always. A classic token's request is
+ *      byte-identical to what it was before header §7 existed.
+ *   3. A NON-REFUSAL IS RETURNED UNTOUCHED. A 404, a 429, a timeout — none of
+ *      those is a reason to talk to a second host.
+ *   4. A REFUSAL ON A NON-CLOUD HOST IS RETURNED AS ITSELF, plus the sentence
+ *      saying no gateway was tried. `api.atlassian.com` never hears about a
+ *      custom domain.
+ *   5. ONLY THEN is the cloud id resolved and the call retried ONCE. Once: there
+ *      is no loop here, and a gateway refusal is a final answer.
+ */
+export async function callWithRoute(args: {
+  cred: JiraCredential
+  attempt: (cred: JiraCredential) => Promise<JiraCallResult>
+  resolveCloudId: (base: ParsedBaseUrl) => Promise<CloudIdResult>
+  now?: number
+}): Promise<{ result: JiraCallResult; routing: JiraRouting }> {
+  const { cred, attempt, resolveCloudId } = args
+  const now = args.now ?? Date.now()
+  const origin = cred.base.origin
+
+  // 1. A route this isolate already proved.
+  const cached = readRouteCache(origin, now)
+  if (cached?.route === 'gateway' && cached.cloudId) {
+    const routing: JiraRouting = { route: 'gateway', cloudId: cached.cloudId }
+    const viaCache = await attempt(withApiRoot(cred, gatewayApiRoot(cached.cloudId)))
+    if (!viaCache.ok && isCredentialRefusal(viaCache)) {
+      // The remembered route stopped working — a rotated token, most likely.
+      // Forget it so the NEXT request probes again from the site rather than
+      // spending the rest of the TTL failing at a door that used to open.
+      writeRouteCache(origin, { route: 'site' }, now)
+      return { result: gatewayRefused(viaCache, cached.cloudId), routing }
+    }
+    return { result: viaCache, routing }
+  }
+
+  // 2. The site, which is what every classic token wants and gets.
+  const siteRouting: JiraRouting = { route: 'site' }
+  const first = await attempt(withApiRoot(cred, origin))
+  if (first.ok) {
+    writeRouteCache(origin, siteRouting, now)
+    return { result: first, routing: siteRouting }
+  }
+  // 3. Not a credential refusal — this is not a routing problem.
+  if (!isCredentialRefusal(first)) return { result: first, routing: siteRouting }
+
+  // 4. Refused, and there is no gateway for this host.
+  if (!cred.base.atlassianCloud) {
+    return { result: annotateNoGateway(first), routing: siteRouting }
+  }
+
+  // 5. Refused on a Cloud site: resolve the tenant and retry exactly once.
+  const resolved = await resolveCloudId(cred.base)
+  if (!resolved.ok) {
+    return { result: { ok: false, failure: resolved.failure, status: resolved.status }, routing: siteRouting }
+  }
+
+  const routing: JiraRouting = { route: 'gateway', cloudId: resolved.cloudId }
+  const second = await attempt(withApiRoot(cred, gatewayApiRoot(resolved.cloudId)))
+  if (second.ok) {
+    writeRouteCache(origin, routing, now)
+    return { result: second, routing }
+  }
+  if (isCredentialRefusal(second)) {
+    return { result: gatewayRefused(second, resolved.cloudId), routing }
+  }
+  return { result: second, routing }
 }
 
 /* ───────────────────────────── normalisers ─────────────────────────────── */
@@ -1111,8 +1663,43 @@ export function normalizeField(raw: unknown): JiraFieldOut {
 
 /* ─────────────────────────── the four operations ───────────────────────── */
 
-async function opPing(cred: JiraCredential): Promise<Response> {
-  const res = await jiraCall(cred, 'myself')
+/**
+ * ONE REQUEST'S STATE: the credential, and which door turned out to open.
+ *
+ * The operations take this rather than a bare `JiraCredential` for one reason —
+ * `ping` has to REPORT the route, and a route discovered inside a call has to
+ * come back out of it somehow. Everything else about the operations is unchanged.
+ */
+interface JiraSession {
+  cred: JiraCredential
+  routing: JiraRouting
+}
+
+/**
+ * What the operations call instead of `jiraCall` directly: the same endpoint
+ * NAME, wrapped in the route decision from header §7.
+ *
+ * The token is handed to `fetchCloudId` ONLY as a redaction list — see that
+ * function's own note. Nothing here puts it on the tenant_info request.
+ */
+async function call(
+  session: JiraSession,
+  name: EndpointName,
+  opts: { query?: Record<string, string>; body?: Record<string, unknown> } = {},
+): Promise<JiraCallResult> {
+  const secrets = [session.cred.token, basicAuthHeader(session.cred.email, session.cred.token)]
+  const { result, routing } = await callWithRoute({
+    cred: session.cred,
+    attempt: (c) => jiraCall(c, name, opts),
+    resolveCloudId: (base) => fetchCloudId(base, secrets),
+  })
+  session.routing = routing
+  return result
+}
+
+async function opPing(session: JiraSession): Promise<Response> {
+  const cred = session.cred
+  const res = await call(session, 'myself')
   if (!res.ok) return failure(res.failure, res.status, res.headers)
   const me = obj(res.data)
   return json({
@@ -1122,6 +1709,20 @@ async function opPing(cred: JiraCredential): Promise<Response> {
       baseUrl: cred.base.origin,
       hostname: cred.base.hostname,
       atlassianCloud: cred.base.atlassianCloud,
+    },
+    // ADDITIVE, so a client built before header §7 keeps working and ignores it.
+    // Neither field is a secret: the route is a fact about which host answered,
+    // and a cloud id is a tenant's public identifier — it is in the URL of every
+    // Atlassian gateway call and in the page source of the site itself. Saying
+    // which door opened is what lets the Settings screen explain a token type
+    // instead of leaving the owner to guess.
+    route: {
+      via: session.routing.route,
+      cloudId: session.routing.cloudId ?? null,
+      apiRoot:
+        session.routing.route === 'gateway' && session.routing.cloudId
+          ? gatewayApiRoot(session.routing.cloudId)
+          : cred.base.origin,
     },
     // The email here is JIRA's copy of the account's address, which is a fact
     // the owner needs to confirm he pointed this at the right account. It is
@@ -1139,12 +1740,13 @@ async function opPing(cred: JiraCredential): Promise<Response> {
   })
 }
 
-async function opProjects(cred: JiraCredential, body: RequestBody): Promise<Response> {
+async function opProjects(session: JiraSession, body: RequestBody): Promise<Response> {
+  const cred = session.cred
   const startAt = clampOffset(body.startAt, 5000)
   const maxResults = clampCount(body.maxResults, PROJECTS_MAX_RESULTS, PROJECTS_MAX_RESULTS)
   // project/search kept the CLASSIC paging — startAt / total / isLast. Only the
   // JQL search moved to token paging. Do not "make these consistent".
-  const res = await jiraCall(cred, 'projectSearch', {
+  const res = await call(session, 'projectSearch', {
     query: { startAt: String(startAt), maxResults: String(maxResults), orderBy: 'key' },
   })
   if (!res.ok) return failure(res.failure, res.status, res.headers)
@@ -1201,8 +1803,8 @@ export function selectFields(
   return { fields: truncated ? matching.slice(0, cap) : matching, matched: matching.length, truncated }
 }
 
-async function opFields(cred: JiraCredential, body: RequestBody): Promise<Response> {
-  const res = await jiraCall(cred, 'fieldList')
+async function opFields(session: JiraSession, body: RequestBody): Promise<Response> {
+  const res = await call(session, 'fieldList')
   if (!res.ok) return failure(res.failure, res.status, res.headers)
 
   const all = Array.isArray(res.data) ? res.data : []
@@ -1337,7 +1939,8 @@ export async function collectSearchPages(
   return { ok: true, value: { issues, pages, nextPageToken: token, truncated } }
 }
 
-async function opSearch(cred: JiraCredential, body: RequestBody): Promise<Response> {
+async function opSearch(session: JiraSession, body: RequestBody): Promise<Response> {
+  const cred = session.cred
   const jql = validateJql(body.jql)
   if (!jql.ok) return failure({ code: 'invalid_jql', error: jql.detail }, 400)
 
@@ -1351,7 +1954,7 @@ async function opSearch(cred: JiraCredential, body: RequestBody): Promise<Respon
 
   const collected = await collectSearchPages(
     ({ token, maxResults: want }) =>
-      jiraCall(cred, 'jqlSearch', {
+      call(session, 'jqlSearch', {
         body: {
           jql: jql.value,
           maxResults: want,
@@ -1507,16 +2110,21 @@ export async function handle(req: Request): Promise<Response> {
   //    the allow-list from being decoration: no caller string is ever used to
   //    index ENDPOINTS, so the set of URLs reachable from outside is exactly
   //    the four written above.
+  //    ONE SESSION PER REQUEST, carrying the route the calls below discover.
+  //    It starts at the site (header §7) — the route is a thing this function
+  //    finds out by trying, never a thing a caller or a secret can name.
+  const session: JiraSession = { cred: cred.value, routing: { route: 'site' } }
+
   try {
     switch (body.op) {
       case 'ping':
-        return await opPing(cred.value)
+        return await opPing(session)
       case 'projects':
-        return await opProjects(cred.value, body)
+        return await opProjects(session, body)
       case 'fields':
-        return await opFields(cred.value, body)
+        return await opFields(session, body)
       case 'search':
-        return await opSearch(cred.value, body)
+        return await opSearch(session, body)
     }
   } catch (e) {
     // Scrubbed even though nothing here interpolates a secret into a thrown

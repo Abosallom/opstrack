@@ -23,6 +23,30 @@
 // `.mtree-canvas` carries `touch-action: none` and a `block-size: clamp()`; the
 // element's identity is load-bearing for the pan gesture and it must not become
 // a plain div.
+//
+// ── ONE CANVAS, TWO DRAWINGS: `flat` ───────────────────────────────────────
+//
+// This component paints both of the map's layouts, and they disagree about the
+// most basic thing a renderer can disagree about — whether a mark's size decides
+// what it is. The CONTAINMENT drawing (`layoutWorlds`, the default) says yes:
+// five authored pictures on a ladder of apparent size, a rim where a world is
+// opening, connectors that fade out as their child drops below `chip`. The flat
+// TIDY TREE (`layoutMindtree({ orientation: 'vertical', wrap: true })`) says no,
+// and says it as its first rule: every detail is visible at every zoom, nothing
+// is ever collapsed, a card is never a dot.
+//
+// `flat` selects between them, and it changes three things in this file: the
+// band memo answers `card` at an infinite apparent size for every node; the rim
+// layer draws nothing; and the per-child connectors are replaced by BLOCK
+// CONTAINERS — one rounded rectangle per parent, enclosing its whole subtree,
+// joined to the parent's card by a single stub, painted behind the cards. The
+// containers' geometry is `lib/mindtree/blocks.ts` and their markup is
+// `components/mindtree/MindBlock.tsx`; both carry the argument for why a wrapped
+// grid cannot be connected child by child.
+//
+// NOTHING IS DELETED BEHIND THE FLAG. Every band, every rim and every connector
+// is still here, still reachable, still measured by `mapRender.test.tsx`'s
+// fifteen renders — because the containment drawing is what the app opens on.
 
 import {
   useMemo,
@@ -33,6 +57,7 @@ import {
   type RefObject,
 } from 'react'
 import '../mindtree/mind-ring.css'
+import MindBlock from '../mindtree/MindBlock'
 import MindEdge from '../mindtree/MindEdge'
 import MindNode, { type MindNodePos, type MindNodeView } from '../mindtree/MindNode'
 import MindWorldRim from '../mindtree/MindWorldRim'
@@ -42,6 +67,7 @@ import PulseLayer, { type PulseLayerProps } from '../mindtree/PulseLayer'
 import { MindDropTargets, type MindDragController } from '../mindtree/DragLayer'
 import { t } from '../../lib/i18n'
 import { reachesCamera, useMapCamera } from '../../pages/map/mapCameraContext'
+import { blocksOf, type MindBlock as MindBlockGeometry } from '../../lib/mindtree/blocks'
 import type { DrawnLayout, PositionedNode } from '../../lib/mindtree/layout'
 import type { MindDimension, MindNode as MindNodeModel } from '../../lib/mindtree/model'
 import type { Entry } from '../../types'
@@ -55,6 +81,9 @@ export interface MatchWedge {
 
 /** Shared empty array, so a world with no matches does not remount its rim. */
 const EMPTY_WEDGES: readonly MatchWedge[] = Object.freeze([])
+
+/** The same trick for the containment drawing, which draws no containers. */
+const NO_BLOCKS: readonly MindBlockGeometry[] = Object.freeze([])
 
 export interface MapCanvasProps {
   canvasRef: (el: HTMLDivElement | null) => void
@@ -75,6 +104,30 @@ export interface MapCanvasProps {
    * `undefined` means "no such node", exactly as `Map.get` did.
    */
   getView: (id: string) => MindNodeView | undefined
+  /**
+   * WHICH OF THE TWO DRAWINGS THIS IS — false (the default) for the containment
+   * map the camera dives through, true for the vertical wrapped tidy tree.
+   *
+   * ── WHY THE PAGE SAYS SO AND THIS COMPONENT DOES NOT WORK IT OUT ──────────
+   *
+   * The obvious test is "does the layout have worlds", and it is WRONG, which
+   * is the whole reason this is a prop. `pages/map/treePreview.ts` bolts
+   * invented disc geometry onto the tidy tree so the containment camera can
+   * frame and cull it — every node comes out with a `worldD` — so a component
+   * asking that question would answer "containment" for the drawing that is
+   * least like it, and would go on picking a level of detail for a drawing whose
+   * first rule is that there is none. The page is the one place that knows which
+   * layout it just built; being told is the honest form of the question.
+   *
+   * ── WHAT IT CHANGES HERE, IN FULL ────────────────────────────────────────
+   *
+   * Three things, and each is argued where it happens: every node's band is
+   * `card` at an infinite apparent size (so neither cull can take a card and no
+   * node draws a disc); no world rim is drawn (there are no worlds to bound);
+   * and the per-child connectors are replaced by BLOCK CONTAINERS. `MindNode`
+   * gets the flag too — see its `flat` prop for the rest.
+   */
+  flat?: boolean
   rtl: boolean
   hintId: string
   dimensionLabel: string
@@ -112,6 +165,7 @@ export default function MapCanvas({
   matchesById,
   matchWedgesById,
   getView,
+  flat = false,
   rtl,
   hintId,
   dimensionLabel,
@@ -196,7 +250,16 @@ export default function MapCanvas({
   const bands = useMemo(() => {
     const out = new Map<string, { band: Band; out: number; apparent: number }>()
     for (const pos of order) {
-      if (pos.worldD === undefined) {
+      // THE FLAT TREE HAS NO BANDS AT ALL, and it is answered here rather than
+      // eleven lines further down so that the two culls, the rim layer and
+      // `MindNode` all read the same one answer. An INFINITE apparent size is
+      // not a sentinel picked for tidiness: `DOM_HORIZON_PX` culls on this
+      // number, and "every card is drawn in full at every zoom" is exactly the
+      // statement that no camera can ever put a node under that horizon. The
+      // same value is what a world-less layout already reported, so the tidy
+      // tree keeps behaving as it did before `treePreview.ts` started inventing
+      // discs for it.
+      if (flat || pos.worldD === undefined) {
         out.set(pos.id, { band: 'card', out: 0, apparent: Number.POSITIVE_INFINITY })
         continue
       }
@@ -205,7 +268,7 @@ export default function MapCanvas({
       out.set(pos.id, { band: read.band, out: read.out, apparent })
     }
     return out
-  }, [order, scale, viewportMinPx])
+  }, [order, scale, viewportMinPx, flat])
 
   /**
    * WHAT IS ACTUALLY ON SCREEN — wave 9's 5a, and the reason the 400-organization
@@ -272,6 +335,27 @@ export default function MapCanvas({
     }
     return { list, ids }
   }, [order, camera, activeId, currentId])
+
+  /**
+   * THE BLOCK CONTAINERS — one rounded rectangle per parent, holding its whole
+   * subtree, and the stub that joins the parent's card to it. Empty on the
+   * containment drawing, which has containment already and needs no drawing of
+   * it.
+   *
+   * A SEPARATE MEMO FROM `drawn`, ON `layout` AND NOT ON `camera`, and for the
+   * same reason `bands` is separate from `drawn`: the geometry is a pure
+   * function of the layout, so a pan must not rebuild a hundred and fifty
+   * rectangles that did not move. `MindBlock` is `memo()`d and every element of
+   * this array is reference-stable across a camera change, so panning re-renders
+   * zero containers.
+   *
+   * `blocksOf` returns them in the layout's own pre-order, which is the order
+   * they have to be PAINTED in — SVG has no z-index, and an inner container
+   * drawn first would be covered by the outer one it is meant to sit inside.
+   * That is why this list is emitted straight into the JSX rather than sorted or
+   * filtered into some other order on the way.
+   */
+  const blocks = useMemo(() => (flat ? blocksOf(layout) : NO_BLOCKS), [flat, layout])
 
   /**
    * DRAWING UNITS PER CSS PIXEL — the reciprocal of the camera scale, computed
@@ -373,33 +457,62 @@ export default function MapCanvas({
               ) : null,
             )}
 
+          {/* THE BLOCK CONTAINERS, INSTEAD OF THE CONNECTORS, ON THE FLAT TREE.
+              Inside the same decorative group, and before the nodes for the
+              same paint-order reason the rim layer is: a container is a ground
+              and every card it holds is drawn on top of it.
+
+              WHY THE CONNECTORS DO NOT SURVIVE ALONGSIDE THEM. `layout.ts`'s
+              four-point cubic was cut for a ONE-ROW fan, where every child is on
+              the same rank and no curve crosses a card. In a wrapped grid the
+              same geometry has to cross the first row to reach the second, and
+              neighbouring parents put their horizontal runs at the same height
+              — so a dozen fans merge into rules that read as table borders and
+              nothing says which parent owns which row. `lib/mindtree/blocks.ts`
+              carries the full argument and the picture that produced it. Two
+              answers to "who does this belong to" is one too many; the
+              containers are the one that survives crossing.
+
+              EACH IS WRAPPED IN ITS PARENT'S COLOUR PAIR, exactly as a connector
+              was wrapped in its child's, so a whole subtree — its container and
+              every card inside it — reads as one family. The pair is inherited,
+              never picked. */}
+          {blocks.map((block) => (
+            <MindBlock
+              key={block.id}
+              block={block}
+              ink={layout.byId.get(block.parentId)?.node.colourVars}
+            />
+          ))}
+
           {/* A CONNECTOR IS ONLY DRAWN WHERE BOTH ENDS ARE BOXES. Below `chip`
               a spoke is a hairline between two textures and reads as noise; at
               `card` and above it is the honest reading of a ring's structure.
               The `state` band is where it arrives, so that is where it fades. */}
-          {layout.edges.map((edge) => {
-            // A CONNECTOR TO A MARK THAT IS NOT DRAWN IS A LINE TO NOWHERE. The
-            // frustum cull takes the spoke with the node, which is also what
-            // keeps the edge layer from being the thing that blows the budget:
-            // there are as many edges as there are nodes.
-            if (!drawn.ids.has(edge.childId)) return null
-            const child = layout.byId.get(edge.childId)
-            const read = bands.get(edge.childId)
-            const fade =
-              read === undefined
-                ? 1
-                : read.band === 'absent' || read.band === 'grain'
-                  ? 0
-                  : read.band === 'state'
-                    ? read.out
-                    : 1
-            if (fade <= 0) return null
-            return (
-              <g key={edge.id} style={child?.node.colourVars}>
-                <MindEdge edge={edge} active={edge.childId === currentId} fade={fade} />
-              </g>
-            )
-          })}
+          {!flat &&
+            layout.edges.map((edge) => {
+              // A CONNECTOR TO A MARK THAT IS NOT DRAWN IS A LINE TO NOWHERE. The
+              // frustum cull takes the spoke with the node, which is also what
+              // keeps the edge layer from being the thing that blows the budget:
+              // there are as many edges as there are nodes.
+              if (!drawn.ids.has(edge.childId)) return null
+              const child = layout.byId.get(edge.childId)
+              const read = bands.get(edge.childId)
+              const fade =
+                read === undefined
+                  ? 1
+                  : read.band === 'absent' || read.band === 'grain'
+                    ? 0
+                    : read.band === 'state'
+                      ? read.out
+                      : 1
+              if (fade <= 0) return null
+              return (
+                <g key={edge.id} style={child?.node.colourVars}>
+                  <MindEdge edge={edge} active={edge.childId === currentId} fade={fade} />
+                </g>
+              )
+            })}
         </g>
 
         {/* THE RIM LAYER, BEFORE THE NODES. SVG has no z-index and paint order
@@ -419,6 +532,13 @@ export default function MapCanvas({
         {drawn.list.map((pos) => {
           const read = bands.get(pos.id)
           if (read === undefined) return null
+          // Unreachable on the flat tree by the band memo above — every node
+          // there is `card` — and stated anyway, because a rim is the mark for a
+          // world OPENING, and the flat drawing's whole claim is that nothing
+          // ever opens: the tree is entirely present, at every zoom, always.
+          // A reader arriving at this layer should not have to trace the band
+          // memo to find that out.
+          if (flat) return null
           if (read.band !== 'opening' && read.band !== 'frame') return null
           // A NODE WITH NO CHILDREN HAS NO RIM, and this one line is the whole
           // of defect 7 — the double label at zoom-in. `MindNode`'s `holding`
@@ -478,6 +598,7 @@ export default function MapCanvas({
               describedBy={pos.id === cardPos?.id ? NODE_CARD_ID : undefined}
               band={read.band}
               bandOut={read.out}
+              flat={flat}
             />
           )
         })}

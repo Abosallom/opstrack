@@ -1,0 +1,797 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>The rest of your steps</title>
+<!--BASECSS-->
+<style>
+svg { display: block; width: 100%; height: auto; }
+.dg { border: 1px solid var(--rule); border-radius: 2.5mm; background: #fff; padding: 4mm; margin-bottom: 5mm; }
+.dg .cap { font-size: 8.6pt; color: var(--ink-3); margin-top: 2.5mm; text-align: center; line-height: 1.5; }
+.road { display: grid; grid-template-columns: 15mm 1fr; gap: 0; }
+.rl { position: relative; }
+.rl::before { content: ""; position: absolute; left: 7mm; top: 0; bottom: 0; width: 1.4px; background: var(--accent-line); }
+.rstep { display: grid; grid-template-columns: 15mm 1fr; align-items: start; margin-bottom: 3.4mm; }
+.rdot { position: relative; z-index: 1; display: flex; justify-content: center; }
+.rdot span { width: 8mm; height: 8mm; border-radius: 50%; display: flex; align-items: center;
+             justify-content: center; font-size: 9.4pt; font-weight: 700; border: 2px solid #fff; }
+.rdot span.you { background: var(--accent); color: #fff; }
+.rdot span.me  { background: #fff; color: var(--accent); border: 1.6px solid var(--accent-line); }
+.rdot span.ok  { background: var(--ok); color: #fff; }
+.rbody { padding: 0.6mm 0 0 2mm; }
+.rbody .rt { font-size: 10.8pt; font-weight: 650; color: var(--ink); line-height: 1.35; }
+.rbody .rs { font-size: 9.2pt; color: var(--ink-3); line-height: 1.45; margin-top: 0.6mm; }
+.rbody .who { display: inline-block; font-size: 7.2pt; letter-spacing: 0.7pt; text-transform: uppercase;
+              font-weight: 700; border-radius: 1mm; padding: 0.6mm 1.6mm; margin-left: 2mm; vertical-align: 1.2px; }
+.who.y { background: var(--accent-soft); color: var(--accent); }
+.who.m { background: var(--paper); color: var(--ink-3); border: 1px solid var(--rule); }
+.who.d { background: var(--ok-soft); color: var(--ok); }
+.form { border: 1px solid var(--accent-line); border-radius: 2.5mm; background: #fff; padding: 4.5mm; }
+.fgrid { display: grid; grid-template-columns: 22mm 1fr 18mm; gap: 3.5mm; }
+.fld label { display: block; font-size: 7.4pt; letter-spacing: 0.7pt; text-transform: uppercase;
+             color: var(--ink-3); font-weight: 650; margin-bottom: 1.2mm; }
+.fld .inp { border: 1px solid var(--accent); border-radius: 1.4mm; padding: 2.2mm 2.6mm;
+            background: var(--accent-soft); color: var(--accent); font-weight: 700;
+            font-family: "SF Mono", Menlo, monospace; font-size: 8.4pt; min-height: 8.5mm; }
+.fld .inp.ghost { border-style: dashed; background: #fff; color: var(--ink-3); font-weight: 400; }
+.twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.stays { border-radius: 2.5mm; padding: 4mm; }
+.stays.a { background: var(--ok-soft); border: 1px solid var(--ok-line); }
+.stays.b { background: var(--warn-soft); border: 1px solid var(--warn-line); }
+.stays h4 { margin: 0 0 2.5mm; font-size: 10.5pt; }
+.stays.a h4 { color: var(--ok); } .stays.b h4 { color: var(--warn); }
+.stays li { font-size: 9.6pt; line-height: 1.5; color: var(--ink-2); margin-bottom: 1.6mm; }
+.stays ul { margin: 0; padding-left: 4.5mm; }
+.prog { display: grid; grid-template-columns: repeat(8, 1fr); gap: 1.5mm; margin-top: 4mm; }
+.prog span { font-size: 7pt; text-align: center; padding: 2mm 0.5mm; border-radius: 1.2mm;
+             background: var(--paper); border: 1px solid var(--rule); color: var(--ink-3); font-weight: 600; }
+.prog span.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.prog span.done { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+</style></head><body>
+
+<!-- 1 · cover -->
+<section class="page">
+  <div class="kicker">Everything still to do &middot; four steps left &middot; all four are yours</div>
+  <h1>The rest of your steps</h1>
+  <p class="lede">The app is live at its own address and the database behind it is switched on. What
+  is left is four short jobs, all yours, and none of them takes more than fifteen minutes. Each gets
+  its own page, with a picture of what is actually happening.</p>
+
+  <div class="dg" style="margin-top:5mm">
+    <svg viewBox="0 0 720 128" role="img" aria-label="Three things done, five to go">
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#7b72c4"/></marker></defs>
+      <rect x="2" y="26" width="212" height="76" rx="9" fill="#e8f6ee" stroke="#a8dcc0"/>
+      <text x="108" y="52" text-anchor="middle" font-size="15" font-weight="700" fill="#1f7a4d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Done</text>
+      <text x="108" y="70" text-anchor="middle" font-size="11.5" fill="#3f3b4a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">The app is live</text>
+      <text x="108" y="85" text-anchor="middle" font-size="11.5" fill="#3f3b4a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">The address points at it</text>
+      <text x="108" y="100" text-anchor="middle" font-size="11.5" fill="#3f3b4a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">The database is switched on</text>
+      <line x1="222" y1="64" x2="256" y2="64" stroke="#7b72c4" stroke-width="2" marker-end="url(#ar)"/>
+      <rect x="264" y="14" width="212" height="100" rx="9" fill="#f1eefb" stroke="#cfc6ee"/>
+      <text x="370" y="42" text-anchor="middle" font-size="15" font-weight="700" fill="#5a4aa8"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Now</text>
+      <text x="370" y="60" text-anchor="middle" font-size="11.5" fill="#3f3b4a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Switch on the padlock</text>
+      <text x="370" y="78" text-anchor="middle" font-size="11.5" fill="#3f3b4a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Create the accounts</text>
+      <text x="370" y="96" text-anchor="middle" font-size="11.5" fill="#3f3b4a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Walk through it</text>
+      <line x1="484" y1="64" x2="518" y2="64" stroke="#7b72c4" stroke-width="2" marker-end="url(#ar)"/>
+      <rect x="526" y="26" width="192" height="76" rx="9" fill="#faf9fd" stroke="#e4e1ec"/>
+      <text x="622" y="52" text-anchor="middle" font-size="15" font-weight="700" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Then</text>
+      <text x="622" y="72" text-anchor="middle" font-size="11.5" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Your real 400</text>
+      <text x="622" y="88" text-anchor="middle" font-size="11.5" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">organizations go in</text>
+    </svg>
+  </div>
+
+  <h3 style="margin-top:2mm">What is in here</h3>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5mm 6mm; margin-bottom:2mm">
+    <div style="display:flex; gap:3mm; font-size:10pt; color:var(--ink-2); border-bottom:1px solid var(--rule); padding-bottom:1.6mm">
+      <b style="color:var(--ok); width:5mm">&#10003;</b><span style="flex:1; color:var(--ink-3)">Switch on the database &mdash; done</span><span style="color:var(--ink-3)">p3</span></div>
+    <div style="display:flex; gap:3mm; font-size:10pt; color:var(--ink-2); border-bottom:1px solid var(--rule); padding-bottom:1.6mm">
+      <b style="color:var(--accent); width:5mm">5</b><span style="flex:1">Prove the domain is yours</span><span style="color:var(--ink-3)">p7</span></div>
+    <div style="display:flex; gap:3mm; font-size:10pt; color:var(--ink-2); border-bottom:1px solid var(--rule); padding-bottom:1.6mm">
+      <b style="color:var(--ok); width:5mm">&#10003;</b><span style="flex:1; color:var(--ink-3)">Redeploy the Jira reader &mdash; done</span><span style="color:var(--ink-3)">p4</span></div>
+    <div style="display:flex; gap:3mm; font-size:10pt; color:var(--ink-2); border-bottom:1px solid var(--rule); padding-bottom:1.6mm">
+      <b style="color:var(--accent); width:5mm">6</b><span style="flex:1">Switch on the padlock</span><span style="color:var(--ink-3)">p8</span></div>
+    <div style="display:flex; gap:3mm; font-size:10pt; color:var(--ink-2); border-bottom:1px solid var(--rule); padding-bottom:1.6mm">
+      <b style="color:var(--ok); width:5mm">&#10003;</b><span style="flex:1; color:var(--ink-3)">Put the app live &mdash; done</span><span style="color:var(--ink-3)">p5</span></div>
+    <div style="display:flex; gap:3mm; font-size:10pt; color:var(--ink-2); border-bottom:1px solid var(--rule); padding-bottom:1.6mm">
+      <b style="color:var(--accent); width:5mm">7</b><span style="flex:1">Create the sixteen accounts</span><span style="color:var(--ink-3)">p9&ndash;10</span></div>
+    <div style="display:flex; gap:3mm; font-size:10pt; color:var(--ink-2); border-bottom:1px solid var(--rule); padding-bottom:1.6mm">
+      <b style="color:var(--ok); width:5mm">&#10003;</b><span style="flex:1; color:var(--ink-3)">Tell Supabase the new address &mdash; done</span><span style="color:var(--ink-3)">p6</span></div>
+    <div style="display:flex; gap:3mm; font-size:10pt; color:var(--ink-2); border-bottom:1px solid var(--rule); padding-bottom:1.6mm">
+      <b style="color:var(--accent); width:5mm">8</b><span style="flex:1">Walk through it</span><span style="color:var(--ink-3)">p11</span></div>
+  </div>
+  <div class="grow"></div>
+  <div class="box ok">
+    <h4>Five steps already done &mdash; all checked against the live systems</h4>
+    <small><b>The web address</b> &mdash; all eight entries correct at the source, <b>www</b> pointing
+    where it should, and the typo you fixed is gone.
+    <br><b>The database</b> &mdash; all four files in. Seven stage rungs, not fourteen, so nothing was
+    renamed too early; <b>Live</b> and <b>Paused</b> flagged correctly; no stray data anywhere.
+    <br><b>The Jira reader</b> &mdash; deployed and answering.
+    <br><b>The app itself</b> &mdash; live at <b>https://nphiescore.com/</b> since 21 August 21:49,
+    and the file being served is byte-for-byte the one that passed 5,116 tests.
+    <br><b>Supabase</b> &mdash; told about the new address, so sign-in emails point at the right
+    place.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>How to use this document</h4>
+    <small>Read page 2 to see the shape of what is left. After that, each step has its own page, and
+    you can do them on different days &mdash; there is no ordering left between them.
+    <b>Step 6 is a single tick box and takes about ten seconds.</b></small>
+  </div>
+  <div class="foot"><span>NphiesCore &middot; the rest of your steps</span><span>1 / 12</span></div>
+</section>
+
+<!-- 2 · road -->
+<section class="page">
+  <div class="head"><span class="step-no">&#9776;</span><div><h2>The whole road, on one page</h2>
+  <small>Purple circles are yours. Hollow ones are mine and need only a message from you.</small></div></div>
+
+  <div class="rl">
+    <div class="rstep"><div class="rdot"><span class="ok">&#10003;</span></div><div class="rbody">
+      <div class="rt">The web address<span class="who d">done</span></div>
+      <div class="rs">Nine entries at Hostinger, pointing nphiescore.com at GitHub.</div></div></div>
+
+    <div class="rstep"><div class="rdot"><span class="ok">&#10003;</span></div><div class="rbody">
+      <div class="rt">Switch on the database<span class="who d">done</span></div>
+      <div class="rs">All four files in, verified: seven stage rungs, the goals table, the counting
+      view and the org-identity columns are all live and hold no stray data.</div></div></div>
+
+    <div class="rstep"><div class="rdot"><span class="ok">&#10003;</span></div><div class="rbody">
+      <div class="rt">Redeploy the Jira reader<span class="who d">done</span></div>
+      <div class="rs">Live and answering, 21 August 18:14 UTC. It turned out never to have been
+      deployed at all before &mdash; so the fixed version is the only one that has ever run.</div></div></div>
+
+    <div class="rstep"><div class="rdot"><span class="ok">&#10003;</span></div><div class="rbody">
+      <div class="rt">Put the app live at the new address<span class="who d">done</span></div>
+      <div class="rs">Deployed 21 August 21:49. The live site is now the real app &mdash; and it is
+      byte-for-byte the build that passed 5,116 tests.</div></div></div>
+
+    <div class="rstep"><div class="rdot"><span class="ok">&#10003;</span></div><div class="rbody">
+      <div class="rt">Tell Supabase the new address<span class="who d">done</span></div>
+      <div class="rs">Site URL reads <b>https://nphiescore.com/</b> and the allow-list carries it
+      alongside the old address. Exactly right.</div></div></div>
+
+    <div class="rstep"><div class="rdot"><span class="you">5</span></div><div class="rbody">
+      <div class="rt">Prove the domain is yours<span class="who y">yours &middot; 2 min</span></div>
+      <div class="rs">One more entry at Hostinger. Not needed for the site to work &mdash; it stops
+      anyone else ever claiming the name.</div></div></div>
+
+    <div class="rstep"><div class="rdot"><span class="you">6</span></div><div class="rbody">
+      <div class="rt">Switch on the padlock<span class="who y">yours &middot; 1 min &mdash; ready now</span></div>
+      <div class="rs"><b>The certificate has been issued</b> (checked 21 Aug). The waiting is over
+      &mdash; the tick box will work.</div></div></div>
+
+    <div class="rstep"><div class="rdot"><span class="you">7</span></div><div class="rbody">
+      <div class="rt">Create the sixteen accounts<span class="who y">yours &middot; 15 min</span></div>
+      <div class="rs">Safe to do now &mdash; the address they will be given is the final one.
+      <b>The codes print once.</b></div></div></div>
+
+    <div class="rstep" style="margin-bottom:0"><div class="rdot"><span class="you">8</span></div><div class="rbody">
+      <div class="rt">Walk through the app and tell me what is wrong<span class="who y">yours &middot; 20 min</span></div>
+      <div class="rs">The judgements no test can make. Everything it needs is now in place.</div></div></div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="box acc">
+    <h4>Five done. The four that are left are all yours, and all short.</h4>
+    <small><b>Step 6 is a single tick box</b> and can be done right now &mdash; the certificate has
+    come through. Step 5 is two minutes whenever you like. Step 7 creates the sixteen accounts. Step
+    8 is the walk-through, and there is one thing to know before you judge what you see &mdash;
+    page 11.</small>
+  </div>
+  <div class="foot"><span>The whole road</span><span>2 / 12</span></div>
+</section>
+
+<!-- 3 · SQL -->
+<section class="page">
+  <div class="head"><span class="step-no">&#10003;</span><div><h2>Switch on the database &mdash; done</h2>
+  <small>Kept for reference. This page explains what it changed.</small></div></div>
+
+  <div class="box ok" style="margin-bottom:5mm">
+    <h4>Verified on 21 August 2026</h4>
+    <small>All four files are in. The seven stage rungs are present and correctly flagged, the goals
+    table and counting view are live, the org-identity columns exist, and none of it holds stray data
+    &mdash; exactly the shape the files promise.</small>
+  </div>
+
+  <div class="dg">
+    <svg viewBox="0 0 720 150" role="img" aria-label="The app is waiting for four tables">
+      <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#a3222b"/></marker>
+        <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#1f7a4d"/></marker></defs>
+      <text x="14" y="20" font-size="11" font-weight="700" fill="#a3222b"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">TODAY</text>
+      <rect x="14" y="28" width="150" height="44" rx="8" fill="#fff" stroke="#e4e1ec"/>
+      <text x="89" y="55" text-anchor="middle" font-size="12" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">The app asks</text>
+      <line x1="172" y1="50" x2="240" y2="50" stroke="#a3222b" stroke-width="2" marker-end="url(#ar2)"/>
+      <text x="206" y="42" text-anchor="middle" font-size="10" fill="#a3222b"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">&ldquo;what stage?&rdquo;</text>
+      <rect x="248" y="28" width="164" height="44" rx="8" fill="#fdeced" stroke="#f2bcc0" stroke-dasharray="5 3"/>
+      <text x="330" y="55" text-anchor="middle" font-size="12" fill="#a3222b"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">nowhere to look</text>
+      <line x1="420" y1="50" x2="488" y2="50" stroke="#a3222b" stroke-width="2" marker-end="url(#ar2)"/>
+      <rect x="496" y="28" width="210" height="44" rx="8" fill="#fff" stroke="#e4e1ec"/>
+      <text x="601" y="55" text-anchor="middle" font-size="12" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">the screen shows nothing</text>
+
+      <text x="14" y="104" font-size="11" font-weight="700" fill="#1f7a4d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">AFTER STEP 1</text>
+      <rect x="14" y="112" width="150" height="30" rx="8" fill="#fff" stroke="#e4e1ec"/>
+      <text x="89" y="132" text-anchor="middle" font-size="12" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">The app asks</text>
+      <line x1="172" y1="127" x2="240" y2="127" stroke="#1f7a4d" stroke-width="2" marker-end="url(#ar3)"/>
+      <rect x="248" y="112" width="164" height="30" rx="8" fill="#e8f6ee" stroke="#a8dcc0"/>
+      <text x="330" y="132" text-anchor="middle" font-size="12" fill="#1f7a4d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">the four new tables</text>
+      <line x1="420" y1="127" x2="488" y2="127" stroke="#1f7a4d" stroke-width="2" marker-end="url(#ar3)"/>
+      <rect x="496" y="112" width="210" height="30" rx="8" fill="#fff" stroke="#e4e1ec"/>
+      <text x="601" y="132" text-anchor="middle" font-size="12" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">the screen fills in</text>
+    </svg>
+    <div class="cap">Nothing is broken. The app is finished and has nowhere to put its answers yet.</div>
+  </div>
+
+  <div class="box acc">
+    <h4>Now you <i>can</i> rename the seven stages</h4>
+    <small>That was the one thing to hold off on, and the reason has passed. In <b>Settings &rsaquo;
+    Catalogue</b> you can now put the programme's real words on all seven rungs, add the Arabic (left
+    blank on purpose &mdash; a guessed translation looks exactly like a reviewed one on screen), and
+    set how many days on a rung counts as &ldquo;stuck&rdquo;. <b>Until you set that last one the
+    Stalled view stays empty on purpose.</b></small>
+  </div>
+
+  <div class="box ok">
+    <h4>What you get the moment it lands</h4>
+    <small>The Portfolio view stops being empty, every organization gets a stage you can change in
+    two taps, the goals band starts saving instead of failing, and the &ldquo;at risk&rdquo; badge
+    starts counting properly instead of sitting on zero.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="on">1 SQL</span><span>2 Jira</span><span>3 Live</span><span>4 Supabase</span><span>5 Prove</span><span>6 Padlock</span><span>7 People</span><span>8 Tour</span></div>
+  <div class="foot"><span>Step 1 &middot; switch on the database</span><span>3 / 12</span></div>
+</section>
+
+<!-- 4 · jira -->
+<section class="page">
+  <div class="head"><span class="step-no">&#10003;</span><div><h2>Redeploy the Jira reader &mdash; done</h2>
+  <small>Kept for reference, including the sign-in problem and how it was solved.</small></div></div>
+
+  <div class="box ok" style="margin-bottom:5mm">
+    <h4>Confirmed live at 18:14 UTC on 21 August 2026</h4>
+    <small>And a small surprise: it reports as <b>version 1</b>, created for the first time today. The
+    other functions on the project are on versions 5 to 13. <b>So this one had never actually been
+    deployed before</b> &mdash; meaning the version with the four security problems was never running
+    anywhere, and the fixed one is the only one that has ever served a request. Better news than
+    expected.</small>
+  </div>
+
+  <p>A small program runs on Supabase's computers and reads from Jira. Four security problems in it
+  were found and fixed &mdash; but <b>the fixed version is on your Mac and the old one is still the
+  one running</b>. These commands replace it.</p>
+
+  <div class="act"><span class="n">1</span><div class="t"><b>Sign the command-line tool in.</b> In
+    Terminal:
+    <div class="term">npx supabase@latest login</div>
+    <span class="saw">It prints a code and opens your browser. Check the code on screen matches,
+    click to approve, and come back to Terminal, which confirms the login finished.</span></div></div>
+
+  <div class="act"><span class="n">2</span><div class="t"><b>Now the redeploy.</b> Paste both lines and
+    press <span class="kbd">Enter</span>:
+    <div class="term">cd /Users/aziz/Claude/nphiescore
+npx supabase@latest functions deploy jira-read \
+  --project-ref lrysgpbkmuqgzsjesfkr --use-api</div>
+    <span class="saw">It prints progress for a while, then confirms the function was deployed and
+    gives you back the prompt.</span></div></div>
+
+  <div class="box bad">
+    <h4>If you already tried and got &ldquo;Access token not provided&rdquo;</h4>
+    <small>That is exactly this, and nothing was wrong with the command. The full message reads:
+    <div class="term" style="margin:2mm 0 0; font-size:7.6pt"><span class="r">Access token not provided. Supply an access token by running
+`supabase login` or setting the SUPABASE_ACCESS_TOKEN environment variable.</span></div>
+    <span style="display:block; margin-top:2.5mm">It happens because the two Supabase access tokens
+    were <b>deliberately revoked</b> during the security clean-up at the start of this project. There
+    is nothing for the tool to sign in with until you make a new one &mdash; which is what step 1
+    does. Nothing is broken.</span></small>
+  </div>
+
+  <div class="box ok">
+    <h4>Nothing here can go wrong &mdash; and do it even if you never use Jira</h4>
+    <small>No settings or passwords change; the program reads those fresh each time it runs. Running
+    the command twice is harmless, and a failure leaves the old version running exactly as it was.
+    You do <b>not</b> need Docker &mdash; that is what <code>--use-api</code> on the end is for.
+    <br><br>The program is running either way; it was deployed months ago. Whether or not you ever
+    point it at Jira, the version with the holes is the one sitting there now.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 SQL</span><span class="on">2 Jira</span><span>3 Live</span><span>4 Supabase</span><span>5 Prove</span><span>6 Padlock</span><span>7 People</span><span>8 Tour</span></div>
+  <div class="foot"><span>Step 2 &middot; redeploy the Jira reader</span><span>4 / 12</span></div>
+</section>
+
+<!-- 5 · deploy -->
+<section class="page">
+  <div class="head"><span class="step-no">&#10003;</span><div><h2>Put the app live &mdash; done</h2>
+  <small>Kept for reference. This is what happened, and what it cost.</small></div></div>
+
+  <div class="box ok" style="margin-bottom:5mm">
+    <h4>Deployed 21 August 2026 at 21:49</h4>
+    <small>Before merging: typecheck clean, <b>5,116 tests green</b> across 153 files, build
+    succeeded. After: the apex answers 200, the manifest is real, <b>www</b> and the old address both
+    redirect in, and the file being served has the same fingerprint as the one that passed the tests.
+    The site title now reads <b>NphiesCore</b> rather than the old name &mdash; the quickest way to
+    tell at a glance that the new app is the one you are looking at.</small>
+  </div>
+
+  <div class="dg">
+    <svg viewBox="0 0 720 132" role="img" aria-label="From your Mac to the live address">
+      <defs><marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#5a4aa8"/></marker></defs>
+      <rect x="4" y="30" width="192" height="72" rx="9" fill="#fff" stroke="#cfc6ee"/>
+      <text x="100" y="56" text-anchor="middle" font-size="13" font-weight="700" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Your Mac</text>
+      <text x="100" y="76" text-anchor="middle" font-size="11" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">42 finished changes,</text>
+      <text x="100" y="91" text-anchor="middle" font-size="11" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">never sent anywhere</text>
+      <line x1="204" y1="66" x2="252" y2="66" stroke="#5a4aa8" stroke-width="2" marker-end="url(#ar4)"/>
+      <text x="228" y="56" text-anchor="middle" font-size="10" fill="#5a4aa8"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">I send them</text>
+      <rect x="260" y="30" width="192" height="72" rx="9" fill="#f1eefb" stroke="#cfc6ee"/>
+      <text x="356" y="56" text-anchor="middle" font-size="13" font-weight="700" fill="#5a4aa8"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">GitHub</text>
+      <text x="356" y="76" text-anchor="middle" font-size="11" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">builds the app by itself,</text>
+      <text x="356" y="91" text-anchor="middle" font-size="11" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">about two minutes</text>
+      <line x1="460" y1="66" x2="508" y2="66" stroke="#5a4aa8" stroke-width="2" marker-end="url(#ar4)"/>
+      <text x="484" y="56" text-anchor="middle" font-size="10" fill="#5a4aa8"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">publishes</text>
+      <rect x="516" y="30" width="200" height="72" rx="9" fill="#e8f6ee" stroke="#a8dcc0"/>
+      <text x="616" y="56" text-anchor="middle" font-size="13" font-weight="700" fill="#1f7a4d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">nphiescore.com</text>
+      <text x="616" y="76" text-anchor="middle" font-size="11" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">what your team opens</text>
+      <text x="616" y="91" text-anchor="middle" font-size="11" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">from now on</text>
+    </svg>
+    <div class="cap">Everything built over the past weeks is still only on your Mac. This is the moment it becomes real.</div>
+  </div>
+
+  <p>Your part was one message. Everything below is what it set off, and the right-hand column is
+  the part you may still feel on your own devices.</p>
+
+  <h3>What changes for you and Nasser that day</h3>
+  <div class="twocol">
+    <div class="stays a"><h4>Stays exactly as it is</h4><ul>
+      <li>Your account and password</li>
+      <li>Everything in the tracker</li>
+      <li>Who can see and do what</li>
+    </ul></div>
+    <div class="stays b"><h4>Needs doing once, per device</h4><ul>
+      <li>Sign in again &mdash; everyone is signed out</li>
+      <li>If the app is on a phone home screen: remove it, add it again from the new address</li>
+      <li>If notifications were on: switch off and on again</li>
+    </ul></div>
+  </div>
+
+  <div class="box acc" style="margin-top:4mm">
+    <h4>Why we are doing this now rather than later</h4>
+    <small>That right-hand column is the whole cost of moving, and today it lands on <b>two
+    people</b>. Create the sixteen accounts first and it becomes eighteen people doing it, plus
+    sixteen login codes handed out for an address you are about to abandon. This is the reason step 7
+    comes after step 3 and not before.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 SQL</span><span class="done">2 Jira</span><span class="on">3 Live</span><span>4 Supabase</span><span>5 Prove</span><span>6 Padlock</span><span>7 People</span><span>8 Tour</span></div>
+  <div class="foot"><span>Step 3 &middot; put the app live</span><span>5 / 12</span></div>
+</section>
+
+<!-- 6 · supabase url -->
+<section class="page">
+  <div class="head"><span class="step-no">&#10003;</span><div><h2>Tell Supabase the new address &mdash; done</h2>
+  <small>Kept for reference. This page explains what it prevents.</small></div></div>
+
+  <div class="box ok" style="margin-bottom:5mm">
+    <h4>Checked on 21 August 2026</h4>
+    <small>Site URL is <code>https://nphiescore.com/</code>, and the redirect list carries
+    <code>https://nphiescore.com/**</code> alongside the old address and the local ones &mdash;
+    which is the right shape for the transition.</small>
+  </div>
+
+  <div class="dg">
+    <svg viewBox="0 0 720 140" role="img" aria-label="Where a sign-in email sends people">
+      <defs><marker id="arX" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#a3222b"/></marker>
+        <marker id="arY" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#1f7a4d"/></marker></defs>
+      <rect x="4" y="42" width="176" height="52" rx="9" fill="#fff" stroke="#cfc6ee"/>
+      <text x="92" y="66" text-anchor="middle" font-size="12" font-weight="650" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Someone clicks</text>
+      <text x="92" y="83" text-anchor="middle" font-size="12" font-weight="650" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">&ldquo;reset my password&rdquo;</text>
+      <line x1="188" y1="68" x2="228" y2="40" stroke="#a3222b" stroke-width="2" marker-end="url(#arX)"/>
+      <line x1="188" y1="68" x2="228" y2="96" stroke="#1f7a4d" stroke-width="2" marker-end="url(#arY)"/>
+      <rect x="238" y="10" width="222" height="46" rx="9" fill="#fdeced" stroke="#f2bcc0"/>
+      <text x="349" y="30" text-anchor="middle" font-size="11" font-weight="700" fill="#a3222b"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">IF YOU SKIP THIS STEP</text>
+      <text x="349" y="46" text-anchor="middle" font-size="11" fill="#3f3b4a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">the email links to the OLD address</text>
+      <rect x="238" y="82" width="222" height="46" rx="9" fill="#e8f6ee" stroke="#a8dcc0"/>
+      <text x="349" y="102" text-anchor="middle" font-size="11" font-weight="700" fill="#1f7a4d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">IF YOU DO IT</text>
+      <text x="349" y="118" text-anchor="middle" font-size="11" fill="#3f3b4a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">the email links to nphiescore.com</text>
+      <line x1="468" y1="33" x2="506" y2="33" stroke="#a3222b" stroke-width="2" marker-end="url(#arX)"/>
+      <line x1="468" y1="105" x2="506" y2="105" stroke="#1f7a4d" stroke-width="2" marker-end="url(#arY)"/>
+      <rect x="514" y="10" width="202" height="46" rx="9" fill="#fff" stroke="#f2bcc0"/>
+      <text x="615" y="38" text-anchor="middle" font-size="12" fill="#a3222b"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">they cannot get back in</text>
+      <rect x="514" y="82" width="202" height="46" rx="9" fill="#fff" stroke="#a8dcc0"/>
+      <text x="615" y="110" text-anchor="middle" font-size="12" fill="#1f7a4d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">it just works</text>
+    </svg>
+    <div class="cap">Supabase writes the link in every sign-in and password email. It uses whatever address it has on file.</div>
+  </div>
+
+  <div class="act"><span class="n">1</span><div class="t">In the Supabase dashboard, go to
+    <b>Authentication</b> &rarr; <b>URL Configuration</b>.</div></div>
+  <div class="act"><span class="n">2</span><div class="t">Set <b>Site URL</b> to
+    <code>https://nphiescore.com</code></div></div>
+  <div class="act"><span class="n">3</span><div class="t"><b>Add</b> to the Redirect URLs list:
+    <code>https://nphiescore.com/**</code> &mdash; and <b>leave the two that are already there</b>.
+    <span class="saw">Three entries in the list, not one.</span></div></div>
+
+  <div class="box warn">
+    <h4>Keep the old entry for a week or two</h4>
+    <small>It costs nothing to leave, and removing it early strands anyone who is halfway through
+    signing in on a link they were sent yesterday. Take it out later, once nobody is using the old
+    address.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 SQL</span><span class="done">2 Jira</span><span class="done">3 Live</span><span class="on">4 Supabase</span><span>5 Prove</span><span>6 Padlock</span><span>7 People</span><span>8 Tour</span></div>
+  <div class="foot"><span>Step 4 &middot; tell Supabase the new address</span><span>6 / 12</span></div>
+</section>
+
+<!-- 7 · verify domain -->
+<section class="page">
+  <div class="head"><span class="step-no">5</span><div><h2>Prove the domain is yours</h2>
+  <small>Optional. Two minutes. Nothing waits on it and nothing breaks if you skip it.</small></div></div>
+
+  <p><b>What this is for, in one sentence:</b> it stops anyone else ever pointing
+  <b>nphiescore.com</b> at <i>their</i> GitHub account and putting up something that looks like your
+  tracker.</p>
+
+  <div class="act"><span class="n">1</span><div class="t">Go to <b>github.com/settings/pages</b>
+    &mdash; type that address in directly. You want the section headed <b>Verified domains</b>.</div></div>
+
+  <div class="box bad" style="margin: -1mm 0 3.5mm 12mm">
+    <h4>This is the one place people go wrong</h4>
+    <small>It is <b>your account's</b> settings, <b>not the repository's</b>. The repository has its
+    own page also called &ldquo;Pages&rdquo;, with no <b>Verified domains</b> section on it at all
+    &mdash; which is why it can look as though the instructions are wrong.
+    <br><br><b>Yes:</b> <code>github.com/settings/pages</code>
+    &nbsp;&nbsp;<b>No:</b> <code>github.com/Abosallom/opstrack/settings/pages</code></small>
+  </div>
+
+  <div class="act"><span class="n">2</span><div class="t">Click <b>Add a domain</b>, type
+    <b>nphiescore.com</b>, click <b>Add domain</b>.
+    <span class="saw">GitHub shows you a box containing two things to copy &mdash; a <b>name</b> and a
+    long random <b>value</b>. Leave that page open.</span></div></div>
+
+  <div class="act"><span class="n">3</span><div class="t">At Hostinger, on <b>the same DNS records
+    page you used before</b>, add one more record &mdash; this time choosing <b>TXT</b> as the type:</div></div>
+
+  <div class="form" style="margin: 0 0 3mm 12mm">
+    <div class="fgrid">
+      <div class="fld"><label>Type</label><div class="inp">TXT</div></div>
+      <div class="fld"><label>Name</label><div class="inp">_github-pages-challenge-abosallom</div></div>
+      <div class="fld"><label>TTL</label><div class="inp">3600</div></div>
+    </div>
+    <div class="fld" style="margin-top:3.5mm"><label>Value / Points to</label>
+      <div class="inp ghost">paste the long random value GitHub just showed you</div></div>
+  </div>
+
+  <div class="act"><span class="n">4</span><div class="t">Wait about two minutes, then click
+    <b>Verify</b> on the GitHub page you left open.
+    <span class="saw">The domain moves into the verified list. Leave the record in place forever.</span></div></div>
+
+  <div class="box warn">
+    <h4>If Verify says it cannot find the record</h4>
+    <small>Almost always impatience &mdash; the record has not spread yet. Wait five minutes and press
+    it again. To watch for it, in Terminal &mdash; once this prints the value back, <b>Verify</b> will work:
+    <div class="term" style="margin:2mm 0 0; font-size:7.8pt">dig +short _github-pages-challenge-abosallom.nphiescore.com TXT</div></small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 SQL</span><span class="done">2 Jira</span><span class="done">3 Live</span><span class="done">4 Supabase</span><span class="on">5 Prove</span><span>6 Padlock</span><span>7 People</span><span>8 Tour</span></div>
+  <div class="foot"><span>Step 5 &middot; prove the domain is yours</span><span>7 / 12</span></div>
+</section>
+
+<!-- 8 · https -->
+<section class="page">
+  <div class="head"><span class="step-no">6</span><div><h2>Switch on the padlock</h2>
+  <small>One tick box &mdash; but only after GitHub is ready, and it will not tell you.</small></div></div>
+
+  <div class="dg">
+    <svg viewBox="0 0 720 118" role="img" aria-label="Certificate timeline">
+      <line x1="40" y1="60" x2="690" y2="60" stroke="#cfc6ee" stroke-width="3"/>
+      <circle cx="70" cy="60" r="11" fill="#5a4aa8"/>
+      <text x="70" y="38" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a4aa8"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Step 3 happens</text>
+      <text x="70" y="88" text-anchor="middle" font-size="10.5" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">app goes live</text>
+      <rect x="150" y="47" width="360" height="26" rx="13" fill="#fdf2e0" stroke="#f0cf95"/>
+      <text x="330" y="65" text-anchor="middle" font-size="11.5" font-weight="650" fill="#9a5b00"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">&ldquo;Certificate provisioning&rdquo; &mdash; anything up to 24 hours</text>
+      <text x="330" y="99" text-anchor="middle" font-size="10.5" fill="#9a5b00"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">this is normal, not a fault. Do nothing.</text>
+      <circle cx="600" cy="60" r="11" fill="#1f7a4d"/>
+      <text x="600" y="38" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1f7a4d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">You tick the box</text>
+      <text x="600" y="88" text-anchor="middle" font-size="10.5" fill="#6f6a7d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">Enforce HTTPS</text>
+    </svg>
+    <div class="cap">GitHub makes a security certificate for your domain automatically. It just takes a while.</div>
+  </div>
+
+  <p>On GitHub, in <b>Settings</b> &rarr; <b>Pages</b>, there is a tick box called <b>Enforce
+  HTTPS</b>. It is what puts the padlock in the address bar and stops anyone reaching the site
+  without one.</p>
+
+  <div class="box ok">
+    <h4>Good news &mdash; the waiting is already over</h4>
+    <small>Checked on 21 August 2026: GitHub reports the certificate for <b>nphiescore.com</b> as
+    <b>approved</b>. So you can tick <b>Enforce HTTPS</b> straight away; the caution below no longer
+    applies to you, and is kept only in case the domain is ever re-pointed.</small>
+  </div>
+
+  <div class="box warn">
+    <h4>The rule that made it worth waiting</h4>
+    <small>If the tick box is greyed out, or the page still says it is provisioning, <b>leave it
+    alone</b>. Ticking it before the certificate exists does not make the site less secure &mdash; it
+    makes the site <b>unreachable</b>, for everyone, until the certificate arrives. Check back the
+    next day.</small>
+  </div>
+
+  <div class="box ok">
+    <h4>How you will know it is ready</h4>
+    <small>The provisioning message disappears and the tick box becomes clickable. Tick it, then
+    visit <b>https://nphiescore.com</b> and look for the padlock next to the address. That is the
+    last piece of the move.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 SQL</span><span class="done">2 Jira</span><span class="done">3 Live</span><span class="done">4 Supabase</span><span class="done">5 Prove</span><span class="on">6 Padlock</span><span>7 People</span><span>8 Tour</span></div>
+  <div class="foot"><span>Step 6 &middot; switch on the padlock</span><span>8 / 12</span></div>
+</section>
+
+<!-- 9 · people part 1 -->
+<section class="page">
+  <div class="head"><span class="step-no">7</span><div><h2>Check the names first</h2>
+  <small>Part one of two. This changes nothing &mdash; it only shows you what it intends to do.</small></div></div>
+
+  <p>Every person gets a username, worked out from their name. <b>A username is what they type at
+  every single sign-in, and it cannot be changed later without locking them out of their own
+  account.</b> So you read the list before anything is created.</p>
+
+  <div class="act"><span class="n">1</span><div class="t">In Terminal, paste these two lines:
+    <div class="term" style="margin:2.5mm 0 0">cd /Users/aziz/Claude/nphiescore
+node scripts/provision-people.mjs</div>
+    <span class="saw">A table of eighteen names appears. Nothing is written &mdash; it says
+    &ldquo;dry run&rdquo; at the top.</span></div></div>
+
+  <div class="act"><span class="n">2</span><div class="t"><b>Read every row of the &ldquo;Signs in
+    as&rdquo; column.</b> These are permanent. Look especially at the ones where the spelling could
+    reasonably go more than one way &mdash; <code>sara.alqhahtani</code> is the obvious one.</div></div>
+
+  <div class="act"><span class="n">3</span><div class="t"><b>If any is wrong, tell me</b> and I will
+    correct it before you go on. Fixing it now is a one-line change; fixing it after the account
+    exists is not fixable at all.</div></div>
+
+  <div class="box acc">
+    <h4>Two rows will say <span class="mono">EXISTS</span> &mdash; that is correct</h4>
+    <small>Yours and Nasser's. The script recognises you both and deliberately refuses to create
+    second accounts for you, because a second identity would split your history in half and Nasser's
+    username <i>is</i> his login. So: eighteen names on the list, <b>sixteen</b> new accounts.</small>
+  </div>
+
+  <div class="box ok">
+    <h4>You can run this as many times as you like</h4>
+    <small>It writes nothing, needs no password, and can be run today, tomorrow, and again after a
+    correction. It is purely a preview.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 SQL</span><span class="done">2 Jira</span><span class="done">3 Live</span><span class="done">4 Supabase</span><span class="done">5 Prove</span><span class="done">6 Padlock</span><span class="on">7 People</span><span>8 Tour</span></div>
+  <div class="foot"><span>Step 7 &middot; check the names</span><span>9 / 12</span></div>
+</section>
+
+<!-- 10 · people part 2 -->
+<section class="page">
+  <div class="head"><span class="step-no">7</span><div><h2>Create the accounts</h2>
+  <small>Part two. Stay at the keyboard for this one &mdash; it prints something you cannot get back.</small></div></div>
+
+  <div class="dg">
+    <svg viewBox="0 0 720 128" role="img" aria-label="How an invite code becomes an account">
+      <defs><marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#5a4aa8"/></marker></defs>
+      <rect x="2" y="24" width="150" height="56" rx="9" fill="#fff" stroke="#cfc6ee"/>
+      <text x="77" y="48" text-anchor="middle" font-size="11.5" font-weight="650" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">You run the</text>
+      <text x="77" y="65" text-anchor="middle" font-size="11.5" font-weight="650" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">command</text>
+      <line x1="160" y1="52" x2="192" y2="52" stroke="#5a4aa8" stroke-width="2" marker-end="url(#ar5)"/>
+      <rect x="200" y="24" width="164" height="56" rx="9" fill="#fdeced" stroke="#f2bcc0"/>
+      <text x="282" y="45" text-anchor="middle" font-size="11.5" font-weight="700" fill="#a3222b"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">16 codes appear</text>
+      <text x="282" y="62" text-anchor="middle" font-size="11.5" font-weight="700" fill="#a3222b"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">ONCE</text>
+      <text x="282" y="96" text-anchor="middle" font-size="10.5" fill="#a3222b"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">copy them out before</text>
+      <text x="282" y="111" text-anchor="middle" font-size="10.5" fill="#a3222b"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">you close the window</text>
+      <line x1="372" y1="52" x2="404" y2="52" stroke="#5a4aa8" stroke-width="2" marker-end="url(#ar5)"/>
+      <rect x="412" y="24" width="140" height="56" rx="9" fill="#fff" stroke="#cfc6ee"/>
+      <text x="482" y="48" text-anchor="middle" font-size="11.5" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">You give each</text>
+      <text x="482" y="65" text-anchor="middle" font-size="11.5" fill="#14131a"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">person theirs</text>
+      <line x1="560" y1="52" x2="592" y2="52" stroke="#5a4aa8" stroke-width="2" marker-end="url(#ar5)"/>
+      <rect x="600" y="24" width="118" height="56" rx="9" fill="#e8f6ee" stroke="#a8dcc0"/>
+      <text x="659" y="48" text-anchor="middle" font-size="11.5" fill="#1f7a4d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">They claim it</text>
+      <text x="659" y="65" text-anchor="middle" font-size="11.5" fill="#1f7a4d"
+            font-family="-apple-system, Helvetica Neue, Arial, sans-serif">and set a password</text>
+    </svg>
+    <div class="cap">They claim it at the sign-in screen, using the &ldquo;First time here?&rdquo; link.</div>
+  </div>
+
+  <div class="act"><span class="n">1</span><div class="t"><b>Get a temporary key.</b> Sign in at
+    <b>https://nphiescore.com/</b> in Chrome &mdash; it must be that address, because browsers keep
+    this per web address. Then press <b>&#8997;&#8984;I</b> to open the developer tools, click the <b>Console</b> tab,
+    paste this line and press Enter:
+    <div class="term" style="margin:2.5mm 0 0">const k = 'sb-lrysgpbkmuqgzsjesfkr-auth-token'
+JSON.parse(localStorage.getItem(k)).access_token</div>
+    <span class="saw">A long string in quotes. Copy it, without the quotes. It is not your password,
+    it expires in about an hour, and that is plenty.</span></div></div>
+
+  <div class="act"><span class="n">2</span><div class="t"><b>Run it for real.</b> In Terminal, paste
+    these four lines, putting your key between the quotes:
+    <div class="term" style="margin:2.5mm 0 0">cd /Users/aziz/Claude/nphiescore
+set -a; . ./.env.local; . ./.env; set +a
+export ADMIN_ACCESS_TOKEN='paste-your-key-here'
+node scripts/provision-people.mjs --apply</div></div></div>
+
+  <div class="box warn">
+    <h4>If you see <span class="mono">usage: apply [-a magic]</span></h4>
+    <small>The command arrived split in two: <code>--apply</code> became <code>--</code> on one line
+    and <code>apply</code> on the next, and macOS has its own unrelated <code>apply</code> command
+    that then complained. Nothing ran. <b>Check the last line reads <code>--apply</code> with no
+    break in it</b> before pressing Enter, and run it again.</small>
+  </div>
+
+  <div class="box bad">
+    <h4>The sixteen codes print once and exist nowhere else afterwards</h4>
+    <small>Not in a file, not in the database, not recoverable by anyone. <b>Copy them out of the
+    Terminal window before you close it.</b> Lose one and that account must be scrapped and redone.
+    Hand each person theirs directly. <b>Never paste a code &mdash; or the key from step 1 &mdash;
+    into a chat.</b> If one ever does end up somewhere it should not, sign out of the app: that ends
+    the session it belongs to.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 SQL</span><span class="done">2 Jira</span><span class="done">3 Live</span><span class="done">4 Supabase</span><span class="done">5 Prove</span><span class="done">6 Padlock</span><span class="on">7 People</span><span>8 Tour</span></div>
+  <div class="foot"><span>Step 7 &middot; create the accounts</span><span>10 / 12</span></div>
+</section>
+
+<!-- 10 · tour -->
+<section class="page">
+  <div class="head"><span class="step-no">8</span><div><h2>Walk through it and tell me what is wrong</h2>
+  <small>Twenty minutes. These are the judgements no test can make for you.</small></div></div>
+
+  <p>Everything measurable has been measured. What is left is whether it <b>reads</b> like your
+  programme &mdash; and only you can answer that. Open <b>https://nphiescore.com/</b>, sign in, and
+  go through this list. Anything that feels wrong, tell me in one sentence.</p>
+
+  <div class="act"><span class="n">1</span><div class="t"><b>The opening screen.</b> Named rings,
+    counts, organizations as circles that resolve as you go in. <i>Does it look like your
+    programme?</i></div></div>
+  <div class="act"><span class="n">2</span><div class="t"><b>The colour.</b> The accent, the chips, what
+    happens when you select something. <i>Does it read as the nphies purple, or still blue?</i></div></div>
+  <div class="act"><span class="n">3</span><div class="t"><b>The Portfolio button.</b> Its badge is the
+    at-risk count. Open it, then try <b>Team</b> and <b>Vendors</b>.
+    <span class="saw">Team shows two named managers and one large unnamed pile &mdash; that is
+    correct until step 7 gives the other books their people. <i>Is this your morning answer?</i></span></div></div>
+  <div class="act"><span class="n">4</span><div class="t"><b>Change one organization's stage.</b> Tap the
+    stage, pick a new one. <i>Two taps? Did the undo work?</i></div></div>
+  <div class="act"><span class="n">5</span><div class="t"><b>Search for an organization</b> by typing four
+    letters of its name. <i>Is it there, one tap from open?</i></div></div>
+  <div class="act"><span class="n">6</span><div class="t"><b>Then do it again in Arabic</b>, and then on
+    your phone. The phone has one open question I would like your answer to, and it is on the
+    opening screen &mdash; see below.</div></div>
+
+  <div class="act"><span class="n">7</span><div class="t"><b>Check <b>Settings &rarr; Roles</b>.</b>
+    The two senior experts should hold <b>Director</b>; the three account managers stay <b>Member</b>.
+    Recording progress is the team's job; shape and commitments are yours.</div></div>
+
+  <div class="box warn">
+    <h4>Before you judge what you see: the data is still the old practice set</h4>
+    <small>Twenty-two made-up organizations from an August trial, and <b>none has a stage, a goal or
+    a target</b> &mdash; they predate all three. So the Portfolio lens will look thin and the at-risk
+    badge will read zero; neither is a fault. <b>Tell me when you want the real demo in</b> and I will
+    swap it for a realistic slice &mdash; ten minutes, fully reversible. The walk-through is worth far
+    more after that.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>The one question I need you to decide</h4>
+    <small>On a phone, the opening screen shows the six type-worlds as <b>counts without names</b>.
+    Showing the names means 60% of the picture goes off the edge of the screen; the alternative is
+    that people tap once to see them. <b>Which do you prefer?</b> It is a one-line change either
+    way.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="prog"><span class="done">1 SQL</span><span class="done">2 Jira</span><span class="done">3 Live</span><span class="done">4 Supabase</span><span class="done">5 Prove</span><span class="done">6 Padlock</span><span class="done">7 People</span><span class="on">8 Tour</span></div>
+  <div class="foot"><span>Step 8 &middot; the walk-through</span><span>11 / 12</span></div>
+</section>
+
+<!-- 11 · after -->
+<section class="page">
+  <div class="kicker">After all eight</div>
+  <h2 style="font-size:22pt; margin-bottom:4mm">What is waiting on the other side</h2>
+  <p class="lede">None of these needs deciding now. They are here so you know what the shape of the
+  next few months looks like.</p>
+
+  <div class="box acc">
+    <h4>Your real four hundred organizations</h4>
+    <small>The demo data comes off the same way it went on &mdash; one command, fully reversible.
+    Then your real portfolio goes in from a spreadsheet, one row per organization. There is a
+    template and a guide for filling it in, and the file gets checked and reported on before anything
+    is written. <b>This waits on your Master Status Report</b>, not on me.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>The certificate generator</h4>
+    <small>Your colleague's NPHIES Certificate-of-Completion tool. The plan is that it stops being
+    typed into by hand and reads its organization IDs and branch lists straight out of the tracker
+    &mdash; which is exactly what file 4 in step 1 makes room for.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Jira, if and when you want it</h4>
+    <small>It is off and invisible until deliberately set up. When you want it, it starts strictly
+    read-only: it reads your Jira issues and reports which ones it could match to organizations and
+    which it could not, and writes nothing anywhere. Writing back is built only after you say the
+    tracker is right.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>The app on the App Store</h4>
+    <small>TestFlight, which needs your Apple ID in your own hands. I prepare it, you submit it.
+    Scheduled separately &mdash; it is not in anybody's way.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="box ok">
+    <h4>And the short version of all eleven pages</h4>
+    <small><b>Do step 1 this week.</b> Say &ldquo;push&rdquo; when you have had the walk-through and
+    are happy. Everything else follows from those two.</small>
+  </div>
+  <div class="foot"><span>Checked against your live project and domain, 21 August 2026</span><span>12 / 12</span></div>
+</section>
+</body></html>

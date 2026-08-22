@@ -82,6 +82,8 @@ the SQL Editor.** The one-screen version:
 | again | the same 3 NOTICEs |
 | `supabase/migrations/0029_org_identity.sql` | **5** NOTICEs, no ERROR |
 | again | the same 5 NOTICEs |
+| `supabase/migrations/0030_map_view_settings.sql` | 3 NOTICEs, no ERROR |
+| again | the same 3 NOTICEs |
 | the runbook §5 verification queries | the expected rows, exactly |
 | the runbook §6 canary query | `f_0025 = true`, `w_0025 = 1`, `x_0025 = 0` — **unchanged** |
 
@@ -172,6 +174,11 @@ cd /Users/aziz/Claude/nphiescore && npx supabase@latest functions deploy jira-re
 
 No secrets change; they are read per-request. Do this even if you never use Jira — the
 deployed function exists either way.
+
+The redeploy is no longer optional: the app now maps `jira_gateway_unauthorized` and
+`jira_cloud_id_unresolved` to real sentences that the deployed function cannot yet emit, and
+an Atlassian **scoped** API token keeps failing as a bare `jira_unauthorized` — the same
+message a revoked token gives — until this lands.
 
 ---
 

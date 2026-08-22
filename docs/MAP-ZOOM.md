@@ -120,11 +120,18 @@ Five places, each because a critic or the code was right.
    §5's `MATCH RIM`. A world containing filter matches carries a rim arc and a count. "Three
    in there, that way" is not the answer; it is the difference between a map that has lost
    the set and a map that knows where it is.
-2. **The progress underscore's unfilled track is deleted.** `camera` specifies "the card's
-   own outline ink at 20%", which is not in the measured matrix and which
-   `mindtree.css:~130` forbids in principle — dilution hands the measured ratio back. The
-   mark is **length-encoded with no track behind it** (§4, CARD). No new recipe, no new
-   ratio, nothing to re-derive.
+2. **The progress underscore's unfilled track is deleted *as `camera` specifies it*, and
+   re-drawn in a currency that costs nothing.** `camera` asks for "the card's own outline
+   ink at 20%", which is not in the measured matrix and which `mindtree.css:~130` forbids in
+   principle — dilution hands the measured ratio back. That refusal stands. What replaced it
+   for two waves — length alone, with nothing drawn behind the remainder — turned out to be
+   the wrong conclusion from the right premise: on the tidy tree it made "0 of N live"
+   pixel-identical to "no figure at all" (22 of the 133 cards that carry a total), and it
+   left a bar's length a share of a whole nobody could see. §4's CARD now specifies a
+   **RAIL: the same ink at full strength, half the bar's height, spanning the whole budget**
+   — the distinction bought in stroke rather than in contrast, which is the move this whole
+   sheet already makes for container depth. Still no new recipe, no new ratio, nothing to
+   re-derive.
 3. **Buckets and entries are not worlds.** `camera` is silent on where the recursion stops
    and would let a status bucket become the frame. §3's `TERMINUS` rule fixes it and is the
    direct implementation of the owner's correction.
@@ -241,7 +248,7 @@ relative to `V` because "is this thing the frame" is a question about the window
 | **GRAIN** | `7 – 26` | one filled disc, `0.42a`, in the node's own 16% track fill with the 1px outline ink | none |
 | **STATE** | `26 – 52` | + rim stroke; + breach dot at block-start if anything beneath is past deadline | none |
 | **CHIP** | `52 – 140` | 44×44 unrotated rect, count centred inside | name OUTSIDE along the ray, ≤14 glyphs |
-| **CARD** | `140 – 380` | 168×44 rect + progress underscore | name inside (≤19 glyphs), open count |
+| **CARD** | `140 – 380` | 168×44 rect + progress underscore on its full-budget rail | name inside (≤19 glyphs), open count |
 | **OPENING** | `380 – 0.85V` | card cross-fades out as children's grain cross-fades in, one dissolve | the world's name migrates to a RIM LABEL |
 | **FRAME** | `≥ 0.85V` | nothing in SVG; the rim becomes a 2px inset stroke on the **stage element** | none on canvas — the name is in the breadcrumb |
 
@@ -261,13 +268,32 @@ highest-leverage edit in this contract is to promote that from a phone hack to t
 CHIP band**: drop `options.compact &&` from the guard and key it on the band. The mechanism,
 the mirror, and the `pointerEvents="none"` fix on the outside `<text>` all survive untouched.
 
-**CARD's progress underscore, specified exactly.** 2 units tall, inset `PAD` from both inline
-edges, on the block-end edge inside the box, **filled to the share of Organizations beneath
-that are live, with NO track behind the unfilled remainder.** Length is the encoding; the
-box's own inset marks both ends. Ink is the branch ink at full strength — **6.35 / 5.53
-against a node fill, already in the matrix.** No new recipe, no dilution, no ratio to
-re-derive. In RTL the fill grows from the reading start:
-`x = rtl ? width - PAD - fillW : PAD`.
+**CARD's progress underscore, specified exactly.** 3 units tall, inset `PAD` from both inline
+edges, 5 units in from the block-end edge inside the box, **filled to the share of
+Organizations beneath that are live** — and standing on a **RAIL**: the same mark at **1 unit
+tall**, spanning the whole `width - 2·PAD` budget, drawn first and sharing the bar's lower
+edge so the two land on the same fraction of the pixel grid. Length is the encoding and the
+rail is the whole that length is a share of. Both marks are the branch ink at full strength —
+**6.35 / 5.53 against a node fill, already in the matrix** — and they are told apart by
+HEIGHT, so the pair adds no row to any table: no dilution, no second colour, no ratio to
+re-derive. The rail is what makes "**0 of N live**" a drawing (a bare rail) rather than the
+same nothing an absent figure draws, and it is why a bar can be compared across two cards at
+all. It has no mirror — spanning the full budget, its RTL start is the same `PAD` — while the
+bar keeps one and grows from the reading start: `x = rtl ? width - PAD - fillW : PAD`.
+At far zoom the height step is served by coverage: a 0.34px rail and a 1.03px bar are two
+tones of one ink, so the reading degrades from thickness to tone rather than disappearing.
+
+**THE STEP IS 3:1 AND NOT 2:1, and that number is load-bearing.** Once every card with a total
+carries a full-budget rail, length stops separating the two ENDS of the scale: a card at
+0-of-N draws a line across the whole budget, and a card at 142.9-of-144 draws a line across
+the whole budget. The count cannot break the tie either — it is the OPEN count, not the live
+figure. So the entire difference between "none of this account is live" and "all of it is" is
+the bar's extra height, and at 2 units against 1 that difference was **one device pixel at
+1:1**, on the scan an account manager runs most often. Eleven of the 153 cards in the current
+shoot are past 92% full and one is at 99.2%: an ordinary row of healthy accounts, not a corner
+case. The extra unit goes on the BAR rather than coming off the rail, because a 1-unit rail is
+already at its floor and there is no half-unit rail — a rail centred on a half unit is a
+diluted line arrived at through antialiasing, which is the dilution this whole pair refuses.
 Because the encoding is length and colour alone, the fact is **also stated in the node's
 accessible name** (`mindtree.nodeName` gains a `{done} of {total} live` clause), which is
 what keeps 1.4.1 honest.
@@ -283,6 +309,27 @@ to hide.
 **FRAME is an HTML border on the canvas element, not an SVG stroke.** The mirror is then free
 and it costs no hand-written x arithmetic. It fades out over 0.3 octaves once the rim is 1.6×
 the viewport.
+
+**THE BREACH DOT AND THE COUNT ARE ONE COLUMN, and the joint between them is specified.** Both
+sit at the card's reading end — the dot in the block-start corner, the count centred on the
+card's middle — so on a breached card they stack. At `cy = 9` the dot's lower edge sat at 13
+and an 11.5px numeral centred on 22 put its ascender near 18: a joint of about five units,
+which clears by measure and does not read. The pair fused into a single mark and invited the
+wrong sentence — *a flagged number*, as though the breach qualified the open count, rather than
+*there is a breach in here*. **`cy = 7`** buys a joint of about seven and separates them, at no
+cost: the dot's top edge lands at 3 (2.25 with its `--bg-elev` keyline), and against the
+`rx = 10` corner arc centred on `(width−10, 10)` the dot's far point is 7.6 from that centre,
+so it stays inside the rounded box. **The opposite corner is not an available fix** — `tickX`,
+the reading START of the same band, is the selection tick's, so that a ticked AND breached item
+shows both marks.
+
+**The root is the one card where the dot touches the rim, and it is left there.** `depth === 0`
+is a PILL (`rx = height / 2`), so its block-start corner is a shoulder rather than a corner and
+its arc is centred on `(width−22, 22)`: the dot's far point lands 22.8 from that centre against
+an outline whose stroke spans 21.5–22.5, so the dot's `--bg-elev` keyline crosses the rim by
+about a unit. The keyline exists for exactly that — `.mring-state-breach` overlaps its own rim
+by the same recipe — and the mark reads as a badge in front of the rim. `cy = 9` was no better
+here: it had 0.56 units of margin on the same pill, half a pixel at 1:1.
 
 **OPACITY IS NEVER A RESTING STATE.** `mindtree.css` measured it: edge ink at `opacity: .55`
 drops 6.06/5.53 → 3.76/3.20, spending the entire light-theme headroom on decoration. Every
@@ -998,7 +1045,8 @@ Per band, exactly:
   no competing ink.
 - **CARD** (`140 – 380`) — the full 168×44: label inside on the reading edge with the measured
   character budget, count at the reading end (`COUNT_SLOT = 34`), breach dot at the block-start
-  reading end, chevron at `pos.outward`, **plus the progress underscore**.
+  reading end (`cy = 7, r = 4`, in the card's own units), chevron at `pos.outward`, **plus the
+  progress underscore and the rail it stands on**.
 - **OPENING** (`380 – 0.85V`) — the card cross-fades OUT while its children's grain cross-fades
   IN over the identical band, **one dissolve, not two fades**. The name migrates to a rim label
   at the world boundary's block-start, 13px, `--text` on the canvas. `MindWorldRim` draws it.
@@ -1008,13 +1056,26 @@ Per band, exactly:
   the handoff happens **at the 0.85V crossing and at no other instant**, so the name is never
   absent and never drawn twice.
 
-**THE PROGRESS UNDERSCORE, specified because a study got it wrong.** 2 units tall, inset `PAD`
-from both inline edges, on the block-end edge inside the box, filled to the live share.
-**There is NO track behind the unfilled remainder.** Length is the encoding; the box's inset
-marks both ends. A prior proposal specified "the outline ink at 20%", which is not in the
-matrix and which `mindtree.css` forbids in principle — dilution hands the measured ratio back.
-Ink is the branch ink at full strength: **6.35 / 5.53 against a node fill, already measured.**
-RTL: `x = rtl ? width - PAD - fillW : PAD`. Any DIRECTIONAL arc you draw must flip its
+**THE PROGRESS UNDERSCORE, specified because a study got it wrong.** 3 units tall, inset `PAD`
+from both inline edges, 5 units in from the block-end edge inside the box, filled to the live
+share — **standing on a RAIL**: the same ink, **1 unit tall**, spanning the whole budget,
+drawn first and sharing the bar's lower edge. §1.2 carries the full specification, including
+why the step is 3:1.
+
+⚠ **THIS PARAGRAPH USED TO SAY "there is NO track behind the unfilled remainder", and the
+sentence is withdrawn while its REASON is kept.** What it refused was a track in "the outline
+ink at 20%", which is not in the matrix and which `mindtree.css` forbids in principle —
+dilution composites toward the surface underneath and hands the measured ratio back. That
+still stands and the rail spends none of it: the rail and the bar are BOTH the branch ink at
+full strength (**6.35 / 5.53 against a node fill, already measured**) and are told apart by
+height alone. What the sentence got wrong is that the box's `PAD` inset does not mark the ends
+of anything a reader can see, so without the far end drawn, 4-of-4 and 4-of-6 were one mark at
+two lengths and "0 of N live" was the same blank card as "we hold no figure".
+
+RTL: the bar keeps the mirror, `x = rtl ? width - PAD - fillW : PAD`; the **rail has none** —
+spanning the full budget, `width - PAD - railW` IS `PAD`, and writing the mirror anyway would
+be an expression that computes a constant and invites a reader to hunt for an asymmetry that
+is not there. Any DIRECTIONAL arc you draw must flip its
 `sweep-flag` under `rtl` — the θ → π − θ mirror turns clockwise into anticlockwise, so a fixed
 flag makes an arc read as counting DOWN in Arabic.
 Source: `useCaseProgress()` in `src/lib/mapNodes.ts` → `{done, total, linked, nodes}`.

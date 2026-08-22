@@ -20,10 +20,18 @@ in a later step, and nothing in Jira changes at all.
 | **Who may call it** | a signed-in member holding `structure.edit`, or an admin |
 
 This is not a promise in a comment. `index.ts` reaches Jira through a frozen
-four-entry allow-list, the HTTP verb is read out of that list rather than passed
-in, and the whole file contains exactly one `fetch`. `index.test.ts` checks all
-three against the source text on every CI run, so a change that made writing
-possible would turn the build red.
+four-entry allow-list and the HTTP verb is read out of that list rather than
+passed in. The whole file contains exactly **two** `fetch` calls: the one
+authenticated call in `jiraCall`, behind that allow-list, and one
+**unauthenticated** `GET /_edge/tenant_info` in `fetchCloudId` that never
+carries the token. `index.test.ts` pins all of it against the source text on
+every CI run — the count, which function each call sits in, and that exactly one
+`Authorization` header exists in the file, inside `jiraCall` — so a change that
+made writing possible, or that put the credential on the lookup, would turn the
+build red. That fifth URL is deliberately **not** an `ENDPOINTS` entry: keeping
+it out is what lets the allow-list keep insisting every entry begins
+`/rest/api/3/`, a rule that would have to be softened to admit it and would then
+prove nothing.
 
 ### The four operations
 
@@ -71,6 +79,30 @@ consequences:
 
 The read-only guarantee in this project is enforced by `index.ts` refusing to
 make any request other than the four above. It is not a property of the token.
+
+### Atlassian now mints two kinds of API token
+
+The classic token above, and an **"API token with scopes."** A scoped token is
+**refused at your site address with a `401`** — indistinguishable from a revoked
+classic token, which is exactly what makes it expensive to diagnose — and only
+works at `https://api.atlassian.com/ex/jira/{cloudId}`, Atlassian's API gateway.
+
+**This function handles both.** It tries your site first; on a `401` from a
+`*.atlassian.net` site it looks up your cloud id with an unauthenticated
+`GET https://<site>.atlassian.net/_edge/tenant_info` — the token is never sent
+on that request — retries once through the gateway, and caches the working route
+per origin for five minutes, so rotating a token heals itself within minutes
+rather than lasting as long as the isolate.
+
+A classic token's behaviour is byte-identical to before: one request, one route,
+no lookup, no second host. `index.test.ts` pins that as a no-regression, because
+the cost of this fallback must fall only on the installations that need it.
+
+A base URL that is **not** `*.atlassian.net` — a custom domain, or Data Center —
+is never sent to Atlassian's gateway, and gets the plain `401` plus a sentence
+saying so; a scoped token cannot work against such a site at all.
+
+A scoped token needs `read:jira-work` and `read:jira-user`.
 
 ---
 
@@ -157,6 +189,10 @@ npx supabase@latest functions list --project-ref lrysgpbkmuqgzsjesfkr
 Secrets are read at request time, not at deploy time, so **changing a secret
 does not require redeploying.** Set it and press *Test connection* again.
 
+Changing the **code** does. The two-route support above and the two codes at the
+bottom of §7 exist only once `jira-read` has been redeployed; until then a scoped
+token keeps failing as a bare `jira_unauthorized`.
+
 ---
 
 ## 5. Test it
@@ -181,9 +217,15 @@ authenticated as — check that the `displayName` is the account you meant.
   "ok": true,
   "op": "ping",
   "site": { "baseUrl": "https://your-site.atlassian.net", "atlassianCloud": true },
-  "account": { "accountId": "5b…", "displayName": "Aziz", "active": true }
+  "account": { "accountId": "5b…", "displayName": "Aziz", "active": true },
+  "route": { "via": "site", "cloudId": null, "apiRoot": "https://your-site.atlassian.net" }
 }
 ```
+
+`route` tells you **which door opened**. `via: "site"` with a null `cloudId` is a
+classic token going straight to your site, the way it always did. `via:
+"gateway"` with a `cloudId` beside it means a scoped token is in use and the call
+went through Atlassian's API gateway — see §2.
 
 Then the one that matters:
 
@@ -227,6 +269,8 @@ most likely to meet:
 | `jira_forbidden` — *"that account cannot see this"* | Credential is fine, permissions are not | Give the account **Browse Projects** on that project |
 | `jira_not_found` — *"no such site or endpoint"* | `JIRA_BASE_URL` is wrong | Must be exactly `https://your-site.atlassian.net`, nothing after |
 | `jira_rate_limited` | Jira is throttling this account | Wait — the response tells you how many seconds |
+| `jira_gateway_unauthorized` | The site refused the credential **and** the gateway refused it too — so it is the credential itself, not the route | Scoped token: check it carries `read:jira-work` + `read:jira-user`, and has not expired. Classic: check it is unrevoked and that the account can see the site |
+| `jira_cloud_id_unresolved` | The site refused the credential and the cloud-id lookup did not produce one, so the gateway could not be tried at all | Check `JIRA_BASE_URL` is exactly your site address with nothing after it |
 
 > **Why an error about Jira does not sign you out.** If Jira answers `401`, this
 > function returns `502` to the browser with `jiraStatus: 401` inside. Passing
@@ -362,6 +406,11 @@ Specifically unproven until you press the button:
   which is a different and lesser claim than a live 200
 - that your Jira's `Retry-After` behaves as assumed under throttling
 - the exact shape of your custom fields
+- that the gateway fallback works against a **real scoped token**. The route
+  decision — when to look up a cloud id, when to retry, what to cache, what to
+  report — is proven against fixtures. The live reply shape of
+  `/_edge/tenant_info` is not: no scoped token has ever been held by anyone on
+  the build, so that endpoint has never been called for real
 
 **`ping` is the first real test this code has ever had.** If it comes back with
 your name on it, the credential path works end to end.

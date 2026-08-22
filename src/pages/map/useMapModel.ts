@@ -33,6 +33,7 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import type { MindNodeView } from '../../components/mindtree/MindNode'
 import { isolate } from '../../lib/bidi'
+import type { IsoDate } from '../../lib/dates'
 import type { FilterState } from '../../lib/entryFilter'
 import { t } from '../../lib/i18n'
 import { useKindLabel, useNodeLabel, useStageLabel, useTrackLabel } from '../../lib/labels'
@@ -43,9 +44,22 @@ import { useKindLabel, useNodeLabel, useStageLabel, useTrackLabel } from '../../
 // own name.
 import {
   entityIdOf,
+  stageIndex,
   useCaseProgress as computeUseCaseProgress,
+  type StageIndex,
   type UseCaseProgress,
 } from '../../lib/mapNodes'
+// THE SHARED ARITHMETIC. `stageReading` and the quiet fold's two halves are the
+// portfolio table's own expressions, exported from a pure module so that the
+// card, the table, the chip badge and the org panel cannot come to hold four
+// slightly different answers to "how long has this organization been here".
+import {
+  NO_STATS,
+  minQuiet,
+  quietLeafDays,
+  stageReading,
+  type NodeStats,
+} from '../../lib/portfolio/fields'
 import type { PortfolioBy } from '../../lib/mindtree/lens'
 import { DEFAULT_NODE_SIZE, sizeForCount, type NodeSize } from '../../lib/mindtree/layout'
 import {
@@ -96,40 +110,59 @@ import {
   useMapNodeStages,
   useMapNodes,
   useNodeProgress,
+  useStageMap,
   useTracks,
 } from '../../store/config'
+import { mergeProgress, usePendingStages } from '../../store/stageOverlay'
 import { useMemberMap, useMembers, memberLabel } from '../../store/members'
 import { useVocabAll, useVocabLabel } from '../../store/vocab'
 import { useAuth } from '../../store/auth'
-import type { MapNodeUseCase, UseCase, UseCaseStatus, UserRole } from '../../types'
+import type {
+  Entry,
+  MapNodeProgress,
+  MapNodeUseCase,
+  UseCase,
+  UseCaseStatus,
+  UserRole,
+} from '../../types'
 
 /* ───────────────────────────────── the tree ──────────────────────────────── */
 
-/** The three counts the model does not carry, derived once for both views. */
-export interface NodeStats {
-  breached: number
-  unassigned: number
+/**
+ * The per-node roll-up, RE-EXPORTED rather than declared here.
+ *
+ * It moved to lib/portfolio/fields.ts because the four facts on it that are not
+ * counts — the stage triad and the quiet clock — are the same four the portfolio
+ * table and the org panel print, and a type that is the contract between three
+ * surfaces cannot live inside one page's hook. The re-export keeps every
+ * existing importer (`MapCanvas`, `MindtreeTable`, the tests) reading it from
+ * where it has always read it.
+ */
+export { NO_STATS }
+export type { NodeStats }
+
+/** Everything `collectStats` needs and cannot know. All of it injected. */
+export interface StatsInput {
   /**
-   * HOW MANY ORGANIZATIONS SIT AT OR BELOW THIS NODE — and it is NOT `count`.
-   *
-   * `MindNode.count` is the open WORK beneath a node (entries plus subtree), and
-   * model.ts computes it that way for every structural node including a cohort,
-   * which is what keeps the partition invariant non-tautological. A cohort's own
-   * sentence needs the other number: "Stage: Integrating, 14 organizations" is a
-   * fact about the ring's MEMBERS, and reading `count` for it would announce the
-   * issue backlog as if it were the book.
-   *
-   * Counted here rather than in a second walk because this pass already visits
-   * every node once and already exists for exactly this reason — two arithmetics
-   * over one tree is two answers that disagree under the conditions nobody tests.
+   * `useEntryMap()`. Widened from the `unknown` value it used to hold, because
+   * the quiet fold reads `last_activity_at` off the entry rather than merely
+   * asking whether the filter kept it.
    */
-  orgs: number
+  entryById: ReadonlyMap<string, Entry>
+  isUnassigned: (id: string) => boolean
+  /** `stageIndex(mergedProgress, stageById)` — the OVERLAY-MERGED rows. */
+  stages: StageIndex
+  progressById: ReadonlyMap<string, Pick<MapNodeProgress, 'stage_changed_at'>>
+  fallbackStallDays: number | null
+  /** The reader's instant, for lib/lifecycle. This module holds no clock. */
+  now: Date
+  /** The same instant as a calendar day, for the quiet fold. */
+  today: IsoDate
 }
 
-export const NO_STATS: NodeStats = Object.freeze({ breached: 0, unassigned: 0, orgs: 0 })
-
 /**
- * Roll `breached` and `unassigned` up the tree, in one post-order pass.
+ * Roll every per-node fact the picture and the panel share up the tree, in ONE
+ * post-order pass.
  *
  * The model carries `slaBreached` as a BOOLEAN on every branch — deliberately,
  * because the map's budget is a binary mark and "3 breached" is a number the
@@ -140,19 +173,42 @@ export const NO_STATS: NodeStats = Object.freeze({ breached: 0, unassigned: 0, o
  * `unassigned` needs the Entry itself (the model deals in counts, not columns),
  * which is why `entryById` is threaded in rather than the whole working set:
  * the tree already decided which rows survived the filter.
+ *
+ * ── THE TWO FACTS THIS PASS GAINED, AND THEIR TWO DIFFERENT SCOPES ────────
+ *
+ * `quietDays` is the SUBTREE MINIMUM over entry leaves, and it folds exactly
+ * like the counts above it: one `minQuiet` per child, `null` — never 0 — where
+ * nothing has ever been filed, and through folds and collapsed branches alike,
+ * because a silence that changed when somebody clicked a branch open would be
+ * reporting the picture rather than the workspace.
+ *
+ * THE STAGE TRIAD DOES NOT FOLD. `daysInStage`, `atRisk` and `stallDays` are
+ * `map_nodes`-keyed facts read through `stageReading` — the SAME function the
+ * portfolio's table and its chip badge read — and they are populated on ENTITY
+ * nodes and left null/false everywhere else. A track is not standing on a rung
+ * and neither is a status bucket; inventing an aggregate for one would put a
+ * number on a card that no column anywhere prints. One `stageReading` per
+ * organization, in the pass that was already visiting it, with no allocation
+ * beyond the stats object this walk already makes per node.
  */
 export function collectStats(
   node: MindNodeModel,
-  entryById: ReadonlyMap<string, unknown>,
-  isUnassigned: (id: string) => boolean,
+  input: StatsInput,
   out: Map<string, NodeStats>,
 ): NodeStats {
   if (node.kind === 'entry') {
     const id = node.entryId
+    const entry = id === null ? undefined : input.entryById.get(id)
     const stats: NodeStats = {
       breached: node.health.slaBreached ? 1 : 0,
-      unassigned: id !== null && entryById.has(id) && isUnassigned(id) ? 1 : 0,
+      unassigned: id !== null && entry !== undefined && input.isUnassigned(id) ? 1 : 0,
       orgs: 0,
+      // A LEAF IS THE ONLY THING THAT MEASURES SILENCE, and an entry the filter
+      // kept out of the working set contributes nothing rather than a zero.
+      daysInStage: null,
+      atRisk: false,
+      stallDays: null,
+      quietDays: entry === undefined ? null : quietLeafDays(entry.last_activity_at, input.today),
     }
     out.set(node.id, stats)
     return stats
@@ -167,14 +223,29 @@ export function collectStats(
    * actually asking — is there a `map_nodes` row behind this node — and it is
    * the one function that may ever turn a node into a real id.
    */
-  let orgs = entityIdOf(node) === null ? 0 : 1
+  const entityId = entityIdOf(node)
+  let orgs = entityId === null ? 0 : 1
+  let quietDays: number | null = null
   for (const child of node.children) {
-    const stats = collectStats(child, entryById, isUnassigned, out)
+    const stats = collectStats(child, input, out)
     breached += stats.breached
     unassigned += stats.unassigned
     orgs += stats.orgs
+    quietDays = minQuiet(quietDays, stats.quietDays)
   }
-  const stats: NodeStats = { breached, unassigned, orgs }
+  // The same `entityIdOf` answer the org count above was made from, reused
+  // rather than asked twice: one node is one organization or it is none, and
+  // two calls are two places a synthetic key could be read differently.
+  const reading = entityId === null ? null : stageReading(entityId, input)
+  const stats: NodeStats = {
+    breached,
+    unassigned,
+    orgs,
+    daysInStage: reading?.days ?? null,
+    atRisk: reading?.atRisk ?? false,
+    stallDays: reading?.stallDays ?? null,
+    quietDays,
+  }
   out.set(node.id, stats)
   return stats
 }
@@ -556,9 +627,33 @@ export function useMapModel(
   const progressByNodeId = useNodeProgress()
   /** The ladder itself, in `sort_order` — the `by=stage` ring's order. */
   const mapNodeStages = useMapNodeStages()
+  /** The ladder BY ID, which is the half `stageIndex` needs. */
+  const stageById = useStageMap()
+  /**
+   * What THIS TAB has written about where an organization got to and the store
+   * has not confirmed yet — store/stageOverlay.
+   *
+   * READ HERE, at the top of the model, rather than downstream of it: the rung
+   * an account manager chose a second ago is the rung every surface must clock
+   * from, and a stats walk reading the store's rows alone would put "68 days"
+   * beside a rung reached just now, which reads as the write having failed.
+   */
+  const pendingStages = usePendingStages()
   const members = useMembers()
   const memberById = useMemberMap()
   const ctx = useFilterContext()
+  /**
+   * THE ONE INHERITANCE, BORROWED RATHER THAN RE-DERIVED.
+   *
+   * `store/entries` walks every node's ancestors once and publishes what a node
+   * INHERITS: the chain, the integrator, the accountable person. Everything on
+   * this screen that says "vendor" or "account manager" reads these two maps —
+   * the cohort rings, the card's second line, the org panel and the portfolio's
+   * rows — so the picture and the filter can never disagree about which
+   * organizations belong to Acme. They are optional on `FilterContext`, so every
+   * read below coalesces to the node's own column.
+   */
+  const { vendorOfNode, managerOfNode } = ctx
   const loading = useEntriesLoading()
   const error = useEntriesError()
   const truncated = useEntriesTruncated()
@@ -690,17 +785,39 @@ export function useMapModel(
    * both travel separately, in `facetOptions` below. `vendor` is the exception
    * because it declares nothing: free text is its own key (0023 froze the
    * column that way), and the model trims it into one.
+   *
+   * ⚠ THE TWO INHERITED FACETS, AND WHAT THAT COSTS THIS MEMO'S OLD PROMISE.
+   *
+   * `vendor` and `managerId` are the NEAREST SELF-OR-ANCESTOR values, off
+   * `FilterContext`'s single walk — the same map `inPortfolioScope` admits by
+   * and the same one the portfolio's rows are built from. Reading the raw column
+   * here while the filter read the inherited one is how `?vendor=Acme` came to
+   * narrow to eleven organizations that the `?by=vendor` ring then drew in the
+   * "not recorded" cohort: one screen, two definitions of one word.
+   *
+   * The sentence this block used to end on — "a description edit rewrites no
+   * field on this list" — no longer holds, and the honest replacement is this: a
+   * `map_nodes` WRITE OF ANY KIND rebuilds these facets, because inheritance
+   * rides `store/entries`' ancestor walk and that walk is keyed on the whole
+   * node map. That is the price, it is paid deliberately, and the alternative —
+   * a second ancestor walk local to this file — is precisely the drift
+   * store/entries.ts warns against where it explains why the third answer rides
+   * the same loop as the first two.
+   *
+   * `?? raw` on both, and never a bare map read: a context with no answer for a
+   * node (a cold start, a cache without it) must fall back to the row rather
+   * than move four hundred organizations into "not recorded" for a frame.
    */
   const entityFacets = useMemo<MindEntityFacet[]>(
     () =>
       mapNodes.map((node) => ({
         id: node.id,
-        managerId: node.account_manager_id,
+        managerId: managerOfNode?.get(node.id) ?? node.account_manager_id,
         typeKey: node.kind_id,
-        vendor: node.vendor,
+        vendor: vendorOfNode?.get(node.id) ?? node.vendor,
         stageId: progressByNodeId.get(node.id)?.stage_id ?? null,
       })),
-    [mapNodes, progressByNodeId],
+    [mapNodes, progressByNodeId, vendorOfNode, managerOfNode],
   )
 
   /**
@@ -876,9 +993,38 @@ export function useMapModel(
       if (entry === undefined) return false
       return entry.owner_id === null && (entry.owner_name ?? '').trim() === ''
     }
-    collectStats(tree, entryById, isUnassigned, out)
+    // THE OVERLAY IS MERGED HERE, NOT READ DOWNSTREAM. `mergeProgress` synthesises
+    // `stage_changed_at = now` for exactly the sentence this walk is about to
+    // speak — a rung the reader just chose was arrived at just now — and doing it
+    // once, at the top, is what makes the card, the panel and the table agree in
+    // the same frame the tap happened in.
+    const merged = mergeProgress(progressByNodeId, pendingStages)
+    // `today` rather than `Date.now()` in the dependency list: the fold's only
+    // use of the clock is whole calendar days, so re-running it per render (or
+    // per minute) would recompute 3,200 nodes to produce the same integers.
+    // PortfolioStage.tsx carries the same suppression at the same kind of memo
+    // for the same reason. `now` is therefore read INSIDE the body.
+    const now = new Date()
+    collectStats(
+      tree,
+      {
+        entryById,
+        isUnassigned,
+        stages: stageIndex(merged, stageById),
+        progressById: merged,
+        // NO WORKSPACE FLOOR IN v1 — PortfolioStage's decision, and kept as ONE
+        // decision rather than two: 0026 seeds every rung's `expected_days` NULL
+        // on purpose, and a floor invented here would put a number nobody chose
+        // on the map while the table beside it showed none.
+        fallbackStallDays: null,
+        now,
+        today: ctx.today,
+      },
+      out,
+    )
     return out
-  }, [tree, entryById])
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree, entryById, progressByNodeId, pendingStages, stageById, ctx.today])
 
   /**
    * The progress underscore's numbers, per node. Empty — not zeroed — while
@@ -1022,17 +1168,27 @@ export function useMapModel(
       return parts.reverse().join(sep)
     }
 
-    /** An Organization's account manager and vendor, or null for everything else. */
+    /**
+     * An Organization's account manager and vendor, or null for everything else.
+     *
+     * BOTH INHERITED, on the `inherited ?? raw` coalesce that is THE ONE RULE
+     * for these two columns across the whole app — lib/portfolio/rows.ts is its
+     * sibling, line for line, and store/entries.ts is where the single ancestor
+     * walk that answers it lives. A card that showed the raw column while the
+     * filter admitted by the inherited one would put an organization inside
+     * Acme's ring with a blank second line, which reads as a bug in the ring.
+     */
     const secondaryOf = (node: MindNodeModel): string | null => {
       const nodeId = entityIdOf(node)
       if (nodeId === null) return null
       const row = mapNodeById.get(nodeId)
       if (row === undefined) return null
       const parts: string[] = []
-      if (row.account_manager_id !== null) {
-        parts.push(isolate(memberLabel(memberById, row.account_manager_id, null)))
+      const managerId = managerOfNode?.get(nodeId) ?? row.account_manager_id
+      if (managerId !== null && managerId !== undefined) {
+        parts.push(isolate(memberLabel(memberById, managerId, null)))
       }
-      const vendor = row.vendor.trim()
+      const vendor = (vendorOfNode?.get(nodeId) ?? row.vendor).trim()
       if (vendor !== '') parts.push(isolate(vendor))
       return parts.length === 0 ? null : parts.join(sep)
     }
@@ -1115,6 +1271,28 @@ export function useMapModel(
         if (stat.breached > 0) detail.push(t('mindtree.countBreached', { count: stat.breached }))
         if (stat.unassigned > 0) {
           detail.push(t('mindtree.countUnassigned', { count: stat.unassigned }))
+        }
+        /**
+         * THE STAGE CLOCK, AS TEXT AND ONLY AS TEXT.
+         *
+         * The map card draws NO NEW MARK for this and must not: MindNode already
+         * rations its second line to one place — a terminal node past 380px —
+         * and every millimetre of the card is spent on the name, the count and
+         * the progress underscore. What the panel and the table print in two
+         * columns arrives here as a clause on the accessible name instead, which
+         * is exactly what the shared field set is for: one arithmetic, three
+         * vocabularies. The days are `null` on everything that is not an
+         * organization, so a track and a status bucket say nothing extra.
+         *
+         * The SAME keys the portfolio's own two cells use, as literals, so the
+         * word an account manager reads in the table is the word a screen-reader
+         * user hears on the canvas — and `portfolioAtRisk` follows the count
+         * rather than replacing it, because "past its stage" without "68 days"
+         * is a verdict with no evidence.
+         */
+        if (stat.daysInStage !== null) {
+          detail.push(t('mindtree.portfolioDays', { count: stat.daysInStage }))
+          if (stat.atRisk) detail.push(t('mindtree.portfolioAtRisk'))
         }
         /**
          * THE UNDERSCORE, IN WORDS, AND IT IS NOT DECORATION.
@@ -1228,6 +1406,12 @@ export function useMapModel(
     mapNodeById,
     vocabLabelOf,
     textOf,
+    // THE TWO INHERITANCE MAPS the second line reads. They are memoised on
+    // `mapNodeById`, which is already one line above, so naming them adds NO NEW
+    // INVALIDATION CLASS — the cache is rebuilt on exactly the writes that
+    // rebuilt it before, and `getView`'s laziness is untouched.
+    vendorOfNode,
+    managerOfNode,
     // A STRING, so it compares by value: the cohort clause is rebuilt when the
     // axis changes and not when the object holding it does.
     groupingLabel,

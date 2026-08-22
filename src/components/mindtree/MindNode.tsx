@@ -145,7 +145,7 @@
 // layout placed them in WORLD units: `worlds.ts` scales a card by
 // `cardScale = worldD / D_LEAF`, so a depth-4 card is 73,284 units wide, while
 // `PAD = 12`, `COUNT_SLOT = 34`, `CHAR_PX = 6.2`, the breach `r={4}`, the
-// chevron `r={7}`, `PROGRESS_H = 2`, `rx={10}` and every CSS length
+// chevron `r={7}`, `PROGRESS_H = 3`, `rx={10}` and every CSS length
 // (`font-size: 12.5px`, `stroke-width: 1`, `[data-empty]`'s `stroke-dasharray:
 // 2 4`) stayed at 1x. `public/__lookat/desktop-full.svg` is the proof: a
 // 73,284-unit card carrying 12.5-unit text and a 1-unit outline, which at
@@ -241,6 +241,30 @@
 // aria-hidden mark, and WCAG 2.5.8's target size does not apply because they are
 // not targets. They are reachable three other ways: zoom to them, the accessible
 // table, or search.
+//
+// ── AND THE SIXTH DRAWING, WHICH IS THE FIRST ONE AGAIN: `flat` ────────────
+//
+// Everything above describes the CONTAINMENT drawing, where a node is a world
+// and the camera dives into it. The map's other drawing — the vertical wrapped
+// tidy tree, `layoutMindtree({ orientation: 'vertical', wrap: true })` — is
+// governed by a rule that contradicts the whole of the paragraph above, and the
+// owner stated it in one line: EVERY DETAIL IS VISIBLE AT EVERY ZOOM. A card
+// never becomes a dot, a chip, a disc or a blur; if it is drawn at all it is
+// drawn in full; nothing is ever collapsed. There is no level of detail there,
+// because uniform cards in a regular grid are the point, and a card that
+// dissolves into a grain when the reader pulls back is the exact opposite of it.
+//
+// `flat` is that rule, as one prop. It coerces the band to `card`, treats the
+// node's world as absent, opens every `pays()` gate, keeps the name inside the
+// box and drops the chevron disc. See the prop's own documentation for what each
+// of those does and — more importantly — for why the five drawings are switched
+// OFF rather than deleted: `pages/Mindtree.tsx` still calls `layoutWorlds` by
+// default, and `mapRender.test.tsx` still measures fifteen renders of it.
+//
+// The two drawings differ in one more place, and it is not in this file: on the
+// flat tree the per-child connectors are replaced by BLOCK CONTAINERS
+// (`lib/mindtree/blocks.ts`, `components/mindtree/MindBlock.tsx`), which is what
+// makes the chevron redundant rather than merely unwanted.
 
 import {
   memo,
@@ -406,6 +430,49 @@ export interface MindNodeProps {
    * is a resting picture and OPACITY IS NEVER A RESTING STATE.
    */
   bandOut?: number
+  /**
+   * THERE IS NO LEVEL OF DETAIL IN THIS DRAWING. Draw the full card, at every
+   * distance, always.
+   *
+   * ── WHAT IT SWITCHES OFF, EXACTLY ─────────────────────────────────────────
+   *
+   * `band` is coerced to `card`, so the GRAIN disc, the STATE disc-and-rim, the
+   * `frame` disappearance and the `opening` dissolve are all unreachable; the
+   * node's `worldD` is treated as absent, so `--mtree-world` and `--mtree-hair`
+   * are 1 and every constant in this file lands at the size it was authored at;
+   * every `pays()` gate opens, so no glyph is ever dropped for being small; the
+   * label is never flung outside its box; and the chevron — a filled disc hung
+   * off the card's inline-end edge, touching nothing — is not drawn at all.
+   *
+   * ── WHY IT IS A PROP AND NOT A DELETION ───────────────────────────────────
+   *
+   * Because the five drawings are not dead code. `pages/Mindtree.tsx` still
+   * calls `layoutWorlds` by default and still dives through it, and that drawing
+   * is the one the whole of `lod.ts`, `mind-ring.css` and the fifteen-render
+   * gate in `mapRender.test.tsx` exist for. What the owner asked to be rid of is
+   * the level of detail IN THE TREE — a card that becomes a dot when the camera
+   * pulls back, in a drawing whose stated first rule is that every detail is
+   * visible at every zoom. So the machinery stays, whole and tested, behind a
+   * flag the tree turns off rather than being cut out from under a drawing that
+   * still ships.
+   *
+   * ── WHY THE FLAG IS "NO WORLD" AND NOT "BAND = CARD" ──────────────────────
+   *
+   * A band of `card` alone would not have been enough, and this is the subtle
+   * half. `pages/map/treePreview.ts` bolts INVENTED disc geometry onto the tidy
+   * tree so the containment camera can drive it — `worldD = 1.6 x max(w, h)` —
+   * and this component divides the type and the strokes by exactly that number:
+   * `worldFactor = worldD / (D_LEAF x cardScale)` comes out at 1.344 for a
+   * 168-unit card, which would draw a 12.5px label at 16.8px and a 1-unit
+   * outline at 1.34. The card would be the right size with the wrong ink in it.
+   * Treating the world as ABSENT is what returns this file to the drawing it
+   * ships for a layout that genuinely has no worlds — the tidy tree, the phone's
+   * ring, `export.ts`'s serialiser — which is byte for byte the drawing wave 1
+   * shipped.
+   *
+   * Defaults to false, so every existing caller is untouched.
+   */
+  flat?: boolean
 }
 
 /** Inline breathing room inside a node box, and the space kept for the count. */
@@ -447,9 +514,124 @@ const STATE_RIM = 0.52
 /** The breach dot at STATE: 0.2 x apparent, so 5-10px across the band. */
 const STATE_BREACH = 0.1
 
-/** The progress underscore: 2 units tall, sitting 3 units inside the block end. */
-const PROGRESS_H = 2
-const PROGRESS_INSET = 3
+/**
+ * The progress underscore: 3 units tall, sitting 5 units inside the block end.
+ *
+ * FIVE AND NOT THREE FOR THE INSET, and the two units are the difference
+ * between a data mark and a second bottom edge. At three, the bar's own outer
+ * edge stands 3 units off the card's border and the border is a 1-unit stroke
+ * centred on it — 2.5 units of clear fill, which at 1:1 is 2px. Two marks 2px
+ * apart, both drawn in the branch ink at full strength, one of them running
+ * most of the card's width, read as a DOUBLE RULE along the bottom of the card
+ * rather than as a length somebody is meant to compare against its neighbour's.
+ * It is worst exactly where it matters most: the block container's stub leaves
+ * from the same edge, so on a parent card there were three horizontal marks
+ * stacked inside five pixels.
+ *
+ * THREE AND NOT TWO FOR THE HEIGHT, and that number is not a taste — it is the
+ * size of the only discriminator between two readings that mean opposite
+ * things. Once `PROGRESS_RAIL_H` put a full-budget rail under every card that
+ * holds a total, LENGTH stopped separating the two ends of the scale: a card
+ * that is 0-of-N draws a 144-unit rail and no bar, and a card that is 142.9-of-
+ * 144 draws a 144-unit rail with a bar over 99% of it. Both are a uniform line
+ * running the whole budget. Eleven of the 153 cards in the shoot are past 92%
+ * and one is at 99.2%, so this is not a corner the fixture had to be bent to
+ * reach — it is a row of ordinary healthy accounts. At `PROGRESS_H = 2` the
+ * entire difference between "none of this is live" and "all of it is" was ONE
+ * PIXEL of height at 1:1, and the count cannot break the tie because the count
+ * is the total, not the live figure. Hunting dead accounts down a column of
+ * near-full siblings is the exact job the rail was added for, and it was the
+ * job the rail had quietly made harder at the top of the range while fixing it
+ * at the bottom.
+ *
+ * The repair is bought where the rail was bought — in FORM, at full ink, with
+ * no new colour and no new row in `mindtree.css`'s contrast matrix. A 3-unit
+ * bar on a 1-unit rail is a 3:1 step where 2:1 was, so the mark a reader has to
+ * tell apart from a hairline is three times its thickness instead of twice, and
+ * the "plinth standing on a baseline" reading the pair was designed around gets
+ * louder rather than different. Nothing else about the pair moves: same ink,
+ * same bottom edge, same budget, same divide.
+ *
+ * The card has the room and nothing else wants it: the label is centred on
+ * `height / 2` and a 12.5px face reaches ~26 of a 44-unit card's units, so the
+ * bar's top at 36 is ten units clear below it — one unit less than the two-unit
+ * bar left, and nine more than the descender needs. The second line is not a
+ * constraint either — it is drawn only on a terminal card past 380px, where
+ * `TWO_LINE_BOTTOM` is nine units under a centre that is far above this bar.
+ */
+const PROGRESS_H = 3
+const PROGRESS_INSET = 5
+
+/**
+ * THE RAIL THE BAR IS READ AGAINST: the same underscore, a third as tall, drawn
+ * across the WHOLE budget whenever there is a total to divide.
+ *
+ * THIS REVERSES "THERE IS NO TRACK BEHIND THE REMAINDER", which this file and
+ * `mind-ring.css` both argued at length, so the reversal is argued rather than
+ * quietly performed. The old rule was right about ITS reason and wrong about
+ * the conclusion. Its reason: a track drawn in the card's outline ink at 20%
+ * is a DILUTED mark, dilution composites toward the surface underneath and
+ * hands the measured ratio back, and that recipe is in no matrix this repo
+ * keeps. All of that still holds and nothing below spends a drop of it.
+ *
+ * What the old rule got wrong is that the bar without a rail is not a
+ * measurement. Three readings the pictures actually produce:
+ *
+ *   · "0 of 4 live" and "no progress data" are THE SAME CARD. 22 of the 153
+ *     cards in the current shot are in that state, and every one of them is a
+ *     card an account manager most needs to see. (An earlier draft of this
+ *     paragraph said 42, which was `153 − 111`: it folded in the 20 EMPTY
+ *     organizations, cards that correctly hold no figure at all. The census
+ *     is 133 cards with a total, 111 with a bar, 22 with a bare rail.) A
+ *     drawing that cannot distinguish "nothing is live here" from "we do not
+ *     know" is not quiet, it is silent about the thing it was drawn to say.
+ *   · A bar two-thirds across is two-thirds of WHAT. Without the far end
+ *     drawn, 4-of-6 and 4-of-4 are the same mark at different lengths on
+ *     cards of the same size, and the reader has no way to tell which of the
+ *     two they are looking at. Length can only encode a share if the whole is
+ *     on the page.
+ *   · Bars of arbitrary reach across 153 uniform cards read as decoration —
+ *     an underline somebody chose the width of — rather than as an instrument.
+ *
+ * AND THE RAIL IS BOUGHT IN FORM, NOT IN CONTRAST, which is this sheet's own
+ * standing move: `mindtree.css` cues container depth with STROKE WIDTH for
+ * exactly this reason ("which costs no contrast at all") after measuring what
+ * fading costs. The rail is `--mtree-ink` AT FULL STRENGTH, the same ink and
+ * the same 6.35 / 5.53 on a node fill that the bar already carries — no new
+ * colour, no new recipe, no row to add to the matrix. It is told apart from the
+ * bar by being A THIRD OF ITS HEIGHT, and the bar is drawn on top of it, so the
+ * mark reads as a plinth standing on a baseline.
+ *
+ * A THIRD, WHERE THIS STARTED AT A HALF, AND THE UNIT WENT ON THE BAR rather
+ * than coming off the rail. `PROGRESS_H` carries the argument for why the step
+ * had to widen at all; the part that belongs here is why the rail did not
+ * shrink to buy it. The rail is the one mark on this card already drawn at its
+ * floor: at 1 unit it is a single device pixel at 1:1 and a coverage tone at
+ * every camera below, and there is no half-unit rail to be had — the paragraph
+ * below refuses one, and for a reason that has not changed. A step can only be
+ * bought on the side of the pair that has room to spend it.
+ *
+ * ONE AND NOT 0.5, AND BOTTOM-ALIGNED RATHER THAN CENTRED, and both are about
+ * the raster and not about taste. A rail centred on the bar's band would start
+ * at a half unit — at 1:1 a 1px line laid across two pixel rows at half alpha
+ * each, which is a DILUTED line arrived at through antialiasing instead of
+ * through a colour, i.e. precisely the thing the paragraph above refuses.
+ * Bottom-aligned, rail and bar share their lower edge and land on the same
+ * fraction of the grid, whatever fraction that is.
+ *
+ * WHAT HAPPENS WHEN THE PICTURE SHRINKS is the reason a form step is safe here
+ * at all. At the overview camera's 0.343 the bar is 1.03px and the rail 0.34px,
+ * and a sub-pixel line is painted by coverage: the rail arrives as the lighter
+ * of two tones of one ink, and the widened step buys the far camera something
+ * the 2:1 pair could not — the bar now clears one whole device pixel there, so
+ * it is a solid line against a partial one rather than two partial ones whose
+ * separation depends on where each lands on the grid. The step survives the
+ * whole zoom range by changing
+ * WHICH property carries it — thickness up close, tone far away — which is the
+ * same thing the container border ramp does and is not a level of detail: every
+ * card draws every mark at every scale, and only the raster is talking.
+ */
+const PROGRESS_RAIL_H = 1
 
 /** The two baselines a terminal card uses once it has a second line. */
 const TWO_LINE_TOP = -8
@@ -608,9 +790,17 @@ export const MindNode = memo(function MindNode({
   onHover,
   onMenu,
   describedBy,
-  band = 'card',
+  band: bandRead = 'card',
   bandOut = 0,
+  flat = false,
 }: MindNodeProps): ReactElement | null {
+  /**
+   * THE BAND, AFTER THE FLAT TREE HAS HAD ITS SAY. One expression, at the top,
+   * so that every one of the eleven tests below reads the same answer and no
+   * branch can be reached by asking the raw prop instead — which is the failure
+   * mode a second `if (flat)` scattered through the body would have.
+   */
+  const band: Band = flat ? 'card' : bandRead
   const node = pos.node
   const isLeaf = node.kind === 'entry'
   /**
@@ -654,7 +844,8 @@ export const MindNode = memo(function MindNode({
    * `cardScale`; no camera number reaches this component, which is what keeps
    * `memo()` paying across a zoom (see the header's rejected alternative).
    */
-  const hasWorld = pos.worldD !== undefined && Number.isFinite(pos.worldD) && pos.worldD > 0
+  const hasWorld =
+    !flat && pos.worldD !== undefined && Number.isFinite(pos.worldD) && pos.worldD > 0
   const worldDrawn = hasWorld ? (pos.worldD as number) : Math.max(pos.width, pos.height, 1e-6)
   const bandFloor = bandFloorPx(band)
 
@@ -796,9 +987,18 @@ export const MindNode = memo(function MindNode({
    * its world, 44 for the phone drill-in's outermost ring (`ringNodeSize`, no
    * camera and therefore no band — the case this clause has always carried), and
    * 65.8 for a card inscribed in its children's ring, which is the new one.
+   *
+   * AND THE FLAT TREE NEVER TAKES IT, whatever the room comes to. "The name is
+   * outside the box" is a level-of-detail drawing — it is what a node does when
+   * it has become too small to hold its own word — and a drawing whose first
+   * rule is that every card is drawn in full at every zoom has no such state.
+   * The card either holds its name or truncates it; it never hangs it in the
+   * gutter. Written as a gate here rather than left to `room >=
+   * LABEL_INSIDE_MIN` happening to be true at 168 units, because that is an
+   * accident of the default node size and this is a guarantee.
    */
   const outsideLabel =
-    outward !== undefined && room < LABEL_INSIDE_MIN
+    !flat && outward !== undefined && room < LABEL_INSIDE_MIN
       ? outsideLabelAt(width, height, outward, rtl, OUTSIDE_LABEL_GAP * worldFactor)
       : null
 
@@ -868,18 +1068,29 @@ export const MindNode = memo(function MindNode({
         truncate(view.secondary, Math.max(3, Math.floor((width - PAD * 2) / CHAR_PX)))
       : null
   /**
-   * The progress underscore's length in drawing units, 0 when there is nothing
-   * to say. ONE DIVIDE — the only arithmetic in this file that touches data
-   * rather than geometry, and it is here rather than in the page's memo because
-   * the number it produces is a LENGTH, which is a fact about this node's box
-   * and nothing the page can know.
+   * The progress underscore's WHOLE — the rail's length, and the length the
+   * bar's share is taken of. Zero is the one value that means "this card has
+   * no progress to draw at all", and it is now the ONLY way to say that: a
+   * `done` of 0 is a real reading and gets a bare rail, where before it got
+   * the same nothing an absent pair got.
+   */
+  const railW =
+    (band === 'card' || holding || dissolving) && view.progress != null && view.progress.total > 0
+      ? width - pad * 2
+      : 0
+  /**
+   * The filled part, in drawing units. ONE DIVIDE — the only arithmetic in this
+   * file that touches data rather than geometry, and it is here rather than in
+   * the page's memo because the number it produces is a LENGTH, which is a fact
+   * about this node's box and nothing the page can know.
+   *
+   * It divides by the RAIL rather than re-deriving the budget, which is what
+   * keeps "full" meaning "reaches the end of the rail" by construction instead
+   * of by two expressions agreeing about `pad`.
    */
   const fillW =
-    (band === 'card' || holding || dissolving) && view.progress != null && view.progress.total > 0
-      ? Math.max(
-          0,
-          Math.min(1, view.progress.done / view.progress.total) * (width - pad * 2),
-        )
+    railW > 0 && view.progress != null
+      ? Math.max(0, Math.min(1, view.progress.done / view.progress.total) * railW)
       : 0
 
   // FRAME: nothing of this node is drawn in SVG. Its boundary is an HTML border
@@ -993,6 +1204,23 @@ export const MindNode = memo(function MindNode({
       data-band={band}
       data-kind={node.kind}
       data-depth={pos.depth}
+      // DOES THIS CARD HOLD ANYTHING — the axis `mindtree.css` sets the label's
+      // weight on, and it is emitted as its own attribute rather than read off
+      // one of the four already here because none of them answers the question.
+      // `data-kind` answers "what sort of thing is this", and on the vertical
+      // tidy tree that is `entity` for an Organization AND for the type block,
+      // the book and the directorate above it — so a sheet keying leaf type off
+      // the kind set all 120 leaves at a branch's weight. `data-depth` answers
+      // "how far down", which is a different fact: the tree is ragged, and a
+      // book with no types is a leaf at depth 2.
+      //
+      // NOT `aria-expanded`, which is present on exactly the same nodes and
+      // would have saved an attribute. Styling off an ARIA hook makes the
+      // drawing's typography a hostage to the accessibility contract: the day
+      // somebody decides a never-collapsing tree should not claim expandability,
+      // they would silently reweight every branch card in the picture, and
+      // nothing in either file would connect the two.
+      data-branch={pos.hasChildren ? '' : undefined}
       data-retired={node.retired ? '' : undefined}
       data-breach={node.health.slaBreached ? '' : undefined}
       data-current={current ? '' : undefined}
@@ -1140,41 +1368,110 @@ export const MindNode = memo(function MindNode({
               FILLED disc's size is a fraction of the drawing it sits in, so
               scaling it up on a card inscribed in its children's ring would put
               a 10-unit dot in a 44-unit box — a mark that had eaten its own
-              card. It stays the corner mark it is, and it stays clear of the
-              count in both layouts: the card's count sits at the reading end
-              (`endX`, one line of type below this dot) and an outside-label
-              card's count sits in the middle. */}
-          <circle cx={markX} cy={9} r={4} />
+              card. It stays the corner mark it is.
+
+              CY 7 AND NOT 9, WHICH IS THE DIFFERENCE BETWEEN CLEAR BY MEASURE
+              AND CLEAR BY READING. The dot and the count share the reading-end
+              column — `endX`, block-centred — so on a breached card they stack:
+              dot, then a numeral directly beneath it. At `cy={9}` the dot's
+              lower edge sat at 13 and an 11.5px numeral centred on 22 puts its
+              ascender at roughly 18, a joint of about five units. That clears
+              on paper and does not read: at 1:1 the pair reads as ONE mark, and
+              the reading it invites is "a flagged number" — as if the breach
+              qualified the count — rather than "this card has a breach". The
+              root card's 260 does it worst because a three-digit numeral is the
+              widest thing under the dot. Two units up buys a joint of seven and
+              the pair separates, at no cost anywhere: the dot's top edge lands
+              at 3 (2.25 with its keyline), the card's corner arc is centred on
+              (width−10, 10) with r 10 and the dot's far point is 7.6 from that
+              centre, so it stays inside the rounded box, and nothing else is
+              authored in the block-start band.
+
+              THE ROOT IS THE ONE CARD WHERE IT TOUCHES THE RIM, and that is
+              recorded rather than discovered later. `depth === 0` is a PILL —
+              `rx = height / 2` — so its block-start corner is not a corner but
+              a shoulder, and its arc is centred on (width−22, 22): the dot's
+              far point lands 22.8 from that centre against an outline whose own
+              stroke spans 21.5–22.5. The dot's `--bg-elev` keyline crosses the
+              rim by about a unit. It is left, for three reasons that are worth
+              more than the unit. The keyline exists FOR overlapping ink — the
+              same recipe and the same sentence as `.mring-state-breach`, which
+              overlaps its own rim by design. The mark reads correctly: a badge
+              in front of the rim, with a dark halo that makes the overlap look
+              chosen. And the alternative is worse in every direction — `cy = 9`
+              had 0.56 units of margin on this same pill, which at 1:1 is half a
+              pixel and was already tangent, and pulling the dot inline-inward
+              to clear the shoulder would break the one alignment every card is
+              built on, `PAD` at the reading end shared with the count.
+
+              THE OPPOSITE CORNER IS NOT AVAILABLE, which is worth writing down
+              so the next reader does not re-propose it: `tickX` — the reading
+              START of this same band — is the selection tick's, deliberately,
+              so that a ticked AND breached item shows both. Moving the breach
+              there would trade a soft ambiguity for a hard collision.
+
+              The dot stays clear of the count in the other layout for free: an
+              outside-label card's count sits in the middle, not this column. */}
+          <circle cx={markX} cy={7} r={4} />
         </g>
+      )}
+
+      {/* THE RAIL — the whole the bar is a share of. Drawn first so the bar
+          paints over it: they are the same ink, so the overlap is invisible and
+          the only thing the reader sees past the bar's end is the rail's
+          thinner continuation to the far inset. See `PROGRESS_RAIL_H` for why
+          this exists at all, why it is bought in height rather than in colour,
+          and why it is bottom-aligned.
+
+          IT HAS NO MIRROR. The rail spans the full budget, so its start in a
+          right-to-left drawing is the same `pad` it is in a left-to-right one —
+          `width - pad - railW` IS `pad`. Writing the mirror anyway would be an
+          expression that computes a constant and invites a reader to look for
+          the asymmetry it implies. The BAR below is the mark with a reading
+          direction, and it keeps the mirror. */}
+      {railW > 0 && (
+        <rect
+          className="mring-rail"
+          x={pad}
+          y={height - (PROGRESS_INSET + PROGRESS_RAIL_H) * worldFactor}
+          width={railW}
+          height={PROGRESS_RAIL_H * worldFactor}
+          aria-hidden="true"
+        />
       )}
 
       {/* THE PROGRESS UNDERSCORE — the share of Organizations beneath this node
           that are live.
 
-          LENGTH IS THE ENCODING AND THERE IS NO TRACK BEHIND THE REMAINDER. The
-          box's own PAD inset marks both ends, so the bar needs nothing drawn
-          under it to be read against — and the alternative that was proposed,
-          "the card's own outline ink at 20%", is not in mindtree.css's measured
-          matrix and is forbidden by that sheet in principle: dilution
-          composites a mark toward its background and hands the measured ratio
-          back (edge ink at opacity .55 falls 6.06/5.53 to 3.76/3.20, the whole
-          light-theme headroom). This ink is the branch ink AT FULL STRENGTH —
-          6.35 / 5.53 against a node fill, already measured, no new recipe.
+          LENGTH IS THE ENCODING AND IT IS NOW READ AGAINST A DRAWN WHOLE. What
+          the old rule here refused was a track in "the card's own outline ink at
+          20%" — a DILUTED mark, in no matrix this repo keeps, composited toward
+          the surface underneath and handing its measured ratio back (edge ink at
+          opacity .55 falls 6.06/5.53 to 3.76/3.20, the whole light-theme
+          headroom). That refusal stands and the rail above spends none of it:
+          both marks are the branch ink AT FULL STRENGTH — 6.35 / 5.53 against a
+          node fill, already measured, no new recipe — and they are told apart by
+          height, three units against one. The reasoning that changed is written
+          out at `PROGRESS_RAIL_H`, and why the step is 3:1 rather than the 2:1
+          it shipped as — a 99%-full bar and a bare rail are both a line across
+          the whole budget, so height is the ONLY thing separating "all live"
+          from "none live" — is written out at `PROGRESS_H`.
 
           BECAUSE THE ENCODING IS LENGTH AND COLOUR ALONE, the same fact is
           stated in the node's accessible name (`mindtree.nodeName`'s
           `{done} of {total} live` clause), which is what keeps WCAG 1.4.1
           honest. Nothing here announces anything: the <g> above already carries
-          the sentence.
+          the sentence, and the rail is `aria-hidden` for the same reason the bar
+          is — a second mark saying the same thing twice to a screen reader.
 
           RTL is the one mirror: the fill grows from the READING start. */}
       {fillW > 0 && (
         <rect
           className="mring-progress"
           x={rtl ? width - pad - fillW : pad}
-          // IN THE TYPE'S UNITS, like the inset it sits in. A 2-unit bar on a
-          // card inscribed in its children's ring is 0.61 px at that band's own
-          // floor — a sliver nobody sees — and 1.57 px in world units, which is
+          // IN THE TYPE'S UNITS, like the inset it sits in. A 3-unit bar on a
+          // card inscribed in its children's ring is 0.92 px at that band's own
+          // floor — a sliver nobody sees — and 2.36 px in world units, which is
           // the same share of the drawing the leaf's bar is of its own.
           y={height - (PROGRESS_INSET + PROGRESS_H) * worldFactor}
           width={fillW}
@@ -1196,8 +1493,27 @@ export const MindNode = memo(function MindNode({
           there. The test was `band !== 'chip'` while the chip was the only
           drawing that put its name outside; it is now the outside label itself,
           which is the same rule stated about the mark it is actually about, and
-          which also covers a card inscribed in its children's ring. */}
-      {pos.hasChildren && outsideLabel === null && showText && (
+          which also covers a card inscribed in its children's ring.
+
+          AND IT IS THE CIRCLE THE OWNER ASKED TO BE RID OF. On the vertical
+          tidy tree this is a filled disc at `{ x: width + 9, y: height / 2 }` —
+          the linear fallback, because that layout emits no `outward` — so it
+          hangs off the inline-end edge of every parent card, OUTSIDE the box,
+          touching nothing and pointing at nothing: the children are BELOW, not
+          beside. The picture harness found one on the root, on both
+          directorates, on all six books and on all twenty-four types, and they
+          are exactly what "remove the circles when i zoom in" is about.
+
+          Nothing is lost by dropping it there, which is why this is a gate and
+          not a relocation. The chevron's whole sentence is "the branch continues
+          this way", and on the flat tree the branch's continuation is drawn as a
+          CONTAINER — a rounded rectangle enclosing the entire subtree, joined to
+          this card by its own stub (components/mindtree/MindBlock.tsx). A disc
+          that says "there is more" beside a boundary that shows exactly how much
+          more is the second mark in one place this comment already refuses. The
+          `hiddenChildCount` badge goes with it: the flat tree never collapses
+          anything, so there is no hidden count to badge. */}
+      {!flat && pos.hasChildren && outsideLabel === null && showText && (
         <g className="mtree-chevron" aria-hidden="true" data-open={expanded ? '' : undefined}>
           {view.toggleHint !== null && <title>{view.toggleHint}</title>}
           <circle cx={chevron.x} cy={chevron.y} r={7} />

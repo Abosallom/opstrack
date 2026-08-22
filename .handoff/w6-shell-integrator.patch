@@ -1,0 +1,90 @@
+# w6-shell → integrator. ONE edit in a file this unit does not own, plus one
+# follow-up this unit deliberately did NOT write.
+#
+# Apply from the repo root:  git apply .handoff/w6-shell-integrator.patch
+# (Verified with `git apply --check` against this unit's tree.)
+#
+# NOT A BUILD BLOCKER. `npx tsc -b`, `npx oxlint`, `npx vitest run`, `npx vite
+# build` and `npm run lookat` are all green in this unit's tree WITHOUT it. It is
+# a DEFECT the cohort ring introduces into a function that predates it, found
+# while wiring the second axis, and it lives in lib/mindtree/focus.ts — w6-model's
+# file — so it is named here rather than smuggled in.
+#
+# ── 1. `dimensionStableId` must keep a `cohort:` segment ────────────────────
+#
+# The function trims a persisted focus when the reader flips the DIMENSION chip,
+# and its own header states the rule it exists to enforce: keep "the deepest
+# prefix that is still meaningful", because clearing to the track is a teleport
+# ("a lead two rings inside SRE who flips the axis should still be inside SRE"),
+# and clearing to null is worse.
+#
+# `cohort:` is axis-independent in exactly the way `entity:` is. A cohort is cut
+# by `?by=`, which the dimension chip does not touch — flipping Status → Owner
+# re-buckets the ENTRIES under an organization and leaves every cohort ring
+# standing. But the loop breaks on the first segment it does not recognise, so
+# today an account manager standing in
+#
+#     root/track:ob/cohort:manager%3A<uuid>/cohort:type%3A<uuid>/entity:<uuid>
+#
+# and flipping the dimension is thrown back to `root/track:ob` — past their own
+# cohort, past the type ring, past the organization. Three rings, silently: the
+# trim reports no fallback (that is the point of trimming rather than leaning on
+# `resolveFocus`), so nothing on screen says the reader was moved.
+#
+# At 400 organizations every focus below the track ring has a `cohort:` segment
+# in it, so this is the ordinary case rather than an edge.
+#
+# ── 2. `groupingStableId` — the twin, NOT written here ──────────────────────
+#
+# `pages/Mindtree.tsx`'s `chooseGrouping` (this unit) deliberately performs NO
+# focus trim, and says so in place. The regroup invalidates every `cohort:`
+# segment in the persisted focus — the ids are minted from the axis and the value
+# (`cohortKeyOf`), so `cohort:manager%3A<uuid>` names nothing once the reader
+# groups by stage — and the honest trim is the mirror image of the one above:
+#
+#     export function groupingStableId(id: string | null): string | null
+#       // keep ROOT_ID, `track:` and `entity:`; break at `cohort:`, exactly as
+#       // `dimensionStableId` breaks at `group:`. A cohort IS the grouping.
+#
+# It is one function beside its twin in focus.ts, plus one line in
+# `chooseGrouping` (`setMindFocus(groupingStableId(model.focusPref))`) and one
+# case in focus.test.ts. It is NOT written here because the id grammar belongs to
+# that file — a second module that knows how a segment is spelled is the drift
+# `nodeId()` and `cohortKeyOf()` were centralised to prevent — and because the
+# behaviour without it is CORRECT, merely less quiet: `resolveFocus` recovers the
+# reader to the nearest surviving ancestor and reports it through `missingId`.
+#
+# Whoever takes it should also decide whether an `entity:` below a dead cohort
+# survives. This unit's reading is that it should not — the org's id is real but
+# its PATH is not, and `resolveFocus` is the thing that knows which paths exist.
+
+--- a/src/lib/mindtree/focus.ts
++++ b/src/lib/mindtree/focus.ts
+@@ -542,10 +542,23 @@
+   const parts = id.split('/')
+   const kept: string[] = []
+   for (const part of parts) {
+-    // `root`, `track:` and `entity:` are axis-independent — they are the tree's
+-    // SHAPE. `group:`, `more` and `entry:` are not: a group IS the axis, and
+-    // both of the others are drawn inside one.
+-    if (part !== ROOT_ID && !part.startsWith('track:') && !part.startsWith('entity:')) break
++    // `root`, `track:`, `entity:` and `cohort:` are axis-independent — they are
++    // the tree's SHAPE. `group:`, `more` and `entry:` are not: a group IS the
++    // axis, and both of the others are drawn inside one.
++    //
++    // A COHORT IS CUT BY `?by=`, WHICH THIS CHIP DOES NOT TOUCH. Flipping
++    // Status → Owner re-buckets the entries under an organization and leaves
++    // every cohort ring exactly where it was, so trimming at one throws an
++    // account manager standing in their own book back to the track — three
++    // rings, and silently, which is the teleport this function exists to stop.
++    if (
++      part !== ROOT_ID &&
++      !part.startsWith('track:') &&
++      !part.startsWith('entity:') &&
++      !part.startsWith('cohort:')
++    ) {
++      break
++    }
+     kept.push(part)
+   }
+   if (kept.length <= 1) return null

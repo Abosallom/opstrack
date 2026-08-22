@@ -562,6 +562,35 @@ describe('the columns say what they mean', () => {
     expect(html).toContain('>4</td>')
     expect(html).toContain('>8</td>')
   })
+
+  it('gives the footer one cell per column, with the open total under Open', () => {
+    /* AN HTML TABLE LAYS CELLS OUT BY POSITION, so a footer one cell short does
+       not leave a gap at the end — it slides every value one column toward the
+       start. The `<tfoot>` emitted a span of five plus four cells against a
+       header of ten, which printed `totals.open` under "Progress" and left the
+       quiet column with no footer cell at all. Nothing on screen said so: the
+       number is plausible under either heading.
+
+       Counted against the header rather than against the literal 10, so a tenth
+       organization column cannot be added without this going red. */
+    const html = render(seed(), { risk: false, rows: true })
+    const foot = html.slice(html.indexOf('<tfoot>'))
+    // Case-insensitive: React's server renderer emits the JSX spelling
+    // (`colSpan`) rather than the HTML attribute's lowercase form.
+    const span = Number(/<th scope="row" colspan="(\d+)"/i.exec(foot)?.[1] ?? 0)
+    const cells = (foot.match(/<td\b/g) ?? []).length
+    const headers = (html.match(/<th scope="col"[^>]*aria-sort="none"/g) ?? []).length
+    // The tick column is a `<th>` with no sort, so the header is nine sortable
+    // columns plus one — which is what a footer row has to add up to.
+    expect(headers).toBe(9)
+    expect(span + cells).toBe(headers + 1)
+    // AND IT IS IN THE RIGHT PLACE. Three empty cells (manager, vendor,
+    // progress) stand between the spanned heading and the open total.
+    // 4 + 8 + 0, the fixture's three organizations.
+    expect(foot).toContain(
+      '<td></td><td></td><td></td><td class="pf-num tabular">12</td><td></td>',
+    )
+  })
 })
 
 /* ───────────────────── a11y, and the control budget ────────────────────── */

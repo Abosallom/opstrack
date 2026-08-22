@@ -95,6 +95,10 @@ import { entityIdOf } from '../../lib/mapNodes'
 import { t, useLocale } from '../../lib/i18n'
 import { useTrackLabel } from '../../lib/labels'
 import type { MindDimension, MindLabel, MindNode } from '../../lib/mindtree/model'
+// The roll-up's TYPE only, and from lib/ rather than from the page hook that
+// builds it: a component importing a page for a type is an import cycle waiting
+// for its second edge.
+import type { NodeStats } from '../../lib/portfolio/fields'
 import { canEditEntry } from '../../lib/permissions'
 import { pooled } from '../../lib/pooled'
 import { useAuth } from '../../store/auth'
@@ -288,6 +292,17 @@ export interface MapBranchProps {
   filter: FilterState
   dimension: MindDimension
   textOf: (label: MindLabel) => string
+  /**
+   * The canvas's own per-node roll-up — `useMapModel`'s `model.stats`, keyed by
+   * tree-node id — for the org panel's open and quiet rows.
+   *
+   * OPTIONAL, and it is optional for a wiring reason rather than a design one:
+   * `pages/Mindtree.tsx` is an integrator-owned file, so this prop ships ahead
+   * of the line that fills it and the panel simply renders two fewer rows until
+   * it does. Threaded rather than recomputed — the panel must show the number
+   * the picture was drawn from, not a second walk's opinion of it.
+   */
+  stats?: ReadonlyMap<string, NodeStats>
   onFocus: (nodeId: string | null) => void
   compact: boolean
   announce: (text: string) => void
@@ -321,6 +336,7 @@ export default function MapBranch({
   filter,
   dimension,
   textOf,
+  stats: nodeStats,
   onFocus,
   compact,
   announce,
@@ -742,7 +758,20 @@ export default function MapBranch({
       {/* Renders nothing unless the focused branch is an entity — a fourth
           empty band above the stats teaches nothing. `entityIdOf` reads
           `bucketKey` WITH `kind`, which is the only safe way to read it. */}
-      <MapBranchDetail nodeId={entityId} kindName={node.entityType} />
+      {/* THE ROLL-UP IS THE CANVAS'S, THREADED — `count` is what the picture
+          drew after the reader's filter and `quietDays` is the walk's
+          post-order minimum, so the panel and the ring beside it carry one
+          arithmetic. Null on a node with no `map_nodes` row behind it, because
+          the band renders nothing for one anyway. */}
+      <MapBranchDetail
+        nodeId={entityId}
+        kindName={node.entityType}
+        rollup={
+          entityId === null || nodeStats === undefined
+            ? null
+            : { open: node.count, quietDays: nodeStats.get(node.id)?.quietDays ?? null }
+        }
+      />
 
       {/* WHAT THIS BRANCH PROMISED, under what it IS and above what is open on
           it — the order a reader asks in.

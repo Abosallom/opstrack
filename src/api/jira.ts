@@ -310,6 +310,13 @@ export const JIRA_ERROR_KEYS: Readonly<Record<string, string>> = {
   bad_email: 'jira.errBadEmail',
   // Jira answered, and said no.
   jira_unauthorized: 'jira.errBadCredentials',
+  // A SCOPED ("granular") Atlassian token is only accepted at
+  // api.atlassian.com/ex/jira/{cloudId}, never at the site address. The function
+  // tries the site, falls back to that gateway, and these two say what happened
+  // there — a bare `jira_unauthorized` would send the owner hunting for a
+  // revoked token that is in fact perfectly good.
+  jira_gateway_unauthorized: 'jira.errGatewayUnauthorized',
+  jira_cloud_id_unresolved: 'jira.errCloudIdUnresolved',
   jira_forbidden: 'jira.errJiraForbidden',
   jira_not_found: 'jira.errNoSuchSite',
   jira_gone: 'jira.errGone',

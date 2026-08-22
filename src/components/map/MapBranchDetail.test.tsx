@@ -24,7 +24,7 @@
 // defaults and reads as styling that was never written. See MapBranch.test.tsx's
 // own namespace gate, which is this paragraph one file over.
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { MapNode, MapNodeUseCase, UseCase, UseCaseStatus } from '../../types'
 import type { MapNodeGoal } from '../../api/goals'
@@ -55,7 +55,23 @@ const fx = vi.hoisted(() => {
     { id: 'u2', displayName: 'ريما السعيري', role: 'member' as const },
   ]
 
-  const state: { nodes: MapNode[] } = { nodes: [] }
+  const state: {
+    nodes: MapNode[]
+    /** node id → its progress row, as store/config would publish it. */
+    progress: Map<string, { node_id: string; stage_id: string | null; stage_changed_at: string | null; updated_at: string; updated_by: string | null }>
+    /** The ladder, by rung id. */
+    stages: Map<string, { id: string; expected_days: number | null; terminal: boolean; paused: boolean }>
+    vendorOfNode: Map<string, string>
+    managerOfNode: Map<string, string | null>
+    today: string
+  } = {
+    nodes: [],
+    progress: new Map(),
+    stages: new Map(),
+    vendorOfNode: new Map(),
+    managerOfNode: new Map(),
+    today: '2026-03-10',
+  }
   return { members, state, mem }
 })
 
@@ -78,8 +94,8 @@ vi.mock('../../store/config', () => ({
   // the band says, and with no rungs configured the picker renders nothing, so
   // every existing assertion in the file keeps describing the same markup.
   useMapNodeStages: () => [],
-  useStageMap: () => new Map(),
-  useNodeProgress: () => new Map(),
+  useStageMap: () => fx.state.stages,
+  useNodeProgress: () => fx.state.progress,
   publishNodeProgress: () => {},
 }))
 
@@ -87,6 +103,29 @@ vi.mock('../../store/members', () => ({
   useMemberMap: () => new Map(fx.members.map((m) => [m.id, m])),
 }))
 
+/**
+ * The band reads the INHERITED vendor and manager now, and inheritance lives in
+ * `useFilterContext` — one ancestor walk over the whole node map, published by
+ * store/entries. Mocked rather than left real for this suite's standing reason:
+ * the real hook reaches into store/config's track map and store/auth, and this
+ * file mocks store/config down to the four reads the band makes. The FIELD NAMES
+ * are the real context's, so a rename there is a red test here rather than a
+ * band that quietly falls back to the raw column forever.
+ */
+vi.mock('../../store/entries', () => ({
+  useFilterContext: () => ({
+    meId: null,
+    today: fx.state.today,
+    groupOfTrack: new Map(),
+    ancestryOfNode: new Map(),
+    vendorOfNode: fx.state.vendorOfNode,
+    managerOfNode: fx.state.managerOfNode,
+  }),
+}))
+
+// The overlay's two mutators, REAL rather than mocked: the whole point of the
+// case below is that a write through the store module reaches this band.
+const { dropPending, setPending } = await import('../../store/stageOverlay')
 const MapBranchDetail = (await import('./MapBranchDetail')).default
 const { DetailBand, GoalBand, goalClock, localName, managerLabel } =
   await import('./MapBranchDetail')
@@ -155,6 +194,11 @@ interface BandOptions {
   kindName?: string | null
   manager?: string | null
   vendor?: string
+  /** The stage triad's two visible halves. Null is "nobody has said". */
+  daysInStage?: number | null
+  atRisk?: boolean
+  /** Absent by default, exactly as it is until the integrator threads it. */
+  rollup?: { open: number; quietDays: number | null } | null
   rows?: UseCase[]
   links?: MapNodeUseCase[]
   terminal?: string
@@ -167,6 +211,9 @@ function band({
   kindName = 'Organization',
   manager = 'Sara Alsaab',
   vendor = 'Acme Health',
+  daysInStage = null,
+  atRisk = false,
+  rollup = null,
   rows = catalogue(),
   links = [link('adt', 'live'), link('rx1', 'testing')],
   terminal = 'live',
@@ -179,6 +226,9 @@ function band({
       kindName={kindName}
       manager={manager}
       vendor={vendor}
+      daysInStage={daysInStage}
+      atRisk={atRisk}
+      rollup={rollup}
       progress={progressOf(rows, links, terminal, [{ id: 'org-1' }])}
       labelOf={(useCase) => localName(useCase, getLocale())}
       loading={loading}
@@ -388,7 +438,12 @@ describe('the fields', () => {
     // Scoped to the field list: the matrix below it renders a dash of its own on
     // every capability with nothing recorded, and an unscoped count would pass
     // whatever the fields did.
-    expect(fieldsOf(html).match(/—/g)).toHaveLength(2)
+    //
+    // FOUR, and the two new ones are the stage clock's. `daysInStage` null is
+    // "nobody has said where this organization is", and the risk verdict follows
+    // it: "Inside its stage time" about an unstaged organization is a
+    // reassurance nobody earned, so it reads the dash rather than the word.
+    expect(fieldsOf(html).match(/—/g)).toHaveLength(4)
     // The dash is for the eye; the word is for a screen reader, because ARIA 1.2
     // prohibits naming a generic <span> and AT is free to drop an aria-label.
     expect(html).toContain(esc(t('mapnode.notRecorded')))
@@ -534,6 +589,141 @@ describe('a node whose kind declares no fields', () => {
     expect(html).toContain(esc(t('mapnode.accountManager')))
     // Mid-fetch, which is all a static render can ever catch: no effects run.
     expect(html).toContain(esc(t('common.loading')))
+  })
+})
+
+/* ────────────── one field set, the same one the table shows ────────────── */
+//
+// THE THREE SURFACES THIS SUITE CAN SEE THE SEAM OF. The map card, the portfolio
+// table and this band show ONE set of facts about one organization, and each of
+// them writes it in its own vocabulary — so what is shared is the arithmetic and
+// never the words. These cases pin the band's half of that: the values it reads
+// are the inherited ones the filter admits by, the day count comes off the same
+// `stageReading` the table's column does, and the roll-up rows are threaded from
+// the walk that drew the picture rather than recomputed here.
+
+describe('the shared field set, as the panel says it', () => {
+  /** The band, connected, over a fixture that has a rung and a stamp. */
+  function connected(over: {
+    stampedDaysAgo?: number
+    expectedDays?: number | null
+    vendor?: string
+    manager?: string | null
+  } = {}): string {
+    const { stampedDaysAgo = 68, expectedDays = 30, vendor = '', manager = null } = over
+    // ANCHORED ON THE WALL CLOCK, at local noon, because the CONNECTED band
+    // holds no injectable instant: `stageReading` is called with `new Date()`
+    // inside the component, exactly as it is in the app. Noon rather than
+    // midnight so a stamp cannot fall on the wrong side of a local day boundary
+    // and turn "68 days" into 67 on the machine that runs this at 00:30.
+    const at = new Date()
+    at.setHours(12, 0, 0, 0)
+    at.setDate(at.getDate() - stampedDaysAgo)
+    const stamp = at.toISOString()
+    fx.state.nodes = [mapNode({ id: 'org-1', name: 'KFMC', vendor, account_manager_id: manager })]
+    fx.state.stages = new Map([
+      ['kick', { id: 'kick', expected_days: expectedDays, terminal: false, paused: false }],
+    ])
+    fx.state.progress = new Map([
+      [
+        'org-1',
+        {
+          node_id: 'org-1',
+          stage_id: 'kick',
+          stage_changed_at: stamp,
+          updated_at: stamp,
+          updated_by: null,
+        },
+      ],
+    ])
+    return renderToStaticMarkup(<MapBranchDetail nodeId="org-1" kindName="Organization" />)
+  }
+
+  beforeEach(() => {
+    fx.state.vendorOfNode = new Map()
+    fx.state.managerOfNode = new Map()
+    fx.state.stages = new Map()
+    fx.state.progress = new Map()
+  })
+
+  it('prints the portfolio’s own day count and verdict beside the rung', () => {
+    // The SAME two keys the table's `In stage` and `At risk` cells use. A reader
+    // who renames "Past its stage" in Settings renames it on both surfaces,
+    // which is the whole promise a shared key makes.
+    const html = connected({ stampedDaysAgo: 68, expectedDays: 30 })
+    expect(html).toContain(esc(t('mindtree.colInStage')))
+    expect(html).toContain(esc(t('mindtree.portfolioDays', { count: 68 })))
+    expect(html).toContain(esc(t('mindtree.portfolioAtRisk')))
+    expect(html).not.toContain(esc(t('mindtree.portfolioOnTrack')))
+  })
+
+  it('says inside its stage time when the rung’s expectation has not been passed', () => {
+    const html = connected({ stampedDaysAgo: 9, expectedDays: 30 })
+    expect(html).toContain(esc(t('mindtree.portfolioDays', { count: 9 })))
+    expect(html).toContain(esc(t('mindtree.portfolioOnTrack')))
+  })
+
+  it('resets the stage clock the instant this tab writes a rung', () => {
+    /* THE REGRESSION THE OVERLAY'S MOVE MADE TESTABLE. The rung CONTROL is three
+       rows above the day count on this band, so a panel reading the store's
+       stamp alone would answer "68 days" beside a rung the reader chose a second
+       ago — which reads as the write having failed, on the one screen where the
+       cause and the consequence are two centimetres apart. It could not be
+       caught while the overlay lived inside PortfolioStage.tsx's module scope. */
+    expect(connected({ stampedDaysAgo: 68 })).toContain(
+      esc(t('mindtree.portfolioDays', { count: 68 })),
+    )
+    setPending('org-1', 'kick')
+    try {
+      const html = connected({ stampedDaysAgo: 68 })
+      expect(html).toContain(esc(t('mindtree.portfolioDays', { count: 0 })))
+      expect(html).not.toContain(esc(t('mindtree.portfolioDays', { count: 68 })))
+      // And the verdict follows the clock rather than the stamp: nought days is
+      // not past a thirty-day expectation.
+      expect(html).toContain(esc(t('mindtree.portfolioOnTrack')))
+    } finally {
+      // Module state outlives one case, so it is put back or the next case
+      // inherits a rung nobody in it wrote.
+      dropPending('org-1')
+    }
+  })
+
+  it('shows the INHERITED vendor and manager, and falls back to the row when the chain is silent', () => {
+    /* ONE SCREEN, ONE DEFINITION. `?vendor=Acme` admits an organization by the
+       nearest self-or-ancestor value and the `?by=vendor` ring draws it in
+       Acme's cohort; a panel reading the raw column showed a blank second field
+       on exactly those organizations, which reads as a bug in the ring. */
+    fx.state.vendorOfNode = new Map([['org-1', 'Acme Health']])
+    fx.state.managerOfNode = new Map([['org-1', 'u1']])
+    const inherited = connected({ vendor: '', manager: null })
+    expect(inherited).toContain('⁨Acme Health⁩')
+    expect(inherited).toContain('⁨Sara Alsaab⁩')
+
+    // ABSENT FROM THE MAP IS A COLD START, NOT AN EMPTY CHAIN: the row's own
+    // columns stand in rather than the panel blanking every field for a frame.
+    fx.state.vendorOfNode = new Map()
+    fx.state.managerOfNode = new Map()
+    const raw = connected({ vendor: 'Northwind', manager: 'u2' })
+    expect(raw).toContain('⁨Northwind⁩')
+    expect(raw).toContain('⁨ريما السعيري⁩')
+  })
+
+  it('renders the walk’s open and quiet rows only once the roll-up is threaded', () => {
+    // Absent is "nobody has counted", which is a different fact from a zero and
+    // must not print as one — so the two rows are gone rather than zeroed.
+    const without = band()
+    expect(without).not.toContain(esc(t('mindtree.colOpen')))
+    expect(without).not.toContain(esc(t('mindtree.colQuiet')))
+
+    const withRollup = band({ rollup: { open: 12, quietDays: 2 } })
+    expect(withRollup).toContain(esc(t('mindtree.colOpen')))
+    expect(withRollup).toContain('>12</dd>')
+    expect(withRollup).toContain(esc(t('mindtree.portfolioDays', { count: 2 })))
+
+    // `OrgRow`'s renderer exactly: null quiet is the dash, never a nought.
+    const silent = band({ rollup: { open: 0, quietDays: null } })
+    expect(silent).toContain(esc(t('mindtree.colQuiet')))
+    expect(silent).toContain(esc(t('mapnode.notRecorded')))
   })
 })
 
