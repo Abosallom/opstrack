@@ -1322,3 +1322,173 @@ export interface MapNodeStageUsage {
    */
   goals: number
 }
+
+/* ══════════════════════ the PMO portfolio (0031) ══════════════════════════
+ *
+ * ⚠ THESE ARE NOT MAP NODES. The map tracks healthcare organizations moving
+ *   along an onboarding ladder; this tracks the programme's OWN projects —
+ *   thirteen of them, with managers, budgets in SAR and a four-step lifecycle.
+ *   The PMO section used to read `map_nodes` and call each organization a
+ *   project, which is why it is now called "Onboarding delivery" instead.
+ *
+ * EVERY ROW BELOW CAN NAME A JIRA ISSUE. `source` + `external_ref` is 0023's
+ * and 0024's contract verbatim. The browse URL is NOT a field: it is computed
+ * from the key by `lib/jira/types.ts` `browseUrlFor()` against the configured
+ * site address, so moving Atlassian tenants is one setting rather than a data
+ * migration across eight tables.
+ *
+ * NULL IS "NOBODY HAS SAID" ON EVERY PERCENTAGE AND EVERY MONEY FIELD, and it
+ * is never zero. A project at 0% because nothing has happened and one at 0%
+ * because nobody has updated it are different sentences; the source dashboard
+ * shows ten initiatives all reading 0% precisely because it cannot tell them
+ * apart, and this schema refuses to inherit that.
+ */
+
+/** What a row mirrors. The frozen twin of `map_nodes.source`. */
+export type PmoSource = 'local' | 'jira'
+
+/** A project's lifecycle. Four steps, closed — see 0031 for why not a table. */
+export type PmoProjectPhase = 'start' | 'planning' | 'execution' | 'closure'
+
+/**
+ * An initiative's lifecycle, which is DIFFERENT from a project's and is the
+ * whole reason the two are separate tables.
+ */
+export type PmoInitiativePhase = 'planning' | 'execution' | 'evaluation' | 'dissemination'
+
+/** Internal or external — where a project carries a budget. */
+export type PmoInitiativeKind = 'internal' | 'external'
+
+/** The two registers the source dashboard lists separately, one table. */
+export type PmoRegister = 'risk' | 'challenge'
+
+export type PmoGrade = 'low' | 'medium' | 'high'
+export type PmoRiskStatus = 'open' | 'watching' | 'closed'
+export type PmoObjectiveStatus = 'active' | 'closed'
+
+/** Columns every row in this family carries. */
+interface PmoRow {
+  id: string
+  source: PmoSource
+  /** The Jira issue key, or null. The URL is computed — see the header. */
+  external_ref: string | null
+  created_at: string
+  updated_at: string
+  created_by: string | null
+  updated_by: string | null
+}
+
+export interface PmoProject extends PmoRow {
+  name: string
+  name_ar: string
+  manager_id: string | null
+  /** SAR, as a decimal string from PostgREST. Null = no budget recorded. */
+  budget: string | null
+  currency: string
+  start_date: string | null
+  end_date: string | null
+  phase: PmoProjectPhase
+  /** 0..100, or null for "nobody has said". Never defaulted to zero. */
+  actual_pct: number | null
+  planned_pct: number | null
+  /** "This week's tasks", free text. */
+  note: string
+  note_ar: string
+}
+
+export interface PmoInitiative extends PmoRow {
+  name: string
+  name_ar: string
+  manager_id: string | null
+  phase: PmoInitiativePhase
+  kind: PmoInitiativeKind
+  start_date: string | null
+  end_date: string | null
+  actual_pct: number | null
+  planned_pct: number | null
+  /** "This week's goal", where a project has "this week's tasks". */
+  note: string
+  note_ar: string
+}
+
+export interface PmoAction extends PmoRow {
+  title: string
+  detail: string
+  /** Up to two, named separately — see 0031 for why not an array. */
+  owner_id: string | null
+  owner2_id: string | null
+  project_id: string | null
+  initiative_id: string | null
+  due_date: string | null
+  /** Null is open. A timestamp is when it closed. */
+  done_at: string | null
+}
+
+export interface PmoRisk extends PmoRow {
+  register: PmoRegister
+  project_id: string | null
+  initiative_id: string | null
+  summary: string
+  /** Null = nobody has graded it yet, which is a real state on a fresh register. */
+  level: PmoGrade | null
+  impact: PmoGrade | null
+  mitigation: string
+  status: PmoRiskStatus
+}
+
+export interface PmoRevenueLine extends PmoRow {
+  project_id: string
+  year: number
+  /** 1..4. Unique with (project, year) — a duplicate double-counts silently. */
+  quarter: number
+  planned: string | null
+  /** Null = the quarter has not been reported, NOT a quarter that earned nothing. */
+  achieved: string | null
+  currency: string
+}
+
+export interface PmoObjective extends PmoRow {
+  name: string
+  name_ar: string
+  owner_id: string | null
+  /** Free text — "2026", "H1 2026". Every organization names its own periods. */
+  period: string
+  status: PmoObjectiveStatus
+}
+
+export interface PmoKeyResult extends PmoRow {
+  objective_id: string
+  name: string
+  name_ar: string
+  /** Where the measure stood when the commitment was made. */
+  start_value: string
+  /** NOT NULL and never equal to `start_value` — a KR must be measurable. */
+  target_value: string
+  /** Null = nobody has checked in. Contributes 0 to the roll-up, not excluded. */
+  current_value: string | null
+  unit: string
+}
+
+/**
+ * `v_pmo_objective_progress` — the roll-up, and the reason `PmoObjective` has
+ * no progress field. A typed number and a computed one disagree the first time
+ * somebody edits a key result and forgets the parent.
+ */
+export interface PmoObjectiveProgress {
+  objective_id: string
+  key_results: number
+  /** How many have a `current_value`. `key_results - checked_in` is untouched. */
+  checked_in: number
+  /** Null when the objective has no key results — not zero. */
+  progress_pct: number | null
+}
+
+export interface PmoMilestone extends PmoRow {
+  project_id: string | null
+  initiative_id: string | null
+  name: string
+  name_ar: string
+  /** NOT NULL: a milestone with no date is not a milestone. */
+  due_date: string
+  done_at: string | null
+}

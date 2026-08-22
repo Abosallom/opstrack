@@ -40,6 +40,7 @@ import { loadMembers, resetMembers } from './store/members'
 import { resetMeetings } from './store/meetings'
 import { resetPortfolio } from './store/portfolio'
 import { resetGoals } from './store/goals'
+import { resetPmo } from './store/pmo'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
 import { resetAi } from './store/ai'
 import { resetNudges } from './store/nudges'
@@ -548,6 +549,14 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // on a shared device must not read them. store/signOutReset.test.ts fails
       // until this line exists.
       resetGoals()
+      // The PMO portfolio is the eighth, and it is CONFIDENTIALITY at its
+      // strongest: it holds every project's BUDGET in SAR, the revenue booked
+      // per quarter, and the risk register — the three things on this workspace
+      // that a stranger on a shared device most obviously must not read. The
+      // dedupe latch matters too (`loadedAt` is consulted without a clock), but
+      // the money is the argument. store/signOutReset.test.ts fails until this
+      // line exists.
+      resetPmo()
       // Meetings is the fifth, and the argument for it is STALENESS rather than
       // confidentiality — `meetings_select` and `meeting_lines_select` are both
       // `is_member()`, so every teammate may read every meeting anyway. What
