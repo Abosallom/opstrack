@@ -26,6 +26,7 @@
     "colAction": "Action",
     "colCommitment": "Commitment",
     "colDue": "Due",
+    "colDaysOpen": "Days open",
     "colOwner": "Owner",
     "colProgress": "Progress",
     "colProject": "Project",

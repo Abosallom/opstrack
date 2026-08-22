@@ -1320,7 +1320,12 @@ function Actions({
                 <th scope="col">{t('pmo.colDue')}</th>
                 <th scope="col">{t('pmo.colStatus')}</th>
                 <th scope="col" className="pmo-num">
-                  {t('pmo.colRaised')}
+                  {/* NOT `colRaised`, which this table shared with the Risks
+                      register until now. A risk is RAISED; a task is not, and
+                      the cell under this header is `row.daysOpen` — a count of
+                      days, never a date. Risks keep the old key, where both the
+                      word and the reading are right. */}
+                  {t('pmo.colDaysOpen')}
                 </th>
                 <th scope="col">
                   <span className="sr-only">{t('pmo.actionCopy')}</span>

@@ -163,6 +163,7 @@
 import { supabase } from './supabase'
 import { fail, notConfigured, type ApiResult } from './result'
 import { isRecord, readSearchPage, type JiraIssue } from '../lib/jira/types'
+import { getLocale } from '../lib/i18n'
 
 /** The edge function this module talks to. Read-only by name and by contract. */
 export const JIRA_FUNCTION = 'jira-read'
@@ -420,13 +421,26 @@ async function edgeErrorKey(error: unknown): Promise<string> {
   return 'common.error'
 }
 
-/** One `jira-read` call, guarded and error-mapped. */
+/**
+ * One `jira-read` call, guarded and error-mapped.
+ *
+ * ⚠ EVERY CALL CARRIES THE READER'S LANGUAGE, and it is added here rather than
+ *   at the four call sites so that no future operation can forget it. Jira
+ *   localises what it sends back — field names, and the sentence behind
+ *   `jira_bad_request`, which this app renders to the reader verbatim. Asked
+ *   nothing, the gateway picked for itself: a live probe of the deployed
+ *   function returned 28 field names in Chinese. The function treats an absent
+ *   or unrecognised value as English, so this can never make a call fail.
+ */
 async function invokeJira<T>(
   body: Record<string, unknown>,
   timeout = CALL_TIMEOUT_MS,
 ): Promise<ApiResult<T>> {
   if (!supabase) return notConfigured()
-  const { data, error } = await supabase.functions.invoke(JIRA_FUNCTION, { body, timeout })
+  const { data, error } = await supabase.functions.invoke(JIRA_FUNCTION, {
+    body: { ...body, lang: getLocale() },
+    timeout,
+  })
   if (error) return fail(await edgeErrorKey(error))
   return { ok: true, data: data as T }
 }

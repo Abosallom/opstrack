@@ -109,6 +109,9 @@ import {
   type JiraFieldOut,
   type PageReader,
   type ParsedBaseUrl,
+  acceptLanguageFor,
+  withLanguage,
+  DEFAULT_ACCEPT_LANGUAGE,
 } from './index.ts'
 
 /* ──────────────────────── reading the file off disk ─────────────────────── */
@@ -1670,5 +1673,78 @@ describe('readCredential starts every credential at the site root', () => {
     expect(gatewayApiRoot(CLOUD_ID) + ENDPOINTS.myself.path).toBe(
       `${ATLASSIAN_GATEWAY_ORIGIN}/ex/jira/${CLOUD_ID}/rest/api/3/myself`,
     )
+  })
+})
+
+
+describe('the language Jira is asked to answer in', () => {
+  // ⚠ WHY THIS EXISTS. Asked nothing, the gateway picked for itself: a live
+  //   probe of the deployed function came back with 28 field names in Chinese
+  //   (`创建者` for "creator") and refused an unrestricted JQL in Chinese too.
+  //   The mapping screen prints Jira's field names, and `jira_bad_request`
+  //   prints Jira's own sentence — so an app that is Arabic and English was
+  //   quoting a third language at its reader.
+
+  it('sends the caller language, with English behind it', () => {
+    expect(acceptLanguageFor('ar')).toBe('ar, en;q=0.8')
+    expect(acceptLanguageFor('ar-SA')).toBe('ar-SA, en;q=0.8')
+  })
+
+  it('does not append a fallback to English itself', () => {
+    // `en, en;q=0.8` is legal and silly. It would also be the value in the
+    // header for most requests, which is where silly becomes visible.
+    expect(acceptLanguageFor('en')).toBe('en')
+    expect(acceptLanguageFor('en-GB')).toBe('en-GB')
+  })
+
+  it('REFUSES A HEADER INJECTION rather than cleaning one', () => {
+    // THE REASON THE CHECK IS A MATCH AND NOT A SANITISE. This value goes into
+    // the header object of the one request that carries the Jira credential. A
+    // newline here would let a caller append headers of their own to it. There
+    // is no trimming and no escaping: a value either matches the shape of a
+    // language tag or it is not used at all.
+    for (const hostile of [
+      'ar\r\nX-Injected: 1',
+      'ar\nAuthorization: Basic abc',
+      'ar\r\n\r\nGET /admin',
+      'ar; charset=utf-8',
+      '../../etc/passwd',
+      'ar,en,fr,de,es,it,pt,nl,pl,ru',
+      'a'.repeat(200),
+      '',
+      '   ',
+    ]) {
+      expect(acceptLanguageFor(hostile), JSON.stringify(hostile)).toBe(DEFAULT_ACCEPT_LANGUAGE)
+    }
+  })
+
+  it('is total — no input shape can make it throw or return a non-string', () => {
+    // A bad locale is never a reason to refuse a READ. Everything falls back.
+    for (const junk of [undefined, null, 42, {}, [], true, Symbol('x'), () => 'ar']) {
+      const out = acceptLanguageFor(junk as unknown)
+      expect(typeof out).toBe('string')
+      expect(out).toBe(DEFAULT_ACCEPT_LANGUAGE)
+    }
+  })
+
+  it('rides on the credential, so the one call site still takes only a name', () => {
+    const base = {
+      base: { origin: 'https://x.atlassian.net', hostname: 'x.atlassian.net', atlassianCloud: true },
+      email: 'a@b.c',
+      token: 't',
+      apiRoot: 'https://x.atlassian.net',
+      acceptLanguage: DEFAULT_ACCEPT_LANGUAGE,
+    } as unknown as Parameters<typeof withLanguage>[0]
+    expect(withLanguage(base, 'ar').acceptLanguage).toBe('ar, en;q=0.8')
+    // and it changes nothing else about the credential
+    expect(withLanguage(base, 'ar').token).toBe('t')
+    expect(withLanguage(base, 'ar').apiRoot).toBe('https://x.atlassian.net')
+  })
+
+  it('the header is actually attached to the outbound request', async () => {
+    const src = await readSource()
+    expect(src).toContain("'Accept-Language': cred.acceptLanguage")
+    // And it is built by the guard, never from the body directly.
+    expect(src).not.toMatch(/'Accept-Language':\s*body\./)
   })
 })

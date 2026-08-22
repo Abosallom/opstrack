@@ -805,17 +805,28 @@ describe('the action register', () => {
     expect(html).toContain(asHtml(t('pmo.actionOverdue')))
   })
 
-  it('captions its day count as DAYS SINCE RAISED, the column it can prove', () => {
-    // `daysInStatus` falls back to `created_at` when the thread is not loaded,
-    // and on a dashboard it never is — which makes that fallback a CEILING under
-    // an "in status" caption. So the register prints the entry's age instead,
-    // under the same `pmo.colRaised` the risk tables one section down use.
+  it('captions its day count as DAYS OPEN — the column it can prove', () => {
+    // THE ORIGINAL ARGUMENT, UNCHANGED: `daysInStatus` falls back to
+    // `created_at` when the thread is not loaded, and on a dashboard it never
+    // is — which makes that fallback a CEILING under an "in status" caption. So
+    // the register prints the entry's AGE, and the caption may not promise
+    // anything narrower.
+    //
+    // WHAT CHANGED IS ONLY WHOSE WORD IT BORROWS. This shared `pmo.colRaised`
+    // with the risk register one section down. A risk is RAISED; a task is not,
+    // and the Arabic said `أُثيرت` over a list of tasks. `pmo.colDaysOpen` says
+    // what the cell holds in both languages, and it still does not claim "in
+    // status" — an open item's age IS its days open. Risks keep `colRaised`,
+    // where the word and the reading are both right.
     workspace({
       nodes: [node({ id: 'a' })],
       entries: [entry({ id: 'e1', status: 'blocked', created_at: '2026-08-12T00:00:00.000Z' })],
     })
     const html = render(tab('actions'))
-    expect(html).toContain(asHtml(t('pmo.colRaised')))
+    expect(html).toContain(asHtml(t('pmo.colDaysOpen')))
+    // And the risk register is untouched — the two captions are now separate
+    // strings, so a later edit to one cannot silently move the other.
+    expect(t('pmo.colDaysOpen')).not.toBe(t('pmo.colRaised'))
     expect(html).toContain('pmo-num tabular">10<')
     expect(html).toContain(asHtml(t('status.blocked')))
   })

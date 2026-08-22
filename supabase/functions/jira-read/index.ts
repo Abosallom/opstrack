@@ -760,6 +760,23 @@ export interface JiraCredential {
    * `readCredential` always sets the SITE root. Only `withApiRoot()` changes it.
    */
   apiRoot: string
+
+  /**
+   * WHAT LANGUAGE JIRA IS ASKED TO ANSWER IN — a full `Accept-Language` value.
+   *
+   * ⚠ THIS IS NOT COSMETIC. With no such header the gateway picked a language of
+   *   its own: a live probe of this deployment came back with 28 field names in
+   *   CHINESE (`创建者` for "creator") and refused an unrestricted JQL in Chinese
+   *   too. The mapping screen shows Jira's field names, and `jira_bad_request`
+   *   renders Jira's own sentence to the reader — so an app that is Arabic and
+   *   English was quoting a third language at people.
+   *
+   * On the credential rather than in `jiraCall`'s options for exactly the reason
+   * `apiRoot` is: the one call site keeps taking an endpoint NAME and nothing
+   * else. `readCredential` sets the default; only `withLanguage()` changes it,
+   * and only from a value that passed `acceptLanguageFor`.
+   */
+  acceptLanguage: string
 }
 
 export type SecretResult =
@@ -776,6 +793,36 @@ export type SecretResult =
  * watching the owner set it, and then naming the next is three round trips to
  * the dashboard for a problem that could have been one.
  */
+/** The fallback, and the value every request gets unless the caller names one. */
+export const DEFAULT_ACCEPT_LANGUAGE = 'en'
+
+/**
+ * A caller's locale, turned into a header value that is safe to send — or the
+ * default.
+ *
+ * ⚠ A HEADER VALUE BUILT FROM CALLER INPUT IS AN INJECTION SITE. A newline in
+ *   here would let a caller append headers of their own to a request that
+ *   carries the Jira credential. So this does not sanitise; it MATCHES, against
+ *   a BCP-47-shaped allow-pattern, and returns the default for anything else.
+ *   No trimming of bad characters, no escaping — a value either is one of these
+ *   or it is not used.
+ *
+ * English is always appended as a fallback so that a site with no Arabic
+ * translation answers in English rather than in whatever it chose before.
+ */
+export function acceptLanguageFor(raw: unknown): string {
+  if (typeof raw !== 'string') return DEFAULT_ACCEPT_LANGUAGE
+  const tag = raw.trim()
+  if (!/^[A-Za-z]{2,8}(-[A-Za-z0-9]{2,8}){0,2}$/.test(tag)) return DEFAULT_ACCEPT_LANGUAGE
+  if (tag.toLowerCase() === 'en' || tag.toLowerCase().startsWith('en-')) return tag
+  return `${tag}, en;q=0.8`
+}
+
+/** Point a credential at a language. The only way `acceptLanguage` ever moves. */
+export function withLanguage(cred: JiraCredential, lang: string): JiraCredential {
+  return { ...cred, acceptLanguage: acceptLanguageFor(lang) }
+}
+
 export function readCredential(raw: {
   baseUrl: string
   email: string
@@ -841,7 +888,15 @@ export function readCredential(raw: {
   // trying, not configured, so a classic token never pays for the second one.
   return {
     ok: true,
-    value: { base: base.value, email, token: raw.token.trim(), apiRoot: base.value.origin },
+    value: {
+      base: base.value,
+      email,
+      token: raw.token.trim(),
+      apiRoot: base.value.origin,
+      // The default. Only `withLanguage()` moves it, and only for a caller who
+      // named a locale that matched the allow-pattern.
+      acceptLanguage: DEFAULT_ACCEPT_LANGUAGE,
+    },
   }
 }
 
@@ -900,6 +955,12 @@ export type Operation = 'ping' | 'projects' | 'search' | 'fields'
 
 export interface RequestBody {
   op?: string
+  /**
+   * The reader's locale, e.g. `ar` or `en`. Optional; anything unrecognised
+   * falls back to English rather than being rejected, because a bad locale is
+   * never a reason to refuse a read. See `acceptLanguageFor`.
+   */
+  lang?: unknown
   jql?: unknown
   maxResults?: unknown
   fields?: unknown
@@ -1164,6 +1225,9 @@ async function jiraCall(
       headers: {
         Authorization: basicAuthHeader(cred.email, cred.token),
         Accept: 'application/json',
+        // Built by `acceptLanguageFor`, which matches an allow-pattern rather
+        // than sanitising — see the field's comment on JiraCredential.
+        'Accept-Language': cred.acceptLanguage,
         ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
       },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
@@ -2113,7 +2177,13 @@ export async function handle(req: Request): Promise<Response> {
   //    ONE SESSION PER REQUEST, carrying the route the calls below discover.
   //    It starts at the site (header §7) — the route is a thing this function
   //    finds out by trying, never a thing a caller or a secret can name.
-  const session: JiraSession = { cred: cred.value, routing: { route: 'site' } }
+  //    The reader's language rides on the credential, so every call this
+  //    session makes asks Jira to answer in it. `withLanguage` is total: an
+  //    absent, malformed or hostile value becomes English rather than an error.
+  const session: JiraSession = {
+    cred: withLanguage(cred.value, typeof body.lang === 'string' ? body.lang : ''),
+    routing: { route: 'site' },
+  }
 
   try {
     switch (body.op) {
