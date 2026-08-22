@@ -1509,6 +1509,56 @@ describe('Arabic is the exact mirror of English', () => {
   })
 })
 
+describe('the frustum is an AABB overlap, in BOTH drawings', () => {
+  // WHY THIS IS HERE AND NOT IN A FILE OF ITS OWN: `reachesCamera` is the
+  // predicate this gate already imports to check that the cull it measures is
+  // exact (see the cull's own assertions above). Its arithmetic changed with the
+  // camera rewrite — it was a disc test with `return true` for anything without
+  // a world, and it is now one overlap test over a node's DRAWN EXTENT — so the
+  // rules it obeys belong beside the pictures that depend on it.
+
+  /** A `MindNodePos`-shaped stub: the five fields the predicate reads. */
+  const rect = (x: number, y: number, width: number, height: number, world?: [number, number, number]) =>
+    ({
+      x,
+      y,
+      width,
+      height,
+      ...(world === undefined
+        ? {}
+        : { worldX: world[0], worldY: world[1], worldD: world[2] }),
+    }) as unknown as Parameters<typeof reachesCamera>[0]
+
+  /** A 200×100 window on the origin. */
+  const CAM: Camera = { cx: 0, cy: 0, width: 200, height: 100 }
+
+  it('keeps a tidy-tree card that overlaps the frustum by one unit, and drops one that misses by one', () => {
+    // THE DEFECT THIS GUARDS. The predicate used to answer `true` for every node
+    // with no `worldD` — the whole tidy tree — so nothing was ever culled and
+    // every laid-out node was an SVG element at every camera. Tightening it is
+    // only safe if it is EXACT at the boundary, in both directions.
+    expect(reachesCamera(rect(99, -10, 10, 20), CAM)).toBe(true) // touches x=100
+    expect(reachesCamera(rect(101, -10, 10, 20), CAM)).toBe(false)
+    expect(reachesCamera(rect(-10, 49, 20, 10), CAM)).toBe(true) // touches y=50
+    expect(reachesCamera(rect(-10, 51, 20, 10), CAM)).toBe(false)
+    // A box that contains the whole frustum is on screen, obviously — and it is
+    // the case a centre-only test gets wrong.
+    expect(reachesCamera(rect(-9999, -9999, 20000, 20000), CAM)).toBe(true)
+  })
+
+  it('still reads a WORLD’s disc where there is one, so no ancestor is culled', () => {
+    // Worlds NEST, so an ancestor of whatever the camera is looking at contains
+    // the camera outright. Its CARD is a speck at the middle of a huge disc and
+    // is nowhere near the frustum; culling on the card would take the rim, the
+    // crumb's spine and the containment drawing with it.
+    const ancestorCard = rect(4000, 4000, 168, 44, [0, 0, 20000])
+    expect(reachesCamera(ancestorCard, CAM)).toBe(true)
+    // …and the disc is honoured on the far side too: a world whose disc misses
+    // the frustum is dropped even though its rect would also have missed.
+    expect(reachesCamera(rect(5000, 0, 168, 44, [5000, 0, 100]), CAM)).toBe(false)
+  })
+})
+
 describe('the gate itself', () => {
   it('rendered all twenty-five pictures, and read a real stylesheet to do it', () => {
     expect(ALL.length).toBe(fixtures().length * CAMERAS.length)

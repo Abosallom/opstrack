@@ -66,23 +66,22 @@ import { fitToViewBox, type ViewBoxFit } from '../../lib/mindtree/layout'
 import {
   anchoredZoom,
   beginCameraTween,
-  cameraAtWidth,
   clampCamera,
-  FRAME_FILL_DESKTOP,
-  frameCamera,
-  frameFillFor,
+  frameBox,
+  // The pure "centre this box, keep the reader's zoom" solver, aliased because
+  // the frame LOOP below already owns the name `flyToCamera`. Renaming the loop
+  // instead would rename the thing every comment in this file points at.
+  flyToCamera as cameraShowing,
   MAP_TWEEN_MS,
-  octavesOf,
   retargetCameraTween,
-  ROOT_FLOOR_FILL,
   rubberBandCamera,
   sampleCamera,
   viewBoxOf,
   wheelRatio,
-  ZOOM_HEADROOM,
   type Camera,
   type CameraBounds,
   type CameraTween,
+  type MotionBox,
   type Occlusion,
 } from './mapMotion'
 import { useBoxSize, type Box } from './useMapViewport'
@@ -106,47 +105,55 @@ const NO_OCCLUSION: Occlusion = { inlineEnd: 0, blockEnd: 0 }
 /* ─────────────────── what the camera needs from the drawing ───────────────── */
 
 /**
- * One node's world, as the CAMERA sees it — a centre and a diameter, plus
- * whether it is a place the dive may stop.
+ * One node, as the CAMERA sees it — WHERE IT IS AND HOW BIG, and nothing else.
  *
- * STRUCTURAL means `kind` is `'root' | 'track' | 'entity'`: a department tier.
- * A `group`, `more` or `entry` node is drawn as CONTENT inside its owner's world
- * and can never become the frame, which is the owner's correction — *"the
- * leveling for department wise not org and info side bar"* — made mechanical.
- * The camera reads the flag for exactly one purpose: the deepest structural
- * world in the workspace sets the terminus.
+ * ── WHY THIS STOPPED BEING A DISC ──────────────────────────────────────────
+ *
+ * It was `{worldX, worldY, worldD, structural, childIds}` — a node's own world,
+ * because the drawing was containment and a node's extent was the disc its whole
+ * subtree was packed inside. The drawing is now a vertical tidy tree, which
+ * emits RECTANGLES and no discs at all, so a camera reading `worldD` off it
+ * produced a NaN viewBox and a blank screen. `pages/map/treePreview.ts` bolted
+ * stand-in discs on so the tree could be looked at before this landed; it is
+ * deleted with this change, and this interface is why.
+ *
+ * `structural` went with it: it meant "a department tier the dive may stop at",
+ * and it existed to pick the terminus of a dive through nested worlds. There is
+ * no dive through a tree — its depth is the fold, not the zoom — and the zoom
+ * ends are now a fact about pixels (see `cameraBounds`), so nothing here needs
+ * to know which nodes are tiers.
  *
  * Declared here rather than imported so this file has NO edge to the layout
- * module. `WorldNode` satisfies it structurally.
+ * module's layout functions. `PositionedNode` satisfies it structurally, with no
+ * adapter anywhere.
  */
-export interface CameraWorld {
-  readonly worldX: number
-  readonly worldY: number
-  readonly worldD: number
-  readonly structural: boolean
+export interface CameraBox {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
   /**
-   * This world's own children, by id. Read for ONE thing: the fan-out that
-   * `frameFillFor` turns into the phone's framing fill, so that a two-child
-   * world and a twenty-child world are not framed as though they were the same
-   * picture. `PositionedNode.childIds` satisfies it, so `WorldNode` still
-   * satisfies this interface structurally and this file still has no edge to the
-   * layout module.
+   * This node's own children, by id. Kept on the interface because the drag
+   * layer and the overlays read the layout through this hook's `order`, and
+   * because a camera that could not tell a leaf from a branch could not answer
+   * "is there anything under this" without a second pass over `nodes`.
    */
   readonly childIds: readonly string[]
 }
 
 /**
- * The drawing, as the CAMERA sees it. `WorldLayout` satisfies it structurally.
+ * The drawing, as the CAMERA sees it. `MindtreeLayout` satisfies it
+ * structurally.
  *
- * `revision` changes IFF THE TREE CHANGED — not when the filter narrows, not
- * when the reader collapses a branch, not when the window resizes. It is the
- * only thing that may re-frame the camera after mount, because it is the only
- * thing that can make a remembered framing point at coordinates the drawing no
- * longer occupies.
+ * NO `revision` HERE ANY MORE, and that is the point of the change rather than
+ * tidying: see `MapGeometryOptions.revision`. A revision that lived ON the
+ * layout was necessarily a fact about the layout, and with real folding the
+ * layout changes on every fold — so the guard that re-frames the camera would
+ * have fired on the commonest gesture on the screen.
  */
-export interface CameraLayout<W extends CameraWorld = CameraWorld> {
-  readonly nodes: readonly W[]
-  readonly byId: ReadonlyMap<string, W>
+export interface CameraLayout<B extends CameraBox = CameraBox> {
+  readonly nodes: readonly B[]
+  readonly byId: ReadonlyMap<string, B>
   /** `Bounds`, in full, because the export's `fitToViewBox` wants all six. */
   readonly bounds: {
     readonly minX: number
@@ -156,9 +163,6 @@ export interface CameraLayout<W extends CameraWorld = CameraWorld> {
     readonly width: number
     readonly height: number
   }
-  /** Diameter of the root world, drawing units. The far end of the dive. */
-  readonly rootD: number
-  readonly revision: string
 }
 
 export interface MapGeometryOptions<L extends CameraLayout> {
@@ -171,18 +175,27 @@ export interface MapGeometryOptions<L extends CameraLayout> {
    */
   layout: L
   /**
-   * The world the INITIAL camera frames — `focusView.node.id`.
+   * ⚠ THE REVISION GUARD, AND IT IS AN ARGUMENT RATHER THAN A FIELD ON THE
+   *   LAYOUT BECAUSE OF WHAT FOLDING DID TO IT.
    *
-   * `useMapFocus` already resolves `?focus=` and the store, with a
-   * deepest-surviving-ancestor fallback and a three-writer convergence guard.
-   * That resolution is not re-derived here and must not be.
+   * `revision` must change IFF THE TREE CHANGED — not when the filter narrows,
+   * not when the reader folds a branch, not when the window resizes. It is the
+   * only thing that may re-frame the camera after mount, because it is the only
+   * thing that can make a remembered framing point at coordinates the drawing no
+   * longer occupies.
+   *
+   * While it lived on `WorldLayout` it satisfied that sentence for free: nothing
+   * could fold, so the layout only changed when the tree did. With real folding
+   * the LAYOUT changes on every fold — different nodes, different bounds — so a
+   * revision derived from the layout would teleport the camera on the commonest
+   * gesture on the screen, which is the exact defect this whole file was
+   * rewritten to destroy, arriving through the one door that was left open.
+   *
+   * So the page computes it over the FULL tree, IGNORING `collapsed`, and hands
+   * it in. Admin edits the hierarchy → re-frame (correct). Reader folds → the
+   * camera holds, and the page calls `reveal()` with the branch that opened.
    */
-  focusWorldId: string | null
-  /**
-   * Phone. Decides WHICH FILL RULE applies and nothing else in this file: the
-   * desktop constant, or `frameFillFor` off the framed world's own fan-out.
-   */
-  compact: boolean
+  revision: string
   rtl: boolean
   svgRef: RefObject<SVGSVGElement | null>
   /**
@@ -238,8 +251,7 @@ interface CameraState {
 
 export function useMapGeometry<L extends CameraLayout>({
   layout,
-  focusWorldId,
-  compact,
+  revision,
   rtl,
   svgRef,
   isPressing,
@@ -249,86 +261,68 @@ export function useMapGeometry<L extends CameraLayout>({
 }: MapGeometryOptions<L>) {
   const { ref: measureRef, box } = useBoxSize({ width: 960, height: 520 })
 
-  /* ── the two ends of the dive ───────────────────────────────────────────── */
+  /* ── the two ends of the zoom ───────────────────────────────────────────── */
 
   /**
-   * THE TERMINUS'S DIAMETER — the smallest STRUCTURAL world in the workspace.
+   * The window that holds the WHOLE drawing — the EXPORT's frame, AND the far
+   * end of the zoom.
    *
-   * WHERE I DEPART FROM THE CONTRACT, AND THE REASON IS THE WHOLE POINT OF THE
-   * UNIT. It asks for *"D(deepest structural world on the CURRENT PATH)"*. The
-   * current path is `worldAt(camera)`'s ancestors — so a bound derived from it
-   * would be `camera → bounds → camera`, which is a feedback cycle of exactly
-   * the shape this file was rewritten to destroy, and one that can oscillate: a
-   * clamp that moves the camera can move the path that produced the clamp.
+   * It reads `layout.bounds`, and it is allowed to: it is keyed on the layout
+   * and the element, never on the camera, so a wheel does not recompute it and
+   * it cannot appear in any cycle. A file does not get covered by a panel, so it
+   * ignores occlusion, and it has no floor because a picture that leaves the app
+   * is the whole picture.
    *
-   * The smallest structural world in the TREE is a mount-time constant, it
-   * permits at least as much magnification as any path needs, and it costs one
-   * linear scan when the admin changes the tree. The price is real and is named:
-   * on a shallow path the reader may magnify further past their deepest
-   * department than the terminus strictly intends. A dead stop that is slightly
-   * too generous is recoverable; a clamp that argues with itself is not.
+   * MOVED ABOVE `cameraBounds` rather than left at the foot of the file, because
+   * it is now what the far end of the zoom IS — see below.
    */
-  const deepestD = useMemo(() => {
-    let smallest = layout.rootD > 0 ? layout.rootD : 1
-    for (const node of layout.nodes) {
-      if (!node.structural) continue
-      if (Number.isFinite(node.worldD) && node.worldD > 0 && node.worldD < smallest) {
-        smallest = node.worldD
-      }
-    }
-    return smallest
-  }, [layout])
+  const wholeMapFit = useMemo<ViewBoxFit>(
+    () => fitToViewBox(layout.bounds, box, { padding: 28, maxScale: 1, minScale: 0 }),
+    [layout.bounds, box],
+  )
+
+  /**
+   * THE MOST CSS PIXELS ONE DRAWING UNIT MAY BE WORTH — the near end of the
+   * zoom, and the whole of it.
+   *
+   * A tidy tree's card is authored at 132x54 with a 12.5px label, so 2:1 puts
+   * that label at 25px — large, and the largest that is still a MAP rather than
+   * a poster of one card. Past it the reader is inside a single word with no
+   * context on the glass, which is the state every reader who has ever
+   * over-zoomed a canvas describes as "lost".
+   *
+   * IT IS A FACT ABOUT PIXELS, NOT ABOUT THE TREE, and that is the change. The
+   * containment drawing's near end was `D(deepest structural world)/2.2` — a
+   * measurement of the DATA — because a dive's terminus is a place. A tree has
+   * no places to arrive at, so a limit derived from the tree would be a limit
+   * that moves when an admin adds a department, for no reason the reader could
+   * see.
+   */
+  const MAX_PX_PER_UNIT = 2
 
   /**
    * The two ends, in DRAWING UNITS OF CAMERA WIDTH.
    *
-   * `minWidth` is the terminus: `D / ZOOM_HEADROOM` puts the deepest
-   * department's world at 2.2× the width of the window, which is as close as the
-   * dive goes. `maxWidth` is the far end: wide enough that the root world still
-   * spans `ROOT_FLOOR_FILL` of the stage's smaller dimension, so pulling all the
-   * way back lands on a picture rather than on the void beside it.
+   * `minWidth` is as close as the camera goes: the element's own width divided
+   * by the pixels-per-unit ceiling. `maxWidth` is as far back as it goes: the
+   * window that holds the whole drawing, so pulling all the way out lands on the
+   * picture and never on the void beside it.
    *
-   * NOT A CAMERA INPUT ANYWHERE IN ITS DERIVATION — `rootD` and `deepestD` are
-   * facts about the tree, and `box` is the element, which is `inset: 0` and does
-   * not resize when something is drawn over it.
+   * BOTH ENDS ARE SPRUNG, unchanged: `rubberBandCamera` draws past them under a
+   * live gesture and `springBack` recoils to them on release, which is the only
+   * "you have arrived" signal in the design and costs no chrome.
+   *
+   * NOT A CAMERA INPUT ANYWHERE IN ITS DERIVATION — `wholeMapFit` is the layout
+   * and the element, and `box` is the element, which is `inset: 0` and does not
+   * resize when something is drawn over it.
    */
-  const cameraBounds = useMemo<CameraBounds>(() => {
-    const rootD = layout.rootD > 0 ? layout.rootD : 1
-    const v = Math.max(1, Math.min(box.width, box.height))
-    return {
-      maxWidth: (rootD * Math.max(1, box.width)) / (ROOT_FLOOR_FILL * v),
-      minWidth: deepestD / ZOOM_HEADROOM,
-    }
-  }, [layout.rootD, deepestD, box])
-
-  /**
-   * HOW MUCH OF THE STAGE THE FRAMED WORLD FILLS — a function of ITS FAN-OUT on
-   * a phone, and the desktop constant everywhere else.
-   *
-   * THE ONE DERIVATION POINT, and it moved from a device to a measurement.
-   * `FRAME_FILL_PHONE = 1.25` was derived from "a child of the framed world must
-   * land at card size", using the brief's parent/child ratio of 2.69 — but
-   * `radial.ts` implements the PAIR constraint and the real six-wide ratio is
-   * 3.83, so the constant was solving for a picture the packing does not draw.
-   * `frameFillFor` solves the same sentence against the packing that ships:
-   * 1.23 at six children (where 1.25 came from), 0.80 at two, the 1.6 ceiling
-   * past eight. `mapMotion.ts`'s doc block carries the whole arithmetic.
-   *
-   * DESKTOP IS UNTOUCHED. 0.87 is not a card-size derivation — it is "the
-   * world's rim is inside the glass when you arrive" — and at 835 px of stage it
-   * already puts a six-wide child at 189 px, comfortably inside the CARD band.
-   * Deriving it from fan-out too would clamp it to the 0.6 floor and buy a
-   * smaller picture for nothing.
-   *
-   * `layout.byId` IS NOT A CAMERA INPUT: `focusWorldId` is the drill-in, and
-   * `box` is the element. Neither depends on the camera, so this memo cannot
-   * re-open the `camera → layout → bounds → camera` cycle this file destroyed.
-   */
-  const frameFill = useMemo(() => {
-    if (!compact) return FRAME_FILL_DESKTOP
-    const framed = focusWorldId === null ? undefined : layout.byId.get(focusWorldId)
-    return frameFillFor(framed?.childIds.length ?? 0, Math.min(box.width, box.height))
-  }, [compact, focusWorldId, layout, box])
+  const cameraBounds = useMemo<CameraBounds>(
+    () => ({
+      maxWidth: Math.max(wholeMapFit.width, 1),
+      minWidth: Math.max(box.width, 1) / MAX_PX_PER_UNIT,
+    }),
+    [wholeMapFit.width, box.width],
+  )
 
   /* ── the one read of layout.bounds ──────────────────────────────────────── */
 
@@ -342,31 +336,40 @@ export function useMapGeometry<L extends CameraLayout>({
    * anywhere in the render path whose value depends on both the camera and the
    * drawing's extent, so there is nothing for a cycle to run around.
    *
+   * IT FRAMES THE WHOLE DRAWING, and that is not a retreat from framing the
+   * drill-in: the layout is BUILT from `focusView.node`, so the drawing IS the
+   * focused subtree and its bounds are that subtree's bounds. `focusWorldId` was
+   * therefore a second spelling of the same answer, and it is gone.
+   *
+   * `maxScale: 1` — a drawing smaller than the window is shown at 1:1 and
+   * centred, never blown up to fill it. Same rule, and the same reason, as
+   * `wholeMapFit`'s: text inside a viewBox scaled past 1:1 is text rendered at a
+   * size nobody chose.
+   *
    * NO OCCLUSION. The resting camera never sees it.
    */
   const initialCamera = useCallback(
-    (viewport: Box): Camera => {
-      const framed = focusWorldId === null ? undefined : layout.byId.get(focusWorldId)
-      const world = framed ?? {
-        // The fallback is the whole drawing, and it is the ONLY read of
-        // `layout.bounds` in this file's camera path.
-        worldX: layout.bounds.minX + layout.bounds.width / 2,
-        worldY: layout.bounds.minY + layout.bounds.height / 2,
-        worldD: Math.max(layout.bounds.width, layout.bounds.height),
-      }
-      return clampCamera(
-        frameCamera(world, { viewport, frameFill, occlusion: NO_OCCLUSION, rtl }),
+    (viewport: Box): Camera =>
+      clampCamera(
+        frameBox(
+          {
+            x: layout.bounds.minX,
+            y: layout.bounds.minY,
+            width: layout.bounds.width,
+            height: layout.bounds.height,
+          },
+          { viewport, occlusion: NO_OCCLUSION, rtl, maxScale: 1 },
+        ),
         cameraBounds,
-      )
-    },
+      ),
     // `cameraBounds` is in the closure and is derived from `box`; the callers
     // are the initializer and the revision guard, both of which want the
     // bounds current at the moment they run.
-    [layout, focusWorldId, frameFill, rtl, cameraBounds],
+    [layout, rtl, cameraBounds],
   )
 
   const [state, setState] = useState<CameraState>(() => ({
-    revision: layout.revision,
+    revision,
     camera: initialCamera({ width: 960, height: 520 }),
     provisional: true,
   }))
@@ -378,9 +381,12 @@ export function useMapGeometry<L extends CameraLayout>({
    * prop changes, and it is the right one here: an effect would paint one frame
    * of the old camera against the new drawing, which is a visible flash of the
    * map at coordinates that no longer mean anything.
+   *
+   * ⚠ `revision` IS THE ARGUMENT AND NOT `layout.revision`, and that difference
+   *   is the fold. See `MapGeometryOptions.revision`.
    */
-  if (state.revision !== layout.revision) {
-    setState({ revision: layout.revision, camera: initialCamera(box), provisional: false })
+  if (state.revision !== revision) {
+    setState({ revision, camera: initialCamera(box), provisional: false })
   }
 
   const stored = state.camera
@@ -560,38 +566,69 @@ export function useMapGeometry<L extends CameraLayout>({
   )
 
   /**
-   * ⚠ `frameFill` HERE IS THE WORLD THE READER IS IN, NOT THE ONE THEY ARE FLYING
-   * TO, and that is a named approximation rather than an oversight. `flyTo` takes
-   * a bare `{worldX, worldY, worldD}` — the shape three call sites outside this
-   * file already build — so the destination's fan-out is not in scope, and
-   * widening that parameter would change a signature the crumb bar, the dive rail
-   * and the keyboard all pass. The error is bounded and small: fan-out changes by
-   * one tier per dive, and `frameFillFor` moves 1.23 → 1.6 across four tiers of
-   * fan-out. Wave 6's grouping caps the ring at 16 on a phone, which bounds it
-   * further; widen the parameter then, with the cap, or not at all.
+   * The two measured occlusions and the reading direction, through a ref so the
+   * two moves below keep stable identities across a panel resize — `dive` in
+   * `pages/Mindtree.tsx` is a memo over them, and every node on the map lives
+   * under the `onKeyDown` that memo builds.
    */
-  const frameOptionsRef = useRef({ frameFill, occludeInline, occludeBlockEnd, rtl })
-  frameOptionsRef.current = { frameFill, occludeInline, occludeBlockEnd, rtl }
+  const frameOptionsRef = useRef({ occludeInline, occludeBlockEnd, rtl })
+  frameOptionsRef.current = { occludeInline, occludeBlockEnd, rtl }
 
   /**
-   * FLY TO A WORLD — a tap on a department, a crumb, a rail release.
+   * FRAME A BOX — a tap on a branch, a crumb, a search result.
    *
-   * The one place occlusion enters the camera: the world is framed in the
-   * rectangle the reader can actually see through, so a dive with the panel open
-   * lands beside the panel rather than behind it.
+   * The one place occlusion enters the camera: the box is framed in the
+   * rectangle the reader can actually see through, so arriving with the panel
+   * open lands beside the panel rather than behind it.
+   *
+   * ⚠ THE CALLER DECIDES WHAT THE BOX IS, and for a branch it should be
+   *   `subtreeBounds(layout, id)` rather than the node's own card — "take me to
+   *   Infrastructure" means the department, not the 132x54 rectangle with its
+   *   name in it. That resolution is the page's because `subtreeBounds` is the
+   *   layout module's, and this file has no edge to it.
+   *
+   * `maxScale: 1` — never magnify past 1:1 to fill the window with a small
+   * target. A single card asked for at 6.8:1 is a poster of one word.
    */
   const flyTo = useCallback(
-    (world: { readonly worldX: number; readonly worldY: number; readonly worldD: number }) => {
+    (target: MotionBox) => {
       const options = frameOptionsRef.current
-      const framed = frameCamera(world, {
+      const framed = frameBox(target, {
         viewport: boxRef.current,
-        frameFill: options.frameFill,
         occlusion: { inlineEnd: options.occludeInline, blockEnd: options.occludeBlockEnd },
         rtl: options.rtl,
+        maxScale: 1,
       })
       flyToCamera(clampCamera(framed, boundsRef.current))
     },
     [flyToCamera],
+  )
+
+  /**
+   * REVEAL A BOX — THE MINIMUM MOVE, AND IT NEVER TOUCHES THE READER'S ZOOM.
+   *
+   * This is what a FOLD calls. Opening a branch grows the drawing downward, and
+   * the branch that opened may land wholly below the window — so the camera has
+   * to pan to it, and it must NOT re-frame: a reader who chose a zoom and then
+   * opened a branch did not ask to be taken somewhere else at a magnification
+   * they did not pick. `flyToCamera` (the pure one, imported as `cameraShowing`)
+   * is exactly that rule: the scale factor is at least 1, so the camera pulls
+   * back only when the box is too big for the window it is in, and never in.
+   *
+   * IT IS ALSO THE FIRST PRODUCTION CALL OF THAT FUNCTION. It was written,
+   * tested and unreached while the drawing was containment, because there a
+   * branch is a world you fly INTO and the minimum move was never the answer.
+   */
+  const reveal = useCallback(
+    (target: MotionBox) => {
+      flyToCamera(
+        clampCamera(
+          cameraShowing(target, liveCamera(), { maxWidth: boundsRef.current.maxWidth }),
+          boundsRef.current,
+        ),
+      )
+    },
+    [flyToCamera, liveCamera],
   )
 
   /**
@@ -624,34 +661,19 @@ export function useMapGeometry<L extends CameraLayout>({
    */
   const zoomPercent = Math.round(scale * 100)
 
-  /**
-   * The window that holds the WHOLE drawing — the EXPORT's frame, and the only
-   * fit left in the file.
+  /*
+   * `wholeMapFit` USED TO STAND HERE. It is declared at the top of the hook now,
+   * beside `cameraBounds`, because it is what the far end of the zoom IS — and a
+   * value read by a memo two hundred lines above its own declaration is a value
+   * nobody can check the cycle-freedom of by reading downwards.
    *
-   * It reads `layout.bounds`, and it is allowed to: it is keyed on the layout
-   * and the element, never on the camera, so a wheel does not recompute it and
-   * it cannot appear in any cycle. A file does not get covered by a panel, so it
-   * ignores occlusion, and it has no floor because a picture that leaves the app
-   * is the whole picture.
+   * `octaves` / `octaveSpan` ARE DELETED. They said where the reader was on a
+   * DIVE THROUGH NESTED WORLDS, measured in doublings of the root world's
+   * diameter, and a tidy tree has neither: its depth is the fold, not the zoom.
+   * `octavesOf` stays exported from mapMotion — it is pure, tested, and the
+   * depth rail that replaces `MapDiveRail` will not want it either, so it is
+   * kept rather than deleted only until that rail lands.
    */
-  const wholeMapFit = useMemo<ViewBoxFit>(
-    () => fitToViewBox(layout.bounds, box, { padding: 28, maxScale: 1, minScale: 0 }),
-    [layout.bounds, box],
-  )
-
-  /**
-   * WHERE THE READER IS ON THE DIVE, in octaves, zeroed at the widest view the
-   * camera allows so the rail can be `min={0} max={octaveSpan}` with no offset
-   * arithmetic at the control.
-   *
-   * A difference of two `octavesOf` readings rather than a second formula, so
-   * the rail and the fly agree about what an octave is by construction.
-   */
-  const vMin = Math.max(1, Math.min(box.width, box.height))
-  const octaveFloor = octavesOf(cameraAtWidth(camera, cameraBounds.maxWidth), layout.rootD, vMin)
-  const octaves = octavesOf(camera, layout.rootD, vMin) - octaveFloor
-  const octaveSpan =
-    octavesOf(cameraAtWidth(camera, cameraBounds.minWidth), layout.rootD, vMin) - octaveFloor
 
   /* ── pointer arithmetic ─────────────────────────────────────────────────── */
 
@@ -887,8 +909,8 @@ export function useMapGeometry<L extends CameraLayout>({
       if (pointersRef.current.size < 2 && pinchRef.current !== null) {
         pinchRef.current = null
         // THE SPRING IS THE ONLY "YOU HAVE ARRIVED" SIGNAL IN THE DESIGN, and it
-        // costs no chrome: past the terminus the picture resists, and on release
-        // it recoils to the stop.
+        // costs no chrome: past either end of the zoom the picture resists, and
+        // on release it recoils to the stop.
         springBack()
       }
       if (pointersRef.current.size === 0) {
@@ -910,8 +932,8 @@ export function useMapGeometry<L extends CameraLayout>({
     /**
      * The drawing's nodes, WITH THE CALLER'S OWN ELEMENT TYPE.
      *
-     * `L` is generic and its constraint is `CameraLayout<CameraWorld>`, so a
-     * plain `layout.nodes` reads at the CONSTRAINT's element type — the four
+     * `L` is generic and its constraint is `CameraLayout<CameraBox>`, so a
+     * plain `layout.nodes` reads at the CONSTRAINT's element type — the five
      * fields this file needs — and every downstream consumer (the roving tab
      * stop, the overlays, the drag layer, the node renderer) would lose the
      * dozen it needs. The indexed access says "whatever L's own nodes are",
@@ -924,23 +946,13 @@ export function useMapGeometry<L extends CameraLayout>({
     camera,
     setCamera,
     flyTo,
+    /**
+     * THE FOLD'S MOVE. Pans to a box without changing the reader's zoom — see
+     * `reveal` above for why a fold must not re-frame.
+     */
+    reveal,
     /** Drawing units per CSS pixel — what the LOD bands are measured against. */
     scale,
-    /**
-     * HOW MUCH OF THE STAGE A FRAMED WORLD FILLS, RESOLVED ONCE — returned so
-     * that it is resolved once.
-     *
-     * `pages/Mindtree.tsx` held a SECOND copy of `compact ? phone : desktop` for
-     * the dive rail's octave ticks, and two copies of a fill rule is two fill
-     * rules one edit apart: the rail's rungs would keep saying where the camera
-     * WOULD sit using a number the camera no longer uses, and the tick you drag
-     * to would not be the framing you land in. Now that the rule is a function
-     * of the framed world's fan-out rather than of the device, that drift is
-     * guaranteed rather than possible. Read this instead.
-     */
-    frameFill,
-    octaves,
-    octaveSpan,
     cameraBounds,
     /**
      * ALREADY ATTACHED, non-passively, by `canvasRef`. Returned so the behaviour

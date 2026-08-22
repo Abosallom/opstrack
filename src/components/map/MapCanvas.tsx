@@ -111,13 +111,16 @@ export interface MapCanvasProps {
    * ── WHY THE PAGE SAYS SO AND THIS COMPONENT DOES NOT WORK IT OUT ──────────
    *
    * The obvious test is "does the layout have worlds", and it is WRONG, which
-   * is the whole reason this is a prop. `pages/map/treePreview.ts` bolts
-   * invented disc geometry onto the tidy tree so the containment camera can
-   * frame and cull it — every node comes out with a `worldD` — so a component
-   * asking that question would answer "containment" for the drawing that is
-   * least like it, and would go on picking a level of detail for a drawing whose
-   * first rule is that there is none. The page is the one place that knows which
-   * layout it just built; being told is the honest form of the question.
+   * is the whole reason this is a prop. It was wrong loudly while the deleted
+   * `pages/map/treePreview.ts` bolted invented disc geometry onto the tidy tree
+   * so the containment camera could frame it — every node came out with a
+   * `worldD`, so the question answered "containment" for the drawing least like
+   * it. It stays a prop now that the bridge is gone, because `pages/Mindtree.tsx`
+   * draws only the tree while THIS COMPONENT IS STILL RENDERED AGAINST THE
+   * CONTAINMENT DRAWING by `pages/map/mapRender.test.tsx`, which holds the world
+   * geometry honest. A component that guessed would guess for that one too. The
+   * caller is the one place that knows which layout it just built; being told is
+   * the honest form of the question.
    *
    * ── WHAT IT CHANGES HERE, IN FULL ────────────────────────────────────────
    *
@@ -256,9 +259,10 @@ export default function MapCanvas({
       // not a sentinel picked for tidiness: `DOM_HORIZON_PX` culls on this
       // number, and "every card is drawn in full at every zoom" is exactly the
       // statement that no camera can ever put a node under that horizon. The
-      // same value is what a world-less layout already reported, so the tidy
-      // tree keeps behaving as it did before `treePreview.ts` started inventing
-      // discs for it.
+      // same value is what a world-less layout already reported, which is why
+      // the two clauses agree: the tidy tree reads INFINITE both because it is
+      // flat and because it has no disc, and it did so before and after the
+      // deleted preview bridge briefly invented discs for it.
       if (flat || pos.worldD === undefined) {
         out.set(pos.id, { band: 'card', out: 0, apparent: Number.POSITIVE_INFINITY })
         continue
