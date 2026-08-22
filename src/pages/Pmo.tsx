@@ -826,7 +826,7 @@ function Initiatives({
 }): ReactElement {
   const shown = rows === null ? [] : rows.slice(0, INITIATIVE_ROWS)
   return (
-    <Section id="pmo-initiatives" title={t('pmo.initiatives')} desc={t('pmo.initiativesDesc')}>
+    <Section id="pmo-commitments" title={t('pmo.commitments')} desc={t('pmo.commitmentsDesc')}>
       {rows === null ? (
         failed ? (
           <EmptyState title={t('pmo.initError')} description={t('pmo.initErrorHint')} />
@@ -846,10 +846,10 @@ function Initiatives({
           <table className="pmo-table">
             {/* The section's own heading IS the caption — RiskTable's pattern,
                 and it costs no second string that could be edited out of step. */}
-            <caption className="sr-only">{t('pmo.initiatives')}</caption>
+            <caption className="sr-only">{t('pmo.commitments')}</caption>
             <thead>
               <tr>
-                <th scope="col">{t('pmo.colInitiative')}</th>
+                <th scope="col">{t('pmo.colCommitment')}</th>
                 <th scope="col">{t('pmo.colScope')}</th>
                 <th scope="col">{t('pmo.colProgress')}</th>
                 <th scope="col">{t('pmo.colDue')}</th>
@@ -977,7 +977,7 @@ function Projects({
 }): ReactElement {
   const shown = rows.slice(0, PROJECT_CARDS)
   return (
-    <Section id="pmo-projects" title={t('pmo.projects')} desc={t('pmo.projectsDesc')}>
+    <Section id="pmo-delivery" title={t('pmo.delivery')} desc={t('pmo.deliveryDesc')}>
       {/* ⚠ MANDATORY WHEN SET. Every "Past its stage" pill below counts from the
           day named here, and a grid of red pills with nothing saying what
           started their clocks is the failure this sentence exists to stop. */}

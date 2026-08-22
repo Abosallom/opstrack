@@ -444,7 +444,7 @@ describe('the initiatives table', () => {
     // empty state here would be a lie with a spinner's timing.
     workspace({ nodes: [node({ id: 'a' })], goals: null })
     const loading = render()
-    expect(loading).toContain('aria-labelledby="pmo-initiatives"')
+    expect(loading).toContain('aria-labelledby="pmo-commitments"')
     expect(loading).not.toContain(asHtml(t('pmo.initEmpty')))
     expect(loading).not.toContain(asHtml(t('pmo.initError')))
 
@@ -921,8 +921,8 @@ describe('the assembled page', () => {
     const html = render()
     for (const id of [
       'pmo-overview',
-      'pmo-initiatives',
-      'pmo-projects',
+      'pmo-commitments',
+      'pmo-delivery',
       'pmo-actions',
       'pmo-risks',
     ]) {

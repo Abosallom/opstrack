@@ -547,11 +547,35 @@
   }
 }
 
+/* THE DESTINATION SWITCH IN THE HEADER — PHONE ONLY.
+
+   The bottom tab bar is gone (see its deletion note above) and it is not coming
+   back: it covered `MapCapture`. But `NAV` grew a second destination after that
+   note was written, and under 768px `/pmo` had no route to it at all — the
+   sidebar is `display: none` here, and the lens chips, `MapModeBar` and the
+   header gear all lead somewhere else.
+
+   So the switch lives in the header, which is present at every width and sits at
+   the block START, where no composer can be. Icon-only, because the header row
+   is already four controls wide on a narrow phone and a label per destination
+   would push the title out.
+
+   It is HIDDEN from 768px up, where `.sidebar` renders the same list with labels.
+   Rendering both would put one destination in two places on the same screen. */
+.app-header-dest {
+  flex: 0 0 auto;
+}
+
 /* ---------- desktop (>= 768px) ---------- */
 
 @media (min-width: 768px) {
   .sidebar {
     display: flex;
+  }
+
+  /* The sidebar is back, and it carries these with labels. See `.app-header-dest`. */
+  .app-header-dest {
+    display: none;
   }
 
   .main-content {

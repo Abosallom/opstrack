@@ -276,6 +276,38 @@ function AppHeader({ titleKey }: { titleKey: string }): ReactElement {
     <header className="app-header">
       <h1 className="app-header-title">{t(titleKey)}</h1>
       <div className="app-header-actions">
+        {/* ── THE PHONE'S ONLY ROUTE BETWEEN DESTINATIONS ──────────────────
+
+            ⚠ UNDER 768px THESE WERE UNREACHABLE. The bottom tab bar was
+            deleted for a good reason — it landed on top of `MapCapture`, the
+            one input the mobile design exists to put under a thumb — and its
+            note says "what was deleted is the SWITCHING, not the destinations".
+            That was true when `NAV` held ONE destination. It now holds two, and
+            `/pmo` is reached from neither the lens chips, nor `MapModeBar`, nor
+            the gear. On a phone there was no way to open it at all.
+
+            SO THE SWITCH GOES IN THE HEADER, not back over the composer. The
+            header is the one piece of chrome present at every width, it is
+            already the row that owns cross-cutting controls, and it cannot
+            collide with a composer docked at the block END of the stage.
+
+            HIDDEN AT >= 768px, where `Sidebar` already renders exactly this
+            list — see `.app-header-dest` in app-shell.css. Two controls for one
+            destination on a wide screen is a second mark in one place.
+
+            IT READS `NAV`, so a third destination appears here the day it is
+            added rather than the day somebody remembers this file. */}
+        {NAV.map(({ to, icon: Icon, navKey }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className="btn btn-ghost btn-icon app-header-dest"
+            aria-label={t(navKey)}
+            title={t(navKey)}
+          >
+            <Icon size={20} />
+          </NavLink>
+        ))}
         {/* First in the row, and eagerly imported: the bell is chrome, so it is
             on every screen, and its unread count is the one thing here that
             changes without the user doing anything. It owns its own popover
