@@ -17,6 +17,7 @@ done or not yet reached.
 
 | File | Covers | Pages | Source of record |
 |---|---|---|---|
+| `walkthrough.pdf` | **Do this before handing out any code.** Fifteen minutes on a phone: ten things to try and exactly what each should do, plus the list of what is expected-not-broken | 4 | Driven end-to-end as a real member account, 23 Aug 2026 |
 | `next-steps.pdf` | **Start here.** The four things left that are yours: hand out 9 codes, reissue 16, put one project in the new portfolio, decide the 33 unowned organizations | 9 | A live probe of the database and auth users, 22 Aug 2026 |
 | `yours.pdf` | **What is on you, and nothing else.** One Jira token now, real email addresses later — plus the live check that found the workspace is still demo data | 8 | A live probe of the database, 22 Aug 2026 |
 | `next.pdf` | ~~Start here.~~ **Superseded — see above.** The eight remaining steps, with diagrams — what is done, what is next, who does each | 12 | OWNER-PLAYBOOK + the live probes |
