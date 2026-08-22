@@ -649,6 +649,51 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
     ],
   },
 
+  // The PMO dashboard, placed straight after the Numbers lens it shares its
+  // vocabulary with: `dashboard.statOpen` and `pmo.organizations` are two
+  // headline counters an owner meets in one sitting, and a rename of one is
+  // very often a rename of the other. Its default is `screenTitles` rather than
+  // `entryFields` because most of this namespace is HEADINGS and SENTENCES —
+  // the page's whole job is to say what is true, so the rules below pull the
+  // handful of column captions and the many empty-state lines out, and the rest
+  // are the words that name the three sections.
+  pmo: {
+    section: 'screenTitles',
+    where: 'terminology.where.pmo',
+    rules: [
+      { prefixes: ['deliveryAll'], section: 'actions' },
+      // ⚠ MOST OF THIS NAMESPACE IS AN EMPTY STATE, and that is the design
+      //   rather than an accident: four of the five arms of the lateness card
+      //   are sentences the page prints INSTEAD of a number it has not earned,
+      //   and each one is a thing the owner may want to word differently.
+      {
+        prefixes: [
+          'deliveryEmpty',
+          'empty',
+          'lateMeasured',
+          'lateNo',
+          'lateTooEarly',
+          'riskEmpty',
+          'slaNone',
+        ],
+        section: 'emptyStates',
+      },
+      { prefixes: ['asOf', 'readingHint', 'slaRate', 'slaUnmeasured'], section: 'messages' },
+      {
+        prefixes: [
+          'colRaised',
+          'colReading',
+          'colWaiting',
+          'deliveryNotStaged',
+          'organizations',
+          'reading',
+          'waiting',
+        ],
+        section: 'entryFields',
+      },
+    ],
+  },
+
   // ── the aggregate screens ───────────────────────────────────────────────
   meeting: {
     section: 'entryFields',

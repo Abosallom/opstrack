@@ -1820,30 +1820,82 @@ svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
     inline-size: calc(100% + 2 * var(--main-pad-inline, 18px));
     block-size: calc(100dvh - var(--app-header-block-size, 65px));
     display: grid;
-    /* THE STAGE, THE CAPTION, THE COMPOSER — and `minmax(0, 1fr)` rather than
-       `1fr`, because a grid track's automatic minimum is its content's min-size
-       and `.mpan-split` holds a drawing that would refuse to shrink below its
-       own bounds. Without the `0` floor the composer is pushed off the bottom of
-       a fixed-height grid by a map nobody asked to be that big. */
-    grid-template-rows: minmax(0, 1fr) auto auto;
+    /* THE RAIL, THE STAGE, THE CAPTION, THE COMPOSER — and the leading `auto` is
+       the fix for the defect this screen was actually shipping.
+
+       THE CHROME WAS OUT OF FLOW AND ON TOP OF THE PICTURE. Driven at 1491x812,
+       the lens rail was painted across the root card and, on the portfolio lens,
+       across that table's OWN control row: "Only past their s…" sheared mid-word
+       and "No stage has been given a time yet, so nothing can be past it. Set
+       how lon…" cut off at the plate's edge. Nothing was truncated — every one
+       of those elements was at its full width, UNDER an opaque island at
+       z-index 3. The owner's sentence for it was "all options around the map
+       makes it disturbing", and he was reading a collision, not a preference.
+
+       WHY THE FLOAT WAS RIGHT ONCE AND IS NOT NOW. It bought the drawing back
+       from THREE stacked rows of chrome — a title, a filter bar, a lens row and
+       a toolbar row — which measured 54% of a 1600x900 viewport. That is a
+       trade worth making. What is left in the rail today is ONE row: the filter,
+       the group-by chips and the summary strip are all unmounted (see
+       `Mindtree.tsx`, "QUIET BY DEFAULT"), so the float now buys back 62px and
+       spends the top of every drawing on this screen to do it. A row is cheaper
+       than a collision, and a reserved row is the only version of this that
+       cannot be got wrong by a locale, a chip count or a wrap.
+
+       `auto` AND NOT A NUMBER, which is the whole reason this is a grid row
+       rather than a `padding-block-start` on the stage. The rail's height is a
+       function of its content — the chips wrap, Arabic runs wider, the trail
+       appears on a drill-in — and every version of this file that tried to state
+       that height as a constant (`68px`, `136px`, and the two of them
+       disagreeing) shipped either a gap or an overlap. A track sized by its
+       content is right at every width in both languages by construction.
+
+       `minmax(0, 1fr)` rather than `1fr` for the stage, unchanged and for the
+       unchanged reason: a grid track's automatic minimum is its content's
+       min-size, and `.mpan-split` holds a drawing that would refuse to shrink
+       below its own bounds — without the `0` floor the composer is pushed off
+       the bottom of a fixed-height grid by a map nobody asked to be that big. */
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
     gap: 8px;
     overflow: hidden;
   }
 
-  /* THE ISLAND LAYER — one sheet over the stage that refuses pointers, so the
-     canvas underneath keeps every press that does not land on a control. Out of
-     flow, so it claims none of the three grid rows.
+  /* THE CONTROL ROW — the grid's own leading track, and no longer a sheet over
+     the picture. It is the box the rail is laid out in, and it claims exactly
+     the room the rail needs and not one pixel of the stage.
+
+     `pointer-events: none` SURVIVES THE MOVE, and it is not vestigial. The layer
+     still spans the whole inline axis while the plates inside it do not, so the
+     empty half of the row is a transparent box the reader can press — and the
+     one thing that must keep working there is nothing at all, because a press
+     that lands on chrome and does nothing is the answer a reader can read. It
+     also keeps this rule true if the layer is ever floated again: the refusal
+     and the taking-back are one pair, stated in one place, and
+     `MindtreeShell.test.ts` holds both halves.
+
+     `position: relative` FOR THE ONE ISLAND THAT IS STILL OUT OF FLOW. The
+     filter group opens a 722px facet panel and must grow OVER the canvas rather
+     than push it down; it is absolutely positioned inside `.mtree-rail`, which
+     is itself positioned, so this is the belt to that braces — and it starts no
+     stacking context of its own beyond the `z-index` below, which the panel
+     needs in order to paint over the trail rather than through it.
+
+     `z-index: 3` KEEPS THE PANEL AND THE LADDER IN THE ORDER THEY WERE IN. A
+     grid item honours `z-index` without `position`, so the number means the same
+     thing it meant when this was an overlay.
 
      12px of padding here rather than a `12px` inset repeated on every island:
      the rail stretches to this box and everything inside it is placed against
-     the rail, so the stage's margin is stated once. `padding` (all four sides
-     equal) is direction-agnostic and needs no logical form. */
+     the rail, so the stage's margin is stated once. The block-END padding is 0
+     because the grid's own 8px `gap` is the air under the rail — stating both
+     would be 20px of nothing between the chrome and the picture. `padding` is
+     written long-hand for that reason, and each side is direction-agnostic. */
   .mtree-isles {
-    position: absolute;
-    inset: 0;
+    position: relative;
     z-index: 3;
     display: block;
-    padding: 12px;
+    padding-block: 12px 0;
+    padding-inline: 12px;
     pointer-events: none;
   }
 
@@ -1874,16 +1926,34 @@ svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
                on the row, in the order and at the edges the reader last saw.
 
      The second is the one this sheet already priced ("the second line takes
-     44px, not 300"), so the rail refuses to wrap and the shellbar is the item
-     that may shrink — down to its own min-content, which is one chip wide. The
+     44px, not 300"), so the CONTROL GROUPS still resolve a squeeze by shrinking
+     the shellbar — down to its own min-content, which is one chip wide. The
      group-by does not shrink: a control whose whole job is to NAME the active
      dimension may not be the thing that gets shortened.
 
+     `wrap` AND NOT `nowrap`, AND EXACTLY ONE ITEM MAY USE IT. The rail is in the
+     grid's flow now, so the trail under it has to be in the flow too or it
+     hangs over the top of the picture — which is the defect this whole block is
+     removing, one island smaller. `.mtree-work` claims `flex-basis: 100%`, which
+     is a line it cannot share; the two control groups are `flex: 0 1 auto` and
+     `flex: 0 0 auto` and both fit on the first line at every width this layout
+     exists at (1281 of 1344 measured above, and the shellbar shrinks below
+     that). The cost of the word is stated rather than hidden: if the group-by
+     island is mounted again AND the viewport is under ~1537px, it will now take
+     a second line instead of squeezing the shellbar. That is the day to give the
+     two groups a row of their own, which this grid can hand them for nothing.
+
      `justify-content: flex-end` puts the two end groups against the reading
-     end; the filter group is out of flow (below) and the reserve it needs is
-     this rail's `padding-inline-start`. `--mtree-find-inline` is declared once,
-     here, and both the reserve and the group's own width are read from it, so
-     there is no second number to keep in step.
+     end; the filter group is out of flow (below), and what keeps the end groups
+     from being laid out UNDERNEATH it is a cap on those groups rather than a
+     `padding-inline-start` on this rail. The padding was right while the rail
+     held one line — it is wrong now that the trail has one of its own, because a
+     padding belongs to every line and the reserve belongs to exactly one: it put
+     the breadcrumb 396px into the picture, in the middle of a row nothing else
+     was on. A `max-inline-size` on the groups says the same thing where it is
+     true. `--mtree-find-inline` is still declared once, here, and the cap and
+     the group's own width are both read from it, so there is no second number to
+     keep in step.
 
      POINTERS OFF: the rail is a transparent box across the whole width of the
      picture, and at `auto` it would swallow the press that starts a pan just as
@@ -1893,11 +1963,11 @@ svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
 
     position: relative;
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: flex-start;
     justify-content: flex-end;
-    gap: 12px;
-    padding-inline-start: calc(var(--mtree-find-inline) + 12px);
+    column-gap: 12px;
+    row-gap: 12px;
     pointer-events: none;
   }
 
@@ -1915,6 +1985,18 @@ svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
      a flex item's automatic minimum is its content's min-content size, so
      without it the shellbar would refuse to go below one unwrapped line and
      would push the group-by off the rail's end instead of wrapping. */
+  /* THE RESERVE, ON THE TWO GROUPS IT IS FOR. Neither may be laid out under the
+     filter island, which is out of flow at the rail's start and up to 722px
+     tall; capping them is the same guarantee the rail's `padding-inline-start`
+     used to give, minus the line it was also reserving on — the trail's. What
+     happens when a group meets the cap is what this sheet already prices: it
+     wraps INSIDE ITS OWN PLATE, taking 44px of its own block size and leaving
+     every group where the reader last saw it. */
+  .mtree-shellbar,
+  .mtree-group {
+    max-inline-size: calc(100% - var(--mtree-find-inline) - 12px);
+  }
+
   .mtree-shellbar {
     flex: 0 1 auto;
   }
@@ -1957,44 +2039,61 @@ svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
     z-index: 2;
   }
 
-  /* THE TRAIL, under the rail rather than at a number that hopes to clear it.
-     `inset-block-start: 100%` is the rail's OWN block end, so when the lens
-     island wraps to two lines the trail moves with it — the previous `68px` was
-     12px of inset plus a 44px control plus 12px of air, and it silently stopped
-     being right the moment anything on the row was taller than one line. */
+  /* THE TRAIL, ON ITS OWN LINE OF THE RAIL — in the flow, and that is the change.
+
+     It used to be `position: absolute; inset-block-start: 100%`, which is the
+     rail's own block end and was the right answer while the rail floated: the
+     island grew DOWN over a picture it was already floating on, and cost the
+     drawing nothing. With the rail in the grid's leading track that same
+     declaration is the last piece of chrome still painting on the canvas — the
+     breadcrumb plate sat across the top-start corner of the drawing, and on the
+     portfolio lens across that table's first rows.
+
+     `flex-basis: 100%` IS THE LINE BREAK, and the reason the rail wraps at all.
+     A flex item whose base size is the whole line cannot share one, so the trail
+     lands under the control groups and never beside them — which is where an
+     INDICATOR belongs: it is the way back out of a drill-in and a fact about the
+     drawing, not a control on the row of controls.
+
+     THE PLATE COMES OFF WITH THE FLOAT, exactly as the phone block already
+     argues for its own rail: "an island is a plate over a drawing", and this row
+     is no longer over the drawing. A card round a breadcrumb sitting on the
+     page's own ground is a border drawn for nothing, and at 100% of the rail it
+     would be a full-width bar of it. What is left is the words, at the reading
+     start, in the row the grid already paid for.
+
+     It appears only on a drill-in or a truncated load, so the row it adds is one
+     the reader has just asked for; the stage re-fits under it because the canvas
+     is a real grid track and `useBoxSize` measures what it is given. */
   .mtree-work {
-    position: absolute;
-    inset-block-start: 100%;
-    inset-inline-start: 0;
-    margin-block-start: 12px;
+    flex-basis: 100%;
     max-inline-size: 100%;
+    padding: 0;
+    background: none;
+    border: 0;
+    box-shadow: none;
   }
 
-  /* WHAT THE CANVAS SAYS, CENTRED IN WHAT THE RAIL LEAVES.
+  /* WHAT THE CANVAS SAYS, IN THE MIDDLE OF THE CANVAS.
 
-     136px is the rail's WORST case and not its resting one, because the reserve
-     may not be a bet on which locale is running. Measured, the rail is 38px (a
-     32px chip in a 6px plate) and the filter group beside it is 52 (a 44px
-     input in the same plate); the reserve is sized for the wrapped rail plus
-     the trail island that sits under it:
+     THE 136px BLOCK-START RESERVE IS GONE, and every term of it with the float
+     that needed it. It was the rail's WORST case — 12 inset + 6 plate + 44
+     control + 16 row gap + 44 second line + 12 air — spent so that an empty
+     workspace's one sentence would not be painted on by chrome floating over the
+     same pixels. The chrome has a grid track of its own now, so the reserve is
+     136px of block start that nothing occupies: it would push "No tracks yet"
+     and its instruction a fifth of the way down a stage they are supposed to be
+     centred in. A number that exists to dodge an overlap has to go when the
+     overlap does, or the next reader measures it and finds nothing there.
 
-        12  the layer's inset
-     +   6  the plate — 2x1px of border and 2x2px of block padding
-     +  44  a control at the tallest this rail carries (the search field)
-     +  16  the row gap, when the lens island wraps (`.mtree-shellbar`)
-     +  44  the second line of it
-     +  12  air between the rail and the sentence
-     = 134 -> 136 on the 4px grid
-
-     A PADDING AND NOT AN INSET, so the sentence keeps the stage's inline centre
-     — a reader with no tracks looks at the middle of the screen, not at the
-     middle of the space under a toolbar. The inline end clears the dive rail
-     (44px + its own 12px inset) and, when a panel is open, whatever the panel
-     measured itself to be covering. */
+     A PADDING AND NOT AN INSET on the inline axis, unchanged: the sentence keeps
+     the stage's inline centre — a reader with no tracks looks at the middle of
+     the screen, not at the middle of the space beside a panel. The inline end
+     clears the dive rail (44px + its own 12px inset) and, when a panel is open,
+     whatever the panel measured itself to be covering. */
   .mtree-blank {
     position: absolute;
     inset: 0;
-    padding-block-start: 136px;
     padding-inline: 12px calc(56px + var(--map-occlude-inline, 0px));
     overflow: auto;
   }

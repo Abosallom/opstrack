@@ -344,6 +344,29 @@ function groupedTree(): MindNode {
  */
 export function viewsFor(tree: MindNode): ReadonlyMap<string, MindNodeView> {
   const out = new Map<string, MindNodeView>()
+  /**
+   * ORGANIZATIONS STRICTLY BELOW EVERY NODE — `useMapModel.collectStats`'s
+   * `orgsBelow` fold, reproduced here for the reason the whole file exists: that
+   * one lives inside a hook that needs four stores, and a picture of the card
+   * has to show the numeral the card actually draws.
+   *
+   * The rule is `collectStats`' rule, not a paraphrase of it: an entity with no
+   * entity beneath it IS an organization and counts ONE for its parent; an
+   * entity with organizations beneath it is a place and contributes THEIRS.
+   * A directorate is a `map_nodes` row too, so counting it among the things it
+   * holds is what turns eighteen hospitals into nineteen.
+   */
+  const orgsBelow = new Map<string, number>()
+  const fold = (n: MindNode): number => {
+    let total = 0
+    for (const child of n.children) {
+      const kids = fold(child)
+      total += child.kind === 'entity' && kids === 0 ? 1 : kids
+    }
+    orgsBelow.set(n.id, total)
+    return total
+  }
+  fold(tree)
   const walk = (n: MindNode, manager: string | null): void => {
     const text = n.label.kind === 'text' ? n.label.text : n.id
     const live = Math.min(n.count, Math.max(0, n.count - (n.health.slaBreached ? 2 : 1)))
@@ -351,6 +374,10 @@ export function viewsFor(tree: MindNode): ReadonlyMap<string, MindNodeView> {
       label: text,
       name: `${text}, ${n.count} open`,
       count: String(n.count),
+      // The numeral a card that HOLDS organizations draws instead of its open
+      // count — null on an organization, an entry, a bucket and a fold, which is
+      // `useMapModel`'s own `stat.orgsBelow > 0` test.
+      orgs: (orgsBelow.get(n.id) ?? 0) > 0 ? String(orgsBelow.get(n.id)) : null,
       toggleHint: n.children.length === 0 ? null : `Collapse ${text}`,
       breachHint: n.health.slaBreached ? 'Past deadline' : null,
       // WHO GETS AN UNDERSCORE — `KIND_ROLE[kind] === 'place'`, which is

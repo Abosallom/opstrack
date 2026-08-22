@@ -66,14 +66,6 @@
     "clearFocus": "عرض كل المسارات",
     "clearSelection": "إلغاء التحديد",
     "cohortName": "⁨{by}⁩: ⁨{label}⁩، {detail}",
-    "cohortOrgs": {
-      "zero": "لا منشآت",
-      "one": "منشأة واحدة",
-      "two": "منشأتان",
-      "few": "{count} منشآت",
-      "many": "{count} منشأة",
-      "other": "{count} منشأة"
-    },
     "colBlock": "إصلاح واحد يفكّ",
     "colBreached": "تجاوزت المهلة",
     "colBucket": "مجموعة المحفظة",
@@ -142,6 +134,30 @@
       "few": "{count} بنود مفتوحة",
       "many": "{count} بندًا مفتوحًا",
       "other": "{count} بند مفتوح"
+    },
+    "countOrgs": {
+      "zero": "لا منشآت",
+      "one": "منشأة واحدة",
+      "two": "منشأتان",
+      "few": "{count} منشآت",
+      "many": "{count} منشأة",
+      "other": "{count} منشأة"
+    },
+    "countOrgsLive": {
+      "zero": "لا شيء يعمل",
+      "one": "منشأة واحدة تعمل",
+      "two": "منشأتان تعملان",
+      "few": "{count} منشآت تعمل",
+      "many": "{count} منشأة تعمل",
+      "other": "{count} منشأة تعمل"
+    },
+    "countOrgsRisk": {
+      "zero": "لا شيء تجاوز مرحلته",
+      "one": "منشأة واحدة تجاوزت مرحلتها",
+      "two": "منشأتان تجاوزتا مرحلتيهما",
+      "few": "{count} منشآت تجاوزت مرحلتها",
+      "many": "{count} منشأة تجاوزت مرحلتها",
+      "other": "{count} منشأة تجاوزت مرحلتها"
     },
     "countUnassigned": {
       "one": "بند بلا مسؤول",

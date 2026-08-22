@@ -198,6 +198,14 @@ export const SCREENS: readonly PaletteScreen[] = [
   // one — see LENSES below, and docs/MAP-CONTRACT.md §1. It keeps naming itself
   // out of its own namespace for the reason the two Wave-4b rows below give.
   { to: '/mindtree', labelKey: 'mindtree.title' },
+  // THE PMO DASHBOARD. In SCREENS rather than ADMIN_SCREENS because App.tsx
+  // gates it in neither branch, and for that route's own reason: it renders
+  // only what RLS already lets the reader SELECT, so a gate here would withhold
+  // a member's own data from them. Named out of its own namespace, like the two
+  // Wave-4b rows below — `pmo.title` ships in both languages and is the same key
+  // lib/routeTitle.ts gives the header, so the row and the screen it opens read
+  // identically.
+  { to: '/pmo', labelKey: 'pmo.title' },
   { to: '/meetings', labelKey: 'route.meetings' },
   { to: '/digest', labelKey: 'digest.title' },
   { to: '/settings', labelKey: 'route.settings' },

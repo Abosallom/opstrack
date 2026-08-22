@@ -53,10 +53,6 @@
     "clearFocus": "Show every track",
     "clearSelection": "Clear the selection",
     "cohortName": "⁨{by}⁩: ⁨{label}⁩, {detail}",
-    "cohortOrgs": {
-      "one": "{count} organization",
-      "other": "{count} organizations"
-    },
     "colBlock": "One fix unblocks",
     "colBreached": "Past deadline",
     "colBucket": "Portfolio group",
@@ -109,6 +105,18 @@
     "countOpen": {
       "one": "{count} open",
       "other": "{count} open"
+    },
+    "countOrgs": {
+      "one": "{count} organization",
+      "other": "{count} organizations"
+    },
+    "countOrgsLive": {
+      "one": "{count} live",
+      "other": "{count} live"
+    },
+    "countOrgsRisk": {
+      "one": "{count} past its stage",
+      "other": "{count} past their stage"
     },
     "countUnassigned": {
       "one": "{count} unassigned",

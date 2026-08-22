@@ -1,0 +1,232 @@
+/* /pmo — the PMO dashboard's own layout.
+ *
+ * LOGICAL PROPERTIES THROUGHOUT, so the whole page mirrors in Arabic with no
+ * second rule set. The one place direction has to be resolved by hand is inside
+ * an <svg>, and components/charts/geometry.ts already owns that: `plotArea()`
+ * resolves it once and nothing here multiplies an x by anything.
+ *
+ * NUMBERS ARE `.tabular` (global.css) wherever they sit in a column, so a
+ * six-row table of day counts does not shimmer as the digits change width.
+ */
+
+.pmo {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-inline-size: 1100px;
+}
+
+.pmo-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pmo-asof {
+  font-size: 13px;
+}
+
+.pmo-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pmo-desc {
+  margin: 0;
+  font-size: 14px;
+  max-inline-size: 68ch;
+}
+
+.pmo-subtitle {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── the tiles ─────────────────────────────────────────────────────────── */
+
+/* `auto-fit` rather than a fixed six: at 375px this is two columns and at
+   1100px it is six, with no breakpoint to keep in step with the tile count. */
+.pmo-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.pmo-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.pmo-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.pmo-stat-label {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.pmo-stat-note {
+  font-size: 12px;
+}
+
+/* ── the two verdict cards ─────────────────────────────────────────────── */
+
+.pmo-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.pmo-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.pmo-verdict-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pmo-verdict-value {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.pmo-verdict p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.pmo-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+/* ── the tables ────────────────────────────────────────────────────────── */
+
+/* The scroller is the WRAPPER, never the page: a table wider than the viewport
+   must scroll inside its own card, or the whole document scrolls sideways and
+   the header goes with it. */
+.pmo-tablewrap {
+  overflow-x: auto;
+}
+
+.pmo-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.pmo-table th,
+.pmo-table td {
+  padding: 8px 10px;
+  text-align: start;
+  border-block-end: 1px solid var(--border);
+  vertical-align: baseline;
+}
+
+.pmo-table thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.pmo-table tbody tr:last-child th,
+.pmo-table tbody tr:last-child td {
+  border-block-end: none;
+}
+
+.pmo-table tbody th {
+  font-weight: 500;
+}
+
+.pmo-num {
+  text-align: end;
+}
+
+/* A row past its stage is marked with a pill AND a tint. The pill carries the
+   word, so the tint is never the only signal — colour alone is not a status. */
+.pmo-table tr.is-late th,
+.pmo-table tr.is-late td {
+  background: var(--accent-soft);
+}
+
+.pmo-flag {
+  margin-inline-start: 8px;
+}
+
+.pmo-more {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+/* ── follow-up buckets ─────────────────────────────────────────────────── */
+
+.pmo-buckets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.pmo-bucket {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pmo-bucket-head {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pmo-bucket-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pmo-bucket-hint {
+  margin: 0;
+  font-size: 12px;
+}
+
+.pmo-bucket p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.pmo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.pmo-risks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  align-items: start;
+}

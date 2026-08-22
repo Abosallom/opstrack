@@ -203,6 +203,12 @@ export function collectStats(
       breached: node.health.slaBreached ? 1 : 0,
       unassigned: id !== null && entry !== undefined && input.isUnassigned(id) ? 1 : 0,
       orgs: 0,
+      // An entry is work filed AGAINST an organization, never one — so it holds
+      // none below it and stands on no rung of its own.
+      orgsBelow: 0,
+      liveBelow: 0,
+      riskBelow: 0,
+      live: false,
       // A LEAF IS THE ONLY THING THAT MEASURES SILENCE, and an entry the filter
       // kept out of the working set contributes nothing rather than a zero.
       daysInStage: null,
@@ -226,12 +232,34 @@ export function collectStats(
   const entityId = entityIdOf(node)
   let orgs = entityId === null ? 0 : 1
   let quietDays: number | null = null
+  /**
+   * THE THREE THAT COUNT ORGANIZATIONS RATHER THAN ROWS — see `NodeStats.orgsBelow`
+   * for why they are not `orgs`, and read the child's answer rather than the
+   * child's kind for which of the two arms it takes.
+   *
+   * `ends` IS THE END OF THE DIVE, ASKED OF THE CHILD AND NOT OF ITS NAME.
+   * `map_nodes` gives a directorate and a hospital the same `entity` kind
+   * (mapNodes.ts's `entityIdOf` is the only reader of that), so the thing that
+   * makes one an organization is that nothing under it is one — the identical
+   * test `MindNode` makes for `terminal`, written here as `orgsBelow === 0`
+   * because the walk has just finished answering it. A child that ends the
+   * hierarchy contributes ITSELF and its own rung; a child that holds
+   * organizations contributes THEIRS and never its own, so a department is never
+   * counted among the things it holds.
+   */
+  let orgsBelow = 0
+  let liveBelow = 0
+  let riskBelow = 0
   for (const child of node.children) {
     const stats = collectStats(child, input, out)
     breached += stats.breached
     unassigned += stats.unassigned
     orgs += stats.orgs
     quietDays = minQuiet(quietDays, stats.quietDays)
+    const ends = entityIdOf(child) !== null && stats.orgsBelow === 0
+    orgsBelow += ends ? 1 : stats.orgsBelow
+    liveBelow += ends ? (stats.live ? 1 : 0) : stats.liveBelow
+    riskBelow += ends ? (stats.atRisk ? 1 : 0) : stats.riskBelow
   }
   // The same `entityIdOf` answer the org count above was made from, reused
   // rather than asked twice: one node is one organization or it is none, and
@@ -241,6 +269,13 @@ export function collectStats(
     breached,
     unassigned,
     orgs,
+    orgsBelow,
+    liveBelow,
+    riskBelow,
+    // `stage.terminal`, never the last rung and never the word: the ladder is
+    // draggable and the column is the fact. Null-safe because a node whose rung
+    // the ladder cannot resolve is not standing on a terminal one either.
+    live: reading?.stage?.terminal === true,
     daysInStage: reading?.days ?? null,
     atRisk: reading?.atRisk ?? false,
     stallDays: reading?.stallDays ?? null,
@@ -1266,7 +1301,33 @@ export function useMapModel(
          * whole tree is cut by one key at a time, and that key is `grouping`.
          */
         const cohort = node.kind === 'cohort'
-        if (cohort) detail.push(t('mindtree.cohortOrgs', { count: stat.orgs }))
+        if (cohort) detail.push(t('mindtree.countOrgs', { count: stat.orgs }))
+        /**
+         * EVERY PLACE SAYS HOW MANY ORGANIZATIONS ARE IN IT, not just the rings.
+         *
+         * "Riyadh Cluster, 18 organizations, 4 live, 2 past their stage, 0 open."
+         *
+         * The clause was the cohort's alone because the cohort was the only node
+         * whose SIZE the drawing encoded (`sizeForCount`) — and the tidy tree
+         * encodes nothing: every card is the same box, so the one number a
+         * branch card can carry is the one it prints, and the sentence has to
+         * carry the rest. `orgsBelow`, never `orgs`: a directorate is a
+         * `map_nodes` row too, and counting itself among the things it holds
+         * makes eighteen hospitals nineteen. The cohort keeps `stat.orgs` and
+         * its own key above, because a ring's members are its members whatever
+         * kind they are, and that sentence is not this defect's to change.
+         *
+         * THE MIX FOLLOWS THE TALLY AND ONLY THE TALLY. `liveBelow` and
+         * `riskBelow` are counts OF those organizations, so a node with none of
+         * them below says neither — and an organization's own rung is already
+         * spoken by `portfolioDays`/`portfolioAtRisk` further down, from the
+         * same reading, so nothing is said twice.
+         */
+        if (!cohort && stat.orgsBelow > 0) {
+          detail.push(t('mindtree.countOrgs', { count: stat.orgsBelow }))
+        }
+        if (stat.liveBelow > 0) detail.push(t('mindtree.countOrgsLive', { count: stat.liveBelow }))
+        if (stat.riskBelow > 0) detail.push(t('mindtree.countOrgsRisk', { count: stat.riskBelow }))
         detail.push(t('mindtree.countOpen', { count: node.count }))
         if (stat.breached > 0) detail.push(t('mindtree.countBreached', { count: stat.breached }))
         if (stat.unassigned > 0) {
@@ -1345,6 +1406,22 @@ export function useMapModel(
         label: isolate(raw),
         name,
         count: node.kind === 'entry' ? null : String(node.count),
+        /**
+         * THE TALLY THE CARD DRAWS INSTEAD — and it is a SECOND field, because
+         * `count` above still means what it has always meant and every other
+         * surface still reads it.
+         *
+         * Null wherever there is nothing under this node to count, which is an
+         * organization (the end of the hierarchy), an entry, a status bucket and
+         * a fold. `MindNode` owns what it does with the pair — see `numeral`
+         * there — and this hook owns only which number is true.
+         *
+         * `String()` and not a formatter, because the sibling above is not one
+         * either: `.tabular` renders the digits and the accessible name carries
+         * the number as words through `t()`, which is where the locale's own
+         * digits and grammar belong.
+         */
+        orgs: stat.orgsBelow > 0 ? String(stat.orgsBelow) : null,
         toggleHint:
           node.children.length === 0
             ? null

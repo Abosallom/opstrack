@@ -636,9 +636,9 @@ const DEMO_USE_CASES = [
 const DEMO_STAGES = [
   { id: 'st-1', name: 'Not started', name_ar: '', sort_order: 1, hidden: false },
   { id: 'st-2', name: 'Kickoff', name_ar: '', sort_order: 2, hidden: false },
-  { id: 'st-3', name: 'Integrating', name_ar: '', sort_order: 3, hidden: false },
-  { id: 'st-4', name: 'Testing/UAT', name_ar: '', sort_order: 4, hidden: false },
-  { id: 'st-5', name: 'Go-live ready', name_ar: '', sort_order: 5, hidden: false },
+  { id: 'st-3', name: 'Integrating & Testing', name_ar: '', sort_order: 3, hidden: false },
+  { id: 'st-4', name: 'UAT', name_ar: '', sort_order: 4, hidden: false },
+  { id: 'st-5', name: 'Go-live readiness', name_ar: '', sort_order: 5, hidden: false },
   { id: 'st-6', name: 'Live', name_ar: '', sort_order: 6, hidden: false },
   { id: 'st-7', name: 'Paused', name_ar: '', sort_order: 7, hidden: false },
 ]
@@ -669,7 +669,7 @@ const demoWorkspace = () => ({
     { id: 'k-org', name: 'Organization' },
   ],
   members: [
-    { id: 'p-aziz', display_name: 'Aziz', username: null, email: 'az.alsaloom@gmail.com' },
+    { id: 'p-aziz', display_name: 'Abdulaziz Alsaloom', username: null, email: 'az.alsaloom@gmail.com' },
     { id: 'p-nasser', display_name: 'Nasser Alabri', username: 'nasser', email: 'nasser@opstrack.internal' },
   ],
   useCases: DEMO_USE_CASES.map((name, i) => ({ id: `u-${i}`, name, sort_order: i + 1 })),
