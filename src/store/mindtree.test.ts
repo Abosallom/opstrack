@@ -69,10 +69,13 @@ describe('readMindtreePrefs — every field validated', () => {
       view: 'map',
       density: 'comfortable',
       // The map shell's two: the lens a device that has never chosen lands on —
-      // 'needs-me', because the app lands on /followups today and anywhere else
+      // 'shape', because the map is now somewhere a reader CHOOSES to go — `/`
+      // renders the home screen — and what they came for is the organizations.
+      // It was 'needs-me' while this screen was the landing route; see
+      // lib/mindtree/lens.ts for the full argument. Anywhere else
       // is a day-one regression — and the dock, which starts open because the
       // lens is only worth choosing when its panel is showing.
-      lens: 'needs-me',
+      lens: 'shape',
       panelOpen: true,
       focus: null,
       collapsed: {},

@@ -77,11 +77,15 @@ describe('the closed unions', () => {
     ])
   })
 
-  it('lands on the attention lens when nothing is persisted', () => {
-    // THE ONE VALUE THIS FILE EXISTS TO PIN. The app lands on /followups today
-    // (App.tsx's two redirects), so any other default is a regression on day one
-    // for the job its owner does more than any other.
-    expect(DEFAULT_LENS).toBe('needs-me')
+  it('lands on the organizations when nothing is persisted', () => {
+    // THE ONE VALUE THIS FILE EXISTS TO PIN, and it changed with the landing
+    // route. It used to be `needs-me` because the app OPENED on this screen and
+    // `/followups` was the job its owner did most. `/` renders pages/Home.tsx
+    // now, so this default no longer decides what the app opens on — it decides
+    // what a reader sees when they deliberately tap "Map", and what they came
+    // for is the hundred and four organizations rather than a follow-up list
+    // over ten entries.
+    expect(DEFAULT_LENS).toBe('shape')
     expect(MAP_LENSES).toContain(DEFAULT_LENS)
   })
 

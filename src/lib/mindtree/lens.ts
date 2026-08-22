@@ -8,10 +8,30 @@
 // partition and take the drag off the default view, so the two stay orthogonal
 // and the dimension chips are untouched.
 //
-// DEFAULT_LENS IS 'needs-me' BECAUSE THE APP LANDS ON /followups TODAY. Landing
-// anywhere else is a day-one regression for the job its owner does most. The
-// lens is persisted (store/mindtree.ts), so a reader who prefers `shape` gets
-// `shape` back; the default decides only what a device that never chose sees.
+// ⚠ DEFAULT_LENS IS 'shape', AND THE SENTENCE THAT USED TO STAND HERE IS TWICE
+//   OUT OF DATE. It read "DEFAULT_LENS IS 'needs-me' BECAUSE THE APP LANDS ON
+//   /followups TODAY". `/followups` has not existed since the six destinations
+//   collapsed — App.tsx redirects it — and the app does not land on this screen
+//   at all any more: `/` renders pages/Home.tsx, and the map is somewhere a
+//   reader now chooses to go.
+//
+//   That changes what the default is FOR. It used to decide what the app opened
+//   on; it now decides what a reader sees when they deliberately tap "Map". The
+//   `needs-me` lens answers with follow-up buckets over ENTRIES — ten rows in
+//   this workspace — while the thing they came to look at is a hundred and four
+//   organizations. `shape` is that picture, so it is the default.
+//
+//   THE LENS ID IS A MISNOMER AND IS DELIBERATELY NOT RENAMED. `needs-me` is not
+//   personal: its panel buckets the WHOLE workspace by overdue, stale and
+//   unassigned, and `meId` is threaded through `bucketFollowUps` without being
+//   read. The English label said "Needs me" and promised something the screen
+//   does not do; the label is now "Needs attention", which is what it is. The id
+//   is a persisted value in store/mindtree and in every saved URL, so renaming
+//   it would strand preferences to fix a string nobody sees.
+//
+// The lens is persisted (store/mindtree.ts), so a reader who prefers the
+// attention list gets it back; the default decides only what a device that never
+// chose sees.
 //
 // PanelSubject IS A CLOSED UNION SWITCHED ON IN EXACTLY ONE PLACE — the shell's
 // panel renderer in pages/Mindtree.tsx. That is what stops a sixth panel kind
@@ -85,7 +105,7 @@ export const MAP_STAGES: readonly MapStage[] = Object.freeze([
 /** Ordered smallest first, so a detent control can step through them. */
 export const MAP_DETENTS: readonly PanelDetent[] = Object.freeze(['peek', 'half', 'full'] as const)
 
-export const DEFAULT_LENS: MapLens = 'needs-me'
+export const DEFAULT_LENS: MapLens = 'shape'
 
 export function isMapLens(v: unknown): v is MapLens {
   return typeof v === 'string' && (MAP_LENSES as readonly string[]).includes(v)
