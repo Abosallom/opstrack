@@ -34,6 +34,7 @@ import {
   flyToCamera,
   flyToNode,
   FRAME_FILL_DESKTOP,
+  frameBox,
   frameCamera,
   frameFillFor,
   lerpCamera,
@@ -55,6 +56,7 @@ import {
   zoomForCamera,
   type Camera,
   type CameraBounds,
+  type FrameBoxOptions,
   type FrameOptions,
   type MotionBox,
   type Occlusion,
@@ -720,6 +722,98 @@ describe('frameCamera', () => {
   })
 })
 
+/* ─────────────────────── framing one RECTANGLE ───────────────────────────── */
+
+/**
+ * A branch's rectangle — a wide, short box, which is the shape a WRAPPED tidy
+ * tree produces and the shape a disc fit gets wrong: `frameCamera` would have
+ * set the scale from one number and left the width overflowing or the height
+ * mostly empty, depending on which number it was handed.
+ */
+const BRANCH: MotionBox = { x: 100, y: 40, width: 900, height: 300 }
+
+function boxed(over: Partial<FrameBoxOptions> = {}): Camera {
+  return frameBox(BRANCH, { viewport: STAGE, occlusion: CLEAR, rtl: false, ...over })
+}
+
+describe('frameBox — the rect fit the tidy tree needed', () => {
+  it('is bound by the TIGHTER of the two axes, not by min(vw, vh)', () => {
+    // 900+56 wide into 1180 is 1.234 px/unit; 300+56 tall into 835 is 2.345.
+    // The smaller wins, or the box hangs off the side of the glass.
+    const cam = boxed()
+    const scale = STAGE.width / cam.width
+    expect(scale).toBeCloseTo(Math.min(1180 / 956, 835 / 356), 12)
+    // …and the whole box, plus its padding, is inside the frame on both axes.
+    expect(cam.width).toBeGreaterThanOrEqual(BRANCH.width + 56)
+    expect(cam.height).toBeGreaterThanOrEqual(BRANCH.height + 56)
+  })
+
+  it('centres the box exactly when nothing is covering the stage', () => {
+    const cam = boxed()
+    expect(cam.cx).toBeCloseTo(BRANCH.x + BRANCH.width / 2, 12)
+    expect(cam.cy).toBeCloseTo(BRANCH.y + BRANCH.height / 2, 12)
+  })
+
+  it('NEVER MAGNIFIES PAST maxScale — a card is not a poster of one word', () => {
+    // A 132x54 card into 1180x835 would fit at 6.8:1 without the ceiling, which
+    // renders a 12.5px label at 85px with no context on the glass.
+    const card: MotionBox = { x: 0, y: 0, width: 132, height: 54 }
+    const cam = frameBox(card, { viewport: STAGE, occlusion: CLEAR, rtl: false, maxScale: 1 })
+    expect(STAGE.width / cam.width).toBeCloseTo(1, 12)
+    // Uncapped, it really would magnify — so the cap is doing work.
+    const free = frameBox(card, { viewport: STAGE, occlusion: CLEAR, rtl: false })
+    expect(STAGE.width / free.width).toBeGreaterThan(3)
+  })
+
+  it('keeps the CAMERA’s aspect equal to the ELEMENT’s, not the visible part’s', () => {
+    // `frameCamera`'s argument, and it transfers verbatim: every pixel↔unit
+    // conversion in the map is `dx · width / box.width`.
+    const cam = boxed({ occlusion: { inlineEnd: 416, blockEnd: 0 } })
+    expect(cam.width / cam.height).toBeCloseTo(STAGE.width / STAGE.height, 12)
+  })
+
+  it('MOVES THE CONTENT AWAY FROM THE PANEL, with frameCamera’s sign', () => {
+    const clear = boxed()
+    const covered = boxed({ occlusion: { inlineEnd: 416, blockEnd: 0 } })
+    expect(covered.cx).toBeGreaterThan(clear.cx)
+    const lower = boxed({ occlusion: { inlineEnd: 0, blockEnd: 320 } })
+    expect(lower.cy).toBeGreaterThan(clear.cy)
+  })
+
+  it('is the exact mirror in Arabic — the ONE flip on the inline axis', () => {
+    const centre = BRANCH.x + BRANCH.width / 2
+    const ltr = boxed({ occlusion: { inlineEnd: 416, blockEnd: 0 }, rtl: false })
+    const rtl = boxed({ occlusion: { inlineEnd: 416, blockEnd: 0 }, rtl: true })
+    expect(rtl.cx - centre).toBeCloseTo(-(ltr.cx - centre), 12)
+    expect(rtl.width).toBe(ltr.width)
+    // The block axis never flips: a sheet covers the bottom in both scripts.
+    const lo = boxed({ occlusion: { inlineEnd: 0, blockEnd: 320 }, rtl: false })
+    const hi = boxed({ occlusion: { inlineEnd: 0, blockEnd: 320 }, rtl: true })
+    expect(hi.cy).toBe(lo.cy)
+  })
+
+  it('is TOTAL — no input produces a NaN in the viewBox', () => {
+    const torn: [string, Camera][] = [
+      ['zero viewport', frameBox(BRANCH, { viewport: { width: 0, height: 0 }, occlusion: CLEAR, rtl: false })],
+      ['zero box', frameBox({ x: 0, y: 0, width: 0, height: 0 }, { viewport: STAGE, occlusion: CLEAR, rtl: false })],
+      ['NaN box', frameBox({ x: Number.NaN, y: Number.NaN, width: Number.NaN, height: Number.NaN }, { viewport: STAGE, occlusion: CLEAR, rtl: false })],
+      ['negative padding', frameBox(BRANCH, { viewport: STAGE, padding: -40, occlusion: CLEAR, rtl: false })],
+      ['occlusion wider than the stage', frameBox(BRANCH, { viewport: STAGE, occlusion: { inlineEnd: 99999, blockEnd: 99999 }, rtl: false })],
+      ['NaN occlusion', frameBox(BRANCH, { viewport: STAGE, occlusion: { inlineEnd: Number.NaN, blockEnd: Number.NaN }, rtl: false })],
+      ['zero maxScale', frameBox(BRANCH, { viewport: STAGE, occlusion: CLEAR, rtl: false, maxScale: 0 })],
+    ]
+    for (const [name, cam] of torn) {
+      expect(viewBoxOf(cam), name).not.toContain('NaN')
+      expect(Number.isFinite(cam.cx) && Number.isFinite(cam.width), name).toBe(true)
+      expect(cam.width, name).toBeGreaterThan(0)
+    }
+  })
+
+  it('is PURE — the same arguments give the same answer', () => {
+    expect(boxed()).toEqual(boxed())
+  })
+})
+
 /* ──────────────── the fill, derived from fan-out rather than device ───────── */
 
 /**
@@ -1141,6 +1235,40 @@ describe('the camera cannot feed the geometry — by construction, not by care',
     expect(src).not.toContain('layoutWorlds')
     expect(src).not.toContain('ringsThatFit')
     expect(src).not.toContain('depthLimit')
+  })
+
+  it('cannot see the FOLD — the second first-link, and the one folding created', () => {
+    // THE DEFECT THIS GUARDS, and it is newer than the rest of this block.
+    // While the drawing was containment nothing could fold: a branch was a world
+    // you flew into, so the layout changed only when the admin changed the tree
+    // and `layout.revision` was a safe thing for the camera to re-frame on. The
+    // tidy tree folds for real, on a tap, which is the commonest gesture on the
+    // screen — so a camera that could read the fold would re-frame on it, and
+    // the reader would be teleported every time they opened a branch.
+    //
+    // The guard is that the fold is not reachable from here AT ALL: the revision
+    // arrives as a STRING argument hashed by the page over the full tree with
+    // `collapsed` ignored, and there is no store to ask and no set to consult.
+    const src = code(hookSource())
+    for (const dead of ['collapsedIds', 'openDepth', 'setMindCollapsed', 'expandedIds']) {
+      expect(src, dead).not.toContain(dead)
+    }
+    // …and the revision is an ARGUMENT, not a field on the drawing, which is
+    // what makes "the camera re-frames for the admin and not for the reader" a
+    // fact about the signature rather than a promise about a call site.
+    expect(src).toMatch(/\brevision\b/)
+    expect(src).not.toContain('layout.revision')
+  })
+
+  it('imports NOTHING from store/** — the fold lives there and it must stay there', () => {
+    // A grep on the import graph rather than on the identifiers, because the
+    // next spelling of "just read the collapsed set here" is an import nobody
+    // notices in review. `lib/** ↛ store/**` is enforced repo-wide; this is the
+    // same rule for the one hook that would most like to break it.
+    const specs = [...hookSource().matchAll(/from '([^']+)'/g)].map((m) => m[1] as string)
+    for (const spec of specs) {
+      expect(spec, `useMapGeometry must not import ${spec}`).not.toMatch(/(^|\/)store\//)
+    }
   })
 
   it('reads layout.bounds in exactly TWO places, and neither is on the camera path', () => {

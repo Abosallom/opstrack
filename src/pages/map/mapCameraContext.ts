@@ -105,24 +105,39 @@ export const MapCameraContext = createContext<MapCameraValue | null>(null)
  * DOES THIS WORLD REACH THE CAMERA — the frustum test, wave 9's 5a, and the
  * predicate `MapCanvas` culls on.
  *
- * True when the world's disc reaches the camera rectangle: the centre lies
- * inside the rect inflated by one world radius, which is the disc's bounding box
- * against the rect and is therefore conservative in the only direction that is
- * safe — it keeps a world whose corner-most sliver might be on screen.
+ * ONE AABB OVERLAP TEST, over the node's DRAWN EXTENT against the frustum. Two
+ * axes, four comparisons, no square roots and no allocation — this runs once per
+ * laid-out node on every frame of every pan.
  *
- * ── WHY THIS ALSO KEEPS EVERY ANCESTOR OF THE FRAMED WORLD ─────────────────
+ * ── WHAT "DRAWN EXTENT" IS, AND WHY IT IS NOT ALWAYS THE CARD ──────────────
  *
- * Worlds NEST: a parent's disc contains its children's ring. So a world that is
- * an ancestor of whatever the camera is looking at contains the camera outright,
- * its centre is within its own radius of the camera rect by definition, and this
- * test keeps it without a second clause and without knowing what "framed" means.
- * The crumb's spine is safe by geometry rather than by special case — which
- * matters, because a special case is a thing a later edit can drop.
+ * A node in the TIDY TREE occupies exactly its rectangle, so the extent is
+ * `{x, y, width, height}` and the test is the honest one. A node in the
+ * CONTAINMENT drawing occupies its whole WORLD — the disc its entire subtree is
+ * packed inside — and its card is a speck at the middle of it, so the extent
+ * there is the disc's bounding box. Same predicate, same arithmetic; the only
+ * difference is which rectangle the node claims, and the node itself says.
  *
- * A NODE WITH NO WORLD IS ALWAYS KEPT. The tidy tree and the linear ring emit
- * `PositionedNode`s with no `worldD`; there is no disc to test, and culling them
- * to nothing on a missing field is how a layout nobody was thinking about goes
- * blank.
+ * ── WHY THE TREE'S RECTANGLE IS A TIGHTENING AND NOT A RISK ────────────────
+ *
+ * It replaces `return true` — a world-less layout was never culled at all,
+ * because there was no disc to test and blanking a drawing nobody was thinking
+ * about was the worse failure. That was correct while the tree was a preview and
+ * is wasteful now that it is the drawing: every laid-out node was an SVG element
+ * at every camera. The rectangle is exact, so nothing that overlaps the frustum
+ * by one unit is dropped, and MapCanvas keeps `activeId` and `currentId`
+ * unconditionally, so the cull can never take the roving tab stop.
+ *
+ * THE TREE NEEDS NO ANCESTOR CLAUSE. Its edge layer is off (`flat`) and its
+ * block containers are drawn from `layout` rather than from the survivors, so a
+ * culled parent takes nothing with it. The containment drawing DOES need one and
+ * still has it, by the same geometry it always had: worlds NEST, so a world that
+ * is an ancestor of whatever the camera is looking at contains the camera
+ * outright, its centre is within its own radius of the camera rect by
+ * definition, and this test keeps it without a second clause and without knowing
+ * what "framed" means. The crumb's spine is safe by geometry rather than by
+ * special case — which matters, because a special case is a thing a later edit
+ * can drop.
  *
  * IT LIVES HERE, BESIDE THE FRUSTUM IT TESTS, rather than in the component that
  * calls it: the render gate imports it to assert the cull is exact, and a test
@@ -130,11 +145,24 @@ export const MapCameraContext = createContext<MapCameraValue | null>(null)
  * importing React to do arithmetic.
  */
 export function reachesCamera(pos: MindNodePos, camera: Camera): boolean {
-  if (pos.worldX === undefined || pos.worldY === undefined || pos.worldD === undefined) return true
-  const r = pos.worldD / 2
+  const halfW = camera.width / 2
+  const halfH = camera.height / 2
+
+  // The node's own extent, as a half-size about a centre — the one form both
+  // drawings reduce to, so there is one comparison below rather than two.
+  let cx = pos.x + pos.width / 2
+  let cy = pos.y + pos.height / 2
+  let halfX = pos.width / 2
+  let halfY = pos.height / 2
+  if (pos.worldX !== undefined && pos.worldY !== undefined && pos.worldD !== undefined) {
+    cx = pos.worldX
+    cy = pos.worldY
+    halfX = pos.worldD / 2
+    halfY = halfX
+  }
+
   return (
-    Math.abs(pos.worldX - camera.cx) <= camera.width / 2 + r &&
-    Math.abs(pos.worldY - camera.cy) <= camera.height / 2 + r
+    Math.abs(cx - camera.cx) <= halfW + halfX && Math.abs(cy - camera.cy) <= halfH + halfY
   )
 }
 

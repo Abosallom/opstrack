@@ -165,7 +165,6 @@ import MapCanvas from '../components/map/MapCanvas'
 import { MapCameraContext } from './map/mapCameraContext'
 import MapCapture from '../components/map/MapCapture'
 import MapChanges, { useChangesCount } from '../components/map/MapChanges'
-import MapDiveRail, { type DiveRung } from '../components/map/MapDiveRail'
 import MapLensBar from '../components/map/MapLensBar'
 import MapList, { useAttentionCount } from '../components/map/MapList'
 import MapModeBar from '../components/map/MapModeBar'
@@ -178,27 +177,14 @@ import PortfolioStage, { useAtRiskCount } from '../components/map/PortfolioStage
 import { EMPTY_FILTER, isFilterEmpty, type FilterState } from '../lib/entryFilter'
 import { t, useLocale } from '../lib/i18n'
 import { findNode, trailTo } from '../lib/mindtree/focus'
-import {
-  allowedStages,
-  stageForLens,
-  subjectForLens,
-  type MapLens,
-  type PanelSubject,
-} from '../lib/mindtree/lens'
-import { ancestorWorlds, layoutWorlds, worldAt } from '../lib/mindtree/worlds'
-import { layoutMindtree } from '../lib/mindtree/layout'
-import { asPreviewLayout, wantsTreePreview } from './map/treePreview'
+import { subjectForLens, type MapLens, type PanelSubject } from '../lib/mindtree/lens'
+import { layoutMindtree, subtreeBounds } from '../lib/mindtree/layout'
 import {
   MIND_GROUPINGS,
   type MindGrouping,
   type MindNode as MindNodeModel,
 } from '../lib/mindtree/model'
-import {
-  anchoredZoom,
-  cameraAtWidth,
-  frameCamera,
-  octavesOf,
-} from './map/mapMotion'
+import { anchoredZoom, type MotionBox } from './map/mapMotion'
 import { refreshEntries } from '../store/entries'
 import { useMapNodes, useMapNodesTruncated } from '../store/config'
 import { loadPortfolio, usePortfolioLinks } from '../store/portfolio'
@@ -308,6 +294,13 @@ const NO_OCCLUSION: { readonly inlineEnd: number; readonly blockEnd: number } = 
   inlineEnd: 0,
   blockEnd: 0,
 })
+
+/**
+ * No match arcs, for the same identity reason as `NO_OCCLUSION`: `MapCanvas`
+ * memoises on this prop, so a `new Map()` per render would rebuild the node list
+ * on every keystroke. See `matchWedgesById` below for why it is always empty.
+ */
+const EMPTY_WEDGES: ReadonlyMap<string, readonly { start: number; end: number }[]> = new Map()
 
 export default function Mindtree(): ReactElement {
   const locale = useLocale()
@@ -628,37 +621,91 @@ export default function Mindtree(): ReactElement {
    * unit's change.
    */
   /**
-   * TEMPORARY: `?tree=1` swaps the containment drawing for the vertical wrapped
-   * tidy tree, through the disc bridge in ./map/treePreview.
+   * ONE LAYOUT CALL, AND THE `?tree=1` FLAG IS GONE WITH THE BRIDGE IT NEEDED.
    *
-   * It is a flag and not a replacement because the camera still reads discs —
-   * see that file. When the camera takes rectangles this whole conditional, the
-   * bridge and the flag go, and `layoutMindtree` becomes the only call here.
+   * The vertical wrapped tidy tree is THE drawing. The camera takes rectangles
+   * now — which was the one thing keeping the preview a preview — so the disc
+   * bridge (./map/treePreview.ts) is deleted, and the conditional that chose
+   * between the two drawings with it.
+   *
+   * `lib/mindtree/worlds.ts` IS NOT DELETED and is no longer called from the
+   * app: `pages/map/mapRender.test.tsx` still lays out the containment drawing
+   * and renders `MapCanvas` against it, which is what holds the world packing,
+   * the level-of-detail bands and the rim geometry honest. Deleting a tested
+   * module to remove one call site is how a drawing nobody can compare against
+   * happens.
    */
-  const treePreview = wantsTreePreview(
-    typeof window === 'undefined' ? '' : window.location.search,
-    typeof window === 'undefined' ? '' : window.location.hash,
+  const layout = useMemo(
+    () =>
+      layoutMindtree<MindNodeModel>(focus.drawnRoot, {
+        direction: rtl ? 'rtl' : 'ltr',
+        orientation: 'vertical',
+        wrap: true,
+        nodeSize: { width: 132, height: 54 },
+        gap: { depth: 46, sibling: 14 },
+      }),
+    [focus.drawnRoot, rtl],
   )
-  const layout = useMemo(() => {
-    if (treePreview) {
-      return asPreviewLayout(
-        layoutMindtree<MindNodeModel>(focus.drawnRoot, {
-          direction: rtl ? 'rtl' : 'ltr',
-          orientation: 'vertical',
-          wrap: true,
-          nodeSize: { width: 132, height: 54 },
-          gap: { depth: 46, sibling: 14 },
-        }),
-      )
+
+  /**
+   * ⚠ THE REVISION GUARD — WHAT THE CAMERA IS ALLOWED TO RE-FRAME FOR.
+   *
+   * `useMapGeometry` re-frames to the whole drawing whenever this string
+   * changes, and nothing else after mount may move the resting camera. So this
+   * has to change WHEN THE TREE CHANGES AND AT NO OTHER TIME.
+   *
+   * IT WALKS THE FULL TREE AND IGNORES `collapsed`, and that is the entire
+   * point. It used to be `layout.revision` — a fact about the DRAWING — which
+   * was free of folds only because nothing could fold: the containment map drew
+   * every node at its own distance and a "fold" was a zoom. Now a tap folds a
+   * branch for real, so the drawing changes on the commonest gesture on the
+   * screen, and a revision read off the drawing would teleport the camera every
+   * time a reader opened anything. The walk therefore recurses through
+   * `node.children` rather than through what is drawn.
+   *
+   * IDS, KINDS AND DIRECTION, because those are what move coordinates. An id is
+   * the node's whole PATH (`root/track:…/entity:…`), so the id set alone pins
+   * the shape of the tree; `kind` rides along because it is what a per-kind card
+   * size would key off the day one exists (every card is 132x54 today, so there
+   * is no size to hash and pretending otherwise would be a comment, not a
+   * check); and the direction is in because the Arabic mirror negates every x.
+   * A fold, a filter and a resize move nothing, and none of them appears here.
+   *
+   * ONE WALK, hashed as it goes — a workspace of 3,200 nodes runs this once per
+   * tree change, not once per frame.
+   */
+  const revision = useMemo(() => {
+    // FNV-1a over the shape. A string built by concatenation would allocate a
+    // hundred kilobytes on a large workspace to be compared once.
+    let hash = 0x811c9dc5
+    const mix = (text: string): void => {
+      for (let i = 0; i < text.length; i += 1) {
+        hash ^= text.charCodeAt(i)
+        hash = Math.imul(hash, 0x01000193)
+      }
+      hash ^= 0x7c // a separator, so "ab"+"c" and "a"+"bc" differ
+      hash = Math.imul(hash, 0x01000193)
     }
-    return layoutWorlds<MindNodeModel>(focus.drawnRoot, { direction: rtl ? 'rtl' : 'ltr' })
-  }, [focus.drawnRoot, rtl, treePreview])
+    let count = 0
+    // Iterative: a hand-built workspace can be deeper than the stack, and the
+    // page is not the place to find that out.
+    const pending: MindNodeModel[] = [focus.drawnRoot]
+    while (pending.length > 0) {
+      const node = pending.pop() as MindNodeModel
+      count += 1
+      mix(node.id)
+      mix(node.kind)
+      // `node.children`, NOT `visibleChildren(node)`: the fold must not be in
+      // the hash. This is the line the whole guard turns on.
+      for (const child of node.children) pending.push(child)
+    }
+    return `${rtl ? 'rtl' : 'ltr'}:${count}:${(hash >>> 0).toString(36)}`
+  }, [focus.drawnRoot, rtl])
 
   const geo = useMapGeometry({
     layout,
-    focusWorldId: focus.focusView.node.id,
+    revision,
     reducedMotion,
-    compact,
     rtl,
     svgRef,
     isPressing,
@@ -675,7 +722,7 @@ export default function Mindtree(): ReactElement {
    * the one that genuinely changes when the camera moves, and it is read where
    * it is genuinely needed.
    */
-  const { camera, flyTo, setCamera } = geo
+  const { camera, flyTo, reveal, setCamera } = geo
 
   /**
    * V — THE SMALLER SIDE OF THE STAGE THE READER CAN ACTUALLY SEE THROUGH.
@@ -695,17 +742,22 @@ export default function Mindtree(): ReactElement {
     ),
   )
 
-  /**
-   * WHICH WORLD THE CAMERA IS IN — derived, never stored.
+  /*
+   * `worldAt(layout, camera, …)` STOOD HERE, AND ITS QUESTION NO LONGER HAS AN
+   * ANSWER.
    *
-   * `worldAt` is a pure function of the camera and the drawing, so the crumb bar
-   * and the rail cannot drift from the picture: there is no state for them to
-   * drift from. It only ever answers with a STRUCTURAL node — a department tier
-   * — which is the owner's correction made mechanical. Null means the reader is
-   * above the workspace, and the drawn root is the honest answer there.
+   * It asked "which world is the camera inside", which was answerable only
+   * because worlds NEST: a containment drawing puts the reader literally inside
+   * a department, so the camera position IS a place in the hierarchy and the
+   * crumb could be derived from it with no state to drift.
+   *
+   * A tidy tree has no inside. Every node is beside its siblings on one plane,
+   * so "where am I" has no geometric answer — panning left does not take you up
+   * a tier, it takes you to a cousin. The honest source for the trail is
+   * therefore the DRILL-IN, which is a thing the reader actually chose:
+   * `focusView.trail` is already root-first, target-last and inclusive, which is
+   * the shape `Breadcrumb` takes, so nothing inside that component changes.
    */
-  const framedWorld = worldAt(layout, camera, geo.scale, viewportMinPx)
-  const framedId = framedWorld?.id ?? focus.drawnRoot.id
 
   /**
    * THE CAMERA, PUBLISHED TO THE ONE COMPONENT THAT DRAWS THROUGH IT — wave 9's
@@ -726,70 +778,94 @@ export default function Mindtree(): ReactElement {
    * THE PATH FROM THE WORKSPACE TO WHERE THE READER IS, root first and target
    * last — `FocusView.trail`'s shape exactly, so `Breadcrumb` renders it with no
    * adapter and nothing inside that component changes.
+   *
+   * IT IS THE DRILL-IN NOW, NOT THE CAMERA — see where `worldAt` used to be,
+   * above. Already memoised by `resolveFocus`, so there is nothing to memoise.
    */
-  const diveWorlds = useMemo(() => ancestorWorlds(layout, framedId), [layout, framedId])
-  const diveTrail = useMemo(() => diveWorlds.map((w) => w.node), [diveWorlds])
+  const diveTrail = focus.focusView.trail
 
   /**
-   * Fly the camera to a world by id — the crumb, the rail's Home, and the
-   * keyboard's four dive verbs all end here. A world that is not in the drawing
-   * is a no-op rather than a guess.
+   * THE RECTANGLE A NODE'S ID NAMES — its whole branch, not its card.
+   *
+   * `subtreeBounds` unions a node's rect with every drawn descendant's, so
+   * "take me to Infrastructure" frames the DEPARTMENT rather than the 132x54
+   * box with the word Infrastructure in it. It is a function rather than a field
+   * on the layout precisely so a caller can ask this question without every node
+   * in a thousand-node drawing carrying a rectangle nobody reads.
+   *
+   * Null for an id the DRAWING does not contain — a node inside a folded branch,
+   * a selection left over from a previous tree — and the caller falls back to
+   * nothing rather than to a guess.
+   */
+  const boxFor = useCallback(
+    (id: string | null): MotionBox | null => {
+      const bounds = subtreeBounds(layout, id ?? focus.drawnRoot.id)
+      // `Bounds` is a min/max pair and `MotionBox` an origin and a size; the two
+      // are the same rectangle and the camera's is the one with no `maxX` to
+      // disagree with `x + width`.
+      return bounds === null
+        ? null
+        : { x: bounds.minX, y: bounds.minY, width: bounds.width, height: bounds.height }
+    },
+    [layout, focus.drawnRoot.id],
+  )
+
+  /**
+   * Fly the camera to a branch by id — the crumb, Home, and the keyboard's dive
+   * verbs all end here. A node that is not in the drawing is a no-op rather than
+   * a guess.
    */
   const flyToId = useCallback(
     (id: string | null) => {
-      const world = layout.byId.get(id ?? focus.drawnRoot.id)
-      if (world !== undefined) flyTo(world)
+      const box = boxFor(id)
+      if (box !== null) flyTo(box)
     },
-    [layout, flyTo, focus.drawnRoot.id],
+    [boxFor, flyTo],
   )
 
   /**
-   * THE RAIL'S TICKS, AND THERE IS NO LADDER CONSTANT ANYWHERE.
+   * FOLD, THEN SHOW WHAT THE FOLD DID — and the two halves are one commit apart,
+   * which is why this is a ref and an effect rather than one function.
    *
-   * One rung per world on the current path, so the rail's LENGTH is the depth
-   * the admin configured: two tiers give two ticks, seven give seven. Each
-   * rung's position is where the camera would sit if that world were framed,
-   * expressed in the same zeroed octaves `geo.octaves` reports — a difference of
-   * two `octavesOf` readings rather than a second formula, so the tick and the
-   * fly cannot disagree about what an octave is.
+   * Opening a branch grows the drawing downward. The branch that just opened can
+   * land wholly below the window, and a reader who taps a chevron and sees
+   * nothing happen concludes the tap did nothing. So the camera has to move —
+   * and it must move by the MINIMUM: `reveal` pans, and never re-frames, because
+   * a reader who chose a zoom did not ask for a different one.
    *
-   * The label is the world's own name out of the database, resolved for the
-   * locale by `model.textOf`. It is `isolate()`d by the rail and must never be
-   * handed to `t()`.
+   * IT CANNOT BE DONE IN THE HANDLER. `toggleFold` writes the store; the tree,
+   * the layout and therefore the branch's new rectangle do not exist until the
+   * render that write causes. The id is parked here and spent on the first
+   * commit that carries a new layout.
+   *
+   * ⚠ THE CAMERA DOES NOT RE-FRAME ON A FOLD, and that is guarded a second time
+   *   one level down: `useMapGeometry`'s revision guard is keyed on `revision`
+   *   above, which is hashed over the FULL tree with `collapsed` ignored. This
+   *   reveal is the only camera motion a fold is allowed to cause.
    */
-  // ONE DERIVATION POINT, AND IT IS THE CAMERA'S. `useMapGeometry` derives the
-  // fill from the framed world's own fan-out (`frameFillFor`) rather than from
-  // the device; a second copy here would make the rail's rungs report where the
-  // camera WOULD sit using a number the camera no longer uses, so the tick you
-  // drag to would not be the framing you land in.
-  const frameFill = geo.frameFill
-  const vMinRaw = Math.max(1, Math.min(geo.box.width, geo.box.height))
-  const octaveFloor = octavesOf(
-    cameraAtWidth(camera, geo.cameraBounds.maxWidth),
-    layout.rootD,
-    vMinRaw,
+  const revealAfterFoldRef = useRef<string | null>(null)
+  // LIFTED OUT OF `focus` FIRST: `useMapFocus` returns a fresh object every
+  // render, so a dependency on the whole of it would make this callback — and
+  // the memoised `dive` and `onKeyDown` under it — unstable on every frame.
+  const { toggleFold: writeFold } = focus
+  const toggleFold = useCallback(
+    (id: string) => {
+      revealAfterFoldRef.current = id
+      writeFold(id)
+    },
+    [writeFold],
   )
-  const diveRungs = useMemo<readonly DiveRung[]>(
-    () =>
-      diveWorlds.map((world) => ({
-        id: world.id,
-        label: model.textOf(world.node.label),
-        octaves:
-          octavesOf(
-            frameCamera(world, {
-              viewport: geo.box,
-              frameFill,
-              occlusion: { inlineEnd: occlusion.inlineEnd, blockEnd: occlusion.blockEnd },
-              rtl,
-            }),
-            layout.rootD,
-            vMinRaw,
-          ) - octaveFloor,
-      })),
-    // `model.textOf` and `geo.box` are the only two that move without the path
-    // moving; both are stable identities between resizes and locale switches.
-    [diveWorlds, model, geo.box, frameFill, occlusion, rtl, layout.rootD, vMinRaw, octaveFloor],
-  )
+  useEffect(() => {
+    const id = revealAfterFoldRef.current
+    if (id === null) return
+    revealAfterFoldRef.current = null
+    const box = boxFor(id)
+    // Null when the fold CLOSED the branch out of the drawing's reach, or when
+    // the node has gone. Nothing to show, so nothing moves.
+    if (box !== null) reveal(box)
+    // `boxFor` is a callback over `layout`, so this list changes exactly when the
+    // drawing does — which is the commit the parked id is waiting for.
+  }, [boxFor, reveal])
 
   /**
    * THE MATCH RIM — the one thing a containment drawing genuinely cannot do,
@@ -808,24 +884,31 @@ export default function Mindtree(): ReactElement {
    * canvas. This is a signpost — "three in there, that way" — and the difference
    * between a map that has lost the set and a map that knows where it is.
    */
-  const { matchesById, matchWedgesById } = useMemo(() => {
+  const matchesById = useMemo(() => {
     const matches = new Map<string, number>()
-    const wedges = new Map<string, readonly { start: number; end: number }[]>()
     const breachedIn = (id: string): number => model.stats.get(id)?.breached ?? 0
-    for (const world of layout.nodes) {
-      const count = breachedIn(world.id)
-      if (count <= 0) continue
-      matches.set(world.id, count)
-      const marked: { start: number; end: number }[] = []
-      for (const childId of world.childIds) {
-        const child = layout.byId.get(childId)
-        if (child === undefined || breachedIn(childId) <= 0) continue
-        marked.push({ start: child.wedgeStart, end: child.wedgeEnd })
-      }
-      if (marked.length > 0) wedges.set(world.id, marked)
+    for (const node of layout.nodes) {
+      const count = breachedIn(node.id)
+      if (count > 0) matches.set(node.id, count)
     }
-    return { matchesById: matches, matchWedgesById: wedges }
+    return matches
   }, [layout, model.stats])
+
+  /**
+   * THE WEDGES ARE EMPTY, AND THE PROP STAYS.
+   *
+   * A wedge was an ARC on a world's rim, drawn at the bearing of the child that
+   * held the trouble — `PositionedNode.wedgeStart`/`wedgeEnd`, which only the
+   * containment packing ever wrote. A tidy tree has no rim to hang an arc on and
+   * no bearings to hang it at, so there is nothing to compute; `MapCanvas` draws
+   * no rim under `flat` either, so the map already ignored these.
+   *
+   * ONE FROZEN EMPTY MAP rather than a deleted prop: `MindNode` still takes
+   * `matchWedges` and `mapRender.test.tsx` still renders the containment drawing
+   * to hold the wedge geometry honest. Removing the prop would delete a tested
+   * mark to save a constant.
+   */
+  const matchWedgesById = EMPTY_WEDGES
 
   const cursor = useMapCursor({ layout: geo.layout, order: geo.order, svgRef })
 
@@ -905,9 +988,16 @@ export default function Mindtree(): ReactElement {
     draggedRef: geo.draggedRef,
     moveCursor: cursor.moveCursor,
     setCurrentId: cursor.setCurrentId,
-    toggleFold: focus.toggleFold,
+    toggleFold,
     focusBranch: focus.focusBranch,
-    foldOnActivate: treePreview,
+    /**
+     * A TAP ON A BRANCH OPENS IT. Always, now: the containment drawing — where a
+     * tap meant "take me inside" and the camera was the whole verb — is gone,
+     * and a tidy tree has no inside. See `useMapKeyboard`'s own `foldOnActivate`
+     * for the full argument; the flag survives its preview because the hook's
+     * tests hold both behaviours.
+     */
+    foldOnActivate: true,
     openMenuFor: overlays.openMenuFor,
     textOf: model.textOf,
     setLive,
@@ -964,23 +1054,37 @@ export default function Mindtree(): ReactElement {
           lens.setSubject(subjectForLens('shape', id))
         },
         /**
-         * Focus moved — follow it by the MINIMUM MOVE. `flyTo` frames the
-         * world, and for a node already at least a card wide that is a pan of a
-         * few units at most.
+         * Focus moved — follow it by the MINIMUM MOVE, WITHOUT CHANGING THE
+         * ZOOM. `reveal` is the whole verb: an arrow onto a node already on the
+         * glass moves nothing, and one onto a node just past the edge pans by
+         * exactly the overhang. It was `flyTo`, which RE-FRAMED — correct while
+         * a branch was a world you went inside, and on a tree it would
+         * re-magnify the picture on every arrow press.
          */
-        follow: (id: string) => flyToId(id),
+        follow: (id: string) => {
+          const box = boxFor(id)
+          if (box !== null) reveal(box)
+        },
         /** `+` / `-`, about the centre of the frame: a keyboard has no cursor. */
         zoomBy: (ratio: number) =>
           setCamera(anchoredZoom(camera, { x: camera.cx, y: camera.cy }, ratio)),
         home: () => flyToId(null),
+        /**
+         * ESCAPE'S LAST RUNG — up one tier of the DRILL-IN.
+         *
+         * It used to be up one WORLD, off the camera-derived path, because the
+         * camera was inside something. `focusView.trail` is the path the reader
+         * actually chose, and `trail.at(-2)` is its "up one" by the same
+         * convention the crumb bar renders.
+         */
         surface: (): boolean => {
-          const up = diveWorlds[diveWorlds.length - 2]
+          const up = diveTrail[diveTrail.length - 2]
           if (up === undefined) return false
-          flyTo(up)
+          flyToId(up.id)
           return true
         },
       }),
-      [flyToId, lens, camera, setCamera, flyTo, diveWorlds],
+      [flyToId, lens, camera, setCamera, boxFor, reveal, diveTrail],
     ),
   })
 
@@ -992,7 +1096,7 @@ export default function Mindtree(): ReactElement {
     requestRefocus: cursor.requestRefocus,
     setLive,
     textOf: model.textOf,
-    toggleFold: focus.toggleFold,
+    toggleFold,
     focusBranch: focus.focusBranch,
     openAdd: overlays.setAddAt,
   })
@@ -1296,20 +1400,37 @@ export default function Mindtree(): ReactElement {
   const onTree = lens.stage === 'map' || lens.stage === 'table'
 
   /**
-   * The ladder carries the map⇄ledger toggle at its foot, so it renders wherever
-   * that toggle would have something to switch. `allowedStages` is asked rather
-   * than `onTree` being reused, because it is the same predicate `MapLensBar`
-   * used to gate the `Map | Table` pair this replaces — one question, one
-   * answer, and it stays right if a sixth lens ever earns a third stage.
+   * ⚠ THE DIVE RAIL IS OFF, AND THIS IS A DEBT WITH A PRICE, NOT A DELETION.
+   *
+   * The rail measured a DIVE: `value={geo.octaves}` was doublings of the root
+   * world's diameter, and each tick was where the camera would sit if that
+   * nested world were framed. Both numbers are gone with the containment
+   * drawing — `useMapGeometry` no longer computes an octave because a tidy tree
+   * has no nesting to walk, its depth being the fold rather than the zoom — so
+   * rendering the rail now would put a slider on the glass whose value means
+   * nothing and whose thumb moves nothing.
+   *
+   * IT SHOULD COME BACK AS A DEPTH RAIL: the same `<input type="range">` and the
+   * same database-worded rungs, `min={0} max={maxDepth} step={1}`, writing an
+   * OPEN-DEPTH. That is a unit of its own and it is not smuggled in here,
+   * because it needs (a) a store write that sets the collapsed AND opened
+   * records together — `collapseMindAll` and `expandMindAll` each clear the
+   * other's record, so neither can express "open to tier 3" — and (b) an answer
+   * to what `step={1}` costs: this rail's own header defends the continuous
+   * thumb as the ZOOM for a reader who can neither wheel nor pinch, and a depth
+   * rail does not zoom. That reader keeps the `+`/`-` keys and loses the pointer
+   * path until the question is settled.
+   *
+   * ⚠ AND WHAT GOES WITH IT: the map⇄LEDGER toggle rode at the rail's foot, so
+   *   the accessible table is reachable only by `?stage=table` while this is
+   *   off. That is the same state the approved `?tree=1` preview shipped in, and
+   *   it is the first thing the depth-rail unit has to give back.
+   *
+   * `MapDiveRail`, `map-altitude.css` and `MapDiveRail.test.tsx` are UNTOUCHED —
+   * the component and every assertion about it still stand, they are simply not
+   * mounted. Nothing here is deleted that the depth rail would have to be
+   * written again.
    */
-  /**
-   * The dive rail is the containment drawing's verb: it walks the camera down
-   * through nested worlds. A tidy tree has no nesting to walk — its depth is
-   * the fold, not the zoom — so on the tree the rail is a control for a gesture
-   * that no longer exists. Hidden here rather than deleted because the rail
-   * comes back as a DEPTH rail when the camera is rewritten onto rectangles.
-   */
-  const showLadder = onTree && !treePreview && allowedStages(lens.lens).length > 1
 
   /**
    * The occlusion is reported by the panel and RETRACTED here.
@@ -1450,7 +1571,7 @@ export default function Mindtree(): ReactElement {
 
   const groupIsle = useMemo(
     () =>
-      onTree && !treePreview ? (
+      onTree ? (
         <div className="mtree-isle mtree-group">
           <MapToolbar
             dimension={model.dimension}
@@ -1552,7 +1673,24 @@ export default function Mindtree(): ReactElement {
             open: the other two groups stay at y=77, h=38, unmoved.
 
             HELD IN A MEMO ABOVE — see `filterIsle`. */}
-          {!treePreview && filterIsle}
+          {/* QUIET BY DEFAULT — the owner's words on first seeing the tree were
+              "all options around the map makes it disturbing", and he is right:
+              the rail was built to carry the containment drawing's questions,
+              and a tree answers most of them by being readable.
+
+              WHAT STAYS AND WHY. `shellIsle` stays because it is NAVIGATION,
+              not a question: the five destinations and the four stages live
+              there, and it is the only way to reach the accessible ledger now
+              that the dive rail is unmounted. Hiding it would take the table
+              off every route but a hand-typed `?stage=table`, which is an
+              accessibility regression and not a tidier screen.
+
+              WHAT GOES. The filter, the group-by chips and the summary strip
+              are all QUESTIONS about the drawing. They come back the moment
+              there is somewhere deliberate to put them — the map settings
+              screen is that place. */
+          }
+          {false && filterIsle}
 
           {/* THE FIVE DESTINATIONS AND THE TWO MODES, at the reading end of the
               same row, at every width and never behind a disclosure. Each chip
@@ -1563,7 +1701,7 @@ export default function Mindtree(): ReactElement {
               to be parented here: its DOM seat is what keeps the Tab order.
 
               HELD IN A MEMO ABOVE — see `shellIsle`. */}
-          {!treePreview && shellIsle}
+          {shellIsle}
 
           {/* WHAT THE RINGS ARE MADE OF — on the control row with every other
               control, and no longer alone on a second row at the opposite edge
@@ -1573,7 +1711,7 @@ export default function Mindtree(): ReactElement {
               after them is worse than one placed a group late.
 
               HELD IN A MEMO ABOVE — see `groupIsle`. */}
-          {groupIsle}
+          {false && groupIsle}
 
           {/* WHERE THE READER IS INSIDE THE RINGS, and whether what is drawn is
               all of it. Both are INDICATORS rather than controls — the trail is
@@ -1609,51 +1747,11 @@ export default function Mindtree(): ReactElement {
         </div>
       </div>
 
-      {/* ISLAND 4, canvas inline-end: THE DIVE RAIL, which is what eleven
-          controls became. `Zoom −`, `Zoom 100%`, `Zoom +`, `Expand all`,
-          `Collapse all`, the four named altitude stops and `Fit to view` are all
-          answered here — as ONE continuous slider whose TICKS ARE THE ADMIN'S
-          OWN DEPARTMENT TIERS and whose `aria-valuetext` is the NAME of the
-          world the camera is framing. There is no ladder constant anywhere and
-          there must not be one: `rungs.length` is the depth of the configured
-          tree, so a workspace with two tiers gets two ticks and one with seven
-          gets seven.
-
-          A SIBLING OF THE ISLAND LAYER RATHER THAN A CHILD OF IT, and the
-          difference is not cosmetic: the rail positions ITSELF inside its
-          containing block, and on a phone the island layer is a horizontal
-          scroller, which would both clip it and give it the wrong shape.
-          `.mtree-ladder` is that containing block and nothing else: a
-          transparent frame, inset from the inline end by however much the panel
-          is measured to be covering. Its DOM position keeps the Tab order —
-          after the group-by chips, before the tree's single stop. */}
-      {showLadder && (
-        <div className="mtree-ladder">
-          <MapDiveRail
-            value={geo.octaves}
-            max={geo.octaveSpan}
-            rungs={diveRungs}
-            worldLabel={diveRungs[diveRungs.length - 1]?.label ?? t('app.name')}
-            // A RAIL DRAG IS A WIDTH, not a fly: the reader is holding the
-            // control, so the camera must follow the thumb rather than tween
-            // towards it. `maxWidth / 2^octaves` is the exact inverse of the
-            // reading `geo.octaves` published, so releasing the thumb where it
-            // was picked up moves nothing.
-            onChange={(octaves) =>
-              setCamera(cameraAtWidth(camera, geo.cameraBounds.maxWidth / 2 ** octaves))
-            }
-            // HOME IS FIT. It has to re-FRAME the root — a centre as well as a
-            // width — which a value write cannot say.
-            onHome={() => flyToId(null)}
-            table={lens.stage === 'table'}
-            // `stageForLens` and not the literal `'map'`: the lens decides what
-            // the open tree IS, and turning the ledger off has to return the
-            // reader to that rather than to a stage this call site guessed.
-            onTable={(next) => lens.setStage(next ? 'table' : stageForLens(lens.lens))}
-            compact={compact}
-          />
-        </div>
-      )}
+      {/* ISLAND 4, canvas inline-end: THE DIVE RAIL — NOT MOUNTED. See
+          `showLadder`'s block above for what it measured, why neither of its two
+          numbers exists any more, what it has to come back as, and what its
+          absence costs meanwhile. `.mtree-ladder`, the component and its tests
+          are all still here; only this call site is withdrawn. */}
 
       {/* THE SPLIT. The panel is a SIBLING of the canvas — `.mtree-canvas` is
           `overflow: hidden; touch-action: none`, and `touch-action` intersects
@@ -1792,13 +1890,14 @@ export default function Mindtree(): ReactElement {
                 matchesById={matchesById}
                 matchWedgesById={matchWedgesById}
                 getView={model.getView}
-                // THE ONE PLACE THAT KNOWS WHICH DRAWING WAS JUST BUILT. The
-                // tidy tree is FLAT: no level of detail, no rims, no per-child
-                // connectors — see MapCanvas's `flat` prop, which also explains
-                // why it cannot be worked out from the layout (the preview
-                // bridge invents a `worldD` for every node, so "has worlds"
-                // answers the wrong question for the very drawing it describes).
-                flat={treePreview}
+                // THE ONE PLACE THAT KNOWS WHICH DRAWING WAS JUST BUILT, and
+                // there is now only one: the tidy tree is FLAT — no level of
+                // detail, no rims, no per-child connectors, block containers
+                // instead. Still a PROP and not a test on the layout, because
+                // `MapCanvas` is also rendered against the containment drawing by
+                // `mapRender.test.tsx`, and a component that guessed would guess
+                // for that one too.
+                flat
                 rtl={rtl}
                 hintId={hintId}
                 dimensionLabel={model.dimensionLabel}
@@ -1877,7 +1976,7 @@ export default function Mindtree(): ReactElement {
         )}
 
         {/* HELD IN A MEMO ABOVE — see `summaryIsle`. */}
-        {!treePreview && summaryIsle}
+        {false && summaryIsle}
       </div>
 
       {/* THE GHOST, THE REASON AND THE DRAG'S OWN LIVE REGION — outside the

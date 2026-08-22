@@ -733,6 +733,109 @@ export function frameCamera(
   }
 }
 
+export interface FrameBoxOptions {
+  /** The CANVAS ELEMENT, in CSS px — the full stage, not the visible part. */
+  readonly viewport: { readonly width: number; readonly height: number }
+  /** Breathing room around the box, in DRAWING UNITS. Defaults to 28. */
+  readonly padding?: number
+  readonly occlusion: Occlusion
+  readonly rtl: boolean
+  /**
+   * The most CSS pixels one drawing unit may be worth. Omitted means "no
+   * ceiling", which is almost never what a caller wants: a 132x54 card framed
+   * into a 900px stage without one lands at 6.8:1, where a 12.5px glyph is
+   * authored at 85px and the reader is inside a single word.
+   */
+  readonly maxScale?: number
+}
+
+/**
+ * THE CAMERA THAT FRAMES ONE RECTANGLE — `frameCamera` for a drawing made of
+ * boxes rather than of discs.
+ *
+ * ── WHY A SECOND FUNCTION AND NOT A WIDENED FIRST ONE ──────────────────────
+ *
+ * A disc has ONE size, so `frameCamera` can set a scale from one number against
+ * the smaller side of the glass. A rectangle has two, and the fit is the
+ * SMALLER of the two ratios — a wide short branch is bound by the width and a
+ * tall narrow one by the height, and neither is `min(vw, vh)`. Folding both
+ * into one function would mean a `worldD` that is sometimes a diameter and
+ * sometimes a diagonal, which is the sort of parameter that is right in the
+ * file that wrote it and wrong in every file that reads it.
+ *
+ * ── THE OCCLUSION ARGUMENT IS `frameCamera`'S, VERBATIM, AND IT IS THE MOST
+ *    VALUABLE PARAGRAPH IN THIS FILE ────────────────────────────────────────
+ *
+ * It is orientation-agnostic: it is about the ELEMENT and the GLASS, not about
+ * what is drawn on either, so it transfers to a tidy tree unchanged.
+ *
+ *   The world's apparent diameter is set against the VISIBLE rectangle — the
+ *   stage minus whatever is covering it — because that is the glass the reader
+ *   can actually see through. But the camera itself spans the WHOLE element,
+ *   because every pixel↔unit conversion in this map (the pan drag, the pinch
+ *   midpoint, the overlay anchors) is `dx · camera.width / element.width`,
+ *   which is exact only while the camera's aspect is the element's aspect. Fit
+ *   to the shrunken rectangle instead and a reader's finger out-runs the map by
+ *   the width of the panel.
+ *
+ *   So: the visible rectangle sets the SCALE, and the centre SLIDES so the
+ *   world lands in the middle of the part you can see.
+ *
+ *   ── THE SIGN, DERIVED RATHER THAN GUESSED ───────────────────────────────
+ *
+ *   A drawing point `p` renders at `(p − viewBoxMin) · scale`, so RAISING
+ *   `viewBoxMin` moves the content TOWARDS the start/top of the element. In
+ *   `ltr` the panel covers the inline END, so the visible centre is start-ward
+ *   of the element centre and the content must move that way: `cx` rises. `rtl`
+ *   is the one flip, because there the covered pixels are at the physical
+ *   start. The block axis never flips — a sheet covers the bottom in both
+ *   directions — so the content moves up and `cy` rises.
+ *
+ *   The design contract that preceded this had both signs backwards, which
+ *   would push the drawing FURTHER under the panel. The arithmetic is short
+ *   enough to settle here and it is settled here.
+ *
+ *   ── AND THE RESTING CAMERA IS NEVER TOUCHED BY THIS ──────────────────────
+ *
+ *   Occlusion reaches the camera on a FLY and nowhere else. Opening a panel
+ *   must not move the map: that is the same teleport the whole design exists to
+ *   prevent, arriving from the other side.
+ *
+ * Pure and TOTAL: a 0x0 viewport, a zero-sized box, a negative padding or an
+ * occlusion wider than the stage all produce a finite camera rather than a
+ * viewBox of four NaNs and a blank screen.
+ */
+export function frameBox(target: MotionBox, options: FrameBoxOptions): Camera {
+  const vw = size(options.viewport.width, 1)
+  const vh = size(options.viewport.height, 1)
+  // At least one pixel of glass is left, so `visible` can never be zero and the
+  // scale can never be infinite however wide a panel reports itself.
+  const occInline = Math.min(Math.max(0, num(options.occlusion.inlineEnd)), vw - 1)
+  const occBlock = Math.min(Math.max(0, num(options.occlusion.blockEnd)), vh - 1)
+  const visibleW = vw - occInline
+  const visibleH = vh - occBlock
+
+  const padding =
+    options.padding !== undefined && Number.isFinite(options.padding) && options.padding >= 0
+      ? options.padding
+      : FLY_PADDING
+  const needW = Math.max(Math.max(0, num(target.width)) + padding * 2, 1e-6)
+  const needH = Math.max(Math.max(0, num(target.height)) + padding * 2, 1e-6)
+
+  /** CSS pixels per drawing unit — the SMALLER ratio, so both sides fit. */
+  let scale = Math.min(visibleW / needW, visibleH / needH)
+  const ceiling = options.maxScale
+  if (ceiling !== undefined && ceiling > 0 && scale > ceiling) scale = ceiling
+  if (!(scale > 0) || !Number.isFinite(scale)) scale = 1
+
+  return {
+    cx: num(target.x) + num(target.width) / 2 + ((options.rtl ? -1 : 1) * (occInline / 2)) / scale,
+    cy: num(target.y) + num(target.height) / 2 + occBlock / 2 / scale,
+    width: vw / scale,
+    height: vh / scale,
+  }
+}
+
 /* ─────────────────────── the anchor, which is the fix ────────────────────── */
 
 /**

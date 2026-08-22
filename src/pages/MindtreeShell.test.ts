@@ -63,13 +63,45 @@ describe('the Tab order is DOM order, and DOM order is chosen', () => {
       '<MapLensBar', // the five destinations
       '<MapModeBar', // Meetings, then the export disclosure inside it
       '<MapToolbar', // the group-by disclosure
-      '<MapDiveRail', // the continuous dive, and Table at its foot
+      // `<MapDiveRail` STOOD HERE — the continuous dive, and Table at its foot.
+      // It is not mounted: the camera rewrite onto rectangles deleted the two
+      // numbers it rendered (`octaves` / `octaveSpan` measured doublings of a
+      // root WORLD's diameter, and a tidy tree has no worlds), and the rail
+      // comes back as a DEPTH rail rather than as a dive one. Asserted below,
+      // rather than dropped in silence, so that its return lands here.
       '<div className="mpan-split">', // the stage: the canvas is one tab stop
       '<MapPanel', // the floating card, a SIBLING of the canvas
       '<MapCapture />', // the composer, always last and always mounted
     ]
     const seen = order.map((needle) => at(src, needle, 'Mindtree.tsx'))
     expect(seen, order.join(' → ')).toEqual([...seen].sort((a, b) => a - b))
+  })
+
+  it('does not mount a rail whose numbers no longer exist — and says where it returns', () => {
+    // THE DEFECT THIS GUARDS, and it is the one the rail's absence prevents: a
+    // slider on the glass whose value means nothing. `geo.octaves` and
+    // `geo.octaveSpan` are gone from `useMapGeometry`, so a call site that
+    // rendered `MapDiveRail` again with them would not compile — but one that
+    // rendered it with a plausible-looking substitute would, and would ship a
+    // control that moves the camera to coordinates nobody chose.
+    //
+    // WHEN THE DEPTH RAIL LANDS: put `<MapDiveRail` back into the `order` list
+    // above, between `<MapToolbar` and `<div className="mpan-split">`, and
+    // delete this test. That position is the Tab order §U6 names — after the
+    // group-by disclosure, before the tree's one stop — and it is the whole
+    // reason this is asserted rather than left to a memory.
+    // COMMENTS STRIPPED, because the page EXPLAINS the withdrawal at length and
+    // quotes the very expressions it no longer evaluates. A grep that could not
+    // tell code from prose would forbid the page from saying why.
+    const src = page()
+    const written = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    expect(written, 'the dive rail must not be mounted with dive numbers').not.toContain(
+      '<MapDiveRail',
+    )
+    expect(written, 'octaves are not a reading a tidy tree can produce').not.toContain('geo.octave')
+    // The container is kept, and so is the component and its own test file:
+    // nothing the depth rail needs has been deleted, only withdrawn.
+    expect(src).toContain('mtree-ladder')
   })
 
   it('renders the islands inside one layer that refuses pointers', () => {

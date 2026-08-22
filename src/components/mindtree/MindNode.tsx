@@ -459,9 +459,10 @@ export interface MindNodeProps {
    * ── WHY THE FLAG IS "NO WORLD" AND NOT "BAND = CARD" ──────────────────────
    *
    * A band of `card` alone would not have been enough, and this is the subtle
-   * half. `pages/map/treePreview.ts` bolts INVENTED disc geometry onto the tidy
-   * tree so the containment camera can drive it — `worldD = 1.6 x max(w, h)` —
-   * and this component divides the type and the strokes by exactly that number:
+   * half. The deleted `pages/map/treePreview.ts` bolted INVENTED disc geometry
+   * onto the tidy tree so the containment camera could drive it —
+   * `worldD = 1.6 x max(w, h)` — and this component divides the type and the
+   * strokes by exactly that number:
    * `worldFactor = worldD / (D_LEAF x cardScale)` comes out at 1.344 for a
    * 168-unit card, which would draw a 12.5px label at 16.8px and a 1-unit
    * outline at 1.34. The card would be the right size with the wrong ink in it.
