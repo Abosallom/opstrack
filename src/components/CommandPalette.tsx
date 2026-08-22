@@ -58,6 +58,7 @@ import { viewToParams } from '../lib/mindtree/focus'
 import {
   DEFAULT_PORTFOLIO_BY,
   DEFAULT_PORTFOLIO_RISK,
+  isMapLens,
   LENS_KEY,
   MAP_LENSES,
   type MapLens,
@@ -86,6 +87,7 @@ import {
 // catalogue into this chunk to spell five string literals.
 import type { PermissionKey } from '../api/roles'
 import { useAuth, useHasPerm, useIsAdmin } from '../store/auth'
+import { openPanelForLens } from '../store/mindtree'
 import { useActiveTracks, useMapNodes, useTrackMap } from '../store/config'
 import { loadEntries, refreshEntries, setStatus, useEntryList } from '../store/entries'
 import { getOpenEntryId, openEntry, stepEntry } from '../store/entrySheet'
@@ -315,6 +317,32 @@ export function mapHref(lens: MapLens, focusId: string | null = null): string {
     dimension: null,
   })
   return `${MAP_PATH}?${params.toString()}`
+}
+
+/**
+ * Open the panel a map href is asking for, when the href cannot ask by itself.
+ *
+ * ⚠ THE TAP THAT LOOKED BROKEN. Every row below navigates to `/mindtree?lens=…`.
+ *   When the reader is ALREADY on that lens with no other params, that URL is
+ *   byte-identical to the current one — `location.search` does not change,
+ *   `useSearchParams` hands back the same memoised object, and the inbound
+ *   effect in `useMapUrl` (correctly keyed on `[params]`) does not re-run. The
+ *   panel stayed shut and the row did nothing at all. Worst for the reader who
+ *   is already looking at the map, which is where a palette gets used most.
+ *
+ * Read back out of the HREF rather than passed alongside it, so that one call in
+ * `run:` covers the five lens rows, the four portfolio views and anything later
+ * added to the same list — a row cannot be added that forgets this.
+ *
+ * `openPanelForLens` is the guard: a lens with no panel opens nothing.
+ */
+export function openPanelForMapHref(href: string): void {
+  const q = href.indexOf('?')
+  if (q === -1 || !href.startsWith(`${MAP_PATH}?`)) return
+  const params = new URLSearchParams(href.slice(q + 1))
+  const lens = params.get(LENS_PARAM)
+  if (!isMapLens(lens)) return
+  openPanelForLens(lens, params.get('focus'))
 }
 
 /**
@@ -613,7 +641,11 @@ export function trackCandidates(
     item: {
       id: `track:${track.id}`,
       label: trackLabel(track),
-      run: () => navigate(mapHref('shape', trackFocusId(track.id))),
+      run: () => {
+        const href = mapHref('shape', trackFocusId(track.id))
+        openPanelForMapHref(href)
+        navigate(href)
+      },
     },
     // BOTH names, in both languages, whichever the UI is showing: an English
     // UI still has to find a track whose only memorable name is Arabic. This
@@ -654,7 +686,11 @@ export function organizationCandidates(
     item: {
       id: `node:${node.id}`,
       label: nodeLabel(node),
-      run: () => navigate(mapHref('shape', node.id)),
+      run: () => {
+        const href = mapHref('shape', node.id)
+        openPanelForMapHref(href)
+        navigate(href)
+      },
     },
     fields: [foldField(nodeLabel(node)), foldField(`${node.name} ${node.name_ar}`)],
   }))
@@ -705,7 +741,12 @@ export function screenCandidates(
     item: {
       id: `screen:${screen.to}`,
       label: t(screen.labelKey),
-      run: () => navigate(screen.to),
+      run: () => {
+        // Screens that are map lenses need the panel opened by hand; everything
+        // else falls straight through. See `openPanelForMapHref`.
+        openPanelForMapHref(screen.to)
+        navigate(screen.to)
+      },
     },
     fields: [foldField(t(screen.labelKey))],
   }))

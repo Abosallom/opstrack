@@ -78,6 +78,7 @@ import { formatRelativeTime } from '../lib/dates'
 import { t, useLocale, type Locale } from '../lib/i18n'
 import { pushOverlay } from '../lib/overlayStack'
 import { useMemberMap } from '../store/members'
+import { openPanelForLens } from '../store/mindtree'
 import {
   loadNotifications,
   markAllNotificationsRead,
@@ -595,7 +596,13 @@ export default function NotificationBell(): ReactElement {
     <NavLink
       to="/mindtree?lens=what-changed"
       className="btn btn-ghost btn-sm notif-seeall"
-      onClick={close}
+      onClick={() => {
+        // The panel, because the URL may be the one we are already on — see
+        // `openPanelForLens`. Without this the link is a no-op for exactly the
+        // reader who is already looking at the map.
+        openPanelForLens('what-changed')
+        close()
+      }}
     >
       {t('notif.seeAll')}
       {/* Forward through the hierarchy — forward is leftward in Arabic. */}
@@ -714,7 +721,11 @@ export function NotificationsSettingsRow(): ReactElement {
     // Same repoint as "See all" above, and this row matters more: it is the ONLY
     // way the inbox history is reachable on a phone, where the bell's popover is
     // a sheet the reader has to open first.
-    <NavLink to="/mindtree?lens=what-changed" className="btn btn-ghost notif-settings-row">
+    <NavLink
+      to="/mindtree?lens=what-changed"
+      className="btn btn-ghost notif-settings-row"
+      onClick={() => openPanelForLens('what-changed')}
+    >
       <span>{t('notif.title')}</span>
       {unread > 0 && (
         <span className="pill info notif-settings-count">

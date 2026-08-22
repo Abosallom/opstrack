@@ -1,3 +1,4 @@
+import { openPanelForMapHref } from './CommandPalette'
 // The palette: what it can reach, what it shows, and what pressing a row does.
 //
 // WHY renderToStaticMarkup AND NOT A DOM. vitest.config.ts is `environment:
@@ -396,6 +397,7 @@ function routedBy(routes: readonly ParsedRoute[], target: string): boolean {
     return pattern.every((seg, i) => seg.startsWith(':') || seg === want[i])
   })
 }
+import { getMindtreeState, resetMindtree, setMindPanelOpen } from '../store/mindtree'
 
 describe('the palette registry against App.tsx', () => {
   it('parsed a route table worth asserting against', () => {
@@ -1207,5 +1209,52 @@ describe('<CommandPalette />', () => {
     fx.state.role = 'admin'
     expect(render()).toBe('')
     fx.state.role = 'member'
+  })
+})
+
+describe('a lens row opens its panel, even when the URL does not change', () => {
+  // ⚠ THE REGRESSION THIS HOLDS. Every row here navigates to `/mindtree?lens=…`.
+  //   For a reader ALREADY on that lens with no other params, that URL is
+  //   byte-identical to the current one: `location.search` does not change,
+  //   `useSearchParams` returns the same memoised object, and `useMapUrl`'s
+  //   inbound effect — correctly keyed on `[params]` — does not re-run. The
+  //   panel stayed shut and the row did nothing. It was worst for the reader
+  //   already looking at the map, which is where a palette is used most.
+  //   `docs/MAP-UNFINISHED.md:219` recorded it as the one behavioural gap left.
+
+  it('asks for the panel of a lens that has one', () => {
+    resetMindtree()
+    setMindPanelOpen(false)
+    openPanelForMapHref(mapHref('what-changed'))
+    expect(getMindtreeState().panelOpen).toBe(true)
+  })
+
+  it('OPENS NOTHING for a lens that has no panel', () => {
+    // The guard, and the reason this is not just `setMindPanelOpen(true)`.
+    // `by-status` has no panel at all, and `shape` has one only when something
+    // is focused — forcing the flag for either would flip a PERSISTED preference
+    // to describe a dock the shell does not render.
+    for (const href of [mapHref('by-status'), mapHref('shape')]) {
+      resetMindtree()
+      setMindPanelOpen(false)
+      openPanelForMapHref(href)
+      expect(getMindtreeState().panelOpen, href).toBe(false)
+    }
+  })
+
+  it('opens the panel for `shape` once something is focused', () => {
+    resetMindtree()
+    setMindPanelOpen(false)
+    openPanelForMapHref(mapHref('shape', 'root/track:t-1'))
+    expect(getMindtreeState().panelOpen).toBe(true)
+  })
+
+  it('ignores anything that is not a map href', () => {
+    for (const href of ['/settings', '/mindtree', '/mindtree?lens=nonsense', '', '?lens=numbers']) {
+      resetMindtree()
+      setMindPanelOpen(false)
+      openPanelForMapHref(href)
+      expect(getMindtreeState().panelOpen, JSON.stringify(href)).toBe(false)
+    }
   })
 })

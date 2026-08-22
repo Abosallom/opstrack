@@ -50,7 +50,7 @@
 // only one of them would roll back.
 
 import { create } from 'zustand'
-import { DEFAULT_LENS, isMapLens, type MapLens } from '../lib/mindtree/lens'
+import { DEFAULT_LENS, isMapLens, subjectForLens, type MapLens } from '../lib/mindtree/lens'
 import { isMindDimension, ROOT_ID, type MindDimension } from '../lib/mindtree/model'
 
 /* ─────────────────────────────── the shapes ──────────────────────────────── */
@@ -491,6 +491,36 @@ export function setMindLens(lens: MapLens): void {
 /** Show or hide the dock. Closing it gives the picture the whole width. */
 export function setMindPanelOpen(panelOpen: boolean): void {
   updatePrefs({ panelOpen })
+}
+
+/**
+ * A LINK TO A LENS OPENS THAT LENS'S PANEL — from outside the map.
+ *
+ * ⚠ THE TAP THAT LOOKED BROKEN. `NotificationBell`'s "See all" and the command
+ *   palette's five lens rows navigate to `/mindtree?lens=…`. When the reader is
+ *   ALREADY on that lens with no other params, that URL is byte-identical to the
+ *   current one: `location.search` does not change, `useSearchParams` returns
+ *   the same memoised object, and the inbound effect in `useMapUrl` — correctly
+ *   keyed on `[params]` — does not re-run. The panel stayed shut and the link
+ *   did nothing at all. `docs/MAP-UNFINISHED.md:219` recorded it and prescribed
+ *   this exact shape.
+ *
+ *   It cannot be fixed inside `useMapUrl` without re-running that effect on
+ *   every replace, which would cost the idempotence the same file argues for. So
+ *   it belongs at the CALLER, and this is the caller's one line.
+ *
+ * GUARDED BY THE SAME QUESTION THE EFFECT ASKS. `subjectForLens` is the closed
+ * union that decides whether a lens has a panel at all: `by-status` never does,
+ * and `shape` does only when something is focused. Forcing `panelOpen` for
+ * either would flip a persisted preference to describe a dock the shell does not
+ * render — so a lens with nothing to show still opens nothing.
+ *
+ * Idempotent, and safe to call when the navigation IS a real one: the effect
+ * would set the same flag a moment later.
+ */
+export function openPanelForLens(lens: MapLens, focusId: string | null = null): void {
+  if (subjectForLens(lens, focusId).kind === 'none') return
+  setMindPanelOpen(true)
 }
 
 /**
