@@ -124,6 +124,7 @@ import { canEditEntry } from '../../lib/permissions'
 import type { DndBox } from '../../lib/dnd'
 import {
   HOLD_MS,
+  HOLD_SLOP_PX,
   clientToLayout,
   dragPan,
   dropZonesFrom,
@@ -432,6 +433,21 @@ export function useMindDragLayer(options: MindDragLayerOptions): MindDragControl
   const carriedRef = useRef<MindCarry>(NO_CARRY)
   const listeningRef = useRef(false)
   const holdTimerRef = useRef<number | null>(null)
+  /**
+   * A HOLD WITH NO DRAG BEHIND IT — the branch's route to the node menu.
+   *
+   * A finger has no right-click, and `v1: leaves move, branches do not` means a
+   * branch never starts a drag session at all: `onNodePointerDown` returned on
+   * `kind !== 'entry'` before any of the hold machinery, so a long press on a
+   * directorate, a book or a type did NOTHING on a touch screen, and every verb
+   * behind the node menu — assign, add, archive, focus — was desktop-only.
+   *
+   * It is a ref of its own rather than a session because `startMindDrag` is
+   * built around an `entryId` this gesture does not have and must not invent.
+   * Everything else is shared: the same window listeners, the same
+   * `endGesture` teardown, the same `HOLD_MS` and `HOLD_SLOP_PX`.
+   */
+  const menuHoldRef = useRef<{ pointerId: number; client: { x: number; y: number } } | null>(null)
   const rafRef = useRef<number | null>(null)
   const draggedAtRef = useRef(0)
   const lastClientRef = useRef({ x: 0, y: 0 })
@@ -884,6 +900,20 @@ export function useMindDragLayer(options: MindDragLayerOptions): MindDragControl
 
   const onWindowMove = useCallback(
     (ev: PointerEvent) => {
+      // THE MENU HOLD IS CHECKED FIRST, because it has no session and the line
+      // below returns on exactly that. A finger that drifts past HOLD_SLOP_PX is
+      // panning the map, and a menu that opened 420 ms later at the point the
+      // finger has already left is the worst of both gestures.
+      const menuHold = menuHoldRef.current
+      if (menuHold !== null) {
+        if (ev.pointerId !== menuHold.pointerId) return
+        const drifted =
+          Math.abs(ev.clientX - menuHold.client.x) >= HOLD_SLOP_PX ||
+          Math.abs(ev.clientY - menuHold.client.y) >= HOLD_SLOP_PX
+        if (drifted) endRef.current(false)
+        return
+      }
+
       const session = sessionRef.current
       if (session === null || ev.pointerId !== session.gesture.pointerId) return
 
@@ -924,6 +954,13 @@ export function useMindDragLayer(options: MindDragLayerOptions): MindDragControl
   )
 
   const onWindowUp = useCallback((ev: PointerEvent) => {
+    // A menu hold owns the gesture by pointer id, exactly as a session does; a
+    // second finger lifting must not cancel the first one's press.
+    const menuHold = menuHoldRef.current
+    if (menuHold !== null) {
+      if (ev.pointerId === menuHold.pointerId) endRef.current(false)
+      return
+    }
     if (sessionRef.current?.gesture.pointerId !== ev.pointerId) return
     endRef.current(true)
   }, [])
@@ -949,7 +986,10 @@ export function useMindDragLayer(options: MindDragLayerOptions): MindDragControl
    * at 300 ms and is dismissed at 420 ms is a flicker nobody asked for.
    */
   const onWindowSuppress = useCallback((ev: Event) => {
-    if (!isMindHoldGesture(sessionRef.current)) return
+    // The menu hold needs this MORE than the lift does: it is armed on a branch,
+    // where Android's own long-press context menu at ~500 ms would otherwise
+    // arrive right behind ours and put two menus on the screen.
+    if (menuHoldRef.current === null && !isMindHoldGesture(sessionRef.current)) return
     ev.preventDefault()
   }, [])
 
@@ -977,6 +1017,9 @@ export function useMindDragLayer(options: MindDragLayerOptions): MindDragControl
       const session = sessionRef.current
       const carried = carriedRef.current.ids
       sessionRef.current = null
+      // Cleared with the session and by the same teardown, so a press that ended
+      // any way at all — release, pan, Escape, unmount — cannot open a menu.
+      menuHoldRef.current = null
       carriedRef.current = NO_CARRY
       setLift(null)
       endMindDrag()
@@ -1206,7 +1249,60 @@ export function useMindDragLayer(options: MindDragLayerOptions): MindDragControl
       if (ev.pointerType === 'mouse' && ev.button !== 0) return
       // v1: leaves move, branches do not — dropRules refuses the rest by name.
       const entryId = pos.node.entryId
-      if (pos.node.kind !== 'entry' || entryId === null) return
+      if (pos.node.kind !== 'entry' || entryId === null) {
+        /**
+         * ⚠ THIS USED TO BE A BARE `return`, AND THAT WAS THE PHONE'S DEAD END.
+         *
+         * A branch cannot be lifted, which is correct. But the hold was the only
+         * gesture a finger had left, and returning here spent it on nothing — so
+         * on a touch screen the node menu was UNREACHABLE on every directorate,
+         * book and type, and with it assign, add an item, add a branch, archive
+         * and focus. The menu's other two doors are a right-click and Shift+F10;
+         * a phone has neither.
+         *
+         * (The `menuOnly` branch further down was written for this and cannot
+         * serve it: it is reached through the drag session, which is built
+         * around an `entryId`, and it only arms when `zones` is empty — which on
+         * a tree of branches is never.)
+         *
+         * A MOUSE GETS NOTHING HERE, deliberately: it already has right-click,
+         * and a 420 ms delay before a menu it can open instantly is a regression
+         * dressed as a feature.
+         */
+        if (ev.pointerType === 'mouse' || ctxRef.current.onNodeMenu === undefined) return
+
+        const client = { x: ev.clientX, y: ev.clientY }
+        lastClientRef.current = client
+        menuHoldRef.current = { pointerId: ev.pointerId, client }
+
+        // The finger is NOT taken from the page yet — it may still be a pan, and
+        // `onWindowMove` hands it back the moment it drifts. Only the hold
+        // landing claims it, which is the same bargain the lift strikes.
+        listeningRef.current = true
+        window.addEventListener('pointermove', onWindowMove, { passive: false })
+        window.addEventListener('pointerup', onWindowUp)
+        window.addEventListener('pointercancel', onWindowCancel)
+        window.addEventListener('keydown', onWindowKey, true)
+        window.addEventListener('selectstart', onWindowSuppress)
+        window.addEventListener('contextmenu', onWindowSuppress)
+
+        holdTimerRef.current = window.setTimeout(() => {
+          holdTimerRef.current = null
+          const held = menuHoldRef.current
+          if (held === null) return
+          // `draggedAtRef` FIRST: the pointerup that follows synthesises a click
+          // on this node, and without the stamp the tap would FOLD the branch
+          // one frame after its menu opened. This gesture never reaches
+          // `dragging`, so `endGesture`'s own stamp never runs for it.
+          draggedAtRef.current = Date.now()
+          ctxRef.current.onPanCancel()
+          if (typeof navigator.vibrate === 'function') navigator.vibrate(8)
+          const at = lastClientRef.current
+          endRef.current(false)
+          ctxRef.current.onNodeMenu?.(pos, { x: at.x, y: at.y })
+        }, HOLD_MS)
+        return
+      }
 
       /**
        * NOWHERE TO DROP — the phone's one-ring drill-in draws entries with no

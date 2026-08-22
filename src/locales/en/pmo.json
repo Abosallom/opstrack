@@ -35,9 +35,48 @@
       "other": "{count} more finished with no deadline recorded, and are in neither half."
     },
 
-    "delivery": "Projects & follow-ups",
-    "deliveryDesc": "Where each organization has got to, who is behind it, and how much is open underneath.",
-    "deliveryLabel": "Organizations by stage",
+    "lateOneClock": "Every organization’s stage was recorded on ⁨{date}⁩, so this counts days since then rather than time spent on a rung.",
+
+    "initiatives": "Initiatives",
+    "initiativesDesc": "What this workspace has promised, and by when. Each one is read against the same stage records the map shows, so this page and the map cannot disagree about how far a commitment has got.",
+    "colInitiative": "Initiative",
+    "colScope": "Scope",
+    "colProgress": "Progress",
+    "colDue": "Due",
+    "initMet": "Met",
+    "initReached": "\u2068{reached}\u2069 of \u2068{target}\u2069",
+    "initPending": "Not there yet \u2014 this one either arrives or it does not, so there is no fraction to show.",
+    "initEmpty": "Nothing has been promised yet",
+    "initEmptyHint": "A commitment is made on an organization\u2019s panel in the map \u2014 a stage, a count and the date it is promised for.",
+    "initError": "The commitments could not be read",
+    "initErrorHint": "This part of the workspace has not been set up in the database yet. Nothing you have recorded is missing \u2014 there is simply nothing here to read.",
+
+    "projects": "Project cards",
+    "projectsDesc": "One card per organization: where it has got to, how much of its capability set is recorded, and who is accountable for it.",
+    "projActive": "In progress",
+    "projDone": "Done",
+    "projPaused": "On hold",
+    "projOpen": {
+      "one": "One item open",
+      "other": "{count} items open"
+    },
+    "projNoCoverage": "No capability has been recorded against this organization yet.",
+    "projRecorded": {
+      "one": "Only one of these capabilities has anything recorded against it.",
+      "other": "Only {count} of these capabilities have anything recorded against them."
+    },
+
+    "actions": "Actions",
+    "actionsDesc": "Every open action in the workspace, whether or not anything is wrong with it. The buckets beneath are the triage; this is the register.",
+    "colAction": "Action",
+    "colOwner": "Owner",
+    "colStatus": "Status",
+    "actionNoDue": "No date promised",
+    "actionOverdue": "Overdue",
+    "actionCopy": "Copy link",
+    "actionsEmpty": "No open actions",
+    "actionsEmptyHint": "Anything captured as an action, and still open, is listed here on its own.",
+
     "deliveryEmpty": "No organizations to show",
     "deliveryEmptyHint": "This section reads the hierarchy under Settings › Structure. Nothing has been recorded there yet.",
     "deliveryAll": "Open the full portfolio",

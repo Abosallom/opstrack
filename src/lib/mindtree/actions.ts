@@ -651,6 +651,46 @@ function branchActions(
 ): readonly MindAction[] {
   const out: MindAction[] = []
 
+  /**
+   * ── "OPEN ITS DETAILS", AND IT IS A REACHABILITY FIX RATHER THAN A FEATURE ──
+   *
+   * ⚠ A BRANCH WITH CHILDREN COULD NOT OPEN ITS OWN PANEL AT ALL. On the tidy
+   * tree `activate` folds first (`useMapKeyboard`'s `foldOnActivate`) and
+   * RETURNS, which shadows the `dive.details` arm below it — so that arm only
+   * ever fires for a node with no children. A directorate, a book or a type had
+   * no gesture, no key and no menu row that reached its panel, and the panel is
+   * where the stage picker, the goals and the whole delegation cockpit live.
+   *
+   * The fold is the right answer to a tap and is not being changed; what was
+   * missing is a SECOND verb, and a menu is exactly where a second verb goes.
+   *
+   * A COHORT IS EXCLUDED, for the reason `activate` states where it makes the
+   * same choice: a cohort's id is synthetic (`manager:<uuid>`) and `entityIdOf`
+   * refuses it by construction, so the panel would resolve nothing. Naming the
+   * kind here costs one comparison and makes the one path that could send a
+   * synthetic key at a uuid column impossible rather than merely unreachable.
+   *
+   * A "+N more" FOLD IS EXCLUDED TOO — it is a drawing artefact standing for
+   * hidden siblings, not a node anything could describe.
+   *
+   * It is FIRST in the list because it is the only one that reads rather than
+   * writes, and because it is the row a reader who opened this menu by accident
+   * wants to find.
+   */
+  if (node.kind !== 'cohort' && node.kind !== 'more') {
+    out.push(
+      action(
+        'open',
+        'mindtree.actOpenBranch',
+        true,
+        null,
+        // Not an ENTRY id: the panel is opened by NODE id, and `targetIds` is
+        // the entry list every other verb pools over. A branch names none.
+        EMPTY_IDS,
+      ),
+    )
+  }
+
   // "Add an item here" is offered on every branch that stands for a bucket, plus
   // the root (which seeds nothing and simply opens capture). `entries_insert` is
   // `is_member() and created_by = auth.uid()` (0001, re-stated with an InitPlan

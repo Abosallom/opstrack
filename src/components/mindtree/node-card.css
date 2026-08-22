@@ -189,6 +189,39 @@
   color: var(--text-faint);
 }
 
+/* ---------- what the node can do ---------- */
+
+/* The card's last line, and the map's answer to "I cannot tell what is
+   clickable" — see NodeCard.tsx's mark for why it lives here rather than as a
+   control on the node.
+
+   QUIETER THAN EVERY FACT ABOVE IT, and separated by a rule. It is instructions,
+   not information: a reader who already knows the gestures should be able to
+   skip it with their eye every time, and one who does not should find it in the
+   place a caption goes. `--text-faint` is the same ink `.mtree-card-quiet` uses
+   for "All clear", which is the other line on this card that reports no data.
+
+   IT IS HIDDEN WHERE IT WOULD BE WRONG. A coarse pointer has no right-click, and
+   this card is shown by the very tap that begins the gesture it would be
+   describing — so on a touch screen the line is not merely useless, it is late.
+   `display: none` also takes it out of the accessibility tree, which is correct:
+   a screen reader on a phone should not be told to right-click either. The
+   keyboard's own contract is a separate sentence in `MapAnnouncer`. */
+.mtree-card-verbs {
+  margin-block-start: 2px;
+  padding-block-start: 6px;
+  border-block-start: 1px solid var(--border);
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-faint);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .mtree-card-verbs {
+    display: none;
+  }
+}
+
 /* ---------- the three numbers ---------- */
 
 .mtree-card-stats {

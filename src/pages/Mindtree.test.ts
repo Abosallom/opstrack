@@ -59,6 +59,7 @@ const SOURCES: Record<string, string> = import.meta.glob(
     './map/useMapModel.ts',
     './map/useMapToolbar.ts',
     './map/useMapWrites.ts',
+    '../components/map/MapAnnouncer.tsx',
     '../components/map/MapSummary.tsx',
     '../components/mindtree/DragLayer.tsx',
     '../components/mindtree/MindNode.tsx',
@@ -82,6 +83,7 @@ const mapModel = (): string => source('map/useMapModel.ts')
 const mapToolbar = (): string => source('map/useMapToolbar.ts')
 const writes = (): string => source('map/useMapWrites.ts')
 const summary = (): string => source('map/MapSummary.tsx')
+const announcer = (): string => source('map/MapAnnouncer.tsx')
 const dragLayer = (): string => source('mindtree/DragLayer.tsx')
 const mindNode = (): string => source('mindtree/MindNode.tsx')
 
@@ -224,13 +226,98 @@ describe('the page live region re-announces a repeated sentence', () => {
     // all" twice, "Fit to view" already fitted).
     //
     // The counter is written by the composition root, because every hook on the
-    // screen is handed `setLive`; the element that consumes it is MapSummary.
+    // screen is handed `setLive`; the element that consumes it is MapAnnouncer.
     expect(page()).toContain('setLiveState((prev) => ({ text, seq: prev.seq + 1 }))')
-    expect(summary()).toContain('<span key={live.seq}>{live.text}</span>')
+    expect(announcer()).toContain('<span key={live.seq}>{live.text}</span>')
+  })
+
+  it('mounts the region OUTSIDE the chrome gate, which is how it was lost', () => {
+    // THE REGRESSION THIS EXISTS FOR. Both of MapAnnouncer's nodes used to live
+    // in MapSummary, and MapSummary is rendered `{false && summaryIsle}` — so
+    // quieting the VISIBLE caption strip silently unmounted the page's only
+    // live region and left the <svg>'s `aria-describedby` pointing at nothing.
+    // Neither failure has a visible symptom, which is why it shipped.
+    //
+    // Read as source rather than by rendering because the gate is the fact under
+    // test: an element can be present in a render tree for the wrong reason.
+    const src = page()
+    const mount = src.indexOf('<MapAnnouncer')
+    expect(mount, 'Mindtree.tsx must mount <MapAnnouncer>').toBeGreaterThan(-1)
+
+    // No `{false &&` and no `Isle` between the start of its JSX line and the tag.
+    const lineStart = src.lastIndexOf('\n', mount)
+    expect(src.slice(lineStart, mount)).not.toContain('&&')
+
+    // And it is handed BOTH things that were lost: the live counter and the id.
+    expect(src).toMatch(/<MapAnnouncer[^>]*hintId=\{hintId\}/)
+    expect(src).toMatch(/<MapAnnouncer[^>]*live=\{live\}/)
+
+    // The id the canvas points at is carried by the element this file mounts,
+    // not by the one behind the gate.
+    expect(announcer()).toContain('id={hintId}')
+    expect(summary()).not.toContain('id={hintId}')
   })
 })
 
 describe('the phone gets the verbs the drag cannot offer it', () => {
+  it('spends the hold on the node menu for a BRANCH, which cannot be lifted', () => {
+    // ⚠ THE DEAD END THIS EXISTS FOR. `v1: leaves move, branches do not`, so
+    // `onNodePointerDown` returned on `kind !== 'entry'` — before any of the
+    // hold machinery. A finger has no right-click and no Shift+F10, so on a
+    // touch screen the node menu was unreachable on every directorate, book and
+    // type, and with it add an item, add a branch, archive and focus.
+    //
+    // The `menuOnly` path below cannot serve this: it runs through the drag
+    // session, which is built around an `entryId` a branch does not have, and it
+    // only arms when `zones` is empty — which on a tree of branches is never.
+    const layer = dragLayer()
+    const gate = layer.indexOf("if (pos.node.kind !== 'entry' || entryId === null)")
+    expect(gate, 'the non-draggable gate has moved or gone').toBeGreaterThan(-1)
+    // It is no longer a bare `return`.
+    expect(layer.slice(gate, gate + 120)).not.toMatch(/entryId === null\) return/)
+
+    // A MOUSE IS TURNED AWAY HERE, deliberately: it already opens the menu
+    // instantly with a right-click, and a 420 ms delay is not an improvement.
+    expect(layer).toContain(
+      "if (ev.pointerType === 'mouse' || ctxRef.current.onNodeMenu === undefined) return",
+    )
+    // And the press claims the finger only once it lands.
+    expect(layer).toContain('menuHoldRef.current = { pointerId: ev.pointerId, client }')
+  })
+
+  it('cancels that hold when the finger turns out to be panning', () => {
+    // The hold has NO drag session, and `onWindowMove` returns on exactly that —
+    // so without its own check a finger that panned away would still be handed a
+    // menu 420 ms later, at a point it had already left. The check has to come
+    // FIRST in that handler for the same reason.
+    const layer = dragLayer()
+    const move = layer.indexOf('const onWindowMove = useCallback(')
+    const menuCheck = layer.indexOf('const menuHold = menuHoldRef.current', move)
+    const sessionBail = layer.indexOf('const session = sessionRef.current', move)
+    expect(menuCheck, 'onWindowMove does not check the menu hold').toBeGreaterThan(-1)
+    expect(menuCheck, 'the menu-hold check must precede the session bail').toBeLessThan(sessionBail)
+    expect(layer).toContain('if (drifted) endRef.current(false)')
+
+    // Torn down by the SAME teardown as a real drag, so a press that ended any
+    // way at all cannot open a menu afterwards.
+    const teardown = layer.indexOf('const endGesture = useCallback(')
+    expect(layer.indexOf('menuHoldRef.current = null', teardown)).toBeGreaterThan(-1)
+  })
+
+  it('stamps the click the hold is about to synthesise, so the branch does not fold', () => {
+    // `foldOnActivate` makes a tap on a branch FOLD it, and the pointerup that
+    // ends this hold synthesises exactly that tap. Without the stamp the menu
+    // opens and the branch collapses underneath it one frame later.
+    const layer = dragLayer()
+    const timer = layer.indexOf('const held = menuHoldRef.current')
+    expect(timer).toBeGreaterThan(-1)
+    const body = layer.slice(timer, timer + 900)
+    expect(body.indexOf('draggedAtRef.current = Date.now()')).toBeGreaterThan(-1)
+    expect(body.indexOf('draggedAtRef.current = Date.now()')).toBeLessThan(
+      body.indexOf('onNodeMenu?.('),
+    )
+  })
+
   it('spends the hold on the node menu when there is nowhere to drop', () => {
     const layer = dragLayer()
     expect(layer).toContain('const menuOnly = zonesRef.current.length === 0')

@@ -511,6 +511,28 @@ const COUNT_SLOT = 34
 const LABEL_PX = 12.5
 const COUNT_PX = 11.5
 const CHEVRON_COUNT_PX = 9.5
+
+/**
+ * THE FOLD MARK ON THE FLAT TREE — a chevron below the card's block end, in
+ * drawing units. See the mark itself for why it exists and why it is below the
+ * card rather than beside it.
+ *
+ * ⚠ THE CEILING IS THE CONTAINER'S PADDING, NOT `gap.depth`, and the first
+ * version of this mark got that wrong. A folded card in a container's LAST ROW
+ * has only `padAt(depth)` beneath it — 12 units at the depth the books sit at,
+ * 6 at the floor (lib/mindtree/blocks.ts) — not the 46 units of `gap.depth`
+ * that separates one row from the next. A 19-unit mark cleared the row gap and
+ * punched straight through the container's bottom border, which the picture
+ * harness showed and no test could have.
+ *
+ * `FOLD_GAP + FOLD_H` = 8 fits under `PAD_MIN` = 6 only barely; it is cut
+ * against the 12 the map actually draws with. Raising either number is a change
+ * to a collision, not to a taste.
+ */
+const FOLD_GAP = 3
+const FOLD_H = 5
+/** The chevron's full span. Wider than tall, so it reads as a DIRECTION. */
+const FOLD_W = 13
 const SECONDARY_PX = 11
 
 /**
@@ -1066,6 +1088,7 @@ export const MindNode = memo(function MindNode({
    * inline-end expression this line has always held.
    */
   const chevron = outward ?? { x: rtl ? -9 : width + 9, y: height / 2 }
+
   /**
    * Non-null when the label is drawn outside the box.
    *
@@ -1693,6 +1716,60 @@ export const MindNode = memo(function MindNode({
             />
           )}
         </g>
+      )}
+
+      {/* ── THE MARK A FOLDED BRANCH GETS ON THE FLAT TREE ────────────────
+
+          THE GATE ABOVE IS RIGHT AND THIS IS NOT A REVERSAL OF IT. Its argument
+          is that an OPEN branch on the tidy tree already draws its continuation
+          as a CONTAINER — a rounded rectangle enclosing the whole subtree,
+          joined to this card by its own stub (MindBlock.tsx) — so a disc saying
+          "there is more" beside a boundary showing exactly how much more is a
+          second mark in one place. That holds, and the open branch still gets
+          no chevron.
+
+          WHAT IT DID NOT COVER IS THE CLOSED ONE. That comment was written when
+          the sentence "the flat tree never collapses anything" was true. It is
+          not any more: `foldOnActivate` (Mindtree.tsx) makes a tap on a branch
+          FOLD it, which is the tidy tree's primary gesture. A folded branch
+          draws no container — the container is the thing it is hiding — so it
+          drew no mark of any kind, and a card with three hundred organizations
+          inside it was pixel-for-pixel a card with none. That is the whole of
+          "I cannot tell what is clickable": the picture stopped saying there was
+          anything to open.
+
+          SO THE MARK GOES WHERE THE CONTAINER WOULD HAVE BEEN. Not the
+          inline-end disc the gate above removes — that one pointed sideways at
+          children drawn BELOW, which is exactly why it went. This points the way
+          the subtree actually lies.
+
+          ⚠ IT CARRIES NO COUNT, AND THAT IS THE SECOND THING THE PICTURE
+          CORRECTED. The first version ended the stub in a pill holding
+          `hiddenChildCount`, which seemed free — the number was already on the
+          model. On the drawing it was not free at all: the card's own count is
+          the ROLLED total of the whole subtree (a book reads `20`, meaning
+          twenty organizations), while `hiddenChildCount` is the number of DIRECT
+          children hidden (`4`, meaning four types). Those two numbers landed
+          three units apart on the same card with nothing distinguishing them,
+          and the smaller one looked like a correction of the larger. The card
+          already says how much is inside; this mark only has to say that it
+          opens.
+
+          IT IS `aria-hidden` AND IT IS NOT A BUTTON. The whole card is the hit
+          target (see this file's header) and `aria-expanded` on the treeitem
+          already carries the state for a reader. This is a SIGN, and adding a
+          second, smaller target inside a passing one would fail the audit the
+          header's rule exists to pass. */}
+      {flat && pos.hasChildren && !expanded && pos.hiddenChildCount > 0 && showText && (
+        <path
+          className="mtree-fold"
+          aria-hidden="true"
+          d={
+            `M ${width / 2 - FOLD_W / 2} ${height + FOLD_GAP}` +
+            ` L ${width / 2} ${height + FOLD_GAP + FOLD_H}` +
+            ` L ${width / 2 + FOLD_W / 2} ${height + FOLD_GAP}`
+          }
+        />
       )}
 
       {/* A leaf gets a quiet dot at the reading start so a row of entries reads

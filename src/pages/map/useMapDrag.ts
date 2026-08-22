@@ -103,11 +103,20 @@ export function useMapDrag({
     labelOf,
     onPanBy: panBy,
     onPanCancel: cancelPan,
-    // THE PHONE'S WAY TO WORK IN IT. The compact map draws one ring, so the ring
-    // that shows items shows no branch to drop onto and the layer refuses to
-    // start a drag at all. It spends the hold on the node's own verbs instead —
-    // assign, re-status, close — which are the same acts a drop performs and go
-    // down the same `patchEntry` path.
+    // THE PHONE'S ONLY DOOR TO THE VERBS, and it is now two doors rather than
+    // one. A finger has no right-click and no Shift+F10, so without this the
+    // node menu is desktop-only.
+    //
+    //   1. AN ENTRY WITH NOWHERE TO DROP. The compact map draws one ring, so the
+    //      ring showing items shows no branch to drop onto and the layer refuses
+    //      to start a drag at all. The hold is spent on the item's own verbs
+    //      instead — assign, re-status, close — which are the same acts a drop
+    //      performs and go down the same `patchEntry` path.
+    //
+    //   2. A BRANCH, ANYWHERE. Branches do not move in v1, so a long press on a
+    //      directorate, a book or a type used to do nothing at all — and add an
+    //      item, add a branch, archive and focus live behind this menu and
+    //      nowhere else. See `DragLayer`'s `menuHoldRef`.
     onNodeMenu: openMenuFor,
     onWrote: requestRefocus,
     // The table has no nodes to press and no <svg> to measure. Guarding here is

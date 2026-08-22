@@ -222,7 +222,12 @@ const STATUS_PILL: Readonly<Record<UseCaseStatus, string>> = {
   live: 'mapnode.statusLive',
 }
 
-const STATUS_WORD: Readonly<Record<UseCaseStatus, string>> = {
+// EXPORTED beside `TERMINAL_STATUS`, and for the identical argument: the PMO
+// page prints the same "⁨6⁩ of 9 ⁨live⁩" sentence off the same `useCaseProgress`
+// pair, and a second literal there would be the exact duplication this file's
+// header refuses. One literal, one home, and the home is the band that renders
+// the sentence it belongs to.
+export const STATUS_WORD: Readonly<Record<UseCaseStatus, string>> = {
   planned: 'mapnode.wordPlanned',
   testing: 'mapnode.wordTesting',
   live: 'mapnode.wordLive',
@@ -812,7 +817,7 @@ const GOAL_SENTENCE = {
  * aria-label reading "Edit" are not options, so the fallback names the goal the
  * way a person would: "the goal due 31/12/2026".
  */
-function goalName(goal: MapNodeGoal, locale: Locale): string {
+export function goalName(goal: MapNodeGoal, locale: Locale): string {
   const label = locale === 'ar' ? goal.label_ar.trim() || goal.label : goal.label
   if (label.trim() !== '') return label
   return t('mapnode.goalUnnamed', { date: formatDate(goal.target_date, locale) })

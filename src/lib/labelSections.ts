@@ -666,26 +666,49 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
       //   rather than an accident: four of the five arms of the lateness card
       //   are sentences the page prints INSTEAD of a number it has not earned,
       //   and each one is a thing the owner may want to word differently.
+      { prefixes: ['actionCopy'], section: 'actions' },
       {
         prefixes: [
+          'actionsEmpty',
           'deliveryEmpty',
           'empty',
+          'initEmpty',
+          'initError',
           'lateMeasured',
           'lateNo',
           'lateTooEarly',
+          'projNoCoverage',
           'riskEmpty',
           'slaNone',
         ],
         section: 'emptyStates',
       },
-      { prefixes: ['asOf', 'readingHint', 'slaRate', 'slaUnmeasured'], section: 'messages' },
+      // THE FOUR WORDS THAT REFUSE OR QUALIFY A NUMBER live here rather than in
+      // `entryFields`, because each of them is what the page prints INSTEAD of
+      // an arithmetic it has not earned: `initPending` where a fraction would
+      // be, `projRecorded` where a bare ratio would mislead, and `lateOneClock`
+      // beside a count whose clock the import started.
       {
+        prefixes: ['asOf', 'initPending', 'lateOneClock', 'projRecorded', 'readingHint', 'slaRate', 'slaUnmeasured'],
+        section: 'messages',
+      },
+      {
+        // THE PILLS, spelled out rather than caught by a `proj` prefix: that
+        // prefix would also swallow `projects` and `projectsDesc`, which are
+        // the section's HEADING and belong with the other screen titles.
+        prefixes: ['actionOverdue', 'actionNoDue', 'initMet', 'projActive', 'projDone', 'projPaused'],
+        section: 'healthStates',
+      },
+      {
+        // One prefix for every column caption on the page — ten of them now,
+        // across four tables, and none of them means anything outside a header
+        // row.
         prefixes: [
-          'colRaised',
-          'colReading',
-          'colWaiting',
+          'col',
           'deliveryNotStaged',
+          'initReached',
           'organizations',
+          'projOpen',
           'reading',
           'waiting',
         ],

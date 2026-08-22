@@ -32,7 +32,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
-import type { Entry, EntryHealth, MapNode, MapNodeProgress, MapNodeStage } from '../types'
+import type {
+  Entry,
+  EntryHealth,
+  MapNode,
+  MapNodeGoal,
+  MapNodeProgress,
+  MapNodeStage,
+  MapNodeUseCase,
+  UseCase,
+  UseCaseStatus,
+} from '../types'
 
 const fx = vi.hoisted(() => {
   // lib/i18n reads localStorage at module scope and lib/theme reads matchMedia,
@@ -67,6 +77,11 @@ const fx = vi.hoisted(() => {
     entries: [] as Entry[],
     health: new Map<string, EntryHealth>(),
     members: new Map<string, { id: string; displayName: string }>(),
+    useCases: [] as UseCase[],
+    /** NULL is "nobody has looked" — the store's own contract, kept in the fake. */
+    links: null as MapNodeUseCase[] | null,
+    goals: null as MapNodeGoal[] | null,
+    goalsError: null as string | null,
   }
   return { state }
 })
@@ -76,6 +91,18 @@ vi.mock('../store/config', () => ({
   useMapNodes: () => fx.state.nodes,
   useStageMap: () => new Map(fx.state.stages.map((s) => [s.id, s])),
   useNodeProgress: () => fx.state.progress,
+  useAllUseCases: () => fx.state.useCases,
+}))
+
+vi.mock('../store/portfolio', () => ({
+  loadPortfolio: () => Promise.resolve(),
+  usePortfolioLinks: () => fx.state.links,
+}))
+
+vi.mock('../store/goals', () => ({
+  loadGoals: () => Promise.resolve(),
+  useGoals: () => fx.state.goals,
+  useGoalsError: () => fx.state.goalsError,
 }))
 
 vi.mock('../store/entries', async (importOriginal) => {
@@ -144,9 +171,10 @@ const asHtml = (s: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;')
 
-function render(): string {
+/** `path` exists for the `?entry=` deep link; everything else renders at /pmo. */
+function render(path = '/pmo'): string {
   return renderToStaticMarkup(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       <Pmo />
     </MemoryRouter>,
   )
@@ -234,6 +262,40 @@ function entry(over: Partial<Entry> & { id: string }): Entry {
 }
 
 /** Reset to a clean workspace, then apply the case's own rows. */
+function useCase(over: Partial<UseCase> & { id: string }): UseCase {
+  return {
+    name: over.id,
+    name_ar: '',
+    sort_order: 0,
+    hidden: false,
+    created_by: null,
+    updated_by: null,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    ...over,
+  }
+}
+
+function link(nodeId: string, useCaseId: string, status: UseCaseStatus): MapNodeUseCase {
+  return { node_id: nodeId, use_case_id: useCaseId, status }
+}
+
+function goal(over: Partial<MapNodeGoal> & { id: string }): MapNodeGoal {
+  return {
+    node_id: 'a',
+    label: over.id,
+    label_ar: '',
+    stage_id: null,
+    target: null,
+    target_date: '2026-12-31',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    created_by: null,
+    updated_by: null,
+    ...over,
+  }
+}
+
 function workspace(over: Partial<typeof fx.state> = {}): void {
   fx.state.nodes = []
   fx.state.stages = []
@@ -241,6 +303,10 @@ function workspace(over: Partial<typeof fx.state> = {}): void {
   fx.state.entries = []
   fx.state.health = new Map()
   fx.state.members = new Map()
+  fx.state.useCases = []
+  fx.state.links = null
+  fx.state.goals = null
+  fx.state.goalsError = null
   Object.assign(fx.state, over)
 }
 
@@ -360,9 +426,114 @@ describe('the compliance card refuses a rate it cannot compute', () => {
   })
 })
 
-/* ══════════════════ 3. delivery, and where a row goes ══════════════════ */
+/* ══════════════════ 3. initiatives — what was promised ══════════════════ */
 
-describe('the delivery table', () => {
+describe('the initiatives table', () => {
+  it('tells "not read yet" apart from "nothing promised" apart from "could not read"', () => {
+    // THREE ABSENCES, THREE SCREENS. 0027 is applied by hand and
+    // `map_node_goals` does not exist in the live database yet, so the error arm
+    // is the ordinary state today — and it must not read as "nobody has promised
+    // anything", which is a different and untrue sentence.
+    workspace({ nodes: [node({ id: 'a' })], goals: null, goalsError: 'common.errMissingTable' })
+    const failed = render()
+    expect(failed).toContain(asHtml(t('pmo.initError')))
+    expect(failed).toContain(asHtml(t('pmo.initErrorHint')))
+    expect(failed).not.toContain(asHtml(t('pmo.initEmpty')))
+
+    // Still on the wire: the section names itself and says nothing else. An
+    // empty state here would be a lie with a spinner's timing.
+    workspace({ nodes: [node({ id: 'a' })], goals: null })
+    const loading = render()
+    expect(loading).toContain('aria-labelledby="pmo-initiatives"')
+    expect(loading).not.toContain(asHtml(t('pmo.initEmpty')))
+    expect(loading).not.toContain(asHtml(t('pmo.initError')))
+
+    // Genuinely none, and a way to make one.
+    workspace({ nodes: [node({ id: 'a' })], goals: [] })
+    const empty = render()
+    expect(empty).toContain(asHtml(t('pmo.initEmpty')))
+    expect(empty).toContain(asHtml(t('pmo.initEmptyHint')))
+  })
+
+  it('says MET rather than a ratio once the commitment has arrived', () => {
+    workspace({
+      nodes: [node({ id: 'a' })],
+      stages: [stage({ id: 'live', terminal: true })],
+      progress: new Map([['a', progressRow('a', 'live', '2026-08-01T00:00:00.000Z')]]),
+      goals: [goal({ id: 'g1', node_id: 'a', label: 'Phase 2 go-live' })],
+    })
+    const html = render()
+    expect(html).toContain('Phase 2 go-live')
+    expect(html).toContain(asHtml(t('pmo.initMet')))
+  })
+
+  it('draws a ratio for a count goal, WITH the unstaged caveat beside it', () => {
+    // "0 of 40" alone sends an Associate Director chasing forty organizations
+    // when thirty-eight of them simply have no rung recorded.
+    workspace({
+      nodes: [
+        node({ id: 'phase' }),
+        node({ id: 'a', parent_id: 'phase' }),
+        node({ id: 'b', parent_id: 'phase' }),
+      ],
+      stages: [stage({ id: 'live', terminal: true })],
+      progress: new Map([['a', progressRow('a', 'live', '2026-08-01T00:00:00.000Z')]]),
+      goals: [goal({ id: 'g1', node_id: 'phase', target: 2 })],
+    })
+    const html = render()
+    expect(html).toContain(asHtml(t('pmo.initReached', { reached: 1, target: 2 })))
+    expect(html).toContain(asHtml(t('mapnode.goalUnstaged', { count: 1 })))
+  })
+
+  it('prints a SENTENCE and no digit for a date goal that has not arrived', () => {
+    // A date goal asks for ONE arrival. There is no fraction of an arrival, and
+    // both candidates for inventing one — stage position over rung count, days
+    // elapsed over days promised — measure something else.
+    workspace({
+      nodes: [node({ id: 'a' })],
+      stages: [stage({ id: 'uat', sort_order: 3 }), stage({ id: 'live', sort_order: 5, terminal: true })],
+      progress: new Map([['a', progressRow('a', 'uat', '2026-08-01T00:00:00.000Z')]]),
+      goals: [goal({ id: 'g1', node_id: 'a', label: 'Go live' })],
+    })
+    const html = render()
+    expect(html).toContain(asHtml(t('pmo.initPending')))
+    // THE POINT OF THE CASE: the progress cell carries no number at all.
+    const cell = html.slice(html.indexOf(asHtml(t('pmo.initPending'))))
+    expect(cell.slice(0, asHtml(t('pmo.initPending')).length)).not.toMatch(/\d/)
+    expect(html).not.toContain(asHtml(t('pmo.initMet')))
+  })
+
+  it('flags an overdue commitment with the days, and never flags a met one', () => {
+    workspace({
+      nodes: [node({ id: 'a' }), node({ id: 'b' })],
+      stages: [stage({ id: 'live', terminal: true })],
+      progress: new Map([['b', progressRow('b', 'live', '2026-08-01T00:00:00.000Z')]]),
+      goals: [
+        goal({ id: 'missed', node_id: 'a', target_date: '2026-08-12' }),
+        goal({ id: 'kept', node_id: 'b', target_date: '2026-08-12' }),
+      ],
+    })
+    const html = render()
+    expect(html).toContain(asHtml(t('mapnode.goalOverdue', { count: 10 })))
+    // One overdue pill, not two: the met commitment is done, not late.
+    expect([...html.matchAll(/pill danger pmo-flag/g)]).toHaveLength(1)
+  })
+
+  it('links a commitment to the panel that owns it, through ?node=', () => {
+    workspace({
+      nodes: [node({ id: 'org-1', name: 'Riyadh General' })],
+      goals: [goal({ id: 'g1', node_id: 'org-1', label: 'Phase 2' })],
+    })
+    const html = render()
+    expect(html).toContain('node=org-1')
+    expect(html).not.toContain('focus=')
+    expect(html).toContain('Riyadh General')
+  })
+})
+
+/* ══════════════════ 4. project cards, and the one earned percentage ══════ */
+
+describe('the project cards', () => {
   it('drills to the portfolio through ?node=, never through ?focus=', () => {
     workspace({ nodes: [node({ id: 'org-1', name: 'Riyadh General' })] })
     const html = render()
@@ -374,16 +545,50 @@ describe('the delivery table', () => {
     // what stops a future edit "restoring" it from the brief.
     expect(html).not.toContain('focus=')
     expect(html).toContain('Riyadh General')
+    expect(html).toContain('pmo-projgrid')
   })
 
-  it('renders an em-dash WITH A WORD for each of the three absences', () => {
+  it('gives an unstaged organization NO pill, and a dash with a word', () => {
+    // "Nobody has said where this is" and "it is on the first rung" are
+    // different facts and must never render alike — and there is no status to
+    // put on a pill for the first of them.
     workspace({ nodes: [node({ id: 'a' })] })
     const html = render()
-    // "Nobody has said where this is" and "it is on the first rung" are
-    // different facts and must never render alike.
     expect(html).toContain('—')
     expect(html).toContain(asHtml(t('pmo.deliveryNotStaged')))
-    expect(html).toContain(asHtml(t('mindtree.portfolioNoManager')))
+    for (const key of ['pmo.projDone', 'pmo.projPaused', 'pmo.projActive', 'mindtree.portfolioAtRisk']) {
+      expect(html, key).not.toContain(asHtml(t(key)))
+    }
+  })
+
+  it('omits the day line entirely when no clock is running, rather than printing 0', () => {
+    workspace({ nodes: [node({ id: 'a' })] })
+    expect(render()).not.toContain(asHtml(t('mindtree.portfolioDays', { count: 0 })))
+  })
+
+  it('gives each of the four recorded readings its own word', () => {
+    for (const [id, over, key] of [
+      ['done', { terminal: true }, 'pmo.projDone'],
+      ['held', { paused: true }, 'pmo.projPaused'],
+      ['moving', {}, 'pmo.projActive'],
+    ] as const) {
+      workspace({
+        nodes: [node({ id: 'a' })],
+        stages: [stage({ id, ...over })],
+        progress: new Map([['a', progressRow('a', id, '2026-08-20T00:00:00.000Z')]]),
+      })
+      expect(render(), key).toContain(asHtml(t(key)))
+    }
+    // And "late", which is the only one of the four with a clock behind it.
+    workspace({
+      nodes: [node({ id: 'a' }), node({ id: 'b' })],
+      stages: [stage({ id: 's1', expected_days: 5 })],
+      progress: new Map([
+        ['a', progressRow('a', 's1', '2026-01-01T00:00:00.000Z')],
+        ['b', progressRow('b', 's1', '2026-08-22T00:00:00.000Z')],
+      ]),
+    })
+    expect(render()).toContain(asHtml(t('mindtree.portfolioAtRisk')))
   })
 
   it('names the accountable teammate through the roster', () => {
@@ -394,7 +599,7 @@ describe('the delivery table', () => {
     expect(render()).toContain('Sara Alsaab')
   })
 
-  it('says an organization has no hierarchy to read rather than showing a blank table', () => {
+  it('says an organization has no hierarchy to read rather than showing a blank grid', () => {
     workspace({ entries: [entry({ id: 'e1' })] })
     const html = render()
     expect(html).toContain(asHtml(t('pmo.deliveryEmpty')))
@@ -410,13 +615,210 @@ describe('the delivery table', () => {
       ],
     })
     const html = render()
-    // One open item, filed on the child, counted on BOTH rows — and the closed
+    // One open item, filed on the child, counted on BOTH cards — and the closed
     // one counted on neither.
-    expect([...html.matchAll(/pmo-num tabular">1</g)]).toHaveLength(2)
+    expect([...html.matchAll(new RegExp(asHtml(t('pmo.projOpen', { count: 1 })), 'g'))]).toHaveLength(2)
+  })
+
+  it('draws NO coverage row at all while nobody has looked', () => {
+    // `links === null` is "nobody has looked". An empty bar would report
+    // "nothing integrated" about a workspace that is still reading.
+    workspace({ nodes: [node({ id: 'a' })], useCases: [useCase({ id: 'uc1' })], links: null })
+    const html = render()
+    expect(html).not.toContain('pmo-proj-bar')
+    expect(html).not.toContain('0%')
+    expect(html).not.toContain(asHtml(t('pmo.projNoCoverage')))
+  })
+
+  it('says "nothing recorded" for a linked-nothing organization, and NEVER 0 of 9', () => {
+    workspace({
+      nodes: [node({ id: 'a' })],
+      useCases: [useCase({ id: 'uc1' }), useCase({ id: 'uc2' })],
+      links: [],
+    })
+    const html = render()
+    expect(html).toContain(asHtml(t('pmo.projNoCoverage')))
+    expect(html).not.toContain('pmo-proj-bar')
+    expect(html).not.toContain('0%')
+    expect(html).not.toContain(
+      asHtml(t('mapnode.progress', { done: 0, total: 2, status: t('mapnode.wordLive') })),
+    )
+  })
+
+  it('speaks the ratio with its UNIT and never as a bare percentage', () => {
+    // `total` is the whole catalogue, not this organization's recorded scope, so
+    // an organization with one capability live out of three on the table is not
+    // "33% delivered" — and the caveat says how many were ever recorded.
+    workspace({
+      nodes: [node({ id: 'a' })],
+      useCases: [useCase({ id: 'uc1' }), useCase({ id: 'uc2' }), useCase({ id: 'uc3' })],
+      links: [link('a', 'uc1', 'live')],
+    })
+    const html = render()
+    expect(html).toContain(
+      asHtml(t('mapnode.progress', { done: 1, total: 3, status: t('mapnode.wordLive') })),
+    )
+    expect(html).toContain(asHtml(t('pmo.projRecorded', { count: 1 })))
+    expect(html).toContain('pmo-proj-bar')
+    // THE POINT OF THE CASE. A naked percentage on a card whose denominator is
+    // the catalogue reads as "a third of the way there" about a project whose
+    // whole recorded scope is finished.
+    expect(html).not.toMatch(/>\s*\d+%/)
+  })
+
+  it('drops the caveat once every capability on the table is recorded', () => {
+    workspace({
+      nodes: [node({ id: 'a' })],
+      useCases: [useCase({ id: 'uc1' })],
+      links: [link('a', 'uc1', 'planned')],
+    })
+    const html = render()
+    expect(html).toContain(
+      asHtml(t('mapnode.progress', { done: 0, total: 1, status: t('mapnode.wordLive') })),
+    )
+    expect(html).not.toContain(asHtml(t('pmo.projRecorded', { count: 1 })))
   })
 })
 
-/* ══════════════════ 4. the follow-up buckets ══════════════════ */
+/* ══════════ 5. the import stamp, and the caveat it makes mandatory ═══════ */
+
+describe('a workspace whose stage clocks were all started at once', () => {
+  /** Fifty organizations onto seven rungs in one instant is an import, not fieldwork. */
+  function imported(): void {
+    workspace({
+      nodes: [node({ id: 'a' }), node({ id: 'b' })],
+      stages: [stage({ id: 'uat', expected_days: 2 })],
+      progress: new Map([
+        ['a', progressRow('a', 'uat', '2026-08-01T06:00:00.000Z')],
+        ['b', progressRow('b', 'uat', '2026-08-01T06:00:01.000Z')],
+      ]),
+    })
+  }
+
+  it('prints the count AND names the day the clock was started', () => {
+    imported()
+    const html = render()
+    // The count stays — it is true of what is recorded.
+    expect(html).toContain(NUMBER)
+    // …and it never stands alone.
+    expect(html).toContain(asHtml(t('pmo.lateOneClock', { date: '01/08/2026' })))
+  })
+
+  it('carries the same sentence into the card grid, where the pills are', () => {
+    imported()
+    const html = render()
+    const caveat = asHtml(t('pmo.lateOneClock', { date: '01/08/2026' }))
+    // TWICE, and that is the point: once under the count on the lateness card,
+    // and once above a grid of "Past its stage" pills that all count from the
+    // same stamp. A caveat on only one of the two leaves the other lying.
+    expect(html.indexOf(caveat)).toBeGreaterThan(-1)
+    expect(html.lastIndexOf(caveat)).toBeGreaterThan(html.indexOf(caveat))
+  })
+
+  it('says nothing at all once one organization has genuinely been moved', () => {
+    workspace({
+      nodes: [node({ id: 'a' }), node({ id: 'b' })],
+      stages: [stage({ id: 'uat', expected_days: 2 })],
+      progress: new Map([
+        ['a', progressRow('a', 'uat', '2026-08-01T06:00:00.000Z')],
+        ['b', progressRow('b', 'uat', '2026-08-15T06:00:00.000Z')],
+      ]),
+    })
+    expect(render()).not.toContain(asHtml(t('pmo.lateOneClock', { date: '01/08/2026' })))
+  })
+})
+
+/* ══════════════════ 6. the action register ══════════════════ */
+
+describe('the action register', () => {
+  it('lists an action nothing is wrong with — which nothing else on this page did', () => {
+    // Before the register existed, an on-track, assigned, not-due-soon action
+    // appeared NOWHERE: the buckets take only what needs chasing and the risk
+    // tables read `issue` and `escalation` alone.
+    workspace({
+      nodes: [node({ id: 'a' })],
+      entries: [entry({ id: 'e1', title: 'Book the room', due_date: '2026-12-01' })],
+    })
+    const html = render()
+    expect(html).toContain('Book the room')
+    expect(html).toContain('href="/entry/e1"')
+    expect(html).toContain(asHtml(t('pmo.actionCopy')))
+  })
+
+  it('carries no closed action and no other type', () => {
+    workspace({
+      nodes: [node({ id: 'a' })],
+      entries: [
+        entry({ id: 'done', title: 'Already filed', status: 'done' }),
+        entry({ id: 'i1', type: 'issue', title: 'Claims rejected' }),
+        entry({ id: 'open', title: 'Still open' }),
+      ],
+    })
+    const html = render()
+    const register = html.slice(html.indexOf('pmo-actions'), html.indexOf('pmo-risks'))
+    expect(register).toContain('Still open')
+    expect(register).not.toContain('Already filed')
+    expect(register).not.toContain('Claims rejected')
+  })
+
+  it('names the owner through the roster, and says unassigned when nobody is on it', () => {
+    workspace({
+      nodes: [node({ id: 'a' })],
+      members: new Map([['u1', { id: 'u1', displayName: 'Sara Alsaab' }]]),
+      entries: [
+        entry({ id: 'e1', owner_id: 'u1' }),
+        entry({ id: 'e2', owner_id: null, owner_name: null }),
+      ],
+    })
+    const html = render()
+    expect(html).toContain('Sara Alsaab')
+    expect(html).toContain(asHtml(t('followups.unassigned')))
+  })
+
+  it('marks an overdue row with a TINT AND A WORD, never colour alone', () => {
+    workspace({
+      nodes: [node({ id: 'a' })],
+      entries: [entry({ id: 'e1', due_date: '2026-08-01' })],
+    })
+    const html = render()
+    expect(html).toContain('is-late')
+    expect(html).toContain(asHtml(t('pmo.actionOverdue')))
+  })
+
+  it('captions its day count as DAYS SINCE RAISED, the column it can prove', () => {
+    // `daysInStatus` falls back to `created_at` when the thread is not loaded,
+    // and on a dashboard it never is — which makes that fallback a CEILING under
+    // an "in status" caption. So the register prints the entry's age instead,
+    // under the same `pmo.colRaised` the risk tables one section down use.
+    workspace({
+      nodes: [node({ id: 'a' })],
+      entries: [entry({ id: 'e1', status: 'blocked', created_at: '2026-08-12T00:00:00.000Z' })],
+    })
+    const html = render()
+    expect(html).toContain(asHtml(t('pmo.colRaised')))
+    expect(html).toContain('pmo-num tabular">10<')
+    expect(html).toContain(asHtml(t('status.blocked')))
+  })
+
+  it('says so plainly when there is no open action at all', () => {
+    workspace({ nodes: [node({ id: 'a' })], entries: [entry({ id: 'i1', type: 'issue' })] })
+    const html = render()
+    expect(html).toContain(asHtml(t('pmo.actionsEmpty')))
+    expect(html).toContain(asHtml(t('pmo.actionsEmptyHint')))
+  })
+
+  it('rings the row a ?entry= link names, and only that row', () => {
+    workspace({
+      nodes: [node({ id: 'a' })],
+      entries: [entry({ id: 'e1' }), entry({ id: 'e2' })],
+    })
+    expect(render('/pmo?entry=e1')).toContain('is-highlight')
+    expect([...render('/pmo?entry=e1').matchAll(/is-highlight/g)]).toHaveLength(1)
+    expect(render('/pmo')).not.toContain('is-highlight')
+  })
+})
+
+/* ══════════════════ 7. the follow-up buckets ══════════════════ */
 
 describe('the follow-up buckets', () => {
   it('renders all six as a checklist, empties included', () => {
@@ -447,7 +849,7 @@ describe('the follow-up buckets', () => {
   })
 })
 
-/* ══════════════════ 5. risks & challenges ══════════════════ */
+/* ══════════════════ 8. risks & challenges ══════════════════ */
 
 describe('the two risk tables', () => {
   it('splits issues from escalations and leaves every other type alone', () => {
@@ -460,13 +862,17 @@ describe('the two risk tables', () => {
       ],
     })
     const html = render()
+    const risks = html.slice(html.indexOf('pmo-risks'))
     expect(html).toContain(asHtml(t('pmo.riskIssues')))
     expect(html).toContain(asHtml(t('pmo.riskEscalations')))
-    expect(html).toContain('Claims rejected')
-    expect(html).toContain('Vendor SLA')
-    // An action is follow-up work, not a risk. It appears in the buckets above
-    // and must not be counted here.
-    expect(html).not.toContain('Book the room')
+    expect(risks).toContain('Claims rejected')
+    expect(risks).toContain('Vendor SLA')
+    // An action is follow-up work, not a risk. It belongs to the register two
+    // sections up — which is where it now appears — and must not be counted
+    // here. Scoped to this section rather than to the page, because "nowhere on
+    // the page" stopped being the right assertion the day the register landed.
+    expect(risks).not.toContain('Book the room')
+    expect(html).toContain('Book the room')
   })
 
   it('renders the reading as a derived badge and never as a stored score', () => {
@@ -507,13 +913,19 @@ describe('the two risk tables', () => {
   })
 })
 
-/* ══════════════════ 6. the page as a whole ══════════════════ */
+/* ══════════════════ 9. the page as a whole ══════════════════ */
 
 describe('the assembled page', () => {
-  it('names its three sections and links each heading to its region', () => {
-    workspace({ nodes: [node({ id: 'a' })], entries: [entry({ id: 'e1' })] })
+  it('names its five sections and links each heading to its region', () => {
+    workspace({ nodes: [node({ id: 'a' })], entries: [entry({ id: 'e1' })], goals: [] })
     const html = render()
-    for (const id of ['pmo-overview', 'pmo-delivery', 'pmo-risks']) {
+    for (const id of [
+      'pmo-overview',
+      'pmo-initiatives',
+      'pmo-projects',
+      'pmo-actions',
+      'pmo-risks',
+    ]) {
       expect(html).toContain(`aria-labelledby="${id}"`)
       // A dangling labelledby leaves the region unnamed and is invisible in a
       // screenshot — so the id has to exist, and on the heading.
@@ -522,15 +934,28 @@ describe('the assembled page', () => {
   })
 
   it('asks for no key that fails to resolve, in either language', () => {
+    // A WORKSPACE THAT RENDERS ALL FIVE SECTIONS AT ONCE, so every key the page
+    // can ask for is asked for here — the two reused namespaces included, which
+    // is why `mapnode` and `entry` are in the regex now.
     workspace({
-      nodes: [node({ id: 'a' })],
+      nodes: [node({ id: 'a' }), node({ id: 'b', parent_id: 'a' })],
+      stages: [stage({ id: 'uat', expected_days: 5 })],
+      progress: new Map([['a', progressRow('a', 'uat', '2026-01-01T00:00:00.000Z')]]),
+      useCases: [useCase({ id: 'uc1' }), useCase({ id: 'uc2' })],
+      links: [link('a', 'uc1', 'live')],
+      goals: [
+        goal({ id: 'g1', node_id: 'a', target: 2, target_date: '2026-01-01' }),
+        goal({ id: 'g2', node_id: 'a' }),
+      ],
       entries: [entry({ id: 'i1', type: 'issue' }), entry({ id: 'e1', due_date: '2026-08-01' })],
     })
     for (const locale of ['en', 'ar'] as const) {
       setLocale(locale)
       const html = render()
       // t() echoes an unknown key, so any dot path rendered as text is a hole.
-      expect(html, locale).not.toMatch(/>(pmo|followups|mindtree|dashboard)\.[a-zA-Z]/)
+      expect(html, locale).not.toMatch(
+        />(pmo|followups|mindtree|dashboard|mapnode|entry|status)\.[a-zA-Z]/,
+      )
     }
     setLocale('en')
   })

@@ -1,6 +1,15 @@
-// THE CAPTION STRIP AT THE STAGE'S BLOCK END — the legend, the gesture hint,
-// the screen's three summary sentences, the filter's result count, and the
-// page's live region. One row, ~24px tall, beside the composer.
+// THE CAPTION STRIP AT THE STAGE'S BLOCK END — the legend, the gesture hint and
+// the screen's three summary sentences. One row, ~24px tall, beside the
+// composer. Everything here DRAWS; nothing here is sr-only.
+//
+// THE TWO INVISIBLE NODES ARE NOT HERE ANY MORE. The page's live region and the
+// element the <svg>'s `aria-describedby` points at used to sit in this file, and
+// when the visible chrome was quieted to `{false && summaryIsle}` they were
+// unmounted along with it — twenty announcement call sites speaking to nobody,
+// and a dangling `aria-describedby`. They live in `MapAnnouncer` now, which
+// mounts unconditionally because `.sr-only` cannot stand on the picture. See
+// that file's header. What is left here is furniture, and furniture is what the
+// gate was actually about.
 //
 // WHY IT IS ONE ROW NOW. These same nodes used to render as a stack of
 // paragraphs BELOW the canvas, in document flow, after a `clamp(22rem, 62vh,
@@ -18,10 +27,11 @@
 // here and to the export, which paints the same three sentences into its
 // caption.
 //
-// WHAT IS MAP-ONLY AND WHAT IS NOT is unchanged and still the reason this file
-// has a `showMapChrome` branch at all: the legend, the hint and the sr-only
-// keyboard contract belong to the PICTURE and disappear in table view; the
-// summary sentences and the live region describe the WORKSPACE and stay.
+// WHAT IS MAP-ONLY AND WHAT IS NOT is still the reason this file has a
+// `showMapChrome` branch at all: the legend and the gesture hint belong to the
+// PICTURE and disappear in table view; the summary sentences describe the
+// WORKSPACE and stay. `MapAnnouncer` splits its own two nodes on the same axis
+// and for the same reason.
 //
 // ── THE COUNT IS GONE, BECAUSE THE SUMMARY ALREADY SAID IT ────────────────
 //
@@ -65,22 +75,17 @@ export interface MapSummaryProps {
   /** Map view — the legend, the hint and the keyboard contract are the picture's. */
   showMapChrome: boolean
   compact: boolean
-  /** The id the <svg>'s `aria-describedby` points at. */
-  hintId: string
   summary: string
   busiest: string | null
   topGroup: string | null
-  live: { text: string; seq: number }
 }
 
 export default function MapSummary({
   showMapChrome,
   compact,
-  hintId,
   summary,
   busiest,
   topGroup,
-  live,
 }: MapSummaryProps): ReactElement {
   const capRef = useRef<HTMLDivElement | null>(null)
 
@@ -159,25 +164,6 @@ export default function MapSummary({
               two-finger pinch zooms until you have already tried it. */}
           {compact ? <p className="mtree-hint">{t('mindtree.mobileHint')}</p> : null}
 
-          {/* Inside the map branch and carrying the id the <svg> points at.
-              It sat outside both before: unreferenced, so a reader only met it
-              by walking past the entire map to the foot of the document, and
-              still rendered in TABLE view, where it described the arrow-key
-              behaviour of a widget that is not on the screen. sr-only because
-              it is the picture's instructions and a sighted user has buttons.
-              IT DOES NOT MOVE AND IT KEEPS ITS ID: the <svg>'s
-              `aria-describedby` resolves to this node, and relocating or
-              renaming it breaks the map's description with no visible symptom
-              at all. */}
-          {/* TWO SENTENCES, ONE ELEMENT, because `aria-describedby` resolves an
-              id to one node and the walk and the tick are one contract: how to
-              move around the map, and how to mark several items so they travel
-              together. The DRAG's own grammar is a third sentence and lives in
-              MindDragLayer (`controller.hintId`), beside the gesture it
-              describes — the <svg> points at both ids. */}
-          <p className="sr-only" id={hintId}>
-            {t('mindtree.keyboardHint')} {t('mindtree.selectHint')}
-          </p>
         </>
       )}
 
@@ -193,20 +179,6 @@ export default function MapSummary({
           the `{open}` slot. See this file's header for why the fragment goes and
           the sentence stays. */}
 
-      {/* polite, not assertive: the filter's own count already announces on
-          every keystroke through FilterBar, and two assertive regions on one
-          screen interrupt each other. */}
-      <p className="sr-only" role="status" aria-live="polite">
-        {/* KEYED ON A COUNTER, so an identical consecutive sentence is still
-            announced. A plain string is a React bail-out when the value has not
-            changed, which produces no DOM mutation and therefore no
-            announcement — and this region says the same words twice all the
-            time: Space on a second item you may not move, "Collapse all"
-            pressed twice, "Fit to view" already fitted. `MindDragLayer`'s own
-            region solved this first and states the reason; this is the same
-            answer. */}
-        <span key={live.seq}>{live.text}</span>
-      </p>
     </div>
   )
 }

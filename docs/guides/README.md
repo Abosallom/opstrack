@@ -1,15 +1,22 @@
 # The owner guides
 
-Three picture-led PDFs for the steps that are the owner's alone, **written for someone doing this
+Picture-led PDFs for the steps that are the owner's alone, **written for someone doing this
 for the first time**: every term defined before it is used, one action per page, and what the
 screen should look like after each one.
 
-All were written against a **live probe of the project and the public DNS on 21 August 2026,
-16:14 UTC** — not against the prose in `docs/`, whose dates had drifted.
+All were written against a **live probe** rather than the prose in `docs/`, whose dates had
+drifted — the first three on 21 August 2026 16:14 UTC, `yours.pdf` on 22 August.
+
+⚠ **`yours.pdf` supersedes `next.pdf`.** `next.pdf` lists eight remaining steps against the
+state of 21 August; the probe on the 22nd found the workspace still holds only demo data and
+that the organisation list is in Jira, which collapses the owner's list to **one token now and
+real email addresses later**. Read `yours.pdf`; the other three are reference for steps already
+done or not yet reached.
 
 | File | Covers | Pages | Source of record |
 |---|---|---|---|
-| `next.pdf` | **Start here.** The eight remaining steps, with diagrams — what is done, what is next, who does each | 12 | OWNER-PLAYBOOK + the live probes |
+| `yours.pdf` | **What is on you, and nothing else.** One Jira token now, real email addresses later — plus the live check that found the workspace is still demo data | 8 | A live probe of the database, 22 Aug 2026 |
+| `next.pdf` | ~~Start here.~~ **Superseded — see above.** The eight remaining steps, with diagrams — what is done, what is next, who does each | 12 | OWNER-PLAYBOOK + the live probes |
 | `sql.pdf` | Step 1 in detail — the four SQL files, each run twice | 11 | RUN-0026-0027-0028 |
 | `dns.pdf` | The nine DNS entries at Hostinger — **done, kept for reference** | 10 | DOMAIN-CUTOVER §2 |
 

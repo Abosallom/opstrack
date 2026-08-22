@@ -1,0 +1,395 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>What is on you</title>
+<!--BASECSS-->
+<style>
+.big { font-size: 92pt; font-weight: 700; color: var(--accent); line-height: 0.9; letter-spacing: -4pt; }
+.one { display: flex; align-items: baseline; gap: 6mm; margin: 4mm 0 8mm; }
+.one .w { font-size: 17pt; font-weight: 650; color: var(--ink); line-height: 1.25; }
+.one .w small { font-size: 11pt; font-weight: 400; margin-top: 1.5mm; }
+
+/* the live-state table */
+.st { display: grid; gap: 0; border: 1px solid var(--rule); border-radius: 2.5mm; overflow: hidden; }
+.st div { display: grid; grid-template-columns: 62mm 1fr; gap: 5mm; padding: 3.6mm 5mm;
+          border-bottom: 1px solid var(--rule); align-items: start; }
+.st div:last-child { border-bottom: 0; }
+.st .k { font-size: 10.2pt; color: var(--ink-2); font-weight: 600; }
+.st .v { font-size: 10.2pt; color: var(--ink); line-height: 1.45; }
+.st .v b { color: var(--bad); }
+.st .v.good b { color: var(--ok); }
+.st div:nth-child(odd) { background: var(--paper); }
+
+/* who does what */
+.who { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; margin-bottom: 5mm; }
+.who > div { border-radius: 2.5mm; padding: 5mm; }
+.who .mine { background: var(--accent-soft); border: 1px solid var(--accent-line); }
+.who .yours { background: var(--warn-soft); border: 1px solid var(--warn-line); }
+.who h4 { margin: 0 0 3mm; font-size: 11pt; }
+.who .mine h4 { color: var(--accent); }
+.who .yours h4 { color: var(--warn); }
+.who ul { margin: 0; padding-left: 5mm; }
+.who li { font-size: 10pt; line-height: 1.5; color: var(--ink-2); margin-bottom: 1.8mm; }
+.who .n { font-size: 30pt; font-weight: 700; line-height: 1; margin-bottom: 2mm; }
+.who .mine .n { color: var(--accent-mid); }
+.who .yours .n { color: var(--warn); }
+
+/* the field sheet */
+.fields { display: grid; gap: 3mm; margin-bottom: 4mm; }
+.field { border: 1px solid var(--accent-line); border-radius: 2.5mm; background: #fff; padding: 4mm 5mm; }
+.field .lbl { font-family: "SF Mono", Menlo, monospace; font-size: 10pt; font-weight: 700; color: var(--accent); }
+.field .hint { font-size: 9.6pt; color: var(--ink-3); margin-top: 1mm; line-height: 1.45; }
+.field .line { margin-top: 2.5mm; border-bottom: 1.5px dotted #b9b3cc; height: 5mm; }
+
+/* timeline */
+.tl { display: grid; gap: 0; }
+.tl > div { display: grid; grid-template-columns: 22mm 1fr; gap: 5mm; padding-bottom: 4mm;
+            position: relative; padding-left: 0; }
+.tl .when { font-size: 9.6pt; font-weight: 700; color: var(--accent); text-align: right; padding-top: 0.5mm; }
+.tl .what { font-size: 10.4pt; line-height: 1.5; color: var(--ink-2); border-left: 2px solid var(--accent-line);
+            padding-left: 5mm; padding-bottom: 1mm; }
+.tl .what b { color: var(--ink); }
+.tl > div:last-child .what { border-left-color: var(--ok-line); }
+.numbig { font-size: 15pt; font-weight: 700; color: var(--ink); }
+</style></head><body>
+
+<!-- ══════════════════════════ 1 · cover ══════════════════════════ -->
+<section class="page">
+  <div class="kicker">Checked against your live database &mdash; 22 August 2026</div>
+  <h1>What is on you</h1>
+
+  <div class="one">
+    <span class="big">1</span>
+    <div class="w">One thing. About five minutes.
+      <small>Create an API token in Jira and paste it into a file. That is the whole list.</small></div>
+  </div>
+
+  <p class="lede">You asked for your engagement to be as small as possible, and once if it could be.
+  It can. Everything else in this programme either does not need you, or waits on that one token.</p>
+
+  <div class="box acc">
+    <h4>Why it is only one thing now</h4>
+    <p>You told me the organisation list is already in Jira. That removes the spreadsheet
+    from your list entirely &mdash; once I can read Jira, I take the list from there and build the
+    real map myself. And you are giving me real email addresses later, so handing out
+    passwords is not part of this either.</p>
+  </div>
+
+  <div class="box warn">
+    <h4>Before you turn the page &mdash; something you should know</h4>
+    <p>I re-checked your live database rather than trusting my own notes, and found something
+    that changes what matters. <b>Everything on the map today is invented.</b> The next page
+    is that check, in full. It is not bad news &mdash; the software is finished and working.
+    It is that the software has never been given anything real to show.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>NphiesCore &mdash; what is on you</span><span>Page 1 of 8</span></div>
+</section>
+
+<!-- ══════════════════════════ 2 · the live state ══════════════════════════ -->
+<section class="page">
+  <div class="kicker">The check</div>
+  <h2>What is actually in your workspace right now</h2>
+  <p>I read this straight out of the live database on 22 August, not from any document.
+  Documents drift; this does not.</p>
+
+  <div class="st" style="margin-bottom:5mm">
+    <div><span class="k">Organisations on the map</span>
+      <span class="v"><b>85 &mdash; every one invented.</b> &ldquo;Anwa Polyclinic&rdquo;,
+      &ldquo;Bareq Specialist Polyclinic&rdquo;, sitting under &ldquo;Account Book One&rdquo;
+      and &ldquo;Associate Directorate Alpha&rdquo;. None of these exist.</span></div>
+    <div><span class="k">Your real tree, <span class="mono">OB</span></span>
+      <span class="v"><b>Empty.</b> Nothing has ever been put in it.</span></div>
+    <div><span class="k">People who have signed in</span>
+      <span class="v"><b>2 of 18.</b> You, and Nasser. The other sixteen have never opened it.</span></div>
+    <div><span class="k">Their email addresses</span>
+      <span class="v">Made-up ones ending <span class="mono">@opstrack.internal</span>, so the
+      system cannot send them anything.</span></div>
+    <div><span class="k">Jira connection</span>
+      <span class="v"><b>Never set up.</b> The settings table is empty.</span></div>
+    <div><span class="k">The software itself</span>
+      <span class="v good"><b>Finished, deployed, 5,384 automated checks passing.</b></span></div>
+  </div>
+
+  <div class="box bad">
+    <h4>What this means in one sentence</h4>
+    <p>If Ahmed Alnaji opened the map this afternoon, he would see a tidy, working
+    application showing him <b>a list of clinics that do not exist</b>. No feature I add
+    changes that. Only real data does.</p>
+  </div>
+
+  <div class="box ok">
+    <h4>And why that is the good version of this news</h4>
+    <p>The hard part &mdash; the software &mdash; is done. What is left is filling it, and the
+    filling is one token away because your list is already in Jira.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The check &mdash; 22 August 2026</span><span>Page 2 of 8</span></div>
+</section>
+
+<!-- ══════════════════════════ 3 · glossary ══════════════════════════ -->
+<section class="page">
+  <div class="kicker">Words on the next few pages</div>
+  <h2>What these words mean</h2>
+  <p>Nothing later uses a term that is not on this page.</p>
+
+  <div class="defs">
+    <div class="def"><div class="w">API token<span class="mono">sometimes &ldquo;API key&rdquo;</span></div>
+      <div class="m">A long password that a <em>program</em> uses instead of a person. It lets my
+      code sign in to Jira as you, and read what you can read. It cannot be typed by a human
+      at a login screen, and it can be cancelled at any time without changing your own password.</div></div>
+
+    <div class="def"><div class="w">Scoped</div>
+      <div class="m">A token that is limited to certain things &mdash; here, <b>reading</b> only.
+      It is the only kind your Atlassian account can create, and it is the safer kind.
+      I have already built the code to work with it.</div></div>
+
+    <div class="def"><div class="w">Read-only</div>
+      <div class="m">The token I am asking for can <b>look</b> at Jira and change nothing in it.
+      Nothing I do can move a ticket, close an issue or notify anyone.</div></div>
+
+    <div class="def"><div class="w">Function secret</div>
+      <div class="m">Where the token goes to live afterwards: a locked box on the server,
+      readable by the running code and by nobody through a browser. I put it there; you
+      never have to.</div></div>
+
+    <div class="def"><div class="w">Cloud ID</div>
+      <div class="m">Jira&rsquo;s internal number for your Atlassian site. You will never see
+      or type it &mdash; my code looks it up. Mentioned only because it appears in the
+      technical notes.</div></div>
+  </div>
+
+  <div class="box warn" style="margin-top:5mm">
+    <h4>One rule, and it is the only rule</h4>
+    <p><b>Never paste the token into a chat window &mdash; including mine.</b> Anything typed in a
+    chat is stored in that conversation. The token goes into a file, and I read the file.
+    Page 5 is that file.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Words</span><span>Page 3 of 8</span></div>
+</section>
+
+<!-- ══════════════════════════ 4 · the one thing ══════════════════════════ -->
+<section class="page">
+  <div class="head"><span class="step-no">1</span><h2>Create the token</h2></div>
+  <p class="lede">In your browser, signed in to Atlassian as yourself. About three minutes.</p>
+
+  <div class="act"><span class="n">1</span><div class="t">Go to
+    <span class="mono">id.atlassian.com/manage-profile/security/api-tokens</span>
+    <span class="saw">You land on a page headed <b>API tokens</b>, probably with an empty list.</span></div></div>
+
+  <div class="act"><span class="n">2</span><div class="t">Press the button that creates a token.
+    <small style="margin-top:1.2mm">Atlassian keeps changing this wording &mdash; it may say
+    <b>Create API token</b>, or offer you a choice between a plain one and one
+    &ldquo;with scopes&rdquo;. <b>If you are offered the choice, take the one with scopes.</b>
+    It is the only kind your account can make.</small>
+    <span class="saw">A small form appears asking for a name.</span></div></div>
+
+  <div class="act"><span class="n">3</span><div class="t">Name it <span class="mono">nphiescore</span>
+    and set the longest expiry it offers you.
+    <small style="margin-top:1.2mm">The name is only a label so you can recognise it later
+    and cancel it if you ever want to.</small></div></div>
+
+  <div class="act"><span class="n">4</span><div class="t">If it asks which app, choose <b>Jira</b>.
+    If it then asks which permissions, tick the two that mention <b>reading work</b> and
+    <b>reading user</b> &mdash; usually shown as
+    <span class="mono">read:jira-work</span> and <span class="mono">read:jira-user</span>.
+    <span class="saw">Nothing on that list should say <b>write</b>, <b>manage</b> or <b>delete</b>.
+    If you ticked one by accident, untick it &mdash; I do not need it.</span></div></div>
+
+  <div class="act"><span class="n">5</span><div class="t">Create it, then <b>copy the token</b>.
+    <span class="saw">A long string of letters and numbers appears.</span></div></div>
+
+  <div class="box bad">
+    <h4>This is the trap, and everyone hits it once</h4>
+    <p><b>The token is shown exactly once.</b> Close that window without copying it and it is
+    gone for good &mdash; there is no &ldquo;show it again&rdquo;. You are not locked out if
+    that happens: delete the token you just made and create another. It costs two minutes,
+    not a support ticket.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Step 1 &mdash; create the token</span><span>Page 4 of 8</span></div>
+</section>
+
+<!-- ══════════════════════════ 5 · the file ══════════════════════════ -->
+<section class="page">
+  <div class="head"><span class="step-no">2</span><h2>Put it in the file</h2></div>
+  <p class="lede">Three lines. I will have the file open and waiting, so you are filling in blanks,
+  not creating anything.</p>
+
+  <div class="fields">
+    <div class="field">
+      <div class="lbl">JIRA_BASE_URL</div>
+      <div class="hint">Your Jira web address, as far as <span class="mono">.net</span> and no further.
+      Looks like <span class="mono">https://something.atlassian.net</span> &mdash; copy it out of
+      your browser&rsquo;s address bar while Jira is open, then delete everything after
+      <span class="mono">.net</span>.</div>
+      <div class="line"></div>
+    </div>
+    <div class="field">
+      <div class="lbl">JIRA_EMAIL</div>
+      <div class="hint">The email address <b>you sign in to Atlassian with</b>. Not a colleague&rsquo;s,
+      and not necessarily the one you use for everything else &mdash; it must be the account
+      that made the token on the previous page.</div>
+      <div class="line"></div>
+    </div>
+    <div class="field">
+      <div class="lbl">JIRA_API_TOKEN</div>
+      <div class="hint">The long string you copied. Paste it whole &mdash; no spaces before or after,
+      no quotation marks.</div>
+      <div class="line"></div>
+    </div>
+  </div>
+
+  <div class="box warn">
+    <h4>The mistake this step invites</h4>
+    <p>Pasting the <b>whole Jira page address</b> into the first box &mdash; the one with
+    <span class="mono">/jira/software/projects/&hellip;</span> on the end. The code checks for
+    this and refuses with a clear message rather than failing strangely, so it is recoverable
+    &mdash; but it costs a round trip. Stop at <span class="mono">.net</span>.</p>
+  </div>
+
+  <div class="box ok">
+    <h4>Then you are finished</h4>
+    <p>Tell me the file is filled in. You do not need to press <b>Test connection</b> in the
+    app &mdash; I can check it directly from my side, and I will tell you what I found.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Step 2 &mdash; the file</span><span>Page 5 of 8</span></div>
+</section>
+
+<!-- ══════════════════════════ 6 · what happens next ══════════════════════════ -->
+<section class="page">
+  <div class="kicker">After you hand it over</div>
+  <h2>What happens, and when</h2>
+  <p>You do nothing further in any of this. It is here so you know what to expect and
+  when to expect it.</p>
+
+  <div class="tl">
+    <div><span class="when">Minutes</span><div class="what">I put the three values into the
+      server&rsquo;s locked box and <b>check the connection myself</b>. If anything is wrong with
+      the token, this is where it surfaces &mdash; and I come back to you with the exact
+      problem, not a shrug.</div></div>
+    <div><span class="when">Within an hour</span><div class="what">I read your Jira and tell you
+      <b>plainly whether it holds enough to build the map from</b>. You said the list there is
+      incomplete, so this is a real fork &mdash; and if it is too thin, I will say so rather
+      than quietly building a half-map and calling it done.</div></div>
+    <div><span class="when">Same day</span><div class="what">Your <b>real organisations go into the
+      map</b>, under <span class="mono">OB</span>, with their stage where Jira knows it and
+      <b>blank where it does not</b>. A blank means &ldquo;nobody has said&rdquo; and is left
+      blank on purpose &mdash; the map never guesses a number.</div></div>
+    <div><span class="when">Same day</span><div class="what">The invented data
+      &mdash; <b>Demo Slice</b> and <b>Demo Portfolio</b> &mdash; is deleted, as you asked.
+      I keep a record that can restore it, so it is not a one-way door.</div></div>
+    <div><span class="when">After that</span><div class="what">The map shows <b>your programme</b>.
+      That is the first moment it is worth putting in front of Ahmed Alnaji or Nawaf.</div></div>
+  </div>
+
+  <div class="box acc" style="margin-top:2mm">
+    <h4>If Jira turns out to hold too little</h4>
+    <p>Then &mdash; and only then &mdash; I come back with one spreadsheet, already filled in with
+    your eighteen people and your seven real stage names, so that nothing you type into it
+    can be rejected. That would be a second sitting. I would rather warn you it is possible
+    than promise one and deliver two.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>What happens next</span><span>Page 6 of 8</span></div>
+</section>
+
+<!-- ══════════════════════════ 7 · later ══════════════════════════ -->
+<section class="page">
+  <div class="kicker">Not now &mdash; when it suits you</div>
+  <h2>The one other thing, later</h2>
+
+  <div class="one" style="margin-bottom:6mm">
+    <span class="big" style="color:var(--warn)">2</span>
+    <div class="w">Real email addresses for your sixteen people.
+      <small>No date on this. It does not block anything I am building.</small></div>
+  </div>
+
+  <p>Right now their accounts use invented addresses ending
+  <span class="mono">@opstrack.internal</span>. Nothing can be delivered to those, which is
+  why sixteen people have accounts they have never used.</p>
+
+  <p>Give me their real work addresses in any form &mdash; a list, a spreadsheet, a message
+  &mdash; and <b>the system sends its own invitations</b>. Each person sets their own password.
+  You never handle a password, and there is nothing to print or hand out.</p>
+
+  <div class="box ok">
+    <h4>Why this is worth waiting for rather than rushing</h4>
+    <p>The alternative was me generating sixteen passwords for you to distribute on paper.
+    That works, but it puts you in the middle of every one of them, and it means sixteen
+    passwords exist on a sheet. Real addresses take you one message and remove the whole
+    problem. This is the better trade, which is why it is second and not first.</p>
+  </div>
+
+  <div class="box warn">
+    <h4>Worth knowing</h4>
+    <p>Two of the sixteen are the people this is being built for &mdash; <b>Nawaf Alharbi</b>
+    (PMO Director) and <b>Ahmed Alnaji</b> (Executive Director, UHR). If you want to move
+    only those two first, that is a perfectly good half-step, and I would suggest doing it
+    on the day the real map lands rather than before.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Later</span><span>Page 7 of 8</span></div>
+</section>
+
+<!-- ══════════════════════════ 8 · the split ══════════════════════════ -->
+<section class="page">
+  <div class="kicker">So you can see the shape of it</div>
+  <h2>Who does what</h2>
+
+  <div class="who">
+    <div class="yours">
+      <div class="n">2</div>
+      <h4>Yours, in total</h4>
+      <ul>
+        <li><b>The Jira token</b> &mdash; five minutes, now</li>
+        <li><b>Real email addresses</b> &mdash; one message, later</li>
+      </ul>
+      <small style="margin-top:3mm">Neither can be done by me. The first because only you can
+      create a token on your account; the second because only you know the addresses.</small>
+    </div>
+    <div class="mine">
+      <div class="n" style="visibility:hidden">0</div>
+      <h4>Mine</h4>
+      <ul>
+        <li>Reading Jira and building the real map</li>
+        <li>Deleting the invented data</li>
+        <li>The PMO Dashboard &mdash; projects, initiatives, actions, risks, revenue, OKRs</li>
+        <li>Making the map something you can work in, not just look at</li>
+        <li>The Jira project picker in Settings</li>
+        <li>Checking every one of the above in a real browser, in English and Arabic</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="box acc">
+    <h4>What I am doing while I wait for the token</h4>
+    <p>All of the right-hand column except the first two lines, which are the only ones that
+    need Jira. So handing me the token late slows down the <b>map&rsquo;s contents</b> and
+    nothing else &mdash; the PMO Dashboard is being built either way.</p>
+  </div>
+
+  <div class="box ok">
+    <h4>Tick these off</h4>
+    <div class="ck" style="margin-top:3mm">
+      <div><span class="sq"></span><span>Token created at <span class="mono">id.atlassian.com</span>,
+        read-only, copied before the window closed</span></div>
+      <div><span class="sq"></span><span>Three lines filled into the file &mdash; address stops
+        at <span class="mono">.net</span></span></div>
+      <div><span class="sq"></span><span>Told me it is ready</span></div>
+      <div><span class="sq"></span><span><i>Later:</i> real email addresses sent over</span></div>
+    </div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Who does what</span><span>Page 8 of 8</span></div>
+</section>
+
+</body></html>

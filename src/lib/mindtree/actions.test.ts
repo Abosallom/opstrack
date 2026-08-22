@@ -485,12 +485,20 @@ describe('draftAt on the entity ring', () => {
 })
 
 describe('the acts an Org offers', () => {
-  it('offers add-here and the bulk verb, exactly as a track and a bucket do', () => {
+  it('offers open, add-here and the bulk verb, exactly as a track and a bucket do', () => {
     const acts = mindActionsFor(orgPath('org-1'), ctx())
     expect(kinds(acts)).toContain('addHere')
     expect(kinds(acts)).toContain('applySelection')
-    // Never the leaf verbs — an Org is a branch.
-    expect(kinds(acts)).not.toContain('open')
+
+    // ⚠ `open` IS NOT A LEAF VERB ANY MORE, and this line used to assert the
+    // opposite. It is "show me this thing" at two grains: a leaf has an entry
+    // and opens the entry sheet, a branch has none and opens the info panel.
+    // An Organization is the branch that needs it most — its stage picker and
+    // its goals are in that panel and nowhere else.
+    expect(kinds(acts)).toContain('open')
+
+    // `nudge` genuinely is leaf-only: it pokes the person carrying one ROW, and
+    // a branch names no row to poke.
     expect(kinds(acts)).not.toContain('nudge')
   })
 
@@ -763,15 +771,33 @@ function trackTree(): MindNode {
 }
 
 describe('a branch', () => {
-  it('offers add-here, the bulk verb, focus and collapse — never open or nudge', () => {
+  it('offers open, add-here, the bulk verb, focus and collapse — never nudge', () => {
+    // `open` LEADS, and it is a reachability fix rather than a feature: on the
+    // tidy tree `activate` folds a branch and RETURNS, which shadows its own
+    // `dive.details` arm — so before this row a branch with children had no
+    // gesture, no key and no menu row that reached its panel, and the stage
+    // picker, the goals and the delegation cockpit all live there.
     const root = trackTree()
     const path = findPath(root, (n) => n.kind === 'track')
     expect(kinds(mindActionsFor(path, ctx()))).toEqual([
+      'open',
       'addHere',
       'applySelection',
       'focus',
       'collapse',
     ])
+  })
+
+  it('names no entry to open — a branch is opened by NODE id', () => {
+    // `targetIds` is the entry list every other verb pools over. A branch has
+    // none, and `useMapWrites` reads `node.id` for this arm precisely because
+    // of that. A branch that shipped an entry id here would open some row's
+    // sheet instead of its own panel.
+    const path = findPath(trackTree(), (n) => n.kind === 'track')
+    const open = byKind(mindActionsFor(path, ctx()), 'open')
+    expect(open.targetIds).toEqual([])
+    expect(open.enabled).toBe(true)
+    expect(open.mutates).toBe(false)
   })
 
   it('prefills add-here with the branch it sits on', () => {
@@ -1428,6 +1454,12 @@ describe('a cohort as a TARGET — navigation verbs only', () => {
   })
 
   it('offers focus and collapse and NOTHING else, even to an admin', () => {
+    // ⚠ `open` IS EXCLUDED HERE ON PURPOSE, and it is the one verb on this list
+    // that could look like an oversight: every other branch in the tree offers
+    // "Open its details" and a cohort does not. A cohort's id is SYNTHETIC
+    // (`manager:<uuid>`) and `entityIdOf` refuses it by construction, so the
+    // panel would resolve nothing — `activate` makes the same exclusion for the
+    // same reason, and this is the line that keeps the two in step.
     expect(kinds(mindActionsFor(cohortPath(), admin()))).toEqual(['focus', 'collapse'])
   })
 

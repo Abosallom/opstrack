@@ -1503,6 +1503,57 @@ svg:has(.mtree-drag-overlay) .mtree-node[data-empty]:hover .mtree-node-box {
   stroke-linecap: round;
 }
 
+/* ── THE FOLDED BRANCH'S MARK ──────────────────────────────────────────────
+
+   The chevron below a collapsed card on the tidy tree. See MindNode.tsx's mark
+   for why it exists, why it is below rather than beside, and why it carries no
+   count.
+
+   IT TAKES THE BRANCH'S OWN INK: `--mtree-ink` is inherited from the group this
+   is rendered inside, exactly as MindBlock's container is, so a folded subtree
+   reads as the same family it would if it were open. There is no `opacity` on
+   it, for the reason stated above `.mtree-leaf-dot` — a faded mark composites
+   toward the canvas and hands its measured contrast back — and this one is the
+   ONLY thing on the card saying there is anything inside it.
+
+   IT IS HEAVIER THAN A CONNECTOR ON PURPOSE. At 1.75 units it outweighs the
+   block stub it sits where, because a hairline chevron eight units below a card
+   at 1:1 reads as an artefact of the drawing rather than as a mark. */
+.mtree-fold {
+  stroke: var(--mtree-ink);
+  stroke-width: calc(1.75px * var(--mtree-hair, 1));
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+/* THE ONE STATE CHANGE, and it is the affordance rather than decoration: the
+   whole card is the hit target (MindNode.tsx's header), so the mark that says
+   what the target DOES has to move with it. Without this the card takes a tint
+   on hover and the only thing on it explaining why stays flat.
+
+   ⚠ INSIDE `@media (hover: hover) and (pointer: fine)`, which is load-bearing
+   rather than tidy — it is the rule stated at length above `.mtree-node-box`'s
+   own hover. A touch screen holds `:hover` on the last thing tapped until
+   something else is tapped, and on a pan-and-pinch surface that is the normal
+   interaction: the mark would latch bright on whatever the reader last touched
+   and compete with `[data-current]`, the one mark that answers "where am I".
+
+   IT BRIGHTENS RATHER THAN TAKING THE TRACK HUE. The card's own hover mixes 22%
+   of `--track-color` into its FILL; a stroke doing the same would lose contrast
+   against the fill that just moved toward it. `--text` is the same ink the card's
+   name uses and is measured against both states. */
+@media (hover: hover) and (pointer: fine) {
+  .mtree-node:hover .mtree-fold {
+    stroke: var(--text);
+  }
+}
+
+/* Focus is keyboard-only and has no such latch, so it needs no query. */
+.mtree-node:focus-visible .mtree-fold {
+  stroke: var(--text);
+}
+
 /* Same ink, at full strength. An `opacity` here would contradict the header's
    own rule — a faded mark composites toward the canvas and gives its measured
    ratio back — for a dot that is decorative anyway. 6.35 dark / 5.53 light. */

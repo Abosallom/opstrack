@@ -169,6 +169,7 @@ import MapLensBar from '../components/map/MapLensBar'
 import MapList, { useAttentionCount } from '../components/map/MapList'
 import MapModeBar from '../components/map/MapModeBar'
 import MapPanel from '../components/map/MapPanel'
+import MapAnnouncer from '../components/map/MapAnnouncer'
 import MapSummary from '../components/map/MapSummary'
 import MapToolbar from '../components/map/MapToolbar'
 import NumbersPanel from '../components/map/NumbersPanel'
@@ -1002,6 +1003,28 @@ export default function Mindtree(): ReactElement {
    */
   const panelVisibleRef = useRef(false)
 
+  /**
+   * OPEN THE INFO PANEL BESIDE THE MAP, without moving the camera by one unit.
+   *
+   * NAMED, RATHER THAN LIVING ONLY INSIDE `dive`, because it has two callers
+   * that must not drift: the keyboard's `dive.details` (the tap that arrives at
+   * an Organization) and the node menu's "Open its details" — which is the ONLY
+   * route to this panel for a branch with children, since `activate` folds such
+   * a node and returns before its own `dive.details` arm. See
+   * `lib/mindtree/actions.ts` for that argument in full.
+   *
+   * ONE ACT, ONE SENTENCE. `setSubject`'s branch case opens the panel itself
+   * (`applyLens` → `setMindPanelOpen(true)`), so a second `setPanelOpen(true)`
+   * here would only add a second announcement — "The panel is showing." — that
+   * the caller's own sentence then overwrites in the same tick.
+   */
+  const openDetails = useCallback(
+    (id: string) => {
+      lens.setSubject(subjectForLens('shape', id))
+    },
+    [lens],
+  )
+
   const keyboard = useMapKeyboard({
     dragController,
     order: geo.order,
@@ -1075,15 +1098,10 @@ export default function Mindtree(): ReactElement {
          * THE OWNER'S OWN CORRECTION. An Organization is a LEAF you arrive at,
          * not a level you enter: the info sidebar opens beside the map and THE
          * CAMERA DOES NOT MOVE BY ONE UNIT. No re-root, no zoom, no relayout.
+         *
+         * Shared with the node menu — see `openDetails` above.
          */
-        details: (id: string) => {
-          // ONE ACT, ONE SENTENCE. `setSubject`'s branch case opens the panel
-          // itself (`applyLens` → `setMindPanelOpen(true)`), so a second
-          // `setPanelOpen(true)` here would only add a second announcement —
-          // "The panel is showing." — that the keyboard's own sentence then
-          // overwrites in the same tick.
-          lens.setSubject(subjectForLens('shape', id))
-        },
+        details: openDetails,
         /**
          * Focus moved — follow it by the MINIMUM MOVE, WITHOUT CHANGING THE
          * ZOOM. `reveal` is the whole verb: an arrow onto a node already on the
@@ -1115,7 +1133,7 @@ export default function Mindtree(): ReactElement {
           return true
         },
       }),
-      [flyToId, lens, camera, setCamera, boxFor, reveal, diveTrail],
+      [flyToId, openDetails, camera, setCamera, boxFor, reveal, diveTrail],
     ),
   })
 
@@ -1129,6 +1147,9 @@ export default function Mindtree(): ReactElement {
     textOf: model.textOf,
     toggleFold,
     focusBranch: focus.focusBranch,
+    // THE SAME CALLBACK THE KEYBOARD'S `dive.details` IS — one act, one
+    // implementation. See its definition above.
+    openDetails,
     openAdd: overlays.setAddAt,
   })
 
@@ -1635,7 +1656,6 @@ export default function Mindtree(): ReactElement {
       <MapSummary
         showMapChrome={onMap}
         compact={compact}
-        hintId={hintId}
         summary={model.summary}
         busiest={model.busiest}
         topGroup={model.topGroup}
@@ -1645,10 +1665,9 @@ export default function Mindtree(): ReactElement {
         // the screen read "0 open" twice, the second time on its own line and
         // larger than the sentence containing it. The fragment is gone; the
         // sentence, which also carries the tracks and the breaches, stays.
-        live={live}
       />
     ),
-    [onMap, compact, hintId, model.summary, model.busiest, model.topGroup, live],
+    [onMap, compact, model.summary, model.busiest, model.topGroup],
   )
 
   return (
@@ -2005,6 +2024,17 @@ export default function Mindtree(): ReactElement {
             </button>
           </div>
         )}
+
+        {/* NOT IN AN ISLE, NOT BEHIND THE GATE, AND NOT A MISTAKE.
+            `MapAnnouncer` is the page's live region and the element the <svg>'s
+            `aria-describedby` resolves to. Both were inside `MapSummary` and
+            both were unmounted by the gate below — twenty `setLive` call sites
+            announcing to nobody, and a description pointing at no node. It is
+            outside the memo because `live` changes on every announcement, which
+            is precisely the prop a camera-free isle is built to exclude, and it
+            is outside the gate because it draws nothing there is any taste
+            argument about. See MapAnnouncer.tsx's header. */}
+        <MapAnnouncer onMap={onMap} hintId={hintId} live={live} />
 
         {/* HELD IN A MEMO ABOVE — see `summaryIsle`. */}
         {false && summaryIsle}

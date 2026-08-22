@@ -37,6 +37,7 @@ import { loadTrackSlas, resetEntries, startEntriesRealtime } from './store/entri
 import { loadMembers, resetMembers } from './store/members'
 import { resetMeetings } from './store/meetings'
 import { resetPortfolio } from './store/portfolio'
+import { resetGoals } from './store/goals'
 import { initNotificationsRealtime, resetNotifications } from './store/notifications'
 import { resetAi } from './store/ai'
 import { resetNudges } from './store/nudges'
@@ -459,6 +460,12 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
       // and every node's open counts, which is the whole map's data for one
       // workspace. store/signOutReset.test.ts fails until this line exists.
       resetPortfolio()
+      // Goals ride with it, and for the same reason rather than a weaker one:
+      // `map_node_goals` holds what two Associate Directors PROMISED about one
+      // workspace's departments, dates included, and the next person to sign in
+      // on a shared device must not read them. store/signOutReset.test.ts fails
+      // until this line exists.
+      resetGoals()
       // Meetings is the fifth, and the argument for it is STALENESS rather than
       // confidentiality — `meetings_select` and `meeting_lines_select` are both
       // `is_member()`, so every teammate may read every meeting anyway. What

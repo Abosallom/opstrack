@@ -64,6 +64,7 @@ const { NODE_CARD_ID, NodeCardBody, buildNodeCard, dismissMindNodeCard, placeNod
 // assigning them here is precisely what locales/index.ts's spread will do. Skip
 // it and t() echoes every key, and an assertion comparing one echoed key to
 // another passes no matter what the component did.
+const i18n = await import('../../lib/i18n')
 const locales = await import('../../locales')
 Object.assign(locales.en, (await import('../../locales/en/mindtree.json')).default)
 Object.assign(locales.ar, (await import('../../locales/ar/mindtree.json')).default)
@@ -516,6 +517,53 @@ describe('NodeCardBody', () => {
     )
     expect(html).toContain('⁨تركيب المفاتيح⁩')
     expect(html).toContain('⁨Reem⁩')
+  })
+
+  it('tells the reader what the node can do, and says it differently by kind', () => {
+    // ⚠ THE MAP'S ANSWER TO "I CANNOT TELL WHAT IS CLICKABLE". Every verb the
+    // canvas has is behind a right-click, a keyboard chord, or a tap whose
+    // result is a fold — and nothing on the screen mentioned any of them once
+    // the caption strip was gated off and the chevron went with the radial
+    // drawing. This line is the only place that says so.
+    //
+    // THE TWO SENTENCES MUST DIFFER, which is the half a "does it render"
+    // assertion would miss: a click FOLDS a branch and OPENS a leaf's details,
+    // so one line covering both would have to describe neither.
+    const rows = [entry({ id: 'b-9', title: 'One', owner_id: 'm-1' })]
+    const root = tree(rows)
+    const branch = renderToStaticMarkup(
+      <NodeCardBody model={buildNodeCard(trackNode(root), ctxFor(rows))} />,
+    )
+    const leaf = renderToStaticMarkup(
+      <NodeCardBody model={buildNodeCard(leafOf(root, 'b-9'), ctxFor(rows))} />,
+    )
+
+    expect(branch).toContain('mtree-card-verbs')
+    expect(leaf).toContain('mtree-card-verbs')
+    expect(branch).toContain('open or close')
+    expect(leaf).toContain('its details')
+
+    const verbs = (html: string): string =>
+      /<p class="mtree-card-verbs">([^<]*)<\/p>/.exec(html)?.[1] ?? ''
+    expect(verbs(branch).length, 'the branch line did not resolve').toBeGreaterThan(0)
+    expect(verbs(leaf), 'a branch and a leaf must not claim the same first verb').not.toBe(
+      verbs(branch),
+    )
+
+    // BOTH sentences resolve in Arabic too — a missing key renders as the key
+    // itself, which reads as text and passes a `toContain` on the class alone.
+    i18n.setLocale('ar')
+    try {
+      const ar = renderToStaticMarkup(
+        <NodeCardBody model={buildNodeCard(trackNode(root), ctxFor(rows))} />,
+      )
+      const line = verbs(ar)
+      expect(line.length, 'the Arabic line did not resolve').toBeGreaterThan(0)
+      expect(line, 'the Arabic bundle fell through to the key').not.toContain('cardVerbs')
+      expect(line, 'the Arabic bundle fell through to English').not.toBe(verbs(branch))
+    } finally {
+      i18n.setLocale('en')
+    }
   })
 
   it('prints the three numbers with their tones', () => {

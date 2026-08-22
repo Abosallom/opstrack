@@ -11,16 +11,27 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  bucketRisks,
+  buildActionRows,
   buildDeliveryRows,
+  buildInitiativeRows,
+  bucketRisks,
   isRiskType,
   latenessVerdict,
+  projectStatus,
   riskSeverity,
   stageReadiness,
   type DeliveryInput,
 } from './summary'
+import { bucketFollowUps } from '../entrySections'
 import { stageIndex } from '../mapNodes'
-import type { Entry, EntryHealth, MapNode, MapNodeProgress, MapNodeStage } from '../../types'
+import type {
+  Entry,
+  EntryHealth,
+  MapNode,
+  MapNodeGoal,
+  MapNodeProgress,
+  MapNodeStage,
+} from '../../types'
 
 /* ─────────────────────────────── fixtures ─────────────────────────────── */
 
@@ -396,5 +407,357 @@ describe('isRiskType', () => {
     for (const other of ['action', 'decision', 'request', 'change', 'note'] as const) {
       expect(isRiskType(other)).toBe(false)
     }
+  })
+})
+
+/* ═══════════════ the import-stamp fingerprint (the second gate) ═══════════ */
+
+describe('stageReadiness notices when every clock was started at once', () => {
+  const readinessFor = (i: DeliveryInput): ReturnType<typeof stageReadiness> =>
+    stageReadiness(buildDeliveryRows(i))
+
+  it('names the day when every measurable organization was stamped on it', () => {
+    // THE LIVE WORKSPACE. Fifty organizations across seven rungs, every
+    // `stage_changed_at` written by one import's `now()`. The arithmetic
+    // downstream is perfect and the INPUT is what lies — two days from now the
+    // UAT rows go "late" on a clock nobody started.
+    const r = readinessFor(
+      withStages(
+        [node({ id: 'a' }), node({ id: 'b' }), node({ id: 'c' })],
+        [stage({ id: 'uat', expected_days: 1 }), stage({ id: 'kick', expected_days: 10 })],
+        [
+          progress('a', 'uat', '2026-08-20T06:00:00.000Z'),
+          progress('b', 'uat', '2026-08-20T06:00:01.000Z'),
+          progress('c', 'kick', '2026-08-20T06:00:02.000Z'),
+        ],
+      ),
+    )
+    expect(r.clockStartedTogether).toBe('2026-08-20')
+    // …and the count is still carried. The caveat qualifies the number; it does
+    // not replace it, because the number IS true of what is recorded.
+    expect(r.atRisk).toBe(2)
+  })
+
+  it('says nothing once one organization has genuinely been moved', () => {
+    const r = readinessFor(
+      withStages(
+        [node({ id: 'a' }), node({ id: 'b' })],
+        [stage({ id: 's1', expected_days: 10 })],
+        [
+          progress('a', 's1', '2026-08-20T00:00:00.000Z'),
+          progress('b', 's1', '2026-08-21T00:00:00.000Z'),
+        ],
+      ),
+    )
+    expect(r.clockStartedTogether).toBeNull()
+  })
+
+  it('refuses to call one organization a pattern', () => {
+    // Two is the smallest population for which "together" means anything. A
+    // single measurable row is a fact about one organization, not a fingerprint.
+    const r = readinessFor(
+      withStages(
+        [node({ id: 'a' })],
+        [stage({ id: 's1', expected_days: 10 })],
+        [progress('a', 's1', '2026-08-20T00:00:00.000Z')],
+      ),
+    )
+    expect(r.measurable).toBe(1)
+    expect(r.clockStartedTogether).toBeNull()
+  })
+
+  it('ignores organizations the lateness question cannot be asked of', () => {
+    // `b` stands on a rung with no expectation, so it is not measurable and its
+    // stamp is not evidence either way.
+    const r = readinessFor(
+      withStages(
+        [node({ id: 'a' }), node({ id: 'b' }), node({ id: 'c' })],
+        [stage({ id: 'timed', expected_days: 10 }), stage({ id: 'untimed' })],
+        [
+          progress('a', 'timed', '2026-08-20T06:00:00.000Z'),
+          progress('b', 'untimed', '1999-01-01T12:00:00.000Z'),
+          progress('c', 'timed', '2026-08-20T12:00:00.000Z'),
+        ],
+      ),
+    )
+    expect(r.clockStartedTogether).toBe('2026-08-20')
+  })
+})
+
+/* ══════════════════════════ project cards ══════════════════════════ */
+
+describe('projectStatus', () => {
+  const row = (over: Partial<Parameters<typeof projectStatus>[0]> = {}) => ({
+    stageId: 's1' as string | null,
+    terminal: false,
+    paused: false,
+    atRisk: false,
+    ...over,
+  })
+
+  it('gives every arm its own answer', () => {
+    expect(projectStatus(row({ stageId: null }))).toBe('not-staged')
+    expect(projectStatus(row({ terminal: true }))).toBe('done')
+    expect(projectStatus(row({ paused: true }))).toBe('paused')
+    expect(projectStatus(row({ atRisk: true }))).toBe('late')
+    expect(projectStatus(row())).toBe('in-progress')
+  })
+
+  it('states which fact wins, so a clock change cannot silently reword a pill', () => {
+    // Unreachable through the real fold — `stageReading` stops the clock on both
+    // rungs — and pinned anyway: "finished" and "held" both beat "late".
+    expect(projectStatus(row({ terminal: true, atRisk: true }))).toBe('done')
+    expect(projectStatus(row({ paused: true, atRisk: true }))).toBe('paused')
+    // And "nobody has said where this is" beats everything, because there is no
+    // rung for any of the other three to be a fact about.
+    expect(projectStatus(row({ stageId: null, terminal: true, atRisk: true }))).toBe('not-staged')
+  })
+})
+
+/* ══════════════════════════ initiatives ══════════════════════════ */
+
+function goal(over: Partial<MapNodeGoal> & { id: string }): MapNodeGoal {
+  return {
+    node_id: 'n1',
+    label: over.id,
+    label_ar: '',
+    stage_id: null,
+    target: null,
+    target_date: '2026-12-31',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+    created_by: null,
+    updated_by: null,
+    ...over,
+  }
+}
+
+function initiatives(
+  goals: readonly MapNodeGoal[],
+  nodes: readonly MapNode[],
+  stages: readonly MapNodeStage[],
+  rows: readonly [string, Pick<MapNodeProgress, 'stage_id' | 'stage_changed_at'>][],
+) {
+  const byId = new Map(stages.map((s) => [s.id, s]))
+  const progressById = new Map(rows)
+  return buildInitiativeRows({
+    goals,
+    nodes,
+    stages: stageIndex(progressById, byId),
+    today: TODAY,
+    labelOf: (n) => n.name,
+    goalLabelOf: (g) => g.label,
+  })
+}
+
+describe('buildInitiativeRows', () => {
+  const LIVE = stage({ id: 'live', sort_order: 5, terminal: true })
+  const UAT = stage({ id: 'uat', sort_order: 3 })
+
+  it('reads a date goal about the node itself — 0027 arm one', () => {
+    const out = initiatives(
+      [goal({ id: 'g1', node_id: 'org' })],
+      [node({ id: 'org' })],
+      [LIVE],
+      [progress('org', 'live', '2026-08-01T00:00:00.000Z')],
+    )
+    expect(out[0]?.progress.met).toBe(true)
+    expect(out[0]?.progress.target).toBeNull()
+    expect(out[0]?.targetDate).toBe('2026-12-31')
+  })
+
+  it('reads a count goal against the descendants — 0027 arm two', () => {
+    const out = initiatives(
+      [goal({ id: 'g1', node_id: 'phase', target: 2 })],
+      [
+        node({ id: 'phase' }),
+        node({ id: 'a', parent_id: 'phase' }),
+        node({ id: 'b', parent_id: 'phase' }),
+        node({ id: 'deep', parent_id: 'a' }),
+      ],
+      [LIVE, UAT],
+      [
+        progress('a', 'live', '2026-08-01T00:00:00.000Z'),
+        progress('b', 'uat', '2026-08-01T00:00:00.000Z'),
+        progress('deep', 'live', '2026-08-01T00:00:00.000Z'),
+      ],
+    )
+    // Every descendant at any depth: `deep` counts, and the phase itself does not.
+    expect(out[0]?.progress.reached).toBe(2)
+    expect(out[0]?.progress.eligible).toBe(3)
+    expect(out[0]?.progress.met).toBe(true)
+  })
+
+  it('carries the unstaged count, because "0 of 40" alone sends an AD wrong', () => {
+    const out = initiatives(
+      [goal({ id: 'g1', node_id: 'phase', target: 2, stage_id: 'uat' })],
+      [
+        node({ id: 'phase' }),
+        node({ id: 'a', parent_id: 'phase' }),
+        node({ id: 'b', parent_id: 'phase' }),
+      ],
+      [LIVE, UAT],
+      [progress('a', 'uat', '2026-08-01T00:00:00.000Z')],
+    )
+    expect(out[0]?.progress.reached).toBe(1)
+    expect(out[0]?.progress.unstaged).toBe(1)
+    expect(out[0]?.stageId).toBe('uat')
+  })
+
+  it('skips a goal on an archived department, and one on a node it does not hold', () => {
+    const out = initiatives(
+      [
+        goal({ id: 'gone', node_id: 'away' }),
+        goal({ id: 'orphan', node_id: 'nowhere' }),
+        goal({ id: 'kept', node_id: 'here' }),
+      ],
+      [node({ id: 'here' }), node({ id: 'away', archived: true })],
+      [],
+      [],
+    )
+    expect(out.map((r) => r.goalId)).toEqual(['kept'])
+  })
+
+  it('cannot hang on a cyclic parent_id', () => {
+    // `map_nodes.parent_id` is a plain self-reference with no cycle constraint,
+    // and this page is one a director opens every morning.
+    const out = initiatives(
+      [goal({ id: 'g1', node_id: 'x', target: 1 })],
+      [node({ id: 'x', parent_id: 'y' }), node({ id: 'y', parent_id: 'x' })],
+      [LIVE],
+      [progress('y', 'live', '2026-08-01T00:00:00.000Z')],
+    )
+    expect(out[0]?.progress.reached).toBe(1)
+  })
+
+  it('sorts overdue first, then soonest, then by label in code point order', () => {
+    const out = initiatives(
+      [
+        goal({ id: 'g-far', node_id: 'n', label: 'Zulu', target_date: '2027-01-01' }),
+        goal({ id: 'g-late', node_id: 'n', label: 'Alpha', target_date: '2026-01-01' }),
+        goal({ id: 'g-soon', node_id: 'n', label: 'Bravo', target_date: '2026-09-01' }),
+        goal({ id: 'g-far2', node_id: 'n', label: 'Alpha', target_date: '2027-01-01' }),
+      ],
+      [node({ id: 'n' })],
+      [],
+      [],
+    )
+    expect(out.map((r) => r.goalId)).toEqual(['g-late', 'g-soon', 'g-far2', 'g-far'])
+  })
+
+  it('never puts a met commitment above an overdue one just for being old', () => {
+    const out = initiatives(
+      [
+        goal({ id: 'kept', node_id: 'org', target_date: '2026-01-01' }),
+        goal({ id: 'missed', node_id: 'other', target_date: '2026-02-01' }),
+      ],
+      [node({ id: 'org' }), node({ id: 'other' })],
+      [stage({ id: 'live', terminal: true })],
+      [progress('org', 'live', '2026-08-01T00:00:00.000Z')],
+    )
+    expect(out.map((r) => r.goalId)).toEqual(['missed', 'kept'])
+  })
+})
+
+/* ══════════════════════════ the action register ══════════════════════════ */
+
+function action(over: Partial<Entry> & { id: string }): Entry {
+  return entry({ type: 'action', ...over })
+}
+
+describe('buildActionRows', () => {
+  it('takes open actions and nothing else', () => {
+    const out = buildActionRows(
+      [
+        action({ id: 'keep' }),
+        action({ id: 'closed', status: 'done' }),
+        entry({ id: 'an-issue', type: 'issue' }),
+        entry({ id: 'a-note', type: 'note' }),
+      ],
+      new Map(),
+      TODAY,
+    )
+    expect(out.map((r) => r.entry.id)).toEqual(['keep'])
+  })
+
+  it('lists an action nothing is wrong with — the whole point of the register', () => {
+    // On track, assigned, not due soon. Before the register existed this row
+    // appeared NOWHERE on the page: the buckets take only what needs chasing and
+    // the risk tables read `issue` and `escalation` alone.
+    const out = buildActionRows([action({ id: 'fine', owner_id: 'u1' })], new Map(), TODAY)
+    expect(out.map((r) => r.entry.id)).toEqual(['fine'])
+    expect(out[0]?.overdue).toBe(false)
+  })
+
+  it('reads a missing health row as ok rather than inventing a fifth level', () => {
+    const out = buildActionRows([action({ id: 'a' })], new Map(), TODAY)
+    expect(out[0]?.health).toBe('ok')
+  })
+
+  it('counts DAYS SINCE RAISED, and says so — never days in status', () => {
+    // `daysInStatus` falls back to `created_at` when the thread is not loaded,
+    // and on this page it never is. That fallback is a CEILING, not a floor: an
+    // action raised in June and blocked yesterday has been blocked for one day.
+    // So the register prints what it can prove — the age of the entry.
+    const out = buildActionRows(
+      [action({ id: 'a', created_at: '2026-08-12T00:00:00.000Z', status: 'blocked' })],
+      new Map(),
+      TODAY,
+    )
+    expect(out[0]?.daysOpen).toBe(10)
+    expect(out[0]).not.toHaveProperty('daysInStatus')
+  })
+
+  it('agrees with bucketFollowUps about what "overdue" means', () => {
+    // TWO DEFINITIONS OF OVERDUE IN ONE SECTION is, in entrySections.ts's own
+    // words, the single most corrosive kind of bug this product can have. The
+    // register and the bucket sit under one heading, so they are compared here
+    // on one fixture rather than trusted to agree.
+    const entries = [
+      action({ id: 'due-past', due_date: '2026-08-01' }),
+      action({ id: 'follow-past', follow_up_date: '2026-08-01' }),
+      action({ id: 'view-says-so', due_date: null }),
+      action({ id: 'clean', due_date: '2026-12-01' }),
+    ]
+    const health = new Map<string, EntryHealth>([
+      ['view-says-so', { health: 'overdue', days_overdue: 4 } as EntryHealth],
+      ['due-past', { health: 'overdue', days_overdue: 21 } as EntryHealth],
+    ])
+    const register = buildActionRows(entries, health, TODAY)
+    const buckets = bucketFollowUps(entries, health, {
+      meId: null,
+      today: TODAY,
+      staleDays: () => 365,
+    })
+    const flagged = register.filter((r) => r.overdue).map((r) => r.entry.id).sort()
+    expect(flagged).toEqual(buckets.overdue.map((e) => e.id).sort())
+    expect(flagged).toEqual(['due-past', 'follow-past', 'view-says-so'])
+  })
+
+  it('sorts overdue first, then soonest due with no date last, then quietest', () => {
+    const out = buildActionRows(
+      [
+        action({ id: 'undated', last_activity_at: '2026-08-20T00:00:00.000Z' }),
+        action({ id: 'late', due_date: '2026-08-01' }),
+        action({ id: 'soon', due_date: '2026-08-25' }),
+        action({ id: 'later', due_date: '2026-09-25' }),
+      ],
+      new Map(),
+      TODAY,
+    )
+    expect(out.map((r) => r.entry.id)).toEqual(['late', 'soon', 'later', 'undated'])
+  })
+
+  it('breaks a tie on quietness, then on id, so two rows never swap on a render', () => {
+    const out = buildActionRows(
+      [
+        action({ id: 'b', due_date: '2026-09-01', last_activity_at: '2026-08-20T00:00:00.000Z' }),
+        action({ id: 'a', due_date: '2026-09-01', last_activity_at: '2026-08-10T00:00:00.000Z' }),
+        action({ id: 'c', due_date: '2026-09-01', last_activity_at: '2026-08-20T00:00:00.000Z' }),
+      ],
+      new Map(),
+      TODAY,
+    )
+    expect(out.map((r) => r.entry.id)).toEqual(['a', 'b', 'c'])
   })
 })

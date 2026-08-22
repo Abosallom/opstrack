@@ -839,6 +839,39 @@ export function NodeCardBody({ model }: { model: NodeCardModel }): ReactElement 
           </ul>
         </>
       )}
+
+      {/* ── WHAT THIS CARD CAN DO, WHICH THE PICTURE DOES NOT SAY ───────────
+
+          Asked what made the map feel like a screenshot, the owner's answer was
+          "I cannot tell what is clickable" — and the audit agreed with it: the
+          map is not short on capability, it is short of MARKS. Every verb it has
+          sits behind a right-click, a keyboard chord, or a tap whose result (a
+          fold) is the least surprising thing a picture can do. Nothing on the
+          screen mentions any of them. The caption strip that used to carry the
+          legend and the gesture hint is gated off, and the disclosure chevron
+          was gated off with the radial drawing.
+
+          THIS IS THE CHEAPEST PLACE TO SAY IT AND THE RIGHT ONE. The card is
+          already mounted, already positioned clear of the node, already
+          `role="tooltip"` and `pointer-events: none`, and it appears exactly
+          when a reader is considering a node. It costs no geometry, and — the
+          part that matters — NO NEW HIT TARGET: this file's own header keeps the
+          whole node as the target rather than putting a 20px control inside it,
+          and a "⋯" button on the card would have been precisely the mark that
+          rule exists to refuse.
+
+          TWO SENTENCES, BY KIND, because the first verb genuinely differs: a
+          branch folds under a click and a leaf opens its details, and one line
+          covering both would have to be vague enough to describe neither.
+
+          ⚠ IT NAMES THE RIGHT-CLICK AND NOT THE HOLD. On a touch screen this
+          card appears on the tap that has already begun the gesture, so telling
+          a finger about a long press it is halfway through is too late to be
+          help. The hold is real — `DragLayer`'s `menuHoldRef` — and saying so
+          on a phone is a separate mark in a separate place. */}
+      <p className="mtree-card-verbs">
+        {t(model.kind === 'branch' ? 'mindtree.cardVerbsBranch' : 'mindtree.cardVerbsLeaf')}
+      </p>
     </>
   )
 }

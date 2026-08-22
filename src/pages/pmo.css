@@ -230,3 +230,95 @@
   gap: 16px;
   align-items: start;
 }
+
+/* ── the project cards ─────────────────────────────────────────────────── */
+
+/* `auto-fill` at a 280px floor: three across on a desktop, one on a phone, with
+   no breakpoint to keep in step with the card count. */
+.pmo-projgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.pmo-proj {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+/* A card past its stage is tinted AND wears the word on its pill — colour is
+   never the only signal, exactly as `tr.is-late` is never alone in a table. */
+.pmo-proj.is-late {
+  background: var(--accent-soft);
+}
+
+.pmo-proj-head {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pmo-proj-name {
+  font-size: 15px;
+  font-weight: 600;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.pmo-proj-line {
+  margin: 0;
+  font-size: 13px;
+}
+
+.pmo-proj-cov {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* A plain div, not a chart component and not a dependency:
+   components/charts/geometry.ts's directive is that every mark in this app is
+   hand-rolled, and a coverage bar is one rectangle. `aria-hidden` in the markup,
+   because the sentence under it is the accessible name. */
+.pmo-proj-bar {
+  block-size: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.pmo-proj-bar-fill {
+  block-size: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.pmo-proj-foot {
+  margin: auto 0 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* The sentence that qualifies a number rather than replacing it — the import
+   stamp note, the unstaged note, the "only N recorded" note. Smaller than the
+   figure it sits under, never smaller than 12px. */
+.pmo-caveat {
+  font-size: 12px;
+}
+
+/* The row a `?entry=` link points at. AN OUTLINE RING rather than a background:
+   the overdue tint already owns the background, and two meanings competing for
+   one property is how a highlighted overdue row comes to look like neither. */
+.pmo-table tr.is-highlight th,
+.pmo-table tr.is-highlight td {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}

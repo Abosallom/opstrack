@@ -347,6 +347,25 @@ function flatten(root: MindNodeModel): readonly MindNodeModel[] {
   return out
 }
 
+/**
+ * The same fixture with every BOOK collapsed — the state a reader of this map
+ * spends most of their time in, because `foldOnActivate` (Mindtree.tsx) makes a
+ * tap on a branch fold it.
+ *
+ * ON THE ID, NOT ON THE KIND. A book and an organization are both
+ * `kind: 'entity'` in this workspace — the level is carried by the `am:` id
+ * prefix the fixture assigns (see `bookId`) — and folding on the kind would
+ * collapse all 120 organizations too, which are leaves and draw nothing.
+ *
+ * `collapsed` is what `layoutMindtree` reads; the children stay on the model, so
+ * `hiddenChildCount` has something to count.
+ */
+function foldBooks(n: MindNodeModel): MindNodeModel {
+  return n.id.startsWith('am:')
+    ? { ...n, collapsed: true }
+    : { ...n, children: n.children.map(foldBooks) }
+}
+
 /* ══════════════════════ 2. the pictures, on request ═══════════════════════ */
 
 if (SHOOTING) {
@@ -458,6 +477,13 @@ if (SHOOTING) {
 
   interface Framing {
     readonly id: string
+    /**
+     * The layout this picture is of. Present because the folded framing below is
+     * a picture of a DIFFERENT TREE — same fixture, some branches collapsed —
+     * and a shot that silently reused the open layout would be a picture of the
+     * thing it is meant to prove is different.
+     */
+    readonly layout: typeof layout
     /** The frustum, drawing units. */
     readonly camera: { cx: number; cy: number; width: number; height: number }
     /** CSS px per drawing unit — the camera context's `scale`. */
@@ -492,6 +518,7 @@ if (SHOOTING) {
   const wholeH = wholeW / ASPECT
   const whole: Framing = {
     id: 'tree-whole',
+    layout,
     camera: {
       cx: layout.bounds.minX + layout.bounds.width / 2,
       cy: layout.bounds.minY + layout.bounds.height / 2,
@@ -525,6 +552,7 @@ if (SHOOTING) {
   if (root === undefined) throw new Error('the layout has no root')
   const oneToOne: Framing = {
     id: 'tree-1to1',
+    layout,
     camera: {
       cx: root.x + root.width / 2,
       cy: root.y + VIEWPORT.height / 2 - 48,
@@ -534,6 +562,54 @@ if (SHOOTING) {
     scale: 1,
     viewport: VIEWPORT,
     note: '1600×900 at 1:1, aimed at the crown of the tree',
+  }
+
+  /**
+   * FRAMING THREE — THE FOLDED BRANCH, which is the gesture the tidy tree is
+   * actually driven by.
+   *
+   * `foldOnActivate` (Mindtree.tsx) makes a TAP on a branch fold it, so a reader
+   * working this map spends most of their time looking at collapsed cards. The
+   * first two framings both picture a fully expanded tree and therefore could
+   * not answer the one question that matters about that state: does a card with
+   * a hundred organizations inside it look any different from a card with none?
+   *
+   * It did not. Until the mark below a folded card was added, a collapsed branch
+   * drew NO container (the container is what it is hiding) and NO chevron (gated
+   * off with the radial drawing's inline-end disc, correctly, for a drawing whose
+   * children are below rather than beside) — so it was pixel-for-pixel a leaf.
+   * This picture is the evidence for that fix and the thing that catches its
+   * removal.
+   *
+   * WHAT IS COLLAPSED: every book. That leaves both directorates open, so one
+   * picture holds the two states side by side — an open branch with its
+   * container, and its siblings' folded cards with their counts — which is the
+   * comparison a reviewer actually needs to make.
+   */
+  const foldedTree = foldBooks(tree)
+  const foldedLayout = layoutMindtree<MindNodeModel>(foldedTree, {
+    orientation: 'vertical',
+    wrap: true,
+    direction: 'ltr',
+    nodeSize: { width: 168, height: 54 },
+    gap: { depth: 46, sibling: 14 },
+  })
+  const foldedRoot = foldedLayout.byId.get(foldedTree.id)
+  if (foldedRoot === undefined) throw new Error('the folded layout has no root')
+  const folded: Framing = {
+    id: 'tree-folded',
+    layout: foldedLayout,
+    camera: {
+      cx: foldedRoot.x + foldedRoot.width / 2,
+      cy: foldedRoot.y + VIEWPORT.height / 2 - 48,
+      width: VIEWPORT.width,
+      height: VIEWPORT.height,
+    },
+    // 1:1, because the mark is authored in drawing units and 19 of them below a
+    // card is a claim about PIXELS that only this scale can be read off.
+    scale: 1,
+    viewport: VIEWPORT,
+    note: '1600×900 at 1:1, every book folded — the mark under a collapsed card',
   }
 
   const shoot = (framing: Framing): { name: string; bytes: number; nodes: number } => {
@@ -554,8 +630,8 @@ if (SHOOTING) {
         <MapCanvas
           canvasRef={() => {}}
           svgRef={{ current: null }}
-          layout={layout}
-          order={layout.nodes}
+          layout={framing.layout}
+          order={framing.layout.nodes}
           matchesById={matchesById}
           matchWedgesById={EMPTY_WEDGES}
           getView={getView}
@@ -622,7 +698,7 @@ if (SHOOTING) {
     return { name, bytes: svg.length, nodes: asked }
   }
 
-  const written = [whole, oneToOne].map((framing) => ({ framing, ...shoot(framing) }))
+  const written = [whole, oneToOne, folded].map((framing) => ({ framing, ...shoot(framing) }))
 
   /**
    * The stat sheet, one line per picture — the numbers a reviewer would
@@ -708,6 +784,71 @@ describe('treeRender fixture', () => {
   it('gives every node a label of its own, because the label is the identity in an SVG', () => {
     const labels = all.map((n) => (n.label.kind === 'text' ? n.label.text : n.id))
     expect(new Set(labels).size).toBe(labels.length)
+  })
+
+  /**
+   * THE GATE THE FOLD MARK IS DRAWN ON, proved against the real layout.
+   *
+   * A folded branch on the tidy tree draws no container — the container is the
+   * thing it is hiding — and the disclosure chevron is gated off for this
+   * drawing (MindNode.tsx), so for several commits a collapsed card was
+   * pixel-for-pixel a leaf: a book holding twenty organizations looked exactly
+   * like an organization holding none. That is the whole of "I cannot tell what
+   * is clickable", and it had no test because nothing in the drawing was WRONG
+   * — something was missing, and a missing mark asserts nothing.
+   *
+   * WHAT IS CHECKED HERE IS THE INPUT, not the pixels: that folding a branch
+   * really does produce the three facts MindNode's gate reads. The pixels are
+   * the harness's job (`tree-folded`, 1:1), because "does this read as openable"
+   * is a question about a picture.
+   */
+  it('gives a folded branch the three facts the fold mark is gated on', async () => {
+    const { layoutMindtree } = await import('../../lib/mindtree/layout')
+    const folded = layoutMindtree<MindNodeModel>(foldBooks(tree), {
+      // The app's own call — see the layout in the shooting block.
+      orientation: 'vertical',
+      wrap: true,
+      direction: 'ltr',
+      nodeSize: { width: 168, height: 54 },
+      gap: { depth: 46, sibling: 14 },
+    })
+
+    const books = ['am:0', 'am:1', 'am:2', 'am:3', 'am:4', 'am:5']
+    for (const id of books) {
+      const pos = folded.byId.get(id)
+      expect(pos, `${id} is not in the folded layout`).toBeDefined()
+      if (pos === undefined) continue
+      // 1. `hasChildren` — there is something inside.
+      expect(pos.hasChildren, `${id} lost hasChildren when folded`).toBe(true)
+      // 2. NOT expanded. `MindNode` reads this as `childIds.length > 0`, so a
+      //    folded node must draw none of its children.
+      expect(pos.childIds, `${id} still draws children when folded`).toHaveLength(0)
+      // 3. A hidden count above zero — the gate's last term. Without it the mark
+      //    is suppressed, which is right for a leaf and wrong for this.
+      expect(pos.hiddenChildCount, `${id} hides nothing`).toBe(4)
+    }
+
+    // FOLDING REALLY REMOVES THEM FROM THE DRAWING, which is what makes the
+    // mark necessary rather than decorative: with every book folded the layout
+    // holds nine nodes — the root, two directorates, six books — and not one of
+    // the 120 organizations. There is nothing else on the screen to tell a
+    // reader those twenty rows exist.
+    expect(folded.nodes).toHaveLength(9)
+    expect(folded.byId.has(leaves[0]?.id ?? '')).toBe(false)
+
+    // AND A LEAF STAYS UNMARKED WHEN IT IS DRAWN, which is the other half of the
+    // claim: a mark every card carries says nothing. Read off the OPEN layout,
+    // because that is the only one an organization appears in.
+    const open = layoutMindtree<MindNodeModel>(tree, {
+      orientation: 'vertical',
+      wrap: true,
+      direction: 'ltr',
+      nodeSize: { width: 168, height: 54 },
+      gap: { depth: 46, sibling: 14 },
+    })
+    const org = open.byId.get(leaves[0]?.id ?? '')
+    expect(org, 'the open layout must draw the organizations').toBeDefined()
+    expect(org?.hasChildren, 'an organization must not be marked as openable').toBe(false)
   })
 
   it('keeps the book ids `viewsFor` reads the second line off', () => {

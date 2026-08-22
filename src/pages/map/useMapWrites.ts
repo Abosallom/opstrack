@@ -65,6 +65,13 @@ export interface MapWritesOptions {
   textOf: (label: MindLabel) => string
   toggleFold: (id: string) => void
   focusBranch: (nodeId: string | null) => void
+  /**
+   * `dive.details` — open the info panel beside the map WITHOUT moving the
+   * camera. Handed in rather than reached for because the panel is the lens's
+   * subject and this file owns writes; see the `open` arm for why a branch needs
+   * it at all.
+   */
+  openDetails: (nodeId: string) => void
   openAdd: (at: { nodeId: string; x: number; y: number; mode: QuickAddMode }) => void
 }
 
@@ -78,6 +85,7 @@ export function useMapWrites({
   textOf,
   toggleFold,
   focusBranch,
+  openDetails,
   openAdd,
 }: MapWritesOptions) {
   /**
@@ -103,7 +111,18 @@ export function useMapWrites({
 
       switch (run.kind) {
         case 'open':
+          // TWO SUBJECTS, ONE VERB, and they are the same act at two grains:
+          // "show me this thing". A LEAF is an entry and opens the entry sheet;
+          // a BRANCH has no entry and opens the info panel beside the map.
+          //
+          // ⚠ THE BRANCH ARM IS A REACHABILITY FIX. `activate` folds a branch
+          // and returns, which shadows its own `dive.details` arm, so before
+          // this row the panel was unreachable for every branch with children —
+          // and the stage picker, the goals and the delegation cockpit are all
+          // in it. `actions.ts` carries the full argument and the two kinds it
+          // refuses to offer this on.
           if (node.entryId !== null) openEntry(node.entryId, { list: drawnEntryIds })
+          else openDetails(node.id)
           return
         case 'focus':
           focusBranch(node.id)
