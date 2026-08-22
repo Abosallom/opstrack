@@ -88,8 +88,8 @@ const TRACK = 'UHR'
 const ROOT = 'Demo Portfolio'
 
 /** The two provisioned members. Everything else in the AM column is blank. */
-const AM_AZIZ = 'Aziz'
-const AM_NASSER = 'Nasser Alabri'
+const AM_AZIZ = 'Abdulaziz Alsaloom'
+const AM_NASSER = 'nasser'
 
 /**
  * 0026's seven rungs, verbatim.
@@ -104,9 +104,9 @@ const AM_NASSER = 'Nasser Alabri'
 const STAGE = {
   notStarted: 'Not started',
   kickoff: 'Kickoff',
-  integrating: 'Integrating',
-  testing: 'Testing/UAT',
-  ready: 'Go-live ready',
+  integrating: 'Integrating & Testing',
+  testing: 'UAT',
+  ready: 'Go-live readiness',
   live: 'Live',
   paused: 'Paused',
 }

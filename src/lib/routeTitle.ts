@@ -61,6 +61,16 @@ export function titleKeyFor(pathname: string, nav: readonly TitledRoute[]): stri
   // languages and a route.mindtree twin would only ever hold the same word.
   // Above the '/settings' test for the reason the whole file exists.
   if (pathname.startsWith('/mindtree')) return 'mindtree.title'
+  // The PMO dashboard. It IS in `nav`, so the exact-match scan above already
+  // answers for '/pmo' — this test is here anyway, on the same rule as the
+  // '/mindtree' line above it: the scan is a property of the TABLE and can be
+  // relied on only for the exact string, so the day somebody adds '/pmo/risks'
+  // the header follows instead of quietly falling through to the map's name.
+  // Named out of its own namespace on the digest/privacy precedent —
+  // `pmo.title` already ships in both languages and a route.pmo twin would only
+  // ever hold the same words. ABOVE the '/settings' test for the reason the
+  // whole file exists.
+  if (pathname.startsWith('/pmo')) return 'pmo.title'
   // Same precedent as digest/notifications/mindtree: `privacy.title` already
   // ships in both languages and a route.privacy twin would only ever hold the
   // same word. The screen is in neither nav, so this header is the only chrome

@@ -641,7 +641,38 @@ export default function Mindtree(): ReactElement {
         direction: rtl ? 'rtl' : 'ltr',
         orientation: 'vertical',
         wrap: true,
-        nodeSize: { width: 132, height: 54 },
+        /**
+         * 168 AND NOT 132, AND THE NUMBER IS NOT A TASTE — it is the width every
+         * other file in this drawing already believes.
+         *
+         * WHAT 132 COST, MEASURED. `MindNode`'s glyph budget is
+         * `(width - PAD*2 - COUNT_SLOT) / CHAR_PX`; at 132 that is
+         * `(132 - 24 - 34) / 6.2` = ELEVEN glyphs, so "Associate Directorate
+         * Alpha" was drawn as "Associate …" and so was every one of its four
+         * siblings — four identical cards for four different organizations. At
+         * 168 the same expression is seventeen, and the second row this wave
+         * gives the card (`wrapLabel`) adds twenty-three more against the full
+         * room: forty glyphs, at an UNCHANGED 12.5px type size.
+         *
+         * WHY NOT SIMPLY 225, WHICH HOLDS THE NAME ON ONE LINE. Card width is
+         * the term the whole picture is priced in — a wrapped tidy tree is
+         * packed from the widest card at every level, so the bounds grow with it
+         * and the fit camera pulls back by the same ratio. Spending 1.7x the
+         * inline axis to hold one name would take every glyph on the glass down
+         * with it, which is the trade the count encoding was refused for two
+         * screens above. Two rows spend the axis the card has spare.
+         *
+         * AND 168 IS `DEFAULT_NODE_SIZE.width`. `mapRender.test.tsx`'s
+         * `shareFloorPx` denominates in `LEAF_WIDTH = DEFAULT_NODE_SIZE.width`,
+         * which the note above already calls "correct for every card today and a
+         * fiction the moment one card is authored at another width" — 132 WAS
+         * that other width. Authoring the tidy tree's card at the default makes
+         * the gate's denominator true again rather than true by luck.
+         *
+         * The height stays 54: `TWO_LINE_TOP`/`TWO_LINE_BOTTOM` put the two rows
+         * at 12.75–25.25 and 30.5–41.5 units, and the progress rail starts at 48.
+         */
+        nodeSize: { width: 168, height: 54 },
         gap: { depth: 46, sibling: 14 },
       }),
     [focus.drawnRoot, rtl],
@@ -666,7 +697,7 @@ export default function Mindtree(): ReactElement {
    * IDS, KINDS AND DIRECTION, because those are what move coordinates. An id is
    * the node's whole PATH (`root/track:…/entity:…`), so the id set alone pins
    * the shape of the tree; `kind` rides along because it is what a per-kind card
-   * size would key off the day one exists (every card is 132x54 today, so there
+   * size would key off the day one exists (every card is 168x54 today, so there
    * is no size to hash and pretending otherwise would be a comment, not a
    * check); and the direction is in because the Arabic mirror negates every x.
    * A fold, a filter and a resize move nothing, and none of them appears here.
@@ -788,7 +819,7 @@ export default function Mindtree(): ReactElement {
    * THE RECTANGLE A NODE'S ID NAMES — its whole branch, not its card.
    *
    * `subtreeBounds` unions a node's rect with every drawn descendant's, so
-   * "take me to Infrastructure" frames the DEPARTMENT rather than the 132x54
+   * "take me to Infrastructure" frames the DEPARTMENT rather than the 168x54
    * box with the word Infrastructure in it. It is a function rather than a field
    * on the layout precisely so a caller can ask this question without every node
    * in a thousand-node drawing carrying a rectangle nobody reads.

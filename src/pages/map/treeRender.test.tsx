@@ -222,8 +222,23 @@ const DIRECTORATES: readonly {
   readonly ink: CSSProperties
   readonly books: readonly string[]
 }[] = [
-  { label: 'Directorate North', ink: NORTH, books: ['Sara Al-Otaibi', 'Faisal Al-Harbi', 'Nouf Al-Qahtani'] },
-  { label: 'Directorate South', ink: SOUTH, books: ['Hessa Al-Dosari', 'Turki Al-Shammari', 'Lama Al-Ghamdi'] },
+  // THE TWO LABELS ARE THE WORKSPACE'S OWN AND THEY ARE 27 GLYPHS ON PURPOSE.
+  // They were "Directorate North" / "Directorate South" and the picture was
+  // quietly easy: seventeen glyphs is inside the budget of any card this drawing
+  // has ever had. The names the owner actually onboards under are these, and
+  // they are the ones that came back from the live site as "Associate …" — so
+  // the fixture carries the length that produced the defect, and every picture
+  // this harness writes from here on answers the question at that length.
+  {
+    label: 'Associate Directorate Alpha',
+    ink: NORTH,
+    books: ['Sara Al-Otaibi', 'Faisal Al-Harbi', 'Nouf Al-Qahtani'],
+  },
+  {
+    label: 'Associate Directorate Beta',
+    ink: SOUTH,
+    books: ['Hessa Al-Dosari', 'Turki Al-Shammari', 'Lama Al-Ghamdi'],
+  },
 ]
 
 /**
@@ -402,13 +417,29 @@ if (SHOOTING) {
    * `{ orientation: 'vertical', wrap: true }` is the owner's decided drawing: a
    * vertical top-down tidy tree whose children wrap into a block under their
    * parent rather than trailing off in one long row. No `sizeOf` is passed, so
-   * every card is `DEFAULT_NODE_SIZE` — 168 × 44 — at every level, which is rule
-   * one of the design and the thing a picture of uniform cards is meant to show.
+   * every card is the SAME size at every level, which is rule one of the design
+   * and the thing a picture of uniform cards is meant to show.
+   *
+   * ⚠ THE SIZE AND THE GAPS ARE THE APP'S, COPIED FROM `pages/Mindtree.tsx`'s
+   * one `layoutMindtree` call, and until this line existed they were NOT. The
+   * harness took the defaults — 168 × 44 with `{ depth: 56, sibling: 12 }` —
+   * while the app drew 132 × 54 with `{ depth: 46, sibling: 14 }`, and this
+   * file's own header claimed in the same breath that "these are pictures of the
+   * app's drawing". They were pictures of a drawing nobody ships: cards a
+   * quarter wider than the real ones, which is exactly the dimension every
+   * question about label truncation turns on. The label defect that sent this
+   * wave — "Associate Directorate Alpha" drawn as "Associate …" — was INVISIBLE
+   * here for that reason.
+   *
+   * Keep the two in step. If the page's call changes, this changes with it, or
+   * the pictures stop being evidence about the product.
    */
   const layout = layoutMindtree<MindNodeModel>(tree, {
     orientation: 'vertical',
     wrap: true,
     direction: 'ltr',
+    nodeSize: { width: 168, height: 54 },
+    gap: { depth: 46, sibling: 14 },
   })
 
   const views = viewsFor(tree)

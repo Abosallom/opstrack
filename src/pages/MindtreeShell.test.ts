@@ -105,20 +105,59 @@ describe('the Tab order is DOM order, and DOM order is chosen', () => {
   })
 
   it('renders the islands inside one layer that refuses pointers', () => {
-    // THE DEFECT THIS GUARDS. A transparent `inset: 0` box over a canvas eats
-    // the pointerdown that starts a pan, and nothing anywhere reports it: the
-    // map simply stops being draggable. The layer must refuse pointers and each
+    // THE DEFECT THIS GUARDS. A transparent box over a canvas eats the
+    // pointerdown that starts a pan, and nothing anywhere reports it: the map
+    // simply stops being draggable. The layer must refuse pointers and each
     // island must take them back for its own box only.
+    //
+    // STILL ASSERTED AFTER THE LAYER CAME BACK INTO THE FLOW (see the test
+    // below): the layer spans the whole inline axis and its plates do not, so
+    // the empty half of the control row is still a transparent box, and the pair
+    // — refuse, then take back — is still the only thing that says what a press
+    // there does. Written as the two declarations rather than as
+    // `position: absolute`, which was never the guarantee, only where it was
+    // being kept.
     expect(page()).toContain('<div className="mtree-isles">')
     const css = sheet()
     const layer = css.indexOf('.mtree-isles {')
     expect(layer).toBeGreaterThan(-1)
     const block = css.slice(layer, css.indexOf('}', layer))
-    // The base rule is the fallback column, where the layer is an ordinary
-    // block; the refusal is declared in the stage block, on the same selector.
-    expect(css).toMatch(/\.mtree-isles\s*\{[^}]*position:\s*absolute[^}]*pointer-events:\s*none/s)
+    expect(css).toMatch(/\.mtree-isles\s*\{[^}]*pointer-events:\s*none/s)
     expect(css).toMatch(/\.mtree-isle\s*,\s*\.mtree-shellbar\s*\{[^}]*pointer-events:\s*auto/s)
     expect(block.length).toBeGreaterThan(0)
+  })
+
+  it('gives the chrome a grid row instead of the top of the picture', () => {
+    // THE MEASURED DEFECT, driven at 1491x812. `.mtree-isles` was
+    // `position: absolute; inset: 0` over a stage whose first row was the
+    // canvas, so the lens rail was painted ACROSS the root card, and on the
+    // portfolio lens across that table's own control row — "Only past their s…"
+    // and "…Set how lon…" read as truncations and were collisions.
+    //
+    // The fix is structural and the assertion is too: a leading `auto` track for
+    // the chrome, and no absolute layer to put back over the stage. `auto` and
+    // never a number — the rail's height is a function of its content (the chips
+    // wrap, Arabic runs wider, the trail appears on a drill-in), and every
+    // constant this sheet ever wrote for it (`68px`, `136px`) shipped either a
+    // gap or an overlap.
+    const css = sheet()
+    const stage = css.indexOf('@media (min-width: 768px) and (min-height: 480px)')
+    expect(stage, 'the guarded desktop block').toBeGreaterThan(-1)
+    const block = css.slice(stage, css.indexOf('/* ---------- the phone', stage))
+    expect(block).toContain('grid-template-rows: auto minmax(0, 1fr) auto auto;')
+    expect(block, 'the island layer is IN the flow').not.toMatch(
+      /\.mtree-isles\s*\{[^}]*position:\s*absolute/s,
+    )
+    // …and the one island that is still out of flow is still the facet panel,
+    // which has to grow OVER the canvas rather than push it down.
+    expect(block).toMatch(/\.mtree-find\s*\{[^}]*position:\s*absolute/s)
+    // The trail came into the flow with the rail: an indicator that hung at
+    // `inset-block-start: 100%` is chrome painting on the drawing, one island
+    // smaller. It claims a whole flex line instead.
+    expect(block).toMatch(/\.mtree-work\s*\{[^}]*flex-basis:\s*100%/s)
+    expect(block, 'the empty state no longer dodges a float').not.toContain(
+      'padding-block-start: 136px',
+    )
   })
 })
 

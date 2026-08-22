@@ -54,6 +54,7 @@
       "notifications": "The notification inbox and its badge.",
       "offline": "The offline banner and the list of pending changes.",
       "palette": "The command palette and the keyboard-shortcut list.",
+      "pmo": "The PMO dashboard — delivery, follow-ups and the risk log, on one route.",
       "privacy": "The privacy policy — Settings › About, and the public URL the App Store listing points at.",
       "product": "The product's own name — the header, the sign-in page and the digest footer.",
       "recurring": "Recurring items — the schedules that raise work on their own.",

@@ -285,7 +285,7 @@ export function useMapGeometry<L extends CameraLayout>({
    * THE MOST CSS PIXELS ONE DRAWING UNIT MAY BE WORTH — the near end of the
    * zoom, and the whole of it.
    *
-   * A tidy tree's card is authored at 132x54 with a 12.5px label, so 2:1 puts
+   * A tidy tree's card is authored at 168x54 with a 12.5px label, so 2:1 puts
    * that label at 25px — large, and the largest that is still a MAP rather than
    * a poster of one card. Past it the reader is inside a single word with no
    * context on the glass, which is the state every reader who has ever
@@ -583,7 +583,7 @@ export function useMapGeometry<L extends CameraLayout>({
    *
    * ⚠ THE CALLER DECIDES WHAT THE BOX IS, and for a branch it should be
    *   `subtreeBounds(layout, id)` rather than the node's own card — "take me to
-   *   Infrastructure" means the department, not the 132x54 rectangle with its
+   *   Infrastructure" means the department, not the 168x54 rectangle with its
    *   name in it. That resolution is the page's because `subtreeBounds` is the
    *   layout module's, and this file has no edge to it.
    *

@@ -1,0 +1,309 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>What is remaining</title>
+<!--BASECSS-->
+<style>
+.key { display: flex; gap: 5mm; flex-wrap: wrap; margin: 4mm 0 5mm; }
+.key span { display: flex; align-items: center; gap: 2mm; font-size: 9.6pt; font-weight: 600; color: var(--ink-2); }
+.key i { width: 5mm; height: 5mm; border-radius: 1.2mm; display: block; }
+.k-done { background: #1f7a4d; } .k-mine { background: #5a4aa8; }
+.k-you  { background: #c98a1a; } .k-later{ background: #b9b4c6; }
+.lane { display: grid; grid-template-columns: 26mm 1fr; gap: 3mm; margin-bottom: 2.6mm; align-items: stretch; }
+.lane .who { font-size: 8.4pt; font-weight: 700; letter-spacing: .8pt; text-transform: uppercase;
+             color: var(--ink-3); display: flex; align-items: center; }
+.bar { border-radius: 2mm; padding: 3.4mm 4mm; color: #fff; display: grid;
+       grid-template-columns: 1fr auto; align-items: center; gap: 3mm; }
+.bar .t { font-size: 11pt; font-weight: 650; line-height: 1.3; }
+.bar .t small { display: block; font-size: 8.8pt; font-weight: 400; opacity: .88; margin-top: .8mm; color: #fff; }
+.bar .m { font-size: 8.6pt; font-weight: 700; opacity: .9; white-space: nowrap; }
+.b-done { background: #1f7a4d; } .b-mine { background: #5a4aa8; }
+.b-you  { background: #c98a1a; } .b-later{ background: #8e8a99; }
+.stat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin: 4mm 0; }
+.stat div { border-radius: 2mm; padding: 4mm 3mm; text-align: center; border: 1px solid var(--rule); background: #fff; }
+.stat .n { font-size: 20pt; font-weight: 700; line-height: 1; }
+.stat .l { font-size: 8.6pt; color: var(--ink-3); margin-top: 1.5mm; line-height: 1.35; }
+.stat .ok .n { color: #1f7a4d; } .stat .warn .n { color: #c98a1a; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.mini { border-radius: 2mm; padding: 4mm; border: 1px solid var(--rule); background: #fff; }
+.mini h4 { margin: 0 0 2mm; font-size: 10pt; }
+.mini small { font-size: 9.2pt; }
+</style></head><body>
+
+<!-- 1 -->
+<section class="page">
+  <div class="kicker">Checked against your live project &middot; 22 August</div>
+  <h1>What is remaining</h1>
+  <p class="lede">Colour tells you whose it is. <b>Green is finished. Purple is mine. Amber needs
+  you. Grey is later.</b></p>
+
+  <div class="key">
+    <span><i class="k-done"></i> Done</span>
+    <span><i class="k-mine"></i> Mine &mdash; no input needed</span>
+    <span><i class="k-you"></i> Yours</span>
+    <span><i class="k-later"></i> Later, if you still want it</span>
+  </div>
+
+  <div class="lane"><span class="who">Done</span>
+    <div class="bar b-done"><div class="t">The data is real now
+      <small>85 organizations across your seven renamed rungs. The old demo is off.</small></div>
+      <span class="m">&#10003;</span></div></div>
+
+  <div class="lane"><span class="who">Done</span>
+    <div class="bar b-done"><div class="t">The map is a tree, and it responds
+      <small>Tap a branch to open it. The camera pans instead of teleporting.</small></div>
+      <span class="m">&#10003;</span></div></div>
+
+  <div class="lane"><span class="who">Yours &mdash; now</span>
+    <div class="bar b-you"><div class="t">Put a number of days on each stage
+      <small>All seven are still empty, so &ldquo;at risk&rdquo; is stuck on zero.</small></div>
+      <span class="m">5 min</span></div></div>
+
+  <div class="lane"><span class="who">Mine &mdash; next</span>
+    <div class="bar b-mine"><div class="t">Fix what overlaps, and the counts that read 0
+      <small>The bars cover the picture. Node counts count the wrong thing.</small></div>
+      <span class="m">in progress</span></div></div>
+
+  <div class="lane"><span class="who">Mine</span>
+    <div class="bar b-mine"><div class="t">The PMO Dashboard &mdash; its own page
+      <small>Overview, projects and follow-ups, risks. Built for Nawaf.</small></div>
+      <span class="m">next</span></div></div>
+
+  <div class="lane"><span class="who">Both</span>
+    <div class="bar b-mine" style="background:linear-gradient(90deg,#5a4aa8 0%,#5a4aa8 55%,#c98a1a 55%,#c98a1a 100%)">
+      <div class="t">Jira &mdash; choose which spaces to read
+      <small>I build the picker. You connect it once and press Test.</small></div>
+      <span class="m">mine + yours</span></div></div>
+
+  <div class="lane"><span class="who">Yours</span>
+    <div class="bar b-you"><div class="t">Give your team their codes
+      <small>16 of 18 people have still never signed in.</small></div>
+      <span class="m">10 min</span></div></div>
+
+  <div class="lane"><span class="who">Mine</span>
+    <div class="bar b-mine"><div class="t">Tidy the Settings screens
+      <small>17 cards become about 11, grouped and plainly named.</small></div>
+      <span class="m">after</span></div></div>
+
+  <div class="lane" style="margin-bottom:0"><span class="who">Later</span>
+    <div class="bar b-later"><div class="t">The SGH plan &mdash; 176 activities
+      <small>Only if you still want it. See page 6 for why I would wait.</small></div>
+      <span class="m">last</span></div></div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>NphiesCore &middot; what is remaining</span><span>1 / 6</span></div>
+</section>
+
+<!-- 2 -->
+<section class="page">
+  <div class="head"><span class="step-no">&#10003;</span><div><h2>What changed today</h2>
+  <small>So you can see what the colours above are built on.</small></div></div>
+
+  <div class="stat">
+    <div class="ok"><div class="n">85</div><div class="l">organizations, live<br>was 1</div></div>
+    <div class="ok"><div class="n">50</div><div class="l">with a stage<br>was 0</div></div>
+    <div class="ok"><div class="n">12</div><div class="l">goals with dates<br>was 0</div></div>
+    <div class="warn"><div class="n">0</div><div class="l">of 7 rungs have<br>a day count</div></div>
+  </div>
+
+  <p>Three things were wrong and each had to be fixed before the data would load. They are worth
+  knowing because two of them were caused by work <b>you</b> did, and that work was right.</p>
+
+  <div class="box bad">
+    <h4>1 &middot; Almost everything was hidden</h4>
+    <small><b>22 of your 23 organizations were archived</b> &mdash; the whole old demo. That one
+    fact explained the three-box map, the &ldquo;1 organization&rdquo; portfolio, and every zero on
+    the screen. Nothing was broken or missing. It was just switched off.</small>
+  </div>
+
+  <div class="box warn">
+    <h4>2 &middot; The demo named people who did not exist yet</h4>
+    <small>It was written before you created the 18 accounts, so it referred to &ldquo;Aziz&rdquo;
+    and &ldquo;Nasser Alabri&rdquo; &mdash; names the workspace has never heard. Every row was
+    refused. I pointed them at the real roster and spread the organizations across <b>five</b>
+    account managers instead of two, so the Team view has something to show.</small>
+  </div>
+
+  <div class="box ok">
+    <h4>3 &middot; You had renamed the stages &mdash; and the demo had not caught up</h4>
+    <small>Your ladder now reads <b>Integrating &amp; Testing</b>, <b>UAT</b>, <b>Go-live
+    readiness</b>. The demo still used the words it shipped with, so another 30 rows were refused.
+    I matched them to your words.
+    <br><br>Note what happened here: <b>the importer refused everything rather than guess.</b> It
+    would not invent a person and it would not invent a stage. That is the behaviour you want the
+    day you load your real four hundred.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>What changed today</span><span>2 / 6</span></div>
+</section>
+
+<!-- 3 -->
+<section class="page">
+  <div class="head"><span class="step-no">1</span><div><h2>Yours, now &mdash; five minutes</h2>
+  <small>The one thing holding back a quarter of the app.</small></div></div>
+
+  <div class="nav" style="display:flex;gap:2mm;align-items:center;margin-bottom:5mm">
+    <span style="background:#fff;border:1px solid var(--accent-line);border-radius:1.5mm;padding:2mm 3mm;font-size:10pt;font-weight:650">nphiescore.com</span>
+    <em style="color:var(--accent-mid);font-style:normal;font-size:12pt">&rsaquo;</em>
+    <span style="background:#fff;border:1px solid var(--accent-line);border-radius:1.5mm;padding:2mm 3mm;font-size:10pt;font-weight:650">Settings</span>
+    <em style="color:var(--accent-mid);font-style:normal;font-size:12pt">&rsaquo;</em>
+    <span style="background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:1.5mm;padding:2mm 3mm;font-size:10pt;font-weight:650">Catalogue</span>
+  </div>
+
+  <p class="lede">Beside each stage there is a box for <b>expected days</b>. Put a number in the
+  middle four. Leave the other three empty.</p>
+
+  <div class="box" style="padding:4mm">
+    <div style="display:grid;grid-template-columns:1fr 30mm;gap:3mm;font-size:8pt;letter-spacing:.7pt;text-transform:uppercase;color:var(--ink-3);font-weight:650;padding-bottom:2mm"><span>Your stage</span><span style="text-align:right">Days</span></div>
+    <div style="display:grid;grid-template-columns:1fr 30mm;gap:3mm;font-size:10.8pt;padding:2.4mm 0;border-top:1px solid var(--rule);color:var(--ink-3)"><span>Not started</span><span style="text-align:right">leave empty</span></div>
+    <div style="display:grid;grid-template-columns:1fr 30mm;gap:3mm;font-size:10.8pt;padding:2.4mm 0;border-top:1px solid var(--rule);font-weight:650"><span>Kickoff</span><span style="text-align:right;color:#c98a1a">a number</span></div>
+    <div style="display:grid;grid-template-columns:1fr 30mm;gap:3mm;font-size:10.8pt;padding:2.4mm 0;border-top:1px solid var(--rule);font-weight:650"><span>Integrating &amp; Testing</span><span style="text-align:right;color:#c98a1a">a number</span></div>
+    <div style="display:grid;grid-template-columns:1fr 30mm;gap:3mm;font-size:10.8pt;padding:2.4mm 0;border-top:1px solid var(--rule);font-weight:650"><span>UAT</span><span style="text-align:right;color:#c98a1a">a number</span></div>
+    <div style="display:grid;grid-template-columns:1fr 30mm;gap:3mm;font-size:10.8pt;padding:2.4mm 0;border-top:1px solid var(--rule);font-weight:650"><span>Go-live readiness</span><span style="text-align:right;color:#c98a1a">a number</span></div>
+    <div style="display:grid;grid-template-columns:1fr 30mm;gap:3mm;font-size:10.8pt;padding:2.4mm 0;border-top:1px solid var(--rule);color:var(--ink-3)"><span>Live</span><span style="text-align:right">leave empty</span></div>
+    <div style="display:grid;grid-template-columns:1fr 30mm;gap:3mm;font-size:10.8pt;padding:2.4mm 0;border-top:1px solid var(--rule);color:var(--ink-3)"><span>Paused</span><span style="text-align:right">leave empty</span></div>
+  </div>
+
+  <div class="two" style="margin-top:5mm">
+    <div class="mini" style="border-color:var(--bad-line);background:var(--bad-soft)">
+      <h4 style="color:var(--bad)">Empty today</h4>
+      <small>At risk: always 0. Stalled list: always empty. Median days: a dash. Sorting by
+      &ldquo;stuck longest&rdquo;: nothing to sort.</small></div>
+    <div class="mini" style="border-color:var(--ok-line);background:var(--ok-soft)">
+      <h4 style="color:var(--ok)">With a number</h4>
+      <small>All four come alive across 85 organizations &mdash; and the PMO dashboard has real
+      figures to open on.</small></div>
+  </div>
+
+  <div class="box ok">
+    <h4>Guess</h4>
+    <small>A rough number beats no number. Later the tool will measure how long each stage really
+    takes and you can replace your guess with the true figure.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Yours &middot; the day counts</span><span>3 / 6</span></div>
+</section>
+
+<!-- 4 -->
+<section class="page">
+  <div class="head"><span class="step-no">2</span><div><h2>Mine, next</h2>
+  <small>What I am building, and why in this order.</small></div></div>
+
+  <div class="box acc">
+    <h4>First &mdash; the things you can see are wrong</h4>
+    <small><b>The bars cover the picture.</b> The row of view names floats on top of the tree and on
+    top of the portfolio's own controls, cutting a sentence off mid-word. A node's pop-up covers the
+    node it describes.
+    <br><br><b>Every count on the map reads 0.</b> They count <i>work items</i>, not organizations
+    &mdash; so a branch holding 18 hospitals says &ldquo;0&rdquo;. On an onboarding tracker that is
+    the wrong number on the wrong box, and it is why the map still looks lifeless with 85
+    organizations in it.
+    <br><br><b>Names cut off</b> &mdash; &ldquo;Associate &hellip;&rdquo;. The boxes are narrower
+    than the names you actually use.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Then &mdash; the PMO Dashboard</h4>
+    <small>Its own page in the menu, built for <b>Nawaf</b>: an overview, the projects and their
+    follow-up tasks, and the risks. It reads the data you already have, so it works whether or not
+    Jira is connected. Revenue and the document store are deliberately left out &mdash; page 6.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Then &mdash; Jira by space</h4>
+    <small>A picker so you tick which Jira Service Management spaces to read, instead of writing a
+    query by hand. The hand-written query stays, folded away under &ldquo;Advanced&rdquo;.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Then &mdash; the Settings tidy-up</h4>
+    <small>Seventeen cards in one long scroll become about eleven, grouped, and renamed in plain
+    words. &ldquo;Vocabulary&rdquo;, &ldquo;Catalogue&rdquo; and &ldquo;Terminology&rdquo; are
+    indistinguishable unless you built them.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Mine &middot; the build order</span><span>4 / 6</span></div>
+</section>
+
+<!-- 5 -->
+<section class="page">
+  <div class="head"><span class="step-no">3</span><div><h2>Yours, whenever</h2>
+  <small>Two jobs that block nothing but matter.</small></div></div>
+
+  <div class="box warn">
+    <h4>Jira &mdash; press Test connection</h4>
+    <small>Your three secrets are set and the program now knows about Atlassian's second door, so
+    your read-only token should work. <b>Settings &rarr; Jira &rarr; Test connection.</b>
+    <br><br>Worth being straight with you: <b>Jira has never once connected.</b> Until that button
+    goes green, everything I build on the Jira side is guesswork. It is the one thing in this whole
+    list that code cannot do for you.</small>
+  </div>
+
+  <div class="box warn">
+    <h4>The sixteen invite codes</h4>
+    <small><b>16 of your 18 people have still never signed in.</b> Only you and Nasser have. A tool
+    nobody has opened cannot be judged, adopted or trusted &mdash; and the PMO dashboard is being
+    built for a man who does not yet have a way in.
+    <br><br>If you have lost the codes, say so and I will make fresh ones. Easy now; awkward once
+    people are using them.</small>
+  </div>
+
+  <div class="box acc">
+    <h4>Optional &mdash; the 0030 file</h4>
+    <small>One more SQL file, same routine as the four you did, <b>5 grey lines</b>. It makes room
+    for a screen where you change how the map looks. <b>Skipping it breaks nothing</b> &mdash; the
+    app uses my defaults until it is run. I would leave it until the map settles.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Yours &middot; whenever</span><span>5 / 6</span></div>
+</section>
+
+<!-- 6 -->
+<section class="page">
+  <div class="kicker">And what I am deliberately not building</div>
+  <h2 style="font-size:20pt; margin-bottom:4mm">Four things from the PMO document, refused</h2>
+  <p class="lede">A council of three reviewed the whole request before I started. These four came
+  back as no, and I would rather tell you why than quietly drop them.</p>
+
+  <div class="box bad">
+    <h4>Open-by-link access</h4>
+    <small>The original dashboard is readable <i>and editable</i> by anyone with the link. In this
+    app, a request with no signed-in user is treated as <b>the most trusted writer there is</b> —
+    that is how the internal jobs are recognised. Opening a public door would quietly hand every
+    stranger the highest level of trust in the system. This one is not a preference.</small>
+  </div>
+
+  <div class="box bad">
+    <h4>Revenue, and the document store</h4>
+    <small>There is no money anywhere in this system and nothing to check a figure against; a
+    revenue tab would be numbers nobody can verify. And the app stores <b>no files at all</b> —
+    your privacy policy says so. The seven documents work as a <b>checklist</b> with a link each:
+    same progress bar, no filing cabinet.</small>
+  </div>
+
+  <div class="box bad">
+    <h4>PowerPoint and PDF export</h4>
+    <small>Both need new libraries this app has deliberately never taken on &mdash; it draws its own
+    charts for that reason. Your browser already prints to PDF, and the Digest already produces a
+    report you can paste straight into Word or Outlook with its formatting intact.</small>
+  </div>
+
+  <div class="box warn">
+    <h4>The 176 SGH activities &mdash; not refused, but not yet</h4>
+    <small>Making them editable here would build a <b>second task tracker</b> inside an app whose
+    whole story is that onboarding lives in Jira. Within a month there would be two versions of the
+    truth and you would trust neither. If the plan matters, it belongs where the work is, and this
+    tool should read it. <b>Say the word if you disagree</b> &mdash; it is your call, not mine.</small>
+  </div>
+
+  <div class="grow"></div>
+  <div class="box ok">
+    <h4>The short version</h4>
+    <small><b>Put day numbers on four stages.</b> That is the only thing standing between you and a
+    quarter of the app. Everything else is mine or can wait.</small>
+  </div>
+  <div class="foot"><span>Checked against your live project, 22 August 2026</span><span>6 / 6</span></div>
+</section>
+</body></html>

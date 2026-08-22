@@ -213,6 +213,49 @@ export interface NodeStats
    * nobody tests.
    */
   orgs: number
+  /**
+   * THE SAME QUESTION, ASKED THE WAY A CARD ASKS IT: how many organizations are
+   * UNDER this node — and it is neither `count` nor `orgs`.
+   *
+   * `orgs` counts every `map_nodes` row at or below, and a directorate is a row
+   * too, so a division holding eighteen hospitals answers NINETEEN with itself
+   * in the total. That is the right number for the cohort sentence, where every
+   * member is a leaf and the node is a ring rather than a row, and the wrong one
+   * on a card that means "what is in here". `orgsBelow` counts only the entities
+   * that END the hierarchy — no `map_nodes` kind says which those are, so the
+   * walk uses the same test `MindNode` uses for the end of the dive: an entity
+   * with no entity beneath it IS an organization, and one with entities beneath
+   * it is a place that holds them.
+   *
+   * ZERO ON AN ORGANIZATION ITSELF, and that is the useful reading rather than a
+   * degenerate one: "under here" is empty for a leaf, so its card falls back to
+   * the open-work count, which is the number an organization's own card should
+   * carry. Zero on every entry, group and fold for the same reason.
+   */
+  orgsBelow: number
+  /**
+   * OF THOSE ORGANIZATIONS, HOW MANY ARE FINISHED AND HOW MANY ARE LATE.
+   *
+   * A COUNT FOLDS WHERE A CLOCK DOES NOT, which is the line the warning above
+   * draws and this pair stays on the legal side of. `daysInStage` may not roll
+   * up because rolling it up means inventing an aggregate — the worst? the
+   * median? — that no column prints. "How many of the eighteen are live" invents
+   * nothing: it is `count(*) where terminal` over a subtree, the same arithmetic
+   * `rollUpPortfolio` already prints per bucket, and the same one the portfolio's
+   * chip badge prints for at-risk. One `stageReading` per organization, in the
+   * pass that was already visiting it.
+   */
+  liveBelow: number
+  riskBelow: number
+  /**
+   * THIS NODE'S OWN RUNG IS A TERMINAL ONE — the fourth member of the stage
+   * triad, and false everywhere the other three are null.
+   *
+   * `count(*) where terminal` and NEVER a comparison against the word "Live"
+   * (types.ts says so where the column is declared), and never "the last rung"
+   * either: `sort_order` is draggable and `terminal` is the fact.
+   */
+  live: boolean
 }
 
 /** Nothing known about a node the walk has no row for. Every absence spelled. */
@@ -220,6 +263,10 @@ export const NO_STATS: NodeStats = Object.freeze({
   breached: 0,
   unassigned: 0,
   orgs: 0,
+  orgsBelow: 0,
+  liveBelow: 0,
+  riskBelow: 0,
+  live: false,
   daysInStage: null,
   atRisk: false,
   stallDays: null,

@@ -1,0 +1,69 @@
+{
+  "pmo": {
+    "title": "PMO dashboard",
+    "nav": "PMO",
+    "subtitle": "Delivery, what is waiting on somebody, and what is going wrong. Every number below is read off what this workspace holds — where it holds nothing, it says so rather than showing a zero.",
+    "asOf": "Read at ⁨{time}⁩.",
+
+    "overview": "Overview",
+    "overviewDesc": "The whole workspace as it stands right now. Only the two charts are windowed, and each names its own range.",
+
+    "organizations": "Organizations",
+    "organizationsNote": "⁨{staged}⁩ with a stage recorded",
+
+    "lateTitle": "Late on their stage",
+    "lateNoOrganizations": "No organization has been recorded yet",
+    "lateNoOrganizationsHint": "Add them under Settings › Structure and this section starts answering for them.",
+    "lateNoStage": {
+      "one": "The one organization here has no stage recorded.",
+      "other": "None of the {count} organizations here has a stage recorded."
+    },
+    "lateNoStageHint": "Until somebody says where an organization has got to, there is no clock for it to be late against.",
+    "lateNoExpectationHint": "Nobody is late because nobody can be: give a stage an expected duration and this becomes a real count.",
+    "lateTooEarly": "No organization has been on its stage long enough to be late yet",
+    "lateTooEarlyHint": "The longest anyone has stood on their current stage is ⁨{days}⁩.",
+    "lateMeasured": {
+      "one": "Judged against one organization whose stage carries an expected duration.",
+      "other": "Judged against {count} organizations whose stage carries an expected duration."
+    },
+
+    "slaTitle": "Finished on the promise",
+    "slaNone": "Nothing that finished in this window carried a service deadline, so there is no rate to report.",
+    "slaRate": "⁨{met}⁩ of ⁨{measured}⁩ finished inside the deadline we had set.",
+    "slaUnmeasured": {
+      "one": "One more finished with no deadline recorded, and is in neither half.",
+      "other": "{count} more finished with no deadline recorded, and are in neither half."
+    },
+
+    "delivery": "Projects & follow-ups",
+    "deliveryDesc": "Where each organization has got to, who is behind it, and how much is open underneath.",
+    "deliveryLabel": "Organizations by stage",
+    "deliveryEmpty": "No organizations to show",
+    "deliveryEmptyHint": "This section reads the hierarchy under Settings › Structure. Nothing has been recorded there yet.",
+    "deliveryAll": "Open the full portfolio",
+    "deliveryNotStaged": "No stage recorded",
+
+    "followTitle": "Waiting on somebody",
+    "followDesc": "The same buckets the attention list uses, in the same order, and every item lands in exactly one of them.",
+
+    "risks": "Risks & challenges",
+    "risksDesc": "Open issues and open escalations. Two tables because they are read differently — one record behind both, told apart by the type somebody chose.",
+    "riskIssues": "Issues",
+    "riskEscalations": "Escalations",
+    "riskEmptyIssues": "No open issues",
+    "riskEmptyEscalations": "No open escalations",
+    "riskEmptyHint": "Anything captured as this type, and still open, appears here on its own.",
+    "colRaised": "Raised",
+    "colReading": "Reading",
+    "colWaiting": "Waiting",
+    "readingSevere": "Severe",
+    "readingElevated": "Elevated",
+    "readingWatch": "Watch",
+    "readingHint": "Read off the priority somebody set and the health the clock reports. It is not a stored score and nothing is ranked by it.",
+    "waitingYes": "On somebody else",
+    "waitingNo": "On us",
+
+    "empty": "Nothing has been captured yet",
+    "emptyHint": "This page fills itself in as work is recorded. Nothing below is hidden — there is simply nothing to show."
+  }
+}

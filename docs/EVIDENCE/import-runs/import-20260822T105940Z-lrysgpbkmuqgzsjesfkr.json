@@ -1,0 +1,4392 @@
+{
+  "manifestVersion": 2,
+  "tool": "import-structure",
+  "file": "docs/templates/structure.slice.csv",
+  "projectRef": "lrysgpbkmuqgzsjesfkr",
+  "startedAt": "2026-08-22T10:59:40.981Z",
+  "finishedAt": "2026-08-22T10:59:44.518Z",
+  "outcome": "complete",
+  "createdUseCases": [],
+  "createdNodes": [
+    {
+      "id": "1fa02882-9fe7-4b92-a12e-5ac127ffb00b",
+      "path": [
+        "UHR",
+        "Demo Slice"
+      ],
+      "depth": 1,
+      "parentId": null,
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b26e1656-2d53-4636-b4f8-4c93d6d059e6",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha"
+      ],
+      "depth": 2,
+      "parentId": "1fa02882-9fe7-4b92-a12e-5ac127ffb00b",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "187a8b73-9940-4db3-afc7-58ac43f420d0",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta"
+      ],
+      "depth": 2,
+      "parentId": "1fa02882-9fe7-4b92-a12e-5ac127ffb00b",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One"
+      ],
+      "depth": 3,
+      "parentId": "b26e1656-2d53-4636-b4f8-4c93d6d059e6",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "aef05f1a-7cde-42b3-96fe-e042c7d68de4",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two"
+      ],
+      "depth": 3,
+      "parentId": "b26e1656-2d53-4636-b4f8-4c93d6d059e6",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four"
+      ],
+      "depth": 3,
+      "parentId": "187a8b73-9940-4db3-afc7-58ac43f420d0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "555a4520-a83c-4393-8c4d-19004dcd913f",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three"
+      ],
+      "depth": 3,
+      "parentId": "187a8b73-9940-4db3-afc7-58ac43f420d0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "30814a34-db39-41e0-acfb-f15e48b153b0",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Anwa Polyclinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "f175e6f1-f7fe-42c4-a67e-beb410376952",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Areej Laboratory"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "5eb92756-0bd1-487c-8d0b-4adc96574e7c",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Bareq Specialist Polyclinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "bec2862f-774f-40ff-8442-c259104f7956",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Bushra Dental Clinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "2053b7a8-89e4-4ffb-9b54-7af75f05d0bd",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Duha Pharmacy"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "19c4148a-63c3-481e-a1de-b55557f3b364",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Falak General Hospital"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "c3d2e28b-c19b-49b3-b351-55cf7ab8b5a8",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Firuz General Hospital"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "3f7fc4cd-3e9c-4d6f-b610-a342af1d6a9d",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Hana Laboratory"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "3a8c74dd-8a25-45e2-b131-3708947f0a8b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Jawhara Community Hospital"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "bc882190-85f6-4a16-9b16-1fe834a2717d",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Kadi Clinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "61bc6ae0-16dc-4c5d-97bb-a9babb631c08",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Khuzama Clinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "83b2f3d0-2347-4d06-8e62-7322fae052df",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Nakheel Diagnostic Laboratory"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "c13d140b-51a1-4069-bae1-f5970b22836e",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Nawras Polyclinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "07af4d1e-0660-485e-a188-c25380750833",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Rawd Maternity Hospital"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "f2faa6b0-190d-44c1-b4b2-2660cbcc21a1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Rawnaq Clinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "c1cde841-0c8d-4593-8e9f-352b82c87b9a",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Rimal Radiology Centre"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "432f41bc-0da7-47bb-9d44-e57ad71fbac5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Salsabeel Dental Clinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "0259a75e-bd1a-4d9d-a991-faad5499f235",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Sana Clinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "642e5e07-68b5-4c41-bf59-1e33d27763fd",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Sanam Specialist Polyclinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "9aa876dd-8e26-4b8b-9ba0-655251f33c34",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Shafaq Community Hospital"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "0ccd9166-d3b1-4a08-8e06-e581d8c1104d",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Talh Diagnostic Laboratory"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "226a6d58-8dbc-4f6b-baa7-eac160b92079",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Tibr Family Clinic"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "9606d2b4-4669-4218-b905-7bc821b92153",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Wafa Community Hospital"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "e3955204-6062-40d3-98ef-3860eb72a6dd",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Wateen Hospital Pharmacy"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "04dea6cf-2130-4e4f-9f6d-965402b17ea8",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Yasmeen Radiology Centre"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "25eafe0c-d6da-4ade-aa8a-3061177229b8",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Zumurrud Imaging Centre"
+      ],
+      "depth": 4,
+      "parentId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "c9747311-f859-4e10-b03d-a98ae2d61673",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics"
+      ],
+      "depth": 4,
+      "parentId": "aef05f1a-7cde-42b3-96fe-e042c7d68de4",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b56c2a6c-6d2b-44c8-ac8d-eda02420f253",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals"
+      ],
+      "depth": 4,
+      "parentId": "aef05f1a-7cde-42b3-96fe-e042c7d68de4",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "41f25eb2-fd6e-4df5-9a38-296c2d5c5f30",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories"
+      ],
+      "depth": 4,
+      "parentId": "aef05f1a-7cde-42b3-96fe-e042c7d68de4",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "397e48e0-d8de-40f0-a443-9ac43b795005",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Bahar Laboratory"
+      ],
+      "depth": 4,
+      "parentId": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "5d2c3822-e090-407c-a46f-c284afec0fc1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Basateen Specialist Polyclinic"
+      ],
+      "depth": 4,
+      "parentId": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "467ab387-10ca-48ac-8ff2-c6a1a8a4d267",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ghadeer Family Clinic"
+      ],
+      "depth": 4,
+      "parentId": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "f91e03f4-040b-45ae-85b7-4ece568d2090",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Kharif Family Clinic"
+      ],
+      "depth": 4,
+      "parentId": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b2cccf5a-62af-43ea-9e8e-d7cbe82d3587",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Lujain Maternity Hospital"
+      ],
+      "depth": 4,
+      "parentId": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "3a803d2e-c13e-4a0d-92a4-a3f5ff0b9cc2",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Marj General Hospital"
+      ],
+      "depth": 4,
+      "parentId": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "ad0544fb-fa67-45bb-bc0e-eeb23e363b49",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Rabee Pharmacy"
+      ],
+      "depth": 4,
+      "parentId": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "2cb6def8-018f-46fc-be89-44bbc059172f",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Sahl Imaging Centre"
+      ],
+      "depth": 4,
+      "parentId": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "e1108f02-b695-49bb-be8e-7f96ad454583",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Samaa Dental Clinic"
+      ],
+      "depth": 4,
+      "parentId": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "depth": 4,
+      "parentId": "4fe5cbcb-8133-4ff7-ab25-811bed6d82b3",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "1a8e78a0-dfef-455a-8f1d-594691847124",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies"
+      ],
+      "depth": 4,
+      "parentId": "555a4520-a83c-4393-8c4d-19004dcd913f",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": true
+    },
+    {
+      "id": "2c01ceb8-7ba9-422f-945f-f440c50f7640",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics"
+      ],
+      "depth": 4,
+      "parentId": "555a4520-a83c-4393-8c4d-19004dcd913f",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "6a82c465-3a61-4987-b77b-641d24a49c25",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Dorra Dental Clinic"
+      ],
+      "depth": 5,
+      "parentId": "c9747311-f859-4e10-b03d-a98ae2d61673",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "5d08a10f-e94f-479e-9112-bb4be5f82822",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Marjan Dental Clinic"
+      ],
+      "depth": 5,
+      "parentId": "c9747311-f859-4e10-b03d-a98ae2d61673",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "11d9171d-43e2-41f8-84ee-99cc1cc9a138",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Nasim Dental Clinic"
+      ],
+      "depth": 5,
+      "parentId": "c9747311-f859-4e10-b03d-a98ae2d61673",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "depth": 5,
+      "parentId": "c9747311-f859-4e10-b03d-a98ae2d61673",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "85985d19-5ca3-4d59-9917-67d90a825d61",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Wameed Clinic"
+      ],
+      "depth": 5,
+      "parentId": "c9747311-f859-4e10-b03d-a98ae2d61673",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "f031cc13-f161-4446-9211-4e8df63d6f7c",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Ward Dental Clinic"
+      ],
+      "depth": 5,
+      "parentId": "c9747311-f859-4e10-b03d-a98ae2d61673",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b207a2be-f125-46cc-8c9a-9a0885aec79a",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Zahwa Dental Clinic"
+      ],
+      "depth": 5,
+      "parentId": "c9747311-f859-4e10-b03d-a98ae2d61673",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "922d538c-cf18-4ead-b7d7-83386794c98a",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Almas Specialist Hospital"
+      ],
+      "depth": 5,
+      "parentId": "b56c2a6c-6d2b-44c8-ac8d-eda02420f253",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "981ab48c-f439-43f1-9830-5f2f7d02d6f0",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Arak Maternity Hospital"
+      ],
+      "depth": 5,
+      "parentId": "b56c2a6c-6d2b-44c8-ac8d-eda02420f253",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "9922b279-f608-48be-8038-faa8f05c0e1b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Diya General Hospital"
+      ],
+      "depth": 5,
+      "parentId": "b56c2a6c-6d2b-44c8-ac8d-eda02420f253",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "depth": 5,
+      "parentId": "b56c2a6c-6d2b-44c8-ac8d-eda02420f253",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "9253eb5c-d960-42a0-be18-7dcd0bdc1a5c",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Jumana Community Hospital"
+      ],
+      "depth": 5,
+      "parentId": "b56c2a6c-6d2b-44c8-ac8d-eda02420f253",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b654b73d-7017-492a-b4d3-a991e9efe8c3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Najma Specialist Hospital"
+      ],
+      "depth": 5,
+      "parentId": "b56c2a6c-6d2b-44c8-ac8d-eda02420f253",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "eaa05239-9606-45c6-8ab6-4e20388072c7",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Naqaa Maternity Hospital"
+      ],
+      "depth": 5,
+      "parentId": "b56c2a6c-6d2b-44c8-ac8d-eda02420f253",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "8e04726b-9fb0-4a74-ade8-881b09895519",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Thurayya Community Hospital"
+      ],
+      "depth": 5,
+      "parentId": "b56c2a6c-6d2b-44c8-ac8d-eda02420f253",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "f8eefb8a-1a40-41b3-b407-64946f760d38",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Zuhal General Hospital"
+      ],
+      "depth": 5,
+      "parentId": "b56c2a6c-6d2b-44c8-ac8d-eda02420f253",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "a1024164-c6f1-4aad-ae33-e3b5c636327b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Bilaur Diagnostic Laboratory"
+      ],
+      "depth": 5,
+      "parentId": "41f25eb2-fd6e-4df5-9a38-296c2d5c5f30",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "fc08ea19-199f-4d86-9dd2-00f9eb35f675",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Ghuroob Reference Laboratory"
+      ],
+      "depth": 5,
+      "parentId": "41f25eb2-fd6e-4df5-9a38-296c2d5c5f30",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "2914c071-fa0d-4267-bba0-8190e32c12c4",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Layali Laboratory"
+      ],
+      "depth": 5,
+      "parentId": "41f25eb2-fd6e-4df5-9a38-296c2d5c5f30",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "0267fd8e-abf2-49c1-b2b9-14709ac235a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Lulwah Laboratory"
+      ],
+      "depth": 5,
+      "parentId": "41f25eb2-fd6e-4df5-9a38-296c2d5c5f30",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b05a6246-6197-4387-81a3-a66434632964",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Salwa Laboratory"
+      ],
+      "depth": 5,
+      "parentId": "41f25eb2-fd6e-4df5-9a38-296c2d5c5f30",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "9cc03781-c94e-458f-bb97-0d8824e2d3a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Zaytoon Diagnostic Laboratory"
+      ],
+      "depth": 5,
+      "parentId": "41f25eb2-fd6e-4df5-9a38-296c2d5c5f30",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "5c1fc07d-680b-4a28-a920-70e5476b6389",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Aqeeq Community Pharmacy"
+      ],
+      "depth": 5,
+      "parentId": "1a8e78a0-dfef-455a-8f1d-594691847124",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "74b88f64-4c7c-42e1-94ae-acb11035c56f",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Kanan Hospital Pharmacy"
+      ],
+      "depth": 5,
+      "parentId": "1a8e78a0-dfef-455a-8f1d-594691847124",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "5a79cf98-8f21-42b1-9e44-134e5643431f",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Lamha Community Pharmacy"
+      ],
+      "depth": 5,
+      "parentId": "1a8e78a0-dfef-455a-8f1d-594691847124",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "3decb829-9a61-4292-86e0-8091d0a5c8b3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Misk Hospital Pharmacy"
+      ],
+      "depth": 5,
+      "parentId": "1a8e78a0-dfef-455a-8f1d-594691847124",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "a6725e2a-aa91-4c80-9261-2e722c257851",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Nasaem Pharmacy"
+      ],
+      "depth": 5,
+      "parentId": "1a8e78a0-dfef-455a-8f1d-594691847124",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "67a21f6d-8561-4234-b048-dc20ccb93525",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Sadaf Community Pharmacy"
+      ],
+      "depth": 5,
+      "parentId": "1a8e78a0-dfef-455a-8f1d-594691847124",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "558909d3-4c79-4315-a194-cf6737a4bb3d",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Aseel Polyclinic"
+      ],
+      "depth": 5,
+      "parentId": "2c01ceb8-7ba9-422f-945f-f440c50f7640",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "1a02fa78-d6ea-4f2d-9675-b63e65a0c2ae",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Ghaf Day Surgery Polyclinic"
+      ],
+      "depth": 5,
+      "parentId": "2c01ceb8-7ba9-422f-945f-f440c50f7640",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "a8e7de9b-4057-4a2b-805e-63658f49e2ca",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Kafoor Day Surgery Polyclinic"
+      ],
+      "depth": 5,
+      "parentId": "2c01ceb8-7ba9-422f-945f-f440c50f7640",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "18be57fc-5bdc-4a70-a5bf-ebd91926013f",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Reeman Day Surgery Polyclinic"
+      ],
+      "depth": 5,
+      "parentId": "2c01ceb8-7ba9-422f-945f-f440c50f7640",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "316b3661-dc30-4929-ad91-dae4e244a465",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Safaa Specialist Polyclinic"
+      ],
+      "depth": 5,
+      "parentId": "2c01ceb8-7ba9-422f-945f-f440c50f7640",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "522b06af-4e02-446d-9235-f3195b62d1d2",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Shurooq Day Surgery Polyclinic"
+      ],
+      "depth": 5,
+      "parentId": "2c01ceb8-7ba9-422f-945f-f440c50f7640",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "76d72cc7-e389-49c7-bafd-169aa966f93a",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Talaa Polyclinic"
+      ],
+      "depth": 5,
+      "parentId": "2c01ceb8-7ba9-422f-945f-f440c50f7640",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "68713723-8433-4c66-b07b-65852153fb90",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Utarid Polyclinic"
+      ],
+      "depth": 5,
+      "parentId": "2c01ceb8-7ba9-422f-945f-f440c50f7640",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    }
+  ],
+  "updatedNodes": [
+    {
+      "id": "30814a34-db39-41e0-acfb-f15e48b153b0",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Anwa Polyclinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "f175e6f1-f7fe-42c4-a67e-beb410376952",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Areej Laboratory"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "2053b7a8-89e4-4ffb-9b54-7af75f05d0bd",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Duha Pharmacy"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "19c4148a-63c3-481e-a1de-b55557f3b364",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Falak General Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "c3d2e28b-c19b-49b3-b351-55cf7ab8b5a8",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Firuz General Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "57830cb5-328f-4b08-9b6d-f712a541ac26",
+          "fromLabel": null,
+          "toLabel": "UAT",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "bc882190-85f6-4a16-9b16-1fe834a2717d",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Kadi Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "57830cb5-328f-4b08-9b6d-f712a541ac26",
+          "fromLabel": null,
+          "toLabel": "UAT",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "61bc6ae0-16dc-4c5d-97bb-a9babb631c08",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Khuzama Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "57830cb5-328f-4b08-9b6d-f712a541ac26",
+          "fromLabel": null,
+          "toLabel": "UAT",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "07af4d1e-0660-485e-a188-c25380750833",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Rawd Maternity Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "f2faa6b0-190d-44c1-b4b2-2660cbcc21a1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Rawnaq Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "c1cde841-0c8d-4593-8e9f-352b82c87b9a",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Rimal Radiology Centre"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "432f41bc-0da7-47bb-9d44-e57ad71fbac5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Salsabeel Dental Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "0259a75e-bd1a-4d9d-a991-faad5499f235",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Sana Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "642e5e07-68b5-4c41-bf59-1e33d27763fd",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Sanam Specialist Polyclinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "6b85f4cc-44d8-47ef-9c84-a618e1779a42",
+          "fromLabel": null,
+          "toLabel": "Go-live readiness",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "9aa876dd-8e26-4b8b-9ba0-655251f33c34",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Shafaq Community Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "226a6d58-8dbc-4f6b-baa7-eac160b92079",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Tibr Family Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "25130a8c-6e57-4162-8485-6932f4a3c4b1",
+          "fromLabel": null,
+          "toLabel": "Not started",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "9606d2b4-4669-4218-b905-7bc821b92153",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Wafa Community Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "25130a8c-6e57-4162-8485-6932f4a3c4b1",
+          "fromLabel": null,
+          "toLabel": "Not started",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "e3955204-6062-40d3-98ef-3860eb72a6dd",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Wateen Hospital Pharmacy"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "eb07da7b-b15f-44c6-bf6e-b9cf7f9848c3",
+          "fromLabel": null,
+          "toLabel": "Paused",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "04dea6cf-2130-4e4f-9f6d-965402b17ea8",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Yasmeen Radiology Centre"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "6a82c465-3a61-4987-b77b-641d24a49c25",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Dorra Dental Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "6b85f4cc-44d8-47ef-9c84-a618e1779a42",
+          "fromLabel": null,
+          "toLabel": "Go-live readiness",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "5d08a10f-e94f-479e-9112-bb4be5f82822",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Marjan Dental Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "eb07da7b-b15f-44c6-bf6e-b9cf7f9848c3",
+          "fromLabel": null,
+          "toLabel": "Paused",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "85985d19-5ca3-4d59-9917-67d90a825d61",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Wameed Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "f031cc13-f161-4446-9211-4e8df63d6f7c",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Ward Dental Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "57830cb5-328f-4b08-9b6d-f712a541ac26",
+          "fromLabel": null,
+          "toLabel": "UAT",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "922d538c-cf18-4ead-b7d7-83386794c98a",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Almas Specialist Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "981ab48c-f439-43f1-9830-5f2f7d02d6f0",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Arak Maternity Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "b654b73d-7017-492a-b4d3-a991e9efe8c3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Najma Specialist Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "eaa05239-9606-45c6-8ab6-4e20388072c7",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Naqaa Maternity Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "f8eefb8a-1a40-41b3-b407-64946f760d38",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Zuhal General Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "57830cb5-328f-4b08-9b6d-f712a541ac26",
+          "fromLabel": null,
+          "toLabel": "UAT",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "fc08ea19-199f-4d86-9dd2-00f9eb35f675",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Ghuroob Reference Laboratory"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "57830cb5-328f-4b08-9b6d-f712a541ac26",
+          "fromLabel": null,
+          "toLabel": "UAT",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "2914c071-fa0d-4267-bba0-8190e32c12c4",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Layali Laboratory"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "25130a8c-6e57-4162-8485-6932f4a3c4b1",
+          "fromLabel": null,
+          "toLabel": "Not started",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "0267fd8e-abf2-49c1-b2b9-14709ac235a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Lulwah Laboratory"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "b05a6246-6197-4387-81a3-a66434632964",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Salwa Laboratory"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "9cc03781-c94e-458f-bb97-0d8824e2d3a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Zaytoon Diagnostic Laboratory"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "467ab387-10ca-48ac-8ff2-c6a1a8a4d267",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ghadeer Family Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "57830cb5-328f-4b08-9b6d-f712a541ac26",
+          "fromLabel": null,
+          "toLabel": "UAT",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "f91e03f4-040b-45ae-85b7-4ece568d2090",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Kharif Family Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "3a803d2e-c13e-4a0d-92a4-a3f5ff0b9cc2",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Marj General Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "ad0544fb-fa67-45bb-bc0e-eeb23e363b49",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Rabee Pharmacy"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "6b85f4cc-44d8-47ef-9c84-a618e1779a42",
+          "fromLabel": null,
+          "toLabel": "Go-live readiness",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "2cb6def8-018f-46fc-be89-44bbc059172f",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Sahl Imaging Centre"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "25130a8c-6e57-4162-8485-6932f4a3c4b1",
+          "fromLabel": null,
+          "toLabel": "Not started",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "e1108f02-b695-49bb-be8e-7f96ad454583",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Samaa Dental Clinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "5c1fc07d-680b-4a28-a920-70e5476b6389",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Aqeeq Community Pharmacy"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "eb07da7b-b15f-44c6-bf6e-b9cf7f9848c3",
+          "fromLabel": null,
+          "toLabel": "Paused",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "5a79cf98-8f21-42b1-9e44-134e5643431f",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Lamha Community Pharmacy"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "3decb829-9a61-4292-86e0-8091d0a5c8b3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Misk Hospital Pharmacy"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "a6725e2a-aa91-4c80-9261-2e722c257851",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Nasaem Pharmacy"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "a8e7de9b-4057-4a2b-805e-63658f49e2ca",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Kafoor Day Surgery Polyclinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "316b3661-dc30-4929-ad91-dae4e244a465",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Safaa Specialist Polyclinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "57830cb5-328f-4b08-9b6d-f712a541ac26",
+          "fromLabel": null,
+          "toLabel": "UAT",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "522b06af-4e02-446d-9235-f3195b62d1d2",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Shurooq Day Surgery Polyclinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "6b85f4cc-44d8-47ef-9c84-a618e1779a42",
+          "fromLabel": null,
+          "toLabel": "Go-live readiness",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "76d72cc7-e389-49c7-bafd-169aa966f93a",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Talaa Polyclinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "25130a8c-6e57-4162-8485-6932f4a3c4b1",
+          "fromLabel": null,
+          "toLabel": "Not started",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "68713723-8433-4c66-b07b-65852153fb90",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Utarid Polyclinic"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    }
+  ],
+  "setUseCases": [
+    {
+      "nodeId": "f175e6f1-f7fe-42c4-a67e-beb410376952",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Areej Laboratory"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f175e6f1-f7fe-42c4-a67e-beb410376952",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Areej Laboratory"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f175e6f1-f7fe-42c4-a67e-beb410376952",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Areej Laboratory"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f175e6f1-f7fe-42c4-a67e-beb410376952",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Areej Laboratory"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f175e6f1-f7fe-42c4-a67e-beb410376952",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Areej Laboratory"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "bec2862f-774f-40ff-8442-c259104f7956",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Bushra Dental Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2053b7a8-89e4-4ffb-9b54-7af75f05d0bd",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Duha Pharmacy"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2053b7a8-89e4-4ffb-9b54-7af75f05d0bd",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Duha Pharmacy"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2053b7a8-89e4-4ffb-9b54-7af75f05d0bd",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Duha Pharmacy"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2053b7a8-89e4-4ffb-9b54-7af75f05d0bd",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Duha Pharmacy"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2053b7a8-89e4-4ffb-9b54-7af75f05d0bd",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Duha Pharmacy"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2053b7a8-89e4-4ffb-9b54-7af75f05d0bd",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Duha Pharmacy"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c3d2e28b-c19b-49b3-b351-55cf7ab8b5a8",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Firuz General Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c3d2e28b-c19b-49b3-b351-55cf7ab8b5a8",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Firuz General Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3f7fc4cd-3e9c-4d6f-b610-a342af1d6a9d",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Hana Laboratory"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3f7fc4cd-3e9c-4d6f-b610-a342af1d6a9d",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Hana Laboratory"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3f7fc4cd-3e9c-4d6f-b610-a342af1d6a9d",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Hana Laboratory"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3f7fc4cd-3e9c-4d6f-b610-a342af1d6a9d",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Hana Laboratory"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "61bc6ae0-16dc-4c5d-97bb-a9babb631c08",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Khuzama Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "83b2f3d0-2347-4d06-8e62-7322fae052df",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Nakheel Diagnostic Laboratory"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "83b2f3d0-2347-4d06-8e62-7322fae052df",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Nakheel Diagnostic Laboratory"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "07af4d1e-0660-485e-a188-c25380750833",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Rawd Maternity Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "07af4d1e-0660-485e-a188-c25380750833",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Rawd Maternity Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "07af4d1e-0660-485e-a188-c25380750833",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Rawd Maternity Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f2faa6b0-190d-44c1-b4b2-2660cbcc21a1",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Rawnaq Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "432f41bc-0da7-47bb-9d44-e57ad71fbac5",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Salsabeel Dental Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0259a75e-bd1a-4d9d-a991-faad5499f235",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Sana Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "642e5e07-68b5-4c41-bf59-1e33d27763fd",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Sanam Specialist Polyclinic"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9aa876dd-8e26-4b8b-9ba0-655251f33c34",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Shafaq Community Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9aa876dd-8e26-4b8b-9ba0-655251f33c34",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Shafaq Community Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9aa876dd-8e26-4b8b-9ba0-655251f33c34",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Shafaq Community Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0ccd9166-d3b1-4a08-8e06-e581d8c1104d",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Talh Diagnostic Laboratory"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0ccd9166-d3b1-4a08-8e06-e581d8c1104d",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Talh Diagnostic Laboratory"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0ccd9166-d3b1-4a08-8e06-e581d8c1104d",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Talh Diagnostic Laboratory"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "226a6d58-8dbc-4f6b-baa7-eac160b92079",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Tibr Family Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9606d2b4-4669-4218-b905-7bc821b92153",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Wafa Community Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9606d2b4-4669-4218-b905-7bc821b92153",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Wafa Community Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9606d2b4-4669-4218-b905-7bc821b92153",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Wafa Community Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9606d2b4-4669-4218-b905-7bc821b92153",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Wafa Community Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9606d2b4-4669-4218-b905-7bc821b92153",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Wafa Community Hospital"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9606d2b4-4669-4218-b905-7bc821b92153",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Wafa Community Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "25eafe0c-d6da-4ade-aa8a-3061177229b8",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Zumurrud Imaging Centre"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "25eafe0c-d6da-4ade-aa8a-3061177229b8",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Zumurrud Imaging Centre"
+      ],
+      "useCase": "Radiology Report",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "11d9171d-43e2-41f8-84ee-99cc1cc9a138",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Nasim Dental Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "11d9171d-43e2-41f8-84ee-99cc1cc9a138",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Nasim Dental Clinic"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "11d9171d-43e2-41f8-84ee-99cc1cc9a138",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Nasim Dental Clinic"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6674cb20-dcc8-4bb7-8da6-b2dbc0a4d80c",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Sidr Clinic"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "85985d19-5ca3-4d59-9917-67d90a825d61",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Wameed Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "981ab48c-f439-43f1-9830-5f2f7d02d6f0",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Arak Maternity Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "981ab48c-f439-43f1-9830-5f2f7d02d6f0",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Arak Maternity Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "981ab48c-f439-43f1-9830-5f2f7d02d6f0",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Arak Maternity Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "981ab48c-f439-43f1-9830-5f2f7d02d6f0",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Arak Maternity Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9a7ba4d-63d9-4dcb-a958-ac701879bc0b",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Ghaim Community Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9253eb5c-d960-42a0-be18-7dcd0bdc1a5c",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Jumana Community Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9253eb5c-d960-42a0-be18-7dcd0bdc1a5c",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Jumana Community Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9253eb5c-d960-42a0-be18-7dcd0bdc1a5c",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Jumana Community Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9253eb5c-d960-42a0-be18-7dcd0bdc1a5c",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Jumana Community Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9253eb5c-d960-42a0-be18-7dcd0bdc1a5c",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Jumana Community Hospital"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9253eb5c-d960-42a0-be18-7dcd0bdc1a5c",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Jumana Community Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9253eb5c-d960-42a0-be18-7dcd0bdc1a5c",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Jumana Community Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9253eb5c-d960-42a0-be18-7dcd0bdc1a5c",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Jumana Community Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b654b73d-7017-492a-b4d3-a991e9efe8c3",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Najma Specialist Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b654b73d-7017-492a-b4d3-a991e9efe8c3",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Najma Specialist Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f8eefb8a-1a40-41b3-b407-64946f760d38",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Zuhal General Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f8eefb8a-1a40-41b3-b407-64946f760d38",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Zuhal General Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f8eefb8a-1a40-41b3-b407-64946f760d38",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Zuhal General Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "fc08ea19-199f-4d86-9dd2-00f9eb35f675",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Ghuroob Reference Laboratory"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "fc08ea19-199f-4d86-9dd2-00f9eb35f675",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Ghuroob Reference Laboratory"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "fc08ea19-199f-4d86-9dd2-00f9eb35f675",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Ghuroob Reference Laboratory"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "fc08ea19-199f-4d86-9dd2-00f9eb35f675",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Ghuroob Reference Laboratory"
+      ],
+      "useCase": "Radiology Report",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2914c071-fa0d-4267-bba0-8190e32c12c4",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Layali Laboratory"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2914c071-fa0d-4267-bba0-8190e32c12c4",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Layali Laboratory"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0267fd8e-abf2-49c1-b2b9-14709ac235a3",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Lulwah Laboratory"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0267fd8e-abf2-49c1-b2b9-14709ac235a3",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Lulwah Laboratory"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9cc03781-c94e-458f-bb97-0d8824e2d3a3",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Laboratories",
+        "Zaytoon Diagnostic Laboratory"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "397e48e0-d8de-40f0-a443-9ac43b795005",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Bahar Laboratory"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5d2c3822-e090-407c-a46f-c284afec0fc1",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Basateen Specialist Polyclinic"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5d2c3822-e090-407c-a46f-c284afec0fc1",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Basateen Specialist Polyclinic"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5d2c3822-e090-407c-a46f-c284afec0fc1",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Basateen Specialist Polyclinic"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "467ab387-10ca-48ac-8ff2-c6a1a8a4d267",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ghadeer Family Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f91e03f4-040b-45ae-85b7-4ece568d2090",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Kharif Family Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f91e03f4-040b-45ae-85b7-4ece568d2090",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Kharif Family Clinic"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f91e03f4-040b-45ae-85b7-4ece568d2090",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Kharif Family Clinic"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f91e03f4-040b-45ae-85b7-4ece568d2090",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Kharif Family Clinic"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f91e03f4-040b-45ae-85b7-4ece568d2090",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Kharif Family Clinic"
+      ],
+      "useCase": "Radiology Report",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3a803d2e-c13e-4a0d-92a4-a3f5ff0b9cc2",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Marj General Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3a803d2e-c13e-4a0d-92a4-a3f5ff0b9cc2",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Marj General Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3a803d2e-c13e-4a0d-92a4-a3f5ff0b9cc2",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Marj General Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3a803d2e-c13e-4a0d-92a4-a3f5ff0b9cc2",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Marj General Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3a803d2e-c13e-4a0d-92a4-a3f5ff0b9cc2",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Marj General Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e1108f02-b695-49bb-be8e-7f96ad454583",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Samaa Dental Clinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e1108f02-b695-49bb-be8e-7f96ad454583",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Samaa Dental Clinic"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4a2477fe-a44b-456c-8f58-36c2e0855081",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Ufuq Radiology Centre"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3decb829-9a61-4292-86e0-8091d0a5c8b3",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Misk Hospital Pharmacy"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3decb829-9a61-4292-86e0-8091d0a5c8b3",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Misk Hospital Pharmacy"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3decb829-9a61-4292-86e0-8091d0a5c8b3",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Misk Hospital Pharmacy"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3decb829-9a61-4292-86e0-8091d0a5c8b3",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Misk Hospital Pharmacy"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "558909d3-4c79-4315-a194-cf6737a4bb3d",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Aseel Polyclinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "18be57fc-5bdc-4a70-a5bf-ebd91926013f",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Reeman Day Surgery Polyclinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "18be57fc-5bdc-4a70-a5bf-ebd91926013f",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Reeman Day Surgery Polyclinic"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "18be57fc-5bdc-4a70-a5bf-ebd91926013f",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Reeman Day Surgery Polyclinic"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "18be57fc-5bdc-4a70-a5bf-ebd91926013f",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Reeman Day Surgery Polyclinic"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "18be57fc-5bdc-4a70-a5bf-ebd91926013f",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Reeman Day Surgery Polyclinic"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "18be57fc-5bdc-4a70-a5bf-ebd91926013f",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Reeman Day Surgery Polyclinic"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "18be57fc-5bdc-4a70-a5bf-ebd91926013f",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Reeman Day Surgery Polyclinic"
+      ],
+      "useCase": "Radiology Report",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "76d72cc7-e389-49c7-bafd-169aa966f93a",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Talaa Polyclinic"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "76d72cc7-e389-49c7-bafd-169aa966f93a",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Talaa Polyclinic"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    }
+  ],
+  "clearedUseCases": [],
+  "createdGoals": [
+    {
+      "id": "29840073-1713-4a00-98ca-16cfaea3fd02",
+      "nodeId": "b26e1656-2d53-4636-b4f8-4c93d6d059e6",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha"
+      ],
+      "target": 30,
+      "targetDate": "2027-02-28"
+    },
+    {
+      "id": "f4a5a3ec-8803-4751-b155-5da779d695e5",
+      "nodeId": "8197ef42-31b1-4de9-8b59-f93e68b217b0",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One"
+      ],
+      "target": 15,
+      "targetDate": "2026-08-12"
+    },
+    {
+      "id": "b9c6307a-5820-464b-9eb0-00f8ebc63090",
+      "nodeId": "19c4148a-63c3-481e-a1de-b55557f3b364",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Falak General Hospital"
+      ],
+      "target": null,
+      "targetDate": "2026-07-22"
+    },
+    {
+      "id": "3210c556-571e-486e-b58a-e468e7bdb556",
+      "nodeId": "432f41bc-0da7-47bb-9d44-e57ad71fbac5",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Salsabeel Dental Clinic"
+      ],
+      "target": null,
+      "targetDate": "2026-07-01"
+    },
+    {
+      "id": "591d5600-677a-4f9c-a60a-3f2fa0a20226",
+      "nodeId": "04dea6cf-2130-4e4f-9f6d-965402b17ea8",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book One",
+        "Yasmeen Radiology Centre"
+      ],
+      "target": null,
+      "targetDate": "2026-08-05"
+    },
+    {
+      "id": "7f713f35-f539-4db7-86af-c21a73bc2b1b",
+      "nodeId": "6a82c465-3a61-4987-b77b-641d24a49c25",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Clinics",
+        "Dorra Dental Clinic"
+      ],
+      "target": null,
+      "targetDate": "2026-09-25"
+    },
+    {
+      "id": "dd6841c2-cb3f-4009-8713-b84cd586170c",
+      "nodeId": "b654b73d-7017-492a-b4d3-a991e9efe8c3",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Alpha",
+        "Account Book Two",
+        "Hospitals",
+        "Najma Specialist Hospital"
+      ],
+      "target": null,
+      "targetDate": "2027-03-30"
+    },
+    {
+      "id": "55272a43-cfe1-4ab0-9a63-8e817001d805",
+      "nodeId": "187a8b73-9940-4db3-afc7-58ac43f420d0",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta"
+      ],
+      "target": 12,
+      "targetDate": "2027-04-29"
+    },
+    {
+      "id": "79acd0e8-d33b-4104-8400-367bea40dc9e",
+      "nodeId": "ad0544fb-fa67-45bb-bc0e-eeb23e363b49",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Four",
+        "Rabee Pharmacy"
+      ],
+      "target": null,
+      "targetDate": "2026-08-19"
+    },
+    {
+      "id": "ceeddfd4-62f1-4aca-ba55-b13fd95db77c",
+      "nodeId": "5a79cf98-8f21-42b1-9e44-134e5643431f",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Pharmacies",
+        "Lamha Community Pharmacy"
+      ],
+      "target": null,
+      "targetDate": "2026-10-26"
+    },
+    {
+      "id": "43005dbb-f5d5-4f54-a472-8113ad73df42",
+      "nodeId": "316b3661-dc30-4929-ad91-dae4e244a465",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Safaa Specialist Polyclinic"
+      ],
+      "target": null,
+      "targetDate": "2026-12-06"
+    },
+    {
+      "id": "33b6d1e9-928d-402d-9010-f51938206b7f",
+      "nodeId": "522b06af-4e02-446d-9235-f3195b62d1d2",
+      "path": [
+        "UHR",
+        "Demo Slice",
+        "Associate Directorate Beta",
+        "Account Book Three",
+        "Polyclinics",
+        "Shurooq Day Surgery Polyclinic"
+      ],
+      "target": null,
+      "targetDate": "2027-01-22"
+    }
+  ],
+  "updatedGoals": []
+}

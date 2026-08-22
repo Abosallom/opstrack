@@ -331,6 +331,23 @@ export interface MindNodeView {
   name: string
   /** The count chip's text, or null on a leaf (where the count is always 1). */
   count: string | null
+  /**
+   * HOW MANY ORGANIZATIONS ARE UNDER THIS NODE — the numeral a card that HOLDS
+   * organizations draws instead of `count`, or null/absent where there is no
+   * such number.
+   *
+   * A SECOND FIELD RATHER THAN A DIFFERENT `count`, because the two numbers mean
+   * different things and both are true. `count` is the open WORK beneath a node
+   * and stays exactly that everywhere in the app — the board's columns, the
+   * digest, the filter bar and this view's own accessible name are all built on
+   * it, and `NodeStats.orgs`' header is explicit that the two must never be read
+   * as one. What changes here is only WHICH of them the card's one numeral slot
+   * spends its 34 units on; see the argument at `numeral` below.
+   *
+   * OPTIONAL, so a caller that has no hierarchy behind it — the containment
+   * fixtures, the export, `lod.test.ts` — keeps drawing exactly what it drew.
+   */
+  orgs?: string | null
   /** `mindtree.expandNode` / `mindtree.collapseNode` — the chevron's tooltip. */
   toggleHint: string | null
   /** `mindtree.breachHint`, or null when nothing under this node is breached. */
@@ -634,7 +651,17 @@ const PROGRESS_INSET = 5
  */
 const PROGRESS_RAIL_H = 1
 
-/** The two baselines a terminal card uses once it has a second line. */
+/**
+ * The two baselines a card uses once it has a second row.
+ *
+ * AUTHORED FOR THE ORGANIZATION'S SECOND LINE AND NOW ALSO THE NAME'S OVERFLOW,
+ * and the 17 units between them hold both: the second row is 12.5px at its
+ * tallest (a wrapped name) against a 12.5px first row, which is 1.36 line-height
+ * — inside the 1.4 body copy is set at and outside the 1.15 at which two rows of
+ * Cairo's ascenders and descenders begin to touch. Measured on the card these
+ * are drawn on: at `height: 54` the rows occupy 12.75–25.25 and 30.5–41.5, and
+ * the progress rail starts at 48.
+ */
 const TWO_LINE_TOP = -8
 const TWO_LINE_BOTTOM = 9
 
@@ -773,6 +800,52 @@ function truncate(label: string, budget: number): string {
 }
 
 /**
+ * The label over TWO rows — one line where it fits, two where the name is longer
+ * than the box, and never more than two.
+ *
+ * WHY WRAPPING AND NOT A WIDER CARD ALONE. "Associate Directorate Alpha" is 27
+ * glyphs. A one-line card that holds it has to be `27·6.2 + 24 + 34 = 225` units
+ * wide, and card width is the term the whole drawing is priced in: a tidy tree
+ * is packed from the widest card at every level, so 225 makes the picture ~1.7x
+ * wider than 132 and the fit camera pulls back by the same ratio — every glyph
+ * on the glass gets SMALLER to make one name fit. Two rows spend the axis the
+ * card has spare instead. The card is widened as well, to 168, because one row
+ * of eleven glyphs is a name nobody can read either — but the two together are
+ * what buy forty glyphs at an unchanged type size.
+ *
+ * THE BREAK IS AT A SPACE WHEN THERE IS ONE AT OR BEFORE THE BUDGET, and a hard
+ * cut through the word when there is not — an organization named
+ * `Riyadh-First-Health-Cluster` has no space to break at, and a line that gave
+ * up and elided at the first budget would lose more than a mid-word break does.
+ * `lastIndexOf(' ', first)` searches at or before the boundary, so a space
+ * exactly ON it is a free break.
+ *
+ * BY GLYPH COUNT AND NOT BY MEASUREMENT, like `truncate` above and for its
+ * stated reason. The two ROWS have different budgets: the first pays for the
+ * count slot, the second does not, because the numeral lifts to the first row's
+ * baseline as soon as there are two of them (see `twoRows`).
+ *
+ * ISOLATES ARE STRIPPED, CUT AND RE-APPLIED PER ROW, which is `truncate`'s rule
+ * for the same reason: `label` arrives as FSI + text + PDI, slicing it would
+ * leave a run the string never closes, and `lib/bidi.isolatesBalanced` forbids
+ * exactly that — the map's own exported SVG is read by somebody else's software.
+ */
+function wrapLabel(label: string, first: number, second: number): readonly string[] {
+  const bare = stripIsolates(label)
+  if (first <= 0) return []
+  // Untouched when it fits, byte for byte — the common case, and the one where
+  // the page's own isolation must survive.
+  if (bare.length <= first) return [label]
+  const cut = bare.lastIndexOf(' ', first)
+  const head = cut > 0 ? bare.slice(0, cut) : bare.slice(0, first)
+  const tail = (cut > 0 ? bare.slice(cut + 1) : bare.slice(first)).trim()
+  // A name that is all one break — trailing spaces, a single word ending exactly
+  // at the budget — has nothing to put on the second row and does not draw one.
+  if (tail === '') return [isolate(head)]
+  return [isolate(head), truncate(isolate(tail), second)]
+}
+
+/**
  * Memoised, and the comparison that matters is the default one: `pos` and
  * `view` are both built in the page's memos and are reference-stable across a
  * pan or a zoom, so a viewBox change re-renders zero nodes. Without this, every
@@ -820,7 +893,35 @@ export const MindNode = memo(function MindNode({
   // Whether children are DRAWN — not whether the model calls this collapsed.
   // See the third bullet in the header.
   const expanded = pos.childIds.length > 0
-  const hasCount = view.count !== null
+  /**
+   * WHICH NUMBER THE CARD'S ONE SLOT CARRIES — and the whole of the decision is
+   * here, in the file that owns the ink, rather than smuggled into `count` by
+   * whoever built the view.
+   *
+   * A CARD ANSWERS THE QUESTION ITS BOX IS ASKING. A node that HOLDS
+   * organizations — a directorate, a region, a stage cohort, the workspace root
+   * — is a place, and the only question a reader has about a place is how much
+   * is in it. `count` cannot answer that: it is the OPEN WORK filed beneath the
+   * node, so a workspace of eighty-five organizations with nine open items draws
+   * "0" on every branch that holds a hospital and reads as a dead map. It is not
+   * dead and the number is not wrong — it is the wrong number on the wrong box,
+   * and the box is the only thing this component may change.
+   *
+   * SO: organizations under it if there are any, and the open work otherwise.
+   * The fallback is not a compromise, it is the same rule applied twice — an
+   * ORGANIZATION has no organizations under it, so its card goes back to
+   * counting the work filed against it, which is exactly what an organization's
+   * card should say. A status bucket and a fold never carry a tally either, for
+   * the same reason: they are piles of work, and the size of a pile of work is
+   * the work in it.
+   *
+   * NOTHING IS HIDDEN BY THIS. Both numbers are in `view.name` in words, in the
+   * order the page put them, so a screen reader hears "18 organizations, 4 live,
+   * 0 open" whatever the card draws — which is also what makes a numeral with
+   * two possible meanings legal at all under 1.3.3.
+   */
+  const numeral = view.orgs ?? view.count
+  const hasCount = numeral !== null
 
   /**
    * THE ONE DIVISION, and everything below is in leaf units because of it.
@@ -1069,6 +1170,36 @@ export const MindNode = memo(function MindNode({
         truncate(view.secondary, Math.max(3, Math.floor((width - PAD * 2) / CHAR_PX)))
       : null
   /**
+   * THE NAME OVER ONE ROW OR TWO — on the flat tree, and only there.
+   *
+   * WHY THE GATE IS `flat` AND NOT THE ROOM. A card in the containment drawing
+   * has a level of detail to fall back on: when its box gets too narrow for a
+   * word the name goes OUTSIDE, along the ray, and the two answers to "the name
+   * does not fit" would then be competing for the same card. The flat tree
+   * refuses that state by construction — "the card either holds its name or
+   * truncates it; it never hangs it in the gutter" is the rule `outsideLabel`
+   * states one screen up — so wrapping is the answer that drawing has room for
+   * and the other has not. The second row is also the one piece of card the
+   * radial drawing has already spent: `secondLine` is a world OPENING, which
+   * `flat` never produces (`MapCanvas` answers `card` at an infinite apparent
+   * size for every node), so the two can never ask for the same baseline. The
+   * `secondLine === null` term says that rather than leaving it to be traced.
+   *
+   * The second row's budget is the FULL room. It can be, because the numeral
+   * moves up to the first row the moment there are two — see `twoRows`.
+   */
+  const labelLines =
+    flat && secondLine === null
+      ? wrapLabel(view.label, budget, Math.max(3, Math.floor((room - PAD * 2) / CHAR_PX)))
+      : [truncate(view.label, budget)]
+  /**
+   * The card has a second row of words — from either source, and they are
+   * mutually exclusive above. It lifts the first row and the numeral together,
+   * so the name and its count stay on one line and the overflow hangs under
+   * both rather than through the numeral.
+   */
+  const twoRows = secondLine !== null || labelLines.length > 1
+  /**
    * The progress underscore's WHOLE — the rail's length, and the length the
    * bar's share is taken of. Zero is the one value that means "this card has
    * no progress to draw at all", and it is now the ONLY way to say that: a
@@ -1290,15 +1421,14 @@ export const MindNode = memo(function MindNode({
         <text
           className="mtree-node-label"
           x={startX}
-          // A terminal card past 380px carries a second line, so its own
-          // baseline lifts to make room. It is the only place on the canvas
-          // with a third text row, because it is the only place with nothing
-          // beneath it competing for the space.
-          y={height / 2 + (secondLine === null ? 0 : TWO_LINE_TOP)}
+          // A card with a second row of words — the Organization's manager and
+          // vendor past 380px, or the tail of a name too long for one row —
+          // lifts this baseline to make space for it.
+          y={height / 2 + (twoRows ? TWO_LINE_TOP : 0)}
           textAnchor="start"
           dominantBaseline="central"
         >
-          {truncate(view.label, budget)}
+          {labelLines[0]}
         </text>
       ) : (
         <text
@@ -1339,6 +1469,29 @@ export const MindNode = memo(function MindNode({
         </text>
       )}
 
+      {/* THE NAME'S SECOND ROW — the same class and the same size as the first,
+          because it is the same sentence. It carries no `pointerEvents` opt-out
+          and needs none: unlike the outside label it is inside this node's own
+          rect, which is the target either way.
+
+          `aria-hidden`, exactly like the first row is in effect: the <g> above
+          carries `aria-label={view.name}`, which holds the WHOLE name — untruncated
+          and unwrapped — so every row of drawn text here is decoration over a
+          name that has already been announced. A row left readable would have a
+          screen reader read half the name a second time. */}
+      {labelLines.length > 1 && showName && outsideLabel === null && (
+        <text
+          className="mtree-node-label"
+          x={startX}
+          y={height / 2 + TWO_LINE_BOTTOM}
+          textAnchor="start"
+          dominantBaseline="central"
+          aria-hidden="true"
+        >
+          {labelLines[1]}
+        </text>
+      )}
+
       {showCount && (
         <text
           className="mtree-node-count tabular"
@@ -1347,12 +1500,16 @@ export const MindNode = memo(function MindNode({
           // chip. `middle` needs no mirror: it is the geometric centre in both
           // scripts.
           x={outsideLabel === null ? endX : width / 2}
-          y={height / 2}
+          // ON THE NAME'S OWN ROW when the card has two of them. The second row
+          // is authored against the FULL inline room — it pays no `COUNT_SLOT`
+          // — so a numeral left on the card's centre line would sit in the
+          // middle of the two rows with the longer one running under it.
+          y={height / 2 + (twoRows ? TWO_LINE_TOP : 0)}
           textAnchor={outsideLabel === null ? 'end' : 'middle'}
           dominantBaseline="central"
           aria-hidden="true"
         >
-          {view.count}
+          {numeral}
         </text>
       )}
 

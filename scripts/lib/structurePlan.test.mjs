@@ -93,6 +93,21 @@ const STAGES = [
   { id: 's-paused', name: 'Paused', name_ar: '', sort_order: 7, hidden: false },
 ]
 
+/**
+ * THE LADDER AS THE OWNER RENAMED IT, 22 August 2026. `STAGES` above is the
+ * shipped vocabulary and stays that way because most of this file writes those
+ * words into CSV literals of its own. This one exists for the two blocks that
+ * plan a COMMITTED TEMPLATE against the workspace it is actually meant for —
+ * and the day those two drifted apart, every row of the slice was refused by
+ * name (`stage_unknown`) on a real import. That is the failure this pins.
+ */
+const LIVE_STAGES = STAGES.map((s) =>
+  s.id === 's-integrating' ? { ...s, name: 'Integrating & Testing' }
+  : s.id === 's-testing' ? { ...s, name: 'UAT' }
+  : s.id === 's-ready' ? { ...s, name: 'Go-live readiness' }
+  : s,
+)
+
 const HEADER = `${FIXED_COLUMNS.join(',')},ADT,Lab Order,Lab Results`
 
 /** A workspace with nothing under any track — Aziz's, today. */
@@ -1199,17 +1214,20 @@ const demoWorkspace = () => ({
     },
   ],
   kinds: KINDS,
-  // The only two provisioned accounts. `Aziz` has no username and signs in by
-  // email; the demo names these two and leaves three of its five account books
-  // BLANK on purpose, because unassigned is what the map looks like in week one
-  // — and because naming a third account manager would invent a person AND
-  // refuse every row that carried the name.
+  // The eighteen provisioned accounts, as of the roster going live. The owner
+  // signs in by email and has no username; everyone else was minted with one.
+  // The demo names exactly TWO of them and leaves three of its five account
+  // books BLANK on purpose, because unassigned is what the map looks like in
+  // week one — and because naming a third would refuse every row carrying it
+  // until that person existed. When the roster was provisioned the two names
+  // the file used stopped resolving, and every row was refused by name; that is
+  // the failure this fixture now pins, from the other side.
   members: [
-    { id: 'p-aziz', display_name: 'Aziz', username: null, email: 'az.alsaloom@gmail.com' },
+    { id: 'p-aziz', display_name: 'Abdulaziz Alsaloom', username: null, email: 'az.alsaloom@gmail.com' },
     { id: 'p-nasser', display_name: 'Nasser Alabri', username: 'nasser', email: 'nasser@opstrack.internal' },
   ],
   useCases: SEEDED_USE_CASES.map((name, i) => ({ id: `u-${i}`, name, sort_order: i + 1 })),
-  stages: STAGES,
+  stages: LIVE_STAGES,
   progress: [],
   goals: [],
 })
@@ -1353,7 +1371,7 @@ describe('THE DEMO FILE, against the live workspace it is meant for', () => {
 
   it('names only the two members who actually resolve, and leaves the rest unassigned', () => {
     const named = [...new Set(FILE_ROWS.map((r) => r.accountManager).filter(Boolean))].sort()
-    expect(named).toEqual(['Aziz', 'Nasser Alabri'])
+    expect(named).toEqual(['Abdulaziz Alsaloom', 'nasser'])
     // THE UNASSIGNED PILE IS THE FEATURE. Three of the five account books carry
     // no account manager at all, because there are no other provisioned
     // accounts — inventing a third name would refuse every row that held it.
@@ -1412,7 +1430,7 @@ describe('THE DEMO FILE, against the live workspace it is meant for', () => {
       tally.set(a.stageName, (tally.get(a.stageName) ?? 0) + 1)
     }
     // All seven, including Paused — the Stalled lens has nothing to draw without it.
-    expect([...tally.keys()].sort()).toEqual(STAGES.map((s) => s.name).sort())
+    expect([...tally.keys()].sort()).toEqual(LIVE_STAGES.map((s) => s.name).sort())
     const blank = FILE_ORGS.filter((o) => o.stage === '').length
     expect(blank / FILE_ORGS.length).toBeGreaterThan(0.2)
     expect(blank / FILE_ORGS.length).toBeLessThan(0.4)
@@ -1420,7 +1438,7 @@ describe('THE DEMO FILE, against the live workspace it is meant for', () => {
     // wide enough to read off the canvas rather than off a tooltip.
     const sorted = [...tally.entries()].sort((a, b) => b[1] - a[1])
     expect(sorted[0][1]).toBeGreaterThan(sorted[1][1] * 1.5)
-    expect(['Kickoff', 'Integrating', 'Testing/UAT']).toContain(sorted[0][0])
+    expect(['Kickoff', 'Integrating & Testing', 'UAT']).toContain(sorted[0][0])
   })
 
   it('puts BOTH ends of the use-case panel on screen: all ten live, and nothing at all', () => {
@@ -1636,20 +1654,20 @@ describe('THE SLICE FILE, against the live workspace it is meant for', () => {
     for (const a of plan.actions.filter((x) => x.kind === 'set-stage')) {
       tally.set(a.stageName, (tally.get(a.stageName) ?? 0) + 1)
     }
-    expect([...tally.keys()].sort()).toEqual(STAGES.map((s) => s.name).sort())
+    expect([...tally.keys()].sort()).toEqual(LIVE_STAGES.map((s) => s.name).sort())
     // The two numbers the docs quote: the pile that becomes the stalled list
     // once `expected_days` is set on `Integrating`, and the "nobody has said"
     // bucket, which is a different fact from `Not started`.
-    expect(tally.get('Integrating')).toBe(18)
+    expect(tally.get('Integrating & Testing')).toBe(18)
     expect(FILE_ORGS.filter((o) => o.stage === '').length).toBe(22)
     const sorted = [...tally.entries()].sort((a, b) => b[1] - a[1])
-    expect(sorted[0][0]).toBe('Integrating')
+    expect(sorted[0][0]).toBe('Integrating & Testing')
     expect(sorted[0][1]).toBeGreaterThan(sorted[1][1] * 1.5)
   })
 
   it('names only the two members who actually resolve', () => {
     const named = [...new Set(FILE_ROWS.map((r) => r.accountManager).filter(Boolean))].sort()
-    expect(named).toEqual(['Aziz', 'Nasser Alabri'])
+    expect(named).toEqual(['Abdulaziz Alsaloom', 'nasser'])
   })
 
   it('names no vendor that could be mistaken for a real integrator', () => {

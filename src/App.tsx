@@ -18,6 +18,7 @@ import CommandPalette from './components/CommandPalette'
 // the map's way out and the way back in — see docs/MAP-CONTRACT.md §U7.
 import ModeFrame from './components/map/ModeFrame'
 import {
+  IconChart,
   IconGear,
   IconLayers,
   IconMonitor,
@@ -68,6 +69,14 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 // Their pages, their sheets and their tests are gone; every guarantee those
 // tests held is restated in src/components/map/*.test.tsx.
 const Mindtree = lazy(() => import('./pages/Mindtree'))
+// THE PMO DASHBOARD, and it is a ROUTE rather than a seventh lens. That union
+// is closed with no `default:` anywhere by written policy — a seventh member
+// costs six sites in lib/mindtree/lens.ts, nine exhaustiveness assertions in
+// lens.test.ts and both locale bundles — and its reader is not looking for a
+// view of the map, they are looking for a standing report over it. Lazy like
+// every page here; ungated like Export, and for that file's stated reason (it
+// shows only what RLS already lets the reader SELECT).
+const Pmo = lazy(() => import('./pages/Pmo'))
 const Entry = lazy(() => import('./pages/Entry'))
 // The overlay half of the same module, mounted once at the root (below). Lazy
 // so the detail surface stays out of the initial bundle; it renders null until
@@ -160,6 +169,19 @@ const NAV: NavDest[] = [
     // routeTitle.ts already decided that for this screen and says why.
     navKey: 'nav.map',
     titleKey: 'mindtree.title',
+  },
+  // THE SECOND ROW, and the first destination added since the six tabs
+  // collapsed into one. It earns a row rather than a chip because it is not a
+  // view of the map: it is a standing read ACROSS the map, the follow-up
+  // buckets and the risk log for somebody who does not triage. Named out of its
+  // OWN namespace in both slots — `pmo.nav` short for the rail, `pmo.title`
+  // longer for the header — on the digest/export precedent, so §1.0.2's rule
+  // that a feature never edits `nav`/`route` holds.
+  {
+    to: '/pmo',
+    icon: IconChart,
+    navKey: 'pmo.nav',
+    titleKey: 'pmo.title',
   },
 ]
 
@@ -695,6 +717,12 @@ export default function App(): ReactElement {
                   real route under the collapse: it is the target of every push
                   notification, chat link and phone share sheet. */}
               <Route path="/entry/:id" element={<Entry />} />
+              {/* The PMO dashboard. No gate, deliberately: RLS decides what
+                  SELECT returns and every row on it is a row the reader can
+                  already reach from the map, so a permission key here would
+                  withhold a copy of their own data — pages/settings/Export.tsx
+                  makes the same argument for the same reason. */}
+              <Route path="/pmo" element={<Pmo />} />
               {/* THE MODES, and the frame is applied HERE rather than inside
                   the five pages. Fast typing and a printed document both fight
                   a canvas, so these stay real routes — a route is exactly how
