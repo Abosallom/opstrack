@@ -322,3 +322,260 @@
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+
+/* ══════════════ the portfolio tabs and cards (0031) ════════════════════════
+   See components/pmo/Portfolio.tsx for what each section is and why the
+   numbers behave as they do. Everything below is phone-first: one column that
+   gains a second only where there is genuinely room. */
+
+/* THE TAB ROW is `.chip-row`'s job — it already scrolls, already floors its
+   targets at 44px and already fades its edges. This adds spacing and nothing
+   else; re-implementing a scroller here would be a second answer to a solved
+   question and the two would drift. */
+.pmo-tabs {
+  margin-block-end: 18px;
+}
+
+/* ⚠ EIGHT CHIPS COMPRESS UNLESS THEY REFUSE TO. `.chip-row` is `display: flex`
+   with `overflow-x: auto`, which says what happens once the box is constrained
+   — but a flex ITEM still shrinks below its content by default, so at 420px the
+   eight tabs squeezed into overlapping ellipses instead of scrolling. Measured
+   in a browser: "Onboarding deli…" and "Risks & challen…" were sitting on top
+   of each other.
+
+   `flex: none` is what turns the row from a squeeze into a scroller, and
+   `white-space: nowrap` keeps a two-word tab on one line. The map's lens rail
+   states the same pair for the same reason. */
+.pmo-tabs .chip {
+  flex: none;
+  white-space: nowrap;
+}
+
+.pmo-tabs .chip[aria-current='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ---------- cards ---------- */
+
+.pmo-cards {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pmo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pmo-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pmo-card-name {
+  font-size: 15.5px;
+  font-weight: 650;
+  margin: 0;
+  color: var(--text);
+  min-inline-size: 0;
+}
+
+/* The Jira key. Quiet, monospaced, and a real link when the site address is
+   configured — Portfolio.tsx renders it as plain text when it is not, because a
+   key with nowhere to go is worse than a key. */
+.pmo-jira {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  flex: none;
+}
+
+a.pmo-jira:hover {
+  color: var(--accent);
+}
+
+/* ---------- the fact row ---------- */
+
+.pmo-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  margin: 0;
+}
+
+.pmo-fact-k {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.pmo-fact-v {
+  font-size: 13.5px;
+  color: var(--text);
+  margin: 0;
+}
+
+/* "Nobody has said" — the sentence that replaces a number nobody took. Quieter
+   than a value so a card of them reads as a card that has not been filled in
+   rather than as a card of zeroes. */
+.pmo-quiet {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+/* ---------- the four-step stepper ---------- */
+
+.pmo-steps {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* EACH STEP CARRIES ITS OWN WORD, not a number, and they wrap rather than
+   truncate: "Dissemination" cannot be shortened into something a reader guesses
+   correctly. */
+.pmo-step {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-align: center;
+  padding-block: 5px 4px;
+  border-block-start: 3px solid var(--border);
+  color: var(--text-faint);
+}
+
+.pmo-step[data-state='done'] {
+  border-block-start-color: var(--green);
+  color: var(--text-dim);
+}
+
+.pmo-step[data-state='now'] {
+  border-block-start-color: var(--accent);
+  color: var(--text);
+  font-weight: 650;
+}
+
+/* ---------- actual over planned ---------- */
+
+.pmo-prog {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pmo-bar-row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.pmo-bar-k {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.pmo-bar {
+  block-size: 8px;
+  border-radius: 4px;
+  background: var(--bg-elev-2);
+  overflow: hidden;
+}
+
+.pmo-bar-fill {
+  display: block;
+  block-size: 100%;
+}
+
+/* ACTUAL IS THE LOUD ONE. Planned is a reference line, not an achievement, and
+   painting the two alike invites a reader to add them together. */
+.pmo-bar-fill[data-k='actual'] {
+  background: var(--accent);
+}
+
+.pmo-bar-fill[data-k='planned'] {
+  background: var(--border);
+}
+
+.pmo-bar-v {
+  font-size: 12px;
+  color: var(--text-dim);
+  min-inline-size: 3.5rem;
+  text-align: end;
+}
+
+/* THREE STATES, NOT A RAMP — the only question asked of a variance is which of
+   the three it is. */
+.pmo-var {
+  font-size: 12px;
+  font-weight: 650;
+  align-self: flex-start;
+}
+
+.pmo-var[data-tone='behind'] {
+  color: var(--red);
+}
+
+.pmo-var[data-tone='ahead'] {
+  color: var(--green);
+}
+
+.pmo-var[data-tone='level'] {
+  color: var(--text-dim);
+}
+
+.pmo-card-note {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin: 0;
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--border);
+}
+
+/* ---------- key results ---------- */
+
+.pmo-krs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pmo-kr {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.pmo-kr-name {
+  min-inline-size: 0;
+}
+
+.pmo-kr-v {
+  white-space: nowrap;
+  flex: none;
+}
+
+/* Two columns once there is room for two whole cards. Below that a card is the
+   full width, which at 375px is the only thing a stepper of four words fits in. */
+@media (min-width: 900px) {
+  .pmo-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -689,6 +689,31 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
     where: 'terminology.where.pmo',
     rules: [
       { prefixes: ['deliveryAll'], section: 'actions' },
+      // The tab names. `screenTitles` rather than `navigation`, because they
+      // name SECTIONS of one page rather than destinations — renaming "Revenue"
+      // here must not read as renaming a route.
+      {
+        prefixes: ['tabs', 'projects', 'initiatives', 'revenue', 'okrs'],
+        section: 'screenTitles',
+      },
+      { prefixes: ['needsMigration'], section: 'emptyStates' },
+      // The portfolio card vocabulary 0031 brought with it.
+      {
+        prefixes: [
+          'manager', 'budget', 'dates', 'period', 'kindLabel',
+          'actual', 'planned', 'colProject', 'quarter', 'total', 'achieved', 'krReading',
+        ],
+        section: 'entryFields',
+      },
+      { prefixes: ['phase', 'kind'], section: 'healthStates' },
+      { prefixes: ['variance'], section: 'messages' },
+      {
+        prefixes: [
+          'notSaid', 'noProgress', 'okrNoKeyResults',
+          'projectsEmpty', 'initEmpty2', 'revenueEmpty', 'okrsEmpty',
+        ],
+        section: 'emptyStates',
+      },
       // ⚠ MOST OF THIS NAMESPACE IS AN EMPTY STATE, and that is the design
       //   rather than an accident: four of the five arms of the lateness card
       //   are sentences the page prints INSTEAD of a number it has not earned,

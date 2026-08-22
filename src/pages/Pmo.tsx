@@ -119,6 +119,12 @@ import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 
 import { Link, useSearchParams } from 'react-router-dom'
 import { AgingChart, ThroughputChart } from '../components/charts'
 import { EmptyState } from '../components/shared'
+import {
+  PortfolioInitiatives,
+  PortfolioOkrs,
+  PortfolioProjects,
+  PortfolioRevenue,
+} from '../components/pmo/Portfolio'
 import { toast } from '../components/toast'
 // THE ONE RESOLVER FOR "who is accountable", imported rather than restated. An
 // id the roster does not know is NOT the same fact as no manager — it is a
@@ -240,6 +246,46 @@ const EMPTY_ANCESTRY: ReadonlyMap<string, readonly string[]> = new Map()
 
 /* ══════════════════════════ the page ══════════════════════════ */
 
+/**
+ * THE SECTIONS, AS TABS — the owner asked for "tabs across the top".
+ *
+ * ⚠ WHY A TAB AND NOT A LONGER PAGE. The five sections this page shipped with
+ *   were stacked, and the page was already a screen and a half on a desktop.
+ *   0031 adds four more. Nine stacked sections on a phone — the device the
+ *   owner says is primary — is a scroll nobody performs, and the Executive
+ *   Director's question is answered by ONE of them at a time.
+ *
+ * `id` IS THE URL VALUE and is not translated: `?tab=projects` has to survive a
+ * language switch, a paste into a chat, and a browser back button. The label is
+ * a key resolved at render, so renaming a tab in Terminology renames the chip
+ * and leaves every saved link working — the same split `lens.ts` makes.
+ *
+ * The order is the reading order the owner's own dashboard uses: the summary,
+ * then the two things it summarises, then the work, then the money, then the
+ * commitments they all serve.
+ */
+const TABS = [
+  { id: 'overview', labelKey: 'pmo.overview' },
+  { id: 'projects', labelKey: 'pmo.projects' },
+  { id: 'initiatives', labelKey: 'pmo.initiatives' },
+  { id: 'delivery', labelKey: 'pmo.delivery' },
+  { id: 'actions', labelKey: 'pmo.actions' },
+  { id: 'risks', labelKey: 'pmo.risks' },
+  { id: 'revenue', labelKey: 'pmo.revenue' },
+  { id: 'okrs', labelKey: 'pmo.okrs' },
+] as const
+
+type PmoTab = (typeof TABS)[number]['id']
+
+/**
+ * Total over the union, so a hand-edited `?tab=` — or one written by a future
+ * build — lands on the overview rather than rendering a blank page. The same
+ * guard shape `isMapLens` uses, and for the same reason.
+ */
+function isPmoTab(v: unknown): v is PmoTab {
+  return typeof v === 'string' && TABS.some((t) => t.id === v)
+}
+
 export default function Pmo(): ReactElement {
   const locale = useLocale()
   const nodeLabel = useNodeLabel()
@@ -268,7 +314,27 @@ export default function Pmo(): ReactElement {
   const goals = useGoals()
   const goalsError = useGoalsError()
 
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
+
+  /**
+   * The open section, from the URL.
+   *
+   * IN THE URL RATHER THAN IN STATE, because every other view choice in this app
+   * is: a director sends "look at the revenue tab" as a link, comes back through
+   * the browser's own Back button, and finds the tab they left. State would lose
+   * all three.
+   */
+  const raw = params.get('tab')
+  const tab: PmoTab = isPmoTab(raw) ? raw : 'overview'
+  const openTab = (next: PmoTab): void => {
+    const merged = new URLSearchParams(params)
+    // `overview` is the default, so it is written as the ABSENCE of the
+    // parameter rather than as `?tab=overview` — a clean URL for the commonest
+    // case, and one fewer thing to explain in a pasted link.
+    if (next === 'overview') merged.delete('tab')
+    else merged.set('tab', next)
+    setParams(merged, { replace: false })
+  }
   /** `/pmo?entry=<id>` — one URL, one behaviour: that row is ringed. */
   const focusEntry = params.get('entry')
 
@@ -505,35 +571,79 @@ export default function Pmo(): ReactElement {
         />
       ) : (
         <>
-          <Overview
-            counts={counts}
-            organizations={delivery.length}
-            staged={readiness.staged}
-            verdict={verdict}
-            sharedClock={sharedClock}
-            sla={sla}
-            throughput={throughput}
-            aging={aging}
-            basis={basis}
-            onBasis={setBasis}
-            hasEntries={entries.length > 0}
-          />
-          <Initiatives rows={initiatives} failed={goalsError !== null} locale={locale} />
-          <Projects
-            rows={delivery}
-            coverage={coverage}
-            sharedClock={sharedClock}
-            stageNameOf={stageNameOf}
-            managerNameOf={managerNameOf}
-          />
-          <Actions
-            rows={register}
-            sections={sections}
-            managerNameOf={managerNameOf}
-            focusEntry={focusEntry}
-            locale={locale}
-          />
-          <Risks risks={risks} />
+          {/* ── THE TABS ────────────────────────────────────────────────────
+              A scrolling chip row, which is `.chip-row`'s own job and is what
+              the map's lens rail already is — so a reader who has learned one
+              has learned the other. Eight chips do not fit across 375px and are
+              not meant to: the row scrolls, and the 44px targets and the
+              scroll-edge fade are `global.css`'s, not this page's. */}
+          <nav className="chip-row pmo-tabs" aria-label={t('pmo.tabs')}>
+            {TABS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                className="chip"
+                // `aria-current` rather than `aria-selected`: these are not a
+                // `tablist` widget — each one writes the URL and the browser's
+                // Back button steps through them, which is navigation.
+                aria-current={tab === entry.id ? 'true' : undefined}
+                onClick={() => openTab(entry.id)}
+              >
+                {t(entry.labelKey)}
+              </button>
+            ))}
+          </nav>
+
+          {tab === 'overview' && (
+            <Overview
+              counts={counts}
+              organizations={delivery.length}
+              staged={readiness.staged}
+              verdict={verdict}
+              sharedClock={sharedClock}
+              sla={sla}
+              throughput={throughput}
+              aging={aging}
+              basis={basis}
+              onBasis={setBasis}
+              hasEntries={entries.length > 0}
+            />
+          )}
+          {tab === 'projects' && <PortfolioProjects />}
+          {tab === 'initiatives' && <PortfolioInitiatives />}
+          {tab === 'delivery' && (
+            <>
+              <Projects
+                rows={delivery}
+                coverage={coverage}
+                sharedClock={sharedClock}
+                stageNameOf={stageNameOf}
+                managerNameOf={managerNameOf}
+              />
+              {/* ⚠ COMMITMENTS SIT UNDER DELIVERY, NOT UNDER INITIATIVES, and
+                  that placement is the correction. `map_node_goals` rows are
+                  promises about a MAP NODE — "forty organizations beneath this
+                  phase are live by 31 December" — which is a fact about
+                  onboarding delivery. They were being rendered as the PMO's
+                  "initiatives", which is a different object entirely: 0031's
+                  `pmo_initiatives` has its own four-step ladder and an
+                  internal/external kind, and shares nothing with a goal but the
+                  word. The two now sit in the tabs their subject belongs to. */}
+              <Initiatives rows={initiatives} failed={goalsError !== null} locale={locale} />
+            </>
+          )}
+          {tab === 'actions' && (
+            <Actions
+              rows={register}
+              sections={sections}
+              managerNameOf={managerNameOf}
+              focusEntry={focusEntry}
+              locale={locale}
+            />
+          )}
+          {tab === 'risks' && <Risks risks={risks} />}
+          {tab === 'revenue' && <PortfolioRevenue />}
+          {tab === 'okrs' && <PortfolioOkrs />}
         </>
       )}
     </div>

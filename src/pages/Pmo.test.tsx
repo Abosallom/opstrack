@@ -171,7 +171,16 @@ const asHtml = (s: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;')
 
-/** `path` exists for the `?entry=` deep link; everything else renders at /pmo. */
+/**
+ * `path` carries the `?entry=` deep link AND, since 0031, the open TAB.
+ *
+ * ⚠ THE PAGE IS TABBED NOW, so a bare `/pmo` renders the overview and nothing
+ *   else. A test that asserts on the delivery table, the commitments or the
+ *   registers has to say which section it means — `tab('delivery')` below — or
+ *   it is asserting against a section that is not on the page. That is not a
+ *   weakening of these tests: it is the same assertion against the screen a
+ *   reader actually reaches, and the tab is one tap from the overview.
+ */
 function render(path = '/pmo'): string {
   return renderToStaticMarkup(
     <MemoryRouter initialEntries={[path]}>
@@ -179,6 +188,9 @@ function render(path = '/pmo'): string {
     </MemoryRouter>,
   )
 }
+
+/** The URL for one section. `?tab=` is the page's own contract — see Pmo.tsx. */
+const tab = (id: string): string => `/pmo?tab=${id}`
 
 /* ─────────────────────────────── fixtures ─────────────────────────────── */
 
@@ -404,12 +416,17 @@ describe('the lateness card never shows a zero it has not earned', () => {
         ['b', progressRow('b', 's1', '2026-08-22T00:00:00.000Z')],
       ]),
     })
-    const html = render()
-    expect(html).toContain(NUMBER)
-    expect(html).toContain(asHtml(t('pmo.lateTitle')))
-    expect(html).toContain(asHtml(t('pmo.lateMeasured', { count: 2 })))
+    // TWO TABS, TWO ASSERTIONS. The card is the overview's summary; the flag on
+    // the row itself is in the delivery table. They were one assertion while
+    // the page was one long scroll — splitting them is the same claim about the
+    // same screens, said where each is actually rendered.
+    const summary = render()
+    expect(summary).toContain(NUMBER)
+    expect(summary).toContain(asHtml(t('pmo.lateTitle')))
+    expect(summary).toContain(asHtml(t('pmo.lateMeasured', { count: 2 })))
+
     // The row itself is flagged, with a WORD and not only a tint.
-    expect(html).toContain(asHtml(t('mindtree.portfolioAtRisk')))
+    expect(render(tab('delivery'))).toContain(asHtml(t('mindtree.portfolioAtRisk')))
   })
 })
 
@@ -435,7 +452,7 @@ describe('the initiatives table', () => {
     // is the ordinary state today — and it must not read as "nobody has promised
     // anything", which is a different and untrue sentence.
     workspace({ nodes: [node({ id: 'a' })], goals: null, goalsError: 'common.errMissingTable' })
-    const failed = render()
+    const failed = render(tab('delivery'))
     expect(failed).toContain(asHtml(t('pmo.initError')))
     expect(failed).toContain(asHtml(t('pmo.initErrorHint')))
     expect(failed).not.toContain(asHtml(t('pmo.initEmpty')))
@@ -443,14 +460,14 @@ describe('the initiatives table', () => {
     // Still on the wire: the section names itself and says nothing else. An
     // empty state here would be a lie with a spinner's timing.
     workspace({ nodes: [node({ id: 'a' })], goals: null })
-    const loading = render()
+    const loading = render(tab('delivery'))
     expect(loading).toContain('aria-labelledby="pmo-commitments"')
     expect(loading).not.toContain(asHtml(t('pmo.initEmpty')))
     expect(loading).not.toContain(asHtml(t('pmo.initError')))
 
     // Genuinely none, and a way to make one.
     workspace({ nodes: [node({ id: 'a' })], goals: [] })
-    const empty = render()
+    const empty = render(tab('delivery'))
     expect(empty).toContain(asHtml(t('pmo.initEmpty')))
     expect(empty).toContain(asHtml(t('pmo.initEmptyHint')))
   })
@@ -462,7 +479,7 @@ describe('the initiatives table', () => {
       progress: new Map([['a', progressRow('a', 'live', '2026-08-01T00:00:00.000Z')]]),
       goals: [goal({ id: 'g1', node_id: 'a', label: 'Phase 2 go-live' })],
     })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain('Phase 2 go-live')
     expect(html).toContain(asHtml(t('pmo.initMet')))
   })
@@ -480,7 +497,7 @@ describe('the initiatives table', () => {
       progress: new Map([['a', progressRow('a', 'live', '2026-08-01T00:00:00.000Z')]]),
       goals: [goal({ id: 'g1', node_id: 'phase', target: 2 })],
     })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain(asHtml(t('pmo.initReached', { reached: 1, target: 2 })))
     expect(html).toContain(asHtml(t('mapnode.goalUnstaged', { count: 1 })))
   })
@@ -495,7 +512,7 @@ describe('the initiatives table', () => {
       progress: new Map([['a', progressRow('a', 'uat', '2026-08-01T00:00:00.000Z')]]),
       goals: [goal({ id: 'g1', node_id: 'a', label: 'Go live' })],
     })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain(asHtml(t('pmo.initPending')))
     // THE POINT OF THE CASE: the progress cell carries no number at all.
     const cell = html.slice(html.indexOf(asHtml(t('pmo.initPending'))))
@@ -513,7 +530,7 @@ describe('the initiatives table', () => {
         goal({ id: 'kept', node_id: 'b', target_date: '2026-08-12' }),
       ],
     })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain(asHtml(t('mapnode.goalOverdue', { count: 10 })))
     // One overdue pill, not two: the met commitment is done, not late.
     expect([...html.matchAll(/pill danger pmo-flag/g)]).toHaveLength(1)
@@ -524,7 +541,7 @@ describe('the initiatives table', () => {
       nodes: [node({ id: 'org-1', name: 'Riyadh General' })],
       goals: [goal({ id: 'g1', node_id: 'org-1', label: 'Phase 2' })],
     })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain('node=org-1')
     expect(html).not.toContain('focus=')
     expect(html).toContain('Riyadh General')
@@ -536,7 +553,7 @@ describe('the initiatives table', () => {
 describe('the project cards', () => {
   it('drills to the portfolio through ?node=, never through ?focus=', () => {
     workspace({ nodes: [node({ id: 'org-1', name: 'Riyadh General' })] })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain('lens=portfolio')
     expect(html).toContain('node=org-1')
     // BOTH HALVES. `?focus=` is a PATH assembled by lib/mindtree/model.ts and
@@ -553,7 +570,7 @@ describe('the project cards', () => {
     // different facts and must never render alike — and there is no status to
     // put on a pill for the first of them.
     workspace({ nodes: [node({ id: 'a' })] })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain('—')
     expect(html).toContain(asHtml(t('pmo.deliveryNotStaged')))
     for (const key of ['pmo.projDone', 'pmo.projPaused', 'pmo.projActive', 'mindtree.portfolioAtRisk']) {
@@ -563,7 +580,7 @@ describe('the project cards', () => {
 
   it('omits the day line entirely when no clock is running, rather than printing 0', () => {
     workspace({ nodes: [node({ id: 'a' })] })
-    expect(render()).not.toContain(asHtml(t('mindtree.portfolioDays', { count: 0 })))
+    expect(render(tab('delivery'))).not.toContain(asHtml(t('mindtree.portfolioDays', { count: 0 })))
   })
 
   it('gives each of the four recorded readings its own word', () => {
@@ -577,7 +594,7 @@ describe('the project cards', () => {
         stages: [stage({ id, ...over })],
         progress: new Map([['a', progressRow('a', id, '2026-08-20T00:00:00.000Z')]]),
       })
-      expect(render(), key).toContain(asHtml(t(key)))
+      expect(render(tab('delivery')), key).toContain(asHtml(t(key)))
     }
     // And "late", which is the only one of the four with a clock behind it.
     workspace({
@@ -588,7 +605,7 @@ describe('the project cards', () => {
         ['b', progressRow('b', 's1', '2026-08-22T00:00:00.000Z')],
       ]),
     })
-    expect(render()).toContain(asHtml(t('mindtree.portfolioAtRisk')))
+    expect(render(tab('delivery'))).toContain(asHtml(t('mindtree.portfolioAtRisk')))
   })
 
   it('names the accountable teammate through the roster', () => {
@@ -596,12 +613,12 @@ describe('the project cards', () => {
       nodes: [node({ id: 'a', account_manager_id: 'u1' })],
       members: new Map([['u1', { id: 'u1', displayName: 'Sara Alsaab' }]]),
     })
-    expect(render()).toContain('Sara Alsaab')
+    expect(render(tab('delivery'))).toContain('Sara Alsaab')
   })
 
   it('says an organization has no hierarchy to read rather than showing a blank grid', () => {
     workspace({ entries: [entry({ id: 'e1' })] })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain(asHtml(t('pmo.deliveryEmpty')))
     expect(html).toContain(asHtml(t('pmo.deliveryEmptyHint')))
   })
@@ -614,7 +631,7 @@ describe('the project cards', () => {
         entry({ id: 'e2', node_id: 'child', status: 'done' }),
       ],
     })
-    const html = render()
+    const html = render(tab('delivery'))
     // One open item, filed on the child, counted on BOTH cards — and the closed
     // one counted on neither.
     expect([...html.matchAll(new RegExp(asHtml(t('pmo.projOpen', { count: 1 })), 'g'))]).toHaveLength(2)
@@ -624,7 +641,7 @@ describe('the project cards', () => {
     // `links === null` is "nobody has looked". An empty bar would report
     // "nothing integrated" about a workspace that is still reading.
     workspace({ nodes: [node({ id: 'a' })], useCases: [useCase({ id: 'uc1' })], links: null })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).not.toContain('pmo-proj-bar')
     expect(html).not.toContain('0%')
     expect(html).not.toContain(asHtml(t('pmo.projNoCoverage')))
@@ -636,7 +653,7 @@ describe('the project cards', () => {
       useCases: [useCase({ id: 'uc1' }), useCase({ id: 'uc2' })],
       links: [],
     })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain(asHtml(t('pmo.projNoCoverage')))
     expect(html).not.toContain('pmo-proj-bar')
     expect(html).not.toContain('0%')
@@ -654,7 +671,7 @@ describe('the project cards', () => {
       useCases: [useCase({ id: 'uc1' }), useCase({ id: 'uc2' }), useCase({ id: 'uc3' })],
       links: [link('a', 'uc1', 'live')],
     })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain(
       asHtml(t('mapnode.progress', { done: 1, total: 3, status: t('mapnode.wordLive') })),
     )
@@ -672,7 +689,7 @@ describe('the project cards', () => {
       useCases: [useCase({ id: 'uc1' })],
       links: [link('a', 'uc1', 'planned')],
     })
-    const html = render()
+    const html = render(tab('delivery'))
     expect(html).toContain(
       asHtml(t('mapnode.progress', { done: 0, total: 1, status: t('mapnode.wordLive') })),
     )
@@ -697,6 +714,8 @@ describe('a workspace whose stage clocks were all started at once', () => {
 
   it('prints the count AND names the day the clock was started', () => {
     imported()
+    // The lateness card is the OVERVIEW's. It was reached by scrolling before
+    // the page had tabs; it is reached by not switching tab now.
     const html = render()
     // The count stays — it is true of what is recorded.
     expect(html).toContain(NUMBER)
@@ -706,13 +725,14 @@ describe('a workspace whose stage clocks were all started at once', () => {
 
   it('carries the same sentence into the card grid, where the pills are', () => {
     imported()
-    const html = render()
     const caveat = asHtml(t('pmo.lateOneClock', { date: '01/08/2026' }))
-    // TWICE, and that is the point: once under the count on the lateness card,
-    // and once above a grid of "Past its stage" pills that all count from the
-    // same stamp. A caveat on only one of the two leaves the other lying.
-    expect(html.indexOf(caveat)).toBeGreaterThan(-1)
-    expect(html.lastIndexOf(caveat)).toBeGreaterThan(html.indexOf(caveat))
+    // ON BOTH SCREENS, and that is the point unchanged: once under the count on
+    // the lateness card, and once above a grid of "Past its stage" pills that
+    // all count from the same stamp. A caveat on only one of the two leaves the
+    // other lying — and now that they are separate TABS a reader can arrive at
+    // either without passing the other, so the claim matters more, not less.
+    expect(render()).toContain(caveat)
+    expect(render(tab('delivery'))).toContain(caveat)
   })
 
   it('says nothing at all once one organization has genuinely been moved', () => {
@@ -724,7 +744,7 @@ describe('a workspace whose stage clocks were all started at once', () => {
         ['b', progressRow('b', 'uat', '2026-08-15T06:00:00.000Z')],
       ]),
     })
-    expect(render()).not.toContain(asHtml(t('pmo.lateOneClock', { date: '01/08/2026' })))
+    expect(render(tab('delivery'))).not.toContain(asHtml(t('pmo.lateOneClock', { date: '01/08/2026' })))
   })
 })
 
@@ -739,7 +759,7 @@ describe('the action register', () => {
       nodes: [node({ id: 'a' })],
       entries: [entry({ id: 'e1', title: 'Book the room', due_date: '2026-12-01' })],
     })
-    const html = render()
+    const html = render(tab('actions'))
     expect(html).toContain('Book the room')
     expect(html).toContain('href="/entry/e1"')
     expect(html).toContain(asHtml(t('pmo.actionCopy')))
@@ -754,7 +774,7 @@ describe('the action register', () => {
         entry({ id: 'open', title: 'Still open' }),
       ],
     })
-    const html = render()
+    const html = render(tab('actions'))
     const register = html.slice(html.indexOf('pmo-actions'), html.indexOf('pmo-risks'))
     expect(register).toContain('Still open')
     expect(register).not.toContain('Already filed')
@@ -770,7 +790,7 @@ describe('the action register', () => {
         entry({ id: 'e2', owner_id: null, owner_name: null }),
       ],
     })
-    const html = render()
+    const html = render(tab('actions'))
     expect(html).toContain('Sara Alsaab')
     expect(html).toContain(asHtml(t('followups.unassigned')))
   })
@@ -780,7 +800,7 @@ describe('the action register', () => {
       nodes: [node({ id: 'a' })],
       entries: [entry({ id: 'e1', due_date: '2026-08-01' })],
     })
-    const html = render()
+    const html = render(tab('actions'))
     expect(html).toContain('is-late')
     expect(html).toContain(asHtml(t('pmo.actionOverdue')))
   })
@@ -794,7 +814,7 @@ describe('the action register', () => {
       nodes: [node({ id: 'a' })],
       entries: [entry({ id: 'e1', status: 'blocked', created_at: '2026-08-12T00:00:00.000Z' })],
     })
-    const html = render()
+    const html = render(tab('actions'))
     expect(html).toContain(asHtml(t('pmo.colRaised')))
     expect(html).toContain('pmo-num tabular">10<')
     expect(html).toContain(asHtml(t('status.blocked')))
@@ -802,7 +822,7 @@ describe('the action register', () => {
 
   it('says so plainly when there is no open action at all', () => {
     workspace({ nodes: [node({ id: 'a' })], entries: [entry({ id: 'i1', type: 'issue' })] })
-    const html = render()
+    const html = render(tab('actions'))
     expect(html).toContain(asHtml(t('pmo.actionsEmpty')))
     expect(html).toContain(asHtml(t('pmo.actionsEmptyHint')))
   })
@@ -812,8 +832,8 @@ describe('the action register', () => {
       nodes: [node({ id: 'a' })],
       entries: [entry({ id: 'e1' }), entry({ id: 'e2' })],
     })
-    expect(render('/pmo?entry=e1')).toContain('is-highlight')
-    expect([...render('/pmo?entry=e1').matchAll(/is-highlight/g)]).toHaveLength(1)
+    expect(render(`${tab('actions')}&entry=e1`)).toContain('is-highlight')
+    expect([...render(`${tab('actions')}&entry=e1`).matchAll(/is-highlight/g)]).toHaveLength(1)
     expect(render('/pmo')).not.toContain('is-highlight')
   })
 })
@@ -826,7 +846,7 @@ describe('the follow-up buckets', () => {
       nodes: [node({ id: 'a' })],
       entries: [entry({ id: 'e1', due_date: '2026-08-01' })],
     })
-    const html = render()
+    const html = render(tab('actions'))
     for (const key of [
       'followups.overdue',
       'followups.slaBreach',
@@ -844,7 +864,7 @@ describe('the follow-up buckets', () => {
 
   it('says all-clear rather than six empty cards when nothing needs anyone', () => {
     workspace({ nodes: [node({ id: 'a' })], entries: [entry({ id: 'e1' })] })
-    const html = render()
+    const html = render(tab('actions'))
     expect(html).toContain(asHtml(t('followups.allClear')))
   })
 })
@@ -861,18 +881,19 @@ describe('the two risk tables', () => {
         entry({ id: 'a1', type: 'action', title: 'Book the room' }),
       ],
     })
-    const html = render()
+    const html = render(tab('risks'))
     const risks = html.slice(html.indexOf('pmo-risks'))
     expect(html).toContain(asHtml(t('pmo.riskIssues')))
     expect(html).toContain(asHtml(t('pmo.riskEscalations')))
     expect(risks).toContain('Claims rejected')
     expect(risks).toContain('Vendor SLA')
-    // An action is follow-up work, not a risk. It belongs to the register two
-    // sections up — which is where it now appears — and must not be counted
-    // here. Scoped to this section rather than to the page, because "nowhere on
-    // the page" stopped being the right assertion the day the register landed.
+    // An action is follow-up work, not a risk. It belongs to the ACTIONS tab —
+    // which is where it appears — and must not be counted here. The claim was
+    // once "elsewhere on the same page" and is now "on the other tab"; the tab
+    // makes it stronger, because the two lists can no longer be confused for
+    // one long one by a reader scrolling past the boundary.
     expect(risks).not.toContain('Book the room')
-    expect(html).toContain('Book the room')
+    expect(render(tab('actions'))).toContain('Book the room')
   })
 
   it('renders the reading as a derived badge and never as a stored score', () => {
@@ -883,7 +904,7 @@ describe('the two risk tables', () => {
         entry({ id: 'i2', type: 'issue', priority: 'low' }),
       ],
     })
-    const html = render()
+    const html = render(tab('risks'))
     expect(html).toContain(asHtml(t('pmo.readingSevere')))
     expect(html).toContain(asHtml(t('pmo.readingWatch')))
     expect(html).toContain(asHtml(t('pmo.readingHint')))
@@ -894,7 +915,7 @@ describe('the two risk tables', () => {
 
   it('names both empty states separately — the two lists mean different things', () => {
     workspace({ nodes: [node({ id: 'a' })], entries: [entry({ id: 'e1' })] })
-    const html = render()
+    const html = render(tab('risks'))
     expect(html).toContain(asHtml(t('pmo.riskEmptyIssues')))
     expect(html).toContain(asHtml(t('pmo.riskEmptyEscalations')))
   })
@@ -907,7 +928,7 @@ describe('the two risk tables', () => {
         entry({ id: 'x1', type: 'escalation', title: 'Withdrawn', status: 'cancelled' }),
       ],
     })
-    const html = render()
+    const html = render(tab('risks'))
     expect(html).not.toContain('Fixed already')
     expect(html).not.toContain('Withdrawn')
   })
@@ -916,21 +937,41 @@ describe('the two risk tables', () => {
 /* ══════════════════ 9. the page as a whole ══════════════════ */
 
 describe('the assembled page', () => {
-  it('names its five sections and links each heading to its region', () => {
+  it('names each section and links its heading to its region, tab by tab', () => {
+    // ⚠ THIS USED TO ASSERT ALL FIVE ON ONE RENDER, because the page was one
+    //   long scroll. It is tabbed now, so the claim is made per tab — the same
+    //   guarantee about the same regions, checked on the screen each is
+    //   actually reachable from. A dangling `aria-labelledby` leaves a region
+    //   unnamed and is invisible in a screenshot, which is why the id has to
+    //   exist AND be on the heading.
     workspace({ nodes: [node({ id: 'a' })], entries: [entry({ id: 'e1' })], goals: [] })
-    const html = render()
-    for (const id of [
-      'pmo-overview',
-      'pmo-commitments',
-      'pmo-delivery',
-      'pmo-actions',
-      'pmo-risks',
-    ]) {
-      expect(html).toContain(`aria-labelledby="${id}"`)
-      // A dangling labelledby leaves the region unnamed and is invisible in a
-      // screenshot — so the id has to exist, and on the heading.
-      expect(html).toMatch(new RegExp(`<h2[^>]*id="${id}"`))
+    for (const [path, id] of [
+      ['/pmo', 'pmo-overview'],
+      [tab('delivery'), 'pmo-delivery'],
+      [tab('delivery'), 'pmo-commitments'],
+      [tab('actions'), 'pmo-actions'],
+      [tab('risks'), 'pmo-risks'],
+    ] as const) {
+      const html = render(path)
+      expect(html, id).toContain(`aria-labelledby="${id}"`)
+      expect(html, id).toMatch(new RegExp(`<h2[^>]*id="${id}"`))
     }
+  })
+
+  it('offers every tab, and marks exactly one as current', () => {
+    // THE TAB BAR IS THE ONLY WAY BETWEEN SECTIONS now, so a tab missing from it
+    // is a section nobody can reach — the same class of defect as the map's
+    // gated-off search, which is what taught this codebase to check reachability
+    // rather than existence.
+    workspace({ nodes: [node({ id: 'a' })], entries: [entry({ id: 'e1' })] })
+    const html = render(tab('revenue'))
+    for (const key of [
+      'pmo.overview', 'pmo.projects', 'pmo.initiatives', 'pmo.delivery',
+      'pmo.actions', 'pmo.risks', 'pmo.revenue', 'pmo.okrs',
+    ]) {
+      expect(html, key).toContain(asHtml(t(key)))
+    }
+    expect(html.match(/aria-current="true"/g) ?? []).toHaveLength(1)
   })
 
   it('asks for no key that fails to resolve, in either language', () => {
