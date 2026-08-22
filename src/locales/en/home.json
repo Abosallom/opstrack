@@ -1,0 +1,33 @@
+{
+  "home": {
+    "title": "Where the programme is",
+    "nav": "Home",
+    "liveHeadline": "{live} of {total} capabilities live",
+    "liveNone": "Nothing is live yet",
+    "nothingRecorded": "Nothing has been recorded yet",
+    "nothingRecordedHint": "This page fills itself in from the map. Once organizations have a stage and a capability recorded, the whole picture appears here.",
+    "orgsCounted": "across {count} organizations",
+    "byCapability": "By capability",
+    "byCapabilityHint": "How far each of the ten capabilities has got, across every organization that has recorded it.",
+    "capabilityUnrecorded": "Nobody has recorded this yet",
+    "capabilityOf": "{live} of {recorded} live",
+    "byStage": "Where organizations are",
+    "byStageHint": "Every organization sits on one rung of the onboarding ladder.",
+    "stageNobody": "Nobody here yet",
+    "unstaged": "{count} with no stage recorded",
+    "unstagedHint": "These have not been placed on the ladder. They are counted in the total above but stand on no rung.",
+    "recent": "What moved lately",
+    "recentHint": "The last organizations to change rung.",
+    "recentNone": "Nothing has moved yet",
+    "recentToday": "today",
+    "recentDays": {
+      "one": "yesterday",
+      "other": "{count} days ago"
+    },
+    "openMap": "Open the map",
+    "openPmo": "Open the PMO report",
+    "planned": "Planned",
+    "testing": "In testing",
+    "live": "Live"
+  }
+}

@@ -79,6 +79,7 @@ import enNav from './en/nav.json'
 import enNudge from './en/nudge.json'
 import enNotif from './en/notif.json'
 import enOffline from './en/offline.json'
+import enHome from './en/home.json'
 import enPmo from './en/pmo.json'
 import enPriority from './en/priority.json'
 import enPrivacy from './en/privacy.json'
@@ -128,6 +129,7 @@ import arNav from './ar/nav.json'
 import arNudge from './ar/nudge.json'
 import arNotif from './ar/notif.json'
 import arOffline from './ar/offline.json'
+import arHome from './ar/home.json'
 import arPmo from './ar/pmo.json'
 import arPriority from './ar/priority.json'
 import arPrivacy from './ar/privacy.json'
@@ -178,6 +180,7 @@ export const EN_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   followups: enFollowups,
   groups: enGroups,
   health: enHealth,
+  home: enHome,
   jira: enJira,
   jiraconfig: enJiraconfig,
   map: enMap,
@@ -229,6 +232,7 @@ export const AR_NAMESPACES: Readonly<Record<string, LocaleTree>> = {
   followups: arFollowups,
   groups: arGroups,
   health: arHealth,
+  home: arHome,
   jira: arJira,
   jiraconfig: arJiraconfig,
   map: arMap,
@@ -302,6 +306,7 @@ export const en: LocaleTree = {
   ...enNotif,
   ...enNudge,
   ...enOffline,
+  ...enHome,
   ...enPmo,
   ...enPriority,
   ...enPrivacy,
@@ -353,6 +358,7 @@ export const ar: LocaleTree = {
   ...arNotif,
   ...arNudge,
   ...arOffline,
+  ...arHome,
   ...arPmo,
   ...arPriority,
   ...arPrivacy,

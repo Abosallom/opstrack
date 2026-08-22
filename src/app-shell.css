@@ -566,6 +566,28 @@
   flex: 0 0 auto;
 }
 
+/* ⚠ WHICH DESTINATION AM I ON. The router sets `aria-current="page"` on the
+   active NavLink, and the ONLY `aria-current` styling in this app was on
+   `.nav-item` — the sidebar row, which is `display: none` here. So on a phone
+   the three header icons all looked identical and the header TITLE was the only
+   thing naming the current screen, at exactly the width where the title is
+   first to be squeezed. Two failures compounding: no state, and the fallback
+   for no state also failing.
+
+   A filled pill rather than a colour swap, because these are icon-only controls
+   and colour alone is not a state a colour-blind reader can read (1.4.1). */
+.app-header-dest[aria-current='page'] {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+/* Preferences that stand down on a phone so navigation can have the room —
+   both are in Settings, which is one tap away through the gear. App.tsx carries
+   the measurement that decided it. */
+.app-header-wide {
+  display: none;
+}
+
 /* ---------- desktop (>= 768px) ---------- */
 
 @media (min-width: 768px) {
@@ -576,6 +598,11 @@
   /* The sidebar is back, and it carries these with labels. See `.app-header-dest`. */
   .app-header-dest {
     display: none;
+  }
+
+  /* …and the room it frees goes back to the preferences. */
+  .app-header-wide {
+    display: inline-flex;
   }
 
   .main-content {

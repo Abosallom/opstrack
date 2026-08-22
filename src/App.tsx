@@ -18,6 +18,7 @@ import CommandPalette from './components/CommandPalette'
 // the map's way out and the way back in — see docs/MAP-CONTRACT.md §U7.
 import ModeFrame from './components/map/ModeFrame'
 import {
+  IconActivity,
   IconChart,
   IconGear,
   IconLayers,
@@ -69,6 +70,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 // and are now five lenses and a panel on this one — see docs/MAP-CONTRACT.md §1.
 // Their pages, their sheets and their tests are gone; every guarantee those
 // tests held is restated in src/components/map/*.test.tsx.
+const Home = lazy(() => import('./pages/Home'))
 const Mindtree = lazy(() => import('./pages/Mindtree'))
 // THE PMO DASHBOARD, and it is a ROUTE rather than a seventh lens. That union
 // is closed with no `default:` anywhere by written policy — a seventh member
@@ -162,6 +164,15 @@ interface NavDest {
 // lens chips, the mode bar and the header gear — see the `.tabbar` deletion in
 // app-shell.css and U7's re-measure of `.mt-commit-bar`.
 const NAV: NavDest[] = [
+  // FIRST, because it is where everyone lands and the question it answers is the
+  // one the owner named. `IconActivity` is a progress line rather than a house:
+  // the row means "where the programme is", not "the start of the app".
+  {
+    to: '/',
+    icon: IconActivity,
+    navKey: 'home.nav',
+    titleKey: 'home.title',
+  },
   {
     to: '/mindtree',
     icon: IconLayers,
@@ -317,9 +328,20 @@ function AppHeader({ titleKey }: { titleKey: string }): ReactElement {
         {/* Icon-only, so it needs a label. `title` adds the current value on top
             of it — the glyph alone cannot distinguish "auto, currently dark"
             from "forced dark". */}
+        {/* ── THEME AND LANGUAGE STAND DOWN ON A PHONE ────────────────────
+            Both live in Settings as well, one tap away through the gear that
+            stays. Under 768px the actions row holds three destinations, the
+            bell and the gear, and MEASURED at 375px with these two still in it
+            the row came to 357px in a 375px viewport — the page scrolled
+            sideways and the header title, which was the only thing naming the
+            current destination, was crushed to an ellipsis.
+
+            The destinations win that argument because they are NAVIGATION and
+            these are preferences: a reader changes their theme once and moves
+            between screens all day. See `.app-header-wide` in app-shell.css. */}
         <button
           type="button"
-          className="btn btn-ghost btn-icon"
+          className="btn btn-ghost btn-icon app-header-wide"
           aria-label={t('common.toggleTheme')}
           title={`${t('settings.theme')}: ${t(THEME_LABEL[theme])}`}
           onClick={() => setTheme(nextTheme)}
@@ -332,7 +354,7 @@ function AppHeader({ titleKey }: { titleKey: string }): ReactElement {
             voice while the surrounding UI is still English. */}
         <button
           type="button"
-          className="btn btn-ghost btn-sm"
+          className="btn btn-ghost btn-sm app-header-wide"
           lang={locale === 'en' ? 'ar' : 'en'}
           aria-label={t('common.toggleLanguage')}
           onClick={() => setLocaleSetting(locale === 'en' ? 'ar' : 'en')}
@@ -357,11 +379,19 @@ function AppHeader({ titleKey }: { titleKey: string }): ReactElement {
  * Is this route a full-bleed STAGE rather than a document?
  *
  * ONE PREDICATE, here, because `.main-content`'s padding is this file's and the
- * decision to spend or not spend it is a fact about the route. `/` redirects to
- * `/mindtree`, so both spellings are the map.
+ * decision to spend or not spend it is a fact about the route.
+ *
+ * ⚠ `/` IS NOT THE MAP ANY MORE, and leaving it in this list was a real defect
+ *   for exactly as long as it took to render the page: the previous version
+ *   said "`/` redirects to `/mindtree`, so both spellings are the map", which
+ *   stopped being true the moment `/` started rendering `pages/Home.tsx`. Home
+ *   is a DOCUMENT — a reading column that scrolls — and full-bleed took away
+ *   its inline padding and handed it the canvas's fixed height and
+ *   `overflow: hidden`. On a 375px phone that put the text hard against both
+ *   edges and clipped every row's figure off the inline end.
  */
 function isMapRoute(pathname: string): boolean {
-  return pathname === '/' || pathname === '/mindtree' || pathname.startsWith('/mindtree/')
+  return pathname === '/mindtree' || pathname.startsWith('/mindtree/')
 }
 
 function Shell({ children }: { children: ReactNode }): ReactElement {
@@ -745,10 +775,21 @@ export default function App(): ReactElement {
                   its panel is the follow-ups list, real DOM, beside the canvas
                   — so the member's first screen is the list they had, and the
                   admin's is the picture they had, at one URL. */}
-              <Route path="/" element={<Navigate to="/mindtree" replace />} />
+              {/* ⚠ THE LANDING ROUTE CHANGED, AND THE COMMENT ABOVE IS THE OLD
+                  ARGUMENT. It reasoned that `needs-me` made the map the right
+                  first screen for everybody — true when the workspace was a
+                  pile of entries. The workspace now holds TEN entries and a
+                  hundred and four organizations, so that landing put the
+                  Executive Director this tool is for in front of a near-empty
+                  follow-up list beside a canvas of unlabelled cards, and the
+                  question he opens it to ask was answerable on no screen at
+                  all. `/` is now a page that answers it. The map is one tap
+                  away and is where you go to EXPLORE rather than where you
+                  arrive. See pages/Home.tsx. */}
+              <Route path="/" element={<Home />} />
               {/* Signed in, so the sign-in route is dead — send it home rather
                   than showing a form that cannot do anything. */}
-              <Route path="/signin" element={<Navigate to="/mindtree" replace />} />
+              <Route path="/signin" element={<Navigate to="/" replace />} />
               <Route path="/mindtree" element={<Mindtree />} />
               {/* The entry as a PAGE — a URL somebody was sent. Every in-app
                   tap opens the same detail surface as an overlay instead, via

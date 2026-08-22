@@ -1,0 +1,318 @@
+/* THE HOME SCREEN — one column, phone first.
+   See Home.tsx's header for what the screen is and why it exists.
+
+   ── THERE IS ONE MEDIA QUERY IN THIS FILE AND IT ADDS NOTHING ─────────────
+
+   Only `max-inline-size`, so a 1600px monitor does not stretch a reading column
+   to 1600px. Every size, weight and gap below is the SAME at 375px and at 1600.
+   That is the whole design constraint: the owner said the phone is the main
+   device, so the phone layout is the layout, and the desktop is that layout
+   with a margin. Nothing here is a shrunken desktop, which is why nothing here
+   has to be rescued at a breakpoint.
+
+   ── THE BARS ARE BOXES, NOT SVG ───────────────────────────────────────────
+
+   `components/charts` draws in SVG against a measured viewBox, which is right
+   for the charts it owns and wrong here: an SVG bar needs its width in user
+   units before it can draw, and a width that must be measured is exactly the
+   thing that breaks between a 375px phone and a rotated one. A flex row of
+   percentage-width boxes needs no measurement, reflows for free, and mirrors
+   in RTL because every property below is logical. */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  /* The reading column. 34rem is roughly 60 characters at this type size —
+     long enough for the hint sentences, short enough that the eye does not
+     lose the line returning from the right edge on a monitor. */
+  max-inline-size: 34rem;
+  margin-inline: auto;
+  inline-size: 100%;
+}
+
+.home-title {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  margin: 0;
+  color: var(--text);
+}
+
+/* ---------- the headline ---------- */
+
+.home-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* THE ONE BIG NUMBER, and it is a SENTENCE at a large size rather than a digit
+   with a caption. "82 of 406 capabilities live" can be read out in a meeting;
+   a 48px "20%" over the word "live" cannot, and hides its denominator — the
+   rule Home.tsx's header states and MapBranchDetail states for the org panel.
+
+   `text-wrap: balance` so the sentence breaks into even lines at 375px instead
+   of leaving one orphaned word on the second row. */
+.home-big {
+  font-size: 27px;
+  line-height: 1.25;
+  font-weight: 650;
+  color: var(--text);
+  margin: 0;
+  text-wrap: balance;
+}
+
+.home-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* ---------- the stacked bar ---------- */
+
+.home-bar {
+  display: flex;
+  inline-size: 100%;
+  block-size: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  /* The ground shows through where the three segments do not reach 100% — they
+     always do, but a rounding gap of a fraction of a pixel would otherwise
+     paint the page background and read as a crack in the bar. */
+  background: var(--bg-elev-2);
+}
+
+.home-bar-seg {
+  display: block;
+  block-size: 100%;
+  /* No transition: this is not an animated figure, and a bar that grew on every
+     store tick would draw the eye to a number that had not changed. */
+}
+
+/* THE THREE COLOURS, and they are the app's semantic tokens rather than a
+   palette of this file's own. "Live" is the same green the map paints a
+   terminal rung with, so a reader who has learned the colour on one screen has
+   learned it on both. */
+.home-bar-seg[data-k='live'] {
+  background: var(--green);
+}
+.home-bar-seg[data-k='testing'] {
+  background: var(--accent);
+}
+.home-bar-seg[data-k='planned'] {
+  /* Deliberately the quietest of the three: "planned" is the absence of work
+     done, and it is the largest segment on this workspace today. Painting it
+     as loudly as the other two would make an untouched programme look busy. */
+  background: var(--border);
+}
+
+/* ---------- the key ---------- */
+
+.home-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-key-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.home-key-item::before {
+  content: '';
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.home-key-item[data-k='live']::before {
+  background: var(--green);
+}
+.home-key-item[data-k='testing']::before {
+  background: var(--accent);
+}
+.home-key-item[data-k='planned']::before {
+  background: var(--border);
+}
+
+/* ---------- a block ---------- */
+
+.home-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-block-start: 18px;
+  border-block-start: 1px solid var(--border);
+}
+
+.home-h2 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0;
+  color: var(--text);
+}
+
+.home-hint {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin: 0 0 8px;
+}
+
+.home-note {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin: 10px 0 0;
+}
+
+/* ---------- rows ---------- */
+
+.home-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* NAME AND FIGURE ON ONE LINE, BAR UNDERNEATH — a two-row grid rather than the
+   three-column table this would be on a desktop. At 375px a capability name
+   ("Medication Prescribe V2"), a reading ("5 of 23 live") and a bar cannot
+   share a line without the name truncating, and the name is the part a reader
+   cannot reconstruct. */
+.home-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 10px;
+  align-items: baseline;
+}
+
+.home-row-name {
+  font-size: 14px;
+  color: var(--text);
+  min-inline-size: 0;
+}
+
+.home-row-fig {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.home-row-stack,
+.home-row-bar {
+  grid-column: 1 / -1;
+}
+
+/* The stage row's own bar — a single segment, so it is drawn here rather than
+   through the three-part `.home-bar`. `--w` is set inline as a percentage. */
+.home-row-bar {
+  display: block;
+  block-size: 6px;
+  border-radius: 3px;
+  background: var(--bg-elev-2);
+  position: relative;
+  overflow: hidden;
+}
+
+.home-row-bar::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: var(--w, 0%);
+  background: var(--accent);
+}
+
+/* A capability nobody has recorded keeps its row and loses its bar — the row is
+   the agenda item, and the missing bar is the honest rendering of a missing
+   measurement. See Home.tsx's header. */
+.home-row[data-empty] .home-row-name {
+  color: var(--text-dim);
+}
+
+.home-quiet {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+/* ---------- what moved ---------- */
+
+.home-moves {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-move {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  align-items: baseline;
+}
+
+.home-move-name {
+  font-size: 14px;
+  color: var(--text);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.home-move-when {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.home-move-stage {
+  grid-column: 1 / -1;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+/* ---------- the way on ---------- */
+
+/* FULL-WIDTH AND STACKED, because this is the foot of a phone screen and the
+   thumb is already there. Two 44px rows beat two half-width buttons whose
+   targets a thumb has to aim between. */
+.home-go {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-block-start: 4px;
+  /* Clears the home indicator when this page is the last thing scrolled to. */
+  padding-block-end: env(safe-area-inset-bottom);
+}
+
+.home-go-btn {
+  inline-size: 100%;
+  justify-content: center;
+}
+
+@media (min-width: 768px) {
+  /* The two ways on sit side by side once there is room, and nothing else in
+     this file changes. */
+  .home-go {
+    flex-direction: row;
+  }
+
+  .home-go-btn {
+    inline-size: auto;
+    flex: 1 1 0;
+  }
+}

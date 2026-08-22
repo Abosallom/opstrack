@@ -1,0 +1,36 @@
+{
+  "home": {
+    "title": "أين وصل البرنامج",
+    "nav": "الرئيسية",
+    "liveHeadline": "{live} من {total} قدرة تعمل",
+    "liveNone": "لا شيء يعمل بعد",
+    "nothingRecorded": "لم يُسجَّل شيء بعد",
+    "nothingRecordedHint": "تمتلئ هذه الصفحة من الخريطة. ما إن تُسجَّل للمنظمات مرحلة وقدرة حتى تظهر الصورة كاملةً هنا.",
+    "orgsCounted": "عبر {count} منظمة",
+    "byCapability": "حسب القدرة",
+    "byCapabilityHint": "إلى أين وصلت كل قدرة من القدرات العشر، عبر كل منظمة سجّلتها.",
+    "capabilityUnrecorded": "لم يسجّلها أحد بعد",
+    "capabilityOf": "{live} من {recorded} تعمل",
+    "byStage": "أين المنظمات",
+    "byStageHint": "كل منظمة تقف على درجة واحدة من سلّم الانضمام.",
+    "stageNobody": "لا أحد هنا بعد",
+    "unstaged": "{count} بلا مرحلة مسجّلة",
+    "unstagedHint": "لم تُوضع هذه على السلّم. تُحسب ضمن الإجمالي أعلاه لكنها لا تقف على أي درجة.",
+    "recent": "ما تحرّك مؤخرًا",
+    "recentHint": "آخر المنظمات التي غيّرت درجتها.",
+    "recentNone": "لم يتحرّك شيء بعد",
+    "recentToday": "اليوم",
+    "recentDays": {
+      "one": "أمس",
+      "two": "قبل يومين",
+      "few": "قبل {count} أيام",
+      "many": "قبل {count} يومًا",
+      "other": "قبل {count} يوم"
+    },
+    "openMap": "افتح الخريطة",
+    "openPmo": "افتح تقرير مكتب إدارة المشاريع",
+    "planned": "مخطَّط",
+    "testing": "قيد الاختبار",
+    "live": "يعمل"
+  }
+}

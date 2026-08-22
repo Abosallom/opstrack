@@ -197,6 +197,10 @@ export const SCREENS: readonly PaletteScreen[] = [
   // the notification history were six rows here and are now five LENSES on this
   // one — see LENSES below, and docs/MAP-CONTRACT.md §1. It keeps naming itself
   // out of its own namespace for the reason the two Wave-4b rows below give.
+  // THE LANDING SCREEN, first here as it is first in NAV. It answers "how much
+  // of the capability set is live" and is what `/` renders now — see
+  // pages/Home.tsx for why the map stopped being where everyone arrives.
+  { to: '/', labelKey: 'home.title' },
   { to: '/mindtree', labelKey: 'mindtree.title' },
   // THE PMO DASHBOARD. In SCREENS rather than ADMIN_SCREENS because App.tsx
   // gates it in neither branch, and for that route's own reason: it renders

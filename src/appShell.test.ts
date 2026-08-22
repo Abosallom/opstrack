@@ -72,6 +72,23 @@ describe('every NAV destination is reachable under 768px', () => {
     )
   })
 
+  it('does not treat "/" as the full-bleed map any more', () => {
+    // ⚠ THE DEFECT THIS CAUGHT, one render after it was written. `isMapRoute`
+    // listed `/` because `/` used to REDIRECT to `/mindtree`, and the comment
+    // said so. The moment `/` started rendering `pages/Home.tsx` that sentence
+    // became false and the shell handed a scrolling reading column the canvas's
+    // treatment: no inline padding, a fixed height, `overflow: hidden`. At
+    // 375px the text sat hard against both edges and every row's figure was
+    // clipped off the inline end.
+    //
+    // The general shape is worth stating: `data-fullbleed` is a claim about
+    // what a route RENDERS, and it silently rots whenever a route's content
+    // changes without its predicate being re-read.
+    const body = app.slice(app.indexOf('function isMapRoute'), app.indexOf('function Shell'))
+    expect(body).not.toMatch(/pathname === '\/'[^\w]/)
+    expect(body).toContain("pathname === '/mindtree'")
+  })
+
   it('has not quietly reinstated the tab bar over the composer', () => {
     // The bar is gone on purpose and the reason is geometric, not aesthetic:
     // it covered `MapCapture`. Solving a future reachability problem by putting

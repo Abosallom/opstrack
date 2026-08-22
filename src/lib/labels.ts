@@ -16,7 +16,7 @@
 
 import { useCallback } from 'react'
 import { useLocale, type Locale } from './i18n'
-import type { MapNode, MapNodeKind, MapNodeStage, Track } from '../types'
+import type { MapNode, MapNodeKind, MapNodeStage, Track, UseCase } from '../types'
 
 /**
  * A track's name in the given locale.
@@ -101,6 +101,35 @@ export function useKindLabel(): (kind: Pick<MapNodeKind, 'name' | 'name_ar'>) =>
 export function stageLabel(stage: Pick<MapNodeStage, 'name' | 'name_ar'>, locale: Locale): string {
   if (locale === 'ar') return stage.name_ar.trim() || stage.name
   return stage.name
+}
+
+/**
+ * A capability's name in the reader's language.
+ *
+ * ⚠ NAMED `capabilityLabel`, NOT `useCaseLabel`, and that is not a style
+ *   preference: `use` is React's hook prefix, so `useCaseLabel` reads to
+ *   `react-hooks/rules-of-hooks` as a hook called `use` + `CaseLabel` and every
+ *   call inside a callback becomes a lint error. The UI already calls these
+ *   "capabilities" everywhere a reader can see, so the name that avoids the
+ *   collision is also the truer one.
+ *
+ * The fourth of these and the same rule as the other three: `name_ar` is
+ * `not null default ''` and SEEDED BLANK on purpose, so the test is for EMPTY
+ * rather than for null — a capability whose English name is the one everybody
+ * in the room actually says has no Arabic row to fall back to, and falling back
+ * to `name` is the right answer rather than a degraded one.
+ */
+export function capabilityLabel(cap: Pick<UseCase, 'name' | 'name_ar'>, locale: Locale): string {
+  if (locale === 'ar') return cap.name_ar.trim() || cap.name
+  return cap.name
+}
+
+/** The supported way for a component to label a capability. */
+export function useCapabilityLabel(): (cap: Pick<UseCase, 'name' | 'name_ar'>) => string {
+  const locale = useLocale()
+  return useCallback((cap: Pick<UseCase, 'name' | 'name_ar'>) => capabilityLabel(cap, locale), [
+    locale,
+  ])
 }
 
 /** The supported way for a component to label a stage. Re-renders on language change. */

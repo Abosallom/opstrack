@@ -657,6 +657,33 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
   // the page's whole job is to say what is true, so the rules below pull the
   // handful of column captions and the many empty-state lines out, and the rest
   // are the words that name the three sections.
+  home: {
+    section: 'screenTitles',
+    where: 'terminology.where.home',
+    rules: [
+      { prefixes: ['openMap', 'openPmo'], section: 'actions' },
+      // ⚠ THE EMPTY AND UNRECORDED STRINGS ARE THE POINT OF THIS SCREEN, not
+      //   its edge cases. Four of them exist to say "nobody has measured this"
+      //   where a lesser screen would print a zero, and each is a sentence the
+      //   owner may want worded differently for his own readers.
+      {
+        prefixes: [
+          'liveNone',
+          'nothingRecorded',
+          'capabilityUnrecorded',
+          'stageNobody',
+          'recentNone',
+          'unstaged',
+        ],
+        section: 'emptyStates',
+      },
+      { prefixes: ['byCapabilityHint', 'byStageHint', 'recentHint', 'unstagedHint'], section: 'messages' },
+      // The three capability words, placed where `mapnode.status*` puts the
+      // identical vocabulary — one screen renaming "In testing" must rename it
+      // everywhere it appears or the two surfaces disagree.
+      { prefixes: ['planned', 'testing', 'live'], section: 'healthStates' },
+    ],
+  },
   pmo: {
     section: 'screenTitles',
     where: 'terminology.where.pmo',
