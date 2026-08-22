@@ -116,11 +116,54 @@ function mapNodeInvariantKey(text: string): string | null {
   return null
 }
 
+/**
+ * THE REQUEST NEVER REACHED POSTGRES AT ALL.
+ *
+ * ⚠ THE GAP THIS CLOSES, and it is the failure a rollout meets first. Every arm
+ *   below this one describes something the DATABASE said. When the network is
+ *   the thing that failed — an outage, a captive portal, a hotel wifi that
+ *   resolves DNS and then swallows the request — postgrest-js catches the
+ *   fetch rejection and hands on an error with NO SQLSTATE and a browser
+ *   sentence for a message. That fell through every arm to `common.error`:
+ *   "Something went wrong", which is both true and useless, and which sends a
+ *   reader to report a bug in the app.
+ *
+ *   Worse, `navigator.onLine` is TRUE in every one of those cases — it reports
+ *   a live network interface, not a reachable server — so the offline banner
+ *   stayed down and `store/outbox.ts` did not queue the write. The reader lost
+ *   the typing and was told the app was broken.
+ *
+ * The three message shapes are the three engines: Chrome/Firefox say "failed to
+ * fetch" / "networkerror", Safari says "load failed". A `TypeError` name is
+ * matched too, because that is what a rejected `fetch` throws and it is the
+ * only part of this that is specified anywhere.
+ */
+export function isNetworkFailure(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const e = error as PgLike & { name?: unknown }
+  // A real SQLSTATE means Postgres answered. Whatever went wrong, it was not
+  // the network, and one of the arms below owns it.
+  if (codeOf(e) !== '') return false
+  if (typeof e.name === 'string' && e.name === 'TypeError') return true
+  const text = haystack(e)
+  return (
+    text.includes('failed to fetch') ||
+    text.includes('networkerror') ||
+    text.includes('network error') ||
+    text.includes('load failed') ||
+    text.includes('fetch failed')
+  )
+}
+
 export function pgErrorKey(error: unknown): string {
   if (typeof error !== 'object' || error === null) return 'common.error'
   const e = error as PgLike
   const code = codeOf(e)
   const text = haystack(e)
+
+  // BEFORE EVERY OTHER ARM. Nothing below can be right about a request that was
+  // never answered.
+  if (isNetworkFailure(error)) return 'common.errNetwork'
 
   // Before the switch, because these four are the only failures here whose SQLSTATE
   // is an implementation detail rather than a contract — see mapNodeInvariantKey().

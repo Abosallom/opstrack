@@ -312,3 +312,43 @@ describe('pgErrorKey — degrades safely', () => {
     expect(warn.mock.calls[0]).toContain('42P01')
   })
 })
+
+describe('a request that never reached Postgres', () => {
+  // ⚠ THE ARM THAT WAS MISSING, and the failure a rollout meets first. Every
+  //   other mapping in this file describes something the DATABASE said. When the
+  //   network is what failed, postgrest-js catches the fetch rejection and hands
+  //   on an error with NO SQLSTATE and a browser sentence for a message — which
+  //   fell through everything to `common.error`, "Something went wrong". True,
+  //   useless, and it reads as a bug in the app rather than in the wifi.
+
+  it('names the three engines by their own words', () => {
+    // Chrome and Firefox say one thing, Safari says another, and neither is
+    // specified anywhere. Matching all three is cheaper than being wrong on iOS.
+    for (const message of [
+      'TypeError: Failed to fetch',
+      'NetworkError when attempting to fetch resource.',
+      'Load failed',
+      'fetch failed',
+    ]) {
+      expect(pgErrorKey({ message }), message).toBe('common.errNetwork')
+    }
+  })
+
+  it('takes a bare TypeError, which is what a rejected fetch throws', () => {
+    expect(pgErrorKey({ name: 'TypeError', message: '' })).toBe('common.errNetwork')
+  })
+
+  it('DEFERS THE MOMENT THERE IS A SQLSTATE, whatever the message says', () => {
+    // The load-bearing half. A SQLSTATE means Postgres answered, so this was not
+    // the network — and mapping it here would let `store/outbox.ts` queue a
+    // write the database has already REFUSED, which then retries forever.
+    expect(pgErrorKey({ code: '42501', message: 'Failed to fetch' })).not.toBe('common.errNetwork')
+    expect(pgErrorKey({ code: 'PGRST205', message: 'load failed' })).toBe('common.errMissingTable')
+    expect(pgErrorKey({ code: '23505', message: 'network error' })).not.toBe('common.errNetwork')
+  })
+
+  it('does not claim a plain unmapped failure', () => {
+    expect(pgErrorKey({ message: 'something else entirely' })).toBe('common.error')
+    expect(pgErrorKey(null)).toBe('common.error')
+  })
+})

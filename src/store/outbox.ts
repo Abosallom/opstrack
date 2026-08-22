@@ -475,6 +475,12 @@ function enqueue(op: MutOp): void {
  * assume success". A write that fails while `onLine` is true comes back as a
  * failure the caller can show, not as a silent queue entry the user never sees.
  */
+/**
+ * `pgErrorKey`'s answer for a request that never reached Postgres. Spelled once
+ * here so the queueing rule and the mapping cannot drift apart.
+ */
+const NETWORK_KEY = 'common.errNetwork'
+
 function isOffline(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine === false
 }
@@ -495,7 +501,33 @@ export async function submit<T>(op: MutOp): Promise<ApiResult<T>> {
     enqueue(op)
     return fail('offline.queued') as ApiResult<T>
   }
-  return (await send(op)) as ApiResult<T>
+  const result = (await send(op)) as ApiResult<T>
+
+  // ⚠ `navigator.onLine` SAID YES AND THE SERVER WAS STILL UNREACHABLE.
+  //
+  //   That flag reports a live network INTERFACE, not a reachable server, so it
+  //   is true on hotel wifi that swallows the request, behind a captive portal,
+  //   during a Supabase outage, and on a train. Every one of those took the
+  //   branch below `isOffline()`, failed at `send()`, and handed the caller an
+  //   error — which rolled the optimistic row back and lost what the reader had
+  //   typed. The queue existed and was never offered the write.
+  //
+  //   So the network is now decided by what the REQUEST did, not by what the
+  //   browser predicted: a send that never reached Postgres is queued on
+  //   exactly the terms an offline send is, and answers with the same NOTICE.
+  //   `offline.queued` is not an error and callers already know not to roll back
+  //   on it.
+  //
+  //   Narrow on purpose, and the narrowing lives in ONE place: `pgErrorKey`
+  //   answers `common.errNetwork` only when there is no SQLSTATE at all, so a
+  //   refusal, a constraint or a missing table still fails as itself. Queueing a
+  //   write Postgres has already REJECTED would retry it forever, which is the
+  //   fault the retry comments in this file warn about.
+  if (!result.ok && result.error === NETWORK_KEY) {
+    enqueue(op)
+    return fail('offline.queued') as ApiResult<T>
+  }
+  return result
 }
 
 /**
@@ -928,6 +960,15 @@ export function resetOutbox(): void {
  */
 const RETRY_BASE_MS = 2_000
 const RETRY_MAX_MS = 60_000
+/**
+ * How many times the TIMER will try a row before it waits for a person.
+ *
+ * Eight, with the capped backoff above, is a little over six minutes of trying —
+ * long enough to cover a lift, a tunnel, a router reboot or a Supabase blip, and
+ * short enough that a permanently refused row stops asking the same question
+ * every minute for the life of the tab. It bounds the timer, never the queue.
+ */
+const MAX_AUTO_ATTEMPTS = 8
 
 let retryTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -952,15 +993,35 @@ function cancelRetry(): void {
  * is why a single 500 parked the whole queue until the device next transitioned
  * offline→online.
  *
- * Retrying does not stop after N attempts. There is nothing better to do with a
- * write the user was told was saved, the interval is capped, and the queue is
- * discardable by hand — a queue that gives up silently is the failure this whole
- * file exists to avoid.
+ * NOTHING IS EVER DROPPED, and that rule is unchanged: a queue that gives up
+ * silently is the failure this whole file exists to avoid. What stops after
+ * `MAX_AUTO_ATTEMPTS` is only the TIMER.
+ *
+ * ⚠ WHY THE TIMER HAD TO STOP. The comment here used to say retrying never
+ *   stops, on the grounds that there is nothing better to do with a write the
+ *   user was told was saved. That is right for a flaky link and wrong for a
+ *   refusal: a write RLS will never accept — someone else's row, a permission
+ *   removed while it sat queued, a table a migration has not created — cannot
+ *   succeed on the thousandth attempt any more than the second. It retried at
+ *   the capped minute forever, showing the reader an error it would never clear,
+ *   and burning a request a minute per stuck row for as long as the tab lived.
+ *
+ *   After the cap the item STAYS IN THE QUEUE, keeps its error, and keeps being
+ *   counted by `offline.syncFailed` — so it is still visible and still the
+ *   reader's to decide about. It just stops asking on its own.
+ *
+ * TWO WAYS BACK, both already built: the `online` / `visibilitychange` triggers
+ * call `flushOutbox()` directly, and the banner's own "Retry now" button does
+ * the same. Neither consults this function, so a reader who fixed the cause is
+ * one press from trying again — and a genuine reconnection retries without one.
  */
 function scheduleRetry(): void {
   if (!syncInstalled || retryTimer !== null || flushing) return
   const items = useOutboxStore.getState().items
   if (items.length === 0 || isOffline()) return
+  // A queue where every row has exhausted its automatic attempts is waiting on a
+  // person, not on a timer.
+  if (items.every((i) => i.attempts >= MAX_AUTO_ATTEMPTS)) return
   const attempts = items.reduce((max, i) => Math.max(max, i.attempts), 0)
   const delay = Math.min(RETRY_BASE_MS * 2 ** Math.max(0, attempts - 1), RETRY_MAX_MS)
   retryTimer = setTimeout(() => {

@@ -4,6 +4,7 @@
     "empty": "Nothing here yet",
     "emptyHint": "Capture your first item to get started.",
     "error": "Something went wrong",
+    "errNetwork": "Could not reach the server. Your connection may be down — nothing was lost, try again in a moment.",
     "errorHint": "Try again, or reload the page if it keeps failing.",
     "retry": "Try again",
     "reload": "Reload",

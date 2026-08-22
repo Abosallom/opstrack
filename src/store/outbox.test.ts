@@ -157,16 +157,45 @@ describe('submit — online', () => {
     expect(getOutboxSnapshot()).toHaveLength(0)
   })
 
-  it('returns the transport failure as a key rather than queueing it', async () => {
-    // navigator.onLine is optimistic — a captive portal reports true — so a
-    // failure while "online" is a real failure the caller must be able to show,
-    // NOT a silent queue entry the user never learns about.
+  it('returns a REFUSAL as a key rather than queueing it', async () => {
+    // A failure the DATABASE gave is a real failure the caller must be able to
+    // show, not a silent queue entry the reader never learns about. This one
+    // came back with a key of its own, so Postgres answered — and queueing a
+    // write it has already refused would retry that refusal forever.
+    //
+    // The comment here used to cite the captive portal ("navigator.onLine is
+    // optimistic — a captive portal reports true") as the reason NOTHING queues
+    // while online. That was the right observation and the wrong conclusion: a
+    // portal is precisely the case where the reader's typing should survive. The
+    // line now falls between "Postgres refused" and "Postgres never heard" — see
+    // the test below.
     vi.mocked(updateEntry).mockResolvedValue(no('entry.errNotYours') as never)
 
     const result = await submit(op())
 
     expect(result).toEqual({ ok: false, error: 'entry.errNotYours' })
     expect(getOutboxSnapshot()).toHaveLength(0)
+  })
+
+  it('QUEUES a write the server never heard, even with navigator.onLine true', async () => {
+    // ⚠ THE CASE THAT LOST PEOPLE'S TYPING. `navigator.onLine` reports a live
+    //   network INTERFACE, not a reachable server, so it is true on hotel wifi
+    //   that swallows the request, behind a captive portal, during a Supabase
+    //   outage and on a train. All of those skipped the offline branch, failed
+    //   at the transport, and handed back an error — which rolled the optimistic
+    //   row back and threw away what the reader had written. The queue existed
+    //   the whole time and was never offered the write.
+    //
+    //   `common.errNetwork` is `pgErrorKey`'s answer for a request with NO
+    //   SQLSTATE, so the distinction is decided in one place rather than twice.
+    vi.mocked(updateEntry).mockResolvedValue(no('common.errNetwork') as never)
+
+    const result = await submit(op())
+
+    // A NOTICE, not an error, and the same one an offline write gets — callers
+    // already know not to roll their optimistic state back on this key.
+    expect(result).toEqual({ ok: false, error: 'offline.queued' })
+    expect(getOutboxSnapshot()).toHaveLength(1)
   })
 
   it('never throws, even when a transport does', async () => {
@@ -1006,6 +1035,55 @@ describe('startOutboxSync', () => {
       await vi.advanceTimersByTimeAsync(2_000)
 
       expect(vi.mocked(updateEntry)).toHaveBeenCalledTimes(2)
+      expect(getOutboxSnapshot()).toHaveLength(0)
+    } finally {
+      stop()
+      dom.restore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('STOPS THE TIMER on a write that will never be accepted — and keeps the row', async () => {
+    // ⚠ A REFUSAL IS NOT A FLAKY LINK. A write RLS will never accept — someone
+    //   else's row, a permission removed while it sat queued, a table a
+    //   migration has not created — cannot succeed on the thousandth attempt any
+    //   more than on the second. It used to retry at the capped minute FOREVER,
+    //   showing an error it would never clear and spending a request a minute
+    //   per stuck row for as long as the tab lived.
+    //
+    //   What must NOT change is the rule this file is built on: nothing is
+    //   dropped. The row stays queued, keeps its error and keeps being counted,
+    //   so it is still visible and still the reader's to decide about. Only the
+    //   timer gives up — and the banner's "Retry now" and a real reconnection
+    //   both call flushOutbox() directly, so neither is blocked by this.
+    vi.useFakeTimers()
+    const dom = withDom()
+    let stop = (): void => {}
+    try {
+      setOnline(false)
+      await submit(op({ id: 'e1', dedupeKey: 'k1' }))
+      setOnline(true)
+      vi.mocked(updateEntry).mockResolvedValue(no('entry.errNotYours') as never)
+
+      stop = startOutboxSync()
+      await flushOutbox()
+
+      // Let the backoff run itself out. The cap is 8; this is far past it.
+      for (let i = 0; i < 20; i += 1) await vi.advanceTimersByTimeAsync(60_000)
+
+      const calls = vi.mocked(updateEntry).mock.calls.length
+      expect(calls).toBeLessThanOrEqual(8)
+      expect(getOutboxSnapshot()).toHaveLength(1)
+      expect(getOutboxSnapshot()[0].error).toBe('entry.errNotYours')
+
+      // And it is quiet now: more time buys no more attempts.
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(vi.mocked(updateEntry).mock.calls.length).toBe(calls)
+
+      // THE ESCAPE HATCH STILL WORKS. A reader who fixed the cause presses
+      // "Retry now", which is this call, and the row goes.
+      vi.mocked(updateEntry).mockResolvedValue(ok({ id: 'e1' }) as never)
+      await flushOutbox()
       expect(getOutboxSnapshot()).toHaveLength(0)
     } finally {
       stop()
