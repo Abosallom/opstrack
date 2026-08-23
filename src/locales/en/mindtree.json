@@ -256,6 +256,10 @@
     "portfolioBy": "Group the organizations by",
     "portfolioByManager": "Team",
     "portfolioByPhase": "Progress",
+    "portfolioAsTable": "Table",
+    "portfolioAsBars": "Bars",
+    "portfolioAsCards": "Cards",
+    "portfolioAsGrid": "Every capability",
     "portfolioByStage": "Stage",
     "portfolioByVendor": "Vendors",
     "portfolioDays": {

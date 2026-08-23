@@ -528,7 +528,7 @@ describe('one person, however far up the chain they sit', () => {
       managerIds: ['sara'],
       managerOfNode: inherited,
     }
-    const seen = portfolioRowsFor(rows, { by: 'manager', risk: false }, scope).map((r) => r.nodeId)
+    const seen = portfolioRowsFor(rows, { by: 'manager', risk: false, as: 'table' }, scope).map((r) => r.nodeId)
     expect(seen).toContain('hail')
     // One rule, one map: what the filter admits is what the roll-up buckets.
     expect(byId(rows, 'hail').managerId).toBe('sara')
@@ -705,23 +705,23 @@ describe('the roll-up', () => {
 
 describe('organizations or buckets — one rule, both halves in the URL', () => {
   it('the exception cut shows organizations', () => {
-    expect(portfolioShowsRows({ by: 'stage', risk: true }, filter())).toBe(true)
+    expect(portfolioShowsRows({ by: 'stage', risk: true, as: 'table' }, filter())).toBe(true)
   })
 
   it('a reader who has narrowed to organizations sees organizations', () => {
-    expect(portfolioShowsRows({ by: 'manager', risk: false }, filter({ mapNodeIds: ['riyadh'] }))).toBe(
+    expect(portfolioShowsRows({ by: 'manager', risk: false, as: 'table' }, filter({ mapNodeIds: ['riyadh'] }))).toBe(
       true,
     )
   })
 
   it('otherwise the roll-up is the reading', () => {
-    expect(portfolioShowsRows({ by: 'stage', risk: false }, filter())).toBe(false)
-    expect(portfolioShowsRows({ by: 'vendor', risk: false }, filter({ vendors: ['acme'] }))).toBe(false)
+    expect(portfolioShowsRows({ by: 'stage', risk: false, as: 'table' }, filter())).toBe(false)
+    expect(portfolioShowsRows({ by: 'vendor', risk: false, as: 'table' }, filter({ vendors: ['acme'] }))).toBe(false)
   })
 
   it('cuts the population once, so the bucket count and the row count agree', () => {
     const rows = buildPortfolioRows(input({ fallbackStallDays: 90 }))
-    const cut = portfolioRowsFor(rows, { by: 'stage', risk: true }, PORTFOLIO_SCOPE_ALL)
+    const cut = portfolioRowsFor(rows, { by: 'stage', risk: true, as: 'table' }, PORTFOLIO_SCOPE_ALL)
     expect(cut).toHaveLength(2)
     const buckets = rollUpPortfolio(cut, 'stage', ladder(), (s) => s.name)
     expect(buckets.reduce((n, b) => n + b.atRisk, 0)).toBe(cut.length)
@@ -729,7 +729,7 @@ describe('organizations or buckets — one rule, both halves in the URL', () => 
 
   it('leaves the population alone when the cut is off', () => {
     const rows = buildPortfolioRows(input())
-    expect(portfolioRowsFor(rows, { by: 'stage', risk: false }, PORTFOLIO_SCOPE_ALL)).toHaveLength(rows.length)
+    expect(portfolioRowsFor(rows, { by: 'stage', risk: false, as: 'table' }, PORTFOLIO_SCOPE_ALL)).toHaveLength(rows.length)
   })
 })
 
@@ -812,13 +812,13 @@ describe('the filter narrows the ORGANIZATIONS, not just their columns', () => {
 
   it('a drill to ONE organization leaves ONE row', () => {
     const rows = buildPortfolioRows(input())
-    const cut = portfolioRowsFor(rows, { by: 'stage', risk: false }, scope({ mapNodeIds: ['riyadh'] }))
+    const cut = portfolioRowsFor(rows, { by: 'stage', risk: false, as: 'table' }, scope({ mapNodeIds: ['riyadh'] }))
     expect(seen(cut)).toEqual(['riyadh'])
   })
 
   it('a drill to a PHASE keeps every organization inside it — the ancestry reading', () => {
     const rows = buildPortfolioRows(input())
-    const cut = portfolioRowsFor(rows, { by: 'stage', risk: false }, scope({ mapNodeIds: ['ob'] }))
+    const cut = portfolioRowsFor(rows, { by: 'stage', risk: false, as: 'table' }, scope({ mapNodeIds: ['ob'] }))
     // The phase itself is a row too — it is an entity node — and it is inside
     // its own subtree, so it stays. What matters is that nothing OUTSIDE does.
     expect(seen(cut)).toEqual(['dammam', 'hail', 'jeddah', 'najran', 'ob', 'riyadh', 'tabuk'])
@@ -826,21 +826,21 @@ describe('the filter narrows the ORGANIZATIONS, not just their columns', () => {
 
   it("`?manager=` shows that person's book and nobody else's — the My-organizations link", () => {
     const rows = buildPortfolioRows(input())
-    const cut = portfolioRowsFor(rows, { by: 'stage', risk: false }, scope({ managerIds: ['sara'] }))
+    const cut = portfolioRowsFor(rows, { by: 'stage', risk: false, as: 'table' }, scope({ managerIds: ['sara'] }))
     expect(seen(cut)).toEqual(['jeddah', 'najran', 'riyadh'])
     expect(seen(cut)).not.toContain('dammam')
   })
 
   it('MANAGER_NONE is the gap an AD hunts, and it is selectable', () => {
     const rows = buildPortfolioRows(input())
-    const cut = portfolioRowsFor(rows, { by: 'stage', risk: false }, scope({ managerIds: [MANAGER_NONE] }))
+    const cut = portfolioRowsFor(rows, { by: 'stage', risk: false, as: 'table' }, scope({ managerIds: [MANAGER_NONE] }))
     // `ob` and `hail` are the two nobody has been given.
     expect(seen(cut)).toEqual(['hail', 'ob'])
   })
 
   it('folds the vendor on both sides, and a blank vendor answers no vendor filter', () => {
     const rows = buildPortfolioRows(input())
-    const cut = portfolioRowsFor(rows, { by: 'stage', risk: false }, scope({ vendors: ['ACME '] }))
+    const cut = portfolioRowsFor(rows, { by: 'stage', risk: false, as: 'table' }, scope({ vendors: ['ACME '] }))
     expect(seen(cut)).toEqual(['hail', 'jeddah', 'riyadh'])
     // Tabuk's vendor is '' — "not recorded" is the absence of an integrator
     // rather than a twelfth one, which is lib/entryFilter's own clause.
@@ -851,7 +851,7 @@ describe('the filter narrows the ORGANIZATIONS, not just their columns', () => {
     const rows = buildPortfolioRows(input())
     const cut = portfolioRowsFor(
       rows,
-      { by: 'stage', risk: false },
+      { by: 'stage', risk: false, as: 'table' },
       { ...scope({ mapNodeIds: ['riyadh'] }), ancestryOfNode: new Map() },
     )
     expect(cut).toEqual([])
@@ -860,9 +860,9 @@ describe('the filter narrows the ORGANIZATIONS, not just their columns', () => {
   it('narrows FIRST and cuts SECOND — "eleven of Sara\'s eighty", not eleven of four hundred', () => {
     const args = input({ fallbackStallDays: 90 })
     const rows = buildPortfolioRows(args)
-    const all = portfolioRowsFor(rows, { by: 'stage', risk: true }, scope())
-    const hers = portfolioRowsFor(rows, { by: 'stage', risk: true }, scope({ managerIds: ['sara'] }))
-    const his = portfolioRowsFor(rows, { by: 'stage', risk: true }, scope({ managerIds: ['bandar'] }))
+    const all = portfolioRowsFor(rows, { by: 'stage', risk: true, as: 'table' }, scope())
+    const hers = portfolioRowsFor(rows, { by: 'stage', risk: true, as: 'table' }, scope({ managerIds: ['sara'] }))
+    const his = portfolioRowsFor(rows, { by: 'stage', risk: true, as: 'table' }, scope({ managerIds: ['bandar'] }))
     // Both of the workspace's stuck organizations happen to be Sara's, which is
     // the point: "two" is the answer to two DIFFERENT questions here, and the
     // other book's answer is what proves the narrowing ran at all.
@@ -873,14 +873,14 @@ describe('the filter narrows the ORGANIZATIONS, not just their columns', () => {
     // Cut-then-narrow would have given the same two; narrow-then-cut is what
     // makes the sentence "two of Sara's three", and the denominator is the
     // narrowed population rather than the workspace.
-    expect(portfolioRowsFor(rows, { by: 'stage', risk: false }, scope({ managerIds: ['sara'] }))).toHaveLength(3)
+    expect(portfolioRowsFor(rows, { by: 'stage', risk: false, as: 'table' }, scope({ managerIds: ['sara'] }))).toHaveLength(3)
   })
 
   it('THE BADGE NARROWS WITH IT — the chip and the list stay one number', () => {
     const args = input({ fallbackStallDays: 90 })
     const rows = buildPortfolioRows(args)
     for (const s of [scope(), scope({ managerIds: ['sara'] }), scope({ mapNodeIds: ['riyadh'] })]) {
-      const cut = portfolioRowsFor(rows, { by: 'stage', risk: true }, s)
+      const cut = portfolioRowsFor(rows, { by: 'stage', risk: true, as: 'table' }, s)
       expect(countAtRisk(args.root, { ...args, scope: s })).toBe(cut.length)
     }
   })

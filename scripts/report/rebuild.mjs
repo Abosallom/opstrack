@@ -272,7 +272,7 @@ function rungFor(states) {
   return 'Kickoff'
 }
 
-export function rebuild(exportPath, { verbose = false, members = null } = {}) {
+export function rebuild(exportPath, { members = null } = {}) {
   const rows = parseCsv(readFileSync(exportPath, 'utf8'))
   const hdr = rows[0].map((h) => h.trim())
   const iSummary = hdr.indexOf('Summary')
@@ -380,7 +380,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   } catch (e) {
     console.log(`(roster unavailable — every assignee kept: ${e.message.slice(0, 60)})`)
   }
-  const { list, skipped, unmatchedText, byConvention, near } = rebuild(src, { verbose, members })
+  const { list, skipped, unmatchedText, byConvention, near } = rebuild(src, { members })
   writeFileSync(out, toCsv(list))
 
   const links = list.reduce((n, o) => n + o.caps.size, 0)

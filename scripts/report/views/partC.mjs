@@ -4,8 +4,6 @@
 // map still does not reflect what is in the export". Everything on it is
 // measured from the owner's own export file, not from the repo's prose.
 
-const F = 'font-family="-apple-system, Helvetica Neue, Arial, sans-serif"'
-
 export const css = `
 .gap-fun { margin: 3mm 0 4mm; }
 .gap-row { display: grid; grid-template-columns: 52mm 1fr 26mm; gap: 3mm; align-items: center; margin-bottom: 2.2mm; }

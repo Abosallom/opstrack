@@ -166,7 +166,6 @@ export function page(fx) {
   const cards = books(fx);
   const none = cards.find((c) => c.owner === '');
   const named = cards.filter((c) => c.owner !== '');
-  const emptyRungs = stages
     .filter((s) => !fx.tracker.orgs.some((o) => o.stage === s.name))
     .map((s) => s.name);
 

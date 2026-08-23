@@ -322,3 +322,53 @@ export const PORTFOLIO_BY_KEY: Readonly<Record<PortfolioBy, string>> = Object.fr
   vendor: 'mindtree.portfolioByVendor',
   phase: 'mindtree.portfolioByPhase',
 })
+
+/* ─────────────────────── how the portfolio is DRAWN ─────────────────────── */
+//
+// A SECOND AXIS OVER THE SAME ROWS, and deliberately not four more lens chips.
+// MapLensBar's own header sets the test a new chip has to pass: "is it a new
+// question about a new dataset, or the same rows read another way? If it is the
+// second, it is a `?by=` value on a lens that already exists" — and warns that
+// four more would take that row to nine, "which on a 375px phone is a two-screen
+// pan". These four are the same organizations every time; only the mark changes.
+//
+// It also costs nothing structural: `MapLens`, `MapStage` and `PanelSubject`
+// are untouched, so not one of the exhaustiveness assertions in lens.test.ts
+// moves. A seventh lens would have cost six sites here and nine there.
+
+/** How the portfolio's rows are DRAWN. Rides the URL as `?as=`. */
+export type PortfolioAs = 'table' | 'bars' | 'cards' | 'grid'
+
+export const PORTFOLIO_ASES: readonly PortfolioAs[] = Object.freeze([
+  'table',
+  'bars',
+  'cards',
+  'grid',
+] as const)
+
+/**
+ * The table stays the default, because it is what the reader already has and a
+ * silent change of shape on a screen somebody has learned is its own small
+ * betrayal. Every other value is something they asked for.
+ */
+export const DEFAULT_PORTFOLIO_AS: PortfolioAs = 'table'
+
+export function isPortfolioAs(v: unknown): v is PortfolioAs {
+  return typeof v === 'string' && (PORTFOLIO_ASES as readonly string[]).includes(v)
+}
+
+/**
+ * HUMAN WORDS, on `PORTFOLIO_BY_KEY`'s rule, and LITERAL for its reason:
+ * localeReach.test.ts scans source for quoted dotted strings and a
+ * `t(\`mindtree.portfolioAs${x}\`)` ships missing in one language.
+ *
+ * `grid` reads "Every capability" rather than "Grid", because the word names
+ * what the reader gets rather than the shape it arrives in — the same reason
+ * `manager` reads "Team".
+ */
+export const PORTFOLIO_AS_KEY: Readonly<Record<PortfolioAs, string>> = Object.freeze({
+  table: 'mindtree.portfolioAsTable',
+  bars: 'mindtree.portfolioAsBars',
+  cards: 'mindtree.portfolioAsCards',
+  grid: 'mindtree.portfolioAsGrid',
+})

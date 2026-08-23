@@ -176,6 +176,9 @@ import {
   type MapLens,
   type MapStage,
   type PortfolioBy,
+  isPortfolioAs,
+  DEFAULT_PORTFOLIO_AS,
+  type PortfolioAs,
 } from '../../lib/mindtree/lens'
 import type { MindDimension } from '../../lib/mindtree/model'
 import {
@@ -188,11 +191,12 @@ import {
   useMindView,
 } from '../../store/mindtree'
 
-/** The four params this file adds. `dim` and `focus` are named by focus.ts. */
+/** The five params this file adds. `dim` and `focus` are named by focus.ts. */
 const P_LENS = 'lens'
 const P_STAGE = 'stage'
 const P_BY = 'by'
 const P_RISK = 'risk'
+const P_AS = 'as'
 
 /* ── the pure decisions ─────────────────────────────────────────────────── */
 
@@ -507,6 +511,8 @@ export function mapLensMirror(
 export interface MapUrlPortfolio {
   by: PortfolioBy
   risk: boolean
+  /** How the rows are DRAWN. A second axis over the same data — see lens.ts. */
+  as: PortfolioAs
 }
 
 /**
@@ -534,9 +540,11 @@ function riskFromParam(raw: string | null): boolean {
  */
 export function mapPortfolioFromParams(p: URLSearchParams): MapUrlPortfolio {
   const rawBy = p.get(P_BY)
+  const rawAs = p.get(P_AS)
   return {
     by: isPortfolioBy(rawBy) ? rawBy : DEFAULT_PORTFOLIO_BY,
     risk: riskFromParam(p.get(P_RISK)),
+    as: isPortfolioAs(rawAs) ? rawAs : DEFAULT_PORTFOLIO_AS,
   }
 }
 
@@ -568,6 +576,15 @@ export function mapParamsForPortfolio(
   next.set(P_BY, v.by)
   if (v.risk === DEFAULT_PORTFOLIO_RISK) next.delete(P_RISK)
   else next.set(P_RISK, v.risk ? '1' : '0')
+  // ⚠ SUPPRESSED AT ITS DEFAULT, which is `?risk=`'s rule and NOT `?by=`'s.
+  //   `?by=` spells itself always because it has three states — chose stage,
+  //   chose something else, and has not chosen — and the canvas reads the third
+  //   differently. `?as=` has no such third state: the table is what a reader
+  //   who has expressed no opinion gets, and writing `as=table` on every link
+  //   would put a param in front of every reader for a case that round-trips
+  //   anyway.
+  if (v.as === DEFAULT_PORTFOLIO_AS) next.delete(P_AS)
+  else next.set(P_AS, v.as)
   return next
 }
 

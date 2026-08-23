@@ -72,7 +72,7 @@
 import type { IsoDate } from '../dates'
 import { MANAGER_NONE, type FilterState } from '../entryFilter'
 import { entityIdOf, type StageIndex, type UseCaseProgress } from '../mapNodes'
-import type { PortfolioBy } from '../mindtree/lens'
+import type { PortfolioAs, PortfolioBy } from '../mindtree/lens'
 import type { MindNode } from '../mindtree/model'
 import { normalizeSearch } from '../text'
 import type { Entry, MapNode, MapNodeProgress, MapNodeStage } from '../../types'
@@ -103,6 +103,13 @@ export interface PortfolioView {
   by: PortfolioBy
   /** The exception cut: show only what is past its stage's expectation. */
   risk: boolean
+  /**
+   * How the rows are DRAWN — a second axis over the same data, not a second
+   * dataset. `by` decides what a row IS; this decides what it looks like, and
+   * the two cross: every grouping can be read as a table, as bars, as cards or
+   * as the capability grid.
+   */
+  as: PortfolioAs
 }
 
 /**

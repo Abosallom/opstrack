@@ -303,6 +303,7 @@ function render(
   over: {
     by?: 'stage' | 'manager' | 'vendor' | 'phase'
     risk?: boolean
+  as?: 'table' | 'bars' | 'cards' | 'grid'
     mapNodeIds?: string[]
     /**
      * Show ORGANIZATION rows with the exception cut off.
@@ -325,7 +326,7 @@ function render(
           mapNodeIds: over.mapNodeIds ?? (over.rows ? ['riyadh', 'jeddah', 'hail'] : []),
         }}
         onNarrow={() => {}}
-        view={{ by: over.by ?? 'stage', risk: over.risk ?? true }}
+        view={{ by: over.by ?? 'stage', risk: over.risk ?? true, as: over.as ?? 'table' }}
         onView={() => {}}
         textOf={(label) => (label.kind === 'text' ? label.text : label.key)}
         terminalKey="live"

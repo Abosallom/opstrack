@@ -332,6 +332,10 @@
     "portfolioBy": "تجميع المنشآت حسب",
     "portfolioByManager": "الفريق",
     "portfolioByPhase": "التقدّم",
+    "portfolioAsTable": "جدول",
+    "portfolioAsBars": "أشرطة",
+    "portfolioAsCards": "بطاقات",
+    "portfolioAsGrid": "كل القدرات",
     "portfolioByStage": "المرحلة",
     "portfolioByVendor": "المزوّدون",
     "portfolioDays": {

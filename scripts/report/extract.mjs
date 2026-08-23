@@ -87,7 +87,6 @@ async function readTracker() {
   const stageById = new Map(stages.map((s) => [s.id, s]))
   const progressByNode = new Map(progress.map((p) => [p.node_id, p]))
   const ownerById = new Map(profiles.map((p) => [p.id, p.display_name]))
-  const ucById = new Map(useCases.map((u) => [u.id, u]))
 
   // status per (org, capability). Absent from this map === nobody has said.
   const cellByOrg = new Map(orgs.map((o) => [o.id, new Map()]))

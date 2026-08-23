@@ -124,7 +124,6 @@ export function page(fx) {
 
   // Rung is not drawn here, but the "what it hides" line has to be able to say
   // how many rungs stand empty without any of us guessing the number.
-  const emptyRungs = fx.tracker.stages
     .filter((s) => !orgs.some((o) => o.stage === s.name)).length
 
   const cellArea = (MAP_W * MAP_H) / recordedSum

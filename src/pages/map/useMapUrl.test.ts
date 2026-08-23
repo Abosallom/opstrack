@@ -528,8 +528,8 @@ describe('mapPortfolioFromParams', () => {
   it('lands on the stalled list when the URL says nothing — budget E1', () => {
     // ZERO INTERACTIONS AFTER OPEN. If this ever answers anything else, the
     // morning question costs a tap and the chip stops being the answer.
-    expect(mapPortfolioFromParams(params(''))).toEqual({ by: 'stage', risk: true })
-    expect(mapPortfolioFromParams(params('lens=portfolio'))).toEqual({ by: 'stage', risk: true })
+    expect(mapPortfolioFromParams(params(''))).toEqual({ by: 'stage', risk: true, as: 'table' })
+    expect(mapPortfolioFromParams(params('lens=portfolio'))).toEqual({ by: 'stage', risk: true, as: 'table' })
   })
 
   it('reads each grouping the palette can link to', () => {
@@ -558,16 +558,16 @@ describe('mapParamsForPortfolio', () => {
   it('never spells out a default RISK, and always spells out an opinion', () => {
     // `mapParamsForLens`'s rule for `?stage=` — but for `?risk=` only. `?by=` is
     // the exception, and the case below is why.
-    expect(mapParamsForPortfolio(params(''), { by: 'stage', risk: true }).toString()).toBe(
+    expect(mapParamsForPortfolio(params(''), { by: 'stage', risk: true, as: 'table' }).toString()).toBe(
       'by=stage',
     )
-    expect(mapParamsForPortfolio(params(''), { by: 'manager', risk: true }).toString()).toBe(
+    expect(mapParamsForPortfolio(params(''), { by: 'manager', risk: true, as: 'table' }).toString()).toBe(
       'by=manager',
     )
-    expect(mapParamsForPortfolio(params(''), { by: 'stage', risk: false }).toString()).toBe(
+    expect(mapParamsForPortfolio(params(''), { by: 'stage', risk: false, as: 'table' }).toString()).toBe(
       'by=stage&risk=0',
     )
-    const both = mapParamsForPortfolio(params(''), { by: 'vendor', risk: false })
+    const both = mapParamsForPortfolio(params(''), { by: 'vendor', risk: false, as: 'table' })
     expect(both.get('by')).toBe('vendor')
     expect(both.get('risk')).toBe('0')
   })
@@ -579,7 +579,7 @@ describe('mapParamsForPortfolio', () => {
     // differently (stage rings vs ungrouped, see Mindtree.tsx's `canvasBy`). So
     // the writer that a chip press goes through spells the value even when it
     // equals the default. `mapPortfolioChosen` is the reader of that difference.
-    const pressed = mapParamsForPortfolio(params('by=vendor&risk=0'), { by: 'stage', risk: true })
+    const pressed = mapParamsForPortfolio(params('by=vendor&risk=0'), { by: 'stage', risk: true, as: 'table' })
     expect(pressed.get('by')).toBe('stage')
     expect(mapPortfolioChosen(pressed)).toBe(true)
     // …and the risk half still clears, so the two controls are not symmetric.
@@ -591,7 +591,7 @@ describe('mapParamsForPortfolio', () => {
     // their filter, their drill-in or their lens (budget E9).
     const next = mapParamsForPortfolio(
       params('lens=portfolio&focus=root%2Ftrack%3Ax&dim=owner&q=vpn'),
-      { by: 'manager', risk: false },
+      { by: 'manager', risk: false, as: 'table' },
     )
     expect(next.get('lens')).toBe('portfolio')
     expect(next.get('focus')).toBe('root/track:x')
@@ -600,13 +600,36 @@ describe('mapParamsForPortfolio', () => {
   })
 
   it('round-trips every combination through the reader', () => {
+    // Now a cube rather than a square: the grouping crossed with the exception
+    // cut crossed with HOW the rows are drawn. All 32 must survive the trip, and
+    // `as=table` survives it by being absent from the URL — see the suppression
+    // rule in `mapParamsForPortfolio`.
     for (const by of ['stage', 'manager', 'vendor', 'phase'] as const) {
       for (const risk of [true, false]) {
-        const v = { by, risk }
-        expect(mapPortfolioFromParams(mapParamsForPortfolio(params('q=a'), v)), `${by}/${risk}`)
-          .toEqual(v)
+        for (const as of ['table', 'bars', 'cards', 'grid'] as const) {
+          const v = { by, risk, as }
+          expect(
+            mapPortfolioFromParams(mapParamsForPortfolio(params('q=a'), v)),
+            `${by}/${risk}/${as}`,
+          ).toEqual(v)
+        }
       }
     }
+  })
+
+  it('leaves `as` out of the URL at its default and spells it otherwise', () => {
+    // `?by=` spells itself always because it has a third state the canvas reads
+    // differently. `?as=` has no third state, so the table — what a reader with
+    // no opinion gets — costs no param.
+    const table = mapParamsForPortfolio(params(''), { by: 'stage', risk: true, as: 'table' })
+    expect(table.get('as')).toBeNull()
+    const grid = mapParamsForPortfolio(params(''), { by: 'stage', risk: true, as: 'grid' })
+    expect(grid.get('as')).toBe('grid')
+  })
+
+  it('answers the default for a hand-typed `as` that means nothing', () => {
+    expect(mapPortfolioFromParams(params('as=sideways')).as).toBe('table')
+    expect(mapPortfolioFromParams(params('')).as).toBe('table')
   })
 })
 
