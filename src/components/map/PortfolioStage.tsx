@@ -113,7 +113,14 @@ import { isolate } from '../../lib/bidi'
 import { t, useLocale } from '../../lib/i18n'
 import { useStageLabel } from '../../lib/labels'
 import { progressByNode, stageIndex } from '../../lib/mapNodes'
-import { PORTFOLIO_BY_KEY, PORTFOLIO_BYS, type PortfolioBy } from '../../lib/mindtree/lens'
+import {
+  PORTFOLIO_AS_KEY,
+  PORTFOLIO_ASES,
+  PORTFOLIO_BY_KEY,
+  PORTFOLIO_BYS,
+  type PortfolioAs,
+  type PortfolioBy,
+} from '../../lib/mindtree/lens'
 import type { MindNode } from '../../lib/mindtree/model'
 import {
   ariaSort,
@@ -847,6 +854,10 @@ export default function PortfolioStage({
         />
       </div>
 
+      <div className="pf-controls pf-controls-as">
+        <AsChips value={view.as} onChange={(as) => onView({ ...view, as })} compact={compact} />
+      </div>
+
       {noThresholds && (
         <p className="pf-note">
           {t('mindtree.portfolioNoThreshold')}{' '}
@@ -1055,6 +1066,52 @@ function ByChips({
           onClick={() => onChange(by)}
         >
           {t(PORTFOLIO_BY_KEY[by])}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * HOW the rows are drawn — the second axis, and a second chip group.
+ *
+ * ⚠ NOT FOLDED INTO `ByChips`. The two answer different questions and the file's
+ *   own note on that component says why a shared generic would be wrong: "a
+ *   generic over two unions would put two ideas in one file whose header spends
+ *   a paragraph on being exactly one." What IS shared is the accessibility
+ *   contract — a named `role="group"`, `aria-pressed` per chip, `.tap-44` on
+ *   each — and it is restated here rather than inherited.
+ *
+ * Four chips, always all of them, never behind a disclosure: MapLensBar's rule.
+ * They sit on their own line below the grouping chips, which is what keeps the
+ * 375px row from becoming the two-screen pan that argued against making these
+ * four lenses in the first place.
+ */
+function AsChips({
+  value,
+  onChange,
+  compact,
+}: {
+  value: PortfolioAs
+  onChange: (next: PortfolioAs) => void
+  compact: boolean
+}): ReactElement {
+  return (
+    <div
+      className="pf-ases"
+      role="group"
+      aria-label={t('mindtree.portfolioAs')}
+      data-compact={compact ? '' : undefined}
+    >
+      {PORTFOLIO_ASES.map((as) => (
+        <button
+          key={as}
+          type="button"
+          className="pf-chip tap-44"
+          aria-pressed={as === value}
+          onClick={() => onChange(as)}
+        >
+          {t(PORTFOLIO_AS_KEY[as])}
         </button>
       ))}
     </div>

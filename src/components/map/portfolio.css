@@ -84,6 +84,30 @@
   min-inline-size: 0;
 }
 
+/* THE SECOND AXIS, on its own line.
+   Same shape as `.pf-bys` and deliberately not merged with it: these answer a
+   different question and a reader must be able to see at a glance that pressing
+   one does not undo the other. `row-gap: 16px` is not decoration — every chip
+   carries `.tap-44`, whose overlay reaches 7px above and below the padding box,
+   so two wrapped lines closer than 14px have overlapping targets and the later
+   line silently eats the earlier line's. Invisible at 1280px, where nothing
+   wraps. */
+.pf-ases {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  row-gap: 16px;
+  min-inline-size: 0;
+}
+
+/* The two rows read as one control, so the second loses the first's top margin
+   and gains a hairline instead of a gap. */
+.pf-controls-as {
+  padding-block-start: 6px;
+  border-block-start: 1px solid var(--border);
+}
+
 /* THE CHIP. Four of these plus the risk toggle is five targets, which is the
    count the lens rail already prices at 375px — so the row wraps rather than
    scrolling, because unlike the lens rail this one is in the page's flow and a

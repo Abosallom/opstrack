@@ -330,6 +330,7 @@
     "portfolioBulkPartial": "حُفظ {done}، وتعذّر حفظ {failed}.",
     "portfolioBulkStage": "تعيين المرحلة…",
     "portfolioBy": "تجميع المنشآت حسب",
+    "portfolioAs": "طريقة العرض",
     "portfolioByManager": "الفريق",
     "portfolioByPhase": "التقدّم",
     "portfolioAsTable": "جدول",

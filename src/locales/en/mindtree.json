@@ -254,6 +254,7 @@
     "portfolioBulkPartial": "Saved {done}; {failed} could not be saved.",
     "portfolioBulkStage": "Set the stage…",
     "portfolioBy": "Group the organizations by",
+    "portfolioAs": "How to show it",
     "portfolioByManager": "Team",
     "portfolioByPhase": "Progress",
     "portfolioAsTable": "Table",

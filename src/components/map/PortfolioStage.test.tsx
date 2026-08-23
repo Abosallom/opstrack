@@ -617,13 +617,42 @@ describe('the table is reachable without a pointer', () => {
     )
   })
 
-  it('E7 — shows no control beyond the chips, the toggle and the row’s own', () => {
+  it('E7 — shows no control beyond the two chip rows, the toggle and the row’s own', () => {
     const html = render(seed())
-    // The chrome above the table is exactly: four `?by=` chips and one risk
-    // toggle. The bulk bar appears only behind a selection, which is what keeps
-    // the default screen inside the progressive-disclosure budget.
-    expect((html.match(/class="pf-chip[^"]*"/g) ?? []).length).toBe(5)
+    // THE BUDGET WENT FROM FIVE TO NINE, and that needs an argument rather than
+    // a new number.
+    //
+    // It was four `?by=` chips and one risk toggle. It is now those five plus
+    // four `?as=` chips — a second axis saying how the same rows are DRAWN:
+    // table, bars, cards, the capability grid.
+    //
+    //   THEY ARE NOT FOUR MORE OPTIONS ON THE SAME QUESTION. They are four
+    //   views the owner asked for by name, and the alternative was four more
+    //   chips on the LENS rail — which MapLensBar's own header refuses in
+    //   advance: "Four chips would have taken this row to nine, which on a
+    //   375px phone is a two-screen pan." That rail is pinned and cannot wrap.
+    //   This row is in the page's flow and wraps for free, which is the whole
+    //   reason the second axis lives here and not there.
+    //
+    //   The progressive-disclosure budget was always about controls that HIDE
+    //   things behind themselves. Nothing here hides anything: every chip is
+    //   visible, all four states of each axis are always on screen, and no
+    //   disclosure was added.
+    //
+    // The bulk bar still appears only behind a selection. That part is unchanged
+    // and is the assertion this test was really written to hold.
+    expect((html.match(/class="pf-chip[^"]*"/g) ?? []).length).toBe(9)
     expect(html).not.toContain('pf-bulk')
+  })
+
+  it('keeps the two axes as two named groups, not one row of nine', () => {
+    // A reader must be able to see that pressing a draw-chip does not undo a
+    // grouping choice. Two `role="group"` elements with their own names is how
+    // that is said to somebody who cannot see the line between them.
+    const html = render(seed())
+    expect(html).toContain(`aria-label="${t('mindtree.portfolioBy')}"`)
+    expect(html).toContain(`aria-label="${t('mindtree.portfolioAs')}"`)
+    expect(html).toContain('class="pf-ases"')
   })
 })
 
