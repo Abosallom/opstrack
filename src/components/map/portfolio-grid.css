@@ -1,0 +1,419 @@
+/* THE HEAT GRID — `pfg-`, and this sheet owns that prefix alone.
+ *
+ * Nothing here styles a `.pf-*`, a `.home-*`, a `.mbr-*` or a `.pill`: the CSS
+ * prefix registry gives each sheet one prefix and forbids styling another's,
+ * which is what stops a dense view "improving" a shared component and moving
+ * five screens nobody was looking at.
+ *
+ * LOGICAL PROPERTIES ONLY — `inline-size`, `padding-inline`,
+ * `inset-inline-start`. No `left`, no `right`, no `width`. That is why the
+ * Arabic build pins the organization column to the RIGHT edge with no second
+ * rule and no mirror stylesheet: the sticky offset is expressed against the
+ * writing direction rather than against the screen.
+ */
+
+.pfg {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Every flex ancestor of a scroller needs this or the scroller sizes itself
+     to its CONTENT and pushes the page sideways — house law 5's second half,
+     and the failure it names is the whole page panning instead of the grid. */
+  min-inline-size: 0;
+}
+
+/* ═══════════════════ the sentence above the picture ═══════════════════ */
+
+/* "715 of 2,415 recorded · 222 live" — counted out of its denominator, never a
+   share. The picture below is the argument; this is the claim. */
+.pfg-totals {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+/* THE LINE THAT NAMES THE ABSENCE, and it is not a footnote. More than two
+   thirds of this table is a question nobody has asked, and a reader who takes
+   the field of hollow squares for "loading" needs the number in words. */
+.pfg-absence {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+/* ═══════════════════ the two keys ═══════════════════ */
+
+.pfg-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pfg-key-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.pfg-key-item::before {
+  content: '';
+  inline-size: 11px;
+  block-size: 11px;
+  border-radius: 2px;
+  flex: none;
+}
+
+/* THE APP'S TRIPLE, taken from home.css and not invented here: a reader who has
+   learned the green on the home screen has learned it on this one. */
+.pfg-key-item[data-k='live']::before {
+  background: var(--green);
+}
+.pfg-key-item[data-k='testing']::before {
+  background: var(--accent);
+}
+.pfg-key-item[data-k='planned']::before {
+  background: var(--border);
+}
+
+/* ⚠ THE FOURTH SWATCH IS THE ONE THIS VIEW IS ABOUT. The surface itself inside a
+   hairline — never a fill, and never a fourth hue. `planned` above is a SOLID
+   square in `--border`; this is a HOLLOW one in the same token, so the pair
+   differ in FORM and not only in colour (WCAG 1.4.1), and the difference
+   survives a monochrome print, a low-contrast screen and every kind of colour
+   blindness there is. The key says it once so the grid can say it 1,700 times. */
+.pfg-key-item[data-k='none']::before {
+  background: var(--bg-elev);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* The column key. Numbered headings are only honest if the numbers decode
+   somewhere the reader can see without leaving the page. */
+.pfg-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.pfg-cols-item {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-inline-size: 0;
+}
+
+.pfg-cols-n {
+  min-inline-size: 1.35em;
+  padding-inline: 4px;
+  border-radius: 3px;
+  background: var(--bg-elev-2);
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  flex: none;
+}
+
+/* ═══════════════════ the grid itself ═══════════════════ */
+
+/* FIFTEEN COLUMNS DO NOT FIT 375px AND ARE NOT MADE TO. `.pf-wrap`'s pattern,
+   for `.pf-wrap`'s stated reason: the wrapper scrolls along the inline axis and
+   the component gives it `role="region"`, `tabIndex={0}` and `aria-labelledby`,
+   so a reader who cannot use a pointer still reaches the fifteenth column.
+   Columns are never dropped on a phone.
+
+   `padding-block` is not spacing. `overflow-x: auto` computes `overflow-y` to
+   `auto` as well, which CLIPS the `.tap-44` `::after` overlay on the row
+   header at the padding edge — `.chip-row` pays exactly 7px for exactly this,
+   and the organization button is a 44px target only while the room is here. */
+.pfg-wrap {
+  overflow-x: auto;
+  padding-block: 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.pfg-tbl {
+  border-collapse: separate;
+  /* SEPARATE, NOT COLLAPSE, and that is load-bearing: a collapsed border makes
+     the sticky column's own border scroll away with the cells it was drawn
+     between, so the frozen names lose their edge the moment the reader pans. */
+  border-spacing: 0;
+  font-size: 12px;
+}
+
+.pfg-caption {
+  padding: 8px 12px;
+  text-align: start;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.pfg-caption-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pfg-caption-desc {
+  color: var(--text-faint);
+}
+
+/* ── the headings ── */
+
+.pfg-tbl thead th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  padding: 5px 6px;
+  text-align: start;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--bg-elev-2);
+  border-block-end: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+/* A NUMBER, WITH THE NAME AS ITS `.sr-only` TEXT. Rotated headings were the
+   alternative: a `writing-mode` heading has to reserve a block-size equal to
+   the longest capability name, and that name is whatever an admin last typed,
+   in either script. A digit is one character wide in both languages forever. */
+.pfg-colhead {
+  inline-size: 26px;
+  text-align: center;
+}
+
+/* The frozen corner. It sits over BOTH sticky axes, so it needs to outrank the
+   column headings and the row headings alike. */
+.pfg-corner {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 3;
+  inline-size: 11rem;
+}
+
+/* ── the organization column ── */
+
+.pfg-org {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 2;
+  /* OPAQUE ON PURPOSE: a transparent sticky cell lets the fifteen squares slide
+     under the names and the reader sees two states at once in one square. */
+  background: var(--bg-elev);
+  padding: 0 6px;
+  text-align: start;
+  font-weight: 500;
+  border-block-end: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border);
+}
+
+.pfg-org-btn {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 11rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  /* Truncate, THEN isolate — the component's order, so the ellipsis belongs to
+     the row's direction and not to whatever the name's first letter is. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-block-size: 30px;
+}
+
+.pfg-org-btn:hover {
+  text-decoration: underline;
+}
+
+/* Archived anywhere up the path. Rendered marked, never dropped —
+   `lib/portfolio/rows.ts`'s rule, and the reason an archived organization that
+   still holds work can still be seen to hold it. */
+.pfg-retired {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+/* FIFTEEN SQUARES IS A LONG WAY FOR AN EYE TO TRACK. The row lights on hover —
+   including the frozen name, which is the far end of the line the reader is
+   following — so "which organization is this square on" survives the pan. */
+.pfg-row:hover .pfg-cell,
+.pfg-row:hover .pfg-tally,
+.pfg-row:hover .pfg-owner {
+  background: var(--bg-elev-2);
+}
+
+.pfg-row:hover .pfg-org {
+  background: var(--bg-elev-2);
+}
+
+/* ── the squares ── */
+
+.pfg-cell {
+  padding: 0;
+  inline-size: 26px;
+  block-size: 22px;
+  border-block-end: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border);
+}
+
+/* The square is drawn by the cell rather than by a child element: 2,415 cells
+   is 2,415 extra nodes if the swatch is a `<span>`, and the pseudo costs none.
+   The `.sr-only` word inside the cell is the part that has to be an element. */
+.pfg-cell::before {
+  content: '';
+  display: block;
+  inline-size: 14px;
+  block-size: 14px;
+  margin: 4px auto;
+  border-radius: 2px;
+}
+
+.pfg-cell[data-k='live']::before {
+  background: var(--green);
+}
+
+.pfg-cell[data-k='testing']::before {
+  background: var(--accent);
+}
+
+/* Deliberately the quietest of the three that ARE filled — home.css's note:
+   "planned" is the absence of work done, and painting it as loudly as the other
+   two would make an untouched programme look busy. */
+.pfg-cell[data-k='planned']::before {
+  background: var(--border);
+}
+
+/* ⚠⚠ THE 1,700. NOBODY HAS SAID ANYTHING ABOUT THIS CAPABILITY AT THIS
+   ORGANIZATION, and it is NOT "planned" — planned is a decision somebody made.
+   So: the container's own ground, and a hairline. No fill, no fourth hue, no
+   dash. Two thirds of the grid is this, and the field it makes is the single
+   most useful thing the picture says — you can see the edge of what anyone has
+   ever asked about. It differs from `planned` in FORM (outline vs fill), which
+   is what keeps it legible without colour, and the cell also carries the word
+   for a screen reader, so the drawing is decoration over a fact already
+   written. */
+.pfg-cell[data-k='none']::before {
+  background: var(--bg-elev);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* NOT A STATE — A WAIT. The links store has not landed for this organization,
+   so nobody has LOOKED, which is a different fact from nobody having SAID.
+   Drawn dimmer than the hairline and never as the fourth state, because
+   reporting fifteen unasked questions from the absence of a fetch is a
+   measurement nobody took. */
+.pfg-cell[data-k='pending']::before {
+  background: var(--bg-elev-2);
+  opacity: 0.55;
+}
+
+/* ── the two text columns at the trailing edge ── */
+
+/* "3 live of 7 recorded". Counted out of its denominator; the reader who wants
+   the share can take it, and nothing here does it for them. */
+.pfg-tally {
+  padding: 3px 8px;
+  white-space: nowrap;
+  color: var(--text-dim);
+  border-block-end: 1px solid var(--border);
+}
+
+.pfg-owner {
+  padding: 3px 8px;
+  max-inline-size: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  border-block-end: 1px solid var(--border);
+}
+
+/* ── the buckets, when `?by=` is showing them ── */
+
+.pfg-group + .pfg-group .pfg-grouphead {
+  border-block-start: 1px solid var(--border);
+}
+
+.pfg-grouprow {
+  background: var(--bg-elev-2);
+}
+
+/* Sticky at the inline start like the names it heads, so panning fifteen
+   columns sideways never loses which bucket the rows belong to. */
+.pfg-grouphead {
+  position: sticky;
+  inset-inline-start: 0;
+  padding: 5px 8px;
+  text-align: start;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--bg-elev-2);
+  border-block-end: 1px solid var(--border);
+}
+
+.pfg-groupn {
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+/* ═══════════════════ the states that are not the grid ═══════════════════ */
+
+.pfg-blank {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.pfg-blank-hint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+/* NOBODY HAS LOOKED YET. Quiet, and NOT the empty state: a grid of hollow
+   squares here would claim the workspace has recorded nothing, from the absence
+   of a fetch. No spinner — the sentence is the whole of it. */
+.pfg-loading {
+  margin: 0;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+/* ═══════════════════ the phone ═══════════════════ */
+
+/* `compact` is < 768px, and it does NOT drop a column — house law 5. It gives
+   back the inline space the names were holding, so more of the fifteen are on
+   screen before the reader has to pan for the rest. */
+.pfg[data-compact='1'] .pfg-corner,
+.pfg[data-compact='1'] .pfg-org-btn {
+  max-inline-size: 8rem;
+  inline-size: 8rem;
+}

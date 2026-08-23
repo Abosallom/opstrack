@@ -236,7 +236,32 @@
     "panelOrg": "⁨{label}⁩ — details",
     "panelResize": "Change the panel height",
     "panelShown": "The panel is showing.",
+    "portfolioAs": "How to show it",
+    "portfolioAsBars": "Bars",
+    "portfolioAsCards": "Cards",
+    "portfolioAsGrid": "Every capability",
+    "portfolioAsTable": "Table",
     "portfolioAtRisk": "Past its stage",
+    "portfolioBarsEmpty": "Nothing to rank",
+    "portfolioBarsEmptyHint": "Nothing matches the filter, so there is nothing to compare. Clear it, or widen it.",
+    "portfolioBarsHidden": {
+      "one": "{count} more is not drawn yet.",
+      "other": "{count} more are not drawn yet."
+    },
+    "portfolioBarsKey": "What the colours mean",
+    "portfolioBarsNone": "Nothing recorded, of {total}.",
+    "portfolioBarsOpen": "Open this organization",
+    "portfolioBarsRisk": {
+      "one": "{count} of {orgs} past its stage",
+      "other": "{count} of {orgs} past their stage"
+    },
+    "portfolioBarsRow": "{live} live, {testing} testing, {planned} planned, {unrecorded} not recorded",
+    "portfolioBarsScale": {
+      "one": "Every bar is the whole catalogue — {count} capability.",
+      "other": "Every bar is the whole catalogue — {count} capabilities."
+    },
+    "portfolioBarsShowAll": "Draw them all",
+    "portfolioBarsUnread": "Nobody has read the capabilities here yet.",
     "portfolioBlock": {
       "one": "{count} at ⁨{stage}⁩",
       "other": "{count} at ⁨{stage}⁩"
@@ -254,15 +279,14 @@
     "portfolioBulkPartial": "Saved {done}; {failed} could not be saved.",
     "portfolioBulkStage": "Set the stage…",
     "portfolioBy": "Group the organizations by",
-    "portfolioAs": "How to show it",
     "portfolioByManager": "Team",
     "portfolioByPhase": "Progress",
-    "portfolioAsTable": "Table",
-    "portfolioAsBars": "Bars",
-    "portfolioAsCards": "Cards",
-    "portfolioAsGrid": "Every capability",
     "portfolioByStage": "Stage",
     "portfolioByVendor": "Vendors",
+    "portfolioCardsCounts": "{recorded} recorded · {live} live",
+    "portfolioCardsEmpty": "Nothing recorded here yet.",
+    "portfolioCardsKey": "What the marks mean",
+    "portfolioCardsMark": "⁨{name}⁩ — ⁨{status}⁩",
     "portfolioDays": {
       "one": "{count} day",
       "other": "{count} days"
@@ -273,6 +297,35 @@
     "portfolioEmptyHint": "Nothing matches the filter. Clear it, or add organizations from Settings › Structure.",
     "portfolioEmptyRisk": "Nothing is past its stage threshold",
     "portfolioEmptyRiskHint": "Every organization is inside the time its stage allows.",
+    "portfolioGridCaption": "{orgs} organizations down, {caps} capabilities across.",
+    "portfolioGridEmpty": "Nothing to lay out",
+    "portfolioGridEmptyHint": "No organization matches the filter, so there is nothing to set against the capabilities.",
+    "portfolioGridLabel": "Capability grid",
+    "portfolioGridLive": "Live",
+    "portfolioGridLoading": "Reading who has recorded what. The grid draws once the capability links arrive.",
+    "portfolioGridNoCatalogue": "No capabilities yet",
+    "portfolioGridNoCatalogueHint": "Name the capabilities an organization can integrate, in Settings › Capabilities, and this grid can draw a column for each.",
+    "portfolioGridNoOwner": "Nobody named",
+    "portfolioGridNone": "Nobody has recorded this",
+    "portfolioGridNothingRecorded": "Nothing recorded at all",
+    "portfolioGridOrg": "Organization",
+    "portfolioGridOwnerHead": "Account manager",
+    "portfolioGridPending": "Not read yet",
+    "portfolioGridPendingRows": {
+      "one": "{count} organization is still being read.",
+      "other": "{count} organizations are still being read."
+    },
+    "portfolioGridPlanned": "Planned",
+    "portfolioGridRetired": "Archived",
+    "portfolioGridRowCount": "{live} live of {recorded} recorded",
+    "portfolioGridRowHead": "On this line",
+    "portfolioGridTesting": "Testing",
+    "portfolioGridTotals": "{recorded} of {total} recorded · {live} live",
+    "portfolioGridUnnamed": "No group name",
+    "portfolioGridUnrecorded": {
+      "one": "{count} square nobody has recorded anything about.",
+      "other": "{count} squares nobody has recorded anything about."
+    },
     "portfolioLabel": "Portfolio table",
     "portfolioNoManager": "Nobody named",
     "portfolioNoPhase": "Not under a phase",

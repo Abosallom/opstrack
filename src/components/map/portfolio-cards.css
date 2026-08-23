@@ -1,0 +1,352 @@
+/* CAPABILITY CARDS — the portfolio as one card per organization.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.pfc-*` and styles nothing
+   else. A prefix of its own rather than a slice of `.pf*`: that sheet is the
+   TABLE stage — a nine-column scroller with a bulk bar and an editable cell —
+   and this is a grid of self-contained cards with a fifteen-mark strip on each.
+   Two renderings of one dataset, two lifetimes; `portfolio.css` would otherwise
+   have to grow rules for a socket that is not a fill and a card that has to read
+   correctly cropped out of the page, neither of which a table cell has any
+   reason to know about.
+
+   Primitives it USES and never redeclares: `.pill`, `.tap-44`, `.tabular`,
+   `.sr-only`, `.empty-state`.
+
+   COLOUR is the app's, and only the app's — `--green` for live, `--accent` for
+   testing, `--border` for planned. That is `home.css`'s triple, and a reader who
+   learned it on the home bar has learned it here. The fourth state is NOT a
+   fourth colour: it is the card's own `--bg-elev` showing through a hairline
+   ring of `--border`, which is house law 1's dense-mark idiom. Fill versus
+   socket is a difference in FORM and square versus circle a difference in SHAPE,
+   so the pair survives a reader who cannot separate the hues at all
+   (WCAG 1.4.1) — and every mark carries its state as an `.sr-only` word besides,
+   so all of this is decoration over a fact that is already written.
+
+   NO SVG ANYWHERE. house law 4: an SVG mark needs its size in user units before
+   it can draw, and a size that must be measured is exactly what breaks between a
+   375px phone and a rotated one. Every mark here is a box.
+
+   LOGICAL PROPERTIES ONLY — `inline-size`, `padding-inline`, `margin-inline`,
+   `border-inline-start`, `text-align: start`. That is why the Arabic build needs
+   no mirror stylesheet: the grid, the strip and the fact rows all reverse with
+   the document direction for free.
+
+   MOTION: none of its own. The only transition on the card is the one `.btn`
+   family colours already carry, and a strip that animated would draw the eye to
+   a number that had not changed.
+
+   SPACING is on the 4px grid. */
+
+.pfc {
+  /* The stage owns the region the canvas would have had and scrolls in the
+     BLOCK axis itself — `.mtree-canvas` is `overflow: hidden; touch-action:
+     none`, and a grid rendered under those cannot be finger-scrolled at all.
+     This element is a sibling of that box, never a child. */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  block-size: 100%;
+  min-block-size: 0;
+  /* INLINE `auto` is the safety valve, not the plan: `auto-fit` at
+     `minmax(280px, 1fr)` gives one full-width column at 375px and nothing here
+     is ever meant to pan. What CAN exceed the column is a single unbroken
+     40-character organization name, and house law 5 says the wrapper pans and
+     the page never does — so this is a real, named, focusable region and the
+     reader who meets one can still reach the end of it without a pointer. */
+  overflow: auto;
+  overscroll-behavior: contain;
+  /* `overflow: auto` CLIPS a `.tap-44` `::after` overlay at the padding edge
+     (house law 8 — `.chip-row` pays the same 7px). The open button's 7px
+     overlay lives inside its card's own padding, and this pays for the first
+     and last row of cards. */
+  padding: 12px;
+  padding-block: 19px;
+  min-inline-size: 0;
+}
+
+/* Every flex ancestor of a scroller needs this or the scroller never shrinks
+   and the PAGE pans instead — house law 5's second half. */
+.pfc-blank,
+.pfc-grid,
+.pfc-card {
+  min-inline-size: 0;
+}
+
+.pfc-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Centred in THE SPACE THE FLOATING RAIL LEAVES rather than in the whole
+     stage, so the sentence is not covered by the chrome over it —
+     `mindtree.css`'s `.mtree-blank` reserves the same block-start. */
+  padding-block: 48px 24px;
+  flex: 1 1 auto;
+}
+
+/* ---------- the key ---------- */
+
+/* What the four marks mean, once. A card carries its own counts in words, which
+   is what makes it legible cropped out of the page; this is what makes the
+   SHAPES readable the first time somebody meets them. `home.css`'s `.home-key`
+   recipe, with a fourth item that recipe has no need for. */
+.pfc-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: none;
+}
+
+.pfc-key-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ---------- the grid ---------- */
+
+.pfc-grid {
+  display: grid;
+  /* pmo.css's precedent and its stated reason: "auto-fit picks the moment
+     rather than a breakpoint that has to be kept in step". At 375px this is one
+     column and every card is the full width of the stage; at 1200px it is four.
+     `min(100%, 280px)` rather than a bare 280px so a container narrower than the
+     track — a phone in a split view, the panel open beside it — shrinks the card
+     instead of overflowing the grid. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  align-content: start;
+}
+
+/* ---------- a card ---------- */
+
+.pfc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* The card's own ground, and the socket's. The two are the same colour on
+     purpose: an unrecorded mark IS the card showing through. */
+  background: var(--bg-elev);
+}
+
+/* The one thing `compact` decides, and it decides nothing about WHAT is on a
+   card: "columns are NEVER dropped on a phone" (house law 5) applies to a card's
+   facts as much as to a table's columns. It buys those facts back the two pixels
+   of padding they need at 375px. */
+.pfc[data-compact='true'] .pfc-card {
+  padding: 12px;
+}
+
+.pfc-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  /* Two lines of `.tap-44` controls need 16px between them (house law 8), and
+     the retired pill can wrap under the name at 280px. */
+  row-gap: 16px;
+}
+
+.pfc-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--text);
+  min-inline-size: 0;
+  /* A 40-character unbroken organization name breaks the line rather than the
+     column. The region can still pan if a browser refuses to break it. */
+  overflow-wrap: anywhere;
+}
+
+.pfc-open {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+  /* The name IS the control, so it must look like one on hover and be findable
+     by keyboard. The 44px target comes from `.tap-44`'s ::after overlay, which
+     the card's own 14px padding leaves room for. */
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}
+
+.pfc-open:hover {
+  text-decoration-color: var(--accent);
+}
+
+.pfc-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.pfc-retired {
+  flex: none;
+  font-size: 11px;
+}
+
+.pfc-trail {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- the facts ---------- */
+
+/* Every value beside its own label. That is the whole difference between a card
+   and a table row: a row is legible only under its header, and somebody is going
+   to crop one of these and send it to a colleague. */
+.pfc-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 116px), 1fr));
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.pfc-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-inline-size: 0;
+}
+
+.pfc-k {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-faint);
+  text-align: start;
+}
+
+.pfc-v {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+/* DECORATION OVER A FACT ALREADY WRITTEN: the value beside it reads "Past its
+   stage" in words, so the ink is never the only channel (WCAG 1.4.1) —
+   `portfolio.css` states the identical rule for the table's cell. */
+.pfc-v[data-risk='true'] {
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* ---------- the strip ---------- */
+
+.pfc-caps {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--border);
+}
+
+.pfc-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ONE MARK, FOUR STATES. 14px is the smallest square whose fill and whose
+   1px ring are still tellable apart at arm's length, and fifteen of them plus
+   fourteen 4px gaps is 266px — inside a 280px card at its narrowest, so the
+   strip does not wrap at any width the grid can produce. It is allowed to wrap
+   anyway, because every card in the grid is the same width and would wrap at
+   the same mark: the positional comparison survives. */
+.pfc-mark {
+  position: relative;
+  inline-size: 14px;
+  block-size: 14px;
+  flex: none;
+  border-radius: 3px;
+  /* The default IS the fourth state — an unset `data-state` can never come out
+     looking like `planned`. */
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.pfc-mark[data-state='live'] {
+  background: var(--green);
+  box-shadow: none;
+}
+
+.pfc-mark[data-state='testing'] {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+/* The quietest of the three, `home.css`'s reason: "planned" is the absence of
+   work done, and painting it as loudly as the other two would make an untouched
+   programme look busy. A SOLID square — this is the one that the fourth state
+   must never be confused with. */
+.pfc-mark[data-state='planned'] {
+  background: var(--border);
+  box-shadow: none;
+}
+
+/* NOBODY HAS SAID. The card's own ground inside a hairline ring — an empty
+   SOCKET, and round where the recorded three are square, so the difference is
+   carried by form and by shape and not by hue at all. It is deliberately NOT
+   `var(--border)` filled: that is exactly what `planned` looks like, and the
+   two facts are as far apart as any two on this screen. */
+.pfc-mark[data-state='none'] {
+  background: var(--bg-elev);
+  box-shadow: inset 0 0 0 1px var(--border);
+  border-radius: 50%;
+}
+
+/* The caption on the strip. "4 recorded · 2 live", never "27%" and never
+   "0 of 15" — house laws 2 and 3. */
+.pfc-counts {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+
+/* Nobody has LOOKED — the links store has not landed. Quiet on purpose: it is
+   not a state of the data, and it must not read as one. */
+.pfc-wait {
+  margin: 0;
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* "Eleven of Acme's fifteen are stuck at Testing" — the one line on a bucket
+   card that is an instruction rather than a measurement, so it is the one line
+   that gets ink of its own. */
+.pfc-block {
+  margin: 0;
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-dim);
+}

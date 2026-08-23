@@ -113,6 +113,9 @@ import { isolate } from '../../lib/bidi'
 import { t, useLocale } from '../../lib/i18n'
 import { useStageLabel } from '../../lib/labels'
 import { progressByNode, stageIndex } from '../../lib/mapNodes'
+import { PortfolioBars } from './PortfolioBars'
+import { PortfolioCards } from './PortfolioCards'
+import { PortfolioGrid } from './PortfolioGrid'
 import {
   PORTFOLIO_AS_KEY,
   PORTFOLIO_ASES,
@@ -882,6 +885,16 @@ export default function PortfolioStage({
         />
       )}
 
+      {/* ── HOW THE ROWS ARE DRAWN ──────────────────────────────────────
+          The same population, four marks. Each takes the identical props and
+          owns its own sheet, which is what let the three be built at once
+          without any of them reaching into another's CSS prefix.
+
+          THE TABLE STAYS THE `else`, not a fourth case, because it is what a
+          reader with no opinion gets — `?as=` is absent from the URL at its
+          default for the same reason. The empty state is asked BEFORE the
+          switch: "no rows" is a fact about the population, not about the mark,
+          and four copies of it would be four chances to word it differently. */}
       {showsRows && sortedRows.length === 0 ? (
         <div className="pf-blank">
           <EmptyState
@@ -898,6 +911,39 @@ export default function PortfolioStage({
             }
           />
         </div>
+      ) : view.as === 'bars' ? (
+        <PortfolioBars
+          rows={sortedRows}
+          groups={sortedGroups}
+          showsRows={showsRows}
+          catalogue={catalogue}
+          compact={compact}
+          managerNameOf={managerNameOf}
+          onOpenNode={onOpenNode}
+          captionId={captionId}
+        />
+      ) : view.as === 'cards' ? (
+        <PortfolioCards
+          rows={sortedRows}
+          groups={sortedGroups}
+          showsRows={showsRows}
+          catalogue={catalogue}
+          compact={compact}
+          managerNameOf={managerNameOf}
+          onOpenNode={onOpenNode}
+          captionId={captionId}
+        />
+      ) : view.as === 'grid' ? (
+        <PortfolioGrid
+          rows={sortedRows}
+          groups={sortedGroups}
+          showsRows={showsRows}
+          catalogue={catalogue}
+          compact={compact}
+          managerNameOf={managerNameOf}
+          onOpenNode={onOpenNode}
+          captionId={captionId}
+        />
       ) : (
         <div className="pf-wrap" role="region" aria-labelledby={captionId} tabIndex={0}>
           <table className="pf-tbl">

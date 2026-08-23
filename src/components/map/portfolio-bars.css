@@ -1,0 +1,322 @@
+/* RANKED BARS — the `?as=bars` drawing of the portfolio. See PortfolioBars.tsx's
+   header for what a bar is in each of the two shapes.
+
+   ── ONE PREFIX, `pfb-`, AND IT IS THIS FILE'S ALONE ───────────────────────
+
+   The CSS prefix registry gives each sheet one prefix and forbids styling
+   another's, so nothing below names `.pf-*`, `.mbr-*`, `.home-*` or `.pill`.
+   The three global utilities this component leans on — `.sr-only`, `.tabular`,
+   `.tap-44`, `.btn` — are styled in styles/global.css and are read here, never
+   redefined.
+
+   ── NO MEDIA QUERY, AND NOTHING TO RESCUE AT A BREAKPOINT ─────────────────
+
+   home.css's constraint, kept: every size and gap below is the same at 375px and
+   at 1600, and the only concession to a wide screen is a maximum reading width
+   so a bar does not stretch to 1600px and stop being comparable to the one under
+   it. The layout is one column of two-row grids, so there is nothing to drop,
+   nothing to reflow and nothing wider than the column — this view never pans.
+
+   ── LOGICAL PROPERTIES ONLY ───────────────────────────────────────────────
+
+   `inline-size`, `padding-inline`, `border-inline-start`. That is why the Arabic
+   build needs no mirror stylesheet: the bar fills from the reading edge in both
+   directions, and the hairline on the fourth run lands on the side the three
+   fills actually stopped at. */
+
+.pfb {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* The comparison column. Bars only compare if they are the same length, and a
+     1600px bar is read as a picture rather than as a measurement. */
+  max-inline-size: 46rem;
+  inline-size: 100%;
+  /* A flex ancestor must be allowed to shrink or the column pushes the page
+     wider than the phone — house rule, and the reason this view fits. */
+  min-inline-size: 0;
+}
+
+/* ---------- what the full width means ---------- */
+
+/* WITHOUT THIS SENTENCE THE GROOVE IS UNREADABLE. A reader cannot tell "we have
+   not got there" from "the bar is as long as it goes" unless something says what
+   the far edge is. */
+.pfb-scale {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* ---------- the key ---------- */
+
+.pfb-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pfb-key-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.pfb-key-item::before {
+  content: '';
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+/* THE APP'S THREE, NOT A PALETTE OF THIS FILE'S OWN — home.css's triple, so a
+   reader who learned the colour on the home screen has learned it here. */
+.pfb-key-item[data-k='live']::before {
+  background: var(--green);
+}
+
+.pfb-key-item[data-k='testing']::before {
+  background: var(--accent);
+}
+
+.pfb-key-item[data-k='planned']::before {
+  background: var(--border);
+}
+
+/* AND THE FOURTH IS THE GROOVE, sampled — the same two declarations `.pfb-gap`
+   carries, so the key shows the thing itself rather than a second drawing of
+   it. No fill; the bar's own ground plus a hairline. */
+.pfb-key-item[data-k='unrecorded']::before {
+  background: var(--bg-elev-2);
+  border: 1px dashed var(--text-faint);
+  border-radius: 2px;
+}
+
+/* ---------- the list ---------- */
+
+.pfb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pfb-item {
+  min-inline-size: 0;
+}
+
+/* NAME AND FIGURE ON ONE LINE, BAR UNDERNEATH, READING UNDER THAT — home.css's
+   two-row grid with a third row for the sentence. At 375px an organization's
+   name, a reading and a bar cannot share a line without the name truncating, and
+   the name is the part a reader cannot reconstruct; the four-part reading gets a
+   row of its own because it is a sentence and an `auto` column would cut it.
+
+   The WHOLE ROW is the tap target: 44px is the floor and two rows of text clear
+   it on their own, so no `.tap-44` overlay is needed and none is used — an
+   overlay here would only add a second, invisible rectangle over a button that
+   is already big enough. */
+.pfb-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: baseline;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.pfb-row:hover {
+  background: var(--bg-elev);
+}
+
+.pfb-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* A BUCKET IS NOT A CONTROL. It uses the same grid and loses the affordances —
+   a row that looked pressable and did nothing is worse than a row. */
+.pfb-static {
+  cursor: default;
+}
+
+.pfb-static:hover {
+  background: none;
+}
+
+.pfb-name {
+  font-size: 14px;
+  color: var(--text);
+  min-inline-size: 0;
+  /* A long organization name WRAPS rather than truncating or pushing the column
+     wider than the phone. Nothing in this view is allowed to pan. */
+  overflow-wrap: anywhere;
+}
+
+.pfb-rank {
+  display: inline-block;
+  min-inline-size: 1.6em;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.pfb-flag {
+  margin-inline-start: 6px;
+}
+
+.pfb-owner {
+  display: block;
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-block-start: 1px;
+}
+
+.pfb-fig {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: end;
+  white-space: nowrap;
+}
+
+/* ---------- the bar ---------- */
+
+.pfb-bar,
+.pfb-read {
+  grid-column: 1 / -1;
+}
+
+/* THE GROOVE. Everything the three fills do not cover is this surface, which is
+   what makes the fourth state drawable without a fourth colour. */
+.pfb-bar {
+  display: flex;
+  inline-size: 100%;
+  block-size: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--bg-elev-2);
+  margin-block-start: 2px;
+}
+
+.pfb-seg {
+  display: block;
+  block-size: 100%;
+  inline-size: var(--w, 0%);
+  /* No transition: this is not an animated figure, and a bar that grew on every
+     store tick would draw the eye to a number that had not changed. */
+}
+
+.pfb-seg[data-k='live'] {
+  background: var(--green);
+}
+
+.pfb-seg[data-k='testing'] {
+  background: var(--accent);
+}
+
+.pfb-seg[data-k='planned'] {
+  /* Deliberately the quietest of the three fills: "planned" is the absence of
+     work done. It is still a FILL, and that is what separates it from the run
+     below. */
+  background: var(--border);
+}
+
+/* ⚠ THE FOURTH RUN IS NOT A FILL — IT IS THE GROOVE SHOWING THROUGH.
+   `background: transparent` is load-bearing, not a default: nobody has recorded
+   these capabilities, and painting them any colour at all would make an
+   untouched organization look like one somebody had decided about. The hairline
+   on the leading edge is what stops it reading as the bar simply ending — it
+   marks where the three fills stopped, so the run is visibly a SEGMENT of the
+   bar. Compare `.pfb-seg[data-k='planned']` directly above: same width mechanic,
+   opposite treatment, and the reading under the bar states both counts in words
+   so this is never colour alone. */
+.pfb-gap {
+  display: block;
+  block-size: 100%;
+  inline-size: var(--w, 0%);
+  background: transparent;
+  border-inline-start: 1px solid var(--text-faint);
+  /* The dashes read as "no claim here" at 10px in a way a second flat grey does
+     not, and they survive a greyscale print. */
+  border-block: 1px dashed var(--text-faint);
+}
+
+/* ---------- the reading ---------- */
+
+/* THE NUMBERS IN WORDS, because the bar above is `aria-hidden` and because
+   colour is never allowed to be the only channel. */
+.pfb-read {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin-block-start: 1px;
+}
+
+.pfb-quiet {
+  color: var(--text-faint);
+}
+
+/* ---------- what the first paint left out ---------- */
+
+.pfb-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  /* 16px is the floor for two lines of `.tap-44` controls — global.css's
+     `.row-actions` measured it. */
+  row-gap: 16px;
+  padding-block: 7px;
+  border-block-start: 1px solid var(--border);
+  margin-block-start: 4px;
+}
+
+.pfb-more-count {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.pfb-more-btn {
+  flex: none;
+}
+
+/* ---------- nothing to rank ---------- */
+
+.pfb-empty {
+  padding: 22px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  text-align: center;
+}
+
+.pfb-empty-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text);
+  margin: 0;
+}
+
+.pfb-empty-hint {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin: 6px 0 0;
+}
