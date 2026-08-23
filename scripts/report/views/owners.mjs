@@ -166,8 +166,6 @@ export function page(fx) {
   const cards = books(fx);
   const none = cards.find((c) => c.owner === '');
   const named = cards.filter((c) => c.owner !== '');
-    .filter((s) => !fx.tracker.orgs.some((o) => o.stage === s.name))
-    .map((s) => s.name);
 
   const key = caps.map((c, i) => `<b>${i + 1}</b> ${esc(c.name)}`).join(' · ');
 
