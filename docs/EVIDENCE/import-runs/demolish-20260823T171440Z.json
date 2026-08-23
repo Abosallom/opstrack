@@ -1,0 +1,36 @@
+{
+ "kind": "demolition",
+ "at": "2026-08-23T17:14:40.144Z",
+ "organizations": [],
+ "tracks": [
+  {
+   "id": "70b2ef94-f853-4990-974c-6b3027911176",
+   "name": "Network",
+   "archived": true
+  },
+  {
+   "id": "a40a9749-c6ea-41d6-a9dc-dd93c8f356bf",
+   "name": "Ayenati PMO",
+   "archived": true
+  },
+  {
+   "id": "cfc0245a-5113-450f-a0de-b9b2f0ed737e",
+   "name": "IT Ops",
+   "archived": true
+  },
+  {
+   "id": "b5e1260c-3f72-43a6-a108-dfd3d6c0d8ab",
+   "name": "Onboarding",
+   "archived": true
+  }
+ ],
+ "entries": [],
+ "meetings": [],
+ "templates": [
+  {
+   "id": "f3492bf8-b162-4f25-afd4-9cf453e1f1a8",
+   "title": "التقرير الأسبوعي لتشغيل الشبكة · Weekly network ops report",
+   "track_id": "70b2ef94-f853-4990-974c-6b3027911176"
+  }
+ ]
+}

@@ -1,0 +1,7795 @@
+{
+  "manifestVersion": 2,
+  "tool": "import-structure",
+  "file": "scripts/report/structure.csv",
+  "projectRef": "lrysgpbkmuqgzsjesfkr",
+  "startedAt": "2026-08-23T17:11:39.606Z",
+  "finishedAt": "2026-08-23T17:11:54.007Z",
+  "outcome": "complete",
+  "createdUseCases": [
+    {
+      "id": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "name": "XDRADO"
+    },
+    {
+      "id": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "name": "XDLABO"
+    },
+    {
+      "id": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "name": "XDDOCS"
+    },
+    {
+      "id": "75da043a-7f5c-4a8c-89c0-3225c8542c9f",
+      "name": "Vital Signs"
+    },
+    {
+      "id": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "name": "Encounter History"
+    }
+  ],
+  "createdNodes": [
+    {
+      "id": "7a202f21-d1a4-4403-a03e-6dd8373d997f",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hasa"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "c0ec26ee-bc4f-49c0-953c-0d786105a9c7",
+      "path": [
+        "UHR",
+        "OB",
+        "Al jazeera hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "39cb6de0-66f6-4aca-91cf-f9da9a654454",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Madinah"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salam Khobar Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "248a8b5f-6f70-4b33-a061-0319b8bfa313",
+      "path": [
+        "UHR",
+        "OB",
+        "Alahli Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "579732e2-d432-46fd-8349-71fd1ca1ba35",
+      "path": [
+        "UHR",
+        "OB",
+        "Alahsa"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "add7358b-4c50-485d-ac0d-027540635536",
+      "path": [
+        "UHR",
+        "OB",
+        "Aljadaani (SAFA) Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "265909f2-1dce-49be-83a0-f9b38dcbf430",
+      "path": [
+        "UHR",
+        "OB",
+        "Alsaedy Hospital(CDA)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "7f9eaa12-e487-40ae-a22c-453d5c7b4552",
+      "path": [
+        "UHR",
+        "OB",
+        "Andalusia"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "55987b86-894e-45cf-8854-1c99a8b865de",
+      "path": [
+        "UHR",
+        "OB",
+        "Arrawdah Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "4b2019cb-84cf-4d99-8a40-eb4f045c1ee4",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer (Vida Plus)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "a12c5063-b3c8-4cef-ab31-0aaeaf3eecb5",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer Care ware"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "c7cbd504-1d11-4e29-bda4-322aba9a8878",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer Cluster"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "636f97f2-6f5d-46a0-bf98-c90d2b591392",
+      "path": [
+        "UHR",
+        "OB",
+        "AUTISM SPECTRUM VIRTTUAL CARE CLINIC"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b28640f0-7b36-4a09-867f-8b10b77ee4f0",
+      "path": [
+        "UHR",
+        "OB",
+        "Clinicy"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "e5b515a8-f11c-4bb0-a9e9-4b97c8e8c594",
+      "path": [
+        "UHR",
+        "OB",
+        "CMRC"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Al Afia Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "1e31a004-7a56-4d83-a964-64d36c1bce7c",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Arfan hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "7af2b689-1748-4937-87ca-0713e1c919f4",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Ghassan Najeeb Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "0d7c8d1b-8d3f-4583-a08f-ae413438ac4e",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr.Suliman Fakeeh Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+      "path": [
+        "UHR",
+        "OB",
+        "Fakeeh"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+      "path": [
+        "UHR",
+        "OB",
+        "Hafer AlBatin"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "01890f99-b3c1-4db7-8c47-2538e7be93d9",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail Cluster 2"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "3e756f24-a4c4-4e30-8fb5-893e387aa06a",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail MCC"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "a9d32df9-7ad8-45a0-941b-5b44ff3c9370",
+      "path": [
+        "UHR",
+        "OB",
+        "Imam Abdulrahman bin Faisal University (IAU)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "450e7a80-ebd3-4541-981a-4bf4eb0791f3",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "a10f9b88-2422-4b88-8d5c-bb955246f206",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan 1"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b8c476ea-0c5f-463f-bdae-042ac729f48b",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan Cluster (MCC)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "c2c017d1-2103-4998-89f5-23c6912f200a",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan cluster (MedicaCloud)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "ebd47729-70d2-4fd8-8cd5-9b6a19964400",
+      "path": [
+        "UHR",
+        "OB",
+        "Jedda Oasis"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "2248ba66-d25f-4603-a821-8aa777360d82",
+      "path": [
+        "UHR",
+        "OB",
+        "Jeddah Oasis"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "14040c37-9f59-44c1-a6e7-0f91340c57f1",
+      "path": [
+        "UHR",
+        "OB",
+        "KFSHB (Qassim)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "c2c6d499-e964-4e38-a53c-686cb3a5258e",
+      "path": [
+        "UHR",
+        "OB",
+        "Khafgi Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "8dc8ff9c-92f7-4df4-a8ef-22e16608ae7d",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical City"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "3663764c-1f89-44db-a437-b5ae74e5628f",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical Complex (northern Jeddah)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah University Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "874dc7a0-69e8-47f3-a08f-cd89c33626ee",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid uni"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b317549f-2ee3-4155-a260-a9166bdb4bb2",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "f07d077f-171b-4cc9-8b3d-e42cbe447e33",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University (Aseer)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "2d8ee59f-c1a5-4bfe-83dc-47f286164554",
+      "path": [
+        "UHR",
+        "OB",
+        "KKESH"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "6735d3cb-f316-40d2-907b-6134114896f7",
+      "path": [
+        "UHR",
+        "OB",
+        "KSMC alshimaysi"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "718e8ff2-b747-4acb-a46f-b2f13239d491",
+      "path": [
+        "UHR",
+        "OB",
+        "Madina cluster"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "1eef4fe8-40d9-4503-892a-24699e68290e",
+      "path": [
+        "UHR",
+        "OB",
+        "Magrabi Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "f097590f-f45a-4cf0-be5b-0d9a47566f1b",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah (Intersystem)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "5056d4a4-cf82-4fcc-9507-7b685365fe45",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah 2 (MCC)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "bbe977f1-d3f8-4bff-849f-fd45a880802c",
+      "path": [
+        "UHR",
+        "OB",
+        "MMS"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "14f069e0-75cd-446a-819f-44b671e18c05",
+      "path": [
+        "UHR",
+        "OB",
+        "MoDHS"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "afe7227b-fe9d-4c80-beac-2244faa5af57",
+      "path": [
+        "UHR",
+        "OB",
+        "Mohammed Aldossary"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "3973a51a-69c0-4b54-adef-9ec20f73b89b",
+      "path": [
+        "UHR",
+        "OB",
+        "My Clinica"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "074554c3-f953-4bde-89ce-c9f17e41b7cf",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b412aa2a-0dc8-4ff7-b6ba-2f94c21cb945",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran (Vida plus)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "4306ed5d-2bfd-45db-8857-07c1cd424a4f",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran Cluster"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "58c1a90f-4579-4113-83cd-17f265863ec0",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran specialized hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran specialized hospital(FHIR)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b620c047-8b80-466a-8e54-f9a6c916f2e1",
+      "path": [
+        "UHR",
+        "OB",
+        "NMC"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "a15996eb-1f8b-4825-b3d9-1821a9199cec",
+      "path": [
+        "UHR",
+        "OB",
+        "North Borders"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+      "path": [
+        "UHR",
+        "OB",
+        "Procare Riyadh Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "61077c0f-475d-4a53-bb52-4e7c6417fb04",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim (KFSHB)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b06581cd-96e0-4532-975e-4d60c076bbfc",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim cluster Vida 4"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "b692fee0-15c1-43e8-85cd-fc543e7ebaad",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim National Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "dc3c2055-180e-48b8-b448-c7b5c56c38e8",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabet"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "621a79d7-a05d-4840-ab38-9c97ec094beb",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "7e6ad5fd-e094-4d24-bab5-a2943ccd59e3",
+      "path": [
+        "UHR",
+        "OB",
+        "RCH"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "ec770d37-0735-4973-9252-cdc361ef8184",
+      "path": [
+        "UHR",
+        "OB",
+        "Samer Abbas Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "1497e75d-c078-43f6-a304-12e04aadaace",
+      "path": [
+        "UHR",
+        "OB",
+        "Samir Abbas Hospital"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "cd68fb5c-12df-4cf0-a2ba-a7d09337b635",
+      "path": [
+        "UHR",
+        "OB",
+        "SBAHC"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "0c4e485a-19da-4ced-a2dc-42ce1e0dd5ec",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH (Security Force Hospital)"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "9aca0633-e8c0-4bb9-b24c-698eab71818d",
+      "path": [
+        "UHR",
+        "OB",
+        "SMC"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    },
+    {
+      "id": "7fb3b701-8a35-4ab1-870b-0587dfb89613",
+      "path": [
+        "UHR",
+        "OB",
+        "Tadawi"
+      ],
+      "depth": 2,
+      "parentId": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+      "trackId": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+      "implied": false
+    }
+  ],
+  "updatedNodes": [
+    {
+      "id": "6cfe9519-167c-4faa-8f7b-6c6165565910",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hayat Group Hospital"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+          "to": null,
+          "fromLabel": "Riam Alnasser (@riam.alnasser)",
+          "toLabel": ""
+        }
+      ]
+    },
+    {
+      "id": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Madinah Cluster"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+          "to": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+          "fromLabel": "Shatha Alhuwaytan (@shatha.alhuwaytan)",
+          "toLabel": "Riam Alnasser (@riam.alnasser)"
+        }
+      ]
+    },
+    {
+      "id": "bc8042dd-1b3a-4530-8ac9-1197fe5953dc",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salama Hospital"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": null,
+          "to": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+          "fromLabel": "",
+          "toLabel": "Sara Alsaab (@sara.alsaab)"
+        }
+      ]
+    },
+    {
+      "id": "0e354190-4451-4215-bbfe-f299fc5e9b50",
+      "path": [
+        "UHR",
+        "OB",
+        "Al-anwar hospital"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+          "to": null,
+          "fromLabel": "Sara Alsaab (@sara.alsaab)",
+          "toLabel": ""
+        }
+      ]
+    },
+    {
+      "id": "fb6a508a-9506-4709-b423-d7682316fbcf",
+      "path": [
+        "UHR",
+        "OB",
+        "AlHammadi Hospital"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": null,
+          "to": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+          "fromLabel": "",
+          "toLabel": "Riam Alnasser (@riam.alnasser)"
+        }
+      ]
+    },
+    {
+      "id": "1685a391-ef36-415b-a884-2ec5056967b3",
+      "path": [
+        "UHR",
+        "OB",
+        "Almodawah Hospital"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": "80670098-427e-4b0b-af1b-d7b025e1bbcc",
+          "to": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+          "fromLabel": "Hind Almubaraki (@hind.almubaraki)",
+          "toLabel": "Sara Alsaab (@sara.alsaab)"
+        }
+      ]
+    },
+    {
+      "id": "399ed064-8530-4c75-9d30-54ecbca178ee",
+      "path": [
+        "UHR",
+        "OB",
+        "Alsaedy Hospital"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": "983a85e9-4b36-4f82-86d1-6907459d7763",
+          "to": null,
+          "fromLabel": "Khalid Almutairi (@khalid.almutairi)",
+          "toLabel": ""
+        }
+      ]
+    },
+    {
+      "id": "6c826301-c2b8-4544-993d-6149493e42f7",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer (Care Ware) Cluster"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": "4cb9698a-7bce-4e64-9913-d889ec8ab4ab",
+          "to": null,
+          "fromLabel": "Shatha Alhuwaytan (@shatha.alhuwaytan)",
+          "toLabel": ""
+        }
+      ]
+    },
+    {
+      "id": "e0df63b0-ac8c-4fde-8432-878a564ac46f",
+      "path": [
+        "UHR",
+        "OB",
+        "Aya Hospital"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+          "to": null,
+          "fromLabel": "Riam Alnasser (@riam.alnasser)",
+          "toLabel": ""
+        }
+      ]
+    },
+    {
+      "id": "99c3ac7f-cb36-499d-8767-93af57a5391b",
+      "path": [
+        "UHR",
+        "OB",
+        "GAMA Hospital"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+          "to": null,
+          "fromLabel": "Sara Alsaab (@sara.alsaab)",
+          "toLabel": ""
+        }
+      ]
+    },
+    {
+      "id": "6ebabe32-235a-4dbf-89b3-93b6b830a260",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan MCC"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": null,
+          "to": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+          "fromLabel": "",
+          "toLabel": "Dema Alkassim (@dema.alkassim)"
+        }
+      ]
+    },
+    {
+      "id": "227c285c-70b7-4f4c-824a-6e32eb5735bf",
+      "path": [
+        "UHR",
+        "OB",
+        "KFMC"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": null,
+          "to": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+          "fromLabel": "",
+          "toLabel": "Riam Alnasser (@riam.alnasser)"
+        }
+      ]
+    },
+    {
+      "id": "819e4d70-36f8-49f0-92b2-c99e0e10b4eb",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical City- Makkah"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": null,
+          "to": "983a85e9-4b36-4f82-86d1-6907459d7763",
+          "fromLabel": "",
+          "toLabel": "Khalid Almutairi (@khalid.almutairi)"
+        }
+      ]
+    },
+    {
+      "id": "dea94d42-b34b-4cc4-a294-e7b63b79b3e1",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah Cluster 2 (MCC)"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": null,
+          "to": "983a85e9-4b36-4f82-86d1-6907459d7763",
+          "fromLabel": "",
+          "toLabel": "Khalid Almutairi (@khalid.almutairi)"
+        }
+      ]
+    },
+    {
+      "id": "e896272d-372e-4340-bdee-64c25e7cf25d",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem Private"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+          "to": null,
+          "fromLabel": "Riam Alnasser (@riam.alnasser)",
+          "toLabel": ""
+        }
+      ]
+    },
+    {
+      "id": "481314c4-fb75-4105-aeb4-54e4301d85dd",
+      "path": [
+        "UHR",
+        "OB",
+        "Riyadh 3rd Cluster"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": null,
+          "to": "fe569716-a2ca-4703-a1aa-f29879c6e864",
+          "fromLabel": "",
+          "toLabel": "Sara Alsaab (@sara.alsaab)"
+        }
+      ]
+    },
+    {
+      "id": "d3fa2ced-857c-41be-b2ca-52ac5f3140d2",
+      "path": [
+        "UHR",
+        "OB",
+        "Riyadh Hospital"
+      ],
+      "changes": [
+        {
+          "column": "account_manager_id",
+          "from": null,
+          "to": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+          "fromLabel": "",
+          "toLabel": "Riam Alnasser (@riam.alnasser)"
+        }
+      ]
+    },
+    {
+      "id": "0ffc0bb2-d90f-4e1a-8f71-ab3a189b772d",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Emies Group"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "eb07da7b-b15f-44c6-bf6e-b9cf7f9848c3",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Paused",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "7a202f21-d1a4-4403-a03e-6dd8373d997f",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hasa"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "c0ec26ee-bc4f-49c0-953c-0d786105a9c7",
+      "path": [
+        "UHR",
+        "OB",
+        "Al jazeera hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "39cb6de0-66f6-4aca-91cf-f9da9a654454",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Madinah"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salam Khobar Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "bc8042dd-1b3a-4530-8ac9-1197fe5953dc",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salama Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Kickoff",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "248a8b5f-6f70-4b33-a061-0319b8bfa313",
+      "path": [
+        "UHR",
+        "OB",
+        "Alahli Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "579732e2-d432-46fd-8349-71fd1ca1ba35",
+      "path": [
+        "UHR",
+        "OB",
+        "Alahsa"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "add7358b-4c50-485d-ac0d-027540635536",
+      "path": [
+        "UHR",
+        "OB",
+        "Aljadaani (SAFA) Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "cf6b4ace-68ae-419d-a634-2091b6d3eb9d",
+      "path": [
+        "UHR",
+        "OB",
+        "Almana Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "eb07da7b-b15f-44c6-bf6e-b9cf7f9848c3",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Paused",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "265909f2-1dce-49be-83a0-f9b38dcbf430",
+      "path": [
+        "UHR",
+        "OB",
+        "Alsaedy Hospital(CDA)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "7f9eaa12-e487-40ae-a22c-453d5c7b4552",
+      "path": [
+        "UHR",
+        "OB",
+        "Andalusia"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "55987b86-894e-45cf-8854-1c99a8b865de",
+      "path": [
+        "UHR",
+        "OB",
+        "Arrawdah Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "4b2019cb-84cf-4d99-8a40-eb4f045c1ee4",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer (Vida Plus)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "a12c5063-b3c8-4cef-ab31-0aaeaf3eecb5",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer Care ware"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "c7cbd504-1d11-4e29-bda4-322aba9a8878",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer Cluster"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "636f97f2-6f5d-46a0-bf98-c90d2b591392",
+      "path": [
+        "UHR",
+        "OB",
+        "AUTISM SPECTRUM VIRTTUAL CARE CLINIC"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "b28640f0-7b36-4a09-867f-8b10b77ee4f0",
+      "path": [
+        "UHR",
+        "OB",
+        "Clinicy"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "e5b515a8-f11c-4bb0-a9e9-4b97c8e8c594",
+      "path": [
+        "UHR",
+        "OB",
+        "CMRC"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "c2fbbba0-488b-4340-b1e1-3cf6cf1a4ce3",
+      "path": [
+        "UHR",
+        "OB",
+        "Dallah alahsa"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": "Integrating & Testing",
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Al Afia Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "ffe2642d-2768-4bdb-8c54-9efa3ce206ad",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Alsalama"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "eb07da7b-b15f-44c6-bf6e-b9cf7f9848c3",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Paused",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "1e31a004-7a56-4d83-a964-64d36c1bce7c",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Arfan hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "b6c76f48-1452-4891-b93e-7cbd18206729",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Erfan & Bagedo General Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "eb07da7b-b15f-44c6-bf6e-b9cf7f9848c3",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Paused",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "7af2b689-1748-4937-87ca-0713e1c919f4",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Ghassan Najeeb Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "0d7c8d1b-8d3f-4583-a08f-ae413438ac4e",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr.Suliman Fakeeh Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "6cf1b78c-40d5-4eab-b726-576fbf0bae89",
+      "path": [
+        "UHR",
+        "OB",
+        "EHC"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Kickoff",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+      "path": [
+        "UHR",
+        "OB",
+        "Fakeeh"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "99c3ac7f-cb36-499d-8767-93af57a5391b",
+      "path": [
+        "UHR",
+        "OB",
+        "GAMA Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Kickoff",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+      "path": [
+        "UHR",
+        "OB",
+        "Hafer AlBatin"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "01890f99-b3c1-4db7-8c47-2538e7be93d9",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail Cluster 2"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "3e756f24-a4c4-4e30-8fb5-893e387aa06a",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail MCC"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "a9d32df9-7ad8-45a0-941b-5b44ff3c9370",
+      "path": [
+        "UHR",
+        "OB",
+        "Imam Abdulrahman bin Faisal University (IAU)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "450e7a80-ebd3-4541-981a-4bf4eb0791f3",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "a10f9b88-2422-4b88-8d5c-bb955246f206",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan 1"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "b8c476ea-0c5f-463f-bdae-042ac729f48b",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan Cluster (MCC)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "c2c017d1-2103-4998-89f5-23c6912f200a",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan cluster (MedicaCloud)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "ebd47729-70d2-4fd8-8cd5-9b6a19964400",
+      "path": [
+        "UHR",
+        "OB",
+        "Jedda Oasis"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "2248ba66-d25f-4603-a821-8aa777360d82",
+      "path": [
+        "UHR",
+        "OB",
+        "Jeddah Oasis"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "227c285c-70b7-4f4c-824a-6e32eb5735bf",
+      "path": [
+        "UHR",
+        "OB",
+        "KFMC"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "eb07da7b-b15f-44c6-bf6e-b9cf7f9848c3",
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": "Paused",
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "14040c37-9f59-44c1-a6e7-0f91340c57f1",
+      "path": [
+        "UHR",
+        "OB",
+        "KFSHB (Qassim)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "c2c6d499-e964-4e38-a53c-686cb3a5258e",
+      "path": [
+        "UHR",
+        "OB",
+        "Khafgi Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "8dc8ff9c-92f7-4df4-a8ef-22e16608ae7d",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical City"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "3663764c-1f89-44db-a437-b5ae74e5628f",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical Complex (northern Jeddah)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah University Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "874dc7a0-69e8-47f3-a08f-cd89c33626ee",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid uni"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "b317549f-2ee3-4155-a260-a9166bdb4bb2",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "f07d077f-171b-4cc9-8b3d-e42cbe447e33",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University (Aseer)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "2d8ee59f-c1a5-4bfe-83dc-47f286164554",
+      "path": [
+        "UHR",
+        "OB",
+        "KKESH"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "6735d3cb-f316-40d2-907b-6134114896f7",
+      "path": [
+        "UHR",
+        "OB",
+        "KSMC alshimaysi"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "718e8ff2-b747-4acb-a46f-b2f13239d491",
+      "path": [
+        "UHR",
+        "OB",
+        "Madina cluster"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "1eef4fe8-40d9-4503-892a-24699e68290e",
+      "path": [
+        "UHR",
+        "OB",
+        "Magrabi Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "c1bd236f-72c0-4033-aa71-ceb284600f5b",
+      "path": [
+        "UHR",
+        "OB",
+        "Magrabi Hospital and Centers"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Kickoff",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "f097590f-f45a-4cf0-be5b-0d9a47566f1b",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah (Intersystem)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "5056d4a4-cf82-4fcc-9507-7b685365fe45",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah 2 (MCC)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "bbe977f1-d3f8-4bff-849f-fd45a880802c",
+      "path": [
+        "UHR",
+        "OB",
+        "MMS"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "14f069e0-75cd-446a-819f-44b671e18c05",
+      "path": [
+        "UHR",
+        "OB",
+        "MoDHS"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "afe7227b-fe9d-4c80-beac-2244faa5af57",
+      "path": [
+        "UHR",
+        "OB",
+        "Mohammed Aldossary"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "3973a51a-69c0-4b54-adef-9ec20f73b89b",
+      "path": [
+        "UHR",
+        "OB",
+        "My Clinica"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "074554c3-f953-4bde-89ce-c9f17e41b7cf",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "b412aa2a-0dc8-4ff7-b6ba-2f94c21cb945",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran (Vida plus)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "4306ed5d-2bfd-45db-8857-07c1cd424a4f",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran Cluster"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "58c1a90f-4579-4113-83cd-17f265863ec0",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran specialized hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran specialized hospital(FHIR)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "b620c047-8b80-466a-8e54-f9a6c916f2e1",
+      "path": [
+        "UHR",
+        "OB",
+        "NMC"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "a15996eb-1f8b-4825-b3d9-1821a9199cec",
+      "path": [
+        "UHR",
+        "OB",
+        "North Borders"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "147d7859-6407-4d61-ac78-5ef0f9aa787f",
+      "path": [
+        "UHR",
+        "OB",
+        "Prince Fahad bin Sultan"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Kickoff",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+      "path": [
+        "UHR",
+        "OB",
+        "Procare Riyadh Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "61077c0f-475d-4a53-bb52-4e7c6417fb04",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim (KFSHB)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "b06581cd-96e0-4532-975e-4d60c076bbfc",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim cluster Vida 4"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "b692fee0-15c1-43e8-85cd-fc543e7ebaad",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim National Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "dc3c2055-180e-48b8-b448-c7b5c56c38e8",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabet"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "621a79d7-a05d-4840-ab38-9c97ec094beb",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "e896272d-372e-4340-bdee-64c25e7cf25d",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem Private"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "eb07da7b-b15f-44c6-bf6e-b9cf7f9848c3",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Paused",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "7e6ad5fd-e094-4d24-bab5-a2943ccd59e3",
+      "path": [
+        "UHR",
+        "OB",
+        "RCH"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "d3fa2ced-857c-41be-b2ca-52ac5f3140d2",
+      "path": [
+        "UHR",
+        "OB",
+        "Riyadh Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Kickoff",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    },
+    {
+      "id": "ec770d37-0735-4973-9252-cdc361ef8184",
+      "path": [
+        "UHR",
+        "OB",
+        "Samer Abbas Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "92c358af-e29b-4c56-8d1a-02566307542c",
+          "fromLabel": null,
+          "toLabel": "Kickoff",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "1497e75d-c078-43f6-a304-12e04aadaace",
+      "path": [
+        "UHR",
+        "OB",
+        "Samir Abbas Hospital"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "cd68fb5c-12df-4cf0-a2ba-a7d09337b635",
+      "path": [
+        "UHR",
+        "OB",
+        "SBAHC"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "0c4e485a-19da-4ced-a2dc-42ce1e0dd5ec",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH (Security Force Hospital)"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "9aca0633-e8c0-4bb9-b24c-698eab71818d",
+      "path": [
+        "UHR",
+        "OB",
+        "SMC"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "fromLabel": null,
+          "toLabel": "Live",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "7fb3b701-8a35-4ab1-870b-0587dfb89613",
+      "path": [
+        "UHR",
+        "OB",
+        "Tadawi"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": null,
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": null,
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": false
+        }
+      ]
+    },
+    {
+      "id": "e917bf17-5cdf-4c5d-848d-54c631c0fe27",
+      "path": [
+        "UHR",
+        "OB",
+        "Taif Cluster"
+      ],
+      "changes": [
+        {
+          "column": "stage_id",
+          "from": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+          "to": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+          "fromLabel": "Live",
+          "toLabel": "Integrating & Testing",
+          "table": "map_node_progress",
+          "hadRow": true
+        }
+      ]
+    }
+  ],
+  "setUseCases": [
+    {
+      "nodeId": "df7d8d12-0896-4c37-9197-7d1937ba1cda",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Al edwani Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "0ffc0bb2-d90f-4e1a-8f71-ab3a189b772d",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Emies Group"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0ffc0bb2-d90f-4e1a-8f71-ab3a189b772d",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Emies Group"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0ffc0bb2-d90f-4e1a-8f71-ab3a189b772d",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Emies Group"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0ffc0bb2-d90f-4e1a-8f71-ab3a189b772d",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Emies Group"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0ffc0bb2-d90f-4e1a-8f71-ab3a189b772d",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Emies Group"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7a202f21-d1a4-4403-a03e-6dd8373d997f",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hasa"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7a202f21-d1a4-4403-a03e-6dd8373d997f",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hasa"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7a202f21-d1a4-4403-a03e-6dd8373d997f",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hasa"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6cfe9519-167c-4faa-8f7b-6c6165565910",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hayat Group Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6cfe9519-167c-4faa-8f7b-6c6165565910",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hayat Group Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6cfe9519-167c-4faa-8f7b-6c6165565910",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hayat Group Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6cfe9519-167c-4faa-8f7b-6c6165565910",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hayat Group Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6cfe9519-167c-4faa-8f7b-6c6165565910",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hayat Group Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6cfe9519-167c-4faa-8f7b-6c6165565910",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Hayat Group Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0ec26ee-bc4f-49c0-953c-0d786105a9c7",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Al jazeera hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0ec26ee-bc4f-49c0-953c-0d786105a9c7",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Al jazeera hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0ec26ee-bc4f-49c0-953c-0d786105a9c7",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Al jazeera hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0ec26ee-bc4f-49c0-953c-0d786105a9c7",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Al jazeera hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0ec26ee-bc4f-49c0-953c-0d786105a9c7",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Al jazeera hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0ec26ee-bc4f-49c0-953c-0d786105a9c7",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Al jazeera hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c0ec26ee-bc4f-49c0-953c-0d786105a9c7",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Al jazeera hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "39cb6de0-66f6-4aca-91cf-f9da9a654454",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Madinah"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Madinah Cluster"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Madinah Cluster"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salam Khobar Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salam Khobar Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salam Khobar Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salam Khobar Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salam Khobar Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salam Khobar Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salam Khobar Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salam Khobar Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "bc8042dd-1b3a-4530-8ac9-1197fe5953dc",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salama Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "bc8042dd-1b3a-4530-8ac9-1197fe5953dc",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salama Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "bc8042dd-1b3a-4530-8ac9-1197fe5953dc",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salama Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "0dfacea8-675f-424d-9750-ca3f15b9aba2",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Zafer Hospital in Najran"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "0e354190-4451-4215-bbfe-f299fc5e9b50",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Al-anwar hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "248a8b5f-6f70-4b33-a061-0319b8bfa313",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Alahli Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "579732e2-d432-46fd-8349-71fd1ca1ba35",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Alahsa"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "579732e2-d432-46fd-8349-71fd1ca1ba35",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Alahsa"
+      ],
+      "useCase": "Encounter History",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "579732e2-d432-46fd-8349-71fd1ca1ba35",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Alahsa"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "579732e2-d432-46fd-8349-71fd1ca1ba35",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Alahsa"
+      ],
+      "useCase": "Radiology Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "579732e2-d432-46fd-8349-71fd1ca1ba35",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Alahsa"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "aba0f284-d081-491a-824e-61f51bd54c58",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "OB",
+        "Alfalah Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "fb6a508a-9506-4709-b423-d7682316fbcf",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "AlHammadi Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "fb6a508a-9506-4709-b423-d7682316fbcf",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "AlHammadi Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "testing",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "fb6a508a-9506-4709-b423-d7682316fbcf",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "AlHammadi Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "fb6a508a-9506-4709-b423-d7682316fbcf",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "AlHammadi Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "testing",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "add7358b-4c50-485d-ac0d-027540635536",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Aljadaani (SAFA) Hospital"
+      ],
+      "useCase": "Encounter History",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "add7358b-4c50-485d-ac0d-027540635536",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Aljadaani (SAFA) Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "add7358b-4c50-485d-ac0d-027540635536",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Aljadaani (SAFA) Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "add7358b-4c50-485d-ac0d-027540635536",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "Aljadaani (SAFA) Hospital"
+      ],
+      "useCase": "XDDOCS",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "add7358b-4c50-485d-ac0d-027540635536",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Aljadaani (SAFA) Hospital"
+      ],
+      "useCase": "XDLABO",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "add7358b-4c50-485d-ac0d-027540635536",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "Aljadaani (SAFA) Hospital"
+      ],
+      "useCase": "XDRADO",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "99dedfaf-7a5a-4ba9-83c0-f3b37503fdff",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "AlJouf"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "99dedfaf-7a5a-4ba9-83c0-f3b37503fdff",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "AlJouf"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "99dedfaf-7a5a-4ba9-83c0-f3b37503fdff",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "AlJouf"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "cf6b4ace-68ae-419d-a634-2091b6d3eb9d",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Almana Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "1685a391-ef36-415b-a884-2ec5056967b3",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Almodawah Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1685a391-ef36-415b-a884-2ec5056967b3",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Almodawah Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1685a391-ef36-415b-a884-2ec5056967b3",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Almodawah Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1685a391-ef36-415b-a884-2ec5056967b3",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Almodawah Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1685a391-ef36-415b-a884-2ec5056967b3",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Almodawah Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1685a391-ef36-415b-a884-2ec5056967b3",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Almodawah Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1685a391-ef36-415b-a884-2ec5056967b3",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Almodawah Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6ac969a7-fb69-40e6-8711-8eff3ab0fa72",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Alnahda Hospital"
+      ],
+      "useCase": "Encounter History",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "399ed064-8530-4c75-9d30-54ecbca178ee",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Alsaedy Hospital"
+      ],
+      "useCase": "Encounter History",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "399ed064-8530-4c75-9d30-54ecbca178ee",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Alsaedy Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "399ed064-8530-4c75-9d30-54ecbca178ee",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Alsaedy Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": "planned"
+    },
+    {
+      "nodeId": "265909f2-1dce-49be-83a0-f9b38dcbf430",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Alsaedy Hospital(CDA)"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "66c1ea0d-b2f3-47c4-89e3-dafbd164c5df",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "AlSalama (Murjan) Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "66c1ea0d-b2f3-47c4-89e3-dafbd164c5df",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "AlSalama (Murjan) Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7f9eaa12-e487-40ae-a22c-453d5c7b4552",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Andalusia"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0a2b7383-cd45-45c8-9c11-ad602e7635da",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Anfas"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "0a2b7383-cd45-45c8-9c11-ad602e7635da",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Anfas"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0a2b7383-cd45-45c8-9c11-ad602e7635da",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Anfas"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "55987b86-894e-45cf-8854-1c99a8b865de",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Arrawdah Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "55987b86-894e-45cf-8854-1c99a8b865de",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Arrawdah Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "55987b86-894e-45cf-8854-1c99a8b865de",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Arrawdah Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "55987b86-894e-45cf-8854-1c99a8b865de",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Arrawdah Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "55987b86-894e-45cf-8854-1c99a8b865de",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Arrawdah Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "55987b86-894e-45cf-8854-1c99a8b865de",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Arrawdah Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "55987b86-894e-45cf-8854-1c99a8b865de",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Arrawdah Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "55987b86-894e-45cf-8854-1c99a8b865de",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Arrawdah Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4b2019cb-84cf-4d99-8a40-eb4f045c1ee4",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer (Vida Plus)"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a12c5063-b3c8-4cef-ab31-0aaeaf3eecb5",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer Care ware"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c7cbd504-1d11-4e29-bda4-322aba9a8878",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer Cluster"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "97e7a62e-41bf-4dfb-8573-6b4f3fdd6ace",
+      "useCaseId": "75da043a-7f5c-4a8c-89c0-3225c8542c9f",
+      "path": [
+        "UHR",
+        "OB",
+        "Aster sanad Hospital"
+      ],
+      "useCase": "Vital Signs",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "636f97f2-6f5d-46a0-bf98-c90d2b591392",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "AUTISM SPECTRUM VIRTTUAL CARE CLINIC"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e0df63b0-ac8c-4fde-8432-878a564ac46f",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Aya Hospital"
+      ],
+      "useCase": "Encounter History",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b28640f0-7b36-4a09-867f-8b10b77ee4f0",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Clinicy"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e5b515a8-f11c-4bb0-a9e9-4b97c8e8c594",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "CMRC"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e5b515a8-f11c-4bb0-a9e9-4b97c8e8c594",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "CMRC"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e5b515a8-f11c-4bb0-a9e9-4b97c8e8c594",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "CMRC"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e5b515a8-f11c-4bb0-a9e9-4b97c8e8c594",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "CMRC"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e5b515a8-f11c-4bb0-a9e9-4b97c8e8c594",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "CMRC"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e5b515a8-f11c-4bb0-a9e9-4b97c8e8c594",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "CMRC"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e5b515a8-f11c-4bb0-a9e9-4b97c8e8c594",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "CMRC"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e5b515a8-f11c-4bb0-a9e9-4b97c8e8c594",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "CMRC"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "532cbbfb-fcb3-4bca-9e1e-d40451f15f37",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Dallah"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "532cbbfb-fcb3-4bca-9e1e-d40451f15f37",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Dallah"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "532cbbfb-fcb3-4bca-9e1e-d40451f15f37",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Dallah"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "532cbbfb-fcb3-4bca-9e1e-d40451f15f37",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Dallah"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "532cbbfb-fcb3-4bca-9e1e-d40451f15f37",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Dallah"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "532cbbfb-fcb3-4bca-9e1e-d40451f15f37",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Dallah"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Al Afia Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Al Afia Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Al Afia Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Al Afia Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Al Afia Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Al Afia Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Al Afia Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Al Afia Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ffe2642d-2768-4bdb-8c54-9efa3ce206ad",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Dar Alsalama"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "bba94b52-1ee5-4e36-8ee5-fb5b0e654f9a",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Abdulrahman Bakhsh Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "bba94b52-1ee5-4e36-8ee5-fb5b0e654f9a",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Abdulrahman Bakhsh Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "1e31a004-7a56-4d83-a964-64d36c1bce7c",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Arfan hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e31a004-7a56-4d83-a964-64d36c1bce7c",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Arfan hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e31a004-7a56-4d83-a964-64d36c1bce7c",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Arfan hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e31a004-7a56-4d83-a964-64d36c1bce7c",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Arfan hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e31a004-7a56-4d83-a964-64d36c1bce7c",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Arfan hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e31a004-7a56-4d83-a964-64d36c1bce7c",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Arfan hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1e31a004-7a56-4d83-a964-64d36c1bce7c",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Arfan hospital"
+      ],
+      "useCase": "XDLABO",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7af2b689-1748-4937-87ca-0713e1c919f4",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Ghassan Najeeb Hospital"
+      ],
+      "useCase": "Encounter History",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "bc87b5c7-a085-4131-bc18-63ab14487711",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Noor Mohammed Khan General Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d7c8d1b-8d3f-4583-a08f-ae413438ac4e",
+      "useCaseId": "75da043a-7f5c-4a8c-89c0-3225c8542c9f",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr.Suliman Fakeeh Hospital"
+      ],
+      "useCase": "Vital Signs",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Fakeeh"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Fakeeh"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Fakeeh"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Fakeeh"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Fakeeh"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Fakeeh"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Fakeeh"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Fakeeh"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "99c3ac7f-cb36-499d-8767-93af57a5391b",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "GAMA Hospital"
+      ],
+      "useCase": "Encounter History",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "99c3ac7f-cb36-499d-8767-93af57a5391b",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "GAMA Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "99c3ac7f-cb36-499d-8767-93af57a5391b",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "GAMA Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Hafer AlBatin"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Hafer AlBatin"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Hafer AlBatin"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Hafer AlBatin"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "OB",
+        "Hafer AlBatin"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "OB",
+        "Hafer AlBatin"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Hafer AlBatin"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Hafer AlBatin"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "24008a44-ed34-4021-a4dd-05127e58a435",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail Cluster"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "01890f99-b3c1-4db7-8c47-2538e7be93d9",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail Cluster 2"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3e756f24-a4c4-4e30-8fb5-893e387aa06a",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail MCC"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3e756f24-a4c4-4e30-8fb5-893e387aa06a",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail MCC"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3e756f24-a4c4-4e30-8fb5-893e387aa06a",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail MCC"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3e756f24-a4c4-4e30-8fb5-893e387aa06a",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail MCC"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3e756f24-a4c4-4e30-8fb5-893e387aa06a",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail MCC"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3e756f24-a4c4-4e30-8fb5-893e387aa06a",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail MCC"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3e756f24-a4c4-4e30-8fb5-893e387aa06a",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail MCC"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a9d32df9-7ad8-45a0-941b-5b44ff3c9370",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Imam Abdulrahman bin Faisal University (IAU)"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "450e7a80-ebd3-4541-981a-4bf4eb0791f3",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "450e7a80-ebd3-4541-981a-4bf4eb0791f3",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "450e7a80-ebd3-4541-981a-4bf4eb0791f3",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a10f9b88-2422-4b88-8d5c-bb955246f206",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan 1"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a10f9b88-2422-4b88-8d5c-bb955246f206",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan 1"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b8c476ea-0c5f-463f-bdae-042ac729f48b",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan Cluster (MCC)"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c017d1-2103-4998-89f5-23c6912f200a",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan cluster (MedicaCloud)"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c017d1-2103-4998-89f5-23c6912f200a",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan cluster (MedicaCloud)"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c017d1-2103-4998-89f5-23c6912f200a",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan cluster (MedicaCloud)"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c017d1-2103-4998-89f5-23c6912f200a",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan cluster (MedicaCloud)"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c017d1-2103-4998-89f5-23c6912f200a",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan cluster (MedicaCloud)"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6ebabe32-235a-4dbf-89b3-93b6b830a260",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan MCC"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6ebabe32-235a-4dbf-89b3-93b6b830a260",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan MCC"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6ebabe32-235a-4dbf-89b3-93b6b830a260",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan MCC"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ebd47729-70d2-4fd8-8cd5-9b6a19964400",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Jedda Oasis"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2248ba66-d25f-4603-a821-8aa777360d82",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Jeddah Oasis"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2248ba66-d25f-4603-a821-8aa777360d82",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Jeddah Oasis"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2248ba66-d25f-4603-a821-8aa777360d82",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Jeddah Oasis"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2248ba66-d25f-4603-a821-8aa777360d82",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "Jeddah Oasis"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2248ba66-d25f-4603-a821-8aa777360d82",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Jeddah Oasis"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2248ba66-d25f-4603-a821-8aa777360d82",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "Jeddah Oasis"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "227c285c-70b7-4f4c-824a-6e32eb5735bf",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "KFMC"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "227c285c-70b7-4f4c-824a-6e32eb5735bf",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "KFMC"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "227c285c-70b7-4f4c-824a-6e32eb5735bf",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "KFMC"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "14040c37-9f59-44c1-a6e7-0f91340c57f1",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "KFSHB (Qassim)"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "14040c37-9f59-44c1-a6e7-0f91340c57f1",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "KFSHB (Qassim)"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "14040c37-9f59-44c1-a6e7-0f91340c57f1",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "KFSHB (Qassim)"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "14040c37-9f59-44c1-a6e7-0f91340c57f1",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "KFSHB (Qassim)"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "68b88a19-bf16-4a12-8af5-7a1660741630",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "KFSHRC"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c6d499-e964-4e38-a53c-686cb3a5258e",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Khafgi Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c6d499-e964-4e38-a53c-686cb3a5258e",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Khafgi Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c6d499-e964-4e38-a53c-686cb3a5258e",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Khafgi Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c6d499-e964-4e38-a53c-686cb3a5258e",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Khafgi Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c6d499-e964-4e38-a53c-686cb3a5258e",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Khafgi Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c6d499-e964-4e38-a53c-686cb3a5258e",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Khafgi Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c2c6d499-e964-4e38-a53c-686cb3a5258e",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Khafgi Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "261b5bf3-a68b-4d3c-b223-09c19fb978a6",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdulaziz University"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "261b5bf3-a68b-4d3c-b223-09c19fb978a6",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdulaziz University"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "261b5bf3-a68b-4d3c-b223-09c19fb978a6",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdulaziz University"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "261b5bf3-a68b-4d3c-b223-09c19fb978a6",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdulaziz University"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "261b5bf3-a68b-4d3c-b223-09c19fb978a6",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdulaziz University"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "8dc8ff9c-92f7-4df4-a8ef-22e16608ae7d",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical City"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "8dc8ff9c-92f7-4df4-a8ef-22e16608ae7d",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical City"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "8dc8ff9c-92f7-4df4-a8ef-22e16608ae7d",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical City"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "8dc8ff9c-92f7-4df4-a8ef-22e16608ae7d",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical City"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "8dc8ff9c-92f7-4df4-a8ef-22e16608ae7d",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical City"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3663764c-1f89-44db-a437-b5ae74e5628f",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical Complex (northern Jeddah)"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3663764c-1f89-44db-a437-b5ae74e5628f",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical Complex (northern Jeddah)"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3663764c-1f89-44db-a437-b5ae74e5628f",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical Complex (northern Jeddah)"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3663764c-1f89-44db-a437-b5ae74e5628f",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical Complex (northern Jeddah)"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3663764c-1f89-44db-a437-b5ae74e5628f",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical Complex (northern Jeddah)"
+      ],
+      "useCase": "Radiology Report",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah University Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah University Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah University Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah University Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah University Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah University Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah University Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah University Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "021cac8e-110a-4011-947c-465456ae7d1e",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "King Faisal Specialist Hospital and Research Centre (KFSHRC)"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "021cac8e-110a-4011-947c-465456ae7d1e",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "King Faisal Specialist Hospital and Research Centre (KFSHRC)"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "874dc7a0-69e8-47f3-a08f-cd89c33626ee",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid uni"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b317549f-2ee3-4155-a260-a9166bdb4bb2",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b317549f-2ee3-4155-a260-a9166bdb4bb2",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b317549f-2ee3-4155-a260-a9166bdb4bb2",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b317549f-2ee3-4155-a260-a9166bdb4bb2",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b317549f-2ee3-4155-a260-a9166bdb4bb2",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University"
+      ],
+      "useCase": "Radiology Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f07d077f-171b-4cc9-8b3d-e42cbe447e33",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University (Aseer)"
+      ],
+      "useCase": "Encounter History",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f07d077f-171b-4cc9-8b3d-e42cbe447e33",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "King Khalid University (Aseer)"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2d8ee59f-c1a5-4bfe-83dc-47f286164554",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "KKESH"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2d8ee59f-c1a5-4bfe-83dc-47f286164554",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "KKESH"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2d8ee59f-c1a5-4bfe-83dc-47f286164554",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "KKESH"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2d8ee59f-c1a5-4bfe-83dc-47f286164554",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "KKESH"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2d8ee59f-c1a5-4bfe-83dc-47f286164554",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "KKESH"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2d8ee59f-c1a5-4bfe-83dc-47f286164554",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "KKESH"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2d8ee59f-c1a5-4bfe-83dc-47f286164554",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "KKESH"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2d8ee59f-c1a5-4bfe-83dc-47f286164554",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "KKESH"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6735d3cb-f316-40d2-907b-6134114896f7",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "KSMC alshimaysi"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6735d3cb-f316-40d2-907b-6134114896f7",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "KSMC alshimaysi"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "6735d3cb-f316-40d2-907b-6134114896f7",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "KSMC alshimaysi"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "718e8ff2-b747-4acb-a46f-b2f13239d491",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Madina cluster"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "718e8ff2-b747-4acb-a46f-b2f13239d491",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Madina cluster"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1eef4fe8-40d9-4503-892a-24699e68290e",
+      "useCaseId": "75da043a-7f5c-4a8c-89c0-3225c8542c9f",
+      "path": [
+        "UHR",
+        "OB",
+        "Magrabi Hospital"
+      ],
+      "useCase": "Vital Signs",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c1bd236f-72c0-4033-aa71-ceb284600f5b",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Magrabi Hospital and Centers"
+      ],
+      "useCase": "Encounter History",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "f097590f-f45a-4cf0-be5b-0d9a47566f1b",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah (Intersystem)"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c66e1198-ff33-4c6c-bf76-41d41ad33339",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah 1 (Careware)"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c66e1198-ff33-4c6c-bf76-41d41ad33339",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah 1 (Careware)"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c66e1198-ff33-4c6c-bf76-41d41ad33339",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah 1 (Careware)"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5056d4a4-cf82-4fcc-9507-7b685365fe45",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah 2 (MCC)"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5056d4a4-cf82-4fcc-9507-7b685365fe45",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah 2 (MCC)"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5056d4a4-cf82-4fcc-9507-7b685365fe45",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah 2 (MCC)"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5056d4a4-cf82-4fcc-9507-7b685365fe45",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah 2 (MCC)"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "5056d4a4-cf82-4fcc-9507-7b685365fe45",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "Makkah 2 (MCC)"
+      ],
+      "useCase": "XDRADO",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "bbe977f1-d3f8-4bff-849f-fd45a880802c",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "MMS"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "14f069e0-75cd-446a-819f-44b671e18c05",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "MoDHS"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "14f069e0-75cd-446a-819f-44b671e18c05",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "MoDHS"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "14f069e0-75cd-446a-819f-44b671e18c05",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "MoDHS"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "afe7227b-fe9d-4c80-beac-2244faa5af57",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Mohammed Aldossary"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "afe7227b-fe9d-4c80-beac-2244faa5af57",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Mohammed Aldossary"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "afe7227b-fe9d-4c80-beac-2244faa5af57",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Mohammed Aldossary"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "afe7227b-fe9d-4c80-beac-2244faa5af57",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Mohammed Aldossary"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "afe7227b-fe9d-4c80-beac-2244faa5af57",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Mohammed Aldossary"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "afe7227b-fe9d-4c80-beac-2244faa5af57",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Mohammed Aldossary"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "afe7227b-fe9d-4c80-beac-2244faa5af57",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Mohammed Aldossary"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "afe7227b-fe9d-4c80-beac-2244faa5af57",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Mohammed Aldossary"
+      ],
+      "useCase": "Radiology Report",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3973a51a-69c0-4b54-adef-9ec20f73b89b",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "My Clinica"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3973a51a-69c0-4b54-adef-9ec20f73b89b",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "My Clinica"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3973a51a-69c0-4b54-adef-9ec20f73b89b",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "My Clinica"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3973a51a-69c0-4b54-adef-9ec20f73b89b",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "My Clinica"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3973a51a-69c0-4b54-adef-9ec20f73b89b",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "My Clinica"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3973a51a-69c0-4b54-adef-9ec20f73b89b",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "My Clinica"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3973a51a-69c0-4b54-adef-9ec20f73b89b",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "My Clinica"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "074554c3-f953-4bde-89ce-c9f17e41b7cf",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "074554c3-f953-4bde-89ce-c9f17e41b7cf",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b412aa2a-0dc8-4ff7-b6ba-2f94c21cb945",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran (Vida plus)"
+      ],
+      "useCase": "Encounter History",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4306ed5d-2bfd-45db-8857-07c1cd424a4f",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran Cluster"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4306ed5d-2bfd-45db-8857-07c1cd424a4f",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran Cluster"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "4306ed5d-2bfd-45db-8857-07c1cd424a4f",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran Cluster"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "58c1a90f-4579-4113-83cd-17f265863ec0",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran specialized hospital"
+      ],
+      "useCase": "Encounter History",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran specialized hospital(FHIR)"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran specialized hospital(FHIR)"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran specialized hospital(FHIR)"
+      ],
+      "useCase": "Radiology Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Najran specialized hospital(FHIR)"
+      ],
+      "useCase": "Radiology Report",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b620c047-8b80-466a-8e54-f9a6c916f2e1",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "NMC"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b620c047-8b80-466a-8e54-f9a6c916f2e1",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "NMC"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b620c047-8b80-466a-8e54-f9a6c916f2e1",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "NMC"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b620c047-8b80-466a-8e54-f9a6c916f2e1",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "NMC"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b620c047-8b80-466a-8e54-f9a6c916f2e1",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "NMC"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a15996eb-1f8b-4825-b3d9-1821a9199cec",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "North Borders"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a15996eb-1f8b-4825-b3d9-1821a9199cec",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "North Borders"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a15996eb-1f8b-4825-b3d9-1821a9199cec",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "North Borders"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a15996eb-1f8b-4825-b3d9-1821a9199cec",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "North Borders"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a15996eb-1f8b-4825-b3d9-1821a9199cec",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "North Borders"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a15996eb-1f8b-4825-b3d9-1821a9199cec",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "North Borders"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "a15996eb-1f8b-4825-b3d9-1821a9199cec",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "North Borders"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "147d7859-6407-4d61-ac78-5ef0f9aa787f",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Prince Fahad bin Sultan"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Procare Riyadh Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Procare Riyadh Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Procare Riyadh Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Procare Riyadh Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Procare Riyadh Hospital"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Procare Riyadh Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Procare Riyadh Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Procare Riyadh Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "61077c0f-475d-4a53-bb52-4e7c6417fb04",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim (KFSHB)"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "61077c0f-475d-4a53-bb52-4e7c6417fb04",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim (KFSHB)"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "61077c0f-475d-4a53-bb52-4e7c6417fb04",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim (KFSHB)"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b06581cd-96e0-4532-975e-4d60c076bbfc",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim cluster Vida 4"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b692fee0-15c1-43e8-85cd-fc543e7ebaad",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim National Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b692fee0-15c1-43e8-85cd-fc543e7ebaad",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim National Hospital"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b692fee0-15c1-43e8-85cd-fc543e7ebaad",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim National Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b692fee0-15c1-43e8-85cd-fc543e7ebaad",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim National Hospital"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b692fee0-15c1-43e8-85cd-fc543e7ebaad",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim National Hospital"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b692fee0-15c1-43e8-85cd-fc543e7ebaad",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim National Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b692fee0-15c1-43e8-85cd-fc543e7ebaad",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim National Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "b692fee0-15c1-43e8-85cd-fc543e7ebaad",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim National Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c3b6ec42-a9dc-4780-89bb-98328020e818",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim University Hospital"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c3b6ec42-a9dc-4780-89bb-98328020e818",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim University Hospital"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c3b6ec42-a9dc-4780-89bb-98328020e818",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim University Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "c3b6ec42-a9dc-4780-89bb-98328020e818",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Qassim University Hospital"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "dc3c2055-180e-48b8-b448-c7b5c56c38e8",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabet"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "dc3c2055-180e-48b8-b448-c7b5c56c38e8",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabet"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "dc3c2055-180e-48b8-b448-c7b5c56c38e8",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabet"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "dc3c2055-180e-48b8-b448-c7b5c56c38e8",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabet"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "dc3c2055-180e-48b8-b448-c7b5c56c38e8",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabet"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "dc3c2055-180e-48b8-b448-c7b5c56c38e8",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabet"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "dc3c2055-180e-48b8-b448-c7b5c56c38e8",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabet"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "30a39162-1895-44ba-b1a4-21ac1785a782",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabia Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "30a39162-1895-44ba-b1a4-21ac1785a782",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabia Hospital"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "621a79d7-a05d-4840-ab38-9c97ec094beb",
+      "useCaseId": "75da043a-7f5c-4a8c-89c0-3225c8542c9f",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem"
+      ],
+      "useCase": "Vital Signs",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e896272d-372e-4340-bdee-64c25e7cf25d",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem Private"
+      ],
+      "useCase": "Lab Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e896272d-372e-4340-bdee-64c25e7cf25d",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem Private"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e896272d-372e-4340-bdee-64c25e7cf25d",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem Private"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e896272d-372e-4340-bdee-64c25e7cf25d",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem Private"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e896272d-372e-4340-bdee-64c25e7cf25d",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem Private"
+      ],
+      "useCase": "Radiology Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e896272d-372e-4340-bdee-64c25e7cf25d",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Raqeem Private"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e6ad5fd-e094-4d24-bab5-a2943ccd59e3",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "RCH"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e6ad5fd-e094-4d24-bab5-a2943ccd59e3",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "RCH"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e6ad5fd-e094-4d24-bab5-a2943ccd59e3",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "RCH"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e6ad5fd-e094-4d24-bab5-a2943ccd59e3",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "RCH"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ec770d37-0735-4973-9252-cdc361ef8184",
+      "useCaseId": "75da043a-7f5c-4a8c-89c0-3225c8542c9f",
+      "path": [
+        "UHR",
+        "OB",
+        "Samer Abbas Hospital"
+      ],
+      "useCase": "Vital Signs",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "1497e75d-c078-43f6-a304-12e04aadaace",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Samir Abbas Hospital"
+      ],
+      "useCase": "Encounter History",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "cd68fb5c-12df-4cf0-a2ba-a7d09337b635",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "SBAHC"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "cd68fb5c-12df-4cf0-a2ba-a7d09337b635",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "SBAHC"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "cd68fb5c-12df-4cf0-a2ba-a7d09337b635",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "SBAHC"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "cd68fb5c-12df-4cf0-a2ba-a7d09337b635",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "SBAHC"
+      ],
+      "useCase": "Lab Results",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "cd68fb5c-12df-4cf0-a2ba-a7d09337b635",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "SBAHC"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "cd68fb5c-12df-4cf0-a2ba-a7d09337b635",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "SBAHC"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "cd68fb5c-12df-4cf0-a2ba-a7d09337b635",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "SBAHC"
+      ],
+      "useCase": "Radiology Order",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "cd68fb5c-12df-4cf0-a2ba-a7d09337b635",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "SBAHC"
+      ],
+      "useCase": "Radiology Report",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH"
+      ],
+      "useCase": "ADT",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH"
+      ],
+      "useCase": "Lab Results",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH"
+      ],
+      "useCase": "Radiology Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0c4e485a-19da-4ced-a2dc-42ce1e0dd5ec",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "SFH (Security Force Hospital)"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "useCase": "ADT",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "0d32ff87-870a-4089-9df8-2f880c52244a",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "SGH"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "ec6542f4-201e-43e5-9ef9-8cb606014e36",
+      "useCaseId": "56f3287f-443a-4561-b99c-de8ae245a627",
+      "path": [
+        "UHR",
+        "OB",
+        "Shefa Specialized Hopital"
+      ],
+      "useCase": "Encounter History",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9aca0633-e8c0-4bb9-b24c-698eab71818d",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "SMC"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9aca0633-e8c0-4bb9-b24c-698eab71818d",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "SMC"
+      ],
+      "useCase": "Lab Order",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9aca0633-e8c0-4bb9-b24c-698eab71818d",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "SMC"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9aca0633-e8c0-4bb9-b24c-698eab71818d",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "SMC"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9aca0633-e8c0-4bb9-b24c-698eab71818d",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "SMC"
+      ],
+      "useCase": "Radiology Report",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9aca0633-e8c0-4bb9-b24c-698eab71818d",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "SMC"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "9aca0633-e8c0-4bb9-b24c-698eab71818d",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "SMC"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "3cf06d0f-c8b1-43f1-843f-1305f4ed5611",
+      "useCaseId": "75da043a-7f5c-4a8c-89c0-3225c8542c9f",
+      "path": [
+        "UHR",
+        "OB",
+        "Suliman Fakeeh Hospital"
+      ],
+      "useCase": "Vital Signs",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2aff5609-9e5b-490b-b168-7f8453dd63bb",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "Tabuk"
+      ],
+      "useCase": "XDDOCS",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2aff5609-9e5b-490b-b168-7f8453dd63bb",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Tabuk"
+      ],
+      "useCase": "XDLABO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "2aff5609-9e5b-490b-b168-7f8453dd63bb",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "Tabuk"
+      ],
+      "useCase": "XDRADO",
+      "status": "live",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7fb3b701-8a35-4ab1-870b-0587dfb89613",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Tadawi"
+      ],
+      "useCase": "ADT",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7fb3b701-8a35-4ab1-870b-0587dfb89613",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Tadawi"
+      ],
+      "useCase": "Clinical Notes",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7fb3b701-8a35-4ab1-870b-0587dfb89613",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Tadawi"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7fb3b701-8a35-4ab1-870b-0587dfb89613",
+      "useCaseId": "24e75ff8-e739-4341-9130-c436533409e5",
+      "path": [
+        "UHR",
+        "OB",
+        "Tadawi"
+      ],
+      "useCase": "Lab Results",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7fb3b701-8a35-4ab1-870b-0587dfb89613",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Tadawi"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7fb3b701-8a35-4ab1-870b-0587dfb89613",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Tadawi"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7fb3b701-8a35-4ab1-870b-0587dfb89613",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Tadawi"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "7fb3b701-8a35-4ab1-870b-0587dfb89613",
+      "useCaseId": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+      "path": [
+        "UHR",
+        "OB",
+        "Tadawi"
+      ],
+      "useCase": "Radiology Report",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e917bf17-5cdf-4c5d-848d-54c631c0fe27",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Taif Cluster"
+      ],
+      "useCase": "Medication Dispense V1",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e917bf17-5cdf-4c5d-848d-54c631c0fe27",
+      "useCaseId": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+      "path": [
+        "UHR",
+        "OB",
+        "Taif Cluster"
+      ],
+      "useCase": "Medication Prescribe V1",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e917bf17-5cdf-4c5d-848d-54c631c0fe27",
+      "useCaseId": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+      "path": [
+        "UHR",
+        "OB",
+        "Taif Cluster"
+      ],
+      "useCase": "XDDOCS",
+      "status": "planned",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e917bf17-5cdf-4c5d-848d-54c631c0fe27",
+      "useCaseId": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+      "path": [
+        "UHR",
+        "OB",
+        "Taif Cluster"
+      ],
+      "useCase": "XDLABO",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "e917bf17-5cdf-4c5d-848d-54c631c0fe27",
+      "useCaseId": "68fa8fb3-c241-4437-8f31-0179163a7073",
+      "path": [
+        "UHR",
+        "OB",
+        "Taif Cluster"
+      ],
+      "useCase": "XDRADO",
+      "status": "testing",
+      "previousStatus": null
+    },
+    {
+      "nodeId": "bb19afe1-b04a-4da6-80bb-a2e41d1b5bf9",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "Yanbu National Hospital"
+      ],
+      "useCase": "Lab Order",
+      "status": "planned",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "bb19afe1-b04a-4da6-80bb-a2e41d1b5bf9",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "OB",
+        "Yanbu National Hospital"
+      ],
+      "useCase": "Medication Dispense V2",
+      "status": "planned",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "bb19afe1-b04a-4da6-80bb-a2e41d1b5bf9",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "OB",
+        "Yanbu National Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "status": "planned",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "bb19afe1-b04a-4da6-80bb-a2e41d1b5bf9",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Yanbu National Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "status": "planned",
+      "previousStatus": "testing"
+    }
+  ],
+  "clearedUseCases": [
+    {
+      "nodeId": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Al Madinah Cluster"
+      ],
+      "useCase": "Medication Dispense V1",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "bc8042dd-1b3a-4530-8ac9-1197fe5953dc",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salama Hospital"
+      ],
+      "useCase": "Lab Order",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "bc8042dd-1b3a-4530-8ac9-1197fe5953dc",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "AL Salama Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "4f2bbc65-c442-47b6-9f3b-6678bd776eb2",
+      "useCaseId": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+      "path": [
+        "UHR",
+        "OB",
+        "AlYousif"
+      ],
+      "useCase": "Lab Order",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "4f2bbc65-c442-47b6-9f3b-6678bd776eb2",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "AlYousif"
+      ],
+      "useCase": "Radiology Order",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "6c826301-c2b8-4544-993d-6149493e42f7",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer (Care Ware) Cluster"
+      ],
+      "useCase": "Clinical Notes",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "9c80b3d5-66ad-4488-9bad-ed21290635e0",
+      "useCaseId": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+      "path": [
+        "UHR",
+        "OB",
+        "Aseer (Vida Plus) Cluster"
+      ],
+      "useCase": "Medication Dispense V1",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "b6c76f48-1452-4891-b93e-7cbd18206729",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "OB",
+        "Dr. Erfan & Bagedo General Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "previousStatus": "planned"
+    },
+    {
+      "nodeId": "24008a44-ed34-4021-a4dd-05127e58a435",
+      "useCaseId": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+      "path": [
+        "UHR",
+        "OB",
+        "Hail Cluster"
+      ],
+      "useCase": "Medication Dispense V2",
+      "previousStatus": "testing"
+    },
+    {
+      "nodeId": "6ebabe32-235a-4dbf-89b3-93b6b830a260",
+      "useCaseId": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+      "path": [
+        "UHR",
+        "OB",
+        "Jazan MCC"
+      ],
+      "useCase": "ADT",
+      "previousStatus": "live"
+    },
+    {
+      "nodeId": "819e4d70-36f8-49f0-92b2-c99e0e10b4eb",
+      "useCaseId": "5944b97b-4431-4126-adef-8bc489bb0c65",
+      "path": [
+        "UHR",
+        "OB",
+        "King Abdullah Medical City- Makkah"
+      ],
+      "useCase": "Clinical Notes",
+      "previousStatus": "planned"
+    },
+    {
+      "nodeId": "30a39162-1895-44ba-b1a4-21ac1785a782",
+      "useCaseId": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabia Hospital"
+      ],
+      "useCase": "Medication Prescribe V2",
+      "previousStatus": "planned"
+    },
+    {
+      "nodeId": "30a39162-1895-44ba-b1a4-21ac1785a782",
+      "useCaseId": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+      "path": [
+        "UHR",
+        "OB",
+        "Rabia Hospital"
+      ],
+      "useCase": "Radiology Order",
+      "previousStatus": "testing"
+    }
+  ],
+  "createdGoals": [],
+  "updatedGoals": []
+}

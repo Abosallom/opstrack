@@ -1,0 +1,195 @@
+{
+ "kind": "demolition",
+ "at": "2026-08-23T17:13:22.109Z",
+ "organizations": [
+  {
+   "id": "892e195e-83bd-4d99-aca2-7f0871d1b20e",
+   "name": "SGH Hospital",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "87c1450a-e12e-4dc8-bbdf-2270aa751091",
+   "name": "Alfalah Hospita",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "ad5253dd-0ae1-4329-994f-063b831ea14d",
+   "name": "Alsalam Hospital",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "bfb0fe89-342e-41ff-9b0d-850bdb5ca2d0",
+   "name": "Encounter History ADT",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "5ba0e0b5-510a-4b23-9d4d-e192a919b06d",
+   "name": "Hail MCC Hospital",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "0e2daddb-a50d-4514-ba8b-9344e6bd8046",
+   "name": "King khalid University Hospital",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "5604a44c-d0bf-4e79-8a19-1e3b55a09264",
+   "name": "KKESH Hospital",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "59938194-4ac7-4073-a3cb-80d598e109b8",
+   "name": "Lab result",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "947bad96-ed6a-4ac8-88a7-4958ecb30833",
+   "name": "Qassim KFSHB Hospital",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "5d796cbb-afd1-4b6a-9128-05c08c28a5d7",
+   "name": "Rad report",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "5f63c3e8-f9d1-42ae-8485-564f39df4349",
+   "name": "SBAHC Hospital",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "1f126122-d26a-4408-b7d4-e3596da93a2e",
+   "name": "SFH Hospital",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "93c3aa72-6d6d-45cc-8edb-5df619698338",
+   "name": "Mohammed Aldossary Hospital",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "fbe784de-7dc7-40bc-b11a-6ce440c821f3",
+   "name": "King Abdullah University",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  },
+  {
+   "id": "101eb372-4e54-4a43-a5d5-9d3c1a4f0779",
+   "name": "Tadawi Hospital",
+   "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+   "archived": false
+  }
+ ],
+ "tracks": [
+  {
+   "id": "6c640922-e353-493e-adee-ce03c1c183f6",
+   "name": "Dev & QA",
+   "archived": true
+  },
+  {
+   "id": "7444bece-eda4-4e35-ba1d-48c9f6c58372",
+   "name": "Roadmap",
+   "archived": true
+  },
+  {
+   "id": "d922a76d-f0a1-4aea-b2a5-75165a896672",
+   "name": "Product Enhancements",
+   "archived": true
+  },
+  {
+   "id": "b14e4745-b888-4627-9fe4-dac970e9c716",
+   "name": "Infrastructure",
+   "archived": true
+  },
+  {
+   "id": "b3ec9d8a-8bbc-430f-8729-1153efd407f2",
+   "name": "SRE",
+   "archived": true
+  },
+  {
+   "id": "70b2ef94-f853-4990-974c-6b3027911176",
+   "name": "Network",
+   "archived": true
+  },
+  {
+   "id": "a40a9749-c6ea-41d6-a9dc-dd93c8f356bf",
+   "name": "Ayenati PMO",
+   "archived": true
+  },
+  {
+   "id": "cfc0245a-5113-450f-a0de-b9b2f0ed737e",
+   "name": "IT Ops",
+   "archived": true
+  },
+  {
+   "id": "b5e1260c-3f72-43a6-a108-dfd3d6c0d8ab",
+   "name": "Onboarding",
+   "archived": true
+  }
+ ],
+ "entries": [
+  {
+   "id": "eaff6bee-4b6f-4982-a6fd-0fb5da7f1039",
+   "title": "Branch VPN tunnel flap"
+  },
+  {
+   "id": "17f9c919-f709-480f-865a-f4bc48a1b1e5",
+   "title": "Sprint 3 deployment next friday"
+  },
+  {
+   "id": "827a0520-d683-4fc3-9896-ea78e77e25cc",
+   "title": "Chase the vendor about the switch RMA"
+  },
+  {
+   "id": "0df1b565-47dc-4d2e-95ae-89252d5f744a",
+   "title": "Sprint 38 Deployment on Friday 7th Aug"
+  },
+  {
+   "id": "36896879-7dac-4a58-8dae-49b891683aea",
+   "title": "Hi team"
+  },
+  {
+   "id": "2a3fdf0d-6e3a-4dd0-bc3b-0570ee25285a",
+   "title": "hi"
+  },
+  {
+   "id": "b452ce46-b0de-46b6-98a0-40e02e9a776e",
+   "title": "add two experts below ob"
+  },
+  {
+   "id": "7aa89dfb-9cd4-477e-9622-d80d1877974f",
+   "title": "Sprint 38 deplo"
+  },
+  {
+   "id": "a61da827-d0f7-415e-9483-5c07c41175ee",
+   "title": "Sprint 39 deployment next working day"
+  },
+  {
+   "id": "8f671a16-60d2-413a-8d6e-03bb62dccbcf",
+   "title": "Deploy sprint 3 next friday"
+  }
+ ],
+ "meetings": [
+  {
+   "id": "0136ab58-5c33-4da5-98eb-82be5ff3e511",
+   "title": "اجتماع العمليات الأسبوعي · Weekly ops sync"
+  },
+  {
+   "id": "fb6580bc-d9e7-4937-b29c-fb8c485bc23b",
+   "title": "Test"
+  }
+ ]
+}
