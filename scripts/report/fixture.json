@@ -1,0 +1,2906 @@
+{
+ "generatedAt": "2026-08-23T16:26:26.158Z",
+ "tracker": {
+  "capabilities": [
+   {
+    "id": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+    "name": "ADT"
+   },
+   {
+    "id": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+    "name": "Medication Prescribe V1"
+   },
+   {
+    "id": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+    "name": "Medication Prescribe V2"
+   },
+   {
+    "id": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+    "name": "Medication Dispense V1"
+   },
+   {
+    "id": "ded08ac2-5c33-4b4b-b17a-77d236f944a3",
+    "name": "Medication Dispense V2"
+   },
+   {
+    "id": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+    "name": "Radiology Order"
+   },
+   {
+    "id": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+    "name": "Radiology Report"
+   },
+   {
+    "id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+    "name": "Lab Order"
+   },
+   {
+    "id": "24e75ff8-e739-4341-9130-c436533409e5",
+    "name": "Lab Results"
+   },
+   {
+    "id": "5944b97b-4431-4126-adef-8bc489bb0c65",
+    "name": "Clinical Notes"
+   }
+  ],
+  "stages": [
+   {
+    "name": "Not started",
+    "terminal": false,
+    "paused": false,
+    "expectedDays": null
+   },
+   {
+    "name": "Kickoff",
+    "terminal": false,
+    "paused": false,
+    "expectedDays": 10
+   },
+   {
+    "name": "Integrating & Testing",
+    "terminal": false,
+    "paused": false,
+    "expectedDays": 10
+   },
+   {
+    "name": "UAT",
+    "terminal": false,
+    "paused": false,
+    "expectedDays": 2
+   },
+   {
+    "name": "Go-live readiness",
+    "terminal": false,
+    "paused": false,
+    "expectedDays": 3
+   },
+   {
+    "name": "Live",
+    "terminal": true,
+    "paused": false,
+    "expectedDays": null
+   },
+   {
+    "name": "Paused",
+    "terminal": false,
+    "paused": true,
+    "expectedDays": null
+   }
+  ],
+  "orgs": [
+   {
+    "id": "3bdeb851-e3f0-4d69-a697-431171c9baf9",
+    "name": "Abeer Medical Group",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 8,
+    "live": 0,
+    "testing": 0,
+    "planned": 8
+   },
+   {
+    "id": "df7d8d12-0896-4c37-9197-7d1937ba1cda",
+    "name": "Al edwani Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     "testing",
+     null
+    ],
+    "recorded": 3,
+    "live": 0,
+    "testing": 3,
+    "planned": 0
+   },
+   {
+    "id": "0ffc0bb2-d90f-4e1a-8f71-ab3a189b772d",
+    "name": "Al Emies Group",
+    "nameAr": null,
+    "owner": "Hind Almubaraki",
+    "stage": "Paused",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     "planned",
+     null,
+     null,
+     null,
+     "planned",
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 3,
+    "live": 0,
+    "testing": 1,
+    "planned": 2
+   },
+   {
+    "id": "8b69456d-3fc1-4b13-8961-203f9baa388a",
+    "name": "Al Hamra Hospital",
+    "nameAr": null,
+    "owner": "Khalid Alghamdi",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "6cfe9519-167c-4faa-8f7b-6c6165565910",
+    "name": "Al Hayat Group Hospital",
+    "nameAr": null,
+    "owner": "Riam Alnasser",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     "live",
+     null
+    ],
+    "recorded": 2,
+    "live": 1,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+    "name": "Al Madinah Cluster",
+    "nameAr": null,
+    "owner": "Shatha Alhuwaytan",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing"
+    ],
+    "recorded": 2,
+    "live": 0,
+    "testing": 2,
+    "planned": 0
+   },
+   {
+    "id": "bc8042dd-1b3a-4530-8ac9-1197fe5953dc",
+    "name": "AL Salama Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "live",
+     null,
+     "live",
+     null,
+     "live",
+     "live",
+     "live",
+     null,
+     "live"
+    ],
+    "recorded": 6,
+    "live": 6,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "1610f12c-e1f4-42db-bc62-4f79766ed4c0",
+    "name": "Al Zafer Hospital",
+    "nameAr": null,
+    "owner": "Shatha Alhuwaytan",
+    "stage": "Live",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "live",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 1,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "0dfacea8-675f-424d-9750-ca3f15b9aba2",
+    "name": "Al Zafer Hospital in Najran",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "testing",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "live"
+    ],
+    "recorded": 7,
+    "live": 1,
+    "testing": 1,
+    "planned": 5
+   },
+   {
+    "id": "0e354190-4451-4215-bbfe-f299fc5e9b50",
+    "name": "Al-anwar hospital",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "planned",
+     "planned",
+     null
+    ],
+    "recorded": 3,
+    "live": 0,
+    "testing": 1,
+    "planned": 2
+   },
+   {
+    "id": "8eceaf51-559e-4a57-b5f4-e3066ecec9b2",
+    "name": "Al-Nahdi Pharmacy",
+    "nameAr": null,
+    "owner": "Omar Almohsen",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     "planned",
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "0168f516-8bd4-4c08-be54-e8c121c34f3d",
+    "name": "Al-Zobaidi Medical Group",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "planned",
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 8,
+    "live": 0,
+    "testing": 0,
+    "planned": 8
+   },
+   {
+    "id": "31f40bf2-4945-4232-bdbe-4eb8504485d6",
+    "name": "Alansari Hospital",
+    "nameAr": null,
+    "owner": "Khalid Almutairi",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "87c1450a-e12e-4dc8-bbdf-2270aa751091",
+    "name": "Alfalah Hospita",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     "planned",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "aba0f284-d081-491a-824e-61f51bd54c58",
+    "name": "Alfalah Hospital",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 0,
+    "testing": 1,
+    "planned": 6
+   },
+   {
+    "id": "fb6a508a-9506-4709-b423-d7682316fbcf",
+    "name": "AlHammadi Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     "live",
+     null,
+     "live",
+     null,
+     "live",
+     "testing",
+     "live",
+     "testing",
+     "planned"
+    ],
+    "recorded": 8,
+    "live": 5,
+    "testing": 2,
+    "planned": 1
+   },
+   {
+    "id": "7d929a4e-00ae-4ced-b816-d2f49ccb2d06",
+    "name": "AlJazirah Hospital",
+    "nameAr": null,
+    "owner": "Khalid Alghamdi",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "817a1487-676c-4af1-8bde-97803723af90",
+    "name": "Aljedaani Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     "testing",
+     null,
+     "testing",
+     null,
+     null,
+     "testing",
+     "testing",
+     null
+    ],
+    "recorded": 4,
+    "live": 0,
+    "testing": 4,
+    "planned": 0
+   },
+   {
+    "id": "99dedfaf-7a5a-4ba9-83c0-f3b37503fdff",
+    "name": "Aljouf",
+    "nameAr": null,
+    "owner": "Riam Alnasser",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "cf6b4ace-68ae-419d-a634-2091b6d3eb9d",
+    "name": "Almana Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Paused",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "live",
+     "testing",
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 1,
+    "testing": 1,
+    "planned": 5
+   },
+   {
+    "id": "1685a391-ef36-415b-a884-2ec5056967b3",
+    "name": "Almodawah Hospital",
+    "nameAr": null,
+    "owner": "Hind Almubaraki",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "428861e4-6812-4f37-b831-b99eed5598b9",
+    "name": "Almousa Hospital",
+    "nameAr": null,
+    "owner": "Shatha Alhuwaytan",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     "testing",
+     null,
+     "testing",
+     "testing",
+     "testing",
+     "testing",
+     "testing",
+     "testing"
+    ],
+    "recorded": 8,
+    "live": 0,
+    "testing": 8,
+    "planned": 0
+   },
+   {
+    "id": "6ac969a7-fb69-40e6-8711-8eff3ab0fa72",
+    "name": "Alnahda Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 0,
+    "testing": 0,
+    "planned": 7
+   },
+   {
+    "id": "7e9df36f-f30a-4bfe-b3c0-f470942e398d",
+    "name": "Aloysif Hospital",
+    "nameAr": null,
+    "owner": "Shatha Alhuwaytan",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "399ed064-8530-4c75-9d30-54ecbca178ee",
+    "name": "Alsaedy Hospital",
+    "nameAr": null,
+    "owner": "Khalid Almutairi",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     "planned",
+     "testing",
+     "planned",
+     null
+    ],
+    "recorded": 5,
+    "live": 1,
+    "testing": 2,
+    "planned": 2
+   },
+   {
+    "id": "ad5253dd-0ae1-4329-994f-063b831ea14d",
+    "name": "Alsalam Hospital",
+    "nameAr": null,
+    "owner": "Khalid Alghamdi",
+    "stage": "Live",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     null,
+     "live",
+     null,
+     "live",
+     "live",
+     "live",
+     "live",
+     "live",
+     "live"
+    ],
+    "recorded": 8,
+    "live": 8,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "dadb88d7-9a3e-4f06-a6a5-5594f92e06b8",
+    "name": "AlSalama (Murgan)Hospital",
+    "nameAr": null,
+    "owner": "Riam Alnasser",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "66c1ea0d-b2f3-47c4-89e3-dafbd164c5df",
+    "name": "AlSalama (Murjan) Hospital",
+    "nameAr": null,
+    "owner": "Riam Alnasser",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "6c14d741-7425-43dd-98b6-b862275f8c60",
+    "name": "Alyosif Hospital",
+    "nameAr": null,
+    "owner": "Shatha Alhuwaytan",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     "testing",
+     null
+    ],
+    "recorded": 3,
+    "live": 0,
+    "testing": 3,
+    "planned": 0
+   },
+   {
+    "id": "4f2bbc65-c442-47b6-9f3b-6678bd776eb2",
+    "name": "AlYousif",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "testing",
+     null,
+     "testing",
+     null,
+     "live",
+     "testing",
+     "live",
+     null,
+     "testing"
+    ],
+    "recorded": 6,
+    "live": 2,
+    "testing": 4,
+    "planned": 0
+   },
+   {
+    "id": "297120a1-350e-4ba4-b369-7aefbaa9d12c",
+    "name": "AlZahra Madinah Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 0,
+    "testing": 0,
+    "planned": 7
+   },
+   {
+    "id": "3b46ec97-436b-4f85-bf87-9dc2da5cb365",
+    "name": "AlZahra Qatif Hospital",
+    "nameAr": null,
+    "owner": "Lama Alsmay",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     null
+    ],
+    "recorded": 4,
+    "live": 0,
+    "testing": 0,
+    "planned": 4
+   },
+   {
+    "id": "0347d5f0-18af-4652-9eed-fe061703aa5a",
+    "name": "Alzahraa General Hospital (Qatif)",
+    "nameAr": null,
+    "owner": "Khalid Almutairi",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "0a2b7383-cd45-45c8-9c11-ad602e7635da",
+    "name": "Anfas",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     "planned",
+     "planned",
+     null,
+     "planned",
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 1,
+    "testing": 0,
+    "planned": 6
+   },
+   {
+    "id": "ddb0a897-93a7-47dc-a2f6-7c0b93d3becc",
+    "name": "Arrawdah General Hospital",
+    "nameAr": null,
+    "owner": "Riam Alnasser",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "6c826301-c2b8-4544-993d-6149493e42f7",
+    "name": "Aseer (Care Ware) Cluster",
+    "nameAr": null,
+    "owner": "Shatha Alhuwaytan",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     "testing",
+     null,
+     "testing",
+     null,
+     "testing",
+     "testing",
+     "testing",
+     "testing",
+     "testing"
+    ],
+    "recorded": 8,
+    "live": 0,
+    "testing": 8,
+    "planned": 0
+   },
+   {
+    "id": "9c80b3d5-66ad-4488-9bad-ed21290635e0",
+    "name": "Aseer (Vida Plus) Cluster",
+    "nameAr": null,
+    "owner": "Khalid Almutairi",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     "live",
+     null,
+     null,
+     null,
+     null,
+     null,
+     "planned"
+    ],
+    "recorded": 2,
+    "live": 1,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "97e7a62e-41bf-4dfb-8573-6b4f3fdd6ace",
+    "name": "Aster sanad Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 0,
+    "testing": 0,
+    "planned": 7
+   },
+   {
+    "id": "809ad92f-623a-4788-831f-c8fb6a046277",
+    "name": "Autism Spectrum virtual care Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Live",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "live"
+    ],
+    "recorded": 1,
+    "live": 1,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "e0df63b0-ac8c-4fde-8432-878a564ac46f",
+    "name": "Aya Hospital",
+    "nameAr": null,
+    "owner": "Riam Alnasser",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     "live",
+     "testing",
+     "testing",
+     "testing",
+     null
+    ],
+    "recorded": 5,
+    "live": 1,
+    "testing": 4,
+    "planned": 0
+   },
+   {
+    "id": "532cbbfb-fcb3-4bca-9e1e-d40451f15f37",
+    "name": "Dallah",
+    "nameAr": null,
+    "owner": "Hind Almubaraki",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing"
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "c2fbbba0-488b-4340-b1e1-3cf6cf1a4ce3",
+    "name": "Dallah alahsa",
+    "nameAr": null,
+    "owner": "Khalid Alghamdi",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     null,
+     "live",
+     null,
+     "live",
+     "live",
+     "live",
+     "live",
+     "live",
+     "live"
+    ],
+    "recorded": 8,
+    "live": 8,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "ffe2642d-2768-4bdb-8c54-9efa3ce206ad",
+    "name": "Dar Alsalama",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Paused",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 8,
+    "live": 0,
+    "testing": 1,
+    "planned": 7
+   },
+   {
+    "id": "9549144e-e182-45cb-94d9-0a55e5a3e691",
+    "name": "Delta",
+    "nameAr": null,
+    "owner": "Riam Alnasser",
+    "stage": "Live",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "live",
+     null
+    ],
+    "recorded": 1,
+    "live": 1,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "7e3d707f-820f-4255-8b13-422a36ee3604",
+    "name": "Dr Hassan Ghazzawi Hospital",
+    "nameAr": null,
+    "owner": "Hussain Alharthi",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "planned",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "bba94b52-1ee5-4e36-8ee5-fb5b0e654f9a",
+    "name": "Dr. Abdulrahman Bakhsh Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "live",
+     null,
+     "planned",
+     null,
+     "live",
+     "planned",
+     "live",
+     "testing",
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 3,
+    "testing": 1,
+    "planned": 3
+   },
+   {
+    "id": "b6c76f48-1452-4891-b93e-7cbd18206729",
+    "name": "Dr. Erfan & Bagedo General Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Paused",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     null,
+     "planned",
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     "testing",
+     null
+    ],
+    "recorded": 4,
+    "live": 1,
+    "testing": 2,
+    "planned": 1
+   },
+   {
+    "id": "3a7847a8-e1ca-4e40-8ee6-dac3ac9c7410",
+    "name": "Dr. noor khan Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "bc87b5c7-a085-4131-bc18-63ab14487711",
+    "name": "Dr. Noor Mohammed Khan General Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     null,
+     null,
+     null,
+     "testing",
+     "testing",
+     "testing",
+     null,
+     "testing",
+     "testing"
+    ],
+    "recorded": 6,
+    "live": 1,
+    "testing": 5,
+    "planned": 0
+   },
+   {
+    "id": "6cf1b78c-40d5-4eab-b726-576fbf0bae89",
+    "name": "EHC",
+    "nameAr": null,
+    "owner": "Shatha Alhuwaytan",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     "live",
+     null,
+     null,
+     null,
+     null,
+     null,
+     "planned"
+    ],
+    "recorded": 2,
+    "live": 1,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "a71dc9b9-7404-4d4a-9b82-65ec578264e8",
+    "name": "Elite Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     null,
+     "testing",
+     null,
+     "testing",
+     null,
+     null,
+     "planned",
+     "planned",
+     null
+    ],
+    "recorded": 5,
+    "live": 1,
+    "testing": 2,
+    "planned": 2
+   },
+   {
+    "id": "bfb0fe89-342e-41ff-9b0d-850bdb5ca2d0",
+    "name": "Encounter History ADT",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 1,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "99c3ac7f-cb36-499d-8767-93af57a5391b",
+    "name": "GAMA Hospital",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     null,
+     null,
+     "planned"
+    ],
+    "recorded": 5,
+    "live": 0,
+    "testing": 0,
+    "planned": 5
+   },
+   {
+    "id": "6f1129d6-1816-41ab-804a-fdc63950da97",
+    "name": "Ghassan Njeeb Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 0,
+    "testing": 0,
+    "planned": 7
+   },
+   {
+    "id": "6d4a3e94-f19c-42b9-b723-b9216ca4dcdc",
+    "name": "GNB hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "planned",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "fe6cfeed-b858-4c63-8186-15f93277fa3b",
+    "name": "GNP",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "planned",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "24008a44-ed34-4021-a4dd-05127e58a435",
+    "name": "Hail Cluster",
+    "nameAr": null,
+    "owner": "Shatha Alhuwaytan",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "5ba0e0b5-510a-4b23-9d4d-e192a919b06d",
+    "name": "Hail MCC Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     "live",
+     null,
+     null,
+     "planned",
+     "live",
+     "testing"
+    ],
+    "recorded": 4,
+    "live": 2,
+    "testing": 1,
+    "planned": 1
+   },
+   {
+    "id": "da195ac8-5703-4de8-a5ce-6a45df28f58d",
+    "name": "Hamid Alahmdi Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     "testing",
+     "testing",
+     "testing",
+     null
+    ],
+    "recorded": 4,
+    "live": 0,
+    "testing": 4,
+    "planned": 0
+   },
+   {
+    "id": "a8e1262e-b534-4c9f-932f-c68f00121ae5",
+    "name": "HMC Hospital",
+    "nameAr": null,
+    "owner": "Khalid Alghamdi",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "testing",
+     null,
+     "live",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 2,
+    "live": 1,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "6ebabe32-235a-4dbf-89b3-93b6b830a260",
+    "name": "Jazan MCC",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     "testing",
+     null,
+     null,
+     null,
+     "testing",
+     "testing",
+     null,
+     "testing",
+     null
+    ],
+    "recorded": 5,
+    "live": 1,
+    "testing": 4,
+    "planned": 0
+   },
+   {
+    "id": "8541835e-22ef-4ece-ae30-003cf690e824",
+    "name": "Jazan University Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "live",
+     "testing",
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 1,
+    "testing": 1,
+    "planned": 5
+   },
+   {
+    "id": "227c285c-70b7-4f4c-824a-6e32eb5735bf",
+    "name": "KFMC",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Paused",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "live",
+     null,
+     "live",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 2,
+    "live": 2,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "68b88a19-bf16-4a12-8af5-7a1660741630",
+    "name": "KFSHRC",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "planned",
+     null,
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 2,
+    "live": 0,
+    "testing": 1,
+    "planned": 1
+   },
+   {
+    "id": "261b5bf3-a68b-4d3c-b223-09c19fb978a6",
+    "name": "King Abdulaziz University",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "testing",
+     null,
+     null,
+     null,
+     "testing",
+     null,
+     "planned",
+     null,
+     null
+    ],
+    "recorded": 3,
+    "live": 0,
+    "testing": 2,
+    "planned": 1
+   },
+   {
+    "id": "819e4d70-36f8-49f0-92b2-c99e0e10b4eb",
+    "name": "King Abdullah Medical City- Makkah",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     "testing",
+     null,
+     null,
+     "planned"
+    ],
+    "recorded": 3,
+    "live": 0,
+    "testing": 2,
+    "planned": 1
+   },
+   {
+    "id": "fbe784de-7dc7-40bc-b11a-6ce440c821f3",
+    "name": "King Abdullah University",
+    "nameAr": null,
+    "owner": "Khalid Alghamdi",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "021cac8e-110a-4011-947c-465456ae7d1e",
+    "name": "King Faisal Specialist Hospital and Research Centre (KFSHRC)",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     "planned",
+     "planned",
+     null,
+     null,
+     "planned"
+    ],
+    "recorded": 3,
+    "live": 0,
+    "testing": 0,
+    "planned": 3
+   },
+   {
+    "id": "0e2daddb-a50d-4514-ba8b-9344e6bd8046",
+    "name": "King khalid University Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "d6214ead-9205-4e65-9846-8249a0104aff",
+    "name": "Kingdom Hospital",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 8,
+    "live": 0,
+    "testing": 1,
+    "planned": 7
+   },
+   {
+    "id": "af8ccf36-efe9-4366-90c1-a64e71ac0a6c",
+    "name": "Kings collage Hospital",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "planned",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "5604a44c-d0bf-4e79-8a19-1e3b55a09264",
+    "name": "KKESH Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "live",
+     null,
+     "live",
+     null,
+     "live",
+     null,
+     "testing",
+     "testing",
+     "live"
+    ],
+    "recorded": 6,
+    "live": 4,
+    "testing": 2,
+    "planned": 0
+   },
+   {
+    "id": "59938194-4ac7-4073-a3cb-80d598e109b8",
+    "name": "Lab result",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "live",
+     null
+    ],
+    "recorded": 1,
+    "live": 1,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "468ea865-c0ad-4cbc-8fb1-ec7c19bbf40d",
+    "name": "Madeeda Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     "testing",
+     null,
+     "testing",
+     null,
+     "testing",
+     "testing",
+     "testing",
+     "testing",
+     "testing"
+    ],
+    "recorded": 8,
+    "live": 0,
+    "testing": 8,
+    "planned": 0
+   },
+   {
+    "id": "046c59ac-a53f-4aa0-bed3-d43ab431e170",
+    "name": "Magrabi Health Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing"
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "c1bd236f-72c0-4033-aa71-ceb284600f5b",
+    "name": "Magrabi Hospital and Centers",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     null,
+     "planned",
+     "planned",
+     null
+    ],
+    "recorded": 4,
+    "live": 0,
+    "testing": 0,
+    "planned": 4
+   },
+   {
+    "id": "c66e1198-ff33-4c6c-bf76-41d41ad33339",
+    "name": "Makkah 1 (Careware)",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Live",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "live",
+     null,
+     "live",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 2,
+    "live": 2,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "dea94d42-b34b-4cc4-a294-e7b63b79b3e1",
+    "name": "Makkah Cluster 2 (MCC)",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     "planned",
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "93c3aa72-6d6d-45cc-8edb-5df619698338",
+    "name": "Mohammed Aldossary Hospital",
+    "nameAr": null,
+    "owner": "Shatha Alhuwaytan",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     "testing",
+     null,
+     "testing",
+     null,
+     "live",
+     "testing",
+     "live",
+     "testing",
+     "testing"
+    ],
+    "recorded": 8,
+    "live": 2,
+    "testing": 6,
+    "planned": 0
+   },
+   {
+    "id": "fdd52231-5086-4284-9e48-439ed86d3202",
+    "name": "Mohammed Fakeeh",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "testing",
+     "planned",
+     "planned"
+    ],
+    "recorded": 8,
+    "live": 0,
+    "testing": 2,
+    "planned": 6
+   },
+   {
+    "id": "fa4b8ab5-52e4-4feb-875d-6582f4e38b40",
+    "name": "My Clinic",
+    "nameAr": null,
+    "owner": "Khalid Alghamdi",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "f9dbaabb-c07f-47ba-ac9c-4f368dc1eaec",
+    "name": "Obeid Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     null
+    ],
+    "recorded": 7,
+    "live": 0,
+    "testing": 1,
+    "planned": 6
+   },
+   {
+    "id": "d0a833f3-c16c-4407-b59a-bffd93188122",
+    "name": "Olaya Medical Complex",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     "planned",
+     "live",
+     "testing",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 9,
+    "live": 2,
+    "testing": 1,
+    "planned": 6
+   },
+   {
+    "id": "147d7859-6407-4d61-ac78-5ef0f9aa787f",
+    "name": "Prince Fahad bin Sultan",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 0,
+    "testing": 0,
+    "planned": 7
+   },
+   {
+    "id": "947bad96-ed6a-4ac8-88a7-4958ecb30833",
+    "name": "Qassim KFSHB Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     "live",
+     "live",
+     "live",
+     null,
+     null,
+     null,
+     null,
+     "testing"
+    ],
+    "recorded": 4,
+    "live": 3,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "c3b6ec42-a9dc-4780-89bb-98328020e818",
+    "name": "Qassim University Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     null,
+     "testing",
+     "testing",
+     "testing"
+    ],
+    "recorded": 4,
+    "live": 0,
+    "testing": 4,
+    "planned": 0
+   },
+   {
+    "id": "30a39162-1895-44ba-b1a4-21ac1785a782",
+    "name": "Rabia Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     null,
+     "planned",
+     null,
+     null,
+     "testing",
+     "testing",
+     "live",
+     "testing",
+     null
+    ],
+    "recorded": 6,
+    "live": 2,
+    "testing": 3,
+    "planned": 1
+   },
+   {
+    "id": "5d796cbb-afd1-4b6a-9128-05c08c28a5d7",
+    "name": "Rad report",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "live",
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 1,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "e896272d-372e-4340-bdee-64c25e7cf25d",
+    "name": "Raqeem Private",
+    "nameAr": null,
+    "owner": "Riam Alnasser",
+    "stage": "Paused",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing"
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "468f2aa3-1be1-4b26-8d1b-9665a7632306",
+    "name": "Raqeem Private Tuwaiq",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     "testing",
+     null,
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 2,
+    "live": 0,
+    "testing": 2,
+    "planned": 0
+   },
+   {
+    "id": "481314c4-fb75-4105-aeb4-54e4301d85dd",
+    "name": "Riyadh 3rd Cluster",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "planned",
+     null,
+     "planned",
+     null,
+     null,
+     "planned",
+     "planned",
+     "planned",
+     "planned",
+     null
+    ],
+    "recorded": 6,
+    "live": 0,
+    "testing": 0,
+    "planned": 6
+   },
+   {
+    "id": "d3fa2ced-857c-41be-b2ca-52ac5f3140d2",
+    "name": "Riyadh Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "planned",
+     null,
+     null
+    ],
+    "recorded": 2,
+    "live": 1,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "368ca4bb-5c77-4770-88e6-c92f832b92da",
+    "name": "Salamat",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "planned",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 0,
+    "planned": 1
+   },
+   {
+    "id": "5f63c3e8-f9d1-42ae-8485-564f39df4349",
+    "name": "SBAHC Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "live",
+     null,
+     "live",
+     null,
+     "testing",
+     null,
+     "live",
+     null,
+     "testing"
+    ],
+    "recorded": 5,
+    "live": 3,
+    "testing": 2,
+    "planned": 0
+   },
+   {
+    "id": "1f126122-d26a-4408-b7d4-e3596da93a2e",
+    "name": "SFH Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "live",
+     "live",
+     "live",
+     "live",
+     "live",
+     null,
+     "live",
+     null,
+     null
+    ],
+    "recorded": 6,
+    "live": 6,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "892e195e-83bd-4d99-aca2-7f0871d1b20e",
+    "name": "SGH Hospital",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned",
+     null
+    ],
+    "recorded": 6,
+    "live": 0,
+    "testing": 0,
+    "planned": 6
+   },
+   {
+    "id": "ec6542f4-201e-43e5-9ef9-8cb606014e36",
+    "name": "Shefa Specialized Hopital",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "testing",
+     "testing",
+     "planned"
+    ],
+    "recorded": 7,
+    "live": 0,
+    "testing": 2,
+    "planned": 5
+   },
+   {
+    "id": "3cf06d0f-c8b1-43f1-843f-1305f4ed5611",
+    "name": "Suliman Fakeeh Hospital",
+    "nameAr": null,
+    "owner": "Riam Alnasser",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     "testing",
+     "testing",
+     "testing",
+     "testing",
+     null
+    ],
+    "recorded": 4,
+    "live": 0,
+    "testing": 4,
+    "planned": 0
+   },
+   {
+    "id": "2aff5609-9e5b-490b-b168-7f8453dd63bb",
+    "name": "Tabuk",
+    "nameAr": null,
+    "owner": "Riam Alnasser",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     null,
+     null,
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "101eb372-4e54-4a43-a5d5-9d3c1a4f0779",
+    "name": "Tadawi Hospital",
+    "nameAr": null,
+    "owner": "Dema Alkassim",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned"
+    ],
+    "recorded": 6,
+    "live": 0,
+    "testing": 1,
+    "planned": 5
+   },
+   {
+    "id": "e917bf17-5cdf-4c5d-848d-54c631c0fe27",
+    "name": "Taif Cluster",
+    "nameAr": null,
+    "owner": null,
+    "stage": "Live",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "live",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 1,
+    "testing": 0,
+    "planned": 0
+   },
+   {
+    "id": "d8fcdae8-77ea-4ae7-98a1-c255290cc85c",
+    "name": "Taif University Hospital",
+    "nameAr": null,
+    "owner": "Nawaf Alfaqih",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "recorded": 1,
+    "live": 0,
+    "testing": 1,
+    "planned": 0
+   },
+   {
+    "id": "d0c9d1ee-9c02-4e4c-bff2-742695aa7ebe",
+    "name": "United Doctors Hospital",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Kickoff",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     null,
+     "planned",
+     "planned",
+     "planned"
+    ],
+    "recorded": 6,
+    "live": 0,
+    "testing": 0,
+    "planned": 6
+   },
+   {
+    "id": "bb19afe1-b04a-4da6-80bb-a2e41d1b5bf9",
+    "name": "Yanbu National Hospital",
+    "nameAr": null,
+    "owner": "Sara Alsaab",
+    "stage": "Integrating & Testing",
+    "stageChangedAt": "2026-08-22T14:44:16.991611+00:00",
+    "byCap": [
+     "testing",
+     null,
+     "testing",
+     null,
+     "testing",
+     "testing",
+     "planned",
+     "testing",
+     "planned",
+     "planned"
+    ],
+    "recorded": 8,
+    "live": 0,
+    "testing": 5,
+    "planned": 3
+   }
+  ],
+  "totals": {
+   "organizations": 104,
+   "cells": 1040,
+   "recorded": 406,
+   "unrecorded": 634,
+   "live": 82,
+   "testing": 138,
+   "planned": 186,
+   "withOwner": 71
+  }
+ },
+ "export": {
+  "file": "Jira for Lean (1).csv",
+  "issues": 2971,
+  "byConvention": {
+   "pipe": 381,
+   "dash": 54,
+   "interface": 453,
+   "other": 2083
+  },
+  "months": [
+   {
+    "month": "2023-10",
+    "created": 1,
+    "resolved": 0
+   },
+   {
+    "month": "2023-11",
+    "created": 4,
+    "resolved": 0
+   },
+   {
+    "month": "2023-12",
+    "created": 4,
+    "resolved": 0
+   },
+   {
+    "month": "2024-01",
+    "created": 9,
+    "resolved": 0
+   },
+   {
+    "month": "2024-02",
+    "created": 47,
+    "resolved": 14
+   },
+   {
+    "month": "2024-03",
+    "created": 73,
+    "resolved": 49
+   },
+   {
+    "month": "2024-04",
+    "created": 53,
+    "resolved": 44
+   },
+   {
+    "month": "2024-05",
+    "created": 56,
+    "resolved": 46
+   },
+   {
+    "month": "2024-06",
+    "created": 36,
+    "resolved": 26
+   },
+   {
+    "month": "2024-07",
+    "created": 29,
+    "resolved": 44
+   },
+   {
+    "month": "2024-08",
+    "created": 36,
+    "resolved": 30
+   },
+   {
+    "month": "2024-09",
+    "created": 51,
+    "resolved": 38
+   },
+   {
+    "month": "2024-10",
+    "created": 45,
+    "resolved": 30
+   },
+   {
+    "month": "2024-11",
+    "created": 82,
+    "resolved": 37
+   },
+   {
+    "month": "2024-12",
+    "created": 74,
+    "resolved": 33
+   },
+   {
+    "month": "2025-01",
+    "created": 91,
+    "resolved": 22
+   },
+   {
+    "month": "2025-02",
+    "created": 40,
+    "resolved": 27
+   },
+   {
+    "month": "2025-03",
+    "created": 58,
+    "resolved": 49
+   },
+   {
+    "month": "2025-04",
+    "created": 113,
+    "resolved": 71
+   },
+   {
+    "month": "2025-05",
+    "created": 286,
+    "resolved": 73
+   },
+   {
+    "month": "2025-06",
+    "created": 90,
+    "resolved": 57
+   },
+   {
+    "month": "2025-07",
+    "created": 160,
+    "resolved": 148
+   },
+   {
+    "month": "2025-08",
+    "created": 154,
+    "resolved": 78
+   },
+   {
+    "month": "2025-09",
+    "created": 114,
+    "resolved": 91
+   },
+   {
+    "month": "2025-10",
+    "created": 93,
+    "resolved": 23
+   },
+   {
+    "month": "2025-11",
+    "created": 103,
+    "resolved": 37
+   },
+   {
+    "month": "2025-12",
+    "created": 78,
+    "resolved": 70
+   },
+   {
+    "month": "2026-01",
+    "created": 125,
+    "resolved": 34
+   },
+   {
+    "month": "2026-02",
+    "created": 129,
+    "resolved": 55
+   },
+   {
+    "month": "2026-03",
+    "created": 67,
+    "resolved": 36
+   },
+   {
+    "month": "2026-04",
+    "created": 181,
+    "resolved": 79
+   },
+   {
+    "month": "2026-05",
+    "created": 228,
+    "resolved": 90
+   },
+   {
+    "month": "2026-06",
+    "created": 94,
+    "resolved": 119
+   },
+   {
+    "month": "2026-07",
+    "created": 125,
+    "resolved": 582
+   },
+   {
+    "month": "2026-08",
+    "created": 42,
+    "resolved": 33
+   }
+  ],
+  "status": [
+   {
+    "name": "Resolved",
+    "n": 1299
+   },
+   {
+    "name": "Closed",
+    "n": 844
+   },
+   {
+    "name": "Open BO",
+    "n": 470
+   },
+   {
+    "name": "Work in progress",
+    "n": 294
+   },
+   {
+    "name": "Pending on Vendor",
+    "n": 60
+   },
+   {
+    "name": "Reopened",
+    "n": 3
+   },
+   {
+    "name": "Pending on Production",
+    "n": 1
+   }
+  ],
+  "type": [
+   {
+    "name": "Service request",
+    "n": 2634
+   },
+   {
+    "name": "Problem",
+    "n": 180
+   },
+   {
+    "name": "Incident",
+    "n": 152
+   },
+   {
+    "name": "Test",
+    "n": 5
+   }
+  ],
+  "priority": [
+   {
+    "name": "Low",
+    "n": 1910
+   },
+   {
+    "name": "Highest",
+    "n": 425
+   },
+   {
+    "name": "High",
+    "n": 408
+   },
+   {
+    "name": "Medium",
+    "n": 227
+   },
+   {
+    "name": "Lowest",
+    "n": 1
+   }
+  ],
+  "assignees": [
+   {
+    "name": "Shatha Alhuwaytan",
+    "n": 483
+   },
+   {
+    "name": "Riam Alnasser",
+    "n": 396
+   },
+   {
+    "name": "Dema Alkassim",
+    "n": 385
+   },
+   {
+    "name": "Hind Almubaraki",
+    "n": 269
+   },
+   {
+    "name": "Sara Alsaab",
+    "n": 189
+   },
+   {
+    "name": "Abrar Aldaod",
+    "n": 155
+   },
+   {
+    "name": "Khalid Almutairi",
+    "n": 150
+   },
+   {
+    "name": "Khalid Alghamdi",
+    "n": 107
+   },
+   {
+    "name": "Mohammed Alhazmi",
+    "n": 88
+   },
+   {
+    "name": "Hadeel Alshehri",
+    "n": 48
+   },
+   {
+    "name": "Reham Alahmadi",
+    "n": 47
+   },
+   {
+    "name": "Aseel Altheeb",
+    "n": 42
+   }
+  ]
+ }
+}

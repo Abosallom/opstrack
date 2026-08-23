@@ -1,0 +1,491 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Interfaces — ways to see the programme</title>
+<style>
+/* Shared print styling for the owner guides. A4, drawn UI, no external assets.
+   Sized for someone reading this for the first time: larger type, more air,
+   one idea per block. */
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #14131a; background: #fff;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+:root {
+  --ink: #14131a; --ink-2: #3f3b4a; --ink-3: #6f6a7d;
+  --accent: #5a4aa8; --accent-mid: #7b72c4; --accent-soft: #f1eefb; --accent-line: #cfc6ee;
+  --ok: #1f7a4d; --ok-soft: #e8f6ee; --ok-line: #a8dcc0;
+  --warn: #9a5b00; --warn-soft: #fdf2e0; --warn-line: #f0cf95;
+  --bad: #a3222b; --bad-soft: #fdeced; --bad-line: #f2bcc0;
+  --rule: #e4e1ec; --paper: #faf9fd;
+}
+.page {
+  width: 210mm; height: 296.6mm; padding: 16mm 16mm 14mm;
+  page-break-after: always; position: relative; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.page:last-child { page-break-after: auto; }
+.foot {
+  position: absolute; left: 16mm; right: 16mm; bottom: 8mm;
+  display: flex; justify-content: space-between;
+  font-size: 8pt; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 2.5mm;
+}
+h1 { font-size: 29pt; line-height: 1.12; margin: 0 0 4mm; letter-spacing: -0.6pt; }
+h2 { font-size: 18pt; margin: 0 0 2mm; letter-spacing: -0.3pt; line-height: 1.2; }
+h3 { font-size: 10.5pt; margin: 0 0 2.5mm; letter-spacing: 0.4pt; text-transform: uppercase; color: var(--accent); }
+h3 .mono { text-transform: none; }
+p  { font-size: 11pt; line-height: 1.6; margin: 0 0 4mm; color: var(--ink-2); }
+.lede { font-size: 12.5pt; line-height: 1.55; color: var(--ink-2); }
+small { font-size: 9.4pt; color: var(--ink-3); line-height: 1.55; display: block; }
+b, strong { color: var(--ink); font-weight: 650; }
+code, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9.4pt; }
+code { background: var(--accent-soft); padding: 0.6mm 1.4mm; border-radius: 1mm; color: var(--accent); }
+.step-no {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 11mm; height: 11mm; border-radius: 50%; background: var(--accent); color: #fff;
+  font-size: 14pt; font-weight: 700; margin-right: 4mm; flex: none;
+}
+.head { display: flex; align-items: center; margin-bottom: 6mm; }
+.head h2 { margin: 0; }
+.head h2 .mono { font-size: 16pt; font-weight: 700; }
+.kicker { font-size: 8.4pt; letter-spacing: 1.5pt; text-transform: uppercase; color: var(--accent-mid);
+          margin-bottom: 3mm; font-weight: 650; }
+.box { border: 1px solid var(--rule); border-radius: 2.5mm; padding: 5mm; background: var(--paper); margin-bottom: 4.5mm; }
+.box.ok   { background: var(--ok-soft);   border-color: var(--ok-line); }
+.box.warn { background: var(--warn-soft); border-color: var(--warn-line); }
+.box.bad  { background: var(--bad-soft);  border-color: var(--bad-line); }
+.box.acc  { background: var(--accent-soft); border-color: var(--accent-line); }
+.box h4 { margin: 0 0 2mm; font-size: 10.5pt; }
+.box p:last-child, .box small:last-child { margin-bottom: 0; }
+.box.ok h4   { color: var(--ok); }
+.box.warn h4 { color: var(--warn); }
+.box.bad h4  { color: var(--bad); }
+.box.acc h4  { color: var(--accent); }
+.term {
+  background: #16151d; color: #e6e3ee; border-radius: 2.5mm; padding: 4mm 4.5mm;
+  font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9pt; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word; margin-bottom: 4mm;
+}
+.term .c { color: #8f8aa3; } .term .g { color: #7ee0a8; } .term .y { color: #f0c674; }
+.term .r { color: #f2909a; } .term .p { color: #b9a9ee; }
+.grow { flex: 1 1 auto; }
+
+/* ── beginner-guide components ───────────────────────────────────────────── */
+/* A definition: the word, then what it means in one plain sentence. */
+.defs { display: grid; gap: 3mm; }
+.def { display: grid; grid-template-columns: 34mm 1fr; gap: 4mm; align-items: start;
+       border-bottom: 1px solid var(--rule); padding-bottom: 3mm; }
+.def:last-child { border-bottom: 0; }
+.def .w { font-weight: 700; font-size: 10.5pt; color: var(--accent); }
+.def .w .mono { font-size: 9.6pt; display: block; color: var(--ink-3); font-weight: 400; margin-top: 0.6mm; }
+.def .m { font-size: 10pt; line-height: 1.55; color: var(--ink-2); }
+/* A thing to do, with what you will see when it worked. */
+.act { display: grid; grid-template-columns: 9mm 1fr; gap: 4mm; margin-bottom: 5mm; align-items: start; }
+.act .n { background: var(--accent); color: #fff; border-radius: 50%; width: 8mm; height: 8mm; flex: none;
+          display: flex; align-items: center; justify-content: center; font-size: 10.5pt; font-weight: 700; }
+.act .t { font-size: 11pt; line-height: 1.55; color: var(--ink-2); }
+.act .t b { color: var(--ink); }
+.act .saw { display: block; margin-top: 1.8mm; font-size: 9.4pt; color: var(--ok);
+            background: var(--ok-soft); border-left: 2px solid var(--ok-line); padding: 2mm 3mm; border-radius: 0 1.5mm 1.5mm 0; }
+/* Tick-off list. */
+.ck { display: grid; gap: 2.5mm; }
+.ck div { display: grid; grid-template-columns: 6mm 1fr; gap: 3mm; align-items: start; font-size: 10.2pt; color: var(--ink-2); }
+.ck .sq { width: 4.6mm; height: 4.6mm; border: 1.5px solid var(--accent-mid); border-radius: 1mm; margin-top: 0.9mm; }
+
+/* A key on the keyboard, drawn as a key cap. */
+.kbd { display: inline-block; border: 1px solid #c0bcd0; border-bottom-width: 2px; border-radius: 1.4mm;
+       padding: 0.3mm 1.6mm; background: #fff; font-size: 9.6pt; font-weight: 650; color: var(--ink);
+       font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+
+</style>
+<style>
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-top: 4mm; }
+.mini { border-radius: 2mm; padding: 4mm; border: 1px solid var(--rule); background: #fff; }
+.mini h4 { margin: 0 0 2mm; font-size: 9.8pt; }
+.mini p { font-size: 9.2pt; margin: 0; line-height: 1.5; }
+.key { display: flex; gap: 5mm; flex-wrap: wrap; margin: 3mm 0 4mm; align-items: center; }
+.key span { display: flex; align-items: center; gap: 1.8mm; font-size: 8.8pt; font-weight: 600; color: var(--ink-2); }
+.key i { width: 3.6mm; height: 3.6mm; border-radius: 0.8mm; display: block; border: 1px solid transparent; }
+.k-live { background: #1f7a4d; } .k-test { background: #c98a1a; }
+.k-plan { background: #b9b4c6; }
+/* A hairline that reads at 3.6mm. The bars can use the lighter
+   #e4e1ec because they are 40x wider; this swatch cannot. */
+.k-none { background: #fff; border-color: #9a9aa8; }
+.stat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin: 4mm 0; }
+.stat > div { border-radius: 2mm; padding: 4mm 3mm; text-align: center; border: 1px solid var(--rule); background: #fff; }
+.stat .n { font-size: 20pt; font-weight: 700; line-height: 1; color: var(--accent); }
+.stat .l { font-size: 8.4pt; color: var(--ink-3); margin-top: 1.8mm; line-height: 1.35; }
+.stat .ok .n { color: #1f7a4d; } .stat .warn .n { color: #c98a1a; }
+
+
+.gap-fun { margin: 3mm 0 4mm; }
+.gap-row { display: grid; grid-template-columns: 52mm 1fr 26mm; gap: 3mm; align-items: center; margin-bottom: 2.2mm; }
+.gap-row .lbl { font-size: 9.6pt; color: var(--ink-2); }
+.gap-row .lbl b { color: var(--ink); }
+.gap-row .tr { height: 7mm; background: #fff; border-radius: 1.2mm; overflow: hidden; border: 1px solid var(--rule); }
+.gap-row .fl { height: 100%; }
+.gap-row .v { font-size: 9.4pt; font-weight: 700; text-align: right; color: var(--ink-3); }
+.gap-in .fl { background: #1f7a4d; } .gap-out .fl { background: #b9b4c6; }
+.gap-row.gap-in .v { color: #1f7a4d; }
+.miss { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-top: 3mm; }
+.miss ul { margin: 1.5mm 0 0; padding-left: 4.5mm; }
+.miss li { font-size: 9.2pt; color: var(--ink-2); line-height: 1.55; }
+
+
+.vlist { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin-top: 4mm; }
+.vitem { border: 1px solid var(--rule); border-radius: 2mm; padding: 3.4mm 4mm; background: #fff;
+  display: grid; grid-template-columns: 7mm 1fr; gap: 3mm; align-items: start; }
+.vitem .vn { background: var(--accent); color: #fff; border-radius: 50%; width: 6.4mm; height: 6.4mm;
+  display: flex; align-items: center; justify-content: center; font-size: 9pt; font-weight: 700; }
+.vitem .vt { font-size: 9.6pt; line-height: 1.45; color: var(--ink-2); }
+.vitem .vt b { color: var(--ink); display: block; font-size: 10.2pt; margin-bottom: 0.6mm; }
+
+
+.vheatgrid-svg{display:block;width:100%;height:auto;margin:3mm 0 2mm}
+
+
+.vranked-legend{display:flex;flex-wrap:wrap;gap:1.5mm 5mm;margin:2mm 0 2.4mm;font-size:7.6pt;line-height:1.3;color:#3a3546}
+.vranked-key{display:inline-flex;align-items:center;gap:1.4mm;white-space:nowrap}
+.vranked-sw{display:inline-block;width:3.4mm;height:2.1mm;box-sizing:border-box;flex:none}
+.vranked-svg{display:block;margin:0 auto}
+.vranked-note{font-size:7.2pt;line-height:1.35;color:#4a4457;margin:2.2mm 0 0}
+.vranked-caps{font-size:6.8pt;color:#6f6980;margin-top:1.2mm}
+.vranked-caps b{color:#3a3546}
+
+
+/* .page is a flex column, so anything left shrinkable gets quietly squeezed instead of
+   overflowing where you can see it — the specimen band scaled itself down to 40% before this
+   line existed. Every block on this page holds its size; the budget is balanced by hand. */
+.vcards-svg, .vcards-legendbar, .vcards-grid, .vcards-cap, .vcards-card { flex: none; }
+.vcards-svg { display: block; margin: 0.5mm 0 2.5mm; }
+
+/* Status key. Colour appears here and on the dots, nowhere else. */
+.vcards-legendbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 1.6mm 5mm;
+  border-top: 1px solid #e4e1ec; border-bottom: 1px solid #e4e1ec;
+  padding: 2mm 0; margin-bottom: 3mm;
+}
+.vcards-key { display: inline-flex; align-items: center; gap: 1.6mm; font-size: 8.6pt; color: #6f6a7d; }
+.vcards-key b { color: #14131a; font-weight: 650; }
+.vcards-den { color: #6f6a7d; font-style: italic; }
+
+.vcards-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2.2mm; }
+.vcards-card {
+  position: relative; height: 18mm; overflow: hidden;
+  border: 1px solid #e4e1ec; border-radius: 1.6mm; background: #ffffff;
+  padding: 1.6mm 1.5mm 1.6mm 3mm;
+  display: flex; flex-direction: column;
+}
+/* The specimen, drawn large above, is also down here at its true size. */
+.vcards-card.vcards-spec { border-color: #cfc6ee; background: #faf9fd; }
+.vcards-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 1.4mm; }
+.vcards-nm {
+  font-size: 7pt; line-height: 1.18; font-weight: 650; color: #14131a;
+  height: 6.6mm; overflow: hidden; word-break: break-word;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.vcards-meta { display: flex; flex-direction: column; gap: 0.2mm; margin-top: 0.4mm; }
+.vcards-own { font-size: 6.5pt; line-height: 1.25; color: #3f3b4a; }
+.vcards-own.vcards-none { color: #9a95a8; font-style: italic; }
+.vcards-rung { font-size: 6.2pt; line-height: 1.25; color: #6f6a7d; letter-spacing: 0.1pt; }
+.vcards-dots { display: flex; gap: 0.85mm; margin-top: auto; }
+
+.vcards-d { display: inline-block; width: 2.1mm; height: 2.1mm; border-radius: 50%; flex: none; }
+.vcards-dl { background: #1f7a4d; }
+.vcards-dt { background: #c98a1a; }
+.vcards-dp { background: #b9b4c6; }
+/* Four states, not three: unrecorded keeps the paper and takes a hairline ring. */
+.vcards-dn { background: #ffffff; box-shadow: inset 0 0 0 0.3mm #e4e1ec; }
+
+.vcards-cap { margin: 2.6mm 0 3mm; font-size: 8.8pt; }
+
+
+.vswimlanes-key{display:flex;flex-wrap:wrap;gap:4mm;align-items:center;margin:2mm 0 3mm;font-size:7.6pt;color:#4a4459}
+.vswimlanes-k{display:inline-flex;align-items:center;gap:1.4mm}
+.vswimlanes-k i{display:inline-block;width:4.4mm;height:2.6mm;border-radius:0.5mm}
+.vswimlanes-none{background:#fff;box-shadow:inset 0 0 0 0.28mm #e4e1ec}
+.vswimlanes-rd{margin-left:auto;color:#6b6480;font-style:italic}
+.vswimlanes-svg{display:block;width:100%;height:auto;margin:0 0 3mm}
+
+
+.vowners-strap{display:flex;flex-wrap:wrap;gap:3mm 6mm;align-items:center;font-size:8.4px;
+  color:#4a4459;border-top:0.6px solid #e4e1ec;border-bottom:0.6px solid #e4e1ec;
+  padding:1.6mm 0;margin:1.2mm 0 2.6mm}
+.vowners-strap b{font-size:10px;color:#2b2735}
+.vowners-keyline{display:inline-flex;align-items:center;gap:1.4mm;color:#6b6577}
+.vowners-cols{display:flex;gap:5.5mm;align-items:flex-start}
+.vowners-col{flex:1 1 0;min-width:0}
+.vowners-card{break-inside:avoid;border:0.6px dashed #cfc9dd;border-radius:1mm;
+  padding:1.3mm 1.5mm 1.1mm;margin-bottom:1.8mm;background:#fff}
+.vowners-card-sm .vowners-meta{margin-bottom:0.6mm}
+.vowners-card-none{border-style:solid;border-color:#5a4aa8;background:#faf9fd}
+.vowners-who{display:flex;justify-content:space-between;align-items:baseline;gap:2mm}
+.vowners-who b{font-size:9.4px;letter-spacing:0.1px;color:#221f2c;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.vowners-who span{font-size:7.6px;color:#6b6577;white-space:nowrap}
+.vowners-card-none .vowners-who b{color:#5a4aa8}
+.vowners-meta{font-size:7px;color:#6b6577;line-height:1.3;margin:0.4mm 0 0.8mm}
+.vowners-bar{display:flex;height:1.4mm;border:0.5px solid #e4e1ec;background:#fff;
+  border-radius:0.4mm;overflow:hidden;margin-bottom:1mm}
+.vowners-b{display:block;height:100%}
+.vowners-b-live{background:#1f7a4d}
+.vowners-b-test{background:#c98a1a}
+.vowners-b-plan{background:#b9b4c6}
+.vowners-rows{list-style:none;margin:0;padding:0}
+.vowners-r{display:flex;align-items:center;gap:1.2mm;height:10.8px}
+.vowners-nm{flex:1 1 auto;min-width:0;font-size:8px;line-height:1.1;color:#2b2735;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vowners-lad{flex:0 0 auto;display:inline-flex;gap:0.9px;align-items:center}
+.vowners-t{display:block;width:2.2px;height:5.4px;background:#ece9f4;border-radius:0.4px}
+.vowners-t-on{background:#5a4aa8;height:7px}
+.vowners-t-hold{background:#fff;border:0.7px solid #5a4aa8;height:7px}
+.vowners-strip{flex:0 0 auto;display:inline-flex;gap:0.9px;align-items:center}
+.vowners-c{display:block;width:4.8px;height:6.4px;border-radius:0.4px;
+  border:0.5px solid transparent;box-sizing:border-box}
+.vowners-c-live{background:#1f7a4d}
+.vowners-c-test{background:#c98a1a}
+.vowners-c-plan{background:#b9b4c6}
+.vowners-c-none{background:#fff;border-color:#e4e1ec}
+.vowners-key{margin:2.5mm 0 0;color:#6b6577;line-height:1.4}
+.vowners-key small{font-size:7.2px}
+.vowners-key b{color:#5a4aa8}
+
+
+.vtreemap-wrap { margin: 3mm 0 0; }
+.vtreemap-wrap svg { display: block; width: 100%; height: auto; }
+.vtreemap-note { margin: 1.6mm 0 0; color: #6b6580; }
+
+
+.vwaffle-wrap { margin: 5mm 0 4mm; }
+.vwaffle-wrap svg { display: block; width: 100%; height: auto; }
+
+
+.vtimeline-chart svg, .vtimeline-band svg { display:block; width:100%; height:auto; }
+.vtimeline-chart { margin: 3mm 0 1mm; }
+.vtimeline-cap { margin: 0 0 4mm; }
+.vtimeline-h { margin: 0 0 1mm; }
+.vtimeline-band { margin: 0 0 4mm; }
+</style></head><body style="margin:0"><section class="page">
+  <div class="kicker">View 6 of 8</div>
+  <h2>Treemap</h2>
+  <p class="lede">One rectangle per organisation, sized by how many capabilities somebody has actually recorded for it, and split by the status of those records.</p>
+  <div class="box warn"><h4>Area is recorded work, not possible work</h4><p>Every organisation could record all ten capabilities, so sizing by the <i>possible</i> would draw 104 identical squares. These count only the <b>406 recorded</b> cells &mdash; mean 3.9 per organisation.</p></div>
+  <div class="vtreemap-wrap"><svg viewBox="0 0 178 136" role="img" aria-label="Treemap of 104 organisations, each rectangle sized by the number of capabilities recorded for it, 406 recorded cells in all, and split into live, testing and planned in proportion to that organisation's own records. The 634 unrecorded cells have no area.">
+<rect x="0" y="0" width="178" height="118" fill="#ffffff"/>
+<rect x="0.28" y="0.28" width="20.92" height="4.69" fill="#1f7a4d"/>
+<rect x="0.28" y="4.97" width="20.92" height="2.35" fill="#c98a1a"/>
+<rect x="0.28" y="7.32" width="20.92" height="14.08" fill="#b9b4c6"/>
+<rect x="0.28" y="21.95" width="20.92" height="18.71" fill="#1f7a4d"/>
+<rect x="0.28" y="41.22" width="20.92" height="18.71" fill="#1f7a4d"/>
+<rect x="0.28" y="60.48" width="13.08" height="18.71" fill="#1f7a4d"/>
+<rect x="13.36" y="60.48" width="5.23" height="18.71" fill="#c98a1a"/>
+<rect x="18.59" y="60.48" width="2.62" height="18.71" fill="#b9b4c6"/>
+<rect x="0.28" y="79.75" width="5.23" height="18.71" fill="#1f7a4d"/>
+<rect x="5.51" y="79.75" width="15.69" height="18.71" fill="#c98a1a"/>
+<rect x="0.28" y="99.01" width="20.92" height="18.71" fill="#b9b4c6"/>
+<rect x="21.76" y="0.28" width="20.48" height="19.11" fill="#b9b4c6"/>
+<rect x="21.76" y="19.95" width="20.48" height="19.11" fill="#c98a1a"/>
+<rect x="21.76" y="39.61" width="20.48" height="19.11" fill="#c98a1a"/>
+<rect x="21.76" y="59.28" width="2.56" height="19.11" fill="#c98a1a"/>
+<rect x="24.32" y="59.28" width="17.92" height="19.11" fill="#b9b4c6"/>
+<rect x="21.76" y="78.95" width="2.56" height="19.11" fill="#c98a1a"/>
+<rect x="24.32" y="78.95" width="17.92" height="19.11" fill="#b9b4c6"/>
+<rect x="21.76" y="98.61" width="20.48" height="19.11" fill="#c98a1a"/>
+<rect x="42.81" y="0.28" width="18.73" height="5.22" fill="#c98a1a"/>
+<rect x="42.81" y="5.50" width="18.73" height="15.67" fill="#b9b4c6"/>
+<rect x="42.81" y="21.73" width="18.73" height="13.06" fill="#c98a1a"/>
+<rect x="42.81" y="34.79" width="18.73" height="7.84" fill="#b9b4c6"/>
+<rect x="42.81" y="43.19" width="8.03" height="18.21" fill="#1f7a4d"/>
+<rect x="50.83" y="43.19" width="2.68" height="18.21" fill="#c98a1a"/>
+<rect x="53.51" y="43.19" width="8.03" height="18.21" fill="#b9b4c6"/>
+<rect x="42.81" y="61.96" width="2.68" height="18.21" fill="#1f7a4d"/>
+<rect x="45.48" y="61.96" width="2.68" height="18.21" fill="#c98a1a"/>
+<rect x="48.16" y="61.96" width="13.38" height="18.21" fill="#b9b4c6"/>
+<rect x="42.81" y="80.73" width="2.68" height="18.21" fill="#1f7a4d"/>
+<rect x="45.48" y="80.73" width="2.68" height="18.21" fill="#c98a1a"/>
+<rect x="48.16" y="80.73" width="13.38" height="18.21" fill="#b9b4c6"/>
+<rect x="42.81" y="99.51" width="2.68" height="18.21" fill="#1f7a4d"/>
+<rect x="45.48" y="99.51" width="16.05" height="18.21" fill="#b9b4c6"/>
+<rect x="62.10" y="0.28" width="2.69" height="18.14" fill="#1f7a4d"/>
+<rect x="64.78" y="0.28" width="2.69" height="18.14" fill="#c98a1a"/>
+<rect x="67.47" y="0.28" width="13.43" height="18.14" fill="#b9b4c6"/>
+<rect x="81.46" y="0.28" width="2.69" height="18.14" fill="#c98a1a"/>
+<rect x="84.15" y="0.28" width="16.12" height="18.14" fill="#b9b4c6"/>
+<rect x="100.83" y="0.28" width="18.80" height="18.14" fill="#b9b4c6"/>
+<rect x="120.19" y="0.28" width="18.80" height="18.14" fill="#b9b4c6"/>
+<rect x="139.55" y="0.28" width="18.80" height="18.14" fill="#b9b4c6"/>
+<rect x="158.92" y="0.28" width="18.80" height="18.14" fill="#b9b4c6"/>
+<rect x="62.10" y="18.98" width="16.63" height="2.93" fill="#c98a1a"/>
+<rect x="62.10" y="21.91" width="16.63" height="17.57" fill="#b9b4c6"/>
+<rect x="62.10" y="40.05" width="16.63" height="20.50" fill="#b9b4c6"/>
+<rect x="62.10" y="61.11" width="16.63" height="5.86" fill="#c98a1a"/>
+<rect x="62.10" y="66.97" width="16.63" height="14.65" fill="#b9b4c6"/>
+<rect x="62.10" y="82.17" width="16.63" height="17.49" fill="#1f7a4d"/>
+<rect x="62.10" y="100.23" width="16.63" height="17.49" fill="#1f7a4d"/>
+<rect x="79.29" y="18.98" width="15.94" height="12.17" fill="#1f7a4d"/>
+<rect x="79.29" y="31.15" width="15.94" height="6.08" fill="#c98a1a"/>
+<rect x="95.79" y="18.98" width="15.94" height="6.08" fill="#1f7a4d"/>
+<rect x="95.79" y="25.07" width="15.94" height="12.17" fill="#c98a1a"/>
+<rect x="112.29" y="18.98" width="15.94" height="6.08" fill="#1f7a4d"/>
+<rect x="112.29" y="25.07" width="15.94" height="9.13" fill="#c98a1a"/>
+<rect x="112.29" y="34.19" width="15.94" height="3.04" fill="#b9b4c6"/>
+<rect x="128.79" y="18.98" width="15.94" height="3.04" fill="#1f7a4d"/>
+<rect x="128.79" y="22.02" width="15.94" height="15.21" fill="#c98a1a"/>
+<rect x="145.28" y="18.98" width="15.94" height="18.25" fill="#b9b4c6"/>
+<rect x="161.78" y="18.98" width="15.94" height="18.25" fill="#b9b4c6"/>
+<rect x="79.29" y="37.80" width="16.80" height="2.89" fill="#c98a1a"/>
+<rect x="79.29" y="40.68" width="16.80" height="14.44" fill="#b9b4c6"/>
+<rect x="79.29" y="55.68" width="16.80" height="17.33" fill="#b9b4c6"/>
+<rect x="79.29" y="73.57" width="10.08" height="14.34" fill="#1f7a4d"/>
+<rect x="89.37" y="73.57" width="6.72" height="14.34" fill="#c98a1a"/>
+<rect x="79.29" y="88.47" width="3.36" height="14.34" fill="#1f7a4d"/>
+<rect x="82.65" y="88.47" width="6.72" height="14.34" fill="#c98a1a"/>
+<rect x="89.37" y="88.47" width="6.72" height="14.34" fill="#b9b4c6"/>
+<rect x="79.29" y="103.38" width="3.36" height="14.34" fill="#1f7a4d"/>
+<rect x="82.65" y="103.38" width="13.44" height="14.34" fill="#c98a1a"/>
+<rect x="96.65" y="37.80" width="14.22" height="3.39" fill="#1f7a4d"/>
+<rect x="96.65" y="41.18" width="14.22" height="6.77" fill="#c98a1a"/>
+<rect x="96.65" y="47.96" width="14.22" height="6.77" fill="#b9b4c6"/>
+<rect x="96.65" y="55.29" width="14.22" height="3.39" fill="#1f7a4d"/>
+<rect x="96.65" y="58.68" width="14.22" height="13.55" fill="#c98a1a"/>
+<rect x="96.65" y="72.79" width="14.22" height="16.94" fill="#b9b4c6"/>
+<rect x="96.65" y="90.29" width="10.67" height="13.44" fill="#1f7a4d"/>
+<rect x="107.31" y="90.29" width="3.56" height="13.44" fill="#c98a1a"/>
+<rect x="96.65" y="104.28" width="7.11" height="13.44" fill="#1f7a4d"/>
+<rect x="103.76" y="104.28" width="3.56" height="13.44" fill="#c98a1a"/>
+<rect x="107.31" y="104.28" width="3.56" height="13.44" fill="#b9b4c6"/>
+<rect x="111.43" y="37.80" width="12.81" height="3.73" fill="#1f7a4d"/>
+<rect x="111.43" y="41.53" width="12.81" height="7.46" fill="#c98a1a"/>
+<rect x="111.43" y="48.98" width="12.81" height="3.73" fill="#b9b4c6"/>
+<rect x="124.80" y="37.80" width="12.81" height="14.92" fill="#c98a1a"/>
+<rect x="138.17" y="37.80" width="12.81" height="14.92" fill="#b9b4c6"/>
+<rect x="151.54" y="37.80" width="12.81" height="14.92" fill="#c98a1a"/>
+<rect x="164.91" y="37.80" width="12.81" height="14.92" fill="#b9b4c6"/>
+<rect x="111.43" y="53.27" width="12.97" height="14.74" fill="#c98a1a"/>
+<rect x="111.43" y="68.57" width="12.97" height="14.74" fill="#c98a1a"/>
+<rect x="111.43" y="83.87" width="12.97" height="10.91" fill="#c98a1a"/>
+<rect x="111.43" y="95.34" width="4.32" height="10.91" fill="#c98a1a"/>
+<rect x="115.75" y="95.34" width="8.65" height="10.91" fill="#b9b4c6"/>
+<rect x="111.43" y="106.81" width="4.32" height="10.91" fill="#c98a1a"/>
+<rect x="115.75" y="106.81" width="8.65" height="10.91" fill="#b9b4c6"/>
+<rect x="124.96" y="53.27" width="12.77" height="11.08" fill="#c98a1a"/>
+<rect x="138.29" y="53.27" width="8.51" height="11.08" fill="#c98a1a"/>
+<rect x="146.80" y="53.27" width="4.26" height="11.08" fill="#b9b4c6"/>
+<rect x="151.62" y="53.27" width="8.51" height="11.08" fill="#c98a1a"/>
+<rect x="160.13" y="53.27" width="4.26" height="11.08" fill="#b9b4c6"/>
+<rect x="164.95" y="53.27" width="12.77" height="11.08" fill="#b9b4c6"/>
+<rect x="124.96" y="64.92" width="10.10" height="9.14" fill="#1f7a4d"/>
+<rect x="135.62" y="64.92" width="10.10" height="9.14" fill="#1f7a4d"/>
+<rect x="146.29" y="64.92" width="5.05" height="9.14" fill="#1f7a4d"/>
+<rect x="151.34" y="64.92" width="5.05" height="9.14" fill="#c98a1a"/>
+<rect x="156.95" y="64.92" width="5.05" height="9.14" fill="#1f7a4d"/>
+<rect x="162.00" y="64.92" width="5.05" height="9.14" fill="#b9b4c6"/>
+<rect x="167.62" y="64.92" width="5.05" height="9.14" fill="#1f7a4d"/>
+<rect x="172.67" y="64.92" width="5.05" height="9.14" fill="#b9b4c6"/>
+<rect x="124.96" y="74.62" width="8.92" height="5.18" fill="#1f7a4d"/>
+<rect x="124.96" y="79.80" width="8.92" height="5.18" fill="#c98a1a"/>
+<rect x="124.96" y="85.53" width="8.92" height="5.18" fill="#1f7a4d"/>
+<rect x="124.96" y="90.71" width="8.92" height="5.18" fill="#b9b4c6"/>
+<rect x="124.96" y="96.45" width="8.92" height="10.36" fill="#c98a1a"/>
+<rect x="124.96" y="107.36" width="8.92" height="5.18" fill="#c98a1a"/>
+<rect x="124.96" y="112.54" width="8.92" height="5.18" fill="#b9b4c6"/>
+<rect x="134.44" y="74.62" width="7.73" height="11.91" fill="#c98a1a"/>
+<rect x="134.44" y="87.09" width="7.73" height="5.68" fill="#1f7a4d"/>
+<rect x="134.44" y="93.33" width="7.73" height="5.68" fill="#1f7a4d"/>
+<rect x="134.44" y="99.57" width="7.73" height="5.68" fill="#1f7a4d"/>
+<rect x="134.44" y="105.81" width="7.73" height="5.68" fill="#1f7a4d"/>
+<rect x="134.44" y="112.04" width="7.73" height="5.68" fill="#1f7a4d"/>
+<rect x="142.73" y="74.62" width="6.55" height="6.72" fill="#1f7a4d"/>
+<rect x="149.84" y="74.62" width="6.55" height="6.72" fill="#1f7a4d"/>
+<rect x="156.95" y="74.62" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="164.06" y="74.62" width="6.55" height="6.72" fill="#b9b4c6"/>
+<rect x="171.17" y="74.62" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="142.73" y="81.90" width="6.55" height="6.72" fill="#b9b4c6"/>
+<rect x="149.84" y="81.90" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="156.95" y="81.90" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="164.06" y="81.90" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="171.17" y="81.90" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="142.73" y="89.17" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="142.73" y="96.45" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="142.73" y="103.73" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="142.73" y="111.00" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="149.84" y="89.17" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="156.95" y="89.17" width="6.55" height="6.72" fill="#b9b4c6"/>
+<rect x="164.06" y="89.17" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="171.17" y="89.17" width="6.55" height="6.72" fill="#b9b4c6"/>
+<rect x="149.84" y="96.45" width="6.55" height="6.72" fill="#b9b4c6"/>
+<rect x="149.84" y="103.73" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="149.84" y="111.00" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="156.95" y="96.45" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="164.06" y="96.45" width="6.55" height="6.72" fill="#b9b4c6"/>
+<rect x="171.17" y="96.45" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="156.95" y="103.73" width="6.55" height="6.72" fill="#b9b4c6"/>
+<rect x="156.95" y="111.00" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="164.06" y="103.73" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="171.17" y="103.73" width="6.55" height="6.72" fill="#b9b4c6"/>
+<rect x="164.06" y="111.00" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="171.17" y="111.00" width="6.55" height="6.72" fill="#c98a1a"/>
+<rect x="0.98" y="0.98" width="12.19" height="11.11" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="1.78" y="4.48" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Olaya</text><text x="1.78" y="7.78" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Medical</text><text x="1.78" y="11.09" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Complex</text>
+<rect x="0.98" y="22.65" width="13.67" height="7.81" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="1.78" y="26.15" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Alsalam</text><text x="1.78" y="29.46" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="0.98" y="41.92" width="10.70" height="7.81" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="1.78" y="45.42" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Dallah</text><text x="1.78" y="48.72" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">alahsa</text>
+<rect x="0.98" y="61.18" width="15.16" height="7.81" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="1.78" y="64.68" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">AlHammadi</text><text x="1.78" y="67.99" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="0.98" y="80.45" width="15.16" height="11.11" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="1.78" y="83.95" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Mohammed</text><text x="1.78" y="87.25" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Aldossary</text><text x="1.78" y="90.56" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="0.98" y="99.71" width="12.19" height="11.11" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="1.78" y="103.21" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Abeer</text><text x="1.78" y="106.52" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Medical</text><text x="1.78" y="109.82" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Group</text>
+<rect x="22.46" y="0.98" width="16.64" height="11.11" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="23.26" y="4.48" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Al-Zobaidi</text><text x="23.26" y="7.78" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Medical</text><text x="23.26" y="11.09" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Group</text>
+<rect x="22.46" y="20.65" width="13.67" height="7.81" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="23.26" y="24.15" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Almousa</text><text x="23.26" y="27.45" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="22.46" y="40.31" width="18.12" height="11.11" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="23.26" y="43.81" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Aseer (Care</text><text x="23.26" y="47.12" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Ware)</text><text x="23.26" y="50.42" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Cluster</text>
+<rect x="22.46" y="59.98" width="19.08" height="4.50" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="23.26" y="63.48" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Dar Alsalama</text>
+<rect x="22.46" y="79.65" width="13.67" height="7.81" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="23.26" y="83.15" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Kingdom</text><text x="23.26" y="86.45" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="22.46" y="99.31" width="13.67" height="7.81" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="23.26" y="102.81" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Madeeda</text><text x="23.26" y="106.12" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.8" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="43.51" y="0.98" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="44.31" y="4.18" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Mohammed</text><text x="44.31" y="7.13" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Fakeeh</text>
+<rect x="43.51" y="22.43" width="12.40" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="44.31" y="25.63" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Yanbu</text><text x="44.31" y="28.58" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">National</text><text x="44.31" y="31.53" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="43.51" y="43.89" width="17.33" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="44.31" y="47.09" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Dr.</text><text x="44.31" y="50.04" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Abdulrahman</text><text x="44.31" y="52.99" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Bakhsh Hosp…</text>
+<rect x="43.51" y="62.66" width="16.38" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="44.31" y="65.86" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Al Zafer</text><text x="44.31" y="68.81" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital in</text><text x="44.31" y="71.76" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Najran</text>
+<rect x="43.51" y="81.43" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="44.31" y="84.63" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Almana</text><text x="44.31" y="87.58" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="43.51" y="100.21" width="8.43" height="4.15" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="44.31" y="103.41" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Anfas</text>
+<rect x="62.80" y="0.98" width="15.05" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="63.60" y="4.18" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Jazan</text><text x="63.60" y="7.13" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">University</text><text x="63.60" y="10.08" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="82.16" y="0.98" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="82.96" y="4.18" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Alfalah</text><text x="82.96" y="7.13" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="101.53" y="0.98" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="102.33" y="4.18" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Alnahda</text><text x="102.33" y="7.13" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="120.89" y="0.98" width="12.40" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="121.69" y="4.18" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">AlZahra</text><text x="121.69" y="7.13" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Madinah</text><text x="121.69" y="10.08" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="140.25" y="0.98" width="16.38" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="141.05" y="4.18" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Aster sanad</text><text x="141.05" y="7.13" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="159.62" y="0.98" width="12.40" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="160.42" y="4.18" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Ghassan</text><text x="160.42" y="7.13" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Njeeb</text><text x="160.42" y="10.08" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="62.80" y="19.68" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="63.60" y="22.88" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Obeid</text><text x="63.60" y="25.83" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="62.80" y="40.75" width="13.73" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="63.60" y="43.95" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Prince</text><text x="63.60" y="46.90" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Fahad bin</text><text x="63.60" y="49.85" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Sultan</text>
+<rect x="62.80" y="61.81" width="15.05" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="63.60" y="65.01" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Shefa</text><text x="63.60" y="67.96" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Specializ…</text><text x="63.60" y="70.91" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hopital</text>
+<rect x="62.80" y="82.87" width="13.73" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="63.60" y="86.07" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">AL Salama</text><text x="63.60" y="89.02" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="62.80" y="100.93" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="63.60" y="104.13" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">SFH</text><text x="63.60" y="107.08" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="79.99" y="19.68" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="80.79" y="22.88" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">KKESH</text><text x="80.79" y="25.83" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="96.49" y="19.68" width="12.40" height="4.15" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="97.29" y="22.88" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">AlYousif</text>
+<rect x="112.99" y="19.68" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="113.79" y="22.88" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Rabia</text><text x="113.79" y="25.83" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="129.49" y="19.68" width="14.54" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="130.29" y="22.88" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Dr. Noor</text><text x="130.29" y="25.83" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Mohammed</text><text x="130.29" y="28.78" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Khan Gene…</text>
+<rect x="145.98" y="19.68" width="14.54" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="146.78" y="22.88" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Riyadh 3rd</text><text x="146.78" y="25.83" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Cluster</text>
+<rect x="162.48" y="19.68" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="163.28" y="22.88" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">SGH</text><text x="163.28" y="25.83" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="79.99" y="38.50" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="80.79" y="41.70" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Tadawi</text><text x="80.79" y="44.65" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="79.99" y="56.38" width="12.40" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="80.79" y="59.58" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">United</text><text x="80.79" y="62.53" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Doctors</text><text x="80.79" y="65.48" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="79.99" y="74.27" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="80.79" y="77.47" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">SBAHC</text><text x="80.79" y="80.42" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="79.99" y="89.17" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="80.79" y="92.37" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Alsaedy</text><text x="80.79" y="95.32" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="79.99" y="104.08" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="80.79" y="107.28" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Aya</text><text x="80.79" y="110.23" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="97.35" y="38.50" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="98.15" y="41.70" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Elite</text><text x="98.15" y="44.65" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="97.35" y="55.99" width="8.43" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="98.15" y="59.19" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Jazan</text><text x="98.15" y="62.14" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">MCC</text>
+<rect x="97.35" y="73.49" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="98.15" y="76.69" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">GAMA</text><text x="98.15" y="79.64" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="97.35" y="90.99" width="12.40" height="10.05" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="98.15" y="94.19" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Qassim</text><text x="98.15" y="97.14" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">KFSHB</text><text x="98.15" y="100.09" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="97.35" y="104.98" width="12.40" height="7.10" fill="#ffffff" fill-opacity="0.86" rx="0.5"/><text x="98.15" y="108.18" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hail MCC</text><text x="98.15" y="111.13" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.5" font-weight="600" fill="#241f30">Hospital</text>
+<rect x="0" y="0" width="178" height="118" fill="none" stroke="#e4e1ec" stroke-width="0.4"/>
+<rect x="0.2" y="122.50" width="7.19" height="7.19" fill="none" stroke="#6b6580" stroke-width="0.4"/>
+<text x="9.59" y="126.70" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.7" fill="#241f30">one recorded capability, to scale</text>
+<rect x="60" y="123.90" width="3.4" height="3.4" fill="#1f7a4d"/><text x="64.60" y="126.70" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.7" fill="#241f30">live 82</text>
+<rect x="82" y="123.90" width="3.4" height="3.4" fill="#c98a1a"/><text x="86.60" y="126.70" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.7" fill="#241f30">testing 138</text>
+<rect x="108" y="123.90" width="3.4" height="3.4" fill="#b9b4c6"/><text x="112.60" y="126.70" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.7" fill="#241f30">planned 186</text>
+<rect x="132" y="123.90" width="3.4" height="3.4" fill="#ffffff" stroke="#e4e1ec" stroke-width="0.4"/>
+<text x="136.6" y="126.70" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.7" fill="#6b6580">634 unrecorded — no area</text>
+<text x="0.2" y="132.90" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-size="2.6" fill="#6b6580">Every recorded cell is drawn at the same area, so the green ink is exactly 82 of 406.</text>
+</svg></div>
+  <p class="vtreemap-note"><small>45 rectangles carry a name; <b>59</b> were too small to label at print size. Every organisation has at least one recorded cell, so none is missing.</small></p>
+  <div class="two">
+    <div class="mini"><h4>What it answers</h4><p>Where the recorded work is concentrated, and how much of it is finished. A few large rectangles hold a disproportionate share of the 406 recorded cells, and because every cell is the same area, the green across the picture is 82 of 406 &mdash; read as area rather than taken on trust.</p></div>
+    <div class="mini"><h4>What it hides</h4><p>Which capability is which: a rectangle says how many are recorded, never which of the ten. The 634 unrecorded cells have no area at all &mdash; only the hairline box in the key. Rung and ownership are both absent, and 59 rectangles are too small to name.</p></div>
+  </div>
+  <div class="grow"></div>
+  <div class="foot"><span>Rectangles sized by recorded capabilities (406 of 1,040 possible cells); colour is status only</span><span>Page 6</span></div>
+</section></body></html>
