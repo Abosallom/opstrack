@@ -1964,9 +1964,9 @@ already promises that hiding leaves the pickers without un-tagging what is alrea
   CDA is live on Lab Order. Taking the newer row, or the CDA row, would silently demote work
   already delivered.
 
-⚠ **`Encounter History` — 13 statuses — MAPS TO NOTHING YET.** It is not one of the eleven and the
-  owner's "etc" did not name it. It is left hidden and unmigrated rather than guessed at, and it is
-  an open question.
+**`Encounter History` — 13 statuses — is ADT.** Admissions, discharges and transfers are what ADT
+carries, so its statuses migrate onto ADT under the same collision rule. **67 statuses migrate in
+total**, not 54.
 
 ### 13.9 Three prerequisites, per hospital, before ADT
 
@@ -2000,6 +2000,42 @@ falls as they fill it. 142 hospitals across nine people is roughly sixteen each.
 It is chosen over a spreadsheet round deliberately: a spreadsheet completes faster and teaches
 nobody the tool. This is one field, on hospitals they already own, with visible progress — the
 gentlest possible first write, in a product where **nobody has ever hand-edited anything**.
+
+---
+
+### 13.11 Four more, and one of them was already written down
+
+**The warning asks for confirmation.** Advancing a use case past STG/TEST at a hospital whose
+Patient Registry, Provider Portal or SSO is not done costs **one extra click that names what is
+missing**. It catches the genuine oversight and never stops somebody who means it — the person at
+the keyboard may know something the tool does not. A silent warning trains people to ignore
+warnings; a block would make the tool an obstacle on its first day.
+
+**The PMO fills the three tick boxes.** They are governance facts about a hospital's readiness, so
+the PMO owns them exactly as it owns COC. Which produces a clean division of daily work, and it
+matters more than it looks:
+
+| | Owns | Fills |
+|---|---|---|
+| **OB Account Manager** | the hospital | HIS, and every rung move up to COC |
+| **PMO** | the programme | the three prerequisites, and the COC signature |
+
+Both groups now have a small, real, daily thing to do in a product where **nobody has ever
+hand-edited anything**. That is the adoption plan, and it is not a separate document.
+
+**The map is BOTH the picture and the workplace — and the tension is named rather than resolved.**
+
+⚠ This repository already knew. `docs/MAP-CONTRACT.md` §0 preserves the single most-quoted finding
+  in the corpus: *"He keeps the map as a picture and a capture bar, and he quietly asks for the
+  follow-ups list back… the map is the thing he SHOWS people and the panel is the thing he WORKS
+  in."* The owner has now said the same thing in his own words, unprompted, a year of rebuilds
+  later.
+
+  So it is designed for deliberately instead of being rediscovered a fourth time: the map is
+  **shown** — grouped whichever way the conversation needs, legible on a projector, exportable to a
+  deck — and it is **worked in** through the panel, where a tap opens details without the camera
+  moving. Every future change to it gets asked against both, and a change that serves one at the
+  cost of the other is a change that has to argue for itself.
 
 ---
 
