@@ -103,13 +103,26 @@ function node(over: Partial<MapNode> & Pick<MapNode, 'id' | 'name'>): MapNode {
   }
 }
 
-function progress(nodeId: string, stageId: string | null, changedAt: string | null): MapNodeProgress {
+/**
+ * A progress row. `updated_by` defaults to A PERSON on purpose: `fields.ts`
+ * reads a null as "a service-role script wrote this row, so `stage_changed_at`
+ * is the script's clock and not the organization's", and these tests are about
+ * what the ladder does once somebody HAS said where an organization is. A
+ * fixture left at null would turn every assertion here into an assertion about
+ * unwitnessed clocks, quietly. Pass null to test that case.
+ */
+function progress(
+  nodeId: string,
+  stageId: string | null,
+  changedAt: string | null,
+  updatedBy: string | null = 'person-1',
+): MapNodeProgress {
   return {
     node_id: nodeId,
     stage_id: stageId,
     stage_changed_at: changedAt,
     updated_at: '2026-01-01T00:00:00.000Z',
-    updated_by: null,
+    updated_by: updatedBy,
   }
 }
 
@@ -949,5 +962,93 @@ describe('the portfolio expresses its own null rule', () => {
     expect(sorted.findIndex((r) => r.nodeId === 'jeddah')).toBeGreaterThan(
       sorted.findIndex((r) => r.nodeId === 'hail'),
     )
+  })
+})
+
+/*
+ * ── A CLOCK NOBODY STARTED ─────────────────────────────────────────────────
+ *
+ * `map_node_progress.updated_by` is 0026's server truth about who wrote the row
+ * — stamped by the touch trigger, never accepted from a client. Null therefore
+ * means there was no `auth.uid()`: a service-role script wrote it, and its
+ * `stage_changed_at` is the moment THE SCRIPT RAN.
+ *
+ * This is not hypothetical. All 161 progress rows in the live workspace carry a
+ * null `updated_by` and share exactly two `stage_changed_at` values — 75 rows on
+ * one instant, 86 on the other, to the microsecond — because two imports wrote
+ * them. Nobody has ever set a stage in this product.
+ *
+ * ⚠ AND IT HAS A DATE. Kickoff and Integrating & Testing both carry
+ *   `expected_days = 10`; the imports ran on 22 and 23 August 2026. Without this
+ *   rule, on 1-2 September all 124 organizations not yet Live cross the
+ *   threshold within a day of each other, and every surface in the product
+ *   reports a programme-wide stall that never happened.
+ */
+describe('a stage clock only counts if a person started it', () => {
+  const unwitnessed = (): Map<string, MapNodeProgress> =>
+    new Map(
+      [
+        progress('riyadh', 'kick', '2026-01-01T00:00:00.000Z', null),
+        progress('jeddah', 'integ', '2026-03-01T00:00:00.000Z', null),
+        progress('dammam', 'live', '2025-01-01T00:00:00.000Z', null),
+        progress('tabuk', 'hold', '2025-06-01T00:00:00.000Z', null),
+        progress('najran', 'uat', '2025-01-01T00:00:00.000Z', null),
+      ].map((p) => [p.node_id, p]),
+    )
+
+  it('reports NO days for a row a script wrote, however old the stamp', () => {
+    const rows = buildPortfolioRows(input({ progressById: unwitnessed() }))
+    // Riyadh's stamp is 68 days old and its rung allows 30. Authored, that is
+    // the one at-risk organization in this file. Unauthored, there is nothing
+    // to judge — and "nothing to judge" is null, never 0. A zero would say the
+    // organization arrived today.
+    expect(byId(rows, 'riyadh').daysInStage).toBeNull()
+    expect(byId(rows, 'riyadh').atRisk).toBe(false)
+  })
+
+  it('puts NOBODY at risk when a script wrote every row — the live shape', () => {
+    const rows = buildPortfolioRows(input({ progressById: unwitnessed() }))
+    expect(rows.filter((r) => r.atRisk)).toEqual([])
+  })
+
+  /*
+   * THE PAIR IS THE ARGUMENT. Same stamps, same ladder, same everything — only
+   * the authorship differs, and the answer flips. Without this second half the
+   * test above would also pass if `daysInStage` had simply been broken.
+   */
+  it('reports the days again the moment a person is recorded', () => {
+    const rows = buildPortfolioRows(input())
+    expect(byId(rows, 'riyadh').daysInStage).toBe(68)
+    expect(byId(rows, 'riyadh').atRisk).toBe(true)
+  })
+
+  /*
+   * ⚠ THE CASE THAT CHOSE AUTHORSHIP OVER A SHARED TIMESTAMP.
+   *
+   * The first draft of this rule read "an instant shared by more than one row
+   * was written by one statement" — true, and it would have thrown this away.
+   * An account manager who selects three organizations in the portfolio bulk bar
+   * and sets them all to Kickoff writes three rows in one statement, sharing one
+   * instant to the microsecond. That IS somebody saying something, and every row
+   * carries their id.
+   */
+  it('keeps a human bulk action, where three rows share one instant', () => {
+    const together = '2026-01-01T00:00:00.000Z'
+    const rows = buildPortfolioRows(
+      input({
+        progressById: new Map(
+          [
+            progress('riyadh', 'kick', together, 'sara'),
+            progress('jeddah', 'kick', together, 'sara'),
+            progress('dammam', 'kick', together, 'sara'),
+            progress('tabuk', 'hold', '2025-06-01T00:00:00.000Z', 'sara'),
+            progress('najran', 'uat', '2025-01-01T00:00:00.000Z', 'sara'),
+          ].map((p) => [p.node_id, p]),
+        ),
+      }),
+    )
+    for (const id of ['riyadh', 'jeddah', 'dammam']) {
+      expect(byId(rows, id).daysInStage).toBe(68)
+    }
   })
 })

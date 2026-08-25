@@ -152,7 +152,7 @@ export interface StatsInput {
   isUnassigned: (id: string) => boolean
   /** `stageIndex(mergedProgress, stageById)` — the OVERLAY-MERGED rows. */
   stages: StageIndex
-  progressById: ReadonlyMap<string, Pick<MapNodeProgress, 'stage_changed_at'>>
+  progressById: ReadonlyMap<string, Pick<MapNodeProgress, 'stage_changed_at' | 'updated_by'>>
   fallbackStallDays: number | null
   /** The reader's instant, for lib/lifecycle. This module holds no clock. */
   now: Date

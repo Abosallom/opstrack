@@ -236,13 +236,26 @@ function stage(over: Partial<MapNodeStage> & { id: string }): MapNodeStage {
   }
 }
 
-function progressRow(nodeId: string, stageId: string | null, at: string | null): MapNodeProgress {
+/**
+ * A progress row, authored BY A PERSON unless a test says otherwise.
+ *
+ * `updated_by` is 0026's server truth about who wrote the row, and `fields.ts`
+ * reads a null as "a service-role script wrote this, so `stage_changed_at` is
+ * the script's clock". These tests are about what this page says once somebody
+ * HAS put an organization on a rung, so the default has to be somebody.
+ */
+function progressRow(
+  nodeId: string,
+  stageId: string | null,
+  at: string | null,
+  updatedBy: string | null = 'person-1',
+): MapNodeProgress {
   return {
     node_id: nodeId,
     stage_id: stageId,
     stage_changed_at: at,
     updated_at: '2026-08-22T00:00:00.000Z',
-    updated_by: null,
+    updated_by: updatedBy,
   }
 }
 

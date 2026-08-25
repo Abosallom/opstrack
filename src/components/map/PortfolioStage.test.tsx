@@ -251,7 +251,10 @@ function seed(over: { hiddenRung?: boolean; expected?: number | null } = {}): Mi
         stage_id: 'kick',
         stage_changed_at: daysAgo(68),
         updated_at: daysAgo(68),
-        updated_by: null,
+        // Somebody put it on this rung 68 days ago. A null here means a script
+        // did, and `fields.ts` then reports no days and no risk at all — which
+        // is the subject of its own tests, not of this one.
+        updated_by: 'person-1',
       },
     ],
     [
@@ -261,7 +264,7 @@ function seed(over: { hiddenRung?: boolean; expected?: number | null } = {}): Mi
         stage_id: 'kick',
         stage_changed_at: daysAgo(5),
         updated_at: daysAgo(5),
-        updated_by: null,
+        updated_by: 'person-1',
       },
     ],
   ])
@@ -444,7 +447,7 @@ describe('E2 — the stage is editable from the row', () => {
       stage_id: 'old',
       stage_changed_at: daysAgo(12),
       updated_at: daysAgo(12),
-      updated_by: null,
+      updated_by: 'person-1',
     })
     const html = render(root, { risk: false, rows: true })
     // Otherwise the select would have to lie about where the organization is

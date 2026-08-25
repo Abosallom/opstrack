@@ -642,7 +642,9 @@ describe('the shared field set, as the panel says it', () => {
           stage_id: 'kick',
           stage_changed_at: stamp,
           updated_at: stamp,
-          updated_by: null,
+          // A PERSON put it there. `fields.ts` treats a null here as a script's
+          // clock and reports no days at all, which is a different test.
+          updated_by: 'person-1',
         },
       ],
     ])

@@ -107,13 +107,26 @@ function entry(over: Partial<Entry> & { id: string }): Entry {
   }
 }
 
-function progress(nodeId: string, stageId: string | null, changedAt: string | null): [string, Pick<MapNodeProgress, 'stage_id' | 'stage_changed_at'>] {
-  return [nodeId, { stage_id: stageId, stage_changed_at: changedAt }]
+/**
+ * A progress row. `updatedBy` defaults to A PERSON, because that is what these
+ * tests are about — the ladder's arithmetic, given that somebody said where an
+ * organization is. `fields.ts` reads a null `updated_by` as "a script wrote
+ * this, so its clock is the script's clock", and a fixture defaulting to null
+ * would silently turn every lateness assertion in this file into an assertion
+ * about unwitnessed clocks. Pass null explicitly to test that.
+ */
+function progress(
+  nodeId: string,
+  stageId: string | null,
+  changedAt: string | null,
+  updatedBy: string | null = 'person-1',
+): [string, Pick<MapNodeProgress, 'stage_id' | 'stage_changed_at' | 'updated_by'>] {
+  return [nodeId, { stage_id: stageId, stage_changed_at: changedAt, updated_by: updatedBy }]
 }
 
 function input(over: Partial<DeliveryInput> = {}): DeliveryInput {
   const stages = new Map<string, MapNodeStage>()
-  const progressById = new Map<string, Pick<MapNodeProgress, 'stage_id' | 'stage_changed_at'>>()
+  const progressById = new Map<string, Pick<MapNodeProgress, 'stage_id' | 'stage_changed_at' | 'updated_by'>>()
   return {
     nodes: [],
     stages: stageIndex(progressById, stages),
@@ -131,7 +144,7 @@ function input(over: Partial<DeliveryInput> = {}): DeliveryInput {
 function withStages(
   nodes: readonly MapNode[],
   stages: readonly MapNodeStage[],
-  rows: readonly [string, Pick<MapNodeProgress, 'stage_id' | 'stage_changed_at'>][],
+  rows: readonly [string, Pick<MapNodeProgress, 'stage_id' | 'stage_changed_at' | 'updated_by'>][],
   over: Partial<DeliveryInput> = {},
 ): DeliveryInput {
   const byId = new Map(stages.map((s) => [s.id, s]))

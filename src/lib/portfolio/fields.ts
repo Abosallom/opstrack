@@ -105,7 +105,7 @@ export interface StageReadingInput {
   /** `stageIndex(mergedProgress, stageById)` — the two-step, done once. */
   stages: StageIndex
   /** node id → its progress row, for `stage_changed_at`. `undefined` = no row. */
-  progressById: ReadonlyMap<string, Pick<MapNodeProgress, 'stage_changed_at'>>
+  progressById: ReadonlyMap<string, Pick<MapNodeProgress, 'stage_changed_at' | 'updated_by'>>
   /**
    * A workspace-wide floor under the per-rung expectation, or null for none.
    * An ARGUMENT rather than a constant for `resolveStallDays`' stated reason: a
@@ -135,7 +135,49 @@ export function stageReading(
 ): { stage: MapNodeStage | null; days: number | null; stallDays: number | null; atRisk: boolean } {
   const stage = input.stages.ofNode(nodeId)
   const changedAt: IsoInstant | null = input.progressById.get(nodeId)?.stage_changed_at ?? null
-  const days = daysInStage(changedAt, input.now)
+  /*
+   * ── A CLOCK NOBODY STARTED IS NOT A CLOCK ──────────────────────────────
+   *
+   * `updated_by` is 0026's SERVER TRUTH about the write — stamped by the touch
+   * trigger, never sent by a client, and overruled if one tries. So a progress
+   * row holding null was not written on anyone's behalf: there was no
+   * `auth.uid()`, which means a service-role script wrote it. Its
+   * `stage_changed_at` records WHEN THE SCRIPT RAN. It says nothing whatever
+   * about how long this organization has been where it is.
+   *
+   * That is the live workspace exactly: all 161 progress rows carry
+   * `updated_by = null` and exactly two distinct `stage_changed_at` values, 75
+   * rows on one instant and 86 on the other, to the microsecond. Nobody has ever
+   * set a stage in this product.
+   *
+   * ⚠ A LIVE CONSEQUENCE, DATED. Kickoff and Integrating & Testing both carry
+   *   `expected_days = 10`, and both import instants are 22-23 August 2026.
+   *   Without this, on 1-2 September every one of the 124 organizations not yet
+   *   Live crosses its threshold within a day of the rest, and the workspace
+   *   reports a programme-wide stall that is an artefact of an import. 0026's
+   *   header predicted this in the abstract and refused to backfill for exactly
+   *   this reason; the stage column then arrived through the supported path and
+   *   did it anyway.
+   *
+   * ⚠ AUTHORSHIP, NOT A SHARED TIMESTAMP, and the difference is a real case. An
+   *   account manager who selects eight organizations and sets them all to
+   *   Kickoff writes eight rows in one statement, sharing one instant — and that
+   *   IS somebody saying something. Every one of those rows carries their id, so
+   *   this test keeps them and a timestamp-collision test would have thrown them
+   *   away.
+   *
+   * It reads as null, which is the answer this file already gives for an
+   * organization nobody has staged, so it travels the paths that exist:
+   * `isAtRisk` answers false for null days, and no surface prints "0 days",
+   * because none of them could ever assume a progress row existed.
+   *
+   * ⚠ AN INTERIM, AND THE REAL FIX IS NAMED IN 0026: a `map_node_progress_history`
+   *   table. Time in stage is honestly measurable exactly for the stages this app
+   *   WATCHED a node enter. When that lands, this test becomes "has a history
+   *   row", and this function is the only place that changes.
+   */
+  const witnessed = input.progressById.get(nodeId)?.updated_by != null
+  const days = witnessed ? daysInStage(changedAt, input.now) : null
   const stallDays = resolveStallDays(stage, input.fallbackStallDays)
   // The clock stops on a rung the ladder cannot resolve too: `terminal: false,
   // paused: false` is the honest reading of "no rung", and `isAtRisk` already

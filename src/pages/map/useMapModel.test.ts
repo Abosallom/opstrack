@@ -95,7 +95,7 @@ function statsInput(over: Partial<Parameters<typeof collectStats>[1]> = {}): Par
     entryById: new Map<string, Entry>(),
     isUnassigned: () => false,
     stages: { byId: new Map(), ofNode: () => null } satisfies StageIndex,
-    progressById: new Map<string, Pick<MapNodeProgress, 'stage_changed_at'>>(),
+    progressById: new Map<string, Pick<MapNodeProgress, 'stage_changed_at' | 'updated_by'>>(),
     fallbackStallDays: null,
     now: NOW,
     today: TODAY,
@@ -539,8 +539,8 @@ describe('collectStats — the tally a branch may print', () => {
         } satisfies StageIndex,
         // h4 has been on a five-day rung for thirty days; h3 arrived today.
         progressById: new Map([
-          ['h3', { stage_changed_at: '2026-03-10T00:00:00.000Z' }],
-          ['h4', { stage_changed_at: '2026-02-08T00:00:00.000Z' }],
+          ['h3', { stage_changed_at: '2026-03-10T00:00:00.000Z', updated_by: 'person-1' }],
+          ['h4', { stage_changed_at: '2026-02-08T00:00:00.000Z', updated_by: 'person-1' }],
         ]),
       }),
       out,
@@ -644,7 +644,7 @@ describe('collectStats — how many organizations are under a node', () => {
       statsInput({
         stages: stageIndex(progress, stages),
         // 2026-01-01 → 2026-03-10 is 68 days, and 68 > 30.
-        progressById: new Map([['riyadh', { stage_changed_at: '2026-01-01T00:00:00.000Z' }]]),
+        progressById: new Map([['riyadh', { stage_changed_at: '2026-01-01T00:00:00.000Z', updated_by: 'person-1' }]]),
       }),
       out,
     )
@@ -743,8 +743,8 @@ describe('collectStats — how many organizations are under a node', () => {
       ['jeddah', { node_id: 'jeddah', stage_id: 'live' } as MapNodeProgress],
     ])
     const stamps = new Map([
-      ['riyadh', { stage_changed_at: '2026-01-01T00:00:00.000Z' }],
-      ['jeddah', { stage_changed_at: '2025-01-01T00:00:00.000Z' }],
+      ['riyadh', { stage_changed_at: '2026-01-01T00:00:00.000Z', updated_by: 'person-1' }],
+      ['jeddah', { stage_changed_at: '2025-01-01T00:00:00.000Z', updated_by: 'person-1' }],
     ])
     const entryById = new Map([
       leaf('e1', '2026-03-08T00:00:00.000Z'),

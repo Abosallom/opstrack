@@ -178,7 +178,7 @@ export interface PortfolioInput {
   /** `stageIndex(progressByNodeId, stageById)` — the two-step, done once. */
   stages: StageIndex
   /** node id → its progress row, for `stage_changed_at`. `undefined` = no row. */
-  progressById: ReadonlyMap<string, Pick<MapNodeProgress, 'stage_changed_at'>>
+  progressById: ReadonlyMap<string, Pick<MapNodeProgress, 'stage_changed_at' | 'updated_by'>>
   /**
    * A workspace-wide floor under the per-rung expectation, or null for none.
    * An ARGUMENT rather than a constant for `resolveStallDays`' stated reason: a
