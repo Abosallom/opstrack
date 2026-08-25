@@ -1941,6 +1941,68 @@ gets filled by the OB Account Manager who already owns the hospital.
 
 ---
 
+### 13.8 The XD family is CDA, not a separate use case
+
+The owner: *"xdrado means rad order, xddocs means clinical notes, etc"*. So the XD rows are the
+**CDA delivery of use cases already in the eleven**, not interfaces of their own — which settles a
+question this repository has raised and refused to answer in four separate files, and which
+`rebuild.mjs` recorded as *"the FHIR vs CDA distinction is erased"* without knowing whether the
+erasure was right. It was.
+
+| Retiring row | Recorded statuses | Migrates onto |
+|---|---|---|
+| `XDLABO` | 21 | **Lab Order** |
+| `XDRADO` | 20 | **Rad Order** |
+| `XDDOCS` | 13 | **Clinical Notes** |
+
+**54 statuses migrate.** The five retiring rows are **hidden, never deleted** — `use_cases.hidden`
+already promises that hiding leaves the pickers without un-tagging what is already on it.
+
+⚠ **A COLLISION RULE IS REQUIRED AND IT IS NOT OPTIONAL.** Lab Order already carries 86 statuses
+  and XDLABO carries 21, so a hospital can hold both. The rule is `rebuild.mjs`'s own, unchanged:
+  **live beats testing beats planned.** A hospital live on Lab Order over FHIR and planned over
+  CDA is live on Lab Order. Taking the newer row, or the CDA row, would silently demote work
+  already delivered.
+
+⚠ **`Encounter History` — 13 statuses — MAPS TO NOTHING YET.** It is not one of the eleven and the
+  owner's "etc" did not name it. It is left hidden and unmigrated rather than guessed at, and it is
+  an open question.
+
+### 13.9 Three prerequisites, per hospital, before ADT
+
+Not use cases and not on the four-rung ladder. **Once per hospital**, and they are the foundations
+everything else sits on:
+
+| | Shape | Values |
+|---|---|---|
+| **Patient Registry** | tick box | done / not done |
+| **Provider Portal** | tick box | done / not done |
+| **SSO** | a short list | **Not Started · UAT · PRD** |
+
+**They live in NphiesCore, not Jira** — they are not on the ticket contract today and may join it
+later. **They warn, they do not block**: a use case passing STG/TEST at a hospital whose
+prerequisites are not done shows a warning, matching the owner's ruling that ADT gates nothing by
+force either.
+
+This is the right shape for what the tickets actually show. SSO appears in 31 open tickets and
+whitelisting in 10 — they are hospital-level foundations that stall everything behind them, and
+they have been invisible in every view this product has ever drawn.
+
+⚠ **Three records per hospital, not thirty-three.** At 141 hospitals that is 423 tick boxes, and
+  they are the cheapest true facts in the system — which makes them, with HIS, the natural first
+  thing anyone ever fills in.
+
+### 13.10 The HIS queue is the first thing anyone does in the tool
+
+Each OB Account Manager sees **their own** hospitals missing an HIS, with a dropdown, and the count
+falls as they fill it. 142 hospitals across nine people is roughly sixteen each.
+
+It is chosen over a spreadsheet round deliberately: a spreadsheet completes faster and teaches
+nobody the tool. This is one field, on hospitals they already own, with visible progress — the
+gentlest possible first write, in a product where **nobody has ever hand-edited anything**.
+
+---
+
 ## Provenance
 
 - **Source of every number:** `/Users/aziz/.claude/jobs/8f812826/tmp/jira-safe.csv` (2,971 rows,
