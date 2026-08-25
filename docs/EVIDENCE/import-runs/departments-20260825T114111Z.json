@@ -1,0 +1,589 @@
+{
+ "kind": "department-move",
+ "at": "2026-08-25T11:41:11.016Z",
+ "created": [
+  "AMS",
+  "Business Operations",
+  "IT Delivery",
+  "IT Integration",
+  "Product"
+ ],
+ "moves": [
+  {
+   "id": "cf6b4ace-68ae-419d-a634-2091b6d3eb9d",
+   "name": "Almana Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "4f2bbc65-c442-47b6-9f3b-6678bd776eb2",
+   "name": "AlYousif",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "ffe2642d-2768-4bdb-8c54-9efa3ce206ad",
+   "name": "Dar Alsalama",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "0ffc0bb2-d90f-4e1a-8f71-ab3a189b772d",
+   "name": "Al Emies Group",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "c2fbbba0-488b-4340-b1e1-3cf6cf1a4ce3",
+   "name": "Dallah alahsa",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "532cbbfb-fcb3-4bca-9e1e-d40451f15f37",
+   "name": "Dallah",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "7d929a4e-00ae-4ced-b816-d2f49ccb2d06",
+   "name": "AlJazirah Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "31f40bf2-4945-4232-bdbe-4eb8504485d6",
+   "name": "Alansari Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "99dedfaf-7a5a-4ba9-83c0-f3b37503fdff",
+   "name": "Aljouf",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "dadb88d7-9a3e-4f06-a6a5-5594f92e06b8",
+   "name": "AlSalama (Murgan)Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "66c1ea0d-b2f3-47c4-89e3-dafbd164c5df",
+   "name": "AlSalama (Murjan) Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "0347d5f0-18af-4652-9eed-fe061703aa5a",
+   "name": "Alzahraa General Hospital (Qatif)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "0168f516-8bd4-4c08-be54-e8c121c34f3d",
+   "name": "Al-Zobaidi Medical Group",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "3b46ec97-436b-4f85-bf87-9dc2da5cb365",
+   "name": "AlZahra Qatif Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "7e3d707f-820f-4255-8b13-422a36ee3604",
+   "name": "Dr Hassan Ghazzawi Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "AMS"
+  },
+  {
+   "id": "8eceaf51-559e-4a57-b5f4-e3066ecec9b2",
+   "name": "Al-Nahdi Pharmacy",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "ddb0a897-93a7-47dc-a2f6-7c0b93d3becc",
+   "name": "Arrawdah General Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "9549144e-e182-45cb-94d9-0a55e5a3e691",
+   "name": "Delta",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "bc8042dd-1b3a-4530-8ac9-1197fe5953dc",
+   "name": "AL Salama Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "0e354190-4451-4215-bbfe-f299fc5e9b50",
+   "name": "Al-anwar hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "fb6a508a-9506-4709-b423-d7682316fbcf",
+   "name": "AlHammadi Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "1685a391-ef36-415b-a884-2ec5056967b3",
+   "name": "Almodawah Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "399ed064-8530-4c75-9d30-54ecbca178ee",
+   "name": "Alsaedy Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "6c826301-c2b8-4544-993d-6149493e42f7",
+   "name": "Aseer (Care Ware) Cluster",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "e0df63b0-ac8c-4fde-8432-878a564ac46f",
+   "name": "Aya Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "bc87b5c7-a085-4131-bc18-63ab14487711",
+   "name": "Dr. Noor Mohammed Khan General Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "8541835e-22ef-4ece-ae30-003cf690e824",
+   "name": "Jazan University Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "468ea865-c0ad-4cbc-8fb1-ec7c19bbf40d",
+   "name": "Madeeda Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "c66e1198-ff33-4c6c-bf76-41d41ad33339",
+   "name": "Makkah 1 (Careware)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "f9dbaabb-c07f-47ba-ac9c-4f368dc1eaec",
+   "name": "Obeid Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "d0a833f3-c16c-4407-b59a-bffd93188122",
+   "name": "Olaya Medical Complex",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "30a39162-1895-44ba-b1a4-21ac1785a782",
+   "name": "Rabia Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "021cac8e-110a-4011-947c-465456ae7d1e",
+   "name": "King Faisal Specialist Hospital and Research Centre (KFSHRC)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "fa4b8ab5-52e4-4feb-875d-6582f4e38b40",
+   "name": "My Clinic",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "147d7859-6407-4d61-ac78-5ef0f9aa787f",
+   "name": "Prince Fahad bin Sultan",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "24008a44-ed34-4021-a4dd-05127e58a435",
+   "name": "Hail Cluster",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "368ca4bb-5c77-4770-88e6-c92f832b92da",
+   "name": "Salamat",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "af8ccf36-efe9-4366-90c1-a64e71ac0a6c",
+   "name": "Kings collage Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "fdd52231-5086-4284-9e48-439ed86d3202",
+   "name": "Mohammed Fakeeh",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "a8e1262e-b534-4c9f-932f-c68f00121ae5",
+   "name": "HMC Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "99c3ac7f-cb36-499d-8767-93af57a5391b",
+   "name": "GAMA Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "819e4d70-36f8-49f0-92b2-c99e0e10b4eb",
+   "name": "King Abdullah Medical City- Makkah",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "dea94d42-b34b-4cc4-a294-e7b63b79b3e1",
+   "name": "Makkah Cluster 2 (MCC)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "481314c4-fb75-4105-aeb4-54e4301d85dd",
+   "name": "Riyadh 3rd Cluster",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "9c80b3d5-66ad-4488-9bad-ed21290635e0",
+   "name": "Aseer (Vida Plus) Cluster",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "bb19afe1-b04a-4da6-80bb-a2e41d1b5bf9",
+   "name": "Yanbu National Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "aba0f284-d081-491a-824e-61f51bd54c58",
+   "name": "Alfalah Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "d6214ead-9205-4e65-9846-8249a0104aff",
+   "name": "Kingdom Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "d0c9d1ee-9c02-4e4c-bff2-742695aa7ebe",
+   "name": "United Doctors Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "ec6542f4-201e-43e5-9ef9-8cb606014e36",
+   "name": "Shefa Specialized Hopital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "2aff5609-9e5b-490b-b168-7f8453dd63bb",
+   "name": "Tabuk",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "d8fcdae8-77ea-4ae7-98a1-c255290cc85c",
+   "name": "Taif University Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "8b69456d-3fc1-4b13-8961-203f9baa388a",
+   "name": "Al Hamra Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "3cf06d0f-c8b1-43f1-843f-1305f4ed5611",
+   "name": "Suliman Fakeeh Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "0dfacea8-675f-424d-9750-ca3f15b9aba2",
+   "name": "Al Zafer Hospital in Najran",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "7a202f21-d1a4-4403-a03e-6dd8373d997f",
+   "name": "Al Hasa",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "39cb6de0-66f6-4aca-91cf-f9da9a654454",
+   "name": "Al Madinah",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "aebfa4e8-d780-4f27-8e07-47e25809a606",
+   "name": "AL Salam Khobar Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "248a8b5f-6f70-4b33-a061-0319b8bfa313",
+   "name": "Alahli Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "579732e2-d432-46fd-8349-71fd1ca1ba35",
+   "name": "Alahsa",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "7f9eaa12-e487-40ae-a22c-453d5c7b4552",
+   "name": "Andalusia",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "55987b86-894e-45cf-8854-1c99a8b865de",
+   "name": "Arrawdah Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+   "name": "Aseer",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "4b2019cb-84cf-4d99-8a40-eb4f045c1ee4",
+   "name": "Aseer (Vida Plus)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "a12c5063-b3c8-4cef-ab31-0aaeaf3eecb5",
+   "name": "Aseer Care ware",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "c7cbd504-1d11-4e29-bda4-322aba9a8878",
+   "name": "Aseer Cluster",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "636f97f2-6f5d-46a0-bf98-c90d2b591392",
+   "name": "AUTISM SPECTRUM VIRTTUAL CARE CLINIC",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "b28640f0-7b36-4a09-867f-8b10b77ee4f0",
+   "name": "Clinicy",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "f6e6da10-0b65-4cf2-986b-35f34af6c215",
+   "name": "Dar Al Afia Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "7af2b689-1748-4937-87ca-0713e1c919f4",
+   "name": "Dr. Ghassan Najeeb Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "0d7c8d1b-8d3f-4583-a08f-ae413438ac4e",
+   "name": "Dr.Suliman Fakeeh Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "a3288b4f-eb31-4c1e-9b48-0195276147c9",
+   "name": "Fakeeh",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "9a43421c-8c32-433b-aebf-d7f2a6477413",
+   "name": "Hafer AlBatin",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "a9d32df9-7ad8-45a0-941b-5b44ff3c9370",
+   "name": "Imam Abdulrahman bin Faisal University (IAU)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "a10f9b88-2422-4b88-8d5c-bb955246f206",
+   "name": "Jazan 1",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "b8c476ea-0c5f-463f-bdae-042ac729f48b",
+   "name": "Jazan Cluster (MCC)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "ebd47729-70d2-4fd8-8cd5-9b6a19964400",
+   "name": "Jedda Oasis",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "14040c37-9f59-44c1-a6e7-0f91340c57f1",
+   "name": "KFSHB (Qassim)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "8dc8ff9c-92f7-4df4-a8ef-22e16608ae7d",
+   "name": "King Abdullah Medical City",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "3663764c-1f89-44db-a437-b5ae74e5628f",
+   "name": "King Abdullah Medical Complex (northern Jeddah)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "721bdec3-f590-4f91-bd85-1110dccc0af9",
+   "name": "King Abdullah University Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "874dc7a0-69e8-47f3-a08f-cd89c33626ee",
+   "name": "King Khalid uni",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "b317549f-2ee3-4155-a260-a9166bdb4bb2",
+   "name": "King Khalid University",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "6735d3cb-f316-40d2-907b-6134114896f7",
+   "name": "KSMC alshimaysi",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "f097590f-f45a-4cf0-be5b-0d9a47566f1b",
+   "name": "Makkah (Intersystem)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "074554c3-f953-4bde-89ce-c9f17e41b7cf",
+   "name": "Najran",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+   "name": "Najran specialized hospital(FHIR)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "b620c047-8b80-466a-8e54-f9a6c916f2e1",
+   "name": "NMC",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "a15996eb-1f8b-4825-b3d9-1821a9199cec",
+   "name": "North Borders",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "0847d5eb-aed6-4904-9da5-6e23b35218fa",
+   "name": "Procare Riyadh Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "61077c0f-475d-4a53-bb52-4e7c6417fb04",
+   "name": "Qassim (KFSHB)",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Business Operations"
+  },
+  {
+   "id": "b06581cd-96e0-4532-975e-4d60c076bbfc",
+   "name": "Qassim cluster Vida 4",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  },
+  {
+   "id": "dc3c2055-180e-48b8-b448-c7b5c56c38e8",
+   "name": "Rabet",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "621a79d7-a05d-4840-ab38-9c97ec094beb",
+   "name": "Raqeem",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Delivery"
+  },
+  {
+   "id": "9aca0633-e8c0-4bb9-b24c-698eab71818d",
+   "name": "SMC",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "Product"
+  },
+  {
+   "id": "d3fa2ced-857c-41be-b2ca-52ac5f3140d2",
+   "name": "Riyadh Hospital",
+   "from": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+   "toName": "IT Integration"
+  }
+ ]
+}

@@ -65,6 +65,27 @@ const cell = (v) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
  *   and `Lab result CDA`; splitting every capability by message format would
  *   roughly double the column count and was declined. Both fold into one.
  */
+/**
+ * Jira's team names, shortened for a card 168 units wide.
+ *
+ * "Nphies IT Integration and Development" is 37 characters and the card's glyph
+ * budget is seventeen — it would draw as "Nphies IT Integ…" and every sibling
+ * would look the same. The prefix is dropped because every one of them carries
+ * it, so it distinguishes nothing.
+ */
+const DEPARTMENT = {
+  'Nphies On-boarding': 'Onboarding',
+  'Nphies IT Integration and Development': 'IT Integration',
+  'Nphies Business Operation': 'Business Operations',
+  'Nphies Product': 'Product',
+  'Nphies IT Delivery and Solution': 'IT Delivery',
+  'Nphies AMS': 'AMS',
+  'Nphies OH': 'OH',
+  'Nphies PMO': 'PMO',
+  Raqeeb: 'Raqeeb',
+}
+const DEFAULT_DEPARTMENT = 'Onboarding'
+
 const CAPABILITIES = [
   'ADT',
   'Medication Prescribe V1', 'Medication Prescribe V2',
@@ -278,6 +299,9 @@ export function rebuild(exportPath, { members = null } = {}) {
   const iSummary = hdr.indexOf('Summary')
   const iStatus = hdr.indexOf('Status')
   const iAssignee = hdr.indexOf('Assignee')
+  // The owning team, so an organization can sit under a DEPARTMENT rather than
+  // being one of 161 siblings of a single box.
+  const teamCols = hdr.map((h, i) => (/Nphies Group/i.test(h) ? i : -1)).filter((i) => i >= 0)
   if (iSummary === -1 || iStatus === -1) throw new Error('[rebuild] no Summary/Status column')
 
   const orgs = new Map()   // key -> { name, spellings:Map, caps:Map<capability,state> }
@@ -306,7 +330,7 @@ export function rebuild(exportPath, { members = null } = {}) {
     byConvention[split.via] += 1
     const key = orgKey(orgName)
     let org = orgs.get(key)
-    if (!org) { org = { name: orgName, spellings: new Map(), caps: new Map(), owners: new Map() }; orgs.set(key, org) }
+    if (!org) { org = { name: orgName, spellings: new Map(), caps: new Map(), owners: new Map(), teams: new Map() }; orgs.set(key, org) }
     org.spellings.set(orgName, (org.spellings.get(orgName) ?? 0) + 1)
     // The commonest spelling wins the row's name — a typo seen once should not
     // name a hospital that is spelled correctly forty times.
@@ -316,6 +340,10 @@ export function rebuild(exportPath, { members = null } = {}) {
     // assignee; the map's `account_manager` was set from this in a separate
     // pass last time and would be BLANKED by an import that left the column
     // empty — 71 organizations losing their owner silently.
+    let team = ''
+    for (const i of teamCols) { if (i < r.length && r[i].trim()) { team = r[i].trim(); break } }
+    if (team) org.teams.set(team, (org.teams.get(team) ?? 0) + 1)
+
     const assignee = iAssignee === -1 ? '' : (r[iAssignee] ?? '').trim()
     if (assignee) org.owners.set(assignee, (org.owners.get(assignee) ?? 0) + 1)
 
@@ -324,6 +352,20 @@ export function rebuild(exportPath, { members = null } = {}) {
   }
 
   for (const org of orgs.values()) {
+    // ⚠ THE DEPARTMENT IS THE TEAM THAT OWNS MOST OF THIS HOSPITAL'S TICKETS,
+    //   and it is a real reading of the data rather than a filing decision: 148
+    //   of 164 organizations have a clear majority. It exists because ONE parent
+    //   with 161 children draws as a wall of identical grey bricks — six parents
+    //   of 17 to 50 is a picture a person can actually read.
+    //
+    //   An organization with no majority goes to On-boarding, which is where it
+    //   already was. Inventing a seventh department called "Mixed" would put a
+    //   box on the map that nobody in the programme has ever heard of.
+    const teamTotal = [...org.teams.values()].reduce((n, v) => n + v, 0)
+    const topTeam = [...org.teams].sort((a, b) => b[1] - a[1])[0]
+    org.department = topTeam && teamTotal > 0 && topTeam[1] / teamTotal >= 0.5
+      ? DEPARTMENT[topTeam[0]] ?? DEFAULT_DEPARTMENT
+      : DEFAULT_DEPARTMENT
     // ⚠ THE SAME 60% BAR THE FIRST OWNER PASS USED, and for its reason: a wrong
     //   owner is worse than none. It sends a chase to somebody who cannot act
     //   and quietly reports the question as handled. Below the bar the field is
@@ -344,14 +386,14 @@ export function rebuild(exportPath, { members = null } = {}) {
   return { list, skipped, unmatchedText, byConvention, near: nearDuplicates(list.map((o) => o.name)) }
 }
 
-export function toCsv(list) {
+export function toCsv(list, trackName = 'UHR') {
   const head = ['path', 'name_ar', 'kind', 'account_manager', 'vendor', 'description',
                 'description_ar', 'stage', 'target_date', 'target', ...CAPABILITIES]
   const lines = [head.map(cell).join(',')]
   for (const org of list) {
     const states = [...org.caps.values()]
     const row = [
-      `UHR > OB > ${org.name}`, '', 'Organization', org.owner ?? '', '', '', '',
+      `${trackName} > ${org.department ?? DEFAULT_DEPARTMENT} > ${org.name}`, '', 'Organization', org.owner ?? '', '', '', '',
       rungFor(states), '', '',
       ...CAPABILITIES.map((c) => org.caps.get(c) ?? ''),
     ]
@@ -372,16 +414,24 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   // The roster, so an assignee this workspace has never heard of does not
   // become a refusal that blocks the entire run.
+  // ⚠ THE TRACK NAME IS READ, NOT SPELLED. The importer matches the first path
+  //   segment against a real track and refuses the whole run if it misses — and
+  //   it did, 161 times, the moment the track was renamed to "UHR (Unified
+  //   Health Record)" while this file still said "UHR". A literal here is a
+  //   second place the name lives, and the second place is always the wrong one.
+  let trackName = 'UHR'
   let members = null
   try {
     const { all } = await import('./extract.mjs')
+    const tracks = (await all('tracks?select=name,archived')).filter((t) => !t.archived)
+    if (tracks.length === 1) trackName = tracks[0].name
     const rows = await all('profiles?select=display_name')
     members = new Set(rows.map((r) => (r.display_name ?? '').trim().toLowerCase()).filter(Boolean))
   } catch (e) {
     console.log(`(roster unavailable — every assignee kept: ${e.message.slice(0, 60)})`)
   }
   const { list, skipped, unmatchedText, byConvention, near } = rebuild(src, { members })
-  writeFileSync(out, toCsv(list))
+  writeFileSync(out, toCsv(list, trackName))
 
   const links = list.reduce((n, o) => n + o.caps.size, 0)
   const tally = (s) => list.reduce((n, o) => n + [...o.caps.values()].filter((v) => v === s).length, 0)
