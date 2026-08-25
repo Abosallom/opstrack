@@ -1826,6 +1826,95 @@ both surfaces read one function; neither restates its arithmetic.
 
 ---
 
+## 13 · Architecture decisions, 26 August 2026
+
+### 13.1 The COC record lives in NphiesCore, and it is the one place the PMO writes
+
+Jira holds the ticket and its rung. **NphiesCore holds the chase** — submitted date, the named CHI
+contact, CHI's reference, and the thread. The PMO works here because it is their queue and their
+tool; everyone else works in Jira.
+
+### 13.2 Rungs move freely, except COC
+
+**Any OB Account Manager may advance any record** through DEV → STG/TEST → COC. It is faster and
+survives leave, and the audit trail records who.
+
+**COC is PMO-only**, because moving off it is not a delivery act — it is recording that CHI signed,
+and it notifies somebody else.
+
+### 13.3 The Jira write-back — the first thing this product will ever write to Jira
+
+When the PMO records a Certificate of Completion as signed, NphiesCore:
+
+1. **writes the signed date and CHI reference into fields** on the Jira ticket;
+2. **posts a comment** — signed on ⟨date⟩, reference ⟨number⟩, proceed to go-live;
+3. **re-assigns the ticket to the OB Account Manager — but only if it is unassigned or held by the
+   PMO.** If somebody else holds it, comment and leave the assignee alone; they may be mid-task and
+   a ticket vanishing off a desk is how a tool loses a user.
+
+⚠ **THIS MUST BE A NEW EDGE FUNCTION, NEVER A CHANGE TO `jira-read`.** That function's frozen
+  four-endpoint allow-list, and the test asserting the file contains exactly two `fetch(` calls
+  and one `Authorization:` header, are the only formal proof of read-only in this system. Widening
+  it would destroy the proof for every existing caller. A `jira-write` beside it, with its own
+  allow-list of exactly the three operations above and its own counted-call test, keeps both
+  properties provable.
+
+⚠ **AND IT IS GATED ON A GATE THAT IS STILL SHUT.** The owner's own words, quoted in five files:
+  *"i can not connect the app to jira until we verify the tracker very well."* The read connection
+  does not work yet — the current scoped token authenticates as an app with no project grants and
+  every content query returns 200 with zero rows. **Reading must work, and be trusted, before
+  anything writes.**
+
+### 13.4 Attachments — decided: bring them in, with redaction
+
+The owner was shown the objection and reaffirmed the decision, so it is the decision. What it
+costs, stated once so nobody is surprised later:
+
+**The evidence.** 5,339 attachments: 2,427 `.png`, 825 `.docx`, 741 `.xlsx`, 495 `.txt`, 279
+`.xml`, 122 `.pdf`, 115 `.json`, 69 `.zip`, 48 `.csv`, 32 `.sql`. By filename alone, **2,307 are
+named screenshot or capture**, **121 name a certificate or a key**, **117 an HL7 or message
+sample**, and **23 name a patient, an MRN or an iqama**.
+
+**It is three projects, not one, and they carry different risk:**
+
+| Class | Files | Can a RULE redact it? |
+|---|---|---|
+| Structured text — `.txt` `.xml` `.json` `.csv` `.sql` | ~969 | **Yes.** The same rule BRD-001 needs for descriptions: drop HL7 payloads whole, mask identifier-shaped numbers, strip key blocks. Testable. |
+| Documents — `.docx` `.xlsx` `.pdf` | ~1,688 | **Partly.** Text extracts and redacts; embedded images and layout do not. |
+| Images — `.png` `.jpg` | ~2,455 | **No.** A screenshot of a patient list cannot be redacted by a rule. It needs OCR plus judgement, or a person, and neither is a test you can write. |
+
+⚠ **"WITH REDACTION" CANNOT MEAN THE SAME THING FOR ALL THREE.** Shipping image redaction as
+  though it were solved is worse than not shipping it, because it converts a known risk into an
+  assumed safety. The honest shapes are: redact-by-rule for structured text, extract-and-redact for
+  documents, and for images either a human review step before an image becomes visible, or images
+  stay a link out to Jira.
+
+**Three things it changes that are not code:** the schema gains file storage it deliberately does
+not have; `src/pages/Privacy.tsx` and both locale bundles must be rewritten in the same commit;
+and `ios/App/App/PrivacyInfo.xcprivacy` currently declares no health data, which stops being true
+the moment a redaction miss lands one screenshot in the database.
+
+**Sequencing:** this is not on the critical path for the onboarding process. It should follow the
+ticket contract rather than delay it.
+
+### 13.5 Ayenati and Raqeeb are separate programmes
+
+Not a tag on a hospital and not a grouping of the eleven use cases: **their own tracks, with their
+own organizations.** The schema already supports this — `map_nodes.track_id` is derived from the
+parent by a trigger, so two filing axes are unrepresentable and a second track is a first-class
+thing rather than a workaround. The nine archived tracks from the old product were removed for
+being empty, not because a workspace may only hold one.
+
+Reports scope to a track, which is what "a report for a certain product" means here.
+
+### 13.6 Nothing is cleared yet
+
+The 715 use-case statuses and 161 stage records stay until the API integration is proven. The
+export was given, in the owner's words, *"just to fine tune before the go live"* — it is
+scaffolding, and scaffolding comes down after the building stands.
+
+---
+
 ## Provenance
 
 - **Source of every number:** `/Users/aziz/.claude/jobs/8f812826/tmp/jira-safe.csv` (2,971 rows,
