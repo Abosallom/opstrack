@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 const SAFE = process.argv[2] // the safe projection; see BRD-001
 const rows = parseCsv(readFileSync(SAFE, 'utf8'))
 const H = rows[0].map((h) => String(h).trim())
-const sumI = H.indexOf('Summary'), stI = H.indexOf('Status'), keyI = H.indexOf('Issue key')
+const sumI = H.indexOf('Summary'), stI = H.indexOf('Status')
 const body = rows.slice(1)
 
 // The 161 map organizations, from the file the tracker was built from.
@@ -141,7 +141,7 @@ const likely = ([a, b, d]) =>
   d === 1 &&
   Math.min(a.length, b.length) >= 7 &&
   (a.slice(0, 3) === b.slice(0, 3) || a.slice(-4) === b.slice(-4))
-const show = ([a, b, d, an, bn]) => {
+const show = ([, , d, an, bn]) => {
   console.log(`- \`${an.join(' / ')}\`  **vs**  \`${bn.join(' / ')}\`   — ${d} character${d > 1 ? 's' : ''} apart`)
   console.log(`    - ${an[0]}: ${w(an[0])}`)
   console.log(`    - ${bn[0]}: ${w(bn[0])}`)
