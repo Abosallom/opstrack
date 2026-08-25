@@ -203,8 +203,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     .filter((n) => n.kind_id === orgKind0 && !n.archived)
     .map((n) => [orgKey(n.name), n.name])
   const { out, skipped } = readOpenTickets(SRC, known)
-
-  const kinds = kinds0
   const orgKindId = orgKind0
   const nodes = (await all('map_nodes?select=id,name,kind_id,archived,track_id'))
     .filter((n) => n.kind_id === orgKindId && !n.archived)

@@ -830,6 +830,14 @@ export default function PortfolioStage({
     return { orgs: population.length, open, atRisk }
   }, [population])
 
+  /**
+   * NOTHING TO DRAW — the ladder exists and the population is empty, which the
+   * risk cut and a narrow filter both reach. Named once because two things now
+   * turn on it: the empty state below, and the `?as=` row, which is a question
+   * about rows and has none to ask about here.
+   */
+  const blank = showsRows && sortedRows.length === 0
+
   if (noStages) {
     return (
       <div className="pf pf-blank">
@@ -857,9 +865,25 @@ export default function PortfolioStage({
         />
       </div>
 
-      <div className="pf-controls pf-controls-as">
-        <AsChips value={view.as} onChange={(as) => onView({ ...view, as })} compact={compact} />
-      </div>
+      {/* ── THE SECOND AXIS, WHERE IT MEANS SOMETHING ──────────────────────
+          `?as=` says how the rows are DRAWN — table, bars, cards, the grid —
+          so it is a question about rows, and in the empty state there are none.
+          Four chips offering four ways to draw nothing is a control that cannot
+          change anything on the screen it is standing on, and it sits between
+          the reader and the one control that CAN: the risk toggle above (and
+          the empty state's own "Show all"). So the row is scoped to the case it
+          answers rather than removed — every chip is still there, still
+          reachable, the moment there is a row to draw differently.
+
+          The row was already portfolio-only: this component renders under the
+          `portfolio` lens alone, and the no-ladder state returns above without
+          reaching here at all. This is the one remaining case where it drew
+          over nothing. */}
+      {!blank && (
+        <div className="pf-controls pf-controls-as">
+          <AsChips value={view.as} onChange={(as) => onView({ ...view, as })} compact={compact} />
+        </div>
+      )}
 
       {noThresholds && (
         <p className="pf-note">
@@ -895,7 +919,7 @@ export default function PortfolioStage({
           default for the same reason. The empty state is asked BEFORE the
           switch: "no rows" is a fact about the population, not about the mark,
           and four copies of it would be four chances to word it differently. */}
-      {showsRows && sortedRows.length === 0 ? (
+      {blank ? (
         <div className="pf-blank">
           <EmptyState
             title={view.risk ? t('mindtree.portfolioEmptyRisk') : t('mindtree.portfolioEmpty')}

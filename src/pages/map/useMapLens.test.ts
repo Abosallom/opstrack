@@ -14,8 +14,8 @@
 // `panelOpenFor` joins it.
 
 import { describe, expect, it } from 'vitest'
-import { panelOpenFor, panelSubjectFor } from './useMapLens'
-import { subjectForLens, type MapLens } from '../../lib/mindtree/lens'
+import { panelOpenFor, panelSubjectFor, stageForReader } from './useMapLens'
+import { MAP_LENSES, stageForLens, subjectForLens, type MapLens } from '../../lib/mindtree/lens'
 
 const BRANCH = 'root/track:t1/entity:org-1'
 
@@ -40,6 +40,45 @@ describe('panelSubjectFor', () => {
     // THE STATE THE PHANTOM LIVED IN. A map with no drill-in and no pick is the
     // opening state of every fresh workspace.
     expect(panelSubjectFor('shape', null, null)).toEqual({ kind: 'none' })
+  })
+})
+
+describe('stageForReader', () => {
+  it('opens on the LEDGER for a reader who has never chosen — at every width', () => {
+    // THE OWNER SAID IT TWICE: the picture is in the way and the list is the
+    // readable one. The width used to be the tiebreak (`pinned ? … : compact`),
+    // so the ledger was the opening on a 375px phone and the picture was the
+    // opening on the desktop the owner actually works on. It is not any more,
+    // and the WIDTH IS NOT A PARAMETER OF THIS FUNCTION — that absence is the
+    // assertion. There is no argument left to pass that could bring the picture
+    // back for somebody who never asked for it.
+    expect(stageForReader('shape', 'map', false)).toBe('table')
+    expect(stageForReader('needs-me', 'map', false)).toBe('table')
+    expect(stageForReader('what-changed', 'map', false)).toBe('table')
+  })
+
+  it('lets a pinned choice win — including the picture, on a wide screen', () => {
+    // The other half of the contract, and the half that must never move: the
+    // moment the reader presses MapToolbar's map⇄ledger switch, `setMindView`
+    // pins it and THEIR answer wins for good. A default that quietly overrode
+    // an explicit press would be a worse defect than the one above.
+    expect(stageForReader('shape', 'map', true)).toBe('map')
+    expect(stageForReader('needs-me', 'map', true)).toBe('map')
+    expect(stageForReader('shape', 'table', true)).toBe('table')
+  })
+
+  it('leaves every lens whose stage is not the open tree exactly where it was', () => {
+    // `board`, `numbers` and `portfolio` are drawn by their lens, not by this
+    // preference, so no reader of any pinning can move them. Asserted over the
+    // closed union so a seventh lens cannot arrive and quietly become a ledger.
+    for (const lens of MAP_LENSES) {
+      const implied = stageForLens(lens)
+      if (implied === 'map') continue
+      for (const pinned of [true, false]) {
+        expect(stageForReader(lens, 'table', pinned), lens).toBe(implied)
+        expect(stageForReader(lens, 'map', pinned), lens).toBe(implied)
+      }
+    }
   })
 })
 

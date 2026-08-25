@@ -95,6 +95,7 @@ import {
   useMindPanelOpen,
   useMindView,
   useMindViewPinned,
+  type MindtreeView,
 } from '../../store/mindtree'
 
 /**
@@ -161,6 +162,48 @@ export function panelOpenFor(open: boolean, subject: PanelSubject): boolean {
   return open && subject.kind !== 'none'
 }
 
+/**
+ * PICTURE OR LEDGER — THE LEDGER IS THE OPENING AT EVERY WIDTH, UNTIL THE READER
+ * SAYS OTHERWISE.
+ *
+ * ⚠ WHY THE WIDTH NO LONGER APPEARS IN THIS FUNCTION AT ALL. It used to:
+ *   `pinned ? stored === 'table' : compact`, so the ledger was the honest
+ *   default on a 375px phone (a hundred and four organizations at roughly
+ *   fourteen CSS pixels each is a smear of unlabelled specks) and the picture
+ *   stayed the opening everywhere else. The owner has now said TWICE that the
+ *   picture is in the way and the list is the readable one — on the desktop
+ *   they actually work on, not only on the phone. A tidy tree of a whole
+ *   workspace is a thing a reader chooses to look at; it is not an answer to
+ *   "what is going on today", and it should not be what the screen opens with
+ *   before anybody has asked for it. So the width stopped being the tiebreak:
+ *   the unopinionated reader gets the ledger, and the picture is one press
+ *   away.
+ *
+ * IT IS STILL A DEFAULT AND NOT AN OVERRIDE, and that half is unchanged and must
+ * stay unchanged. `viewPinned` is false until the reader uses MapToolbar's
+ * map⇄ledger switch; the moment they press it `setMindView` records the choice
+ * (it is the only writer of the pin — store/mindtree.ts carries the argument in
+ * full) and from then on THEIR answer wins, at every width and for good.
+ * Silently ignoring an explicit press would be a worse defect than the one this
+ * fixes.
+ *
+ * The pin exists because `view` alone cannot tell "never chose" from "chose the
+ * picture" — both read `'map'`, and `DEFAULT_LENS` and `DEFAULT_PREFS.view` are
+ * deliberately untouched by this change: the stage is DERIVED, so the opening
+ * drawing moves without rewriting what a device has on disk.
+ *
+ * `board`, `numbers` and `portfolio` are not affected by any of it —
+ * `stageWithTable` only ever answers `table` for the lenses whose stage is the
+ * open tree, so those three follow their lens exactly as before.
+ *
+ * Exported as a function of plain values because vitest runs `environment:
+ * 'node'`: a hook is not a thing this repo's suite can observe, which is the
+ * same reason `panelSubjectFor` and `panelOpenFor` above are exported.
+ */
+export function stageForReader(lens: MapLens, view: MindtreeView, pinned: boolean): MapStage {
+  return stageWithTable(lens, pinned ? view === 'table' : true)
+}
+
 export interface MapLensState {
   readonly lens: MapLens
   readonly stage: MapStage
@@ -189,29 +232,9 @@ export function useMapLens(options: {
   const lens = useMindLens()
   const storedPanelOpen = useMindPanelOpen()
 
-  /**
-   * ⚠ PICTURE OR LEDGER — AND ON A PHONE THE WIDTH ANSWERS UNTIL THE READER DOES.
-   *
-   * The tidy tree fits a hundred and four organizations into roughly fourteen
-   * CSS pixels each at 375px: a smear of unlabelled specks on the device the
-   * owner says is primary. The ledger is the SAME tree rendered as a scrollable
-   * list, and it is the honest default there.
-   *
-   * It is a default and not an override. `viewPinned` is false until the reader
-   * uses the map⇄ledger toggle, and the moment they do their choice wins at
-   * every width and for good — silently ignoring an explicit choice would be
-   * worse than the smear it fixes. On a wide screen nothing changes: the
-   * picture is readable there and stays the default.
-   *
-   * The pin exists because `view` alone could not tell "never chose" from
-   * "chose the picture" — both read `'map'`. store/mindtree.ts carries that
-   * argument in full.
-   */
   const stored = useMindView()
   const pinned = useMindViewPinned()
-  const table = pinned ? stored === 'table' : compact
-
-  const stage = stageWithTable(lens, table)
+  const stage = stageForReader(lens, stored, pinned)
 
   /**
    * THE LEAF THE READER PICKED, which is not the world they are inside. Null is
