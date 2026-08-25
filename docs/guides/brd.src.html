@@ -1,0 +1,1577 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Business requirements &mdash; UHR onboarding</title>
+<!--BASECSS-->
+<!--DATAURI-->
+<style>
+/* ── cover ─────────────────────────────────────────────────────── */
+.cv-num { font-size: 62pt; font-weight: 700; color: var(--accent); line-height: 0.95; letter-spacing: -3pt; }
+.cv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; margin: 6mm 0; }
+.cv-grid > div { border: 1px solid var(--rule); border-radius: 2.5mm; padding: 4.5mm; background: var(--paper); }
+.cv-grid h4 { margin: 0 0 2mm; font-size: 9.4pt; color: var(--accent); letter-spacing: 0.4pt; text-transform: uppercase; }
+.cv-grid p { margin: 0; font-size: 10pt; line-height: 1.5; }
+.sig { border-top: 1.5px solid var(--ink); padding-top: 2mm; font-size: 9pt; color: var(--ink-3); }
+
+/* ── the bilingual requirement block ───────────────────────────── */
+.area { display: flex; align-items: baseline; gap: 4mm; border-bottom: 2px solid var(--accent-line);
+        padding-bottom: 2mm; margin-bottom: 4mm; }
+.area h2 { font-size: 15pt; margin: 0; }
+.area .ct { font-size: 8.2pt; color: var(--ink-3); font-family: "SF Mono", Menlo, monospace; }
+.area .aa { margin-left: auto; font-size: 12pt; color: var(--ink-2); font-weight: 650;
+            font-family: "Geeza Pro", "Al Bayan", "Baghdad", -apple-system, sans-serif; }
+
+.req { border-top: 1px solid var(--rule); padding-top: 3mm; margin-bottom: 3.4mm; }
+.req.first { border-top: 0; padding-top: 0; }
+.bi { display: grid; grid-template-columns: 1fr 1fr; }
+.bi > .en { padding-right: 5mm; border-right: 1px solid var(--rule); }
+.bi > .ar { padding-left: 5mm; font-family: "Geeza Pro", "Al Bayan", "Baghdad", -apple-system, sans-serif; }
+.hd .en, .hd .ar { padding-bottom: 1.8mm; }
+.id { font-family: "SF Mono", Menlo, monospace; font-size: 8pt; font-weight: 700; color: var(--accent-mid); }
+.ti, .tia { font-size: 10.6pt; font-weight: 700; color: var(--ink); }
+.pill { font-size: 6.8pt; text-transform: uppercase; letter-spacing: 0.6pt; padding: 0.4mm 1.5mm;
+        border-radius: 1mm; font-weight: 700; white-space: nowrap; }
+.pill.b { background: var(--ok-soft);     color: var(--ok);     border: 1px solid var(--ok-line); }
+.pill.a { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line); }
+.pill.g { background: var(--warn-soft);   color: var(--warn);   border: 1px solid var(--warn-line); }
+.pill.d { background: #f0eff4;            color: var(--ink-3);  border: 1px solid var(--rule); }
+.tx .en p { font-size: 8.3pt; line-height: 1.5;  margin: 0; color: var(--ink-2); }
+.tx .ar p { font-size: 9.5pt; line-height: 1.78; margin: 0; color: var(--ink-2); }
+.gr { margin-top: 2.4mm; background: var(--paper); border-left: 2px solid var(--accent-line);
+      padding: 2.2mm 3mm; font-size: 7.8pt; line-height: 1.5; color: var(--ink-3); border-radius: 0 1mm 1mm 0; }
+.gr b { color: var(--ink-2); }
+.gr em { font-style: normal; color: var(--accent); font-weight: 650; }
+
+/* ── measured ──────────────────────────────────────────────────── */
+.mt { display: grid; gap: 0; border: 1px solid var(--rule); border-radius: 2.5mm; overflow: hidden; }
+.mt div { display: grid; grid-template-columns: 78mm 1fr; gap: 5mm; padding: 2.6mm 4mm;
+          border-bottom: 1px solid var(--rule); align-items: baseline; }
+.mt div:last-child { border-bottom: 0; }
+.mt div:nth-child(odd) { background: var(--paper); }
+.mt .k { font-size: 9.2pt; color: var(--ink-2); }
+.mt .v { font-size: 9.2pt; color: var(--ink); }
+.mt .v b { font-weight: 700; }
+.mt .v .bad { color: var(--bad); font-weight: 700; }
+.mt .v .ok  { color: var(--ok);  font-weight: 700; }
+
+/* ── before / after ────────────────────────────────────────────── */
+.ba { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+.lbl { display: flex; justify-content: space-between; align-items: baseline; font-size: 8.2pt;
+       font-weight: 700; letter-spacing: 0.9pt; text-transform: uppercase; margin-bottom: 2mm;
+       padding-bottom: 1.2mm; border-bottom: 1.5px solid; }
+.lbl.now  { color: var(--bad); border-color: var(--bad-line); }
+.lbl.next { color: var(--ok);  border-color: var(--ok-line); }
+.lbl span { text-transform: none; letter-spacing: 0; font-weight: 650; font-size: 9.4pt;
+            font-family: "Geeza Pro", "Al Bayan", "Baghdad", -apple-system, sans-serif; }
+.shot { background-repeat: no-repeat; border: 1px solid #2b2933; border-radius: 1.5mm; }
+.draw { border: 1px solid var(--rule); border-radius: 1.5mm; overflow: hidden; background: #fff; }
+.draw svg { display: block; width: 100%; height: auto; }
+.nope { border: 1.5px dashed #c5c0d4; border-radius: 1.5mm; background: var(--paper); padding: 4.5mm; }
+.nope p { font-size: 8.6pt; line-height: 1.55; margin: 0 0 2.5mm; }
+.nope p:last-child { margin: 0; }
+.cap { font-size: 8pt; line-height: 1.5; color: var(--ink-2); margin: 2.5mm 0 0; }
+.cap b { color: var(--ink); }
+.full { margin-top: 4mm; }
+.full .draw svg { width: 100%; }
+.narrow { width: 143mm; margin: 0 auto; }
+.ba.wide { grid-template-columns: 64mm 1fr; }
+.serves { font-size: 8.2pt; color: var(--ink-3); font-family: "SF Mono", Menlo, monospace;
+          margin: 0 0 3.5mm; letter-spacing: 0.2pt; }
+
+/* ── open questions / approval ─────────────────────────────────── */
+.qs { display: grid; gap: 3.2mm; }
+.q { border: 1px solid var(--rule); border-radius: 2.5mm; padding: 4mm 4.5mm; background: #fff; }
+.q h4 { margin: 0 0 1.6mm; font-size: 10.2pt; }
+.q p { margin: 0; font-size: 9.2pt; line-height: 1.5; }
+.q .who { font-size: 8pt; color: var(--warn); font-weight: 700; text-transform: uppercase;
+          letter-spacing: 0.6pt; margin-top: 2mm; display: block; }
+.appr { border: 1.5px solid var(--accent-line); border-radius: 2.5mm; padding: 7mm; background: var(--accent-soft); }
+.appr .ln { border-bottom: 1.5px solid var(--ink); height: 12mm; margin-bottom: 2mm; }
+.appr .cn { font-size: 9pt; color: var(--ink-3); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+</style></head><body>
+
+<!-- ═══════════════════ 1 · cover ═══════════════════ -->
+<section class="page">
+  <div class="kicker">Business requirements &mdash; for approval</div>
+  <h1>How this programme<br>records what it is doing</h1>
+
+  <p class="lede">Thirty-seven requirements for tracking the onboarding of Saudi Arabia&rsquo;s
+  hospitals onto the Unified Health Record. Each one carries its English and its Arabic side by
+  side in this file, and each one names the measurement it came from.</p>
+
+  <div class="cv-grid">
+    <div><h4>The change, in one line</h4>
+      <p>The unit of record becomes <b>one ticket per hospital per use case</b> &mdash;
+      141 &times; 11 = <b>1,551</b> &mdash; and the rung it has reached becomes its status,
+      so that what nobody has said stays visibly unsaid.</p></div>
+    <div><h4>Who approves</h4>
+      <p><b>Abdulaziz Alsaloom</b>, PMO Lead, and nobody else. Nothing here is built before
+      that mark is on page 28. A job title never carries approval.</p></div>
+  </div>
+
+  <div class="box warn">
+    <h4>Read this first &mdash; what the document does not do</h4>
+    <p>It commits <b>no dates</b>. 89 of the 2,971 tickets in the tracker carry a due date;
+    3 of the 828 open ones do; <b>0 of the 552 open onboarding ones</b> do. Asking people for
+    dates has been tried here. Every number below carries the count it was taken from, and where
+    something has not been measured it says so rather than printing a zero.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="mt" style="margin-bottom:5mm">
+    <div><span class="k">Requirements</span><span class="v"><b>37</b>, numbered BRD-001 to BRD-037, in 9 areas</span></div>
+    <div><span class="k">Already built and tested</span><span class="v"><span class="ok">3</span> &mdash; BRD-001, BRD-015, BRD-016</span></div>
+    <div><span class="k">Agreed, waiting on this approval</span><span class="v"><b>30</b></span></div>
+    <div><span class="k">Gated or deferred</span><span class="v"><b>4</b> &mdash; BRD-025, and BRD-010, BRD-026, BRD-030</span></div>
+    <div><span class="k">Written</span><span class="v">26 August 2026, from decisions taken 25&ndash;26 August</span></div>
+  </div>
+  <div class="foot"><span>NphiesCore &mdash; business requirements</span><span>Page 1 of 28</span></div>
+</section>
+
+<!-- ═══════════════════ 2 · how to read ═══════════════════ -->
+<section class="page">
+  <div class="kicker">How to read this</div>
+  <h2>Every requirement is one block, in two languages</h2>
+  <p>A second Arabic document would drift away from the English one within a month. So there is
+  no second document: the Arabic sits <b>beside</b> the English on the same requirement, written
+  as an original rather than fetched as a translation. Under both sits the measurement the
+  requirement came from, quoted in the language it was measured in.</p>
+
+  <div class="req first" style="margin-bottom:5mm">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-000</span> <span class="ti">The shape of a block</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;شكل الفقرة&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The English statement sits on the left and reads left to right. It says
+      what will be true, not what someone hopes for.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;النص العربي يجلس إلى اليمين ويُقرأ من اليمين إلى
+      اليسار. وهو مكتوب أصلًا، لا مترجَمًا عن الإنجليزية.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> the fact that forced the decision, always with its
+    denominator: <em>498 of 533 custom fields are empty on all 2,971 rows</em>, never
+    &ldquo;most fields are empty&rdquo;.</div>
+  </div>
+
+  <h3>The four rules every sentence here obeys</h3>
+  <div class="mt" style="margin-bottom:5mm">
+    <div><span class="k">Never a bare percentage</span><span class="v">&ldquo;222 of 715&rdquo;, never &ldquo;31%&rdquo;. The denominator is the honest half.</span></div>
+    <div><span class="k">&ldquo;Nobody has said&rdquo; is never zero</span><span class="v">An unrecorded fact is not a measurement of nothing.</span></div>
+    <div><span class="k">No KPI from unconfigured inputs</span><span class="v">&ldquo;0 at risk&rdquo; is true arithmetic and a false sentence.</span></div>
+    <div><span class="k">A ladder is drawn as position</span><span class="v">Distance along DEV &rarr; PROD, never a set of hues.</span></div>
+  </div>
+
+  <h3>What the four state marks mean</h3>
+  <div class="mt">
+    <div><span class="k"><span class="pill b">built</span> &nbsp;3 requirements</span><span class="v">In the product now, with a test that reddens if it is undone.</span></div>
+    <div><span class="k"><span class="pill a">agreed</span> &nbsp;30 requirements</span><span class="v">Decided with the owner, not yet built. This approval releases them.</span></div>
+    <div><span class="k"><span class="pill g">gated</span> &nbsp;1 requirement</span><span class="v">Blocked behind a proof that has not happened &mdash; the Jira read.</span></div>
+    <div><span class="k"><span class="pill d">deferred</span> &nbsp;3 requirements</span><span class="v">Deliberately not now, and the reason is written down.</span></div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>How to read this</span><span>Page 2 of 28</span></div>
+</section>
+
+<!-- ═══════════════════ 3 · measured, the grid ═══════════════════ -->
+<section class="page">
+  <div class="kicker">The programme, measured &mdash; 1 of 2</div>
+  <h2>What is being tracked, and how much of it has ever been written down</h2>
+  <p>Thirteen identity rulings taken on 25 August collapse 161 tracker organizations to
+  <b>141</b>. Eleven use cases run against each of them. That grid &mdash; and only that grid
+  &mdash; is what this programme delivers.</p>
+
+  <div class="mt" style="margin-bottom:5mm">
+    <div><span class="k">Organizations, after the rulings</span><span class="v"><b>141</b> &mdash; 20 rows merged away from 161; two Aseer rows stay flagged pending allocation rather than becoming a 142nd</span></div>
+    <div><span class="k">Use cases</span><span class="v"><b>11</b> &mdash; ADT; Medication Prescribe V1 and V2; Medication Dispense V1 and V2; Rad Report; Rad Order; Lab Result; Lab Order; Clinical Notes; Vital Signs</span></div>
+    <div><span class="k">The grid</span><span class="v"><b>141 &times; 11 = 1,551</b> records. This is the whole universe.</span></div>
+    <div><span class="k">&hellip; with a live record today</span><span class="v"><b>497</b> of 1,551</span></div>
+    <div><span class="k">&hellip; whose only ticket is closed</span><span class="v"><b>179</b> of 1,551, at a median resolution date of 21 April 2026</span></div>
+    <div><span class="k">&hellip; never written down at all</span><span class="v"><span class="bad">875</span> of 1,551</span></div>
+    <div><span class="k">The rungs, per use case</span><span class="v">DEV &rarr; STG/TEST &rarr; COC &rarr; PROD. <b>COC</b> is the Certificate of <b>Completion</b>, signed by <b>CHI</b>, the client.</span></div>
+    <div><span class="k">Budget per rung</span><span class="v"><b>10 days</b>, uniform and configurable as four numbers</span></div>
+    <div><span class="k">Organizations with no OB Account Manager</span><span class="v"><span class="bad">42</span> of the 161 tracker rows, holding <b>203</b> of the never-written pairs &mdash; the largest single block of the backlog</span></div>
+  </div>
+
+  <div class="box acc">
+    <h4>Where &ldquo;roughly 1,100&rdquo; comes from, since two numbers are in circulation</h4>
+    <p>On day one, <b>1,054 of 1,551</b> records will sit in <code>Intake</code> &mdash; the 875
+    nobody has ever written down, plus the 179 whose only evidence is a closed ticket carrying no
+    readable rung. That is the &ldquo;roughly 1,100&rdquo; quoted in BRD-003 and BRD-034. The two
+    figures are the same measurement counted at two boundaries, and both are printed here rather
+    than one being quietly picked.</p>
+  </div>
+
+  <div class="box bad">
+    <h4>The single sentence this whole design exists to make possible</h4>
+    <p>&ldquo;Of the N records at STG/TEST, M are flagged, and here is who each one is waiting
+    on.&rdquo; <b>Today&rsquo;s data cannot produce that sentence at all.</b></p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The programme, measured</span><span>Page 3 of 28</span></div>
+</section>
+
+<!-- ═══════════════════ 4 · measured, the tracker ═══════════════════ -->
+<section class="page">
+  <div class="kicker">The programme, measured &mdash; 2 of 2</div>
+  <h2>What the tracker holds today, counted rather than described</h2>
+  <p>Every figure below was read from the 2,971-row export, not from a document. They are the
+  reason each requirement takes the shape it takes.</p>
+
+  <div class="mt" style="margin-bottom:4.5mm">
+    <div><span class="k">Tickets in the instance</span><span class="v"><b>2,971</b>, of which <b>828</b> are open</span></div>
+    <div><span class="k">&hellip; that are not the onboarding record</span><span class="v"><b>2,049</b> of 2,971 &mdash; support, SSO, whitelisting, errors, configuration. 276 still open.</span></div>
+    <div><span class="k">&hellip; readable as a hospital &times; use-case pair</span><span class="v"><b>922</b> of 2,971, across <b>thirteen</b> title conventions, giving <b>744</b> distinct pairs</span></div>
+    <div><span class="k">Pairs already carrying more than one ticket</span><span class="v"><span class="bad">149</span> of 744 &mdash; 327 tickets, 178 to be absorbed</span></div>
+    <div><span class="k">Open onboarding tickets naming no rung</span><span class="v"><span class="bad">531</span> of 552</span></div>
+    <div><span class="k">Open onboarding tickets naming no hospital</span><span class="v"><span class="bad">531</span> of 552 &mdash; 420 say &ldquo;Lean Business&rdquo;, 111 are empty</span></div>
+    <div><span class="k">Open onboarding tickets with a due date</span><span class="v"><span class="bad">0</span> of 552</span></div>
+    <div><span class="k">Open onboarding tickets with a checklist</span><span class="v"><span class="bad">2</span> of 552</span></div>
+    <div><span class="k">Held by four people</span><span class="v"><b>435</b> of the 552 open onboarding tickets, and 526 of the 828 open items instance-wide</span></div>
+    <div><span class="k">Closed onboarding tickets saying <i>why</i></span><span class="v"><span class="bad">0</span> of 370 &mdash; all 2,165 resolved tickets in the instance carry the single Resolution <code>Done</code></span></div>
+    <div><span class="k">Custom fields</span><span class="v"><b>533</b>, of which <span class="bad">498</span> are empty on all 2,971 rows &mdash; including <code>Account Manager</code>, <code>COC Status</code>, <code>Checklist Progress %</code></span></div>
+    <div><span class="k">Tickets flagged as blocked</span><span class="v"><b>2</b> of 2,971; <code>Action Pending With</code> is set on <b>0</b> of 2,971</span></div>
+    <div><span class="k">Age of the median open item</span><span class="v"><b>216 days</b>. 261 are older than a year; the oldest is <b>875 days</b>.</span></div>
+    <div><span class="k">Attachments</span><span class="v"><b>5,339</b> &mdash; ~2,455 images, 1,688 documents, 969 structured-text files</span></div>
+    <div><span class="k">Arabic in any ticket summary</span><span class="v"><span class="bad">0</span> of 2,971, in a programme whose first language is Arabic</span></div>
+  </div>
+
+  <div class="box bad">
+    <h4>And inside the product itself</h4>
+    <p>All <b>161</b> stage records were written by a script with no author, at exactly two
+    timestamps. <code>setNodeUseCase</code> &mdash; the one function that writes the atom of
+    progress &mdash; has <b>zero production call sites</b>: the thing being tracked cannot be
+    recorded from anywhere in the user interface. The Jira read connection returns
+    <b>200 with zero rows</b> for every content query.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The programme, measured</span><span>Page 4 of 28</span></div>
+</section>
+
+
+<!-- ═══════════════════ 5 · governance ═══════════════════ -->
+<section class="page">
+  <div class="area"><h2>Governance</h2><span class="ct">3 requirements &middot; BRD-001, 023, 034</span><span class="aa" dir="rtl">&rlm;الحوكمة&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-001</span> <span class="ti">Patient-data quarantine</span> <span class="pill b">built</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;حَجْر بيانات المرضى&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Ticket descriptions, comments, attachments, environment and worklog are
+      never fetched, quoted or re-derived: <code>jira-read</code> refuses those field names
+      outright and refuses the <code>*all</code> / <code>*navigable</code> wildcards that would
+      fetch them without naming them, and every measurement in the programme is taken from the
+      safe projection. Cleaning the source field is separate, later work with its own owner. If a
+      question can only be answered by reading Description, the answer is that the question is
+      not answered yet.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;وصف التذكرة وتعليقاتها ومرفقاتها وحقل environment وسجل العمل لا تُجلب ولا تُقتبس ولا يُعاد اشتقاقها أبدًا: دالة jira-read ترفض أسماء هذه الحقول صراحةً، وترفض معها ‎*all‎ و‎*navigable‎ اللذين يجرّانها دون تسميتها، وكل قياس في البرنامج يُؤخذ من الإسقاط الآمن. أما تنظيف الحقل نفسه في المصدر فعمل منفصل لاحق وله مسؤوله. وإذا كان السؤال لا يُجاب إلا بقراءة Description، فالجواب أن السؤال لم يُجب بعد.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> the scan of the 2,971-ticket export found raw HL7 v2
+    clinical payloads pasted into Descriptions: <em>522</em> IPv4 addresses, <em>37</em> ten-digit
+    national-ID/Iqama-shaped numbers, <em>22</em> MRN or patient-id mentions, <em>9</em>
+    certificate or private-key blocks, <em>57</em> email addresses. The safe projection keeps
+    <em>628 of 702</em> columns over the same 2,971 rows and was verified before use &mdash; HL7
+    segment markers 8 &rarr; 0, key blocks 24 &rarr; 0, emails 197 &rarr; 1.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-023</span> <span class="ti">The CHI contact is a name and nothing else</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;جهة اتصال CHI اسم ولا شيء غيره&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p><code>coc_contact</code> holds a person&rsquo;s name. No email, no phone,
+      no title. A contact outside the organization is a higher bar than a colleague, not a lower
+      one; contact details stay in whatever system the PMO already keeps them in.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;coc_contact يحمل اسم شخص. لا بريد، ولا هاتف، ولا مسمّى وظيفي. فجهة اتصال خارج المنظمة سقفها أعلى من سقف الزميل لا أدنى، وتفاصيل التواصل تبقى في النظام الذي يحفظها فيه الـ PMO أصلًا.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> this workspace holds no staff emails by design and
+    forbids attachments outright, and its privacy page is written from what the schema actually
+    contains. The safe projection had to reduce <em>197 email addresses to 1</em> before anything
+    could be measured at all.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-034</span> <span class="ti">The weekly report carries its denominators</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;التقرير الأسبوعي يحمل مقاماته&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The compliance report runs fourteen rules, resolves each to a person
+      (the Assignee, then the organization&rsquo;s Account Manager, then the PMO Lead &mdash; and
+      a rule that resolves to nobody is a finding in its own right), prints every sentence against
+      its denominator and never as a bare percentage, and goes out in Arabic and English at
+      Sunday 07:00 Asia/Riyadh.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;تقرير الالتزام يشغّل أربع عشرة قاعدة، ويحيل كل قاعدة إلى شخص (المُسنَد إليه، ثم Account Manager الخاص بالمنظمة، ثم قائد الـ PMO — والقاعدة التي لا تُسنَد إلى أحد ملاحظة بذاتها)، ويطبع كل جملة على مقامها لا نسبةً مجرّدة، ويخرج بالعربية والإنجليزية الأحد الساعة 07:00 بتوقيت الرياض.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> its first run reads <em>497 of 1,551</em> pairs with a
+    live record, <em>179</em> with only a closed one and <em>875</em> never written;
+    <em>531 of 552</em> open onboarding tickets name no rung, <em>552 of 552</em> carry no due
+    date, <em>550 of 552</em> have no checklist and <em>435 of 552</em> are held by four people.
+    &nbsp;<b>Overleaf: what it looks like.</b></div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Governance</span><span>Page 5 of 28</span></div>
+</section>
+
+
+<!-- ═══════════════════ 6 · before / after — the weekly report ═══════════════════ -->
+<section class="page">
+  <div class="kicker">Before and after</div>
+  <h2>The weekly report</h2>
+  <p class="serves">serves BRD-034 &middot; and reads the counts BRD-002, 003, 005, 012, 014, 017, 021, 031 produce</p>
+
+  <div class="ba wide">
+    <div>
+      <div class="lbl now">Today <span dir="rtl">&rlm;اليوم&rlm;</span></div>
+      <div class="nope">
+        <p><b>There is no weekly report.</b> Nothing goes out on any day, in any language.</p>
+        <p>The fourteen questions it would ask can each be asked by hand today, and thirteen of
+        them return an answer nobody wants to read: 531 of 552 records name no rung, 552 of 552
+        carry no target date, 370 of 370 closed records say nothing about why.</p>
+        <p>The fourteenth &mdash; the 10-day budget &mdash; cannot be asked at all, because no
+        rung clock has ever started.</p>
+      </div>
+      <p class="cap"><b>Why this is the first page of the pair.</b> The report is the surface that
+      forces every other requirement to be honest: a rule that resolves to nobody is printed as
+      <code>R5</code> rather than dropped, and a rule that cannot be computed is printed as
+      <i>not measurable yet</i> rather than as zero.</p>
+    </div>
+    <div>
+      <div class="lbl next">As it will read <span dir="rtl">&rlm;كما سيُقرأ&rlm;</span></div>
+      <div class="draw"><!--SVG:brd-034-weekly-brief|26 24 568 566--></div>
+      <p class="cap">The head of the page and the first eight of fourteen rules. <b>Each rule
+      carries its own denominator on the same line</b>, in English on the left and Arabic on the
+      right, so neither language can drift into a second document. R6 already reads
+      <i>not measurable yet</i>. The whole page is overleaf, at size.</p>
+    </div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Before and after &mdash; the weekly report</span><span>Page 6 of 28</span></div>
+</section>
+
+<!-- ═══════════════════ 7 · the weekly report, at size ═══════════════════ -->
+<section class="page">
+  <div class="kicker">The target, at size &middot; BRD-034</div>
+  <h2 style="margin-bottom:2.5mm">The weekly compliance report, all fourteen rules</h2>
+  <p style="font-size:9.4pt;margin-bottom:3.5mm">One message, both languages, Sunday 07:00
+  Asia/Riyadh. Every line reads <b>N of M</b>; not one of them is a percentage.</p>
+  <div class="narrow"><div class="draw"><!--SVG:brd-034-weekly-brief--></div></div>
+  <div class="grow"></div>
+  <div class="foot"><span>The weekly report, at size</span><span>Page 7 of 28</span></div>
+</section>
+
+
+<!-- ═══════════════════ 8 · data model I ═══════════════════ -->
+<section class="page">
+  <div class="area"><h2>The data model</h2><span class="ct">7 requirements &middot; BRD-002, 008, 009, 010, 013, 022, 029</span><span class="aa" dir="rtl">&rlm;نموذج البيانات&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-002</span> <span class="ti">One record per pair</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;سجل واحد لكل زوج&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The onboarding record is one Jira ticket per (organization &times; use
+      case), opened at initiation and kept open until go-live. The pair lives in two dropdown
+      fields and the title is generated from them &mdash;
+      <code>Onboarding | Organization | Use case</code> &mdash; so the title is decorative, the
+      thirteen conventions retire, and a second ticket is never opened for a pair that already
+      has one.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;سجل الـ onboarding هو تذكرة Jira واحدة لكل (منظمة × use case)، تُفتح عند البدء وتبقى مفتوحة حتى الـ go-live. الزوج يعيش في قائمتين منسدلتين، والعنوان يُولَّد منهما — Onboarding | Organization | Use case — فيصير العنوان زينة، وتتقاعد الاصطلاحات الثلاثة عشر، ولا تُفتح تذكرة ثانية لزوج له تذكرة أصلًا.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>744</em> distinct pairs are readable from only
+    <em>922 of 2,971</em> tickets, across thirteen title conventions of which the largest already
+    covers 391 tickets with 344 still open. <em>149 of the 744</em> pairs already carry more than
+    one ticket (327 tickets, 178 to be absorbed) and <em>37</em> summary strings are exact
+    duplicates covering <em>77</em> tickets.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-008</span> <span class="ti">Eleven use cases, and the list is the universe</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;أحد عشر use case، والقائمة هي الكون كله&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The use-case option list is eleven &mdash; ADT, Medication Prescribe V1,
+      Medication Prescribe V2, Medication Dispense V1, Medication Dispense V2, Rad Report, Rad
+      Order, Lab Result, Lab Order, Clinical Notes, Vital Signs &mdash; carried by the existing
+      <code>Nphies Use Case</code> single-select with bilingual option labels, scoped to NONP and
+      the Onboarding type. The option list is the target universe; Immunization, Genomics, Consent
+      and NVR stay operational.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;قائمة الـ use cases أحد عشر — ADT وMedication Prescribe V1 وMedication Prescribe V2 وMedication Dispense V1 وMedication Dispense V2 وRad Report وRad Order وLab Result وLab Order وClinical Notes وVital Signs — يحملها حقل Nphies Use Case الموجود أصلًا كاختيار مفرد، بخيارات مكتوبة بالعربية والإنجليزية، ومحصورة في NONP وفي نوع الـ onboarding. والقائمة هي الكون المستهدف؛ أما Immunization وGenomics وConsent وNVR فتبقى تشغيلية.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <code>Nphies Use Case</code> already exists and is
+    filled on <em>0 of 2,971</em> rows. Vital Signs was already live in the data on <em>36</em>
+    tickets and 4 distinct pairs; without an option value those tickets could not be filed as
+    onboarding records at all. The product&rsquo;s own catalogue seeds ten rows with
+    <code>name_ar</code> empty on all ten.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-009</span> <span class="ti">141 organizations, and the grid is 1,551</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;141 منظمة، والشبكة 1,551&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The thirteen identity rulings of 25 August are applied as data, not as a
+      script&rsquo;s guess: Aseer splits into two by hospital system (Care Ware, Vida Plus),
+      Najran into a cluster and a specialized hospital, AlSalama merges to one, all seven of
+      section A merge and all of section B1 merges including Samer Abbas / Samir Abbas. 161
+      organizations become 141 and the grid becomes 141 &times; 11 = 1,551. The apply writes an
+      undo manifest before its first write.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;أحكام الهوية الثلاثة عشر الصادرة في 25 أغسطس تُطبَّق بيانات لا تخمين سكربت: عسير تنقسم اثنتين بحسب نظام المستشفى (Care Ware وVida Plus)، ونجران تنقسم إلى تجمّع ومستشفى تخصصي، والسلامة تُدمج في واحدة، والقسم أ يُدمج كله، والقسم ب1 يُدمج كله ومنه سامر عباس/سمير عباس. فتصير 161 منظمة 141، وتصير الشبكة 141 × 11 = 1,551. والتطبيق يكتب بيان تراجع قبل أول كتابة يكتبها.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> 161 tracker organizations, <em>24</em> clusters of
+    near-duplicate map rows and <em>20</em> ticket names matching no row. The rulings collapse
+    <em>20</em> rows, moving the grid from 1,771 to 1,551, and every row a ruling names was
+    checked against <code>structure.csv</code> first &mdash; <em>0 missing</em>. Aseer alone is 5
+    rows and 41 tickets; <code>Aseer</code> and <code>Aseer Cluster</code> name no system and stay
+    flagged pending allocation rather than becoming a 142nd organization.</div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The data model</span><span>Page 8 of 28</span></div>
+</section>
+
+
+<!-- ═══════════════════ 9 · data model II + process opens ═══════════════════ -->
+<section class="page">
+  <div class="area"><h2>The data model</h2><span class="ct">continued</span><span class="aa" dir="rtl">&rlm;نموذج البيانات&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-010</span> <span class="ti">Jazan stays three rows</span> <span class="pill d">deferred</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;جازان تبقى ثلاثة صفوف&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The Jazan cluster&rsquo;s three rows stay separate until the owner
+      answers whether MCC and MedicaCloud are one vendor. Nothing merges them meanwhile, and no
+      report implies they are one organization.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;صفوف تجمّع جازان الثلاثة تبقى منفصلة حتى يجيب المالك: هل MCC وMedicaCloud مورّد واحد أم لا. ولا يدمجها شيء في هذه الأثناء، ولا يوحي أي تقرير بأنها منظمة واحدة.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> Jazan is 3 rows and <em>100</em> tickets, 16 of them
+    open &mdash; the largest ticket count of any unresolved cluster. If it later merges to one the
+    grid moves from <em>1,551 to 1,529</em>. &nbsp;<b>This is a question for the owner &mdash; see
+    page 24.</b></div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-013</span> <span class="ti">Medication records default to V1</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;سجلات الأدوية تبدأ على V1&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Every migrated medication record starts at V1 and is corrected when an OB
+      Account Manager touches it. The version is never inferred from ticket history, and the
+      correction is recorded as a person&rsquo;s act.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;كل سجل دواء مُرحَّل يبدأ على V1 ويُصحَّح حين يمسّه OB Account Manager. ولا تُستنتج النسخة من تاريخ التذكرة أبدًا، ويُسجَّل التصحيح فعلًا لشخص مسمّى.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> of the <em>1,047</em> convention tickets naming a use
+    case, <em>52</em> say V2 and <em>zero</em> say V1, across roughly <em>142</em> covered
+    medication cells &mdash; history cannot answer the question, so a default plus a correction is
+    the only honest shape.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-022</span> <span class="ti">The COC chase lives in NphiesCore</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;متابعة COC تعيش في NphiesCore&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Jira holds the ticket and its rung; NphiesCore holds the chase &mdash;
+      <code>coc_submitted_on</code>, <code>coc_contact</code>, <code>coc_reference</code>, and the
+      chase thread as <code>entry_updates</code> rows rather than a fifth column. This is the
+      first write path in the product that anyone uses daily, because the person who needs it is
+      the person asking for it.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;Jira يحمل التذكرة ودرجتها، وNphiesCore يحمل المتابعة — coc_submitted_on وcoc_contact وcoc_reference، وسلسلة المتابعة صفوفًا في entry_updates لا عمودًا خامسًا. وهذا أول مسار كتابة في المنتج يستعمله أحد يوميًا، لأن من يحتاجه هو من طلبه.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <code>setNodeUseCase</code> in <code>src/api/map.ts</code>
+    has <em>zero production call sites</em> &mdash; the atom of progress cannot be written from
+    anywhere in the UI &mdash; and the product has <em>eight</em> ways to look at data against
+    almost no way to change any of it. <code>entry_updates</code> is already append-only, authored
+    and timestamped, so a <code>coc_notes</code> column would be a second thread whose entries
+    could not be attributed. &nbsp;<b>Drawn on pages 22 and 23.</b></div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-029</span> <span class="ti">Nothing is cleared until the API is proven</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;لا يُمسح شيء قبل أن يثبت الـ API&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The 715 imported use-case statuses and the 161 stage records stay in
+      place until the Jira integration is proven. They were given as scaffolding to fine-tune
+      before go-live, and scaffolding comes down after the building stands &mdash; and its removal
+      writes an undo manifest first.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;الـ 715 حالة use case المستوردة والـ 161 سجل درجة تبقى مكانها حتى يثبت تكامل Jira. أُعطيت سقالةً تُضبط قبل الـ go-live، والسقالة تُفكّ بعد أن يقف المبنى — وفكّها يكتب بيان تراجع أولًا.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>715</em> use-case statuses and <em>161</em> stage
+    records are in the database, every one of the 161 progress rows written by a script with
+    <code>updated_by = null</code>; meanwhile the read connection returns <em>200 with zero rows</em>
+    for every content query. Clearing them today would leave the product with nothing and prove
+    nothing.</div>
+  </div>
+
+    <div class="grow"></div>
+  <div class="foot"><span>The data model</span><span>Page 9 of 28</span></div>
+</section>
+
+
+<!-- ═══ 10 · process I ═══ -->
+<section class="page">
+  <div class="area"><h2>The process</h2><span class="ct">9 requirements &middot; BRD-003, 004, 005, 012, 014, 024, 030, 031, 032</span><span class="aa" dir="rtl">&rlm;العملية&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-003</span> <span class="ti">The ladder is the status</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;السلّم هو الحالة&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The ladder is DEV &rarr; STG/TEST &rarr; COC &rarr; PROD, per use case,
+      and it lives in the workflow status &mdash; never in a field and never in the title. Six
+      statuses: Intake, DEV, STG/TEST, COC, PROD, Closed. <code>Intake</code> means nobody has
+      said anything about this pair yet; it is not a claim that work has not started, and the
+      seven old statuses retire on this issue type only.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;السلّم هو DEV ثم STG/TEST ثم COC ثم PROD، لكل use case على حدة، ويعيش في حالة سير العمل — لا في حقل ولا في العنوان. ست حالات: Intake وDEV وSTG/TEST وCOC وPROD وClosed. وIntake معناها أن أحدًا لم يقل شيئًا عن هذا الزوج بعد، وليست ادعاءً بأن العمل لم يبدأ. والحالات السبع القديمة تتقاعد على هذا النوع من العناصر وحده.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <code>Stage</code> is filled on <em>0 of 2,971</em>
+    rows; <code>Application Environment</code> is filled on 1,274 and <em>every one</em> says
+    <code>Production</code>; <code>Environments</code> is filled on all 2,971 with platform
+    tenants. Meanwhile <em>0</em> of the 445 Onboarding-family titles name an environment word and
+    <em>708</em> tickets elsewhere do &mdash; the pair is written on one population and the rung
+    on another.</div>
+  </div>
+
+
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-004</span> <span class="ti">Blocked is a flag, not a status</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;التعثّر علامة لا حالة&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Blocked is recorded on three fields that already exist &mdash;
+      <code>Flagged = Impediment</code>, <code>Action Pending With</code> (one of eight parties),
+      <code>Expected Resolution Date</code> &mdash; plus one comment line saying what was asked
+      and when. The record keeps its rung. <code>Pending on Vendor</code> retires as a status, and
+      an expected date in the past is the escalation trigger.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;التعثّر يُسجَّل على ثلاثة حقول موجودة أصلًا — Flagged = Impediment، وAction Pending With (واحد من ثمانية أطراف)، وExpected Resolution Date — مع سطر تعليق واحد يقول ما الذي طُلب ومتى. ويبقى السجل على درجته كما هي. وتتقاعد Pending on Vendor كحالة، وتاريخ الحل المتوقع إن مضى فهو نفسه سبب التصعيد.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> all <em>60</em> <code>Pending on Vendor</code> tickets
+    sit in Jira&rsquo;s <code>To Do</code> category with real build work behind them, so the status
+    did not merely fail to record the rung, it recorded the wrong one. Their rung is
+    unrecoverable, their median age is <em>118 days</em> (oldest 826), <em>1 of the 60</em> carries
+    a due date and only <em>14 of the 60</em> name a vendor word in the summary.
+    <code>Flagged</code> is set on <em>2 of 2,971</em> and <code>Action Pending With</code> on
+    <em>0 of 2,971</em>.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-005</span> <span class="ti">A record closes only from PROD, only with a reason</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;السجل لا يُغلق إلا من PROD وبسبب مذكور&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>An Onboarding record may be closed only from PROD, only when all six PROD
+      conditions are met, and only with a Resolution that says why: <code>Live</code>,
+      <code>Merged into duplicate</code>, <code>Superseded</code>, <code>Not applicable</code>,
+      <code>Withdrawn</code>. PROD stays in the In Progress category because a cutover is not
+      done; <code>Closed</code> is the single terminal state and withdrawal is a Resolution, not a
+      status. Nothing is ever closed for inactivity, to clear a queue, or closed-and-reraised.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;لا يُغلق سجل الـ onboarding إلا من PROD، وبعد تحقق شروط PROD الستة كلها، وبـ Resolution يقول لماذا: Live أو Merged into duplicate أو Superseded أو Not applicable أو Withdrawn. وتبقى PROD ضمن فئة In Progress لأن الـ cutover ليس انتهاءً، وClosed هي الحالة النهائية الوحيدة، والانسحاب Resolution لا حالة. ولا يُغلق شيء لركوده، ولا لتفريغ طابور، ولا يُغلق ثم يُعاد رفعه من جديد.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> all <em>2,165</em> resolved-and-closed tickets in this
+    instance carry the single Resolution <code>Done</code> &mdash; including <em>370 of 370</em>
+    closed onboarding tickets &mdash; so the tracker has never once recorded why anything closed.
+    Re-raising is how <em>149</em> pairs came to carry more than one ticket and <em>37</em>
+    summary strings became exact duplicates over <em>77</em> tickets.</div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The process</span><span>Page 10 of 28</span></div>
+</section>
+
+
+<!-- ═══ 11 · process II ═══ -->
+<section class="page">
+  <div class="area"><h2>The process</h2><span class="ct">continued</span><span class="aa" dir="rtl">&rlm;العملية&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-012</span> <span class="ti">The unowned organizations get a state, not a guess</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;المنظمات بلا مسؤول تأخذ حالة، لا تخمينًا&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>An organization with no OB Account Manager is marked pending assignment
+      &mdash; component lead unset, <code>pending-owner</code> on every ticket it carries,
+      <code>Action Pending With</code> set to the PMO queue &mdash; and the compliance report
+      counts it on its own line so the number is visible on day one and counts down. Its records
+      are created on schedule; an unowned row is the PMO Lead&rsquo;s row until it is given
+      away.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;المنظمة التي لا OB Account Manager لها تُوسم بانتظار الإسناد — قائد المكوّن غير محدد، وpending-owner على كل تذكرة تحملها، وAction Pending With على طابور الـ PMO — ويعدّها تقرير الالتزام في سطر مستقل ليكون الرقم ظاهرًا من اليوم الأول ثم ينزل. وتُنشأ سجلاتها في موعدها؛ فالصف بلا مسؤول هو صف قائد الـ PMO حتى يُسلَّم لأحد.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>42 of 161</em> organizations have no Account
+    Manager and those 42 hold <em>203</em> of the never-written pairs &mdash; the single largest
+    block of the backlog. <em>12</em> of the 36 organizations with zero coverage are also unowned.
+    Blank is what all 42 already are, and blank cannot be told apart from
+    nobody-has-looked.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-014</span> <span class="ti">Ten days per rung, written by automation</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;عشرة أيام لكل درجة، تكتبها الأتمتة&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The rung budget is 10 days, uniform across DEV, STG/TEST, COC and PROD
+      and configurable as four numbers in one automation rule. <code>Due date</code> is written by
+      automation on every rung transition and never typed by a person, and the budget is presented
+      as a measuring stick, not as an observed duration.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;ميزانية الدرجة عشرة أيام، موحّدة على DEV وSTG/TEST وCOC وPROD، وقابلة للضبط كأربعة أرقام في قاعدة أتمتة واحدة. وDue date تكتبه الأتمتة عند كل انتقال درجة ولا يكتبه إنسان أبدًا. والميزانية تُقدَّم مسطرةَ قياس، لا مدةً ملحوظة.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>89 of 2,971</em> tickets carry a due date,
+    <em>3</em> of the 828 open ones and <em>0</em> of the 552 open onboarding ones &mdash; asking
+    humans for dates has already been tried here. The only end-to-end evidence is <em>43</em>
+    pipe-convention tickets that have ever resolved, at a median of <em>43 days</em> each, against
+    an instance-wide median of 55 days and a slowest tenth above 361.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-024</span> <span class="ti">COC is the one rung only the PMO moves</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;COC هي الدرجة الوحيدة التي لا يحرّكها إلا الـ PMO&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Any OB Account Manager may advance a record through DEV &rarr; STG/TEST
+      &rarr; COC; it is faster and it survives leave, and the audit trail records who. Moving off
+      COC is PMO-only, because that is not a delivery act &mdash; it records that CHI signed, and
+      it notifies somebody else.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;لأي OB Account Manager أن يرفع السجل عبر DEV ثم STG/TEST ثم COC؛ فهذا أسرع، ويصمد أمام الإجازات، والسجل يحفظ من فعله. أما الخروج من COC فللـ PMO وحده، لأنه ليس فعل تنفيذ — إنما هو تسجيل أن CHI وقّع، وهو يُبلِّغ طرفًا آخر.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>9</em> OB Account Managers do this work inside
+    <em>28</em> accounts, and four people hold <em>435 of the 552</em> open onboarding tickets; a
+    PMO-only gate on one rung of four is the smallest restriction that keeps the signature
+    honest.</div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The process</span><span>Page 11 of 28</span></div>
+</section>
+
+
+<!-- ═══ 12 · process III ═══ -->
+<section class="page">
+  <div class="area"><h2>The process</h2><span class="ct">continued</span><span class="aa" dir="rtl">&rlm;العملية&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-031</span> <span class="ti">Two of every three tickets are not the record</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;تذكرتان من كل ثلاث ليستا السجل&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>2,049 of the 2,971 tickets are not the onboarding record and are not
+      migrated: they keep their issue type, their queues and their workflow, gain zero required
+      fields, and are attached to a pair with a <code>Relates</code> link rather than absorbed.
+      Re-titling a helpdesk ticket into the <code>Onboarding |</code> convention, or re-typing an
+      Incident as a record, is itself a finding.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;2,049 من 2,971 تذكرة ليست سجل onboarding ولا تُرحَّل: تبقى على نوعها وطوابيرها وسير عملها، ولا يُضاف عليها حقل إلزامي واحد، وتُربط بالزوج برابط Relates بدل أن تُبتلع فيه. وإعادة تسمية تذكرة دعم لتوافق اصطلاح Onboarding |، أو تحويل Incident إلى سجل، هي بذاتها ملاحظة تُرفع.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>2,049 of 2,971</em> tickets are support, SSO,
+    whitelisting, errors and configuration &mdash; 276 of them still open. <em>1,863</em>
+    summaries match none of the thirteen conventions at all, and all <em>180</em> Problems, all
+    <em>150</em> Incidents and all <em>5</em> Tests are operational by construction. Any process
+    that treats the project as the record is wrong about 2,049 of 2,971 rows.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-032</span> <span class="ti">Closed-only pairs are attested, then split at 90 days</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;الأزواج المغلقة تُقَرّ أولًا ثم تُقسَم عند التسعين يومًا&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>For every pair whose only tickets are closed, an OB Account Manager
+      attests the rung the work actually reached; only then does a script split at the 90-day line
+      &mdash; reopen the 99 closed within 90 days, recreate the 119 older ones and
+      <code>Relates</code>-link each to its closed original. An absorbed or superseded ticket is
+      never deleted, never edited and never reopened, so its clocks survive.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;كل زوج ليس له إلا تذاكر مغلقة، يقرّ OB Account Manager الدرجة التي بلغها العمل فيه فعلًا؛ وعندها فقط يقسم السكربت عند خط التسعين يومًا: يُعاد فتح الـ 99 التي أُغلقت خلال 90 يومًا، وتُنشأ الـ 119 الأقدم من جديد ويُربط كلٌ منها بأصله المغلق برابط Relates. والتذكرة المبتلعة أو المستبدَلة لا تُحذف ولا تُعدَّل ولا يُعاد فتحها، فتبقى ساعاتها سليمة.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>218 of the 744</em> pairs have no open ticket
+    &mdash; 179 of the grid&rsquo;s cells &mdash; of which <em>99</em> closed within 90 days,
+    <em>47</em> within a year and <em>72</em> longer ago, at a median resolution date of 21 April
+    2026. All <em>370 of 370</em> closed onboarding tickets carry Resolution <code>Done</code>, so
+    no rung can be read from a close, while the map records only <em>170</em> of its use-case
+    cells as live.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-030</span> <span class="ti">The announcement stays drafted</span> <span class="pill d">deferred</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;الإعلان يبقى مسودة&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The bilingual announcement &mdash; the email in Arabic and English and
+      the one-paragraph WhatsApp version &mdash; stays drafted and unsent, kept because it gave
+      the process a concrete shape. Its three dates are placeholders and none of them is promised
+      until the identity rulings are applied and the Teams channel and open-hour slot are
+      confirmed.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;الإعلان بلغتيه — البريد بالعربية والإنجليزية، ونسخة الواتساب من فقرة واحدة — يبقى مسودة غير مرسلة، ويُحتفظ به لأنه أعطى العملية شكلًا ملموسًا. وتواريخه الثلاثة مؤقتة، ولا يُوعد بأي منها حتى تُطبَّق أحكام الهوية وتُؤكَّد قناة Teams وموعد الساعة المفتوحة.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> no dates are committed anywhere in this programme:
+    <em>89 of 2,971</em> tickets carry a due date, <em>3</em> of the 828 open ones and <em>0</em>
+    of the 552 open onboarding ones. The 1 October migration date in the draft depends on a ruling
+    that had not been made when it was written.</div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The process</span><span>Page 12 of 28</span></div>
+</section>
+
+
+<!-- ═══ 13 · jira I ═══ -->
+<section class="page">
+  <div class="area"><h2>Inside Jira</h2><span class="ct">4 requirements &middot; BRD-006, 007, 025, 033</span><span class="aa" dir="rtl">&rlm;داخل Jira&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-006</span> <span class="ti">Zero new custom fields</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;لا حقل مخصص جديد&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The design creates no new custom field. Seven fields that already exist
+      carry the record &mdash; <code>Components</code>, <code>Nphies Use Case</code>,
+      <code>Account Manager</code>, <code>Due date</code>, <code>COC Status</code>,
+      <code>Baseline end date</code>, <code>Action Pending With</code> &mdash; with exactly three
+      required at creation and the rest required only at the transition that needs them. The 498
+      empty fields are hidden from NONP&rsquo;s screens and contexts rather than bulk-deleted, the
+      nine constant-valued fields are hidden and never repurposed, and no new field is created for
+      NONP without deleting or repurposing one.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;التصميم لا يُنشئ أي حقل مخصص جديد. سبعة حقول موجودة أصلًا تحمل السجل — Components وNphies Use Case وAccount Manager وDue date وCOC Status وBaseline end date وAction Pending With — ثلاثة منها فقط إلزامية عند الإنشاء، وما بقي إلزامي عند الانتقال الذي يحتاجه وحده. والحقول الـ498 الفارغة تُخفى عن شاشات NONP وسياقاته بدل حذفها جملةً، والحقول التسعة ذات القيمة الواحدة تُخفى ولا تُعاد لاستعمال آخر، ولا يُنشأ حقل جديد في NONP إلا بحذف حقل أو إعادة استعماله.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>533</em> distinct custom fields exist and
+    <em>498</em> are empty on all 2,971 rows &mdash; including <code>Account Manager</code>,
+    <code>Delivery status</code>, <code>COC Status</code>, <code>Checklist Progress %</code> and
+    <code>Conformance Status 1</code> through <code>17</code>. A complete governance process was
+    configured here once and every field it depended on is empty. Nine more fields are filled on
+    178 to 2,971 rows and carry exactly one distinct value each.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-007</span> <span class="ti">Organization lives in Components</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;المنظمة تعيش في Components&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The organization is the system <code>Components</code> field, one
+      component per organization: the canonical English name as the stable JQL key, the Arabic
+      name in the description, and the OB Account Manager as Component Lead &mdash; left blank
+      where there is no owner rather than filled with a placeholder. Exactly one component per
+      record is enforced at the create transition. The six empty fields competing to be the
+      organization field are hidden.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;المنظمة هي حقل Components النظامي، مكوّن واحد لكل منظمة: الاسم الإنجليزي المعتمد مفتاحًا ثابتًا في JQL، والاسم العربي في الوصف، والـ OB Account Manager قائدًا للمكوّن — يُترك فارغًا حيث لا مسؤول، ولا يُملأ باسم مؤقت. ويُلزَم كل سجل بمكوّن واحد لا غير عند انتقال الإنشاء. والحقول الستة الفارغة التي تتنازع على أن تكون حقل المنظمة تُخفى.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <code>Related to (migrated)</code> is filled on
+    <em>1,940 of 2,971</em> rows and <em>26 of its 27</em> values are organization names, which
+    seed the component list and back-fill <em>683</em> tickets on day one (the 1,257 rows saying
+    <code>Lean Business</code> name the integrator, not a hospital). <em>42 of 161</em>
+    organizations have no owner, and Component Lead turns that statistic into one screen.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-025</span> <span class="ti">The Jira write-back is a new function</span> <span class="pill g">gated</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;الكتابة إلى Jira دالة جديدة&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>When the PMO records a certificate as signed, a new <code>jira-write</code>
+      edge function writes the signed date and CHI reference to the ticket, posts a comment, and
+      re-assigns to the OB Account Manager only if the ticket is unassigned or held by the PMO
+      &mdash; otherwise it comments and leaves the assignee alone. <code>jira-read</code> is never
+      widened. Nothing writes until reading works and is trusted.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;حين يسجّل الـ PMO أن الشهادة وُقّعت، تكتب دالة jira-write جديدة تاريخ التوقيع ومرجع CHI على التذكرة، وتضيف تعليقًا، وتعيد الإسناد إلى الـ OB Account Manager فقط إذا كانت التذكرة بلا مُسنَد إليه أو بيد الـ PMO — وإلا علّقت وتركت المُسنَد إليه كما هو. وjira-read لا يُوسَّع أبدًا. ولا يُكتب شيء قبل أن تعمل القراءة ويُوثق بها.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <code>jira-read</code>&rsquo;s frozen four-endpoint
+    allow-list and the test asserting the file contains exactly <em>two</em> <code>fetch(</code>
+    calls and <em>one</em> <code>Authorization:</code> header are the only formal proof of
+    read-only in this system; widening it would destroy that proof for every existing caller.
+    <b>The read connection does not work yet</b> &mdash; the scoped token authenticates as an app
+    with no project grants and every content query returns <em>200 with zero rows</em>.</div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Inside Jira</span><span>Page 13 of 28</span></div>
+</section>
+
+
+<!-- ═══ 14 · jira II + what no algorithm may do ═══ -->
+<section class="page">
+  <div class="area"><h2>Inside Jira</h2><span class="ct">continued</span><span class="aa" dir="rtl">&rlm;داخل Jira&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-033</span> <span class="ti">Evidence is a link or a tick</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;الدليل رابط أو علامة صح&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Every rung gate takes a link or a checklist tick and never free text: one
+      accepted message of this use case referenced for DEV, the interface checklist reading All
+      Completed enforced at exactly the STG/TEST &rarr; COC transition, a signed certificate for
+      this exact pair at COC &rarr; PROD &mdash; a sibling use case never promotes this one
+      &mdash; and a required comment on every backward transition.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;كل بوابة درجة تأخذ رابطًا أو علامة في قائمة تحقق، ولا تأخذ نصًا حرًا أبدًا: رسالة واحدة مقبولة من هذا الـ use case بالذات يُشار إليها لـ DEV، وقائمة تحقق الواجهة وهي تقرأ All Completed مفروضة عند انتقال STG/TEST إلى COC بالتحديد، وشهادة موقّعة لهذا الزوج بعينه عند COC إلى PROD — فـ use case شقيق لا يرقّي هذا أبدًا — وتعليق إلزامي على كل انتقال إلى الخلف.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <code>Resolved confirmation</code> is filled on
+    <em>949</em> rows with <em>331</em> distinct values, of which <em>214</em> say
+    &ldquo;done&rdquo;, <em>103</em> say &ldquo;.&rdquo; and <em>103</em> say &ldquo;,&rdquo;
+    &mdash; free-text evidence has already decayed into punctuation in this instance. The
+    checklist reached <em>113 of 2,971</em> tickets and <em>105</em> of those read Not Completed
+    against <em>9</em> All Completed, and <em>550 of 552</em> open onboarding tickets have none at
+    all.</div>
+  </div>
+
+  <div class="area" style="margin-top:7mm"><h2>What no algorithm may do</h2><span class="ct">1 requirement &middot; BRD-011</span><span class="aa" dir="rtl">&rlm;ما لا يجوز لخوارزم&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-011</span> <span class="ti">Nothing is guessed by an algorithm</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;لا شيء يخمّنه خوارزم&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>No algorithm may assert that two organization names are one hospital,
+      that a rung was reached, or that a person owns an organization. Scripts print the evidence
+      beside each candidate and stop; the merge, the rung attestation and the owner assignment are
+      made by a named person. Auto-transitioning a rung from ticket keywords, auto-closing stale
+      records and round-robin assignment are refused for the same reason.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;لا يجوز لخوارزم أن يقرّر أن اسمين لمنظمة هما مستشفى واحد، ولا أن درجة قد بُلغت، ولا أن فلانًا يملك منظمة. السكربتات تعرض الدليل بجانب كل مرشّح ثم تقف؛ أما الدمج، وإقرار الدرجة، وإسناد المسؤول، فيصدر عن شخص مسمّى. وللسبب نفسه تُرفض ترقية الدرجة آليًا من كلمات التذكرة، والإغلاق الآلي للسجلات الراكدة، والتوزيع بالدور.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> the same edit-distance rule at one looser notch
+    collapsed KFSHB into KFSHRC, Rabet into Rabia, Abeer into Aseer, Aya into GAMA and Hail
+    Cluster into Taif Cluster &mdash; <em>five different hospitals, no error message</em> &mdash;
+    giving 149 organizations and 750 pairs against the conservative 161 and 744. The rulings
+    script&rsquo;s own first run invented a <em>142nd</em> organization and had to be caught by
+    hand. The programme&rsquo;s six departments and 119 account managers were majority-vote
+    readings of Jira columns rather than statements anyone made.</div>
+  </div>
+
+  <div class="box bad" style="margin-top:5mm">
+    <h4>The cost of one loose notch, stated plainly</h4>
+    <p>An organization list produced by a matcher would have been <b>shorter</b> than the honest
+    one, and every number derived from it would have looked <b>better</b>. That is the failure
+    mode this requirement exists to prevent: a wrong denominator does not announce itself.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Inside Jira &middot; what no algorithm may do</span><span>Page 14 of 28</span></div>
+</section>
+
+
+<!-- ═══ 15 · ob monitoring I ═══ -->
+<section class="page">
+  <div class="area"><h2>Watching the onboarding</h2><span class="ct">7 requirements &middot; BRD-015 &hellip; 021</span><span class="aa" dir="rtl">&rlm;متابعة الإلحاق&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-015</span> <span class="ti">A stage clock counts only if a person started it</span> <span class="pill b">built</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;ساعة الدرجة لا تعدّ إلا إذا بدأها شخص&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>A progress row whose <code>updated_by</code> is null was written by a
+      service-role script, so its <code>stage_changed_at</code> is the moment the script ran: it
+      reads as null days everywhere rather than as zero, and no lateness, budget or quiet verdict
+      is computed from it. Authorship is the test, not a shared timestamp &mdash; three rows
+      written in one bulk-bar statement by a person all count.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;صف التقدّم الذي updated_by فيه فارغ كتبه سكربت بصلاحية الخدمة، فـ stage_changed_at فيه هو لحظة تشغيل السكربت لا أكثر: يُقرأ أيامًا فارغة في كل مكان لا أصفارًا، ولا يُحسب منه تأخّر ولا ميزانية ولا حكم بالسكون. والفيصل هو من كتب الصف لا الطابع الزمني — فثلاثة صفوف كتبها شخص واحد في أمر واحد من شريط التحديث الجماعي تُحتسب كلها.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> all <em>161</em> <code>map_node_progress</code> rows
+    carry <code>updated_by = null</code> and exactly <em>two</em> <code>stage_changed_at</code>
+    values &mdash; 75 rows at 2026-08-22T14:44:16.991611Z and 86 rows at
+    2026-08-23T17:11:53.997788Z, to the microsecond. Ten days after those instants all <em>124</em>
+    not-yet-Live organizations would have crossed their rung threshold within a day of each other
+    and every surface would have reported a programme-wide stall that never happened.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-016</span> <span class="ti">The lateness card names which silence it found</span> <span class="pill b">built</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;بطاقة التأخّر تسمّي أي صمت وجدت&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>When nothing is measurable the card says which half is missing:
+      <code>no-clock</code> when the rungs carry expected durations and nobody has staged an
+      organization, <code>no-expectation</code> when no rung has a time yet. It never sends the
+      reader off to do something they have already done, and the two silences cannot merge back
+      into one.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;حين لا يوجد ما يُقاس، تقول البطاقة أي النصفين هو الناقص: no-clock حين تحمل الدرجات مددًا متوقعة ولم يسجّل أحد درجة لأي منظمة، وno-expectation حين لا درجة لها مدة بعد. ولا ترسل القارئ ليفعل شيئًا فعله أصلًا، ولا يمكن للصمتين أن يعودا واحدًا.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> the expected durations are set &mdash; Kickoff 10,
+    Integrating &amp; Testing 10, UAT 2, Go-live readiness 3 &mdash; yet <code>measurable</code>
+    fell to <em>0</em> across the workspace once import-written clocks stopped counting, and the
+    single arm for that case told the reader to give a stage an expected duration.
+    &nbsp;<b>Overleaf: both arms, side by side.</b></div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-017</span> <span class="ti">Quiet is fourteen days</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;السكون أربعة عشر يومًا&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>A record is quiet when it has had no movement and no comment for 14
+      calendar days, at any rung. The threshold is configurable and is not to be softened before
+      anyone has seen what it says; quiet starts counting from the first movement a person makes,
+      never from an import stamp.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;السجل ساكن إذا مضى عليه أربعة عشر يومًا تقويميًا بلا حركة وبلا تعليق، عند أي درجة. والعتبة قابلة للضبط، ولا تُليَّن قبل أن يرى الناس ما تقوله؛ والسكون يبدأ عدّه من أول حركة يصنعها شخص، لا من طابع استيراد.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> the median open item is <em>216 days</em> old,
+    <em>261</em> are older than a year and the oldest is <em>875 days</em>, so a fortnight&rsquo;s
+    threshold lights a large part of the board in week one &mdash; the first honest measurement
+    this programme has had rather than a miscalibrated instrument.</div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Watching the onboarding</span><span>Page 15 of 28</span></div>
+</section>
+
+
+<!-- ═══ 16 · before / after — the lateness card ═══ -->
+<section class="page">
+  <div class="kicker">Before and after</div>
+  <h2>The card that reports lateness</h2>
+  <p class="serves">serves BRD-016 &middot; rests on BRD-015 &middot; both already built</p>
+
+  <div class="ba">
+    <div>
+      <div class="lbl now">Today <span dir="rtl">&rlm;اليوم&rlm;</span></div>
+      <div class="shot" style="height:24.4mm;background-image:var(--s-ovw);background-size:230.6mm auto;background-position:-40.7mm -92.4mm"></div>
+      <p class="cap">The PMO overview already refuses to invent a number &mdash; <b>&ldquo;No
+      organization&rsquo;s stage was put there by a person, so there is nothing to measure the
+      rungs against&rdquo;</b> &mdash; and then sends the reader to set a stage. But this is only
+      one of two possible silences, and the card cannot tell them apart.</p>
+    </div>
+    <div>
+      <div class="lbl next">As it will read <span dir="rtl">&rlm;كما ستُقرأ&rlm;</span></div>
+      <div class="draw"><!--SVG:brd-016-lateness-card|18 58 428 136--></div>
+      <p class="cap">The same silence, now <b>named</b>: <code>no-clock</code>. The reader is told
+      the rungs already carry durations, so the missing half is a person&rsquo;s move &mdash; not
+      a setting they have already filled in.</p>
+    </div>
+  </div>
+
+  <div class="full">
+    <div class="lbl next">Both arms, and why they can never merge <span dir="rtl">&rlm;الصمتان معًا&rlm;</span></div>
+    <div class="draw"><!--SVG:brd-016-lateness-card--></div>
+    <p class="cap">The union is closed and has no <code>default:</code> arm, so a third kind of
+    silence breaks the page at compile time rather than rendering a blank card. Neither arm ever
+    prints &ldquo;0 days late&rdquo; or &ldquo;0 at risk&rdquo;.
+    <b>One test pins <code>no-clock</code> on a rung carrying <code>expected_days</code>, and a
+    sibling test pins the genuine <code>no-expectation</code> case beside it.</b></p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Before and after &mdash; the lateness card</span><span>Page 16 of 28</span></div>
+</section>
+
+
+<!-- ═══ 17 · ob monitoring II ═══ -->
+<section class="page">
+  <div class="area"><h2>Watching the onboarding</h2><span class="ct">continued</span><span class="aa" dir="rtl">&rlm;متابعة الإلحاق&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-018</span> <span class="ti">The section opens on what is stuck</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;القسم يفتح على ما هو متعثّر&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>OB monitoring opens on the exception list &mdash; what is stuck right now
+      &mdash; with coverage, the weekly delta and load below it. Four things raise a flag: flagged
+      as blocked, past the 10-day rung budget, no owner, and gone quiet. A flag that cannot yet be
+      computed is shown as unmeasurable, not as zero.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;متابعة الـ onboarding تفتح على قائمة الاستثناءات — ما هو متعثّر الآن — وتحتها التغطية وفرق الأسبوع والحمل. وأربعة أمور ترفع علمًا: موسوم بالتعثّر، وتجاوز ميزانية الدرجة (عشرة أيام)، وبلا مسؤول، وساكن. والعلم الذي لا يمكن حسابه بعد يُعرض بوصفه غير قابل للقياس، لا صفرًا.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> only two of the four can fire on today&rsquo;s data:
+    <em>42 of 161</em> organizations have no owner and the median open item is <em>216 days</em>
+    old, while <em>0 of 552</em> open onboarding tickets carry a due date and <code>Flagged</code>
+    is set on <em>2 of 2,971</em>. A dashboard whose first screen is a progress bar is one people
+    stop opening. &nbsp;<b>Drawn on pages 18 and 19.</b></div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-019</span> <span class="ti">The row is a hospital</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;الصف مستشفى&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>141 rows, one per organization, each carrying its eleven use cases as a
+      strip of rung markers, and the cell is where you drill. All three tiers read the same page
+      and the same numbers, differing only in what it opens on &mdash; which means it names
+      individuals, because an Associate Director&rsquo;s queue is a person&rsquo;s queue.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;141 صفًا، صف لكل منظمة، يحمل كل صف use cases الأحد عشر شريطًا من علامات الدرجات، والخلية هي موضع التفصيل. والمستويات الثلاثة تقرأ الصفحة نفسها والأرقام نفسها، ولا تختلف إلا فيما تفتح عليه — وهذا يعني أنها تسمّي الأشخاص، لأن طابور المدير المساعد طابور شخص.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> the atom is <em>141 &times; 11 = 1,551</em> records,
+    more than anyone reads; one row per use case would answer &ldquo;how is Lab Order going&rdquo;
+    and lose the hospital. Four people hold <em>435 of the 552</em> open onboarding tickets and
+    <em>526 of the 828</em> open items instance-wide &mdash; the most actionable fact the PMO
+    holds. The tab it replaces has one row per organization and <em>no use-case dimension at
+    all</em>.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-020</span> <span class="ti">The strip reads as position</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;الشريط يُقرأ موضعًا&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Each use-case track is drawn as position &mdash; the marker&rsquo;s
+      distance along DEV &rarr; STG/TEST &rarr; COC &rarr; PROD is the progress &mdash; and never
+      as a set of hues. A pair nobody has written down is untouched paper with no marker at all,
+      never a marker at position zero.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;كل مسار use case يُرسم موضعًا — بُعد العلامة على خط DEV ثم STG/TEST ثم COC ثم PROD هو التقدّم — لا مجموعةَ ألوان. والزوج الذي لم يكتبه أحد ورقة بيضاء بلا علامة أصلًا، لا علامة عند الموضع صفر.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> roughly <em>1,100 of the 1,551</em> tracks are empty on
+    day one, so the drawing is mostly a picture of what nobody has said. The same rule is already
+    enforced by <code>0026_map_node_stages.sql</code> on the ladder, by <code>cover.mjs</code> on
+    the printed report, and by <code>INK.unrecorded = 'none'</code> in <code>build.mjs</code>.
+    &nbsp;<b>Drawn on pages 20 and 21.</b></div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Watching the onboarding</span><span>Page 17 of 28</span></div>
+</section>
+
+
+<!-- ═══ 18 · before / after — what the section opens on ═══ -->
+<section class="page">
+  <div class="kicker">Before and after</div>
+  <h2>What the onboarding section opens on</h2>
+  <p class="serves">serves BRD-018 &middot; reads BRD-012, 014, 017 &middot; obeys BRD-015</p>
+
+  <div class="ba">
+    <div>
+      <div class="lbl now">Today <span dir="rtl">&rlm;اليوم&rlm;</span></div>
+      <div class="shot" style="height:29.8mm;background-image:var(--s-ovw);background-size:114.0mm auto;background-position:-20.1mm -28.0mm"></div>
+      <p class="cap">Six numbers, and two of them are the problem. <b>&ldquo;0 Overdue&rdquo; and
+      &ldquo;0 Blocked or waiting&rdquo; are true arithmetic and false sentences</b>: no record
+      carries a target date and <code>Flagged</code> is set on 2 of 2,971 tickets, so those zeroes
+      measure the absence of an instrument, not the absence of trouble.</p>
+    </div>
+    <div>
+      <div class="lbl next">As it will read <span dir="rtl">&rlm;كما سيُقرأ&rlm;</span></div>
+      <div class="draw"><!--SVG:brd-018-ob-monitoring|18 76 432 130--></div>
+      <p class="cap">The same two flags, drawn as what they are. A dashed tile reading <b>not
+      measurable yet</b> beside the count it would need &mdash; and the two that <i>can</i> fire
+      today carry real numbers against real denominators.</p>
+    </div>
+  </div>
+
+  <div class="full">
+    <div class="lbl next">And the list itself, which is the first thing on the page <span dir="rtl">&rlm;قائمة الاستثناءات&rlm;</span></div>
+    <div class="draw"><!--SVG:brd-018-ob-monitoring|18 216 864 222--></div>
+    <p class="cap">One line per stuck record: the hospital, the use case, the rung drawn as
+    position, <b>why it is here</b>, and who it is waiting on. A record nobody has written down
+    appears as a dotted track with no marker. The reader is never asked to chase somebody who
+    cannot move the thing &mdash; a PMO-queue row says <b>PMO queue</b>, not a person&rsquo;s
+    name.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Before and after &mdash; the exception list</span><span>Page 18 of 28</span></div>
+</section>
+
+<!-- ═══ 19 · onboarding monitoring, at size ═══ -->
+<section class="page">
+  <div class="kicker">The target, at size &middot; BRD-018, 019, 020, 021</div>
+  <h2 style="margin-bottom:2.5mm">Onboarding monitoring, the whole first screen</h2>
+  <p style="font-size:9.4pt;margin-bottom:4mm">Exceptions first. Coverage, the weekly delta and
+  load sit below them, and COC has a channel of its own because the party being waited on is the
+  client.</p>
+  <div class="draw"><!--SVG:brd-018-ob-monitoring--></div>
+
+  <div class="two" style="margin-top:5mm">
+    <div>
+      <p class="cap" style="margin:0"><b>What to look at, on the left.</b> Every count carries its
+      denominator &mdash; 42 of 141, 312 of 497, 48 of 1,551 &mdash; and the coverage bar draws
+      the 875 pairs nobody has written down as <b>paper</b>, not as a zero-length segment. The
+      1,054 records excluded from the quiet count are printed, not hidden.</p>
+    </div>
+    <div>
+      <p class="cap" style="margin:0"><b>And on the right.</b> The COC band is the one rung the PMO
+      itself works. It carries no warning colour anywhere, because ten days at COC is a question
+      for CHI rather than for a delivery team. Load names the four people who hold 435 of 552
+      rather than printing a share of the total.</p>
+    </div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Onboarding monitoring, at size</span><span>Page 19 of 28</span></div>
+</section>
+
+
+<!-- ═══ 20 · before / after — the row is a hospital ═══ -->
+<section class="page">
+  <div class="kicker">Before and after</div>
+  <h2>The row, and what is in it</h2>
+  <p class="serves">serves BRD-019, BRD-020 &middot; rests on BRD-009, BRD-008</p>
+
+  <div class="ba">
+    <div>
+      <div class="lbl now">Today <span dir="rtl">&rlm;اليوم&rlm;</span></div>
+      <div class="shot" style="height:34.8mm;background-image:var(--s-del);background-size:173.5mm auto;background-position:-30.6mm -43.7mm"></div>
+      <p class="cap"><b>This is a real defect, and it is worth looking at closely.</b> The
+      Onboarding delivery tab says &ldquo;one row per organization&rdquo; and then lists
+      <b>Onboarding</b>, <b>IT Integration</b> and <b>Business Operations</b> &mdash; which are
+      departments, not hospitals. Each one reports &ldquo;No capability has been recorded against
+      this organization yet&rdquo; over 260, 191 and 91 open items. There is no use-case
+      dimension anywhere on the page.</p>
+    </div>
+    <div>
+      <div class="lbl next">As it will read <span dir="rtl">&rlm;كما سيُقرأ&rlm;</span></div>
+      <div class="draw"><!--SVG:brd-019-hospital-row|18 70 352 210--></div>
+      <p class="cap">A row is a hospital, with its Arabic name under its English one, its owner
+      &mdash; or <b>Pending assignment</b> where there is none &mdash; and a count of how much of
+      it has been written down. The two columns visible here are ADT and Medication Prescribe V1;
+      there are eleven.</p>
+    </div>
+  </div>
+
+  <div class="box acc" style="margin-top:5mm">
+    <h4>What the defect costs, counted</h4>
+    <p>The tab lists <b>6 departments</b> where the design lists <b>141 hospitals</b>, and it has
+    <b>0</b> use-case columns where the design has <b>11</b>. A reader cannot get from that screen
+    to a single one of the 1,551 records, and &ldquo;no capability recorded&rdquo; against a
+    department is not a fact about any hospital at all.</p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Before and after &mdash; the hospital row</span><span>Page 20 of 28</span></div>
+</section>
+
+<!-- ═══ 21 · the hospital row, at size ═══ -->
+<section class="page">
+  <div class="kicker">The target, at size &middot; BRD-019, BRD-020</div>
+  <h2 style="margin-bottom:2.5mm">Three of the 141 rows, and how one track is read</h2>
+  <p style="font-size:9.4pt;margin-bottom:4mm">Eleven tracks per row. The marker&rsquo;s
+  <b>distance</b> along DEV &rarr; STG/TEST &rarr; COC &rarr; PROD is the progress; colour only
+  repeats what the distance already said.</p>
+  <div class="draw"><!--SVG:brd-019-hospital-row--></div>
+
+  <div class="two" style="margin-top:6mm">
+    <div>
+      <p class="cap" style="margin:0 0 3mm"><b>Legible in greyscale, in a screenshot, and to a
+      reader who does not know the palette.</b> That is the test. An ordered ladder drawn in hues
+      alone is unreadable to roughly one man in twelve, and unreadable to everybody once it is
+      photocopied.</p>
+      <p class="cap" style="margin:0"><b>A dotted track carries no marker.</b> Not a marker at
+      position zero &mdash; nothing. Twenty-two of the thirty-three tracks drawn here are pairs
+      nobody has ever written down, and the drawing says so by leaving the paper alone.</p>
+    </div>
+    <div>
+      <p class="cap" style="margin:0 0 3mm"><b>The cell is where you drill.</b> One row is a
+      hospital; one cell is a hospital &times; use case, which is one Jira record and one COC
+      certificate.</p>
+      <p class="cap" style="margin:0"><b>In Arabic the whole row mirrors.</b> The label column
+      moves to the right, the eleven use-case columns run right to left, and the rung scale
+      reverses so DEV sits at the right edge. Nothing in the drawing encodes direction except the
+      order of the columns, which is generated from an array.</p>
+    </div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The hospital row, at size</span><span>Page 21 of 28</span></div>
+</section>
+
+
+<!-- ═══ 22 · COC — the requirement and the before/after ═══ -->
+<section class="page">
+  <div class="area"><h2>The certificate</h2><span class="ct">BRD-021 &middot; with 022, 023, 024</span><span class="aa" dir="rtl">&rlm;شهادة الإنجاز&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-021</span> <span class="ti">COC has its own channel</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;لـ COC قناتها الخاصة&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>COC is the Certificate of Completion, signed by CHI, the client. Records
+      at COC get their own count, their own list and their own words, and are never folded into
+      &ldquo;stuck&rdquo; or coloured as a fault: the waiting party is outside the programme, it
+      is the one rung the PMO itself works, and ten days at COC is a question for CHI rather than
+      for a delivery team.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;COC هي شهادة الإنجاز، يوقّعها CHI، وهو العميل. السجلات عند COC لها عدّها الخاص وقائمتها الخاصة وكلماتها الخاصة، ولا تُدرج ضمن «المتعثّر» ولا تُلوَّن على أنها خطأ: الطرف المنتظَر خارج البرنامج، وهي الدرجة الوحيدة التي يعمل عليها الـ PMO بنفسه، وعشرة أيام عند COC سؤال لـ CHI لا لفريق تنفيذ.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>49 of 2,971</em> tickets say COC or conformance and
+    <code>COC Status</code> is filled on <em>0 of 2,971</em> &mdash; nothing anywhere surfaces
+    this rung today. Every &ldquo;chase the assignee&rdquo; sentence applied to a COC record points
+    the reader at somebody who cannot move it.</div>
+  </div>
+
+  <div class="ba" style="margin-top:5mm">
+    <div>
+      <div class="lbl now">Today <span dir="rtl">&rlm;اليوم&rlm;</span></div>
+      <div class="shot" style="height:44mm;background-image:var(--s-map);background-size:324.6mm auto;background-position:-237.1mm -60.8mm"></div>
+      <p class="cap">The nearest thing the product has to a detail panel: <b>627 open, 0 overdue,
+      627 stale</b> for a whole track. It cannot name a certificate, a CHI contact or a date
+      submitted, because no such field exists anywhere in the product or the tracker.</p>
+    </div>
+    <div>
+      <div class="lbl next">As it will read <span dir="rtl">&rlm;كما سيُقرأ&rlm;</span></div>
+      <div class="draw"><!--SVG:brd-022-coc-queue|24 306 431 242--></div>
+      <p class="cap">Three fields and a rung. <code>coc_submitted_on</code> with who recorded it,
+      <code>coc_contact</code> &mdash; <b>a name and nothing else</b>, no email, no phone, no title
+      &mdash; and <code>coc_reference</code>, the certificate for this exact pair.</p>
+    </div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The certificate</span><span>Page 22 of 28</span></div>
+</section>
+
+<!-- ═══ 23 · the COC queue, at size ═══ -->
+<section class="page">
+  <div class="kicker">The target, at size &middot; BRD-021, 022, 023, 024</div>
+  <h2 style="margin-bottom:2.5mm">The COC queue, and the chase thread beside it</h2>
+  <p style="font-size:9.4pt;margin-bottom:4mm">Jira holds the ticket and its rung. NphiesCore
+  holds the chase &mdash; and this is <b>the first write path in the product that anyone uses
+  daily</b>.</p>
+  <div class="draw"><!--SVG:brd-022-coc-queue--></div>
+
+  <div class="two" style="margin-top:5mm">
+    <div>
+      <p class="cap" style="margin:0 0 3mm"><b>Days with CHI is counted, never judged.</b> No row
+      carries a warning colour, because the party being waited on is outside the programme. An
+      empty cell reads <i>nobody has said yet</i>, which is not a zero and not a fault.</p>
+      <p class="cap" style="margin:0"><b>The chase is <code>entry_updates</code>, append-only.</b>
+      Not a fifth column and not a notes field &mdash; every line carries the person who typed it
+      and the minute they typed it, which a text column could never do.</p>
+    </div>
+    <div>
+      <p class="cap" style="margin:0 0 3mm"><b>One button is restricted, and only one.</b> Any OB
+      Account Manager moves a record DEV &rarr; STG/TEST &rarr; COC. <i>Record that CHI signed</i>
+      is PMO-only, because it is not a delivery act: it records a client&rsquo;s signature and it
+      notifies somebody else.</p>
+      <p class="cap" style="margin:0"><b>Both writes carry an author.</b> A row in
+      <code>map_node_use_cases</code> and a row in <code>entry_updates</code>, written by a named
+      person rather than a service-role script &mdash; which is exactly what makes the stage clock
+      on page 15 start counting.</p>
+    </div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The COC queue, at size</span><span>Page 23 of 28</span></div>
+</section>
+
+
+<!-- ═══ 24 · the map ═══ -->
+<section class="page">
+  <div class="area"><h2>The map</h2><span class="ct">2 requirements &middot; BRD-027, BRD-028</span><span class="aa" dir="rtl">&rlm;الخريطة&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-027</span> <span class="ti">Ayenati and Raqeeb are separate tracks</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;Ayenati وRaqeeb مساران منفصلان&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Ayenati and Raqeeb are separate programmes with their own tracks and
+      their own organizations &mdash; not a tag on a hospital and not a grouping of the eleven use
+      cases. A report scopes to a track, which is what &ldquo;a report for a certain
+      product&rdquo; means here.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;Ayenati وRaqeeb برنامجان مستقلان لهما مساراتهما ومنظماتهما — لا وسم على مستشفى، ولا تجميعة من الـ use cases الأحد عشر. والتقرير يُحصر في مسار، وهذا هو معنى «تقرير لمنتج معيّن» هنا.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <code>map_nodes.track_id</code> is derived from the
+    parent by a trigger and is <code>NOT NULL</code> at every depth, so two filing axes are
+    unrepresentable and a second track is a first-class thing rather than a workaround. The
+    <em>nine</em> archived tracks from the old product were removed for being empty, not because a
+    workspace may hold only one.</div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-028</span> <span class="ti">One computation, two surfaces</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;حساب واحد، سطحان&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>The exception list on the PMO dashboard and the same data drawn on the
+      map &mdash; by department, by vendor, by HIS &mdash; read one function. Neither surface
+      restates the other&rsquo;s arithmetic, and a roll-up never shows a number its own children
+      contradict.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;قائمة الاستثناءات في لوحة الـ PMO، والبيانات نفسها مرسومة على الخريطة — بالإدارة وبالمورّد وبالـ HIS — تقرأ دالة واحدة. ولا يعيد أي سطح صياغة حساب الآخر، ولا يعرض تجميعٌ رقمًا يكذّبه أبناؤه.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> both surfaces read the same <em>1,551</em> records, and
+    <code>MapBranchDetail.tsx</code> already carries the rule that a roll-up cannot know the
+    reader&rsquo;s filter and that <b>a branch labelled 12 showing 3 is the worst thing this map
+    can do</b>.</div>
+  </div>
+
+  <div class="full" style="margin-top:5mm">
+    <div class="lbl now">Today, and what stays <span dir="rtl">&rlm;اليوم&rlm;</span></div>
+    <div class="shot" style="width:150mm;margin:0 auto;height:76mm;background-image:var(--s-map);background-size:150mm auto;background-position:0 0"></div>
+    <p class="cap" style="width:150mm;margin-left:auto;margin-right:auto"><b>The map is not being
+    replaced.</b> UHR sits above six departments and the branch labels already carry counts.
+    What changes is what hangs beneath them &mdash; 141 hospitals rather than a department
+    total &mdash; and that the counts come from the <b>same function</b> the exception list reads,
+    so a branch and the rows inside it can never disagree. The panel on the right is where a
+    cell&rsquo;s eleven tracks will be read.
+    <b>The target drawing for this surface has not been made yet &mdash; see page 27.</b></p>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>The map</span><span>Page 24 of 28</span></div>
+</section>
+
+
+<!-- ═══ 25 · attachments + the brief itself ═══ -->
+<section class="page">
+  <div class="area"><h2>Attachments</h2><span class="ct">1 requirement &middot; BRD-026</span><span class="aa" dir="rtl">&rlm;المرفقات&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-026</span> <span class="ti">Attachments come in, with three redactions</span> <span class="pill d">deferred</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;المرفقات تدخل، بثلاثة أنواع من الطمس&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Attachments are brought in, and &ldquo;with redaction&rdquo; means three
+      different things: redact-by-rule for structured text, extract-and-redact for documents, and
+      for images either a human review step before an image becomes visible or images stay a link
+      out to Jira. Nothing lands before the schema gains file storage and
+      <code>src/pages/Privacy.tsx</code>, both locale bundles and
+      <code>ios/App/App/PrivacyInfo.xcprivacy</code> change in the same commit. Sequenced after
+      the ticket contract, never ahead of it.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;المرفقات تُجلب، و«مع الطمس» تعني ثلاثة أشياء مختلفة: طمس بقاعدة للنصوص المهيكلة، واستخراج ثم طمس للمستندات، وللصور إما مراجعة شخص قبل أن تظهر أي صورة، وإما أن تبقى الصور رابطًا يخرج إلى Jira. ولا ينزل شيء قبل أن يكسب المخطط تخزينًا للملفات، وقبل أن يتغير src/pages/Privacy.tsx وملفا اللغتين وios/App/App/PrivacyInfo.xcprivacy في الـ commit نفسه. وترتيبها بعد عقد التذكرة، لا قبله.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>5,339</em> attachments: roughly <em>2,455</em>
+    images, <em>1,688</em> documents and <em>969</em> structured-text files. By filename alone
+    <em>2,307</em> are named screenshot or capture, <em>121</em> name a certificate or a key,
+    <em>117</em> an HL7 or message sample, and <em>23</em> name a patient, an MRN or an iqama.
+    <b>A screenshot of a patient list cannot be redacted by a rule</b>, and the Apple filing
+    currently declares no health data.</div>
+  </div>
+
+  <div class="area" style="margin-top:7mm"><h2>This document</h2><span class="ct">3 requirements &middot; BRD-035, 036, 037</span><span class="aa" dir="rtl">&rlm;هذه الوثيقة&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-035</span> <span class="ti">The brief is bilingual, side by side</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;الوثيقة بلغتين، جنبًا إلى جنب&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Every requirement in this brief carries its English and its Arabic side
+      by side, in one file &mdash; never as a second document that drifts. The Arabic is written
+      as an original, not fetched as a translation, and every user-visible string in the product
+      it describes goes through <code>t()</code> with en/ar parity.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;كل متطلب في هذه الوثيقة يحمل نصّه الإنجليزي ونصّه العربي جنبًا إلى جنب، في ملف واحد — لا في وثيقة ثانية تنحرف عن الأولى. والعربية مكتوبة أصلًا لا مترجَمة، وكل نص يراه المستخدم في المنتج الذي تصفه يمرّ عبر t() بتكافؤ بين en وar.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>0 of the 2,971</em> ticket summaries contain any
+    Arabic in a programme whose first language is Arabic, and the product&rsquo;s own use-case
+    catalogue seeds ten rows with <code>name_ar</code> empty on all ten &mdash; a second-language
+    column left blank is exactly how the second document drifts. <b>37 of 37</b> requirements in
+    this file carry an Arabic column.</div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>Attachments &middot; this document</span><span>Page 25 of 28</span></div>
+</section>
+
+
+<!-- ═══ 26 · the brief, continued + the areas ═══ -->
+<section class="page">
+  <div class="area"><h2>This document</h2><span class="ct">continued</span><span class="aa" dir="rtl">&rlm;هذه الوثيقة&rlm;</span></div>
+
+  <div class="req first">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-036</span> <span class="ti">Before and after, per requirement</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;قبل وبعد، لكل متطلب&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Each requirement that changes a surface shows that surface as it is today
+      beside how it will read, side by side, so the change is visible rather than
+      described.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;كل متطلب يغيّر شاشة يعرض تلك الشاشة كما هي اليوم بجانب كيف ستُقرأ، جنبًا إلى جنب، ليكون التغيير مرئيًا لا موصوفًا.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> three captures of today&rsquo;s surfaces are on disk
+    &mdash; the map, the PMO overview and the PMO delivery tab &mdash; and the delivery tab they
+    show carries one row per <em>organization</em> with stage, days-in-stage, owner and an open
+    count, with <b>no use-case dimension at all</b> against 1,551 records.
+    &nbsp;<b>In this file: five pairs, on pages 6, 16, 18, 20 and 22, plus the map on page
+    24.</b></div>
+  </div>
+
+  <div class="req">
+    <div class="bi hd">
+      <div class="en"><span class="id">BRD-037</span> <span class="ti">The owner alone approves</span> <span class="pill a">agreed</span></div>
+      <div class="ar" dir="rtl" lang="ar"><span class="tia">&rlm;المالك وحده يعتمد&rlm;</span></div>
+    </div>
+    <div class="bi tx">
+      <div class="en"><p>Abdulaziz Alsaloom approves this brief, and nothing in it is built before
+      he does. A job title never carries approval and never grants permission: roles are checked,
+      positions are printed.</p></div>
+      <div class="ar" dir="rtl" lang="ar"><p>&rlm;عبدالعزيز السلوم هو من يعتمد هذه الوثيقة، ولا يُبنى شيء منها قبل اعتماده. والمسمّى الوظيفي لا يحمل اعتمادًا ولا يمنح صلاحية: الأدوار تُفحص، والمناصب تُطبع.&rlm;</p></div>
+    </div>
+    <div class="gr"><b>Measured &mdash;</b> <em>18</em> people are on the roster and exactly
+    <em>2</em> hold <code>workspace.admin</code>; the programme&rsquo;s six departments and
+    <em>119</em> account managers were majority-vote readings of Jira columns presented as facts
+    nobody had stated, which is what an unapproved fact costs. <em>Eight</em> database tables were
+    created three days before nobody used them and no requirement anywhere explains them.</div>
+  </div>
+
+  <h3 style="margin-top:8mm">The thirty-seven, by area</h3>
+  <div class="mt">
+    <div><span class="k">Governance &mdash; BRD-001, 023, 034</span><span class="v">3 &middot; <span class="pill b">built</span> 1 &nbsp;<span class="pill a">agreed</span> 2</span></div>
+    <div><span class="k">The data model &mdash; BRD-002, 008, 009, 010, 013, 022, 029</span><span class="v">7 &middot; <span class="pill a">agreed</span> 6 &nbsp;<span class="pill d">deferred</span> 1</span></div>
+    <div><span class="k">The process &mdash; BRD-003, 004, 005, 012, 014, 024, 030, 031, 032</span><span class="v">9 &middot; <span class="pill a">agreed</span> 8 &nbsp;<span class="pill d">deferred</span> 1</span></div>
+    <div><span class="k">Inside Jira &mdash; BRD-006, 007, 025, 033</span><span class="v">4 &middot; <span class="pill a">agreed</span> 3 &nbsp;<span class="pill g">gated</span> 1</span></div>
+    <div><span class="k">What no algorithm may do &mdash; BRD-011</span><span class="v">1 &middot; <span class="pill a">agreed</span> 1</span></div>
+    <div><span class="k">Watching the onboarding &mdash; BRD-015 &hellip; 021</span><span class="v">7 &middot; <span class="pill b">built</span> 2 &nbsp;<span class="pill a">agreed</span> 5</span></div>
+    <div><span class="k">The map &mdash; BRD-027, 028</span><span class="v">2 &middot; <span class="pill a">agreed</span> 2</span></div>
+    <div><span class="k">Attachments &mdash; BRD-026</span><span class="v">1 &middot; <span class="pill d">deferred</span> 1</span></div>
+    <div><span class="k">This document &mdash; BRD-035, 036, 037</span><span class="v">3 &middot; <span class="pill a">agreed</span> 3</span></div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>This document</span><span>Page 26 of 28</span></div>
+</section>
+
+
+<!-- ═══ 27 · what is still open ═══ -->
+<section class="page">
+  <div class="kicker">What is still open</div>
+  <h2>Nine things this brief does not settle</h2>
+  <p>Four are requirements deliberately held back; five are gaps found while writing it. All nine
+  are printed rather than left to be discovered later.</p>
+
+  <div class="qs">
+    <div class="q">
+      <h4>1 &middot; Is Jazan one organization or three? &nbsp;<span class="id">BRD-010</span></h4>
+      <p>Jazan is 3 rows and 100 tickets, 16 of them open &mdash; the largest ticket count of any
+      unresolved cluster. Nothing merges them meanwhile. If MCC and MedicaCloud turn out to be one
+      vendor, <b>the grid moves from 1,551 to 1,529</b> and every denominator in this document
+      moves with it.<span class="who">Needs: one answer from the owner</span></p>
+    </div>
+    <div class="q">
+      <h4>2 &middot; The Jira read connection does not work &nbsp;<span class="id">BRD-025</span></h4>
+      <p>The scoped token authenticates as an app with no project grants, and every content query
+      returns <b>200 with zero rows</b>. Nothing writes to Jira until a read against a named
+      project returns a non-zero row count &mdash; and the 715 imported statuses and 161 stage
+      records stay exactly where they are until it does.<span class="who">Blocks BRD-025 &middot; gates BRD-029</span></p>
+    </div>
+    <div class="q">
+      <h4>3 &middot; Two Aseer rows name no hospital system &nbsp;<span class="id">BRD-009</span></h4>
+      <p>The rulings split Aseer by hospital system into Care Ware and Vida Plus. <code>Aseer</code>
+      and <code>Aseer Cluster</code> name no system, so they stay flagged pending allocation rather
+      than being quietly folded into one of the two or becoming a 142nd organization.<span class="who">Needs: an allocation, by a named person</span></p>
+    </div>
+    <div class="q">
+      <h4>4 &middot; Forty-two organizations have nobody &nbsp;<span class="id">BRD-012</span></h4>
+      <p>They hold 203 of the never-written pairs. Until someone is named, each is
+      <b>pending assignment</b> and sits in the PMO Lead&rsquo;s own queue &mdash; visible and
+      counting down on its own line, never blank and never filled with a round-robin
+      guess.<span class="who">Needs: 42 names, over time</span></p>
+    </div>
+    <div class="q">
+      <h4>5 &middot; The map&rsquo;s target drawing has not been made &nbsp;<span class="id">BRD-027, 028</span></h4>
+      <p>Five before-and-after pairs are in this file. The map is shown as it is today, on page 24,
+      with the change described in words rather than drawn. That is a gap in BRD-036&rsquo;s own
+      test and it is named here rather than glossed.<span class="who">Owed: one drawing</span></p>
+    </div>
+  </div>
+  <div class="grow"></div>
+  <div class="foot"><span>What is still open</span><span>Page 27 of 28</span></div>
+</section>
+
+<!-- ═══ 27b · what is still open, continued ═══ -->
+<section class="page">
+  <div class="kicker">What is still open &mdash; continued</div>
+  <h2>Four gaps found while writing this</h2>
+  <p>None of these is a decision anyone took. They are things the writing turned up, printed here
+  so that they are somebody&rsquo;s to answer rather than nobody&rsquo;s to notice.</p>
+
+  <div class="qs">
+    <div class="q">
+      <h4>6 &middot; Twenty-two migrations belong to no requirement</h4>
+      <p><code>0001</code>&ndash;<code>0022</code>, dated 29 July to 1 August, are the product this
+      programme was built on. The ledger marks them <code>pre-brief</code> and the test pins that
+      set to exactly those twenty-two, so nothing new can ever be filed under the marker.
+      Attributing them to a requirement here would have been the invented fact BRD-011
+      forbids.<span class="who">Decide: leave as pre-brief, or write 22 attributions</span></p>
+    </div>
+    <div class="q">
+      <h4>7 &middot; Eight tables nobody uses &nbsp;<span class="id">BRD-037</span></h4>
+      <p><code>0031_pmo_portfolio.sql</code> created eight <code>pmo_*</code> tables three days
+      before nobody used them. It is recorded in the ledger as the <b>finding</b> BRD-037 exists
+      to name, not as a decision anyone made.<span class="who">Needs: keep, or remove with a manifest</span></p>
+    </div>
+    <div class="q">
+      <h4>8 &middot; Attachments, and what redaction cannot do &nbsp;<span class="id">BRD-026</span></h4>
+      <p>Deferred behind the ticket contract. 2,455 images cannot be redacted by any rule &mdash;
+      a screenshot of a patient list is a screenshot of a patient list &mdash; so either a person
+      reviews each one before it is visible, or images stay a link out to Jira.<span class="who">Sequenced after: BRD-002 &hellip; 008</span></p>
+    </div>
+    <div class="q">
+      <h4>9 &middot; No date is promised &nbsp;<span class="id">BRD-030</span></h4>
+      <p>The bilingual announcement is written and unsent. Its three dates are placeholders, and
+      the count of dates committed to this programme stays <b>0</b> until the owner names
+      them.<span class="who">Needs: the Teams channel, the open-hour slot, three dates</span></p>
+    </div>
+  </div>
+
+  <div class="grow"></div>
+  <div class="foot"><span>What is still open</span><span>Page 28 of 29</span></div>
+</section>
+
+<!-- ═══ 28 · approval ═══ -->
+<section class="page">
+  <div class="kicker">Approval</div>
+  <h2>One mark, and what it releases</h2>
+  <p class="lede">Thirty of the thirty-seven requirements are <b>agreed</b> and waiting on this
+  page. Three are already built and tested. One is gated behind a Jira read that does not work
+  yet, and three are deferred with the reason written down.</p>
+
+  <div class="two" style="margin-bottom:6mm">
+    <div class="box ok" style="margin:0">
+      <h4>What this mark releases</h4>
+      <p>Building the 30 agreed requirements: the ticket contract, the ladder as status, the 141
+      components, the eleven use-case options, the exception list, the hospital row, the COC queue
+      and its write path, and the weekly bilingual report.</p>
+    </div>
+    <div class="box warn" style="margin:0">
+      <h4>What it does not release</h4>
+      <p>No date is promised. No Jira write happens until a read against a named project returns
+      rows. No imported status or stage record is cleared. No attachment is fetched. Jazan stays
+      three rows.</p>
+    </div>
+  </div>
+
+  <div class="appr">
+    <h4 style="margin:0 0 5mm;font-size:11pt;color:var(--accent)">APPROVED FOR BUILD</h4>
+    <div class="two" style="gap:10mm">
+      <div>
+        <div class="ln"></div>
+        <div class="cn"><b>Abdulaziz Alsaloom</b> &mdash; PMO Lead, NphiesCore<br>
+        <span dir="rtl" lang="ar">&rlm;عبدالعزيز السلوم — قائد مكتب إدارة المشاريع&rlm;</span></div>
+      </div>
+      <div>
+        <div class="ln"></div>
+        <div class="cn">Date &nbsp;&middot;&nbsp; <span dir="rtl" lang="ar">&rlm;التاريخ&rlm;</span></div>
+      </div>
+    </div>
+    <p style="font-size:9pt;margin:6mm 0 0;color:var(--ink-2)">A job title never carries approval
+    and never grants permission. This page is the record that a person, not a role, released this
+    work &mdash; and no requirement moves from <b>agreed</b> to <b>built</b> without it.</p>
+  </div>
+
+  <div class="grow"></div>
+
+  <div class="mt">
+    <div><span class="k">Requirements in this brief</span><span class="v"><b>37</b>, BRD-001 to BRD-037, contiguous</span></div>
+    <div><span class="k">Carrying an Arabic column</span><span class="v"><b>37 of 37</b>, in this one file</span></div>
+    <div><span class="k">Before-and-after pairs</span><span class="v"><b>5</b> &mdash; pages 6, 16, 18, 20, 22 &mdash; plus today&rsquo;s map on page 24, with one drawing still owed</span></div>
+    <div><span class="k">Dates committed anywhere</span><span class="v"><b>0</b>, and that is the truth</span></div>
+  </div>
+
+  <div class="foot"><span>Approval</span><span>Page 28 of 28</span></div>
+</section>
+
+</body></html>
