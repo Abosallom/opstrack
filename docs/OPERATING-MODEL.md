@@ -1736,6 +1736,79 @@ would remove the reason to look.
 
 ---
 
+### 11.5 The strip reads as POSITION, not as colour
+
+Each of the eleven use cases is a short track with one marker on it, at DEV, STG/TEST, COC or
+PROD. **Distance along the track is the progress**, so a hospital that is nearly done looks nearly
+done from across a room, and a row of markers bunched at the left is a hospital nobody has
+started.
+
+This is the same rule `0026_map_node_stages.sql` already enforces on the ladder and
+`scripts/report/views/cover.mjs` on the printed report: *an ordered ladder is drawn as position,
+never as seven hues.* It satisfies WCAG 1.4.1 for free — colour is never the only channel because
+colour is not a channel at all here — and it survives being screenshotted into a message, printed
+in grey, or read by somebody who does not know the palette.
+
+An empty track — no marker — is **nobody has said anything about this pair**, and it is drawn as
+untouched paper, never as a marker at position zero. `INK.unrecorded = 'none'` in
+`scripts/report/build.mjs` is the same decision in the printed report: *the honest way to draw a
+measurement nobody took is to leave the paper alone.* At 141 hospitals × 11 use cases, roughly
+1,100 of the 1,551 tracks are empty on day one, and the picture should say so plainly.
+
+### 11.6 Quiet is fourteen days
+
+No movement and no comment for **14 calendar days**, at any rung.
+
+⚠ **IT WILL FIRE HARD IN WEEK ONE AND THAT IS THE POINT.** The median open ticket is 216 days old
+and 261 are over a year, so a fortnight's threshold lights up a large part of the board
+immediately. That is not the instrument miscalibrated; it is the first honest measurement this
+programme has had. The number is configurable, and the temptation to soften it before anyone has
+seen it should be resisted — a threshold chosen to make the first screenshot comfortable is a
+threshold that never tells anyone anything.
+
+⚠ **QUIET IS NOT MEASURABLE ON IMPORTED DATA EITHER.** The same rule that governs the rung budget
+governs this: `portfolio/fields.ts` discards a clock whose row records no author, because such a
+stamp is the moment a script ran. Quiet starts counting from the first movement a person makes.
+
+### 11.7 The COC queue, and the first write path the PMO would use daily
+
+COC is the one rung this office works, so it is the one place the PMO needs to **record** rather
+than read. Four fields, all confirmed with the owner:
+
+| Field | What it is | Why |
+|---|---|---|
+| `coc_submitted_on` | date the completion evidence went to CHI | without it the age of the wait is unknowable, and the age is the entire reason to chase |
+| `coc_contact` | the named person at CHI holding it | turns "waiting on CHI" into "waiting on a person", which is what makes a chase possible |
+| `coc_reference` | CHI's own reference or certificate number | so a follow-up can quote it, and a signed certificate can be matched back to this exact (hospital, use case) |
+| the chase thread | a short line per chase — *"chased 12 Aug, promised this week"* | the thread, not just the state |
+
+**The thread is not a new table.** `entry_updates` is already an append-only, authored,
+timestamped trail against a work item, and a chase is exactly that. Adding a fifth column called
+`coc_notes` would be a second thread implementation whose entries could not be attributed.
+
+⚠ **`coc_contact` IS A NAME AND NOTHING ELSE — no email, no phone.** This workspace holds no staff
+emails by design, forbids attachments outright, and its privacy page is written from what the
+schema actually contains. A CHI contact is a person outside the organization, so the bar is
+higher, not lower. A name is what makes the chase possible; contact details belong in whatever
+system the PMO already uses for them.
+
+**This matters beyond COC.** The diagnosis behind this whole exercise was that the product has
+eight ways to look at data and almost no way to change any of it — `setNodeUseCase` has zero call
+sites — and that "nobody has ever hand-edited anything" is a consequence rather than a habit. The
+COC queue is the best available candidate for the first write path anyone uses every day, because
+the person who needs it is the person asking for it.
+
+### 11.8 Both surfaces, one source
+
+The exception list lives on the **PMO dashboard**; the same data is drawn on the **map** when the
+question is "by department" or "by vendor" or "by HIS". One computation, two surfaces.
+
+The rule that makes that safe is already written in `MapBranchDetail.tsx`: a roll-up cannot know
+the reader's filter, and *a branch labelled 12 showing 3 is the worst thing this map can do.* So
+both surfaces read one function; neither restates its arithmetic.
+
+---
+
 ## 12 · Where the five studies disagreed, and which way it was settled
 
 | Question | Chosen | Rejected | Why |
