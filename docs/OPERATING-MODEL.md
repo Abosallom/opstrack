@@ -1,5 +1,13 @@
 # OPERATING-MODEL — one ticket per hospital per use case
 
+> ⚠ **READ §10.0 FIRST — three decisions were taken on 25 August 2026 and they move the grid.**
+> The use-case list is **eleven** (Vital Signs is in), so the target universe is **161 × 11 =
+> 1,771**, not 1,449. Every `1,449` and every `773 of 1,449` in the sections below predates that
+> and is superseded. The backlog is **roughly 1,100 pairs** and cannot be stated exactly until the
+> organization-identity rulings in §10.1 decision 6 are made — two independent passes over the
+> same file counted 676 and 610 written pairs, and the whole difference is how hospital names are
+> normalised. The reasoning in each section stands; the arithmetic in it does not.
+
 The onboarding operating model for the UHR programme: what the record is, where it lives, how
 it moves, what happens to the 2,971 tickets that exist today, and what the weekly report is
 allowed to say. Assembled from five studies — the measurement pass over the Jira export, the
@@ -717,10 +725,12 @@ Rad Order — طلب الأشعة
 Lab Result — نتيجة المختبر
 Lab Order — طلب المختبر
 Clinical Notes — الملاحظات السريرية
+Vital Signs — العلامات الحيوية
 ```
 
-**The option list is the target universe**, so its length is a decision the owner must take
-before it is loaded — see §10, decisions 1 and 2. Immunization (8 tickets), Genomics (5),
+**The option list is the target universe**, and it is now settled at **eleven** (§10.0 A). Vital
+Signs is in: it was already live in the data on 4 pairs, and without an option value those tickets
+could not be filed as onboarding records at all. Immunization (8 tickets), Genomics (5),
 Consent (4) and NVR (1) are **not** recommended as options: they are operational tickets, they
 keep the `Service request` type, and they need no use-case value.
 
@@ -926,7 +936,7 @@ In order:
 1. Create issue type `Onboarding` and its workflow (six statuses). Nothing else changes yet.
 2. Build the 161 components by hand, Arabic in the description, Component Lead where an owner
    exists.
-3. Load the `Nphies Use Case` options — 10, or 11 with Vital Signs. **The owner decides before
+3. Load the `Nphies Use Case` options — **eleven, Vital Signs included** (§10.0 A). **Settled; before
    loading** (§10).
 4. Field configuration scheme: 498 hidden, three required at creation.
 5. Validators on the §6.4 transitions.
@@ -1188,14 +1198,39 @@ merge rule 2 in one pass, 6 by rule 3, 3 wait on Step 1.
 pair, name the rung the work actually reached. Then script the reopen/recreate split at the
 90-day line (99 reopen, 119 recreate).
 
-**Step 5 — scripted bulk creation, 773 tickets at `Intake`.** Blocked on Step 1 **and** on
-assigning owners to the 42 unowned organizations, since 203 of the 773 would otherwise be created
-unassigned.
+**Step 5 — scripted bulk creation of the never-written pairs at `Intake`.** *(Roughly 1,100 at
+eleven use cases; the exact count is an output of Step 1, not an input — see the banner.)*
+
+**No longer blocked on ownership (§10.0 B).** The 42 organizations with no Account Manager get an
+explicit **pending assignment** state rather than a guess or a blank:
+
+- the component's lead is left unset, and every ticket created for one of those organizations
+  carries the label `pending-owner`;
+- `Action Pending With` is set to the PMO queue, so the work has somewhere to sit rather than
+  nowhere;
+- the compliance report (§8) counts `pending-owner` as its own line, so the number is visible on
+  day one and falls as owners are named.
+
+⚠ **Why not simply leave the assignee blank.** Blank is what 42 of 161 organizations already are,
+  and blank is indistinguishable from *nobody has looked yet* — which is precisely how this
+  programme arrived at six departments and 119 account managers that were majority-vote readings
+  of Jira columns rather than statements anyone made. A state that says "this needs an owner and
+  does not have one" is a different assertion from silence, and only one of the two can be
+  counted down.
+
+⚠ **And why not guess from the majority assignee.** That rule is exactly what produced the
+  unratified owners above. It would be a third layer of derived-fact-presented-as-fact on the
+  organizations that have had the least attention — the ones with no owner are the ones nobody has
+  been looking at, so a guess there is worth least and costs most.
+
+Still blocked on Step 1: an organization that has not been resolved to a map row cannot have its
+tickets created, because the pair would name a hospital that may turn out to be another hospital.
 
 **Step 6 — turn on the compliance report (§8) against the new record.**
 
 **Scriptable: ~1,300 operations.** **Needs a person: 20 organization rulings, 20 duplicate
-rulings, 218 rung attestations, 42 owner assignments, 1 V1/V2 ruling — 301 decisions.**
+rulings, 218 rung attestations, 1 V1/V2 ruling — and the 42 owner assignments are no longer on
+the critical path (§10.0 B), so they come off this list and become a countdown instead.**
 
 **And one step that no script will do.** §3.4 measured that the pair and the rung live on two
 disjoint populations. Back-filling organization and use case therefore gives you **records with
@@ -1415,6 +1450,9 @@ helpdesk tickets.
 
 ## 9 · The announcement
 
+> **DEFERRED (25 Aug 2026).** Kept as drafted because it gives the process a concrete shape and
+> was useful for that. It is not the next thing to act on, and its three dates are placeholders.
+
 Three artefacts, ready to send once §10's decisions are made and the three dates are confirmed.
 **The Arabic is the original, not a translation of the English** — send both.
 
@@ -1521,16 +1559,48 @@ should not promise a migration date that depends on a decision not yet made.
 
 ## 10 · Open decisions for the owner
 
-Nine questions the council could not answer on the owner's behalf. Each is phrased so it can be
+### 10.0 Settled on 25 August 2026
+
+Three of the nine are now answered, and they change the grid.
+
+**A · The use-case list is ELEVEN.** The owner's list was ten — ADT, Medication Prescribe V1 and
+V2, Medication Dispense V1 and V2, Rad Report, Rad Order, Lab Result, Lab Order, Clinical Notes —
+and **Vital Signs is an eleventh, confirmed as a real use case** rather than an artefact. It was
+already live in the data on 4 pairs. So the grid is **161 × 11 = 1,771**, not 1,449.
+
+⚠ **The backlog figure cannot be stated precisely yet, and this document should stop implying it
+  can.** Two independent passes over the same file counted 676 and 610 written pairs, and the gap
+  is entirely the normalisation of hospital names — which is decision 6 below. There are 24
+  clusters of duplicate map rows and about 20 ticket names matching no row, and **every merge
+  changes the denominator**. The honest statement today is **roughly 1,100 of the 1,771 pairs have
+  never been written down**, and the exact number is an output of the identity rulings, not an
+  input to them. Every "773 of 1,449" below is superseded by that sentence.
+
+**B · The 42 organizations with no Account Manager get an explicit state, not a guess.** They are
+marked **pending assignment of an account manager** — a named, visible, countable state. Not left
+blank, because blank is indistinguishable from nobody-has-looked; and not guessed from the
+majority Jira assignee, because that is how the six departments and 119 owners became facts nobody
+stated. Their tickets are created on schedule with the component lead unset and the pending marker
+on, so the backlog is visible from day one and shrinks as owners are named.
+
+**C · The announcement is deferred.** §9 stays in this document as drafted, and is not the next
+thing to act on. It was written to give the process a concrete shape, and its three dates remain
+unconfirmed placeholders.
+
+### 10.1 Still open
+
+Six questions the council could not answer on the owner's behalf. Each is phrased so it can be
 answered in one line.
 
-1. **Is the use-case option list 9 items or 10?** The decided list reads ADT, Medication
+1. ~~**Is the use-case option list 9 items or 10?**~~ **SETTLED — eleven, see 10.0 A.**
+   Original text: The decided list reads ADT, Medication
    Prescribe V1, Medication Prescribe V2, Medication Dispense V1, Medication Dispense V2, Rad
    Report, Rad Order, Lab Result, Lab Order, Clinical Notes — **that is ten entries**, while the
    target universe was stated as 161 × 9 = 1,449. **The option list *is* the target universe.**
    161 × 10 = 1,610, at which "never written" becomes 934 of 1,610 instead of 773 of 1,449.
 
-2. **Vital Signs — in or out?** It is already live in the data: **36 tickets, 4 distinct pairs.**
+2. ~~**Vital Signs — in or out?**~~ **SETTLED — in, see 10.0 A.**
+   Original text: It is already live in the data: **36 tickets, 4 distinct pairs.**
    Without an option value those 36 tickets cannot be filed as onboarding records at all. In
    makes the grid 161 × 11 = 1,771. (Immunization 8, Genomics 5, Consent 4 and NVR 1 stay
    operational and need no answer.)
@@ -1540,7 +1610,8 @@ answered in one line.
    medication record is defaulted to one version and corrected later, or an OB Account Manager
    picks each one by hand.
 
-4. **Who owns the 42 organizations with no Account Manager?** They hold **203 of the 773
+4. ~~**Who owns the 42 organizations with no Account Manager?**~~ **SETTLED — see 10.0 B.**
+   Original text: They hold **203 of the 773
    never-written pairs** — the single largest block of the backlog. §7.6 Step 5 is blocked on this
    because otherwise 203 tickets are created unassigned.
 
@@ -1553,7 +1624,7 @@ answered in one line.
    migration, and **every merge changes the denominator**: collapsing Aseer's six rows alone takes
    the grid from 1,449 to 1,404.
 
-7. **Are the three announcement dates confirmed — 3 September, 6 September, 1 October?** Plus the
+7. ~~**Are the three announcement dates confirmed**~~ **DEFERRED with §9, see 10.0 C.** Original: — 3 September, 6 September, 1 October?** Plus the
    Teams channel name and the Sunday open-hour slot. The 1 October date depends on decision 6.
 
 8. **The project is keyed `NONP` and named "Nphies Non prod", and 9 of 2,971 rows link out to a
