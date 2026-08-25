@@ -39,8 +39,16 @@ reopened anywhere in it:
    go-live. Jira Service Management is officially where onboarding is traced.
 2. **The word is "use case"**, never "capability". **The people are "OB Account Managers"**,
    never "engineers".
-3. **The ladder is DEV → STG/TEST → COC → PROD**, per use case. COC is the Certificate of
-   Conformance. The old seven rungs — Not started, Kickoff, Integrating & Testing, UAT, Go-live
+3. **The ladder is DEV → STG/TEST → COC → PROD**, per use case.
+
+   ⚠ **COC is the Certificate of COMPLETION, and it is signed by the client — CHI.** This
+   document first read it as a Certificate of *Conformance*, an internal quality gate. It is not.
+   It is a signature obtained from outside the programme, which makes COC the one rung whose
+   duration is **not** in the delivery team's hands and the one rung **the PMO itself works** —
+   chasing a counter-signature is PMO work, not integration work. Everything downstream follows
+   from that: COC is highlighted separately in the OB monitoring (§12), a record sitting at COC is
+   a different kind of problem from one sitting at STG/TEST, and the 10-day budget means something
+   different there. The old seven rungs — Not started, Kickoff, Integrating & Testing, UAT, Go-live
    readiness, Live, Paused — are retired.
 
 What this document adds is everything downstream of those three: which fields carry the pair,
@@ -438,7 +446,7 @@ terminal state; withdrawal is a Resolution value, not a status.
 | 0 | **Intake** | قيد الاستلام | To Do | The pair exists as a record. **Nobody has said anything about it yet** — this is not a claim that work has not started. | An OB Account Manager is the assignee **and** the interface checklist has been instantiated on the ticket. |
 | 1 | **DEV** | بيئة التطوير | In Progress | Build and configuration against the development endpoint. | At least one message of **this** use case accepted at the DEV endpoint, referenced on the ticket. |
 | 2 | **STG/TEST** | بيئة الاختبار | In Progress | Messages flowing in staging; the conformance test set is being run. | The interface checklist for this ticket reads **All Completed**. |
-| 3 | **COC** | شهادة المطابقة | In Progress | Conformance evidence submitted; certificate not yet issued. | A COC reference recorded for **this exact pair** — not for the organization in general, not for a sibling use case. |
+| 3 | **COC** | شهادة الإنجاز | In Progress | Completion evidence submitted to CHI; the certificate is not yet signed. **The waiting party is outside the programme.** | A signed Certificate of Completion recorded for **this exact pair** — not for the organization in general, not for a sibling use case. |
 | 4 | **PROD** | بيئة الإنتاج | In Progress | Cutover window. Production configuration in place; traffic not yet accepted at full scope. **Pilot lives here.** | The definition of done in §5.4. |
 | 5 | **Closed** | مغلق | Done | Terminal. The Resolution names the outcome. | — |
 
@@ -523,7 +531,7 @@ class (10 open tickets by title, plus the `Whitelisting` label on 16) whose purp
 `Public IP`, is filled on **14 of 2,971**; the checklist's *Source System Public IP* line is the
 field that will actually be used.
 
-**COC → PROD.** A Certificate of Conformance is on file **for this exact (organization, use
+**COC → PROD.** A Certificate of Completion, signed by CHI, is on file **for this exact (organization, use
 case) pair**, with its reference recorded and `COC Status` set to `Passed` or `Passed with
 conditions`. **A conformance certificate for a sibling use case does not promote this one.**
 
@@ -1664,7 +1672,71 @@ answered in one line.
 
 ---
 
-## 11 · Where the five studies disagreed, and which way it was settled
+## 11 · OB monitoring in the PMO dashboard
+
+Decided with the owner on 25 August 2026. This replaces the Delivery tab's current shape, which
+is one row per organization carrying stage, days-in-stage, owner and an open count — and **no use
+case dimension at all**, which the new model makes the atom.
+
+### 11.1 What it answers first
+
+**What is stuck right now.** Not coverage, not the weekly delta, not load — those are all on the
+page, below. The section opens with the exception list, because that is what the owner opens it
+to find. A dashboard whose first screen is a progress bar is a dashboard people stop opening.
+
+### 11.2 The row is a hospital
+
+**141 rows, one per organization, each carrying its eleven use cases as a strip of rung markers.**
+
+The atom is (hospital × use case) and there are 1,551 of them, which is more than anyone reads.
+One row per use case would answer "how is Lab Order going" and lose the hospital; the full grid
+answers neither question, it only shows patterns. A hospital row with eleven markers on it is a
+whole picture on one line, and the cell is where you drill.
+
+### 11.3 What raises a flag — five things, and the fifth is not like the others
+
+1. **Flagged as blocked.** Somebody raised the flag and named who they are waiting on. Sixty open
+   tickets sit at `Pending on Vendor` today and nothing anywhere surfaces them.
+2. **Past its 10-day rung budget.** Only meaningful once people move rungs — it cannot fire on
+   imported data, and `portfolio/fields.ts` refuses to let it.
+3. **No owner.** The hospital is pending assignment of an OB Account Manager. Forty-two today,
+   holding the largest single block of never-started records.
+4. **Gone quiet.** No movement and no comment for N days, at any rung. This is the one that will
+   fire immediately and honestly: the median open ticket is 216 days old and 261 are over a year.
+
+5. ⚠ **AT COC — HIGHLIGHTED SEPARATELY, AND NOT AS A FAULT.**
+
+   COC is the Certificate of **Completion**, signed by **CHI**, the client. Three consequences,
+   and they are why this is its own channel rather than a fifth reason a row turns amber:
+
+   - **The waiting party is outside the programme.** Nobody on this roster can move it by working
+     harder. Presenting it in the same colour as "your engineer has not touched this in 40 days"
+     tells the reader to chase the wrong person.
+   - **It is the rung the PMO itself works.** Every other rung is delivery work; COC is a
+     counter-signature, and chasing it is a PMO job. So the count of records at COC is not a
+     warning to somebody else — it is this office's own queue, and it belongs on the PMO's
+     dashboard more than anything else on the page.
+   - **The 10-day budget means something different here.** Ten days on STG/TEST is a delivery
+     question. Ten days at COC is a question for CHI, and the honest sentence names them.
+
+   So: records at COC get their own count, their own list, and their own words. They are not
+   merged into "stuck".
+
+### 11.4 One page, three readers
+
+**All three tiers read the same page and the same numbers** — the owner as PMO Lead, the
+Associate Directors for their own queue, the PMO Director and above for the trajectory. What
+differs is only what it opens on, not what it contains, because the alternative is three pages
+that disagree and an argument about whose figure is right.
+
+Which means one constraint, and it is not negotiable: **it names individuals.** An Associate
+Director's queue is a person's queue. The load imbalance — four people holding 526 of 828 open
+items — is the single most actionable fact the PMO holds, and softening it for a wider audience
+would remove the reason to look.
+
+---
+
+## 12 · Where the five studies disagreed, and which way it was settled
 
 | Question | Chosen | Rejected | Why |
 |---|---|---|---|
