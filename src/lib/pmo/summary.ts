@@ -247,11 +247,30 @@ export interface StageReadiness {
    * file words that sentence; see `pmo.lateOneClock`.
    */
   clockStartedTogether: IsoDate | null
+  /**
+   * Rows whose RUNG carries a time budget, and rows whose CLOCK a person
+   * started. `measurable` is the intersection, and until now it was the only
+   * count — which made two very different silences indistinguishable.
+   *
+   * ⚠ THE PAGE SAID THE WRONG THING BECAUSE OF IT. With `expected_days` set on
+   *   four rungs and every stage clock written by an import, `measurable` fell
+   *   to zero and the card printed "no stage has been given a time yet — go and
+   *   set one". The times were already set. The reader is told to do something
+   *   they have done, and the thing actually missing is never named.
+   *
+   * Two counters, because "nobody said how long" and "nobody started a clock"
+   * have different fixes: one is an admin setting a number, the other is an
+   * account manager moving an organization onto a rung.
+   */
+  withExpectation: number
+  withClock: number
 }
 
 export function stageReadiness(rows: readonly DeliveryRow[]): StageReadiness {
   let staged = 0
   let measurable = 0
+  let withExpectation = 0
+  let withClock = 0
   let atRisk = 0
   let longestDays: number | null = null
   // `undefined` = no measurable row seen yet; `null` = two rows disagreed, and
@@ -263,6 +282,8 @@ export function stageReadiness(rows: readonly DeliveryRow[]): StageReadiness {
     // BOTH halves, and neither alone. A clock with no expectation cannot be
     // late; an expectation with no clock has nothing to judge. `isAtRisk`
     // already answers false for either, and this is the count that says WHY.
+    if (row.stallDays !== null) withExpectation += 1
+    if (row.daysInStage !== null) withClock += 1
     if (row.stallDays === null || row.daysInStage === null) continue
     measurable += 1
     if (longestDays === null || row.daysInStage > longestDays) longestDays = row.daysInStage
@@ -278,6 +299,8 @@ export function stageReadiness(rows: readonly DeliveryRow[]): StageReadiness {
     longestDays,
     atRisk,
     clockStartedTogether: measurable >= 2 ? (sharedDay ?? null) : null,
+    withExpectation,
+    withClock,
   }
 }
 
@@ -302,6 +325,18 @@ export type LatenessVerdict =
    */
   | { kind: 'no-expectation'; staged: number }
   /**
+   * The rungs DO carry times, and not one organization has a clock a person
+   * started — so there is nothing to measure against them.
+   *
+   * ⚠ SEPARATED FROM `no-expectation` BECAUSE THE ADVICE IS OPPOSITE. That arm
+   *   sends the reader to the catalogue to set a number. Here the numbers are
+   *   set and the reader would find nothing to do, which is the most corrosive
+   *   thing a page can say. What is missing is somebody putting an organization
+   *   on a rung: `portfolio/fields.ts` discards a stage clock whose progress row
+   *   records no author, because such a stamp is the moment an import ran.
+   */
+  | { kind: 'no-clock'; staged: number; withExpectation: number }
+  /**
    * Measurable, and genuinely nothing is over yet. `longestDays` is the sentence
    * that makes it honest: "the longest anyone has stood anywhere is N days".
    */
@@ -312,7 +347,14 @@ export type LatenessVerdict =
 export function latenessVerdict(r: StageReadiness): LatenessVerdict {
   if (r.organizations === 0) return { kind: 'no-organizations' }
   if (r.staged === 0) return { kind: 'no-stage', organizations: r.organizations }
-  if (r.measurable === 0) return { kind: 'no-expectation', staged: r.staged }
+  if (r.measurable === 0) {
+    // Which of the two halves is missing decides which sentence is true. Both
+    // missing reads as `no-expectation`, because setting the times is the step
+    // that comes first and a reader given two errands does neither.
+    return r.withExpectation > 0
+      ? { kind: 'no-clock', staged: r.staged, withExpectation: r.withExpectation }
+      : { kind: 'no-expectation', staged: r.staged }
+  }
   if (r.atRisk === 0) {
     // `longestDays` cannot be null once `measurable > 0` — the loop above sets
     // it on the same row that increments the counter — but it is narrowed rather

@@ -338,7 +338,49 @@ describe('latenessVerdict', () => {
     )
     expect(r.staged).toBe(1)
     expect(r.measurable).toBe(0)
+    /*
+     * ⚠ THIS ASSERTED `no-expectation` AND THAT WAS THE SAME BUG, ONE LAYER
+     *   DOWN. The rung here carries `expected_days: 5` — the expectation exists
+     *   and is the one thing NOT missing. `measurable` was the only counter, so
+     *   both silences collapsed onto the arm whose sentence sends the reader off
+     *   to set a duration they have already set.
+     */
+    expect(latenessVerdict(r)).toEqual({ kind: 'no-clock', staged: 1, withExpectation: 1 })
+  })
+
+  it('still says no-expectation when the rung genuinely carries no time', () => {
+    // The other half of the split, and the reason it is a split: same zero
+    // `measurable`, opposite advice. Here the rung really has no duration, so
+    // "go and give a stage one" is the true and useful sentence.
+    const r = rowsFor(
+      withStages(
+        [node({ id: 'a' })],
+        [stage({ id: 's1', expected_days: null })],
+        [progress('a', 's1', '2026-01-01T00:00:00.000Z')],
+      ),
+    )
+    expect(r.measurable).toBe(0)
+    expect(r.withClock).toBe(1)
+    expect(r.withExpectation).toBe(0)
     expect(latenessVerdict(r)).toEqual({ kind: 'no-expectation', staged: 1 })
+  })
+
+  /*
+   * THE LIVE SHAPE, ASSERTED END TO END. Rungs carry times; every progress row
+   * was written by an import, so `portfolio/fields.ts` reports no days for any
+   * of them. The page must say "nobody put a stage there", not "set a duration".
+   */
+  it('names the missing CLOCK when the rungs have times and nobody started one', () => {
+    const r = rowsFor(
+      withStages(
+        [node({ id: 'a' }), node({ id: 'b' })],
+        [stage({ id: 's1', expected_days: 10 })],
+        [progress('a', 's1', '2026-08-22T14:44:16.991611Z', null), progress('b', 's1', '2026-08-23T17:11:53.997788Z', null)],
+      ),
+    )
+    expect(r.withExpectation).toBe(2)
+    expect(r.withClock).toBe(0)
+    expect(latenessVerdict(r)).toEqual({ kind: 'no-clock', staged: 2, withExpectation: 2 })
   })
 })
 

@@ -826,6 +826,31 @@ function LatenessCard({
           }
         />
       )
+    case 'no-clock':
+      /*
+       * ⚠ THE ARM THAT WAS MISSING, AND ITS ABSENCE WAS A FALSE SENTENCE ON A
+       *   LIVE PAGE. With `expected_days` set on four rungs and every stage
+       *   clock written by an import, `measurable` fell to zero and this switch
+       *   took the `no-expectation` arm — telling the reader to go and give a
+       *   stage an expected duration, which they had already done. Advice that
+       *   has already been taken is worse than silence: it reads as the page not
+       *   knowing what it is looking at.
+       *
+       * The link goes to the map rather than the catalogue, because here the
+       * missing act is an account manager putting an organization on a rung, not
+       * an admin setting a number.
+       */
+      return (
+        <Verdict
+          title={t('pmo.lateNoClock')}
+          body={t('pmo.lateNoClockHint')}
+          action={
+            <Link className="btn btn-sm" to="/mindtree?lens=portfolio">
+              {t('pmo.lateNoClockAction')}
+            </Link>
+          }
+        />
+      )
     case 'too-early':
       return (
         <Verdict
