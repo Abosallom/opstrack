@@ -98,6 +98,7 @@ import {
   scrub,
   selectFields,
   summarizeJiraError,
+  QUARANTINED_FIELDS,
   validateFields,
   validateJql,
   validatePageToken,
@@ -585,11 +586,75 @@ describe('validateFields', () => {
     expect(r.value).toEqual(['customfield_10042', 'summary'])
   })
 
-  it("accepts Jira's own wildcards", () => {
-    const r = validateFields(['*all'])
+  /*
+   * ── THE QUARANTINE ─────────────────────────────────────────────────────
+   *
+   * ⚠ THIS TEST USED TO ASSERT THE OPPOSITE. It read "accepts Jira's own
+   *   wildcards" and passed `*all` through, because the docblock invited it.
+   *   That was correct until 25 Aug 2026, when a scan of the 2,971-ticket
+   *   export found raw HL7 v2 payloads in ticket descriptions: 522 IPv4
+   *   addresses, 37 ten-digit national-ID-shaped numbers, 22 MRN/patient-id
+   *   mentions, 9 certificate or private-key blocks. `*all` fetches
+   *   descriptions, so `*all` fetches patient data.
+   *
+   * The reversal is recorded here rather than in a commit message because the
+   * next person to read this file will wonder why a wildcard Jira supports is
+   * refused, and the answer is a governance ruling (BRD-001, quarantine now and
+   * redact later), not an oversight.
+   */
+  it('REFUSES the wildcards, because they would fetch quarantined fields', () => {
+    for (const wildcard of ['*all', '*navigable', '*ALL']) {
+      const r = validateFields([wildcard])
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.detail).toContain('quarantined')
+    }
+  })
+
+  it('REFUSES every quarantined field by name, whatever its case', () => {
+    for (const field of QUARANTINED_FIELDS) {
+      for (const spelling of [field, field.toUpperCase(), ` ${field} `]) {
+        const r = validateFields(['summary', spelling])
+        expect(r.ok).toBe(false)
+        if (r.ok) return
+        expect(r.detail).toContain(field)
+      }
+    }
+  })
+
+  /*
+   * REFUSES rather than SILENTLY DROPS, and the difference is the whole point.
+   * A caller who asked for descriptions and got a 200 carrying none would
+   * conclude the tickets have no descriptions — a false belief the endpoint
+   * handed them. An error says what happened.
+   */
+  it('refuses the whole request rather than quietly returning the rest', () => {
+    const r = validateFields(['summary', 'status', 'description'])
+    expect(r.ok).toBe(false)
+  })
+
+  it('names no quarantined field in the default set', () => {
+    for (const field of QUARANTINED_FIELDS) {
+      expect(DEFAULT_SEARCH_FIELDS).not.toContain(field)
+    }
+    // The default is a convenience and the denylist is the control; assert both
+    // so that widening the default can never quietly widen what is fetched.
+    const r = validateFields(undefined)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    expect(r.value).toEqual(['*all'])
+    for (const field of QUARANTINED_FIELDS) expect(r.value).not.toContain(field)
+  })
+
+  /*
+   * The honest limit, asserted so it cannot be forgotten: a custom field id is
+   * opaque to this function, and a Jira instance may put prose in one. The scan
+   * checked the two that would matter — `patient ID (هوية المريض)` and
+   * `Physican ID (هوية الطبيب)` — and found ZERO rows filled in either. This is
+   * a name-level control and the test says so out loud.
+   */
+  it('still accepts a custom field id, which is the control\u2019s known limit', () => {
+    const r = validateFields(['customfield_10042'])
+    expect(r.ok).toBe(true)
   })
 
   it('de-duplicates rather than asking Jira twice', () => {

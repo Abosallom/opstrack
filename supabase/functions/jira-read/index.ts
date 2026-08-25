@@ -1015,9 +1015,53 @@ export function validateJql(v: unknown): { ok: true; value: string } | { ok: fal
 }
 
 /**
- * Field ids and names for `search`. `customfield_10042`, `summary`, and Jira's
- * own wildcards `*all` / `*navigable` are all legal here; a URL, a quote or a
- * brace is not.
+ * THE FIELDS THIS FUNCTION WILL NEVER FETCH, WHATEVER A CALLER ASKS FOR.
+ *
+ * ⚠ BRD-001. A scan of the 2,971-ticket export on 25 Aug 2026 found raw HL7 v2
+ *   clinical payloads pasted into ticket descriptions during integration
+ *   debugging: 522 IPv4 addresses, 37 ten-digit national-ID/Iqama-shaped
+ *   numbers, 22 MRN/patient-id mentions, 9 certificate or private-key blocks.
+ *   An identifier beside a date of birth inside a `PV1` segment is a patient
+ *   encounter record, and this is a national health programme.
+ *
+ *   The owner's ruling was QUARANTINE NOW, REDACT LATER: no ticket description
+ *   may reach an API, a cache, a log or a report until a written redaction rule
+ *   passes its own tests. Until then this endpoint does not fetch the field at
+ *   all, which is the only version of that rule a reviewer can verify.
+ *
+ * `DEFAULT_SEARCH_FIELDS` already omits every one of these — but omitting a
+ * field from a default is not refusing it, and this function's own docblock
+ * used to invite a caller to ask for `*all`. A default is a convenience; this
+ * is the control.
+ *
+ * ⚠ IT CANNOT CATCH A CUSTOM FIELD ID. `customfield_10042` is opaque here, and
+ *   a Jira instance is free to put prose in one. The scan found the two custom
+ *   fields that would matter — `patient ID (هوية المريض)` and
+ *   `Physican ID (هوية الطبيب)` — have ZERO rows filled, so nothing is being
+ *   relied upon that is not also measured. This is a name-level control and it
+ *   should be read as one.
+ */
+export const QUARANTINED_FIELDS: readonly string[] = Object.freeze([
+  'description',
+  'comment',
+  'attachment',
+  'environment',
+  'worklog',
+])
+
+/**
+ * The wildcards, refused for the same reason and named separately because the
+ * reason is different in kind: these do not NAME a quarantined field, they ask
+ * for every field including the quarantined ones. A denylist that checked only
+ * exact names would pass `*all` straight through.
+ */
+const FIELD_WILDCARDS: readonly string[] = Object.freeze(['*all', '*navigable'])
+
+/**
+ * Field ids and names for `search`. `customfield_10042` and `summary` are legal
+ * here; a URL, a quote or a brace is not — and neither is anything in
+ * `QUARANTINED_FIELDS`, nor Jira's `*all` / `*navigable` wildcards, which used
+ * to be legal and are refused now on the grounds set out above.
  */
 export function validateFields(
   v: unknown,
@@ -1033,7 +1077,23 @@ export function validateFields(
     if (typeof raw !== 'string') return { ok: false, detail: 'Every entry in fields must be a string.' }
     const s = raw.trim()
     if (!/^\*?[A-Za-z0-9][A-Za-z0-9_.-]{0,59}$/.test(s)) {
-      return { ok: false, detail: `"${s.slice(0, 40)}" is not a field id. Use an id like customfield_10042, a name like summary, or *all.` }
+      return { ok: false, detail: `"${s.slice(0, 40)}" is not a field id. Use an id like customfield_10042 or a name like summary.` }
+    }
+    // BRD-001, and it REFUSES rather than silently dropping. A caller who asked
+    // for descriptions and got a 200 with none would conclude the tickets have
+    // no descriptions, which is a worse falsehood than an error.
+    const lowered = s.toLowerCase()
+    if (QUARANTINED_FIELDS.includes(lowered)) {
+      return {
+        ok: false,
+        detail: `The "${lowered}" field is quarantined and is never read. Ticket descriptions in this workspace contain clinical message payloads, so this endpoint does not fetch them.`,
+      }
+    }
+    if (FIELD_WILDCARDS.includes(lowered)) {
+      return {
+        ok: false,
+        detail: `"${lowered}" would fetch every field, including quarantined ones. Name the fields you need.`,
+      }
     }
     if (!out.includes(s)) out.push(s)
   }
