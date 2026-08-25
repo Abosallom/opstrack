@@ -144,7 +144,7 @@ Nothing moves from `agreed` to `built` without the owner's dated approval on thi
 - **Honesty rule** — Every user-visible string goes through `t()` with en/ar parity.
 - **Proof** — Eleven rows in `public.use_cases`, each with a non-empty `name_ar`, giving 11 × 141 =
   1,551 addressable cells, and all 36 Vital Signs tickets filed as records.
-- **Files** — `supabase/migrations/0024_map_use_cases.sql`
+- **Files** — `supabase/migrations/0024_map_use_cases.sql`, `supabase/migrations/0032_use_case_rungs.sql`
 
 ### BRD-009 — 141 organizations, and the grid is 1,551
 
@@ -165,12 +165,10 @@ Nothing moves from `agreed` to `built` without the owner's dated approval on thi
   allocation.
 - **Files** — `scripts/report/org-merges.mjs`, `scripts/report/structure.csv`, `docs/ORG-RULINGS.md`
 
-### BRD-010 — Jazan stays three rows
+### BRD-010 — Jazan is two, and one row is unallocated
 
 - **State** — deferred
-- **Statement** — The Jazan cluster's three rows stay separate until the owner answers whether MCC
-  and MedicaCloud are one vendor. Nothing merges them meanwhile, and no report implies they are one
-  organization.
+- **Statement** — MCC and MedicaCloud are DIFFERENT systems, so Jazan is two organizations, not one and not three. `Jazan Cluster (MCC)` and `Jazan cluster (MedicaCloud)` both stand. The bare `Jazan` row names no system and is **pending allocation** between them, exactly as Aseer\'s two bare rows are — a script may not decide which of two real organizations a row belongs to.
 - **Ground** — Jazan is 3 rows and 100 tickets, 16 of them open — the largest ticket count of any
   unresolved cluster. If it later merges to one the grid moves from 1,551 to 1,529.
 - **Honesty rule** — "Nobody has said" is never zero.
@@ -245,7 +243,7 @@ Nothing moves from `agreed` to `built` without the owner's dated approval on thi
 - **Proof** — Roughly 1,100 of the 1,551 pairs sit in `Intake` as counted rows on day one, and
   `status CHANGED` history returns a rung for every open record — against 531 of 552 open onboarding
   tickets naming no rung today.
-- **Files** — none yet; not built.
+- **Files** — none yet; not built., `supabase/migrations/0032_use_case_rungs.sql`
 
 ### BRD-004 — Blocked is a flag, not a status
 
@@ -498,7 +496,7 @@ Nothing moves from `agreed` to `built` without the owner's dated approval on thi
 - **Honesty rule** — No KPI from unconfigured inputs.
 - **Proof** — `isAtRisk` answers false for null days, no surface prints "0 days", and the test named
   for the bulk-bar case keeps three rows sharing one instant counted because they have an author.
-- **Files** — `src/lib/portfolio/fields.ts`, `supabase/migrations/0026_map_node_stages.sql`
+- **Files** — `src/lib/portfolio/fields.ts`, `supabase/migrations/0026_map_node_stages.sql`, `supabase/migrations/0032_use_case_rungs.sql`
 
 ### BRD-016 — The lateness card names which silence it found
 
@@ -758,4 +756,5 @@ boundary is fixed at `0023`: a new migration may never be filed as `pre-brief`.
 | `0028_jira_settings.sql` | BRD-001, BRD-025 | The saved Jira configuration and the off-switch, which is what `jira-read` and a later `jira-write` are configured through. |
 | `0029_org_identity.sql` | BRD-009 | Who an organization IS to NPHIES — the identity the thirteen rulings settle. |
 | `0030_map_view_settings.sql` | BRD-020 | How the map draws, with `colour_by` pinned to a single value because exactly one hue source exists. |
+| `0032_use_case_rungs.sql` | BRD-003, BRD-008, BRD-015 | The rung ladder per use case, `scope` for not-applicable, the blocked flag, the COC queue's four columns, the append-only event log, and the XD/Encounter History merge into the eleven. |
 | `0031_pmo_portfolio.sql` | BRD-037 | Eight `pmo_*` tables — projects, initiatives, actions, risks, revenue, objectives, key results, milestones — created before any requirement asked for them. Named here as the finding BRD-037 records, not as a decision. |
