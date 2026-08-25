@@ -655,14 +655,21 @@ function branchActions(
    * ── "OPEN ITS DETAILS", AND IT IS A REACHABILITY FIX RATHER THAN A FEATURE ──
    *
    * ⚠ A BRANCH WITH CHILDREN COULD NOT OPEN ITS OWN PANEL AT ALL. On the tidy
-   * tree `activate` folds first (`useMapKeyboard`'s `foldOnActivate`) and
-   * RETURNS, which shadows the `dive.details` arm below it — so that arm only
-   * ever fires for a node with no children. A directorate, a book or a type had
-   * no gesture, no key and no menu row that reached its panel, and the panel is
-   * where the stage picker, the goals and the whole delegation cockpit live.
+   * tree `activate` folded first (`useMapKeyboard`'s `foldOnActivate`) and
+   * RETURNED, which shadowed the `dive.details` arm below it — so that arm only
+   * ever fired for a node with no children. A directorate, a book, a type AND
+   * every organization had no gesture, no key and no menu row that reached its
+   * panel, and the panel is where the stage picker, the goals and the whole
+   * delegation cockpit live.
    *
-   * The fold is the right answer to a tap and is not being changed; what was
-   * missing is a SECOND verb, and a menu is exactly where a second verb goes.
+   * HALF OF THAT HAS SINCE BEEN FIXED AT THE GESTURE, and this row is what the
+   * other half stands on. `activate` now opens the panel on a tap when the node
+   * is an entity whose children are CONTENT — an organization — because that is
+   * the tap the owner reported as broken. A DEPARTMENT still folds, because its
+   * children are the branches the reader is trying to reach and the fold is the
+   * only gesture that can draw them, so for a directorate, a book or a type this
+   * menu row remains the ONLY route to the panel. It is load-bearing, not a
+   * convenience: deleting it takes their cockpit away again.
    *
    * A COHORT IS EXCLUDED, for the reason `activate` states where it makes the
    * same choice: a cohort's id is synthetic (`manager:<uuid>`) and `entityIdOf`

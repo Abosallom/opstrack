@@ -88,6 +88,14 @@ function node(
   id: string,
   kind: MindNodeModel['kind'],
   children: MindNodeModel[] = [],
+  /**
+   * THE `map_nodes` ROW BEHIND THE CARD, and it stopped being decoration when
+   * the tidy tree's tap started asking `entityIdOf` whether this node has
+   * details of its own (§8). An `entity` fixture minted with `null` here is a
+   * node the panel could not address, so leaving the default on ORG and DEPT
+   * would have made §8's central assertion pass for the wrong reason.
+   */
+  bucketKey: string | null = null,
 ): MindNodeModel {
   return {
     id,
@@ -100,18 +108,18 @@ function node(
     collapsed: false,
     depth: 0,
     entryId: kind === 'entry' ? id : null,
-    bucketKey: null,
+    bucketKey,
     entityType: null,
     retired: false,
   } as MindNodeModel
 }
 
 const ENTRY = node('entry:1', 'entry')
-const BUCKET = node('group:open', 'group', [ENTRY])
+const BUCKET = node('group:open', 'group', [ENTRY], 'open')
 /** An ORGANIZATION: structural, but every child of it is CONTENT. */
-const ORG = node('org', 'entity', [BUCKET])
+const ORG = node('org', 'entity', [BUCKET], 'org-uuid')
 /** A DEPARTMENT: structural, with a structural child. */
-const DEPT = node('dept', 'entity', [ORG])
+const DEPT = node('dept', 'entity', [ORG], 'dept-uuid')
 const PROGRAMME = node('track:uhr', 'track', [DEPT])
 const ROOT = node('root', 'root', [PROGRAMME])
 
@@ -676,6 +684,123 @@ describe('reflow at 320×256', () => {
       (m) => m[1] as string,
     )
     expect(phoneGuards.some((g) => g.includes('min-height: 480px'))).toBe(true)
+  })
+})
+
+/* ──────────────────── 8. the tidy tree's tap: fold or details ─────────────── */
+
+describe('a tap on the tidy tree', () => {
+  /** The tree drawing's activate, with every fold recorded. */
+  function tree(over: Partial<MapKeyboardOptions> = {}): {
+    readonly h: Harness
+    readonly folds: string[]
+  } {
+    const folds: string[] = []
+    const h = harness({ foldOnActivate: true, toggleFold: (id) => void folds.push(id), ...over })
+    return { h, folds }
+  }
+
+  it('OPENS AN ORGANIZATION’S PANEL, which is the gesture that was unreachable', () => {
+    // ⚠ THE BUG, AND IT WAS ONE LINE. `activate`'s tree arm read "a branch with
+    //   children folds and returns", and an organization ALWAYS has children —
+    //   its status buckets, its rows. So the `dive.details` arm three lines
+    //   below it was dead code for every organization on the workspace, the
+    //   owner reported "tapping an org only collapses it", and the node menu's
+    //   "Open its details" row was left as the sole route to a panel that
+    //   docs/MAP-ZOOM.md had specified as a TAP and called "zero new wiring".
+    //
+    //   ORG here has a child (BUCKET). That is the whole point of the fixture:
+    //   a childless organization took the correct arm even before this fix, so
+    //   a test written on one would have been green through the entire defect.
+    const org = spyDive()
+    const { h, folds } = tree({ dive: org.dive })
+    h.activate(ORG)
+    expect(org.calls).toEqual(['details:org'])
+    // AND NOTHING FOLDED. Two acts on one tap — a panel opening while the card
+    // under the finger collapses — would be worse than either alone.
+    expect(folds).toEqual([])
+    // `calls` holding exactly one entry is also the "camera does not move by one
+    // unit" claim: any into/follow/zoom would be a second entry.
+    expect(h.live).toHaveLength(1)
+    expect(h.live[0]).toContain('label')
+  })
+
+  it('gives a DEPARTMENT the fold AND its details, because the owner said any cell', () => {
+    // THE FOLD IS NOT NEGOTIABLE, and that is why this is an "and" rather than a
+    // swap. `openDepthFor` opens one rung shallower than the deepest entity
+    // (useMapModel.ts), so the opening frame is a row of CLOSED departments; the
+    // chevron under a card measures about 3px at map scale, well under
+    // MindNode's own audit rule. Answer a department's tap with a sidebar
+    // INSTEAD and the reader has no gesture left for reaching the organizations
+    // underneath — the map would have no way in.
+    //
+    // But six of the seven cards on that opening frame ARE departments, and the
+    // owner's sentence was "if i clicked any cell in the map, a side opens with
+    // details of that cell". Fold-only made "any cell" false for almost every
+    // cell a reader meets first.
+    //
+    // So: both. They do not compete for anything — one writes the canvas, the
+    // other fills the card at the side, and neither moves the camera.
+    const dept = spyDive()
+    const { h, folds } = tree({ dive: dept.dive })
+    h.activate(DEPT)
+    expect(folds).toEqual(['dept'])
+    expect(dept.calls).toEqual(['details:dept'])
+    // ONE ENTRY, and it is `details`. An `into` or a `follow` beside it would be
+    // the camera moving, which a tap on a tidy tree must never do.
+    expect(dept.calls).toHaveLength(1)
+    // `panelBranch`, not `panelOrg`: you are INSIDE a department and you ARRIVE
+    // AT an organization, and `Mindtree.tsx` titles the two surfaces by exactly
+    // that split — so the announcement cannot drift from the heading.
+    expect(h.live).toHaveLength(1)
+    expect(h.live[0]).toContain('label')
+    // The fold itself stays unannounced: `aria-expanded` changes with it and IS
+    // the announcement, so only the panel — which a reader cannot infer — speaks.
+  })
+
+  it('folds every branch with nothing behind it — bucket, cohort, "+N more"', () => {
+    // THE TEST IS `entityIdOf`, NOT A KIND NAME. A group's `bucketKey` is a
+    // status key and a cohort's is synthetic (`manager:<uuid>`), so neither can
+    // address a `map_nodes` row and neither has a panel to open — which is the
+    // same refusal, made in the same place, that keeps a synthetic key away from
+    // a uuid column.
+    const COHORT = node('cohort:manager', 'cohort', [ORG], 'manager:sara')
+    for (const branch of [BUCKET, COHORT]) {
+      const log = spyDive()
+      const { h, folds } = tree({ dive: log.dive })
+      h.activate(branch)
+      expect(folds, branch.id).toEqual([branch.id])
+      expect(log.calls, branch.id).toEqual([])
+    }
+
+    // "+N more" is answered above this arm entirely and must stay that way: it
+    // is a drawing artefact standing for hidden siblings, not a node.
+    const { h, folds } = tree()
+    h.activate(node('more:1', 'more', [ENTRY]))
+    expect(folds).toEqual(['more:1'])
+  })
+
+  it('falls back to the fold when no camera is wired, for organizations too', () => {
+    // The hook's standing promise: `dive` absent, every gesture behaves exactly
+    // as it did before the camera existed. There is no panel to open without
+    // it, so the fold is the best a tap can honestly do.
+    const { h, folds } = tree({ dive: undefined })
+    h.activate(ORG)
+    expect(folds).toEqual(['org'])
+  })
+
+  it('leaves the CONTAINMENT drawing’s tap exactly where it was', () => {
+    // `foldOnActivate` off is the radial build, and this fix must not touch it:
+    // there a department is a world you fly into and an organization is a leaf
+    // whose panel opens without the camera moving. Section 1 asserts both; this
+    // is the guard that the new arm is gated on the flag rather than replacing
+    // them.
+    const org = spyDive()
+    harness({ dive: org.dive }).activate(ORG)
+    expect(org.calls).toEqual(['details:org'])
+    const dept = spyDive()
+    harness({ dive: dept.dive }).activate(DEPT)
+    expect(dept.calls).toEqual(['into:dept'])
   })
 })
 

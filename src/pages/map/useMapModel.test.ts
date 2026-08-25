@@ -906,29 +906,44 @@ describe('openDepthFor', () => {
   const ent = (id: string, parentId: string | null) =>
     ({ id, parentId, trackId: 't', label: id, sortOrder: 0, archived: false, typeKey: null }) as never
 
-  it('opens far enough to reach the organizations', () => {
-    // ⚠ THE FAILURE THIS EXISTS FOR, and it shipped. `OPEN_DEPTH = 1` closed
-    // every track, so the real workspace drew exactly three cards — the root,
-    // "UHR" and "No track" — while the root's own label read "104
-    // organizations, 82 of 1050 live". A picture showing three things under a
-    // heading counting a hundred and four is the "labelled 12, showing 3"
-    // failure model.ts spends its comments avoiding, reached from the far end.
+  it('opens the rung ABOVE the organizations, so the first paint can be read', () => {
+    // ⚠ TWO FAILURES, ONE FUNCTION, AND IT HAS NOW SHIPPED BOTH.
+    //
+    // The first: `OPEN_DEPTH = 1` closed every track, so the real workspace drew
+    // exactly three cards — the root, "UHR" and "No track" — while the root's
+    // own label read "104 organizations, 82 of 1050 live". A picture showing
+    // three things under a heading counting a hundred and four is the "labelled
+    // 12, showing 3" failure model.ts spends its comments avoiding.
+    //
+    // The second, which the fix for the first caused: `2 + deepest` drew every
+    // entity, and every entity is now 161 organizations. `useMapGeometry` fits
+    // what is drawn with no minimum scale, so the opening frame settled at 0.44
+    // — a 168×54 card at 74×24 CSS px, its 12.5px label rendered at 5.5px, and
+    // 1.9px on a phone. Showing a reader everything they cannot read is the same
+    // defect as showing them three of it.
     //
     // root ▸ track ▸ programme ▸ organization: entities start at tree depth 2,
-    // an organization sits one level below its programme, so 3.
+    // the organizations sit at 3, and 2 opens their PROGRAMMES — which are drawn
+    // closed at 3, one tap from their contents, not hidden.
     const forest = [ent('ob', null), ...Array.from({ length: 5 }, (_, i) => ent(`org${i}`, 'ob'))]
-    expect(openDepthFor(forest)).toBe(3)
+    expect(openDepthFor(forest)).toBe(2)
   })
 
   it('follows the hierarchy rather than a number somebody tuned', () => {
-    // A NUMBER WOULD ROT. `openDepth: 3` is right for exactly today's shape and
-    // hides everything again the day a phase is inserted between the programme
-    // and the organizations — silently, with the counts still reading 104.
+    // A NUMBER WOULD ROT. `openDepth: 2` is right for exactly today's shape and
+    // would stop one rung too shallow the day a phase is inserted between the
+    // programme and the organizations — silently, with the counts still reading
+    // 161. The rung is READ OFF the forest, so the picture keeps meaning "the
+    // level above the leaves" however many levels a workspace grows.
     const withPhase = [ent('ob', null), ent('phase', 'ob'), ent('org', 'phase')]
-    expect(openDepthFor(withPhase)).toBe(4)
+    expect(openDepthFor(withPhase)).toBe(3)
   })
 
-  it('answers for a flat forest and for no hierarchy at all', () => {
+  it('never re-opens on three closed tracks, however shallow the forest', () => {
+    // THE FLOOR IS THE FIRST FAILURE'S GUARD. A one-level forest asks for
+    // `1 + 0` — root plus closed tracks, the exact three-card screen above — so
+    // `Math.max(2, …)` holds it at the shallowest reading that still draws the
+    // things the reader came for.
     expect(openDepthFor([ent('a', null), ent('b', null)])).toBe(2)
     expect(openDepthFor([])).toBe(2)
   })

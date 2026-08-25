@@ -163,34 +163,40 @@ export function panelOpenFor(open: boolean, subject: PanelSubject): boolean {
 }
 
 /**
- * PICTURE OR LEDGER — THE LEDGER IS THE OPENING AT EVERY WIDTH, UNTIL THE READER
- * SAYS OTHERWISE.
+ * PICTURE OR LEDGER — THE WIDTH DECIDES, UNTIL THE READER DOES.
  *
- * ⚠ WHY THE WIDTH NO LONGER APPEARS IN THIS FUNCTION AT ALL. It used to:
- *   `pinned ? stored === 'table' : compact`, so the ledger was the honest
- *   default on a 375px phone (a hundred and four organizations at roughly
- *   fourteen CSS pixels each is a smear of unlabelled specks) and the picture
- *   stayed the opening everywhere else. The owner has now said TWICE that the
- *   picture is in the way and the list is the readable one — on the desktop
- *   they actually work on, not only on the phone. A tidy tree of a whole
- *   workspace is a thing a reader chooses to look at; it is not an answer to
- *   "what is going on today", and it should not be what the screen opens with
- *   before anybody has asked for it. So the width stopped being the tiebreak:
- *   the unopinionated reader gets the ledger, and the picture is one press
- *   away.
+ * ⚠ I DELETED THE WIDTH FROM THIS FUNCTION TWO DAYS AGO AND IT WAS A MISREADING.
+ *   The owner said "make it easier"; the version I shipped
+ *   (`pinned ? view === 'table' : true`) read that as "replace the map with the
+ *   list", so a desktop reader who had never touched the toggle opened on a
+ *   table and the drawing they had asked to be FIXED became one press away on
+ *   every device. The owner has since said it plainly: they want the map back.
+ *   What "easier" was about is what the same wave repairs — the first paint was
+ *   161 organizations fitted to a 0.44 scale, a 168×54 card drawn at 74×24 px
+ *   with its 12.5px label at 5.5px. A picture nobody can read is not an
+ *   argument for deleting the picture; `openDepthFor` (useMapModel.ts) now opens
+ *   one rung shallower so the opening frame is the departments, at a size that
+ *   can carry a name.
  *
- * IT IS STILL A DEFAULT AND NOT AN OVERRIDE, and that half is unchanged and must
- * stay unchanged. `viewPinned` is false until the reader uses MapToolbar's
- * map⇄ledger switch; the moment they press it `setMindView` records the choice
- * (it is the only writer of the pin — store/mindtree.ts carries the argument in
- * full) and from then on THEIR answer wins, at every width and for good.
- * Silently ignoring an explicit press would be a worse defect than the one this
- * fixes.
+ * SO THE TIEBREAK IS RESTORED, AND THE PHONE KEEPS THE LIST. `compact` is the
+ * shell's one reading of `(max-width: 767px)`, and at 375px the tidy tree is not
+ * merely small — 161 cards across a phone is roughly fourteen CSS pixels each, a
+ * smear of unlabelled specks that no open-depth can rescue, because the specks
+ * are the leaves the reader came for. The ledger is the SAME tree as a
+ * scrollable list and it is the honest opening there. That half was never the
+ * complaint and is not being touched.
+ *
+ * IT IS A DEFAULT AND NOT AN OVERRIDE, and that half is unchanged. `viewPinned`
+ * is false until the reader uses the map⇄ledger switch; the moment they press it
+ * `setMindView` records the choice (it is the only writer of the pin —
+ * store/mindtree.ts carries the argument in full) and from then on THEIR answer
+ * wins, at every width and for good. Silently ignoring an explicit press would
+ * be a worse defect than either default.
  *
  * The pin exists because `view` alone cannot tell "never chose" from "chose the
- * picture" — both read `'map'`, and `DEFAULT_LENS` and `DEFAULT_PREFS.view` are
- * deliberately untouched by this change: the stage is DERIVED, so the opening
- * drawing moves without rewriting what a device has on disk.
+ * picture" — both read `'map'`, and `DEFAULT_LENS` and `DEFAULT_PREFS.view` stay
+ * untouched by this change in both directions: the stage is DERIVED, so the
+ * opening drawing can move back without rewriting what a device has on disk.
  *
  * `board`, `numbers` and `portfolio` are not affected by any of it —
  * `stageWithTable` only ever answers `table` for the lenses whose stage is the
@@ -198,10 +204,17 @@ export function panelOpenFor(open: boolean, subject: PanelSubject): boolean {
  *
  * Exported as a function of plain values because vitest runs `environment:
  * 'node'`: a hook is not a thing this repo's suite can observe, which is the
- * same reason `panelSubjectFor` and `panelOpenFor` above are exported.
+ * same reason `panelSubjectFor` and `panelOpenFor` above are exported. `compact`
+ * is a PARAMETER for that reason and not a `useMedia()` reading — the rule has
+ * to be assertable at both widths without a renderer.
  */
-export function stageForReader(lens: MapLens, view: MindtreeView, pinned: boolean): MapStage {
-  return stageWithTable(lens, pinned ? view === 'table' : true)
+export function stageForReader(
+  lens: MapLens,
+  view: MindtreeView,
+  pinned: boolean,
+  compact: boolean,
+): MapStage {
+  return stageWithTable(lens, pinned ? view === 'table' : compact)
 }
 
 export interface MapLensState {
@@ -234,7 +247,7 @@ export function useMapLens(options: {
 
   const stored = useMindView()
   const pinned = useMindViewPinned()
-  const stage = stageForReader(lens, stored, pinned)
+  const stage = stageForReader(lens, stored, pinned, compact)
 
   /**
    * THE LEAF THE READER PICKED, which is not the world they are inside. Null is

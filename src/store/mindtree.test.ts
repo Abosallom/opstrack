@@ -67,8 +67,9 @@ describe('readMindtreePrefs — every field validated', () => {
     expect(m.readMindtreePrefs()).toEqual({
       dimension: 'status',
       view: 'map',
-      // Never chosen — the width decides on a phone until the reader does.
-      // See MindtreePrefs.viewPinned.
+      // Never chosen — and while nobody has, the WIDTH decides what gets drawn,
+      // whatever this field says: the ledger on a phone, the picture on a
+      // desktop. See MindtreePrefs.viewPinned.
       viewPinned: false,
       density: 'comfortable',
       // The map shell's two: the lens a device that has never chosen lands on —
@@ -258,11 +259,13 @@ describe('the persisted half', () => {
     // ⚠ THE REGRESSION THIS FILE EXISTS TO HOLD. `updatePrefs` returns the old
     //   state untouched when nothing it compares has changed — the guard that
     //   stops a no-op write. `viewPinned` was not among the fields it compared,
-    //   and the omission was invisible until the map got a phone default:
+    //   and the omission was invisible until the map got a ledger default:
     //
-    //   A fresh phone stores `view: 'map'` and RENDERS the ledger, because
-    //   `useMapLens` lets the width decide until the reader does. The reader
-    //   presses "Map". `setMindView('map')` sets the view to what it already
+    //   A fresh device stores `view: 'map'` and RENDERS the ledger, because
+    //   `useMapLens.stageForReader` draws the list until the reader chooses
+    //   otherwise — on a phone when this shipped, at EVERY width now, which
+    //   makes this the ordinary reader's press rather than a phone's. They
+    //   press "Map". `setMindView('map')` sets the view to what it already
     //   was, the guard sees nothing changed, and the pin is dropped on the
     //   floor — so the button does nothing, forever, for exactly the reader it
     //   was added for. The pin is the whole payload of that press.

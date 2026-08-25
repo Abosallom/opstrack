@@ -1747,7 +1747,11 @@ export const MindNode = memo(function MindNode({
           WHAT IT DID NOT COVER IS THE CLOSED ONE. That comment was written when
           the sentence "the flat tree never collapses anything" was true. It is
           not any more: `foldOnActivate` (Mindtree.tsx) makes a tap on a branch
-          FOLD it, which is the tidy tree's primary gesture. A folded branch
+          that holds more branches FOLD it, which is the tidy tree's primary
+          gesture. (An ORGANIZATION's tap opens its details panel instead — see
+          `useMapKeyboard`'s `activate` — so on one of those this mark says "a
+          fold is what put this away", and the arrow keys or the node menu are
+          what bring it back.) A folded branch
           draws no container — the container is the thing it is hiding — so it
           drew no mark of any kind, and a card with three hundred organizations
           inside it was pixel-for-pixel a card with none. That is the whole of

@@ -24,11 +24,17 @@ import { describe, expect, it } from 'vitest'
 import {
   anchoredZoom,
   beginCameraTween,
+  beginPanGlide,
   cameraAtWidth,
   cameraEqual,
   cameraOf,
   clampCamera,
   cubicBezierEase,
+  FLING_FRICTION_PER_MS,
+  FLING_MAX_PX_PER_MS,
+  FLING_MIN_PX_PER_MS,
+  FLING_STALE_MS,
+  FLING_STOP_PX_PER_MS,
   FLY_MAX_MS,
   FLY_MIN_MS,
   flyToCamera,
@@ -42,15 +48,19 @@ import {
   MAP_EASE_POINTS,
   MAP_TWEEN_MS,
   octavesOf,
+  panVelocity,
   retargetCameraTween,
   RUBBER_EXPONENT,
   rubberBand,
   rubberBandCamera,
   sampleCamera,
+  samplePanGlide,
   tweenDurationFor,
   TARGET_CHILD_PX,
   tweenProgress,
   viewBoxOf,
+  wheelIntent,
+  wheelPixels,
   wheelRatio,
   ZOOM_HEADROOM,
   zoomForCamera,
@@ -60,6 +70,7 @@ import {
   type FrameOptions,
   type MotionBox,
   type Occlusion,
+  type PanSample,
 } from './mapMotion'
 // The layout module, imported HERE and nowhere in `mapMotion.ts` — see
 // `packedRatio` below on why the asymmetry is the design rather than an accident.
@@ -1158,6 +1169,326 @@ describe('wheelRatio', () => {
   })
 })
 
+/* ────────────── which device turned the wheel, and what it meant ─────────── */
+
+// THE DEFECT THIS BLOCK GUARDS, named because every assertion below is one
+// device: `mapMotion.ts` said "WHEEL IS ALWAYS ZOOM", which is right for a mouse
+// and wrong for a Mac trackpad, where a two-finger swipe is a PAN the platform
+// can only deliver through a wheel event. On the shipped map that swipe resized
+// the picture — sideways finger travel changing the magnification — and it is
+// the loudest single item in the owner's "feels full of bugs and glitches".
+//
+// The event shapes are REAL, not invented: pixel-mode fractional deltas off a
+// macOS trackpad, integral 100/120 off a mouse in Chrome, DOM_DELTA_LINE 3 off a
+// mouse in Firefox, and the fractional 150 a mouse notch becomes on a Windows
+// display at 1.25× scaling — which is the case that makes "fractional" on its own
+// useless as a trackpad signal.
+
+describe('wheelIntent — a trackpad swipe is a pan, a mouse wheel is a zoom', () => {
+  it('reads a macOS trackpad two-finger swipe as a PAN — the reported defect', () => {
+    // Horizontal: the giveaway is `deltaX`, which no vertical mouse notch has.
+    expect(wheelIntent({ deltaX: -9.6, deltaY: 0, deltaMode: 0 })).toBe('pan')
+    expect(wheelIntent({ deltaX: 24, deltaY: -1.5, deltaMode: 0 })).toBe('pan')
+    // Vertical: no horizontal component to catch it, so the small FRACTIONAL
+    // pixel delta is what identifies it.
+    expect(wheelIntent({ deltaX: 0, deltaY: -4.5, deltaMode: 0 })).toBe('pan')
+    // The momentum tail of the same swipe, which is where deltas go sub-pixel.
+    expect(wheelIntent({ deltaX: -0.5, deltaY: -0.25, deltaMode: 0 })).toBe('pan')
+  })
+
+  it('keeps a classic mouse wheel on ZOOM in every browser that reports one', () => {
+    // Chrome/Edge, pixel mode, integral, deltaX exactly 0.
+    expect(wheelIntent({ deltaX: 0, deltaY: 100, deltaMode: 0 })).toBe('zoom')
+    expect(wheelIntent({ deltaX: 0, deltaY: -120, deltaMode: 0 })).toBe('zoom')
+    // Chromium's smallest pixel-mode notch, which is what WHEEL_PAN_FRACTION_PX
+    // is set BELOW.
+    expect(wheelIntent({ deltaX: 0, deltaY: 53, deltaMode: 0 })).toBe('zoom')
+    // Firefox, DOM_DELTA_LINE. No trackpad reports anything but PIXEL.
+    expect(wheelIntent({ deltaX: 0, deltaY: 3, deltaMode: 1 })).toBe('zoom')
+    expect(wheelIntent({ deltaX: 0, deltaY: -1, deltaMode: 2 })).toBe('zoom')
+    // An event with no deltaMode at all is PIXEL by the spec's own default.
+    expect(wheelIntent({ deltaY: 100 })).toBe('zoom')
+  })
+
+  it('keeps a WINDOWS-SCALED mouse notch on zoom, which is why "small" is in the rule', () => {
+    // 120 × 1.25 and 120 × 1.5. Fractional, and NOT a trackpad. A classifier
+    // that stopped at "fractional means trackpad" would turn the mouse wheel
+    // into a pan for every reader on a scaled display.
+    expect(wheelIntent({ deltaX: 0, deltaY: 150.00000000000003, deltaMode: 0 })).toBe('zoom')
+    expect(wheelIntent({ deltaX: 0, deltaY: -133.33333333333334, deltaMode: 0 })).toBe('zoom')
+  })
+
+  it('keeps ctrl+wheel on ZOOM — it is a pinch, and it is asked FIRST', () => {
+    // macOS reports a trackpad pinch as ctrl+wheel: pixel mode, small,
+    // fractional, and sometimes carrying deltaX. Every one of those would answer
+    // 'pan' at a later test, which is why ctrl is the first question asked.
+    expect(wheelIntent({ deltaX: 0, deltaY: -2.75, deltaMode: 0, ctrlKey: true })).toBe('zoom')
+    expect(wheelIntent({ deltaX: -12.5, deltaY: -2.75, deltaMode: 0, ctrlKey: true })).toBe('zoom')
+  })
+
+  it('resolves the UNSURE case to zoom, because zoom is what the map already did', () => {
+    // The documented residual: a vertical trackpad flick fast enough to clear
+    // WHEEL_PAN_FRACTION_PX in one frame, with deltaX at exactly 0, reads as a
+    // zoom. This is asserted rather than merely admitted so that changing it is
+    // a decision somebody takes on purpose.
+    expect(wheelIntent({ deltaX: 0, deltaY: 60.5, deltaMode: 0 })).toBe('zoom')
+    // And sub-pixel horizontal noise on an integral vertical delta does not
+    // promote it: WHEEL_PAN_AXIS_PX is 1 and not 0 for exactly this.
+    expect(wheelIntent({ deltaX: 0.4, deltaY: 12, deltaMode: 0 })).toBe('zoom')
+    // A torn measurement is not evidence of anything.
+    expect(wheelIntent({ deltaX: Number.NaN, deltaY: Number.NaN, deltaMode: 0 })).toBe('zoom')
+  })
+
+  it('leaves wheelRatio to price the zoom and nothing else', () => {
+    // wheelRatio no longer re-asks the question, so it must still answer for the
+    // shapes that reach it — and ctrl still reads there, but only for its RATE.
+    expect(wheelIntent({ deltaX: 0, deltaY: 100 })).toBe('zoom')
+    expect(wheelRatio({ deltaX: 0, deltaY: 100 })).toBeCloseTo(1.15, 12)
+    expect(wheelRatio({ deltaX: 40, deltaY: 100 })).toBeCloseTo(1.15, 12)
+  })
+})
+
+describe('wheelPixels', () => {
+  it('passes pixel mode through and converts LINE at 16px, on BOTH axes', () => {
+    expect(wheelPixels({ deltaX: -9.6, deltaY: 4.25, deltaMode: 0 })).toEqual({ x: -9.6, y: 4.25 })
+    expect(wheelPixels({ deltaX: 2, deltaY: 3, deltaMode: 1 })).toEqual({ x: 32, y: 48 })
+  })
+
+  it('treats a missing deltaX as zero rather than as NaN', () => {
+    // `wheelRatio`'s callers hand it plain object literals in tests and a real
+    // WheelEvent in production; a NaN here would reach the viewBox.
+    expect(wheelPixels({ deltaY: 100 })).toEqual({ x: 0, y: 100 })
+    expect(wheelPixels({ deltaX: Number.NaN, deltaY: Number.POSITIVE_INFINITY })).toEqual({
+      x: 0,
+      y: 0,
+    })
+  })
+})
+
+/* ─────────────────────────────── the throw ───────────────────────────────── */
+
+// A drag used to stop dead on release, which is why the owner reached for
+// "glitches" about a screen with no functional defect in it: every touch surface
+// a reader has used carries momentum, and one that does not reads as a dropped
+// gesture rather than as a choice.
+//
+// The decay is checked against an INDEPENDENT derivation — a numeric integral of
+// `v₀·k^t` at 0.05ms steps — rather than against literals somebody transcribed,
+// for the reason this file's own header gives about the easing: agreement
+// between two derivations is evidence about the PHYSICS, and a table of magic
+// numbers is only evidence that nobody has retyped them since.
+
+/** A straight-line drag at a constant speed, newest sample last. */
+function drag(pxPerMs: number, count = 6, stepMs = 8, angle = 0): PanSample[] {
+  const out: PanSample[] = []
+  for (let i = 0; i < count; i += 1) {
+    const travelled = pxPerMs * stepMs * i
+    out.push({ x: travelled * Math.cos(angle), y: travelled * Math.sin(angle), t: 1000 + stepMs * i })
+  }
+  return out
+}
+
+/** The last sample's clock reading — what a `pointerup` immediately after sees. */
+function releasedAt(samples: readonly PanSample[]): number {
+  return samples[samples.length - 1]?.t ?? 0
+}
+
+describe('panVelocity — the speed at the moment of release', () => {
+  it('measures a constant drag at the speed it was actually going', () => {
+    expect(panVelocity(drag(1)).x).toBeCloseTo(1, 12)
+    expect(panVelocity(drag(0.5)).x).toBeCloseTo(0.5, 12)
+  })
+
+  it('survives the LAST-EVENT REPEAT, which is what a chord is for', () => {
+    // A finger settling onto the glass very often repeats its final position.
+    // Differencing the last two samples reads that as a dead stop off a finger
+    // that was moving at 1 px/ms; the chord across the window does not.
+    const samples = drag(1)
+    const last = samples[samples.length - 1]
+    if (last === undefined) throw new Error('expected samples')
+    samples.push({ x: last.x, y: last.y, t: last.t + 6 })
+    expect((last.x - last.x) / 6).toBe(0)
+    expect(panVelocity(samples).x).toBeGreaterThan(0.5)
+  })
+
+  it('survives the 1ms/1px PAIR, the artefact in the other direction', () => {
+    // Two moves 1ms apart with a pixel between them read as 1000 px/s off a
+    // finger that was barely moving. Over the window it reads as barely moving.
+    const samples: PanSample[] = [
+      { x: 0, y: 0, t: 1000 },
+      { x: 1, y: 0, t: 1040 },
+      { x: 2, y: 0, t: 1060 },
+      { x: 3, y: 0, t: 1061 },
+    ]
+    expect(panVelocity(samples).x).toBeLessThan(0.1)
+  })
+
+  it('looks back exactly FLING_WINDOW_MS and no further', () => {
+    // A drag that crossed the screen and then crawled for its last 80ms is a
+    // crawl. Anything outside the window must not be averaged back in.
+    const samples: PanSample[] = [
+      { x: 0, y: 0, t: 1000 },
+      { x: 900, y: 0, t: 1100 },
+      { x: 902, y: 0, t: 1140 },
+      { x: 904, y: 0, t: 1180 },
+    ]
+    expect(panVelocity(samples).x).toBeCloseTo(4 / 80, 12)
+    // Widening the window past the sprint picks the sprint back up, which is
+    // what proves the windowing is what did the work above. It comes back at
+    // 904/180 = 5.02 px/ms and is handed back CLAMPED, which is the second rule
+    // arriving on the same measurement.
+    expect(panVelocity(samples, 400).x).toBe(FLING_MAX_PX_PER_MS)
+  })
+
+  it('clamps the MAGNITUDE, so a fast diagonal keeps its direction', () => {
+    // Clamping each axis separately would bend a 45° flick toward whichever axis
+    // saturated first — the map going somewhere the reader did not point.
+    const fast = panVelocity(drag(40, 6, 8, Math.PI / 4))
+    expect(Math.hypot(fast.x, fast.y)).toBeCloseTo(FLING_MAX_PX_PER_MS, 9)
+    expect(fast.y / fast.x).toBeCloseTo(1, 9)
+  })
+
+  it('answers zero rather than a NaN for every degenerate buffer', () => {
+    expect(panVelocity([])).toEqual({ x: 0, y: 0 })
+    expect(panVelocity([{ x: 5, y: 5, t: 1000 }])).toEqual({ x: 0, y: 0 })
+    expect(
+      panVelocity([
+        { x: 0, y: 0, t: 1000 },
+        { x: 9, y: 9, t: 1000 },
+      ]),
+    ).toEqual({ x: 0, y: 0 })
+    const torn = panVelocity([
+      { x: 0, y: 0, t: 1000 },
+      { x: Number.NaN, y: 4, t: 1016 },
+    ])
+    expect(Number.isFinite(torn.x)).toBe(true)
+    expect(Number.isFinite(torn.y)).toBe(true)
+  })
+})
+
+describe('beginPanGlide — which releases are throws, and which are stops', () => {
+  it('throws on a brisk release', () => {
+    const samples = drag(1)
+    const glide = beginPanGlide(samples, releasedAt(samples))
+    if (glide === null) throw new Error('expected a glide')
+    expect(glide.vx).toBeCloseTo(1, 12)
+    expect(glide.startedAt).toBe(releasedAt(samples))
+  })
+
+  it('refuses a release under FLING_MIN_PX_PER_MS — a placement is not a throw', () => {
+    const slow = drag(FLING_MIN_PX_PER_MS * 0.9)
+    expect(beginPanGlide(slow, releasedAt(slow))).toBeNull()
+    const brisk = drag(FLING_MIN_PX_PER_MS * 1.1)
+    expect(beginPanGlide(brisk, releasedAt(brisk))).not.toBeNull()
+  })
+
+  it('refuses a STALE buffer — a finger that stopped before it lifted', () => {
+    // No move events arrive while a finger is held still, so a reader who
+    // dragged, paused to look, and then lifted leaves a buffer full of the speed
+    // they HAD. Throwing off that is the map running away from a deliberate
+    // placement, and it is the defect this rule exists for.
+    const samples = drag(2)
+    expect(beginPanGlide(samples, releasedAt(samples) + FLING_STALE_MS - 1)).not.toBeNull()
+    expect(beginPanGlide(samples, releasedAt(samples) + FLING_STALE_MS + 1)).toBeNull()
+  })
+
+  it('⚠ SKIPS THE GLIDE ENTIRELY under reduced motion — null, not a short one', () => {
+    // mapMotion's rule is that reduced motion makes a move INSTANT rather than
+    // shorter, and `beginCameraTween` spells that as a ZERO-LENGTH tween because
+    // a tween has a destination to be instantly at. A throw has none — its
+    // destination IS the motion — so the instant form is no throw at all.
+    const samples = drag(3)
+    expect(beginPanGlide(samples, releasedAt(samples), { reducedMotion: true })).toBeNull()
+    // …and the same release without the flag does glide, so the null above is
+    // the flag's doing and not the buffer's.
+    expect(beginPanGlide(samples, releasedAt(samples))).not.toBeNull()
+    // The contrast with the tween, asserted side by side so the two rules cannot
+    // drift apart: the tween still ARRIVES, it just arrives at once.
+    const tween = beginCameraTween(WIDE, camera({ cx: 900 }), 0, { reducedMotion: true })
+    if (tween === null) throw new Error('expected a tween')
+    expect(tween.durationMs).toBe(0)
+    expect(sampleCamera(tween, 0)).toEqual({ camera: camera({ cx: 900 }), done: true })
+  })
+
+  it('answers null for an empty buffer and for a torn clock', () => {
+    expect(beginPanGlide([], 1000)).toBeNull()
+    expect(beginPanGlide(drag(2), Number.NaN)).toBeNull()
+  })
+})
+
+describe('samplePanGlide — the decay, against an independent integral', () => {
+  /** ∫₀ᵗ v₀·k^u du, the slow way. Deliberately not the shape of the closed form. */
+  function integrate(v0: number, ms: number): number {
+    const step = 0.05
+    // COUNTED IN INTEGERS, not walked with `u += step`: accumulating 0.05 eight
+    // hundred times drifts just far enough below the bound to run one extra
+    // step, which showed up here as a 0.085px disagreement with the closed form
+    // and was the TEST being wrong rather than the physics.
+    const steps = Math.round(ms / step)
+    let total = 0
+    for (let i = 0; i < steps; i += 1) {
+      total += v0 * Math.pow(FLING_FRICTION_PER_MS, (i + 0.5) * step) * step
+    }
+    return total
+  }
+
+  const glide = { vx: 2, vy: -1, startedAt: 5000 }
+
+  it('travels what the friction says it travels, at four arbitrary instants', () => {
+    for (const ms of [1, 40, 173, 600]) {
+      const at = samplePanGlide(glide, glide.startedAt + ms)
+      expect(at.dx).toBeCloseTo(integrate(glide.vx, ms), 4)
+      expect(at.dy).toBeCloseTo(integrate(glide.vy, ms), 4)
+    }
+  })
+
+  it('is CLOSED FORM, so 120Hz and 60Hz land in the same place', () => {
+    // Absolute-from-the-release rather than a sum of per-frame deltas, which is
+    // the same rule the drag keeps about the press: a dropped frame costs
+    // nothing and float error cannot accumulate over sixty of them. Sampling the
+    // same journey at 8ms and at 16ms therefore ends at the same pixel.
+    const at = (ms: number): number => samplePanGlide(glide, glide.startedAt + ms).dx
+    expect(at(8 * 50)).toBeCloseTo(at(16 * 25), 12)
+  })
+
+  it('starts at zero displacement and approaches v₀·τ, never past it', () => {
+    const tau = -1 / Math.log(FLING_FRICTION_PER_MS)
+    expect(samplePanGlide(glide, glide.startedAt).dx).toBe(0)
+    expect(samplePanGlide(glide, glide.startedAt - 999).dx).toBe(0)
+    expect(samplePanGlide(glide, glide.startedAt + 1e6).dx).toBeCloseTo(glide.vx * tau, 6)
+    expect(Math.abs(samplePanGlide(glide, glide.startedAt + 5000).dx)).toBeLessThanOrEqual(
+      Math.abs(glide.vx * tau),
+    )
+  })
+
+  it('stops when the next frame would not move the picture a whole pixel', () => {
+    const speed = Math.hypot(glide.vx, glide.vy)
+    const stopsAt = Math.log(FLING_STOP_PX_PER_MS / speed) / Math.log(FLING_FRICTION_PER_MS)
+    expect(samplePanGlide(glide, glide.startedAt + stopsAt - 1).done).toBe(false)
+    expect(samplePanGlide(glide, glide.startedAt + stopsAt + 1).done).toBe(true)
+    // Half a pixel per frame at 60Hz is where that threshold comes from.
+    expect(FLING_STOP_PX_PER_MS * (1000 / 60)).toBeLessThan(1)
+  })
+
+  it('reports done immediately for a velocity that is already nothing', () => {
+    expect(samplePanGlide({ vx: 0, vy: 0, startedAt: 0 }, 0).done).toBe(true)
+    const torn = samplePanGlide(glide, Number.NaN)
+    expect(Number.isFinite(torn.dx)).toBe(true)
+    expect(Number.isFinite(torn.dy)).toBe(true)
+  })
+
+  it('a throw is bounded — the fastest release the map honours goes about a screen', () => {
+    // FLING_MAX_PX_PER_MS is set from this: past a screen of travel the reader
+    // has lost the thread of where the map went.
+    const tau = -1 / Math.log(FLING_FRICTION_PER_MS)
+    expect(FLING_MAX_PX_PER_MS * tau).toBeLessThan(1100)
+    expect(FLING_MAX_PX_PER_MS * tau).toBeGreaterThan(700)
+    // And the slowest release the map honours travels less than a fingertip,
+    // which is why the floor is where it is rather than at zero.
+    expect(FLING_MIN_PX_PER_MS * tau).toBeLessThan(44)
+  })
+})
+
 /* ──────────── the byte-identity that keeps a frame loop honest ───────────── */
 
 describe('the loop’s last write and React’s next render are the SAME BYTES', () => {
@@ -1223,6 +1554,27 @@ function boundsReaders(src: string): string[] {
 /** Source with every block and line comment removed. */
 function code(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+}
+
+/**
+ * One `useCallback` in the hook, comments stripped, up to the next declaration
+ * at the hook's own level.
+ *
+ * WHOLE-FILE GREPS ARE THE WRONG INSTRUMENT FOR THE PAN, and that is why this
+ * exists rather than another `src.toContain`. `writeCamera` is still correct in
+ * three places in this file — the pinch, the zoom and `panBy` — so "the file
+ * mentions writeCamera" proves nothing about the handler that used to be the
+ * problem. The block boundary is `\n  const `, two spaces exactly, which is a
+ * declaration at the hook body's indentation and never one nested inside a
+ * callback.
+ */
+function hookBlock(name: string): string {
+  const src = code(hookSource())
+  const start = src.indexOf(`const ${name} = useCallback(`)
+  if (start < 0) throw new Error(`useMapGeometry has no ${name}`)
+  const rest = src.slice(start + 1)
+  const end = rest.indexOf('\n  const ')
+  return end < 0 ? rest : rest.slice(0, end)
 }
 
 describe('the camera cannot feed the geometry — by construction, not by care', () => {
@@ -1321,6 +1673,53 @@ describe('the camera cannot feed the geometry — by construction, not by care',
     const src = code(hookSource())
     expect(src).not.toContain('matchMedia')
     expect(src).toContain('reducedMotion')
+  })
+
+  it('PANS BY WRITING THE ATTRIBUTE, not by re-rendering the tree', () => {
+    // THE MEASURED DEFECT, and it is the one `docs/MAP-EVIDENCE.md` §3 predicted
+    // and nobody built the fix for: `onPointerMove` called `writeCamera`, which
+    // calls `setState`, so every pointer move during a pan re-rendered 161
+    // `MindNode`s plus the whole chrome in order to change four numbers in one
+    // attribute. "This is most of what 'not smooth' actually is."
+    const move = hookBlock('onPointerMove')
+    expect(move).toContain('paintCamera(')
+    // ONE `writeCamera` left in the handler, and it is the PINCH — which changes
+    // `width`, therefore `scale`, therefore every LOD band, so React genuinely
+    // has to see it. If this count ever reaches two the pan has been quietly put
+    // back on the render path.
+    expect(move.match(/writeCamera\(/g) ?? []).toHaveLength(1)
+  })
+
+  it('settles up with ONE setState, on release, so React and the DOM agree at rest', () => {
+    // The other half of the trade above. React is deliberately behind for the
+    // length of a pan; `endPointer` is where that is repaid, and `startGlide`
+    // is what carries the release onward.
+    const end = hookBlock('endPointer')
+    expect(end).toContain('commitPainted()')
+    expect(end).toContain('startGlide(')
+  })
+
+  it('paints through viewBoxOf — still ONE formatter, so the bytes still match', () => {
+    // The invariant `the loop’s last write and React’s next render are the SAME
+    // BYTES` (above) is only true while everything that writes the attribute
+    // formats it the same way. A pan that composed its own template string would
+    // pass every arithmetic test in this file and leave the map stuck.
+    const paint = hookBlock('paintCamera')
+    expect(paint).toContain("setAttribute('viewBox', viewBoxOf(")
+    expect(paint).toContain('rubberBandCamera(')
+    // …and it does NOT tell React, which is the whole point of it existing.
+    expect(paint).not.toContain('setState')
+  })
+
+  it('classifies the wheel before it prices it — the trackpad swipe fix', () => {
+    // "WHEEL IS ALWAYS ZOOM" was true of a mouse and false of the trackpad this
+    // app is worked on, where a two-finger swipe arrives as a plain wheel with a
+    // meaningful deltaX and used to change the magnification.
+    const src = code(hookSource())
+    expect(src).toContain("wheelIntent(event) === 'pan'")
+    expect(src).toContain('wheelPixels(event)')
+    // The zoom path is unchanged and still anchored under the cursor.
+    expect(src).toContain('wheelRatio(event)')
   })
 
   it('keeps mapMotion PURE — not one line of it touches a browser', () => {

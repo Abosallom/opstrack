@@ -167,6 +167,7 @@ import MapCapture from '../components/map/MapCapture'
 import MapChanges, { useChangesCount } from '../components/map/MapChanges'
 import MapLensBar from '../components/map/MapLensBar'
 import MapList, { useAttentionCount } from '../components/map/MapList'
+import MapZoomControl from '../components/map/MapZoomControl'
 import MapModeBar from '../components/map/MapModeBar'
 import MapPanel from '../components/map/MapPanel'
 import MapAnnouncer from '../components/map/MapAnnouncer'
@@ -757,6 +758,28 @@ export default function Mindtree(): ReactElement {
   const { camera, flyTo, reveal, setCamera } = geo
 
   /**
+   * WHERE THE READER IS IN THE ZOOM, as a fraction of the usable range.
+   *
+   * ⚠ THE MAP HAS HAD NO VISIBLE ZOOM CONTROL AT ALL since the dive rail was
+   *   switched off — that comment calls it "a debt with a price, not a
+   *   deletion", and the price was the owner saying "I get lost". Wheel, pinch,
+   *   `+`/`-` and Home were the only ways to move, and not one of them is on the
+   *   screen. A reader who does not know the gestures has no way in.
+   *
+   * The camera's width runs from `maxWidth` (the whole drawing) to `minWidth`
+   * (the closest allowed), so progress is where the current width sits between
+   * them — measured in OCTAVES rather than linearly, because zoom is
+   * multiplicative and a linear readout crawls at one end and leaps at the other.
+   */
+  const zoomProgress = useMemo(() => {
+    const { minWidth, maxWidth } = geo.cameraBounds
+    if (!(maxWidth > minWidth)) return 1
+    const span = Math.log(maxWidth / minWidth)
+    const at = Math.log(maxWidth / Math.max(camera.width, minWidth))
+    return Math.min(1, Math.max(0, at / span))
+  }, [geo.cameraBounds, camera.width])
+
+  /**
    * V — THE SMALLER SIDE OF THE STAGE THE READER CAN ACTUALLY SEE THROUGH.
    *
    * The canvas is `inset: 0` and does not shrink when the panel floats over it,
@@ -1008,10 +1031,15 @@ export default function Mindtree(): ReactElement {
    *
    * NAMED, RATHER THAN LIVING ONLY INSIDE `dive`, because it has two callers
    * that must not drift: the keyboard's `dive.details` (the tap that arrives at
-   * an Organization) and the node menu's "Open its details" — which is the ONLY
-   * route to this panel for a branch with children, since `activate` folds such
-   * a node and returns before its own `dive.details` arm. See
-   * `lib/mindtree/actions.ts` for that argument in full.
+   * an Organization) and the node menu's "Open its details".
+   *
+   * ⚠ THE MENU WAS THE ONLY ROUTE HERE FOR ANY BRANCH WITH CHILDREN, and that
+   *   is no longer true of an organization — `activate` folded every such node
+   *   and returned before its own `dive.details` arm, which is the bug the tap
+   *   fix removes. It is STILL the only route for a DEPARTMENT, deliberately:
+   *   a department's tap has to keep folding or the tree has no way in, so
+   *   `actions.ts`'s "Open its details" row is what reaches a directorate's or
+   *   a book's panel, and it is load-bearing rather than a convenience.
    *
    * ONE ACT, ONE SENTENCE. `setSubject`'s branch case opens the panel itself
    * (`applyLens` → `setMindPanelOpen(true)`), so a second `setPanelOpen(true)`
@@ -1045,11 +1073,19 @@ export default function Mindtree(): ReactElement {
     toggleFold,
     focusBranch: focus.focusBranch,
     /**
-     * A TAP ON A BRANCH OPENS IT. Always, now: the containment drawing — where a
-     * tap meant "take me inside" and the camera was the whole verb — is gone,
-     * and a tidy tree has no inside. See `useMapKeyboard`'s own `foldOnActivate`
-     * for the full argument; the flag survives its preview because the hook's
-     * tests hold both behaviours.
+     * A TAP OPENS WHAT IT IS ON — the fold for a branch that holds more
+     * branches, the DETAILS PANEL for an organization. The containment
+     * drawing, where a tap meant "take me inside" and the camera was the whole
+     * verb, is gone and a tidy tree has no inside, so the camera is never this
+     * gesture's answer here.
+     *
+     * ⚠ THIS COMMENT ARGUED THE OPPOSITE — "a tap on a branch opens it, ALWAYS"
+     *   — and the always was the bug. An organization's children are its status
+     *   buckets, so every one of them took the fold arm and none of them ever
+     *   reached the panel; `openDetails` below still carries the scar. See
+     *   `useMapKeyboard`'s `foldOnActivate` and its `activate` for which
+     *   structural test now separates the two, and why a department keeps the
+     *   fold.
      */
     foldOnActivate: true,
     openMenuFor: overlays.openMenuFor,
@@ -2021,6 +2057,31 @@ export default function Mindtree(): ReactElement {
                 onPointerDown={geo.onPointerDown}
                 onPointerMove={geo.onPointerMove}
                 onPointerEnd={geo.endPointer}
+              />
+
+              {/* THE WAY BACK — in, out, and Fit, floating over the drawing.
+                  ⚠ IT MUST BE PARENTED HERE, not out by `shellIsle`. The sheet
+                    calls `.mzc` SELF-PLACING: it is `position: absolute` and
+                    lands against the nearest positioned ancestor, which is the
+                    canvas island. Mounted a level out it pins itself to the
+                    page and sits on top of the chip bar, which is exactly what
+                    it did on the first attempt.
+
+                  Fit is the target that matters. "I get lost" is answered by a
+                  control that always returns the whole picture, without the
+                  reader having to know that Home does it. */}
+              <MapZoomControl
+                progress={zoomProgress}
+                onZoomIn={() =>
+                  setCamera(anchoredZoom(camera, { x: camera.cx, y: camera.cy }, 1 / 1.4))
+                }
+                onZoomOut={() =>
+                  setCamera(anchoredZoom(camera, { x: camera.cx, y: camera.cy }, 1.4))
+                }
+                onFit={() => flyToId(null)}
+                atMin={camera.width >= geo.cameraBounds.maxWidth - 0.5}
+                atMax={camera.width <= geo.cameraBounds.minWidth + 0.5}
+                compact={compact}
               />
             </MapCameraContext.Provider>
           )}

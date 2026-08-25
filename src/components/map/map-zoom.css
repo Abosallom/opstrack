@@ -1,0 +1,323 @@
+/* The zoom control — three buttons and a readout, floating over the drawing.
+
+   PREFIX REGISTRY (§1.0.7). This sheet owns exactly `.mzc*` and styles nothing
+   else. Report the line to the integrator:
+       `.mzc-*` -> src/components/map/map-zoom.css
+
+   Primitives it USES and never redeclares: `.tap-44` and `.sr-only`, both from
+   styles/global.css. The buttons are deliberately NOT `.btn` — the same call
+   `map-altitude.css` makes for the rail's rows, and for the same reason: `.btn`'s
+   hover fill on a control that floats over a picture reads as a second selected
+   state, and this plate already has one (the lit half of the staircase).
+
+   ── WHERE THIS ISLAND SITS, AND WHAT IT MUST NOT SIT UNDER ────────────────
+
+   THE MOUNT CONTRACT, reported to the integrator rather than assumed:
+   `.mzc` is SELF-PLACING. It positions itself against the nearest positioned
+   ancestor — the stage's `.mtree-ladder` frame — exactly as `.mdive` does, so
+   render it as a direct child of that frame and do NOT wrap it in a second
+   positioned island, or the 12px inset applies twice.
+
+   THE PHONE'S PINNED BARS ARE READ, NEVER COPIED. Two bars are fixed to the
+   viewport below this island and neither has an author-time height: the capture
+   composer grows a chip strip and a problems panel, and the lens rail is pinned
+   by width alone. `MapCapture.tsx` MEASURES the first and publishes
+   `--map-composer-block-size`; `pages/mindtree.css` publishes
+   `--map-lens-rail-block-size` unconditionally (its own note explains why a `0`
+   in the fallback column would be wrong); `MapSummary.tsx` measures the caption
+   strip into `--map-caption-block-size`. The compact rule below adds all three.
+   `map-panel.css` and `map-altitude.css` travel the same tokens with the same
+   fallbacks, so a bar that has not reported yet lands this plate in the right
+   place instead of at zero. Copying any of those numbers is the exact failure
+   the token family exists to prevent — `app-shell.css`'s own header says so
+   about `--main-pad-*`, and `pages/mindtree.css` says it again about these.
+
+   THE OTHER RESERVED HEIGHT IS `--app-header-block-size` (app-shell.css), and
+   this island does not subtract it — which is a decision rather than an
+   oversight, so it is written down. That token is the BLOCK-START reservation:
+   the sticky header, 50px/56px across the 768px breakpoint plus
+   `env(safe-area-inset-top)` plus a standalone-mode term. This plate is pinned
+   to the block END on a phone, and on the desktop it is block-centred inside the
+   stage — a box that already begins below the header, because `.main-content`
+   is the header's sibling and not its overlay. Subtracting the header a second
+   time inside a box that starts under it would push the island down by its whole
+   height. If a later hand ever mounts this island `position: fixed` against the
+   viewport instead, that token is the term to add, and this paragraph is why.
+
+   ── CONTRAST, dark / light ────────────────────────────────────────────────
+
+   No new colour is introduced. Every pair below is already measured in
+   `map-altitude.css` against the same three surfaces this plate uses, so the
+   figures are carried across rather than re-eyeballed — and they are repeated
+   here rather than cross-referenced because a ratio without its background is
+   not a measurement, and the surface is the thing a reader has to check.
+
+   NON-TEXT — 3:1 (WCAG 1.4.11)
+     button boundary (--field-border) on the plate (--bg-elev)     3.77 / 3.65
+     …the same pair on --bg-elev-2 (the button's own fill)         3.26 / 3.10
+     lit pip (--accent) on the plate (--bg-elev)                   5.34 / 13.65
+     unlit pip (--field-border) on the plate (--bg-elev)           3.77 / 3.65
+     plate hairline (--border) on --bg-elev             1.35 / 1.40 ← a DIVIDER
+   TEXT — 4.5:1, all of it small text
+     glyph + Fit (--text) on the button fill (--bg-elev-2)        14.56 / 17.81
+     step word (--text) on the plate (--bg-elev)                  14.56 / 17.81
+     a disabled button's glyph (--text-faint) on --bg-elev          4.9 /  5.0
+                                            ← 1.4.3 exempts it; it clears anyway
+
+   OPACITY IS NEVER A RESTING STATE, per pages/mindtree.css: fading a glyph
+   composites it toward its backdrop and hands the measured ratio back. The
+   disabled end is drawn with three token swaps — fill, border and ink — and not
+   with an `opacity`, so the figure above is the figure that ships.
+
+   ── THE 44px TARGETS, AND THE 7px THAT MAKES THEM REAL ────────────────────
+
+   The buttons are 32px of visible chrome — the same box `.btn-sm` is — and reach
+   44px through `.tap-44`'s ±7px overlay. That has two consequences this sheet
+   has to honour, both of them straight out of global.css's own note:
+
+     1. THE PLATE PADS 7px ON THE BLOCK AXIS. The overlay reaches past the
+        button's box, and a container that clips (or simply ends) at the button's
+        edge takes those 14px back. `.chip-row` pads 7px for exactly this and
+        says so.
+     2. THE BLOCK-AXIS GAP IS 16px, NEVER 8px. Two controls stacked closer than
+        14px have OVERLAPPING overlays, and the later one silently eats the
+        earlier one's target — the bug that cost four separate clusters their
+        44px at 375px. `row-gap: 16px` / `column-gap: 8px` is one declaration
+        that is correct in BOTH orientations: in the desktop column the items
+        stack on the block axis and take the 16, in the phone row they sit on the
+        inline axis (where the overlay does not reach) and take the 8.
+
+   MOTION: one 0.15s fill transition on the buttons and one on the pips. Both are
+   flattened by global.css's `prefers-reduced-motion` kill switch; the block at
+   the end of this file removes them outright, because a 0.01ms transition is
+   still a transition and this plate sits over a canvas that is already animating
+   its own relayout.
+
+   LOGICAL PROPERTIES ONLY. The plate mirrors in Arabic with no second rule: it
+   hangs off `inset-inline-start` — the gutter the details card does not use — its staircase ascends toward the reader's own
+   inline end because flex order follows the writing direction, and the `−` / `+`
+   glyphs are direction-neutral characters that need no mirroring.
+
+   SPACING is on the 4px grid, except the two 7px overlay pads, which are a
+   measurement and not a spacing choice. */
+
+/* ═══════════════════════════ placement ═══════════════════════════════════ */
+
+.mzc {
+  position: absolute;
+  /* ⚠ THE INLINE-START GUTTER, AND NOT THE END ONE, WHICH IS TAKEN.
+       `map-panel.css` floats the details card at `inset-inline-end: 12px`
+       spanning `inset-block: 68px 88px` — the whole reading-end gutter. A plate
+       block-centred at the same end lands UNDER that card, which is precisely
+       when a reader most needs Fit: they have drilled into one organization and
+       want the whole picture back. It was mounted at the end gutter first and
+       the card covered it on the first click.
+
+       The staircase does not care. It ascends toward the reader's inline end
+       because flex order follows the writing direction, which is a fact about
+       the pips' own row and not about which gutter the plate hangs in. */
+  inset-inline-start: 12px;
+  inset-block: 0;
+  block-size: fit-content;
+  margin-block: auto;
+  /* Above the canvas, below anything the shell fixes to the viewport (the phone
+     rails are 71/72). The islands are a layer, not a dialog. Same value
+     `.mdive` uses, because they are the same layer. */
+  z-index: 2;
+  /* The stage sets `pointer-events: none` on the island layer where it needs the
+     drag to pass through; this island is a control and always takes its own. */
+  pointer-events: auto;
+}
+
+/* THE PHONE PUTS IT ACROSS THE SCREEN, ABOVE THE BARS.
+   A block-centred plate at the inline end lands under the thumb's arc and on the
+   sheet's drag handle, and 375px has no column to spare beside the drawing. So
+   it pins to the block end, above the two bars the shell fixes there and above
+   the caption strip that `.mtree-ladder` reaches past — see the token paragraph
+   in the header for who publishes each of the three. */
+.mzc[data-compact] {
+  inset-inline: 8px;
+  inset-block: auto 0;
+  margin-block: 0;
+  margin-block-end: calc(
+    var(--map-composer-block-size, 0px) + var(--map-lens-rail-block-size, 48px) +
+      var(--map-caption-block-size, 0px) + 8px
+  );
+}
+
+/* ═══════════════════════════ the plate ═══════════════════════════════════ */
+
+/* OPAQUE, AND THAT IS A REQUIREMENT RATHER THAN A TASTE. It floats over the
+   drawing, so its backdrop is not the canvas colour — it is whatever node
+   happens to be under it, in whatever colour that node's track is. `--bg-elev`
+   plus a `--border` hairline is `.mpan`'s and `.mdive`'s plate verbatim, already
+   measured in both themes against exactly these inks. */
+.mzc-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* See the header, §THE 44px TARGETS: 16 on the axis the overlay reaches
+     along, 8 on the axis it does not. One declaration, both orientations. */
+  column-gap: 8px;
+  row-gap: 16px;
+  /* 7px is the overlay, not whitespace. 8px is the design gutter. */
+  padding-block: 7px;
+  padding-inline: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.mzc[data-compact] .mzc-plate {
+  flex-direction: row;
+  /* Hugs the reader's inline END inside the full-width island, so the plate is
+     only as wide as its contents and the drawing keeps the rest of the band.
+     `margin-inline-start` and not a `justify-content` on `.mzc`, because the
+     island is the positioning box and the plate is the thing that shrinks. */
+  margin-inline-start: auto;
+  max-inline-size: 100%;
+}
+
+/* ═══════════════════════════ the buttons ═════════════════════════════════ */
+
+.mzc-btn,
+.mzc-fit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 32 of visible box, 44 of target — see the header. The INLINE axis carries
+     its own 44 because `.tap-44`'s overlay only grows the block axis, which is
+     the correction `.chip` records making. */
+  min-block-size: 32px;
+  min-inline-size: 44px;
+  padding-inline: 10px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.mzc-btn:hover:not(:disabled),
+.mzc-fit:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* THE DEAD END, DRAWN IN INK RATHER THAN IN OPACITY — see the header. All three
+   properties move, so the state survives a reader who cannot separate
+   `--text` from `--text-faint` (1.4.1) and one who cannot see the border at
+   all: the fill drops to the plate's own colour and the button stops reading as
+   a raised box. */
+.mzc-btn:disabled {
+  background: var(--bg-elev);
+  border-color: var(--border);
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+/* 20px, not the button's 13px: these two glyphs are the whole of their button's
+   visible meaning, and a `+` set at label size in a 32px box reads as a
+   typographic mark rather than as a target. `line-height: 1` keeps the box at 32
+   — the glyph's own leading would otherwise push it to 36 and the `.tap-44`
+   arithmetic (30px padding box + 14) with it. */
+.mzc-glyph {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ═══════════════════════════ the readout ═════════════════════════════════ */
+
+.mzc-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+.mzc[data-compact] .mzc-readout {
+  flex-direction: row;
+  gap: 6px;
+}
+
+/* The word. `--text` and not `--text-dim`: this is the answer to the question
+   the control exists for, and it is the only text on the plate that is not on a
+   button — dimming it would make the least prominent thing here the one thing
+   worth reading. Capped so a long Arabic step name cannot widen the plate past
+   the phone's band; it truncates rather than wraps, because the `sr-only`
+   sentence beside it carries the whole string regardless. */
+.mzc-step {
+  max-inline-size: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+}
+
+/* THE STAIRCASE. Five pips rising toward the closest step, lit up to where the
+   reader is. It ascends toward the reader's own inline END in both scripts with
+   no mirror rule: flex lays its items out along the inline axis, which runs
+   left-to-right in English and right-to-left in Arabic, so the ramp starts where
+   the reading starts. That is the same rule every list in this app obeys,
+   applied to five boxes. */
+.mzc-range {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  block-size: 12px;
+}
+
+.mzc-pip {
+  inline-size: 3px;
+  border-radius: 1px;
+  background: var(--field-border);
+  transition: background 0.15s ease;
+}
+
+/* The ramp. Five rules rather than five inline `style` attributes: a height per
+   index is a fact about the drawing, and putting it in the markup would make it
+   invisible to the class-drift gate and unstyleable by the theme. */
+.mzc-pip:nth-child(1) {
+  block-size: 4px;
+}
+
+.mzc-pip:nth-child(2) {
+  block-size: 6px;
+}
+
+.mzc-pip:nth-child(3) {
+  block-size: 8px;
+}
+
+.mzc-pip:nth-child(4) {
+  block-size: 10px;
+}
+
+.mzc-pip:nth-child(5) {
+  block-size: 12px;
+}
+
+.mzc-pip[data-on] {
+  background: var(--accent);
+}
+
+/* global.css clamps every transition to 0.01ms under this query, which is enough
+   for a fade that a reader chose to trigger. It is not enough here: the pips
+   restyle on every wheel notch and every pinch frame — motion the reader did not
+   ask this control for — so they are switched off outright rather than shortened.
+   `.mdive` had nothing to switch off; this plate does. */
+@media (prefers-reduced-motion: reduce) {
+  .mzc-btn,
+  .mzc-fit,
+  .mzc-pip {
+    transition: none;
+  }
+}

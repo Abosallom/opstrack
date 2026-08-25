@@ -364,6 +364,40 @@ export const WHEEL_PINCH_RATE = 3
  */
 export const WHEEL_LINE_PX = 16
 
+/**
+ * The horizontal travel, in CSS px, past which a `wheel` is a TRACKPAD SWIPE
+ * rather than a wheel — see `wheelIntent` for the whole argument.
+ *
+ * 1, and the number is free rather than tuned: a mouse wheel — tilt wheels
+ * included, since a tilt is a discrete notch on its own axis — reports `deltaX`
+ * as EXACTLY 0 on the vertical notch, so every value above zero separates the
+ * two devices. It is not 0 itself because a diagonal trackpad glide rounds to
+ * ±0.something on the axis it is barely moving along, and a threshold of 0 would
+ * call that a horizontal swipe on the first sub-pixel of noise.
+ */
+export const WHEEL_PAN_AXIS_PX = 1
+
+/**
+ * The largest |deltaY| a FRACTIONAL pixel-mode wheel may carry and still read as
+ * a trackpad pan rather than a mouse notch.
+ *
+ * 50 IS DERIVED FROM THE THING THAT WOULD OTHERWISE BREAK IT: on Windows with
+ * display scaling a real mouse notch arrives fractional — 120 × 1.25 = 150,
+ * 120 × 1.5 = 180 — so "fractional" alone is NOT evidence of a trackpad, and a
+ * classifier that stopped there would turn the mouse wheel into a pan for every
+ * reader on a scaled display. The smallest notch any shipping engine reports in
+ * pixel mode is 53 (Chromium's `kScrollbarPixelsPerLine × 3`), and scaling only
+ * ever makes it larger, so 50 sits under every mouse notch that exists and above
+ * the per-frame travel of an ordinary trackpad glide.
+ *
+ * ⚠ WHAT IT COSTS, stated rather than hidden: a trackpad flick fast enough to
+ *   travel more than 50 px in one frame, with `deltaX` at exactly 0 — a
+ *   perfectly vertical fast swipe — reads as a zoom. That is the safe direction
+ *   (it is what the map did before this existed) and it is the one residual this
+ *   classifier knowingly keeps.
+ */
+export const WHEEL_PAN_FRACTION_PX = 50
+
 /* ─────────────────────────────── the shapes ──────────────────────────────── */
 
 /** The rectangle of drawing units on screen, as a centre and a size. */
@@ -977,32 +1011,336 @@ export function octavesOf(camera: Camera, rootD: number, viewportMinPx: number):
 
 /* ──────────────────────────────── the wheel ──────────────────────────────── */
 
+/** The four fields of a `WheelEvent` this module is allowed to know about. */
+export interface WheelLike {
+  readonly deltaX?: number
+  readonly deltaY: number
+  readonly deltaMode?: number
+  readonly ctrlKey?: boolean
+}
+
+/** `deltaMode` as a pixel multiplier. 1 is LINE, 2 is PAGE. */
+function wheelUnitPx(deltaMode: number | undefined): number {
+  // Named by number rather than by `WheelEvent.DOM_DELTA_LINE` because this
+  // module may not touch the DOM.
+  return deltaMode === 1 ? WHEEL_LINE_PX : deltaMode === 2 ? WHEEL_LINE_PX * 24 : 1
+}
+
+/** One wheel event's travel in CSS pixels, whatever unit it was reported in. */
+export function wheelPixels(event: WheelLike): { readonly x: number; readonly y: number } {
+  const unit = wheelUnitPx(event.deltaMode)
+  return { x: num(event.deltaX ?? 0) * unit, y: num(event.deltaY) * unit }
+}
+
+/** What one `wheel` event is ASKING FOR. */
+export type WheelIntent = 'zoom' | 'pan'
+
 /**
- * The width multiplier one wheel event asks for. PURE — the hook hands it three
+ * WHICH DEVICE JUST MOVED, AND THEREFORE WHAT IT MEANT.
+ *
+ * ── WHAT THIS REPLACES, AND WHY THE OLD RULE WAS ONLY HALF RIGHT ───────────
+ *
+ * This function's own header used to read "WHEEL IS ALWAYS ZOOM. This is a map,
+ * not a document: it does not scroll, the drag already pans, and a wheel that
+ * sometimes panned and sometimes zoomed would be a wheel nobody could predict."
+ * Every clause of that is true OF A MOUSE and false of the machine the owner
+ * actually works on. A two-finger swipe on a Mac trackpad is not a wheel at all;
+ * it is a PAN GESTURE the platform delivers through the wheel event because that
+ * is the only channel it has, and it carries a meaningful `deltaX` to say so. On
+ * the shipped map that swipe zoomed — sideways finger travel changing the
+ * magnification — which is the single loudest thing in "feels full of bugs".
+ *
+ * So the rule is not "a wheel that sometimes pans is unpredictable". It is "a
+ * DEVICE that sometimes pans is unpredictable", and the two devices are
+ * separable from the event alone.
+ *
+ * ── THE FOUR TESTS, IN THE ORDER THEY ARE ASKED ────────────────────────────
+ *
+ *  1. `ctrlKey` → ZOOM, and it is asked first because it is the only signal that
+ *     is not a heuristic. macOS reports a trackpad PINCH as `ctrl+wheel`, and a
+ *     pinch is a zoom request in every application that has ever received one.
+ *     A reader physically holding ctrl gets the same answer, which is also what
+ *     every map on the web does with ctrl+wheel.
+ *  2. `deltaMode !== 0` → ZOOM. LINE and PAGE units come from a classic wheel
+ *     driver (Firefox reports LINE for every mouse notch); no trackpad reports
+ *     anything but PIXEL.
+ *  3. A significant `deltaX` → PAN. This is the trackpad's giveaway: a vertical
+ *     mouse notch reports `deltaX` as exactly 0, so anything past
+ *     `WHEEL_PAN_AXIS_PX` came off a surface a finger can move in two axes.
+ *  4. PIXEL units with a small FRACTIONAL `deltaY` → PAN. This is the vertical
+ *     two-finger swipe, which has no horizontal component to catch it at (3).
+ *     Both halves are load-bearing: fractional alone would catch a mouse notch
+ *     on a scaled Windows display, and small alone would catch the low end of a
+ *     mouse notch on some drivers. See `WHEEL_PAN_FRACTION_PX`.
+ *
+ * ── AND EVERYTHING ELSE IS ZOOM, DELIBERATELY ──────────────────────────────
+ *
+ * The fall-through answer is `'zoom'` because zoom is what this map did before
+ * this function existed. A misclassified pan is a surprise; a misclassified zoom
+ * is Tuesday. When the evidence is thin the reader gets the behaviour they have
+ * already been living with, and the residual is written down at
+ * `WHEEL_PAN_FRACTION_PX` rather than discovered later.
+ *
+ * PURE, and stateless ON PURPOSE. A stickier classifier — "once this gesture is
+ * a pan, keep panning until the events stop" — would read better on the
+ * pathological vertical flick and would need a clock, a timeout and a piece of
+ * mutable state in a module whose entire claim is that it has none. If the
+ * residual above turns out to bite, the place to fix it is the hook, which
+ * already owns `WHEEL_SETTLE_MS` and can hold a streak beside it.
+ */
+export function wheelIntent(event: WheelLike): WheelIntent {
+  if (event.ctrlKey === true) return 'zoom'
+  if (event.deltaMode !== undefined && event.deltaMode !== 0) return 'zoom'
+  const dx = num(event.deltaX ?? 0)
+  const dy = num(event.deltaY)
+  if (Math.abs(dx) >= WHEEL_PAN_AXIS_PX) return 'pan'
+  if (!Number.isInteger(dy) && Math.abs(dy) < WHEEL_PAN_FRACTION_PX) return 'pan'
+  return 'zoom'
+}
+
+/**
+ * The width multiplier one wheel event asks for. PURE — the hook hands it four
  * fields off the event and gets a number back, so the rate is testable without
  * a browser and the handler that calls it is four lines.
  *
- * WHEEL IS ALWAYS ZOOM. This is a map, not a document: it does not scroll, the
- * drag already pans, and a wheel that sometimes panned and sometimes zoomed
- * would be a wheel nobody could predict. `ctrl` is not a modifier the reader
- * chose — it is how macOS reports a trackpad pinch — so it takes the same path
- * faster rather than a different path.
+ * ONLY REACHED WHEN `wheelIntent` SAID ZOOM. It does not re-ask that question,
+ * because a ratio function that also decided whether to zoom would have two
+ * answers for "nothing happened" — 1, and 1 — and no caller could tell which
+ * one it got. `ctrl` still reads here, but now only for its RATE: a pinch is
+ * reported as a small `deltaY` and a 1:1 rate makes the trackpad feel dead
+ * against the mouse.
  *
  * Positive `deltaY` (scroll down/away, fingers pinching together) widens the
  * view, which is zooming OUT.
  */
-export function wheelRatio(event: {
-  readonly deltaY: number
-  readonly deltaMode?: number
-  readonly ctrlKey?: boolean
-}): number {
-  const raw = num(event.deltaY)
-  // 1 is DOM_DELTA_LINE, 2 is DOM_DELTA_PAGE. Named by number rather than by
-  // `WheelEvent.DOM_DELTA_LINE` because this module may not touch the DOM.
-  const lines = event.deltaMode === 1 ? WHEEL_LINE_PX : event.deltaMode === 2 ? WHEEL_LINE_PX * 24 : 1
+export function wheelRatio(event: WheelLike): number {
   const kappa = event.ctrlKey === true ? WHEEL_KAPPA * WHEEL_PINCH_RATE : WHEEL_KAPPA
-  const ratio = Math.exp(raw * lines * kappa)
+  const ratio = Math.exp(wheelPixels(event).y * kappa)
   return Number.isFinite(ratio) && ratio > 0 ? ratio : 1
+}
+
+/* ─────────────────────────────── the throw ───────────────────────────────── */
+
+/**
+ * How far back a release looks for its speed, in milliseconds.
+ *
+ * NOT THE LAST TWO EVENTS, and that is the whole reason this is a window rather
+ * than a subtraction. Two pointer moves can arrive 1ms and 1px apart, which
+ * reads as 1000 px/s off a finger that was barely moving; and the last move
+ * before a lift is very often a repeat of the one before it, as the finger
+ * settles onto the glass, which reads as a dead stop off a finger that was
+ * moving fast. Averaging over 80ms — five frames at 60Hz — is long enough that
+ * neither artefact survives and short enough that a drag which slowed to nothing
+ * over its last 100ms is correctly measured as slow.
+ */
+export const FLING_WINDOW_MS = 80
+
+/**
+ * How stale the last pointer move may be, at the moment of release, and still
+ * count as a throw.
+ *
+ * A FINGER THAT STOPPED AND THEN LIFTED ASKED FOR A STOP. The browser sends no
+ * move events while a finger is held still, so a reader who dragged the map,
+ * paused to look at it, and then lifted leaves a sample buffer whose newest
+ * entry is old — and `panVelocity` over that buffer would happily report the
+ * speed the finger had before it stopped, throwing the map off a gesture that
+ * ended in a deliberate placement. 60ms is about four frames: long enough to
+ * survive one dropped move event on a busy frame, short enough that a pause a
+ * reader can perceive is a pause the map obeys.
+ */
+export const FLING_STALE_MS = 60
+
+/**
+ * The slowest release that still glides, in CSS px per millisecond.
+ *
+ * 0.12 is 120 px/s, and it is derived from what the glide would LOOK like rather
+ * than chosen: an exponential decay travels `v0 · τ` in total (see
+ * `samplePanGlide`), so at this speed the whole glide is 30 px — under a
+ * fingertip. Below it there is no motion to see, and gliding anyway is exactly
+ * what makes a map feel slippery to a reader who was placing it precisely.
+ */
+export const FLING_MIN_PX_PER_MS = 0.12
+
+/**
+ * The fastest release the glide will honour, in CSS px per millisecond.
+ *
+ * 4 px/ms is 4000 px/s, which at this friction throws the picture just under
+ * 1000 px — about one wide screen. Past that the reader has lost the thread of
+ * where the map went, and a measurement that high is nearly always the artefact
+ * `FLING_WINDOW_MS` exists to suppress arriving anyway through a genuinely
+ * violent flick.
+ */
+export const FLING_MAX_PX_PER_MS = 4
+
+/**
+ * The friction, as the fraction of its speed the throw keeps per millisecond.
+ *
+ * 0.996 is a half-life of 173ms (`ln½ / ln 0.996`) and a total travel of 249
+ * times the release speed. iOS's `UIScrollView` normal deceleration is 0.998 —
+ * a half-life of 346ms — which is right for a LIST, where the reader is throwing
+ * through content they want to keep reading. A map is a place: the glide is
+ * there to say the picture has weight, not to keep travelling after the reader
+ * has stopped caring, so it is deliberately half as long.
+ *
+ * Per MILLISECOND rather than per frame, because `samplePanGlide` is closed-form
+ * over elapsed time — a 120Hz display and a 60Hz one travel exactly the same
+ * distance, and a dropped frame costs nothing.
+ */
+export const FLING_FRICTION_PER_MS = 0.996
+
+/**
+ * The speed at which the glide stops, in CSS px per millisecond.
+ *
+ * 0.03 is 30 px/s, which is half a pixel per frame at 60Hz — the speed below
+ * which the next frame does not move the picture by a whole pixel, so continuing
+ * would be spending frames on a still image.
+ */
+export const FLING_STOP_PX_PER_MS = 0.03
+
+/** Where the pointer was, and when. CSS px in the client's own coordinates. */
+export interface PanSample {
+  readonly x: number
+  readonly y: number
+  readonly t: number
+}
+
+/** CSS px per millisecond, on both axes. */
+export interface PanVelocity {
+  readonly x: number
+  readonly y: number
+}
+
+const NO_VELOCITY: PanVelocity = { x: 0, y: 0 }
+
+/**
+ * HOW FAST THE POINTER WAS GOING WHEN IT LET GO.
+ *
+ * Measured from the newest sample back to the oldest one still inside
+ * `windowMs`, which is a chord across the last five frames rather than the
+ * tangent at the last one — see `FLING_WINDOW_MS` for the two artefacts that
+ * makes it immune to.
+ *
+ * Clamped to `FLING_MAX_PX_PER_MS` on the MAGNITUDE rather than per axis, so a
+ * clamped diagonal throw keeps its direction. Clamping each axis separately
+ * would bend a fast 45° flick toward the axis that saturated first, which is a
+ * defect the reader sees as the map going somewhere they did not point.
+ *
+ * Total: an empty buffer, a single sample, two samples at the same instant, and
+ * any NaN coordinate all answer zero rather than producing a velocity that would
+ * paint a NaN viewBox.
+ */
+export function panVelocity(
+  samples: readonly PanSample[],
+  windowMs: number = FLING_WINDOW_MS,
+): PanVelocity {
+  const last = samples[samples.length - 1]
+  if (last === undefined) return NO_VELOCITY
+  const span = Number.isFinite(windowMs) && windowMs > 0 ? windowMs : FLING_WINDOW_MS
+  let first = last
+  for (let i = samples.length - 2; i >= 0; i -= 1) {
+    const sample = samples[i]
+    if (sample === undefined) break
+    if (!Number.isFinite(sample.t) || last.t - sample.t > span) break
+    first = sample
+  }
+  const dt = last.t - first.t
+  if (!(dt > 0)) return NO_VELOCITY
+  const vx = num(last.x - first.x) / dt
+  const vy = num(last.y - first.y) / dt
+  const speed = Math.hypot(vx, vy)
+  if (!Number.isFinite(speed) || speed <= 0) return NO_VELOCITY
+  if (speed <= FLING_MAX_PX_PER_MS) return { x: vx, y: vy }
+  const k = FLING_MAX_PX_PER_MS / speed
+  return { x: vx * k, y: vy * k }
+}
+
+/**
+ * A throw in flight — the release speed and the clock reading it left at.
+ *
+ * A VALUE, exactly like `CameraTween`, and for the same reason: everything that
+ * decides where the picture is at time T is in these three fields, so the whole
+ * motion is reproducible in a test with a fake clock and the hook holds nothing
+ * but a ref and a rAF handle.
+ */
+export interface PanGlide {
+  readonly vx: number
+  readonly vy: number
+  /** The clock reading passed to `beginPanGlide`. Any monotonic ms scale. */
+  readonly startedAt: number
+}
+
+/**
+ * START A THROW — or answer `null`, meaning THE RELEASE WAS A STOP.
+ *
+ * ⚠ `reducedMotion` SKIPS THE GLIDE ENTIRELY, and `null` rather than a
+ *   zero-length glide is the honest spelling of that. This file's rule is that
+ *   reduced motion makes a move INSTANT rather than merely shorter, and
+ *   `beginCameraTween` implements it by returning a tween of length zero — which
+ *   works there because a tween HAS a destination, so "instant" means "be there
+ *   now". A throw has no destination; its destination IS the motion. The instant
+ *   version of a throw is therefore the camera staying exactly where the finger
+ *   left it, which is `null` and no frame loop at all.
+ *
+ * Three other ways to get `null`, and all of them are ordinary rather than
+ * failures: an empty buffer (nothing moved), a release slower than
+ * `FLING_MIN_PX_PER_MS` (a placement, not a throw), and a buffer whose newest
+ * sample is older than `FLING_STALE_MS` (a finger that stopped before it lifted).
+ */
+export function beginPanGlide(
+  samples: readonly PanSample[],
+  now: number,
+  options: { readonly reducedMotion?: boolean } = {},
+): PanGlide | null {
+  if (options.reducedMotion === true) return null
+  const last = samples[samples.length - 1]
+  if (last === undefined) return null
+  if (!Number.isFinite(now) || !Number.isFinite(last.t)) return null
+  if (now - last.t > FLING_STALE_MS) return null
+  const velocity = panVelocity(samples)
+  if (Math.hypot(velocity.x, velocity.y) < FLING_MIN_PX_PER_MS) return null
+  return { vx: velocity.x, vy: velocity.y, startedAt: now }
+}
+
+/**
+ * HOW FAR THE THROW HAS TRAVELLED SINCE THE RELEASE, and whether it has stopped.
+ *
+ * ── ABSOLUTE, NOT A PER-FRAME DELTA, AND CLOSED FORM ───────────────────────
+ *
+ * The drag this continues is already "ABSOLUTE FROM THE PRESS, not a sum of
+ * deltas" (see `useMapGeometry.onPointerMove`), and the glide is held to the
+ * same rule for the same two reasons: a dropped frame costs nothing, and float
+ * error cannot accumulate over a motion that may run sixty frames. The caller
+ * therefore keeps the camera it released at and adds this displacement to it,
+ * rather than integrating.
+ *
+ * Speed decays as `v(t) = v₀ · k^t` with `k = FLING_FRICTION_PER_MS`, so the
+ * distance is that integrated:
+ *
+ *     s(t) = ∫₀ᵗ v₀ k^u du = v₀ · (k^t − 1) / ln k = v₀ · τ · (1 − k^t)
+ *
+ * with `τ = −1 / ln k`, which is also the total travel as `t → ∞`. Solving it
+ * rather than stepping it is what makes the motion identical at 60Hz and 120Hz
+ * and reproducible in a test that samples it at four arbitrary instants.
+ *
+ * `done` is a fact about the SPEED, not about the distance: the throw ends when
+ * the next frame would no longer move the picture a whole pixel
+ * (`FLING_STOP_PX_PER_MS`), which is a threshold the reader can be told about,
+ * rather than at some fraction of a total nobody can see.
+ */
+export function samplePanGlide(
+  glide: PanGlide,
+  now: number,
+): { readonly dx: number; readonly dy: number; readonly done: boolean } {
+  const elapsed = Number.isFinite(now) ? Math.max(0, now - glide.startedAt) : 0
+  const decay = Math.pow(FLING_FRICTION_PER_MS, elapsed)
+  const tau = -1 / Math.log(FLING_FRICTION_PER_MS)
+  const travelled = tau * (1 - decay)
+  const speed = Math.hypot(glide.vx, glide.vy) * decay
+  return {
+    dx: num(glide.vx * travelled),
+    dy: num(glide.vy * travelled),
+    done: !(speed >= FLING_STOP_PX_PER_MS),
+  }
 }
 
 /* ────────────────────────────── the tween ────────────────────────────────── */

@@ -162,17 +162,25 @@ export interface MindtreePrefs {
    *   third state would put "not chosen" into every place that asks "which
    *   one" — including the URL, which carries `?stage=` and cannot express it.
    *
-   * WHAT IT IS FOR. On a 375px phone the tidy tree fits a hundred and four
-   *   organizations into about fourteen CSS pixels each: a smear of unlabelled
-   *   specks, and the device the owner says is primary. The ledger is the same
-   *   tree as a scrollable list and is the honest default THERE and only there.
-   *   But `view` defaults to `'map'`, so a phone that had never chosen was
-   *   indistinguishable from one that had chosen the picture — and silently
+   * WHAT IT IS FOR. The ledger is the same tree as a scrollable list, and it is
+   *   what an unopinionated reader should open on WHERE THE PICTURE CANNOT BE
+   *   DRAWN: on a 375px phone the tidy tree fits a hundred and sixty
+   *   organizations into about fourteen CSS pixels each, a smear of unlabelled
+   *   specks. But `view` defaults to `'map'`, so a device that had never chosen
+   *   was indistinguishable from one that had chosen the picture — and silently
    *   overriding a reader's actual choice is worse than the smear.
    *
-   *   Unpinned, the WIDTH decides. Pinned, the READER decides, at every width
-   *   and for good. `setMindView` is the only thing that pins it, so the pin is
-   *   set by exactly the act it describes.
+   *   Unpinned, the WIDTH decides (`useMapLens.stageForReader`): the ledger on a
+   *   phone, the map on a desktop. It briefly decided nothing at all — the
+   *   ledger was the opening at every width for two days, on a misreading of
+   *   "make it easier" that answered an unreadable first paint by deleting the
+   *   picture rather than by opening it one rung shallower. Pinned, the READER
+   *   decides, at every width and for good. `setMindView` is the only thing that
+   *   pins it, so the pin is set by exactly the act it describes.
+   *
+   *   `view` ITSELF STILL DEFAULTS TO `'map'` and deliberately so: the opening
+   *   drawing is DERIVED, so it can move without rewriting what every device
+   *   already has on disk, and the day a reader unpins nothing has been lost.
    */
   viewPinned: boolean
   density: MindDensity
@@ -438,9 +446,10 @@ function updatePrefs(patch: Partial<MindtreeState>): void {
       next.collapsedByDim === s.collapsedByDim &&
       next.openedByDim === s.openedByDim &&
       // ⚠ `viewPinned` BELONGS IN THIS GUARD AND WAS MISSING FROM IT. Without
-      //   this line the pin can never be set on the one device that needs it:
-      //   a fresh phone stores `view: 'map'` and RENDERS the ledger, because
-      //   `useMapLens` lets the width decide until the reader does. The reader
+      //   this line the pin can never be set on the devices that need it:
+      //   a fresh one stores `view: 'map'` and RENDERS the ledger, because
+      //   `useMapLens.stageForReader` draws the list on a phone until the reader
+      //   chooses otherwise. The reader
       //   presses "Map" — `setMindView('map')` — and every field compared above
       //   is unchanged, so this returns `s`, the pin is never recorded, and the
       //   button is dead for precisely the reader it was added for.

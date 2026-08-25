@@ -425,6 +425,17 @@
     "whyNotYours": "Only the person who raised this, its owner, or an admin can change it.",
     "whyRetired": "That branch is no longer in use and cannot take new work.",
     "whySignedOut": "Your session has ended. Sign in again to make changes.",
-    "whyTooDeep": "This branch is already six levels deep, which is as deep as the map goes."
+    "whyTooDeep": "This branch is already six levels deep, which is as deep as the map goes.",
+    "zoomFit": "Fit the whole drawing on the screen",
+    "zoomFitShort": "Fit",
+    "zoomIn": "Zoom in — see more detail",
+    "zoomLabel": "Zoom the map",
+    "zoomOut": "Zoom out — see more of the map",
+    "zoomReadout": "Zoom: {step} — step {index} of {total}",
+    "zoomStepClose": "Closer in",
+    "zoomStepClosest": "Closest",
+    "zoomStepMid": "Mid range",
+    "zoomStepWhole": "Whole map",
+    "zoomStepWide": "Wide view"
   }
 }

@@ -574,12 +574,39 @@ const EMPTY_IDS: ReadonlySet<string> = new Set<string>()
  * SO IT IS DERIVED, NOT REPLACED WITH A DIFFERENT NUMBER. `openDepth: 3` would
  * be right for exactly today's hierarchy — root ▸ track ▸ programme ▸
  * organization — and would hide everything again the day somebody inserts a
- * phase. This opens far enough to reach the deepest ENTITY, wherever it sits,
- * because the entities are what a reader came to look at; the dimension buckets
- * below them are still one tap away and still closed.
+ * phase. The rung is read off the hierarchy itself, so a workspace that grows a
+ * tier gets the same reading of it for free.
+ *
+ * ── AND IT IS ONE RUNG SHALLOWER THAN THE DEEPEST ENTITY, WHICH IS THE HALF
+ *    THAT CHANGED ─────────────────────────────────────────────────────────────
+ *
+ * This used to return `2 + deepest`: open far enough that every ENTITY is drawn,
+ * on the argument that the entities are what a reader came to look at. The
+ * argument was right and the arithmetic overshot it. On this workspace "every
+ * entity" is 161 organizations, and `useMapGeometry`'s opening fit has no
+ * minimum scale — it fits whatever is drawn — so the first paint settled at
+ * 0.44: a 168×54 card at 74×24 CSS px carrying a 12.5px label at 5.5px. On a
+ * 375px phone the same paint is 1.9px. That is the identical failure the block
+ * above describes, reached from the far end — the reader is shown everything and
+ * can read none of it — and it is what the owner meant by "make it easier".
+ *
+ * ONE RUNG SHALLOWER IS THE WHOLE FIX, because `openDepth` closes a branch
+ * rather than hiding it: `model.ts` starts a branch at depth >= openDepth
+ * CLOSED, so the deepest rung is still DRAWN, still counted, still one tap from
+ * its contents. What changes is how many cards share the frame — the
+ * departments, not everything filed under them — and therefore how large each
+ * one is fitted. The reader opens the one they want, which is the gesture the
+ * tree is for.
+ *
+ * ⚠ THE FLOOR IS NOT DECORATION. `Math.max(2, …)` is what keeps the original
+ *   defect out: a workspace whose entities are one level deep would otherwise
+ *   ask for depth 1, which is root plus closed tracks — the three cards this
+ *   header opens with. Two is the shallowest reading that still shows a reader
+ *   something they came for, and the floor binds exactly there and nowhere else.
  *
  * Entities start at tree depth 2 (root 0, track 1), so an entity forest `d`
- * levels deep needs `2 + d`.
+ * levels deep drew everything at `2 + d` and now opens at `1 + d`, never below
+ * 2.
  */
 export function openDepthFor(entities: readonly MindEntity[]): number {
   const parentOf = new Map<string, string | null>()
@@ -596,7 +623,10 @@ export function openDepthFor(entities: readonly MindEntity[]): number {
     }
     if (d > deepest) deepest = d
   }
-  return 2 + deepest
+  // See the header for both terms: `1 + deepest` opens the rung ABOVE the
+  // deepest entity (which is drawn, closed), and the floor is the guard against
+  // re-opening on three closed tracks.
+  return Math.max(2, 1 + deepest)
 }
 
 /**

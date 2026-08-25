@@ -350,7 +350,10 @@ function flatten(root: MindNodeModel): readonly MindNodeModel[] {
 /**
  * The same fixture with every BOOK collapsed — the state a reader of this map
  * spends most of their time in, because `foldOnActivate` (Mindtree.tsx) makes a
- * tap on a branch fold it.
+ * tap on a branch that holds MORE BRANCHES fold it. (A tap on an organization
+ * opens its details panel instead; `useMapKeyboard`'s `activate` says why the
+ * two differ, and a book is the first kind — its children are types and
+ * organizations, so it folds.)
  *
  * ON THE ID, NOT ON THE KIND. A book and an organization are both
  * `kind: 'entity'` in this workspace — the level is carried by the `am:` id
@@ -568,8 +571,9 @@ if (SHOOTING) {
    * FRAMING THREE — THE FOLDED BRANCH, which is the gesture the tidy tree is
    * actually driven by.
    *
-   * `foldOnActivate` (Mindtree.tsx) makes a TAP on a branch fold it, so a reader
-   * working this map spends most of their time looking at collapsed cards. The
+   * `foldOnActivate` (Mindtree.tsx) makes a TAP on a branch that holds more
+   * branches fold it — a book, a directorate, a type — so a reader working this
+   * map spends most of their time looking at collapsed cards. The
    * first two framings both picture a fully expanded tree and therefore could
    * not answer the one question that matters about that state: does a card with
    * a hundred organizations inside it look any different from a card with none?

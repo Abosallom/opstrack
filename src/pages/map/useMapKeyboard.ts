@@ -121,6 +121,7 @@ import type { MindDragController } from '../../components/mindtree/DragLayer'
 import { dismissMindNodeCard } from '../../components/mindtree/NodeCard'
 import { isMenuKey } from '../../components/mindtree/NodeMenu'
 import { t } from '../../lib/i18n'
+import { entityIdOf } from '../../lib/mapNodes'
 import { canEditEntry } from '../../lib/permissions'
 import { WHY_GONE, WHY_NOT_YOURS, WHY_SIGNED_OUT } from '../../lib/mindtree/actions'
 import { isStructuralKind } from '../../lib/mindtree/focus'
@@ -209,18 +210,35 @@ export interface MapKeyboardOptions {
   toggleFold: (id: string) => void
   focusBranch: (nodeId: string | null) => void
   /**
-   * TREE DRAWING: a tap on a branch OPENS IT, it does not fly to it.
+   * TREE DRAWING: a tap OPENS what it is on, and never flies to it.
    *
    * On the containment drawing a branch is a world you go inside, so a tap
    * means "take me in" and the camera is the whole verb. A tidy tree has no
    * inside — the children are already on the page, or they are folded away —
-   * so the same tap has to mean "show me these", and the only thing that can
-   * answer is the fold.
+   * so the camera is never the answer here. Getting that wrong is what makes a
+   * tree feel dead: every tap moves the camera, nothing under the finger
+   * changes, and the drawing reads as a picture of a tree rather than a tree.
    *
-   * Getting this wrong is what makes a tree feel dead: every tap moves the
-   * camera, nothing under the finger changes, and the drawing reads as a
-   * picture of a tree rather than a tree. Leaves are unaffected — they still
-   * open the panel, and the camera still does not move for them.
+   * ⚠ WHAT "OPEN" MEANS IS NOT THE SAME FOR EVERY NODE, and this flag used to
+   *   claim it was — "a branch with children folds", full stop. That sentence
+   *   cost the map its side panel. Every organization has children (its status
+   *   buckets, its rows), so the fold arm swallowed all 161 of them and the
+   *   `dive.details` arm below it was dead code for anything but a childless
+   *   organization. The panel was reachable only through the node menu, which
+   *   `actions.ts` wrote down as a fact rather than as the defect it was.
+   *
+   * SO THE TAP READS THE NODE'S STRUCTURE, in `activate`, which carries the
+   * argument in full:
+   *
+   *   a DEPARTMENT (structure under it)      folds and unfolds. The children are
+   *                                          what the reader came for and the
+   *                                          fold is the only thing that can put
+   *                                          them on screen.
+   *   an ORGANIZATION (content under it)     opens its details panel, and the
+   *                                          camera does not move by one unit.
+   *   a group, bucket, cohort, "+N more"     folds. There is nothing behind it
+   *                                          for a panel to describe.
+   *   a leaf                                 unchanged — its panel, no camera.
    */
   foldOnActivate?: boolean
   openMenuFor: (pos: PositionedNode<MindNodeModel>, at?: { x: number; y: number }) => void
@@ -460,15 +478,109 @@ export function useMapKeyboard({
       // construction). Naming the kind here costs one comparison and makes the
       // one path that could send `manager:<uuid>` at a uuid column impossible
       // rather than merely unreachable.
-      // THE TREE'S TAP. Before the dive, because on a tree the dive is the
-      // wrong answer to this gesture — see `foldOnActivate`. A branch with
-      // children folds; everything else falls through unchanged, so a leaf
-      // still opens its panel and the camera still holds still for it.
+      // THE TREE'S TAP. Before the dive, because on a tidy tree the FLY is the
+      // wrong answer to this gesture — see `foldOnActivate`. What it chooses
+      // between is not fly-or-fold but DETAILS-or-fold, and the test is whether
+      // the node is a thing or a container of things.
       //
-      // No announcement is made here on purpose: `aria-expanded` on the node
-      // changes with the fold and IS the announcement. A `setLive` beside it
-      // would say the same thing twice to a screen reader.
+      // ⚠ THIS ARM USED TO FOLD EVERY BRANCH AND RETURN, WHICH MADE THE PANEL
+      //   UNREACHABLE BY TAP. Every organization has children — its status
+      //   buckets, its rows — so `node.children.length > 0` was true of all 161
+      //   of them, and the `dive.details` arm below could only ever be reached
+      //   by an organization with nothing filed under it at all. The owner
+      //   reported it as "tapping an org does nothing but collapse it";
+      //   `actions.ts` recorded the consequence rather than the cause, adding
+      //   "Open its details" to the node menu and calling the menu "the ONLY
+      //   route to this panel for a branch with children". docs/MAP-ZOOM.md had
+      //   specified this gesture from the start and called it "zero new wiring",
+      //   which was true — the panel, its subject and its announcement were all
+      //   already built, and a `return` three lines above them was the whole bug.
+      //
+      // THE TEST IS `entityIdOf` AND `isDiveTarget` TOGETHER — two facts about
+      // the node's structure, and no kind name between them.
+      //
+      //   `entityIdOf(node) !== null`   there is a `map_nodes` row behind this
+      //                                 card, so there ARE details to show: a
+      //                                 stage, goals, the delegation cockpit,
+      //                                 the capability table. A group, a status
+      //                                 bucket, a cohort and a "+N more" all
+      //                                 answer null by construction — a cohort's
+      //                                 key is synthetic — so a tap on one has
+      //                                 nothing to open and keeps the fold.
+      //   `!isDiveTarget(node)`         and its children are CONTENT, not more
+      //                                 structure. This is the half that keeps
+      //                                 the tree navigable, and it is not a
+      //                                 concession: a DEPARTMENT's children are
+      //                                 the organizations the reader came for,
+      //                                 the tidy tree draws them in place, and
+      //                                 the only gesture that can put them on
+      //                                 the screen is the fold. `openDepthFor`
+      //                                 now opens one rung shallower for
+      //                                 exactly that reason (useMapModel.ts), so
+      //                                 the opening frame IS a row of closed
+      //                                 departments — take the tap away from
+      //                                 them and the map has no way in at all.
+      //                                 Their own details stay one row away, on
+      //                                 the node menu's "Open its details",
+      //                                 which is where actions.ts put them.
+      //
+      // So the one node whose tap CHANGES is the organization: an entity whose
+      // children are its own status buckets. It loses nothing a reader can see —
+      // the panel it now opens describes those buckets better than hiding them
+      // does — and it gains the gesture the whole camera design was written
+      // around. Folding it back is the arrow keys (Left, the APG walk) or the
+      // node menu, by right-click, by long press on touch (DragLayer's
+      // `menuHold`) or by Shift+F10.
+      //
+      // THE SENTENCE IS THE PANEL'S OWN TITLE. `Mindtree.tsx` titles a panel
+      // with `panelOrg` exactly when `isDiveTarget` is false, which is exactly
+      // the case that reaches this line, so the announcement and the heading
+      // cannot drift into describing one act two ways. No announcement is made
+      // for the FOLD, on purpose: `aria-expanded` on the node changes with it
+      // and IS the announcement.
+      //
+      // WITH NO CAMERA WIRED THERE IS NO PANEL TO OPEN, so the fold is still the
+      // best a tap can do — which keeps this hook's promise that `dive` absent
+      // means every gesture behaves exactly as it did before the camera.
       if (foldOnActivate && node.children.length > 0) {
+        const entity = entityIdOf(node) !== null && dive !== undefined
+        // AN ORGANIZATION'S TAP IS THE PANEL AND NOTHING ELSE — the camera does
+        // not move and the buckets under it stay where they are, because the
+        // panel describes them better than unfolding them does.
+        if (entity && !isDiveTarget(node)) {
+          dive.details(node.id)
+          setLive(t('mindtree.panelOrg', { label: textOf(node.label) }))
+          return
+        }
+        // A DEPARTMENT'S TAP IS BOTH, and the "both" is the point.
+        //
+        // ⚠ IT USED TO BE THE FOLD ALONE, and the owner's sentence was "if i
+        //   clicked ANY cell in the map, a side opens with details of that
+        //   cell". Six of the seven cards on the opening frame are departments,
+        //   so "any cell" was false for almost every cell a reader meets first.
+        //
+        // The obvious repair — give the department the panel instead of the
+        // fold — is the wrong one, and the paragraph above says why: the tidy
+        // tree draws a department's children in place, the chevron measures
+        // about 3px at map scale, and the tap is the only gesture that can put
+        // the organizations on the screen. Taking it away leaves the map with
+        // no way in.
+        //
+        // They do not compete. The fold answers "show me what is inside",
+        // the panel answers "and what IS this thing" — one is the canvas, the
+        // other is the card at the side, and neither moves the camera. So the
+        // tap does both and the announcement names the one a reader cannot see
+        // for themselves: `aria-expanded` already speaks the fold, `panelBranch`
+        // speaks the panel.
+        if (entity) {
+          toggleFold(node.id)
+          dive.details(node.id)
+          setLive(t('mindtree.panelBranch', { label: textOf(node.label) }))
+          return
+        }
+        // A GROUP, A STATUS BUCKET, A COHORT, A "+N MORE" — no `map_nodes` row
+        // behind the card, so there is nothing to open and the fold is the whole
+        // gesture, exactly as before.
         toggleFold(node.id)
         return
       }

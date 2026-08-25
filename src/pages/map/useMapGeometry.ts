@@ -50,6 +50,41 @@
 // <svg> resamples text and moves hit-testing away from where the marks appear
 // at fractional scales.
 //
+// ── WHO IS ALLOWED TO CALL setState, AND WHEN ──────────────────────────────
+//
+// Three of the four gestures move the camera by ARITHMETIC ON AN ATTRIBUTE and
+// tell React once, at rest. That split is not an optimisation looking for a
+// place to happen; it is a consequence of what each gesture changes:
+//
+//     gesture          changes            React must see it
+//     ─────────────────────────────────────────────────────────────────
+//     pan (drag)       cx, cy             at rest       ← paintCamera
+//     pan (trackpad)   cx, cy             at rest       ← paintCamera
+//     throw            cx, cy             at rest       ← paintCamera
+//     zoom / pinch     width  → scale     every event   ← writeCamera
+//
+// `scale = box.width / camera.width` is what `lod.ts` bands every label, chip
+// and card against, so a ZOOM that React cannot see would draw the map at one
+// magnification and letter it for another. A PAN changes no scale, nothing
+// downstream of it needs re-deriving, and the `setState` it used to raise
+// re-rendered 161 `MindNode`s per pointer move to move four numbers in one
+// attribute. `docs/MAP-EVIDENCE.md` §3 predicted precisely that — "This is most
+// of what 'not smooth' actually is" — and it is the only one of that document's
+// five recommendations that was never built.
+//
+// The rule the split has to keep is the one `mapMotion.test.ts` guards: what is
+// painted imperatively and what React renders for the settled state must be the
+// SAME BYTES, or React sees no changed prop, writes nothing, and the map sticks.
+// `commitPainted` carries the argument for how a pan earns that without having a
+// destination to land on.
+//
+// ── AND THE THIRD GESTURE IS NEW ───────────────────────────────────────────
+//
+// A drag used to stop dead on release. `startGlide` gives it momentum, with the
+// physics in `mapMotion` (`beginPanGlide` / `samplePanGlide`) so that all of it
+// except the rAF is pure and tested. A reader who asked for reduced motion gets
+// no glide at all — not a shorter one.
+//
 // ── AND THE ANCHOR IS THE BUG FIX ──────────────────────────────────────────
 //
 // The three gesture sites in this file used to resolve `pan === null` to the
@@ -66,6 +101,7 @@ import { fitToViewBox, type ViewBoxFit } from '../../lib/mindtree/layout'
 import {
   anchoredZoom,
   beginCameraTween,
+  beginPanGlide,
   clampCamera,
   frameBox,
   // The pure "centre this box, keep the reader's zoom" solver, aliased because
@@ -76,13 +112,18 @@ import {
   retargetCameraTween,
   rubberBandCamera,
   sampleCamera,
+  samplePanGlide,
   viewBoxOf,
+  wheelIntent,
+  wheelPixels,
   wheelRatio,
   type Camera,
   type CameraBounds,
   type CameraTween,
   type MotionBox,
   type Occlusion,
+  type PanGlide,
+  type PanSample,
 } from './mapMotion'
 import { useBoxSize, type Box } from './useMapViewport'
 
@@ -98,6 +139,20 @@ const DRAG_SLOP = 4
  * the recoil still reads as part of the same motion.
  */
 const WHEEL_SETTLE_MS = 220
+
+/**
+ * How many pointer positions the pan keeps, for the throw to measure itself
+ * against.
+ *
+ * 8, and the number is a consequence rather than a choice: `panVelocity` looks
+ * back `FLING_WINDOW_MS` (80ms), a 120Hz trackpad delivers a move about every
+ * 8ms, and 80/8 is ten — so eight is one frame short of covering the window on
+ * the fastest hardware sold, and a ninth entry would buy a millisecond of a
+ * chord that is already averaged over five frames on a 60Hz screen. The buffer
+ * is bounded because it is written on EVERY pointer move: an unbounded array
+ * over a thirty-second drag is thousands of objects the velocity never reads.
+ */
+const FLING_SAMPLES = 8
 
 /** Nothing is covering the stage. The RESTING camera always frames with this. */
 const NO_OCCLUSION: Occlusion = { inlineEnd: 0, blockEnd: 0 }
@@ -220,8 +275,13 @@ export interface MapGeometryOptions<L extends CameraLayout> {
   occludeBlockEnd: number
   /**
    * The reader asked for less motion. PROGRAMMATIC moves become instant; the
-   * wheel and the pinch stay continuous, because direct manipulation is the
-   * reader's own hand rather than motion the app inflicted.
+   * wheel, the pinch and the drag stay continuous, because direct manipulation
+   * is the reader's own hand rather than motion the app inflicted.
+   *
+   * ⚠ THE THROW IS ON THE PROGRAMMATIC SIDE OF THAT LINE, and the placement is
+   *   the whole point of naming it: a glide happens AFTER the hand has left the
+   *   glass, so it is motion the app chose, not the reader. `startGlide` is
+   *   therefore skipped entirely under this flag rather than shortened.
    *
    * An ARGUMENT, not a `matchMedia` read — `PulseLayer.useReducedMotion` is the
    * one subscription and the shell threads it, which is what keeps the rule
@@ -419,31 +479,121 @@ export function useMapGeometry<L extends CameraLayout>({
 
   const liveCamera = useCallback((): Camera => paintedRef.current ?? cameraRef.current, [])
 
+  /* ── painting behind React's back, and settling up afterwards ───────────── */
+
+  /**
+   * WRITE THE viewBox STRAIGHT ONTO THE ELEMENT, WITHOUT TELLING REACT.
+   *
+   * ── THE DEFECT THIS EXISTS TO KILL ─────────────────────────────────────────
+   *
+   * `onPointerMove` called `writeCamera`, which calls `setState`, so every
+   * pointer move during a pan re-rendered the page: 161 `MindNode`s, the crumb
+   * bar, the whole camera context. At a trackpad's move rate that is a re-render
+   * every few milliseconds to change four numbers in one attribute, and the map
+   * dropped frames on a gesture that should be the cheapest thing it does.
+   * `docs/MAP-EVIDENCE.md` §3 named it in advance — "Write `viewBox` directly in
+   * the pointermove handler … This is most of what 'not smooth' actually is" —
+   * and it was the one recommendation of the five that never got built. Only the
+   * TWEEN wrote imperatively.
+   *
+   * ── AND WHY THIS IS NOT A SECOND WAY TO MOVE THE CAMERA ────────────────────
+   *
+   * It is the tween loop's own two lines, lifted out and named: the same
+   * `rubberBandCamera` `writeCamera` applies, the same `viewBoxOf` formatter the
+   * loop writes through, the same `paintedRef` that makes `liveCamera()` answer
+   * with what is ON SCREEN rather than with what React last rendered. There is
+   * still exactly one formatter and exactly one place the attribute is written
+   * from arithmetic.
+   *
+   * ⚠ ONLY EVER FOR A PURE PAN — a translation, never a change of `width`.
+   *   `scale` is `box.width / camera.width`, and `lod.ts` bands every label and
+   *   chip against it, so a zoom that did not reach React would leave the map
+   *   drawn at one magnification and lettered for another. A pan cannot: the LOD
+   *   is identical at both ends of it, which is exactly why the re-render it was
+   *   paying for bought nothing.
+   */
+  const paintCamera = useCallback(
+    (next: Camera): Camera => {
+      const drawn = rubberBandCamera(next, boundsRef.current)
+      paintedRef.current = drawn
+      // `cameraRef` too, for `writeCamera`'s own reason: a handler that reads the
+      // camera again in the same task — the wheel, a second pointer landing —
+      // must see where the map actually is, and React has not re-rendered.
+      cameraRef.current = drawn
+      svgRef.current?.setAttribute('viewBox', viewBoxOf(drawn))
+      return drawn
+    },
+    [svgRef],
+  )
+
+  /**
+   * TELL REACT WHERE THE ELEMENT ALREADY IS — the ONE `setState` a whole gesture
+   * costs, raised when the gesture is over.
+   *
+   * ── HOW THE BYTE-IDENTITY INVARIANT SURVIVED THE CHANGE ────────────────────
+   *
+   * `mapMotion.test.ts` holds a rule this file cannot be allowed to break: the
+   * last value written imperatively must be byte-identical to the string React
+   * renders for the settled state, because React only writes an attribute when
+   * the PROP changed between renders — so a loop that left a value React does
+   * not believe needs correcting leaves the map stuck there. The tween earns it
+   * by ending exactly on `to` and formatting through `viewBoxOf`. A pan has no
+   * `to` to end on, so it earns it a second way:
+   *
+   *   · The value committed here is the EXACT object `paintCamera` last drew,
+   *     rubber-banded, not the raw gesture arithmetic recomputed — so state and
+   *     attribute cannot disagree by a float.
+   *   · React renders `viewBoxOf(camera)`, and `camera` is the aspect memo over
+   *     the stored value: `height = width · box.height / box.width`. That memo is
+   *     IDEMPOTENT ON ITS OWN OUTPUT — feeding it a height it just computed
+   *     returns the same height and the same object — and every camera reaching
+   *     `paintCamera` came from `liveCamera()`, which is the memo's output. A pan
+   *     changes only `cx`/`cy`, so the height passes through untouched and the
+   *     memo has nothing to correct.
+   *
+   * So `viewBoxOf(committed) === viewBoxOf(painted)`, character for character,
+   * and the one thing React does write on the commit is the string that is
+   * already on the element.
+   */
+  const commitPainted = useCallback(() => {
+    const painted = paintedRef.current
+    paintedRef.current = null
+    if (painted === null) return
+    cameraRef.current = painted
+    setState((prev) => (prev.camera === painted ? prev : { ...prev, camera: painted, provisional: false }))
+  }, [])
+
   /* ── the frame loop, and it is the only part that cannot be tested ──────── */
 
   const tweenRef = useRef<CameraTween | null>(null)
   const rafRef = useRef<number | null>(null)
   const springRef = useRef<number | null>(null)
+  /** The throw in flight, and the camera it was released from. */
+  const glideRef = useRef<{ glide: PanGlide; from: Camera } | null>(null)
 
-  /** Drop the tween WHERE IT STANDS. The reader has taken the camera back. */
+  /**
+   * DROP EVERY IMPERATIVE MOTION WHERE IT STANDS, and tell React where that is.
+   * The reader has taken the camera back and the app has no business arguing.
+   *
+   * ⚠ IT NO LONGER RETURNS EARLY WHEN THERE IS NO TWEEN, and that is a fix
+   *   rather than tidying. It used to bail on `tweenRef.current === null` before
+   *   it reached `paintedRef`, which was safe only while the tween was the ONLY
+   *   thing that painted imperatively. A pan and a throw paint too, so a press
+   *   landing mid-throw would have hit the early return and left the thrown
+   *   position painted on the element and absent from React — the two out of
+   *   sync, which is the precise state the byte-identity invariant exists to
+   *   forbid. Committing unconditionally costs nothing: `commitPainted` is a
+   *   no-op when nothing was painted.
+   */
   const dropTween = useCallback(() => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
-    if (tweenRef.current === null) return
     tweenRef.current = null
-    const painted = paintedRef.current
-    paintedRef.current = null
-    if (painted === null) return
-    // `cameraRef` too, and not only the state: a gesture that drops a tween
-    // reads the camera again in the SAME event — `onPointerDown` takes its pan
-    // origin from it — and React has not re-rendered yet. Without this the
-    // gesture would start from wherever the camera was before the fly, and the
-    // map would jump by the whole distance the tween had covered.
-    cameraRef.current = painted
-    setState((prev) => ({ ...prev, camera: painted, provisional: false }))
-  }, [])
+    glideRef.current = null
+    commitPainted()
+  }, [commitPainted])
 
   /**
    * Move the camera by ARITHMETIC ON A FRAME LOOP, because `viewBox` is an SVG
@@ -462,6 +612,13 @@ export function useMapGeometry<L extends CameraLayout>({
         window.clearTimeout(springRef.current)
         springRef.current = null
       }
+      // A PROGRAMMATIC MOVE OUTRANKS A THROW. Both drive `rafRef` and both write
+      // the same attribute, so leaving the glide live would put two loops on one
+      // `viewBox` — the stutter that looks like dropped frames and is not. The
+      // glide's painted position is NOT discarded with it: `liveCamera()` still
+      // reads `paintedRef`, so the fly bends out of wherever the throw had got
+      // to, which is the same contract a second fly gets.
+      glideRef.current = null
       const now = performance.now()
       const active = tweenRef.current
       const options = { reducedMotion: reducedRef.current, durationMs }
@@ -704,7 +861,19 @@ export function useMapGeometry<L extends CameraLayout>({
   /* ── the wheel ──────────────────────────────────────────────────────────── */
 
   /**
-   * WHEEL IS ALWAYS ZOOM, anchored under the cursor.
+   * A WHEEL ZOOMS, EXCEPT WHEN IT IS A TRACKPAD SWIPE, IN WHICH CASE IT PANS.
+   *
+   * ── WHAT THIS COMMENT USED TO SAY, AND WHY IT WAS WRONG ────────────────────
+   *
+   * "WHEEL IS ALWAYS ZOOM." That is right for a mouse and wrong for the laptop
+   * this app is actually worked on: on a Mac trackpad a two-finger swipe is a PAN
+   * GESTURE that the platform can only deliver through the wheel event, and it
+   * says so by carrying a meaningful `deltaX`. Under the old rule that swipe
+   * changed the magnification — sideways finger travel resizing the map — which
+   * is the loudest single item in "feels like it's full of bugs and glitches".
+   * `wheelIntent` carries the whole classification argument and is unit tested
+   * against real event shapes; the safe direction is zoom, because zoom is what
+   * this map already did.
    *
    * `preventDefault` is not politeness: the stage does not scroll, and on macOS
    * a trackpad pinch arrives as `ctrl+wheel`, where the default action is to
@@ -712,13 +881,51 @@ export function useMapGeometry<L extends CameraLayout>({
    * below rather than as a React prop — React's root listeners are passive and a
    * passive listener may not call `preventDefault`.
    *
-   * No accumulator, no throttle, no rAF batching. Each event writes state
-   * directly and React's own batching is the only smoothing needed, because
-   * nothing downstream of the camera is recomputed.
+   * ── THE TWO PATHS COST DIFFERENT AMOUNTS, AND THE REASON IS THE LOD ────────
+   *
+   * The ZOOM path writes state on every event, as it always has: `scale` changes,
+   * and `lod.ts` bands every label and chip against `scale`, so a zoom React
+   * cannot see would draw the map at one magnification and letter it for another.
+   * React's own batching is the only smoothing it needs.
+   *
+   * The PAN path paints the attribute directly and commits once when the events
+   * stop — the same trade `onPointerMove` makes, for the same reason: a
+   * translation changes no scale, so re-deriving anything downstream of it buys
+   * nothing. The settle timer already existed for the spring; it now also carries
+   * the commit, so the whole swipe costs ONE render however many events it was.
    */
   const onWheel = useCallback(
     (event: WheelEvent) => {
       event.preventDefault()
+
+      if (wheelIntent(event) === 'pan') {
+        // A swipe takes the camera back from a fly or a throw exactly as a finger
+        // would. Guarded rather than unconditional so the second and subsequent
+        // events of one swipe do not each raise `commitPainted`'s `setState`,
+        // which would hand back the per-event render this path exists to avoid.
+        if (tweenRef.current !== null || glideRef.current !== null) dropTween()
+        const travel = wheelPixels(event)
+        const at = liveCamera()
+        const stage = boxRef.current
+        // POSITIVE deltaY MEANS "SCROLL DOWN", so the window moves down the
+        // drawing and the content appears to move up — the same sign a document
+        // gets, which is what makes a Mac's natural scrolling track the fingers.
+        // The drag's sign is the opposite because a drag moves the PICTURE and a
+        // scroll moves the WINDOW; both are what their own gesture means.
+        paintCamera({
+          ...at,
+          cx: at.cx + (travel.x * at.width) / Math.max(1, stage.width),
+          cy: at.cy + (travel.y * at.height) / Math.max(1, stage.height),
+        })
+        if (springRef.current !== null) window.clearTimeout(springRef.current)
+        springRef.current = window.setTimeout(() => {
+          springRef.current = null
+          commitPainted()
+          springBack()
+        }, WHEEL_SETTLE_MS)
+        return
+      }
+
       dropTween()
       const anchor = toDrawing(event.clientX, event.clientY)
       writeCamera(anchoredZoom(liveCamera(), anchor, wheelRatio(event)))
@@ -728,7 +935,7 @@ export function useMapGeometry<L extends CameraLayout>({
         springBack()
       }, WHEEL_SETTLE_MS)
     },
-    [dropTween, liveCamera, springBack, toDrawing, writeCamera],
+    [commitPainted, dropTween, liveCamera, paintCamera, springBack, toDrawing, writeCamera],
   )
 
   const onWheelRef = useRef(onWheel)
@@ -769,6 +976,8 @@ export function useMapGeometry<L extends CameraLayout>({
 
   /** Set while a pan is in flight, so the click that ends it is not a tap. */
   const draggedRef = useRef(false)
+  /** The last few pointer positions, for the throw to take its speed from. */
+  const panSamplesRef = useRef<PanSample[]>([])
   const pointersRef = useRef(new Map<number, { x: number; y: number }>())
   const panStartRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null)
   const pinchRef = useRef<{
@@ -793,6 +1002,83 @@ export function useMapGeometry<L extends CameraLayout>({
   )
 
   /**
+   * THE MAP KEEPS GOING WHEN THE FINGER LETS GO — inertial pan.
+   *
+   * ── WHY THERE WAS NOTHING HERE, AND WHY THAT READ AS A BUG ─────────────────
+   *
+   * A drag used to stop dead on `pointerup`. Every touch surface a reader has
+   * ever used carries momentum, so a map that does not feels less like a
+   * deliberate choice and more like the app dropped the gesture — which is
+   * exactly the vocabulary the owner reached for ("full of bugs and glitches")
+   * for a screen with no functional defect in it at all.
+   *
+   * ── THE PHYSICS IS IN mapMotion, AND ONLY THE LOOP IS HERE ─────────────────
+   *
+   * `beginPanGlide` decides whether the release was a throw, `samplePanGlide`
+   * says how far it has travelled at an instant, and both are pure and unit
+   * tested with a fake clock. What is left here is a rAF and a conversion — nine
+   * lines, and the only part a browser is needed to run.
+   *
+   * ⚠ `reducedMotion` SKIPS IT ENTIRELY, and the check is inside
+   *   `beginPanGlide` rather than here so the rule is a property of a pure
+   *   function. mapMotion's stated rule is that reduced motion makes a move
+   *   INSTANT rather than shorter; a throw has no destination to be instantly
+   *   at, so its instant form is the camera staying exactly where the finger
+   *   left it, and `beginPanGlide` answers `null`.
+   *
+   * ── AND EVERY FRAME GOES THROUGH THE DRAG'S OWN CLAMP ──────────────────────
+   *
+   * `paintCamera` rubber-bands against `boundsRef` exactly as `writeCamera`
+   * does, so the throw cannot reach a camera the drag could not. Honestly: today
+   * that is a NO-OP for a throw, because `CameraBounds` constrains WIDTH and a
+   * pan does not change width — there is no positional bound on this map to
+   * fling past. It is written this way regardless so the glide is not the one
+   * write in the file that bypasses the clamp, and so a positional bound, if one
+   * is ever added, is obeyed by the throw for free rather than by a second edit
+   * somebody has to remember.
+   */
+  const startGlide = useCallback(
+    (now: number) => {
+      const samples = panSamplesRef.current
+      panSamplesRef.current = []
+      const glide = beginPanGlide(samples, now, { reducedMotion: reducedRef.current })
+      if (glide === null) return
+      const from = liveCamera()
+      glideRef.current = { glide, from }
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+
+      const tick = (): void => {
+        rafRef.current = null
+        const live = glideRef.current
+        if (live === null) return
+        const { dx, dy, done } = samplePanGlide(live.glide, performance.now())
+        const width = Math.max(1, boxRef.current.width)
+        const height = Math.max(1, boxRef.current.height)
+        // The drag's own sign and the drag's own conversion: the picture follows
+        // the travel, so the camera moves AGAINST it. Absolute from the release
+        // rather than a sum of per-frame deltas, for the reason `onPointerMove`
+        // states about the press.
+        paintCamera({
+          ...live.from,
+          cx: live.from.cx - (dx * live.from.width) / width,
+          cy: live.from.cy - (dy * live.from.height) / height,
+        })
+        if (!done) {
+          rafRef.current = requestAnimationFrame(tick)
+          return
+        }
+        glideRef.current = null
+        // THE SECOND OF THE GESTURE'S TWO `setState`s, and the last: one on
+        // release so React knows where the throw began, one here so it knows
+        // where it ended.
+        commitPainted()
+      }
+      tick()
+    },
+    [commitPainted, liveCamera, paintCamera],
+  )
+
+  /**
    * Drop the page's own pan gesture, because the drag has taken it over.
    *
    * Only ever called for a TOUCH lift: a finger is allowed to pan the map from a
@@ -803,6 +1089,11 @@ export function useMapGeometry<L extends CameraLayout>({
     panStartRef.current = null
     pinchRef.current = null
     pointersRef.current.clear()
+    // AND THE SAMPLES, so the node drag that just claimed this press cannot be
+    // followed by a throw when the finger lifts. The reader was moving a node,
+    // not the map, and a map that glided away underneath the drop would be the
+    // worst possible moment for momentum.
+    panSamplesRef.current = []
     svgRef.current?.removeAttribute('data-panning')
   }, [svgRef])
 
@@ -815,6 +1106,10 @@ export function useMapGeometry<L extends CameraLayout>({
       dropTween()
       pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
       draggedRef.current = false
+      // A NEW PRESS MEASURES A NEW THROW. Left over, the previous gesture's tail
+      // would be averaged into this one's release and the map would fly off a
+      // tap that happened to follow a flick.
+      panSamplesRef.current = []
       if (pointersRef.current.size === 1) {
         const at = liveCamera()
         panStartRef.current = { x: event.clientX, y: event.clientY, cx: at.cx, cy: at.cy }
@@ -877,7 +1172,8 @@ export function useMapGeometry<L extends CameraLayout>({
       }
 
       const start = panStartRef.current
-      if (start === null || box.width <= 0 || box.height <= 0) return
+      const stage = boxRef.current
+      if (start === null || stage.width <= 0 || stage.height <= 0) return
       const dx = event.clientX - start.x
       const dy = event.clientY - start.y
       if (!draggedRef.current && Math.hypot(dx, dy) < DRAG_SLOP) return
@@ -887,6 +1183,14 @@ export function useMapGeometry<L extends CameraLayout>({
       // the map to change a CSS cursor.
       draggedRef.current = true
       svgRef.current?.setAttribute('data-panning', '')
+
+      // THE RELEASE'S EVIDENCE, collected while the finger is still down because
+      // `pointerup` carries a position and no history. Bounded at
+      // `FLING_SAMPLES` — this runs on every move of every drag.
+      const samples = panSamplesRef.current
+      samples.push({ x: event.clientX, y: event.clientY, t: performance.now() })
+      if (samples.length > FLING_SAMPLES) samples.splice(0, samples.length - FLING_SAMPLES)
+
       // Pixels → drawing units. The drawing's x axis is NOT mirrored by `dir`
       // (SVG coordinates never are — the layout module mirrored the geometry
       // instead), so this arithmetic is identical in both directions.
@@ -894,13 +1198,26 @@ export function useMapGeometry<L extends CameraLayout>({
       // ABSOLUTE FROM THE PRESS, not a sum of deltas: `start.cx` was captured
       // when the finger landed, so a dropped move event costs nothing and float
       // error cannot accumulate over a drag.
-      writeCamera({
-        ...liveCamera(),
-        cx: start.cx - (dx * viewWidth) / box.width,
-        cy: start.cy - (dy * viewHeight) / box.height,
+      //
+      // ⚠ `paintCamera`, NOT `writeCamera` — THIS IS THE FIX. `writeCamera`
+      //   raises a `setState`, so this handler used to re-render 161 `MindNode`s
+      //   plus the whole chrome once per pointer move to change four numbers in
+      //   one attribute. See `paintCamera`'s header, and `endPointer` for the
+      //   single `setState` that settles up on release.
+      //
+      // The camera's own SIZE comes from `liveCamera()` rather than from the
+      // rendered `viewWidth`/`viewHeight`, which is what lets this handler keep
+      // one identity for the life of the screen: during a pan React's copy is
+      // deliberately stale, so reading the rendered pair would have been reading
+      // the one value that is now guaranteed out of date.
+      const at = liveCamera()
+      paintCamera({
+        ...at,
+        cx: start.cx - (dx * at.width) / stage.width,
+        cy: start.cy - (dy * at.height) / stage.height,
       })
     },
-    [box, liveCamera, viewWidth, viewHeight, svgRef, writeCamera],
+    [liveCamera, paintCamera, svgRef, writeCamera],
   )
 
   const endPointer = useCallback(
@@ -914,8 +1231,25 @@ export function useMapGeometry<L extends CameraLayout>({
         springBack()
       }
       if (pointersRef.current.size === 0) {
+        const panned = panStartRef.current !== null && draggedRef.current
         panStartRef.current = null
         svgRef.current?.removeAttribute('data-panning')
+        if (panned) {
+          // ONE `setState` FOR THE WHOLE DRAG, HERE, and it is the other half of
+          // the fix in `onPointerMove`. React and the DOM have disagreed for the
+          // length of the gesture — deliberately, since nothing downstream of a
+          // pure pan needed re-deriving — and this is where they are made to
+          // agree again, at rest, with the exact camera the element is showing.
+          //
+          // BEFORE the throw rather than after, so the two are independent: a
+          // release that is not a throw (a placement, a reader who asked for
+          // reduced motion) still leaves React holding the right camera, and a
+          // throw that IS started simply carries on from the value just
+          // committed.
+          commitPainted()
+          startGlide(performance.now())
+        }
+        panSamplesRef.current = []
         // Cleared on the next frame, not now: the synthetic click that follows a
         // pointerup fires after this handler, and clearing it here would let a
         // drag that ended over a node open that node's entry.
@@ -924,7 +1258,7 @@ export function useMapGeometry<L extends CameraLayout>({
         }, 0)
       }
     },
-    [springBack, svgRef],
+    [commitPainted, springBack, startGlide, svgRef],
   )
 
   return {

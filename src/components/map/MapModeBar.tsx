@@ -166,13 +166,18 @@ export default function MapModeBar({
             drag-free, low-motion reading of the whole tree was left behind a
             hand-typed URL.
 
-            It matters more now than it did then, and more again since: the
-            ledger is the DEFAULT AT EVERY WIDTH (useMapLens.stageForReader —
-            it was phones only until the owner said a second time that the
-            picture is in the way). This button is now the ONLY way to the
-            picture for any reader on any device, and pressing it pins the
-            choice for good. Without it the tidy tree would be unreachable
-            except by a hand-typed `?stage=map`. */}
+            It matters more now than it did then: the ledger is the DEFAULT ON A
+            PHONE (useMapLens.stageForReader), so on the device the owner calls
+            primary this button is the ONLY way to the picture, and pressing it
+            pins the choice for good. Without it the tidy tree would be
+            unreachable there except by a hand-typed `?stage=map`.
+
+            IT WAS THE ONLY WAY ON EVERY DEVICE for two days, while the ledger
+            was the opening at every width. That default has been reverted — a
+            first paint nobody could read was answered by deleting the picture
+            instead of by opening it one rung shallower — and the button is back
+            to being what it was built to be: the way to the OTHER reading,
+            whichever one you started on. */}
       <button
         type="button"
         className="mmode-item btn btn-sm btn-ghost tap-44"

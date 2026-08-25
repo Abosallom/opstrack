@@ -305,9 +305,11 @@ describe('the phone gets the verbs the drag cannot offer it', () => {
   })
 
   it('stamps the click the hold is about to synthesise, so the branch does not fold', () => {
-    // `foldOnActivate` makes a tap on a branch FOLD it, and the pointerup that
-    // ends this hold synthesises exactly that tap. Without the stamp the menu
-    // opens and the branch collapses underneath it one frame later.
+    // `foldOnActivate` makes a tap on a branch that holds more branches FOLD
+    // it, and the pointerup that ends this hold synthesises exactly that tap.
+    // Without the stamp the menu opens and the branch collapses underneath it
+    // one frame later — or, on an organization, the details panel opens behind
+    // the menu, which is the same defect wearing the new gesture.
     const layer = dragLayer()
     const timer = layer.indexOf('const held = menuHoldRef.current')
     expect(timer).toBeGreaterThan(-1)
