@@ -1915,6 +1915,32 @@ scaffolding, and scaffolding comes down after the building stands.
 
 ---
 
+### 13.7 Four more, 26 August
+
+**Departments stay as they are.** They were derived from Jira's routing column and they are not a
+delivery structure, but they are roughly right and grouping is switchable anyway. What gets fixed
+is the Onboarding delivery tab, which currently lists them **as if they were hospitals** —
+*"Onboarding — No capability has been recorded against this organization yet — 260 items open"*.
+Onboarding is a department. That is a defect, not a design.
+
+**The hospital-level stage is DERIVED, never typed.** A hospital's headline reads off its eleven
+records — all at PROD means live, any in flight means in progress — and it is **never reported as
+a separate fact beside the use-case numbers**. §3.5 measured why: for 161 of 161 organizations the
+old stage was already exactly computable from the cells beside it, so printing both told a
+steering committee one fact twice and sounded like corroboration.
+
+**A twelfth use case is decided case by case.** Whoever adds one says which hospitals it applies
+to, as part of adding it. No default rule — neither "blank for everyone" nor "not applicable for
+everyone" is right in every case, and a rule that is wrong half the time is worse than a question.
+
+**HIS is a data-collection task, not an extraction.** See [`HIS-PROPOSALS.md`](./HIS-PROPOSALS.md).
+⚠ I estimated 60 to 80 hospitals recoverable from strings already held. **The measurement says
+16**, and widening the matcher moved it by one, so that is the finding rather than an artefact:
+the data does not carry the HIS for 142 of 161 hospitals. The head start is small and the field
+gets filled by the OB Account Manager who already owns the hospital.
+
+---
+
 ## Provenance
 
 - **Source of every number:** `/Users/aziz/.claude/jobs/8f812826/tmp/jira-safe.csv` (2,971 rows,
