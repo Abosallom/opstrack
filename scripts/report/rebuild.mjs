@@ -360,7 +360,7 @@ export function toCsv(list) {
   return lines.join('\n') + '\n'
 }
 
-export { CAPABILITIES, capabilityOf, stateOf, rungFor, splitSummary, orgKey }
+export { CAPABILITIES, capabilityOf, stateOf, rungFor, splitSummary, orgKey, cleanOrg }
 
 /* ─────────────────────────────────── cli ───────────────────────────────── */
 
