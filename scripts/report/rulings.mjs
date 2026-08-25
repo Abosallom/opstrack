@@ -65,8 +65,23 @@ for (const r of body) {
   const open = !/^(resolved|closed)$/i.test(String(r[stI] ?? '').trim())
   for (const name of mapOrgs) {
     const k = norm(name)
-    if (k.length < 5) continue
-    if (norm(s).includes(k)) {
+    /*
+     * ⚠ A LENGTH FLOOR PUT TEN REAL HOSPITALS IN SECTION C AS "NO TICKETS".
+     *   `KFMC`, `SGH`, `NMC`, `SFH`, `EHC`, `GNP`, `MMS`, `RCH`, `SMC`, `CMRC`
+     *   normalise to three or four characters, and a bare `.includes` on a
+     *   three-letter string matches inside ordinary words — `tickets.mjs` refuses
+     *   short names for exactly that reason. Refusing them here was safe and
+     *   WRONG: section C is read as "this hospital has no tickets", and for those
+     *   ten it meant "this script would not look".
+     *
+     * The fix is not a lower floor, it is a better match. A short name is
+     * searched WITH WORD BOUNDARIES, so `SGH` matches `SGH` and never `insight`.
+     */
+    if (k.length < 3) continue
+    const hit = k.length < 5
+      ? new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(norm(s))
+      : norm(s).includes(k)
+    if (hit) {
       if (!ticketsFor.has(name)) ticketsFor.set(name, { total: 0, open: 0 })
       const t = ticketsFor.get(name); t.total += 1; if (open) t.open += 1
     }

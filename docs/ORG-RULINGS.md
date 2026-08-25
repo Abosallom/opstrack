@@ -35,6 +35,40 @@ quarantined and were never read). Regenerate rather than hand-edit the counts.
 
 ---
 
+## RULINGS TAKEN — 25 August 2026
+
+Thirteen decisions, all from the owner. `scripts/report/org-merges.mjs` holds them as data and
+computes the arithmetic; nothing has been written to the database yet.
+
+| Cluster | Ruling |
+|---|---|
+| **Aseer** (5 rows, 41 tickets) | **Two, split by system** — `Aseer (Care Ware)` and `Aseer (Vida Plus)`. ⚠ `Aseer` and `Aseer Cluster` name no system and are **pending allocation** between the two. |
+| **Najran** (5 rows, 79 tickets) | **Two** — `Najran Cluster` and `Najran Specialized Hospital`. The `(FHIR)` and `(Vida plus)` suffixes are notes, not entities. |
+| **AlSalama** (3 rows, 45 tickets) | **One** — Murgan and Murjan are one transliteration of ⁧مرجان⁩. |
+| **Jazan** (3 rows, 100 tickets) | **DEFERRED** — the owner is checking whether MCC and MedicaCloud are one vendor. Its rows stay separate meanwhile. |
+| **Section A** (7 clusters) | **Merge all seven.** |
+| **Section B1** (5 pairs) | **Merge all five** — including `Samer Abbas` / `Samir Abbas`, the pair this repository has refused to merge without a person saying so. This is that person saying so. |
+
+**The denominator moves: 161 organizations become 141**, so the grid is **141 × 11 = 1,551**, not
+1,771. If Jazan later merges to one, 1,529.
+
+⚠ **Every row named above exists in `structure.csv`** — checked, 0 missing. A ruling that named a
+row the tracker does not have would be a ruling about nothing.
+
+### And three settled elsewhere
+
+- **V1 versus V2 → default to V1.** History cannot answer it — 52 tickets say V2 and none say V1 —
+  so every migrated medication record starts at V1 and is corrected as an OB Account Manager
+  touches it.
+- **The entry status is `Intake`.**
+- **`NONP` keeps its name.** "Nphies Non prod" is historical: it is the same space, and the code
+  was changed for a period. PROD rungs live here, written down so nobody argues later.
+- **The stage budget is 10 days per rung, uniform** — chosen because it is measurable and because
+  no reasonable duration is known yet. It is a measuring stick, not a prediction: the 43 onboarding
+  tickets that have ever resolved took a median of 43 days for a whole ticket.
+
+---
+
 # Organization identity — the rulings
 
 Measured over 161 tracker organizations and 2971 tickets.
@@ -62,7 +96,7 @@ The ticket count is the CLUSTER's, not each row's.
 - **makkah 2** — 2 rows, 12 tickets, 3 open between them:
     - `Makkah 2 (MCC)`
     - `Makkah Cluster 2 (MCC)`
-- **sfh** — 2 rows, no tickets found between them:
+- **sfh** — 2 rows, 44 tickets, 4 open between them:
     - `SFH`
     - `SFH (Security Force Hospital)`
 
@@ -156,25 +190,8 @@ They are close only by character count and diverge in the first four letters.
     - Rabet: 43 tickets, 8 open
     - Rabia Hospital: 22 tickets, 9 open
 
-## C · Tracker organizations no ticket names (18)
+## C · Tracker organizations no ticket names (1)
 
 Either the hospital is written differently in Jira, or it is not yet in the programme.
 
-- `Aya Hospital`
-- `CMRC`
-- `EHC`
-- `GAMA Hospital`
-- `GNB hospital`
-- `GNP`
-- `Hail Cluster`
-- `HMC Hospital`
-- `KFMC`
-- `MMS`
 - `My Clinic`
-- `NMC`
-- `RCH`
-- `SFH`
-- `SFH (Security Force Hospital)`
-- `SGH`
-- `SMC`
-- `Taif Cluster`

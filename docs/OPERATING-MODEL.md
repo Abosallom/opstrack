@@ -1,12 +1,12 @@
 # OPERATING-MODEL — one ticket per hospital per use case
 
-> ⚠ **READ §10.0 FIRST — three decisions were taken on 25 August 2026 and they move the grid.**
-> The use-case list is **eleven** (Vital Signs is in), so the target universe is **161 × 11 =
-> 1,771**, not 1,449. Every `1,449` and every `773 of 1,449` in the sections below predates that
-> and is superseded. The backlog is **roughly 1,100 pairs** and cannot be stated exactly until the
-> organization-identity rulings in §10.1 decision 6 are made — two independent passes over the
-> same file counted 676 and 610 written pairs, and the whole difference is how hospital names are
-> normalised. The reasoning in each section stands; the arithmetic in it does not.
+> ⚠ **READ §10.0 FIRST — the decisions of 25 August 2026 moved the grid twice.**
+> The use-case list is **eleven** (Vital Signs is in), and the organization-identity rulings
+> collapsed **161 organizations to 141**. So the target universe is **141 × 11 = 1,551** — not
+> 1,771 and certainly not the 1,449 that appears throughout the sections below. Every `1,449` and
+> every `773 of 1,449` predates all of this and is superseded. The reasoning in each section
+> stands; the arithmetic in it does not. The rulings themselves are in
+> [`ORG-RULINGS.md`](./ORG-RULINGS.md) and as data in `scripts/report/org-merges.mjs`.
 
 The onboarding operating model for the UHR programme: what the record is, where it lives, how
 it moves, what happens to the 2,971 tickets that exist today, and what the weekly report is
@@ -1587,9 +1587,32 @@ on, so the backlog is visible from day one and shrinks as owners are named.
 thing to act on. It was written to give the process a concrete shape, and its three dates remain
 unconfirmed placeholders.
 
+### 10.0b Settled later the same day
+
+**D · The organization rulings are made** — see [`ORG-RULINGS.md`](./ORG-RULINGS.md). Aseer splits
+into two by system; Najran into a cluster and a specialized hospital; AlSalama merges to one; all
+of section A and all of section B1 merge. **Jazan is deferred** pending whether MCC and
+MedicaCloud are one vendor. 161 organizations become **141**, and the grid becomes **1,551**.
+
+**E · V1 versus V2 → default to V1.** History cannot answer it (52 tickets say V2, none say V1),
+so every migrated medication record starts at V1 and is corrected when an OB Account Manager
+touches it.
+
+**F · The entry status is `Intake`.**
+
+**G · `NONP` keeps its name.** It is the same space; the code was changed for a period. The PROD
+rung lives here, and that is now written down rather than assumed.
+
+**H · The stage budget is 10 days per rung, uniform.** The owner's reason is the right one and is
+worth preserving: *"10 days is better because it's measurable, and we don't have the actual
+reasonable duration."* It is a measuring stick, not a forecast. The only historical evidence says
+four rungs at 10 days would be faster end to end than any onboarding ticket has ever been — 43
+tickets have resolved, at a median of 43 days each — so the first weeks will flag a great many
+records, and that is the instrument working rather than the programme failing.
+
 ### 10.1 Still open
 
-Six questions the council could not answer on the owner's behalf. Each is phrased so it can be
+Two questions remain. Each is phrased so it can be
 answered in one line.
 
 1. ~~**Is the use-case option list 9 items or 10?**~~ **SETTLED — eleven, see 10.0 A.**
