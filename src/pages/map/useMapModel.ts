@@ -1063,10 +1063,30 @@ export function useMapModel(
         collapsedIds,
         leafThreshold,
         expandedIds,
-        // No default collapse on a phone: `depthLimit: 1` in useMapGeometry
-        // already draws one ring, and a branch marked collapsed under it would
-        // draw nothing.
-        openDepth: compact ? undefined : openDepth,
+        /*
+         * THE SAME DEPTH AT EVERY WIDTH.
+         *
+         * ⚠ THIS WAS `compact ? undefined : openDepth`, AND THE REASON HAD
+         *   EXPIRED. The comment read "no default collapse on a phone:
+         *   `depthLimit: 1` in useMapGeometry already draws one ring, and a
+         *   branch marked collapsed under it would draw nothing" — true when it
+         *   was written, and `useMapViewport` now calls that limit "useMapGeometry's
+         *   OLD depthLimit". There is no ring limit any more. The phone draws the
+         *   whole tidy tree, exactly as the desktop does.
+         *
+         *   So `undefined` stopped meaning "one ring is enough" and started
+         *   meaning "open all of it". On the live site at 500px that was 855
+         *   cards THREE PIXELS WIDE — every organization expanded into its own
+         *   status buckets — which is the owner's "everything is too small to
+         *   read" in its purest form, on the width where it hurts most. It was
+         *   invisible on a desktop because a desktop is not compact, and
+         *   invisible in every test because `collapsedIds` from an earlier
+         *   session hid it on any browser that had been used before.
+         *
+         * A closed branch is DRAWN, closed — `startsCollapsed` in model.ts, not a
+         * filter — so there is nothing left for this exception to protect.
+         */
+        openDepth,
       }),
     [
       entries,

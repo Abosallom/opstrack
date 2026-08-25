@@ -955,3 +955,51 @@ describe('openDepthFor', () => {
     expect(() => openDepthFor([ent('a', 'b'), ent('b', 'a')])).not.toThrow()
   })
 })
+
+/*
+ * ── THE DEPTH REACHES THE PHONE ────────────────────────────────────────────
+ *
+ * `openDepthFor` above is a pure function with tests to match, and every one of
+ * them passed while the number it returned was being thrown away on the width
+ * that needed it most. The hook read:
+ *
+ *     openDepth: compact ? undefined : openDepth
+ *
+ * whose comment explained that `depthLimit: 1` in useMapGeometry already drew
+ * one ring on a phone. That limit is gone — `useMapViewport` calls it "the OLD
+ * depthLimit" — so `undefined` had quietly turned from "one ring is enough" into
+ * "open every branch". On nphiescore.com at 500px that drew 855 cards three
+ * pixels wide, each organization expanded into its own status buckets.
+ *
+ * IT SURVIVED 5,630 GREEN TESTS, and it would survive a browser check too, on
+ * any profile that had visited before: `collapsedIds` from an earlier session
+ * beats `openDepth`, so the bug is only visible to a reader arriving fresh.
+ * That is what makes it worth a gate rather than a fix.
+ */
+const MODEL_SRC = 'node:fs'
+const { readFileSync: readSource } = (await import(MODEL_SRC)) as {
+  readFileSync: (path: URL, encoding: 'utf8') => string
+}
+
+describe('the opening depth is not thrown away on a narrow screen', () => {
+  /** The `buildMindtree` argument object, comments stripped. */
+  const buildInput = (): string => {
+    const src = readSource(new URL('./useMapModel.ts', import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//gu, '')
+      .replace(/^\s*\/\/.*$/gmu, '')
+    const at = src.indexOf('buildMindtree({')
+    expect(at).toBeGreaterThan(-1)
+    return src.slice(at, src.indexOf('\n      })', at))
+  }
+
+  it('hands the depth over unconditionally', () => {
+    expect(buildInput()).toMatch(/^\s*openDepth,\s*$/mu)
+  })
+
+  it('does not gate the depth on `compact` by any spelling', () => {
+    // Not a search for the old string: any ternary, `&&`, `??` or `: undefined`
+    // sitting on this key is the same bug wearing different punctuation.
+    const line = /openDepth:\s*(.+)/u.exec(buildInput())?.[1]
+    expect(line ?? '').not.toMatch(/compact|undefined|\?|&&/u)
+  })
+})
