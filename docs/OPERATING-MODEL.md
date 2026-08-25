@@ -2039,6 +2039,32 @@ hand-edited anything**. That is the adoption plan, and it is not a separate docu
 
 ---
 
+### 13.12 Four more, 26 August
+
+**The brief is scoped per department lead.** Each Associate Director receives a version cut to
+their own queue; the owner receives the whole. **One generator, one set of numbers, different
+scope** — the same rule §11.4 sets for the monitoring page, and for the same reason: two
+generators produce two figures and an argument about which is right.
+
+**One notification, and only one: the COC signature.** It is the single moment in this model that
+genuinely requires somebody else to act — an OB Account Manager learning that CHI has signed and
+they may proceed to go-live. Everything else is pull.
+
+⚠ **A tool that notifies on everything is a tool people mute**, and a muted tool cannot notify on
+  the one thing that matters. This is the whole notification budget spent deliberately on the
+  highest-value message in the system.
+
+**The 715 statuses migrate BEFORE the new ladder ships.** 67 move onto a different use case
+(XDLABO → Lab Order, XDRADO → Rad Order, XDDOCS → Clinical Notes, Encounter History → ADT, live
+beating testing beating planned on collision); the rest map straight across. The map must never
+show an empty estate, because an estate that reads as empty because of a migration is
+indistinguishable from one that is empty because nobody recorded anything — and this product's
+central honesty rule is that those two are never the same statement.
+
+**Nothing ships until the BRD is approved.** That is the gate, and the owner alone holds it.
+
+---
+
 ## Provenance
 
 - **Source of every number:** `/Users/aziz/.claude/jobs/8f812826/tmp/jira-safe.csv` (2,971 rows,
