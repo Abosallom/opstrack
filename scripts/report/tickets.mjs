@@ -243,7 +243,22 @@ if (import.meta.url === `file://${process.argv[1]}`) {
    * carries a use-case tag is left alone, so this is re-runnable too.
    */
   if (process.argv.includes('--retag')) {
-    const rows = await all('entries?select=id,title,tags')
+    // ⚠ `last_activity_at` IS READ BACK AND WRITTEN AGAIN, AND THAT IS THE
+    //   WHOLE OF THIS BLOCK'S CARE. `entries_touch()` (0016) treats any real
+    //   field change as activity and stamps `last_activity_at := now()`, so a
+    //   PATCH that only adds a tag silently resets the staleness clock on every
+    //   row it touches. The first run of this mode did exactly that to 585
+    //   activities and the portfolio's quiet reading collapsed — the failure
+    //   this file's own header warns about in its third paragraph, committed by
+    //   the script carrying the warning. It was invisible: nothing in the
+    //   output mentioned a clock, because nothing in the code did.
+    //
+    //   The put-back is a SEPARATE statement carrying ONE column, because
+    //   `entries_touch()` subtracts `last_activity_at` from the diff it tests:
+    //   a statement that changes only that column reads as "no real change" and
+    //   the value survives. Sending it in the same PATCH as the tags would be
+    //   overwritten by the trigger in the same breath.
+    const rows = await all('entries?select=id,title,tags,last_activity_at')
     const eleven = new Set(ELEVEN)
     const plan = []
     for (const r of rows) {
@@ -254,7 +269,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         (split ? capabilityOf(split.cap) : null) ?? capabilityOf(r.title ?? ''),
       )
       if (!cap) continue
-      plan.push({ id: r.id, cap, tags: [...tags, cap] })
+      plan.push({ id: r.id, cap, tags: [...tags, cap], clock: r.last_activity_at })
     }
     const per = new Map()
     for (const p of plan) per.set(p.cap, (per.get(p.cap) ?? 0) + 1)
@@ -277,7 +292,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     // PATCH — the same rule every destructive script here follows.
     writeFileSync(file, JSON.stringify({
       kind: 'activity-retag', at: new Date().toISOString(),
-      rows: plan.map((p) => ({ id: p.id, added: p.cap })),
+      // The clock rides in the manifest too, so an undo can put back both the
+      // tag and the staleness reading rather than half of each.
+      rows: plan.map((p) => ({ id: p.id, added: p.cap, clock: p.clock })),
     }, null, 1))
     console.log(`\nmanifest written first: ${file}`)
 
@@ -289,6 +306,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         body: JSON.stringify({ tags: p.tags }),
       })
       if (!r.ok) throw new Error(`retag ${p.id} -> ${r.status} ${(await r.text()).slice(0, 160)}`)
+      // …and immediately put the clock back, one column on its own.
+      if (p.clock) {
+        const back = await fetch(`${URL_BASE}/rest/v1/entries?id=eq.${p.id}`, {
+          method: 'PATCH',
+          headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ last_activity_at: p.clock }),
+        })
+        if (!back.ok) throw new Error(`clock ${p.id} -> ${back.status} ${(await back.text()).slice(0, 160)}`)
+      }
       n += 1
       if (n % 50 === 0 || n === plan.length) process.stdout.write(`\r  tagged ${n}/${plan.length}`)
     }

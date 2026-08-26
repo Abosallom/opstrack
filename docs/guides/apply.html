@@ -28,13 +28,15 @@
 <section class="page">
   <div class="kicker">NphiesCore &middot; 26 August 2026</div>
   <h1>Applying the three migrations</h1>
-  <p class="lede">Everything else from last night is already live. These three files are the only
-  thing left, and they are the only thing I could not do myself — they change the shape of the
+  <p class="lede">Everything else is already live, including last night's work: every hospital
+  now carries all eleven use cases, and the detail panel opens with them. These three files are
+  the only thing left, and the only thing I could not do myself — they change the shape of the
   database, and I have no credential that can do that.</p>
   <p>About <b>twenty minutes</b>, all of it in one browser tab. Every file ends with a check that
   stops loudly if anything went wrong, so you will not be left wondering whether it worked.</p>
-  <div class="ar">كل ما عملناه أمس منشور بالفعل على الموقع. بقيت ثلاثة ملفات فقط، وهي الوحيدة التي لم
-  أستطع تنفيذها بنفسي: لأنها تُغيّر بنية قاعدة البيانات، ولا أملك صلاحية تسمح بذلك. المدة المتوقعة
+  <div class="ar">كل ما سبق منشور بالفعل على الموقع، بما فيه عمل الليلة الماضية: كل منشأة تحمل
+  الآن حالات الاستخدام الإحدى عشرة، ولوحة التفاصيل تبدأ بها. بقيت ثلاثة ملفات فقط، وهي الوحيدة التي
+  لم أستطع تنفيذها بنفسي: لأنها تُغيّر بنية قاعدة البيانات، ولا أملك صلاحية تسمح بذلك. المدة المتوقعة
   عشرون دقيقة، كلها في نافذة متصفح واحدة. كل ملف ينتهي بفحص يتوقف بوضوح إذا حدث خطأ.</p>
   <div class="warnbox"><b>Before you start:</b> nobody should be using the site while these run.
   You said last night that nobody is, which is why this is a twenty-minute job rather than a
@@ -58,7 +60,12 @@
     <div dir="rtl" style="margin:2mm 0 0;font-size:10pt;color:var(--ink);line-height:1.8">
       التهيئة &middot; التكامل التقني &middot; العمليات التشغيلية &middot; التسليم التقني
       &middot; المنتج &middot; الدعم والصيانة
-    </div></div>
+    </div>
+    <p style="margin:3mm 0 0"><b>Then try these three, which are new since last night.</b>
+    Press <b>+</b> four times: the cards should keep growing rather than dying after two presses.
+    Tap a department: its hospitals appear. Tap one of those: the panel should open leading with
+    <b>eleven use-case rows</b> &mdash; not with the account manager, the way it used to.</p>
+    </div>
     <div class="ar">افتح الموقع. إذا ظهر شريط صغير يقول «يتوفّر إصدار جديد» بجانبه زر «إعادة
     التحميل» فاضغطه. هذا سبب ظهور الموقع لك بلا تغيير أمس: التطبيق لا يُعيد التحميل من تلقاء نفسه
     حتى لا يفقد ما تكتبه، بل يسأل أولًا. وحتى توافق، يبقى المتصفح يعرض النسخة السابقة.</div>
@@ -99,9 +106,11 @@
     <b>&ldquo;what moved this week&rdquo;</b>, which nothing in this product has ever been able to
     say.</p>
     <div class="expect"><b>Success looks like:</b> &ldquo;Success. No rows returned.&rdquo;
-    The file ends in four checks &mdash; eleven visible use cases, every row given a rung, no row
-    left pointing at a retired use case, and the merge having recorded itself. If any check fails
-    it raises an error naming which one, and <b>nothing is committed</b>.</div>
+    It gives a rung to all <b>1,540</b> use-case rows &mdash; 140 hospitals &times; eleven use
+    cases, the grid that was filled last night. The file ends in four checks: eleven visible use
+    cases, every row given a rung, no row left pointing at a hidden use case, and the change log
+    having recorded something. If any check fails it raises an error naming which one, and
+    <b>nothing is committed</b>.</div>
     <div class="ar">افتح الملف المذكور أعلاه، وانسخ محتواه كاملًا، والصقه في المحرّر، ثم اضغط Run.
     يضيف هذا الملف سُلّم المراحل لكل حالة استخدام، وإمكانية تعليم حالة بأنها «لا تنطبق» على منشأة
     معيّنة، وعلامة التعليق مع تحديد الجهة المنتظَرة، وأعمدة متابعة شهادة الإنجاز، وسجلًّا لكل تغيير
@@ -128,9 +137,12 @@
     carries. <b>Rhapsody is deliberately not among them</b> &mdash; it is the engine your technical
     team builds interfaces in, not something a hospital runs, and including it would tag most of the
     estate with one meaningless value.</p>
-    <div class="expect"><b>Expect:</b> the catalogue populated, and <b>142 of 161</b> hospitals with
-    no system recorded. That is the honest starting point, not a mistake &mdash; your data names an
-    HIS for only sixteen.</div>
+    <div class="expect"><b>Expect:</b> eleven rows in the new
+    <span class="path">his_products</span> table, and <b>every one of your 140 hospitals showing no
+    system recorded</b>. That is correct, not a failure: this file creates the catalogue and the
+    column and deliberately fills in nobody. Your own data names an HIS for only sixteen hospitals,
+    and each of those sixteen is a <b>proposal for you to confirm</b>, not something a migration
+    should assert on your behalf. That list comes to you separately.</div>
     <div class="ar">يضيف فهرس أنظمة معلومات المستشفيات: أحد عشر نظامًا، كل اسم مأخوذ من بياناتك
     نفسها. «رابسودي» غير مُدرج عمدًا لأنه محرّك التكامل لدى فريقكم التقني وليس نظامًا تشغّله
     المنشأة.</div>
@@ -145,10 +157,14 @@
     <h3><span class="mins">2 min</span>Confirm it took</h3>
     <p>Back in the SQL Editor, run this one line:</p>
     <p><span class="path">select name, hidden from use_cases order by sort_order;</span></p>
-    <div class="expect"><b>You should see eleven rows not hidden</b> &mdash; ADT, Medication
-    Prescribe V1 and V2, Medication Dispense V1 and V2, Rad Report, Rad Order, Lab Result, Lab
-    Order, Clinical Notes, Vital Signs &mdash; and four hidden ones: XDLABO, XDRADO, XDDOCS and
-    Encounter History.</div>
+    <div class="expect"><b>You should get fifteen rows</b> &mdash; eleven with
+    <span class="path">hidden</span> false, four true. In <span class="path">sort_order</span> they
+    come out in this order, which is <b>not</b> the order I have been saying them in: ADT,
+    Medication Prescribe V1, Medication Prescribe V2, Medication Dispense V1, Medication Dispense
+    V2, <b>Rad Order, Rad Report</b>, <b>Lab Order, Lab Result</b>, Clinical Notes, then the three
+    hidden XD rows, then <b>Vital Signs</b> &mdash; visible, and last because it is the one you
+    remembered later &mdash; then hidden Encounter History. Order before Report, and Order before
+    Result, is the catalogue's existing numbering and not a fault.</div>
   </div></div>
   <div class="warnbox"><b>If a file stops with a red error:</b> nothing was committed &mdash; the
   database is exactly as it was before you pressed Run. Copy the error text and send it to me.

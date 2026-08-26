@@ -44,6 +44,13 @@ const VOCAB_FILES: Record<string, string> = import.meta.glob('../../scripts/repo
 })
 const VOCAB = Object.values(VOCAB_FILES)[0] ?? ''
 
+const TICKET_FILES: Record<string, string> = import.meta.glob('../../scripts/report/tickets.mjs', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+const TICKETS = Object.values(TICKET_FILES)[0] ?? ''
+
 describe('grid.mjs — the seed', () => {
   it('is loaded at all', () => {
     expect(SRC.length).toBeGreaterThan(2000)
@@ -106,5 +113,37 @@ describe('grid.mjs — the destructive-script convention', () => {
     expect(manifest).toBeGreaterThan(0)
     expect(firstWrite).toBeGreaterThan(0)
     expect(manifest).toBeLessThan(firstWrite)
+  })
+})
+
+describe('tickets.mjs — the staleness clock survives a retag', () => {
+  // ⚠ THIS ONE IS WRITTEN FROM DAMAGE, NOT FROM CAUTION. `--retag` PATCHed
+  //   `tags` on 585 activities to add their use case. `entries_touch()` (0016)
+  //   treats any real field change as activity and stamps `last_activity_at :=
+  //   now()`, so every one of those clocks jumped to today and the portfolio's
+  //   quiet reading collapsed — 627 activities with a median age of 217 days
+  //   all read as touched this morning.
+  //
+  //   It is the exact failure tickets.mjs's own header warns about — "an import
+  //   that quietly resets the clock is worse than no import, because the number
+  //   it invents looks fine" — and no test caught it, because the clock is
+  //   database behaviour and nothing in the script's output mentioned it. The
+  //   repair is scripts/report/restore-clocks.mjs; this is what stops a third
+  //   round.
+
+  it('reads the clock back before it writes the tag', () => {
+    expect(TICKETS).toMatch(/entries\?select=id,title,tags,last_activity_at/)
+    expect(TICKETS).toMatch(/clock: r\.last_activity_at/)
+  })
+
+  it('puts the clock back in a statement of its own', () => {
+    // `entries_touch()` subtracts `last_activity_at` from the diff it tests, so
+    // ONLY a statement carrying that column alone survives the trigger. Folding
+    // it into the tag PATCH would be overwritten in the same breath.
+    expect(TICKETS).toMatch(/body: JSON\.stringify\(\{ last_activity_at: p\.clock \}\)/)
+  })
+
+  it('carries the clock into the undo manifest', () => {
+    expect(TICKETS).toMatch(/rows: plan\.map\(\(p\) => \(\{ id: p\.id, added: p\.cap, clock: p\.clock \}\)\)/)
   })
 })

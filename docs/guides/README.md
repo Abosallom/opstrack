@@ -17,6 +17,7 @@ done or not yet reached.
 
 | File | Covers | Pages | Source of record |
 |---|---|---|---|
+| `apply.pdf` | **Start here.** Running migrations 0032, 0033 and 0034 in the Supabase SQL Editor, step by step, bilingual — plus what each one should print and what to do if one stops. Regenerate with `./render.sh apply.html` | 7 | The three migration files and a live probe of the database, 26 Aug 2026 |
 | `interfaces.pdf` | **Eight ways to draw interface progress by organization, to choose from** — plus what the Jira export holds that the map does not. Regenerate with `node scripts/report/extract.mjs && node scripts/report/build.mjs` | 14 | The live database and `Jira for Lean (1).csv`, 23 Aug 2026 |
 | `walkthrough.pdf` | **Do this before handing out any code.** Fifteen minutes on a phone: ten things to try and exactly what each should do, plus the list of what is expected-not-broken | 4 | Driven end-to-end as a real member account, 23 Aug 2026 |
 | `next-steps.pdf` | **Start here.** The four things left that are yours: hand out 9 codes, reissue 16, put one project in the new portfolio, decide the 33 unowned organizations | 9 | A live probe of the database and auth users, 22 Aug 2026 |

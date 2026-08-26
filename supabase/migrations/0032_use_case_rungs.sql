@@ -214,7 +214,7 @@ create trigger map_node_use_cases_stamp_trg
   before insert or update on public.map_node_use_cases
   for each row execute function public.map_node_use_cases_stamp();
 
--- ── the backfill: 715 statuses become rungs ─────────────────────────────────
+-- ── the backfill: 1,540 statuses become rungs ───────────────────────────────
 --
 -- The mapping is `rebuild.mjs`'s own reading of Jira, run backwards:
 --   planned = Open BO / Reopened   → nothing has begun  → intake
