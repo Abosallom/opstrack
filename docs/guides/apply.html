@@ -1,0 +1,192 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Applying the three migrations</title>
+<!--BASECSS-->
+<style>
+.step { display: grid; grid-template-columns: 9mm 1fr; gap: 4mm; margin: 0 0 5mm; }
+.step .n { background: var(--accent); color: #fff; border-radius: 50%; width: 9mm; height: 9mm;
+  display: flex; align-items: center; justify-content: center; font-size: 11pt; font-weight: 700; }
+.step h3 { margin: 1mm 0 2mm; font-size: 12pt; }
+.step p { margin: 0 0 2mm; font-size: 10pt; line-height: 1.55; color: var(--ink-2); }
+.step p b { color: var(--ink); }
+.ar { direction: rtl; text-align: right; font-size: 9.6pt; color: var(--ink-3);
+  line-height: 1.7; margin: 2mm 0 0; padding: 2.5mm 3.5mm; border-radius: 1.6mm;
+  background: var(--accent-soft); border: 1px solid var(--accent-line); }
+.path { font-family: ui-monospace, Menlo, monospace; font-size: 9pt; background: #f4f2f7;
+  border: 1px solid var(--rule); border-radius: 1.2mm; padding: .8mm 1.8mm; color: var(--ink); }
+.expect { border-left: 3px solid var(--ok); background: #f2f9f5; border-radius: 0 1.6mm 1.6mm 0;
+  padding: 3mm 4mm; margin: 2.5mm 0 0; font-size: 9.6pt; color: var(--ink-2); line-height: 1.55; }
+.expect b { color: #1f7a4d; }
+.warnbox { border-left: 3px solid var(--warn); background: #fdf6ec; border-radius: 0 1.6mm 1.6mm 0;
+  padding: 3mm 4mm; margin: 2.5mm 0 0; font-size: 9.6pt; color: var(--ink-2); line-height: 1.55; }
+.warnbox b { color: #9a6a12; }
+.q { border: 1px solid var(--rule); border-radius: 2mm; padding: 4mm; background: #fff; margin-bottom: 3.5mm; }
+.q h4 { margin: 0 0 2mm; font-size: 10.6pt; }
+.q p { margin: 0; font-size: 9.8pt; line-height: 1.55; color: var(--ink-2); }
+.mins { float: right; font-size: 9.2pt; font-weight: 700; color: var(--ink-3); }
+</style></head><body>
+
+<section class="page">
+  <div class="kicker">NphiesCore &middot; 26 August 2026</div>
+  <h1>Applying the three migrations</h1>
+  <p class="lede">Everything else from last night is already live. These three files are the only
+  thing left, and they are the only thing I could not do myself — they change the shape of the
+  database, and I have no credential that can do that.</p>
+  <p>About <b>twenty minutes</b>, all of it in one browser tab. Every file ends with a check that
+  stops loudly if anything went wrong, so you will not be left wondering whether it worked.</p>
+  <div class="ar">كل ما عملناه أمس منشور بالفعل على الموقع. بقيت ثلاثة ملفات فقط، وهي الوحيدة التي لم
+  أستطع تنفيذها بنفسي: لأنها تُغيّر بنية قاعدة البيانات، ولا أملك صلاحية تسمح بذلك. المدة المتوقعة
+  عشرون دقيقة، كلها في نافذة متصفح واحدة. كل ملف ينتهي بفحص يتوقف بوضوح إذا حدث خطأ.</p>
+  <div class="warnbox"><b>Before you start:</b> nobody should be using the site while these run.
+  You said last night that nobody is, which is why this is a twenty-minute job rather than a
+  planned window.</div>
+  <div class="foot"><span>NphiesCore &middot; applying the migrations</span><span>Page 1 of 7</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker">Do this one first, and on your own phone too</div>
+  <h2>Step 0 &mdash; see the new site</h2>
+  <div class="step"><div class="n">0</div><div>
+    <h3><span class="mins">1 min</span>Accept the update prompt</h3>
+    <p>Open <span class="path">nphiescore.com</span>. If a small bar appears saying
+    <b>&ldquo;A new version is available&rdquo;</b> with a <b>Reload</b> button, press it.</p>
+    <p>This is why the site looked unchanged to you last night. The app deliberately does not
+    reload underneath you &mdash; that would throw away anything you were typing &mdash; so it asks
+    first, and until you say yes your browser keeps serving the previous version.</p>
+    <div class="expect"><b>You should then see:</b> the map drawing one box at the top reading
+    <b>140</b>, with six departments under it and no panel covering the picture. All six now read
+    in Arabic:
+    <div dir="rtl" style="margin:2mm 0 0;font-size:10pt;color:var(--ink);line-height:1.8">
+      التهيئة &middot; التكامل التقني &middot; العمليات التشغيلية &middot; التسليم التقني
+      &middot; المنتج &middot; الدعم والصيانة
+    </div></div>
+    <div class="ar">افتح الموقع. إذا ظهر شريط صغير يقول «يتوفّر إصدار جديد» بجانبه زر «إعادة
+    التحميل» فاضغطه. هذا سبب ظهور الموقع لك بلا تغيير أمس: التطبيق لا يُعيد التحميل من تلقاء نفسه
+    حتى لا يفقد ما تكتبه، بل يسأل أولًا. وحتى توافق، يبقى المتصفح يعرض النسخة السابقة.</div>
+  </div></div>
+  <div class="foot"><span>Step 0</span><span>Page 2 of 7</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker">One tab, open for the next fifteen minutes</div>
+  <h2>Step 1 &mdash; open the SQL Editor</h2>
+  <div class="step"><div class="n">1</div><div>
+    <h3><span class="mins">2 min</span>Find the editor</h3>
+    <p>Go to <span class="path">supabase.com/dashboard</span> and sign in. Choose the NphiesCore
+    project, then <b>SQL Editor</b> in the left sidebar. Press <b>New query</b>.</p>
+    <p>This is the same place the earlier migrations were run from. You are about to paste the
+    contents of three files into it, one at a time, in order.</p>
+    <div class="warnbox"><b>Order matters.</b> 0032 must finish before 0033, and 0033 before 0034.
+    Each assumes the one before it succeeded.</div>
+    <div class="ar">ادخل إلى لوحة تحكم Supabase، واختر مشروع NphiesCore، ثم «SQL Editor» من القائمة
+    الجانبية، ثم «New query». سنلصق محتوى ثلاثة ملفات واحدًا تلو الآخر بالترتيب. الترتيب مهم: 0032
+    قبل 0033، و0033 قبل 0034.</div>
+  </div></div>
+  <div class="foot"><span>Step 1</span><span>Page 3 of 7</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker">The big one &mdash; it does the most</div>
+  <h2>Step 2 &mdash; run 0032</h2>
+  <div class="step"><div class="n">2</div><div>
+    <h3><span class="mins">5 min</span>The use-case ladder</h3>
+    <p>Open <span class="path">supabase/migrations/0032_use_case_rungs.sql</span> in the repository.
+    Select all of it, copy, paste into the editor, and press <b>Run</b>.</p>
+    <p>It adds the ladder each use case climbs &mdash; <b>Intake &rarr; DEV &rarr; STG/TEST &rarr;
+    COC &rarr; PROD</b> &mdash; the ability to mark a use case <b>not applicable</b> to a hospital,
+    the blocked flag with who you are waiting on, the four columns the COC chase needs, and an
+    append-only log of every rung change.</p>
+    <p>That log is the one that matters most: it is what will finally let the app answer
+    <b>&ldquo;what moved this week&rdquo;</b>, which nothing in this product has ever been able to
+    say.</p>
+    <div class="expect"><b>Success looks like:</b> &ldquo;Success. No rows returned.&rdquo;
+    The file ends in four checks &mdash; eleven visible use cases, every row given a rung, no row
+    left pointing at a retired use case, and the merge having recorded itself. If any check fails
+    it raises an error naming which one, and <b>nothing is committed</b>.</div>
+    <div class="ar">افتح الملف المذكور أعلاه، وانسخ محتواه كاملًا، والصقه في المحرّر، ثم اضغط Run.
+    يضيف هذا الملف سُلّم المراحل لكل حالة استخدام، وإمكانية تعليم حالة بأنها «لا تنطبق» على منشأة
+    معيّنة، وعلامة التعليق مع تحديد الجهة المنتظَرة، وأعمدة متابعة شهادة الإنجاز، وسجلًّا لكل تغيير
+    في المرحلة. النجاح يظهر كرسالة «Success. No rows returned».</div>
+  </div></div>
+  <div class="foot"><span>Step 2</span><span>Page 4 of 7</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker">Two smaller ones</div>
+  <h2>Steps 3 and 4 &mdash; run 0033, then 0034</h2>
+  <div class="step"><div class="n">3</div><div>
+    <h3><span class="mins">3 min</span>The three things before ADT</h3>
+    <p><span class="path">supabase/migrations/0033_org_readiness.sql</span> &mdash; same procedure.</p>
+    <p>Patient Registry and Provider Portal as tick boxes, and SSO as the three states you named:
+    <b>Not Started, UAT, PRD</b>. One set per hospital, not one per use case.</p>
+    <div class="ar">نفس الطريقة. يضيف: سجل المرضى وبوابة مقدّمي الخدمة كخانتَي تحديد، و«الدخول
+    الموحّد» بثلاث حالات كما حدّدتها. مجموعة واحدة لكل منشأة، لا لكل حالة استخدام.</div>
+  </div></div>
+  <div class="step"><div class="n">4</div><div>
+    <h3><span class="mins">3 min</span>The HIS catalogue</h3>
+    <p><span class="path">supabase/migrations/0034_his_catalogue.sql</span> &mdash; same again.</p>
+    <p>Eleven hospital information systems, every name taken from strings your own data already
+    carries. <b>Rhapsody is deliberately not among them</b> &mdash; it is the engine your technical
+    team builds interfaces in, not something a hospital runs, and including it would tag most of the
+    estate with one meaningless value.</p>
+    <div class="expect"><b>Expect:</b> the catalogue populated, and <b>142 of 161</b> hospitals with
+    no system recorded. That is the honest starting point, not a mistake &mdash; your data names an
+    HIS for only sixteen.</div>
+    <div class="ar">يضيف فهرس أنظمة معلومات المستشفيات: أحد عشر نظامًا، كل اسم مأخوذ من بياناتك
+    نفسها. «رابسودي» غير مُدرج عمدًا لأنه محرّك التكامل لدى فريقكم التقني وليس نظامًا تشغّله
+    المنشأة.</div>
+  </div></div>
+  <div class="foot"><span>Steps 3 and 4</span><span>Page 5 of 7</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker">Two minutes, and you are done</div>
+  <h2>Step 5 &mdash; check, and what to do if it complains</h2>
+  <div class="step"><div class="n">5</div><div>
+    <h3><span class="mins">2 min</span>Confirm it took</h3>
+    <p>Back in the SQL Editor, run this one line:</p>
+    <p><span class="path">select name, hidden from use_cases order by sort_order;</span></p>
+    <div class="expect"><b>You should see eleven rows not hidden</b> &mdash; ADT, Medication
+    Prescribe V1 and V2, Medication Dispense V1 and V2, Rad Report, Rad Order, Lab Result, Lab
+    Order, Clinical Notes, Vital Signs &mdash; and four hidden ones: XDLABO, XDRADO, XDDOCS and
+    Encounter History.</div>
+  </div></div>
+  <div class="warnbox"><b>If a file stops with a red error:</b> nothing was committed &mdash; the
+  database is exactly as it was before you pressed Run. Copy the error text and send it to me.
+  Do not run the next file, and do not run the same one twice to see if it takes; the checks are
+  there so that a half-finished apply cannot hide.</div>
+  <p style="margin-top:4mm">Every destructive thing that has already happened wrote a record of
+  itself first, in <span class="path">docs/EVIDENCE/import-runs/</span> &mdash; the twenty-one
+  merged organizations and the sixty-seven moved use-case rows are each held there in full, so any
+  of it can be walked back row by row.</p>
+  <div class="ar">للتأكد، شغّل السطر المذكور أعلاه: يجب أن تظهر إحدى عشرة حالة استخدام ظاهرة وأربع
+  مخفية. وإذا توقّف أي ملف برسالة خطأ حمراء فلم يُحفظ شيء، وقاعدة البيانات كما كانت تمامًا: انسخ
+  نص الخطأ وأرسله لي، ولا تُشغّل الملف التالي.</div>
+  <div class="foot"><span>Step 5</span><span>Page 6 of 7</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker">Not blocking the above &mdash; but blocking what comes after</div>
+  <h2>Four things still waiting on you</h2>
+  <div class="q"><h4>1 &middot; Aseer &mdash; two rows with no system named</h4>
+    <p><span class="path">Aseer</span> and <span class="path">Aseer Cluster</span> name no hospital
+    information system, and you asked to split them by what sits underneath. Ticket text leans
+    <b>Careware 12 mentions to Vida Plus 2</b>, but that is evidence, not an answer.</p></div>
+  <div class="q"><h4>2 &middot; Jazan &mdash; the same question</h4>
+    <p>You ruled that MCC and MedicaCloud are different systems, so Jazan is two organizations.
+    The bare <span class="path">Jazan</span> row still belongs to one of them.</p></div>
+  <div class="q"><h4>3 &middot; Misbar &mdash; two things that do not survive the move</h4>
+    <p>The Grafana pull is a script on your Mac, and the site cannot reach your laptop. And sending
+    email would be the first thing this product has ever sent outside the building &mdash; it needs
+    a provider, a sending identity, and a record of what went to whom. See
+    <span class="path">docs/MISBAR.md</span>.</p></div>
+  <div class="q"><h4>4 &middot; The BRD</h4>
+    <p><span class="path">docs/guides/brd.pdf</span>, twenty-nine pages, English and Arabic side by
+    side. You approve it in pieces &mdash; the data-model section is the one that unblocks
+    building the screens.</p></div>
+  <div class="ar">أربعة أمور تنتظر قرارك، ولا تُعطّل الخطوات السابقة لكنها تُعطّل ما بعدها: صفّا
+  «عسير» بلا نظام محدّد، وصفّ «جازان» المجرّد، وأمرا «مسبار» (سحب Grafana وإرسال البريد)،
+  والموافقة على وثيقة المتطلبات.</div>
+  <div class="foot"><span>What is waiting</span><span>Page 7 of 7</span></div>
+</section>
+
+</body></html>
