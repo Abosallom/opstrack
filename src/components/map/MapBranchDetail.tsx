@@ -149,6 +149,7 @@ import {
 } from '../../api/goals'
 import { listNodeUseCases } from '../../api/map'
 import NodeEditor from './NodeEditor'
+import { useHisProducts } from '../../store/config'
 import { confirm } from '../Confirm'
 // The stage control and the optimistic write behind it. ONE control mounted
 // twice — see the header's note on the reversed read-only decision.
@@ -429,6 +430,10 @@ export default function MapBranchDetail({
    */
   const [editing, setEditing] = useState(false)
 
+  // Hidden rows included: a panel READING a system already recorded must be able
+  // to name a retired one. `useAllUseCases`' contract, one catalogue over.
+  const hisProducts = useHisProducts()
+
   const node: MapNode | undefined = nodeId === null ? undefined : nodeById.get(nodeId)
 
   // NO BAND, rather than an empty one. Not an entity (a track, a bucket, the
@@ -449,6 +454,10 @@ export default function MapBranchDetail({
       // one organization has one manager and one integrator on every surface.
       manager={managerLabel(memberById, ctx.managerOfNode?.get(nodeId) ?? node.account_manager_id)}
       vendor={ctx.vendorOfNode?.get(nodeId) ?? node.vendor}
+      // Resolved here rather than in the band — see `hisName`. Null both for a
+      // node with no system recorded and for one naming a product the catalogue
+      // no longer has, which read the same way to a person: nothing to show.
+      hisName={hisProducts.find((product) => product.id === node.his_id)?.name ?? null}
       daysInStage={reading?.days ?? null}
       atRisk={reading?.atRisk ?? false}
       rollup={rollup ?? null}
@@ -494,6 +503,22 @@ export interface DetailBandProps {
   /** The INHERITED vendor, same rule and same rewritten dash. `''` is "not
    *  recorded anywhere up the chain" — the column is `not null default ''`. */
   vendor: string
+  /**
+   * The hospital information system's NAME, already resolved from the catalogue,
+   * or null when nothing is recorded.
+   *
+   * A NAME AND NOT AN ID, on `manager`'s precedent directly above: this band
+   * stays renderable without a store, so the caller does the lookup. Passing the
+   * id would make the band read the catalogue itself and give it a second
+   * reason to need one.
+   *
+   * ⚠ NOT INHERITED, unlike `manager` and `vendor`. Those two cascade because an
+   *   organization inside a programme is delivered by that programme's vendor
+   *   until somebody says otherwise. A hospital information system is a fact
+   *   about the building, and a phase does not run one — inheriting it would put
+   *   a system on every organization under the first one anybody recorded.
+   */
+  hisName: string | null
   /**
    * Whole calendar days on the current rung, or null when nothing is recorded —
    * `stageReading`, the one arithmetic three surfaces share.
@@ -549,6 +574,7 @@ export function DetailBand({
   kindName,
   manager,
   vendor,
+  hisName,
   daysInStage,
   atRisk,
   rollup,
@@ -711,6 +737,18 @@ export function DetailBand({
           <dt className="mbr-field-k">{t('mapnode.vendor')}</dt>
           <dd className="mbr-field-v">
             {vendor.trim() === '' ? <NotRecorded /> : isolate(vendor)}
+          </dd>
+        </div>
+        {/* THE HOSPITAL'S OWN SYSTEM (0034). Not recorded on any of the 140
+            today, which is the honest starting point rather than a fault: the
+            migration seeded the catalogue and deliberately filled in nobody.
+            `scripts/report/his.mjs` can propose one for sixteen of them off
+            their own ticket text, and names two candidates for three of those —
+            a list for a person, not an answer to write in automatically. */}
+        <div className="mbr-field">
+          <dt className="mbr-field-k">{t('mapnode.his')}</dt>
+          <dd className="mbr-field-v">
+            {hisName === null || hisName === '' ? <NotRecorded /> : isolate(hisName)}
           </dd>
         </div>
         {/* THE PORTFOLIO'S OWN FOUR NUMBERS, IN THE PANEL'S OWN WORDS.

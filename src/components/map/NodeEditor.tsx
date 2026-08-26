@@ -37,7 +37,7 @@ import { toast } from '../toast'
 import { t } from '../../lib/i18n'
 import { useNodeLabel, useKindLabel } from '../../lib/labels'
 import { useHasPerm } from '../../store/auth'
-import { invalidateConfig, useMapNodeKinds, useMapNodes } from '../../store/config'
+import { invalidateConfig, useHisProducts, useMapNodeKinds, useMapNodes } from '../../store/config'
 import { useMembers } from '../../store/members'
 import type { MapNode } from '../../types'
 
@@ -50,6 +50,8 @@ interface Form {
   kindId: string
   managerId: string
   vendor: string
+  /** `''` is "nobody has recorded a system" — see the field below. */
+  hisId: string
 }
 
 export interface NodeEditorProps {
@@ -67,6 +69,7 @@ export default function NodeEditor({ nodeId, onEditingChange }: NodeEditorProps)
   const canEdit = useHasPerm('structure.edit')
   const nodes = useMapNodes()
   const kinds = useMapNodeKinds()
+  const hisProducts = useHisProducts()
   const members = useMembers()
   const nodeLabel = useNodeLabel()
   const kindLabel = useKindLabel()
@@ -116,6 +119,7 @@ export default function NodeEditor({ nodeId, onEditingChange }: NodeEditorProps)
       kindId: node.kind_id ?? '',
       managerId: node.account_manager_id ?? '',
       vendor: node.vendor,
+      hisId: node.his_id ?? '',
     })
     onEditingChange?.(true)
   }
@@ -138,6 +142,13 @@ export default function NodeEditor({ nodeId, onEditingChange }: NodeEditorProps)
       kindId: form.kindId === '' ? null : form.kindId,
       accountManagerId: form.managerId === '' ? null : form.managerId,
       vendor: form.vendor.trim(),
+      // ⚠ `''` BECOMES NULL, NOT THE EMPTY STRING. `his_id` is a real foreign
+      //   key into the catalogue and its "not recorded" is null; `vendor` two
+      //   lines up is free text whose "not recorded" is `''`. Writing `''` here
+      //   would be rejected as an invalid uuid, and writing it as a key left off
+      //   would make clearing a system silently do nothing — the same pair of
+      //   mistakes `updateMapNode`'s own comment describes for `kind_id`.
+      hisId: form.hisId === '' ? null : form.hisId,
     })
     if (!alive.current) return
     setBusy(false)
@@ -248,6 +259,32 @@ export default function NodeEditor({ nodeId, onEditingChange }: NodeEditorProps)
             </option>
           ))}
         </select>
+      </label>
+
+      {/* THE HOSPITAL'S OWN SYSTEM, from the catalogue 0034 seeded.
+          A picker rather than free text, and the asymmetry with `vendor` right
+          below is deliberate in the other direction: there are eleven of these
+          and the estate spells them six ways, so this one gets a closed list.
+          Rhapsody is deliberately absent from that list — it is the engine the
+          technical team builds interfaces IN, not something a hospital runs. */}
+      <label className="mbr-edit-field">
+        <span className="mbr-edit-k">{t('structure.his')}</span>
+        <select
+          className="input"
+          value={form.hisId}
+          onChange={(e) => set({ hisId: e.target.value })}
+        >
+          {/* "Nobody has recorded one" is the honest first option and the state
+              all 140 organizations are in today. It is not "None" — a hospital
+              runs something; we have simply not written down what. */}
+          <option value="">{t('structure.hisNone')}</option>
+          {hisProducts.map((product) => (
+            <option key={product.id} value={product.id}>
+              {product.name}
+            </option>
+          ))}
+        </select>
+        <small className="mbr-edit-hint">{t('structure.hisHint')}</small>
       </label>
 
       <label className="mbr-edit-field">

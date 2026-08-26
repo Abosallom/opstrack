@@ -1142,6 +1142,17 @@ export interface MapNodeInput {
   accountManagerId: string | null
   /** `''` is the ordinary "no vendor recorded" — free text, never null. */
   vendor: string
+  /**
+   * Which of the eleven hospital information systems this organization runs, or
+   * null for "nobody has recorded one" — which is all 140 of them today.
+   *
+   * ⚠ NULL IS NOT A DEFAULT TO BE FILLED IN AUTOMATICALLY. `scripts/report/his.mjs`
+   *   can read a system off ticket text for sixteen hospitals and names two
+   *   candidates for three of those, which is a proposal for a person and not an
+   *   answer. A migration that guessed would put a system on the map that nobody
+   *   ever confirmed.
+   */
+  hisId?: string | null
 }
 
 /**

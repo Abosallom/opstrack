@@ -41,6 +41,7 @@ import { statusForRung } from '../lib/mapNodes'
 import type { Loaded } from './entries'
 import type {
   MapNode,
+  HisProduct,
   MapNodeInput,
   MapNodeKind,
   MapNodeKindInput,
@@ -228,6 +229,10 @@ export async function updateMapNode(
   if (input.kindId !== undefined) row.kind_id = input.kindId
   if (input.accountManagerId !== undefined) row.account_manager_id = input.accountManagerId
   if (input.vendor !== undefined) row.vendor = input.vendor.trim()
+  // Null clears it — `his_id` is a real FK and "no system recorded" is null,
+  // not the empty string `vendor` uses. The two differ because one is a
+  // reference to a catalogue and the other is free text; see MapNode.
+  if (input.hisId !== undefined) row.his_id = input.hisId
 
   // A no-op PATCH would come back with zero rows and .single() would then error out
   // on a request that did nothing wrong. Read the row back instead.
@@ -599,6 +604,36 @@ export async function listUseCases(includeHidden = false): Promise<ApiResult<Loa
   return await fetchAllPages<UseCase>((from, to) => {
     let query = client
       .from('use_cases')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)
+    if (!includeHidden) query = query.eq('hidden', false)
+    return query
+  }, MAX_PAGES)
+}
+
+/**
+ * The hospital information systems an organization can run — 0034's catalogue.
+ *
+ * `listUseCases`' shape exactly, and for its reasons: named columns are not
+ * worth it on a table this small, `hidden` retires a product from the picker
+ * without un-tagging the organizations already on it, and the read is paged
+ * because "more to be added later" is this table's stated future too.
+ *
+ * ⚠ FAILS QUIET ON A WORKSPACE THAT HAS NOT RUN 0034. The 0026 reads above set
+ *   the precedent: a missing table renders "nothing recorded", never an error
+ *   bar across a page whose other nine sections are fine.
+ */
+export async function listHisProducts(
+  includeHidden = false,
+): Promise<ApiResult<Loaded<HisProduct>>> {
+  if (!supabase) return notConfigured()
+  const client = supabase
+  return await fetchAllPages<HisProduct>((from, to) => {
+    let query = client
+      .from('his_products')
       .select('*')
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true })

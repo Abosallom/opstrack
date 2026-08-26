@@ -61,6 +61,7 @@
     "goalsFor": "أهداف ⁨{name}⁩",
     "goalsNone": "لا أهداف بعد",
     "goalsNoneHint": "الهدف هو ما يُقاس عليه هذا الفرع: تاريخ، وكم جهة يُفترض أن تصل بحلوله.",
+    "his": "نظام المنشأة",
     "managerGone": "لم يعد ضمن مساحة العمل",
     "notRecorded": "غير مسجَّل",
     "progress": "⁨{done}⁩ من {total} ⁨{status}⁩",

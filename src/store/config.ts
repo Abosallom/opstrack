@@ -58,6 +58,7 @@ import {
   listMapNodeProgress,
   listMapNodeStages,
   listMapNodes,
+  listHisProducts,
   listUseCases,
 } from '../api/map'
 import {
@@ -77,6 +78,7 @@ import type {
   MapNodeStage,
   Track,
   TrackGroup,
+  HisProduct,
   UseCase,
 } from '../types'
 
@@ -104,6 +106,7 @@ const GROUPS_CACHE_KEY = 'nphiescore_track_groups_v1'
 const MAP_NODES_CACHE_KEY = 'nphiescore_map_nodes_v1'
 const MAP_NODE_KINDS_CACHE_KEY = 'nphiescore_map_node_kinds_v1'
 const USE_CASES_CACHE_KEY = 'nphiescore_use_cases_v1'
+const HIS_PRODUCTS_CACHE_KEY = 'nphiescore_his_products_v1'
 
 /**
  * Two more (0026), and their own keys for the reason above — with one extra edge
@@ -185,6 +188,8 @@ interface ConfigState {
   mapNodeKinds: MapNodeKind[]
   /** Every use case, hidden included — the Catalogue admin needs them all. */
   useCases: UseCase[]
+  /** 0034's catalogue. Empty on a workspace that has not run it. */
+  hisProducts: HisProduct[]
   /**
    * Precomputed `hidden === false` slice, stable by reference — the tracks/`active`
    * pair one table over, for its reason. A hidden capability has to leave every
@@ -462,6 +467,7 @@ function deriveAll(
   nodes: MapNode[],
   kinds: MapNodeKind[],
   useCases: UseCase[],
+  hisProducts: HisProduct[],
   stages: MapNodeStage[],
   progress: MapNodeProgress[],
 ): Omit<
@@ -469,6 +475,9 @@ function deriveAll(
   'loading' | 'loadedAt' | 'mapNodesTruncated' | 'jiraSettings' | 'jiraStatusesDropped'
 > {
   return {
+    // Carried straight through: the catalogue derives nothing, and a `hisById`
+    // map would be a second index for one picker on one panel.
+    hisProducts,
     ...derive(tracks, groups),
     ...deriveGroups(groups),
     ...deriveMap(tracks, nodes),
@@ -562,6 +571,7 @@ const useConfigStore = create<ConfigState>(() => ({
     readRowCache<MapNode>(MAP_NODES_CACHE_KEY),
     readRowCache<MapNodeKind>(MAP_NODE_KINDS_CACHE_KEY),
     readRowCache<UseCase>(USE_CASES_CACHE_KEY),
+    readRowCache<HisProduct>(HIS_PRODUCTS_CACHE_KEY),
     readRowCache<MapNodeStage>(MAP_NODE_STAGES_CACHE_KEY),
     // `node_id`, not `id` — 0026 gives this table no surrogate key. See
     // readRowCache's own note: the default would drop every cached row.
@@ -707,6 +717,21 @@ export function useUseCases(): UseCase[] {
 /** Every use case, hidden included — the Catalogue admin's list. */
 export function useAllUseCases(): UseCase[] {
   return useConfigStore((s) => s.useCases)
+}
+
+/**
+ * The HIS catalogue (0034), hidden rows included.
+ *
+ * `useAllUseCases`' contract: a picker offering a system to record shows the
+ * live ones, and a panel READING a system already recorded must be able to name
+ * a retired one — hiding a product retires it from the picker and changes
+ * nothing about the organizations already on it.
+ *
+ * Empty on a workspace that has not run 0034, which reads as "nothing recorded"
+ * everywhere and never as an error.
+ */
+export function useHisProducts(): HisProduct[] {
+  return useConfigStore((s) => s.hisProducts)
 }
 
 // ── the stage ladder and where each node got to (0026) ─────────────────────
@@ -979,6 +1004,7 @@ export function loadConfig(force = false): Promise<void> {
     listMapNodes(true),
     listMapNodeKinds(),
     listUseCases(true),
+    listHisProducts(true),
     listMapNodeStages(),
     listMapNodeProgress(),
     loadJiraSettings(),
@@ -995,6 +1021,7 @@ export function loadConfig(force = false): Promise<void> {
         nodeResult,
         kindResult,
         useCaseResult,
+        hisResult,
         stageResult,
         progressResult,
         jiraResult,
@@ -1005,6 +1032,7 @@ export function loadConfig(force = false): Promise<void> {
       const nodes = settle('map nodes', nodeResult, prev.mapNodes, MAP_NODES_CACHE_KEY)
       const kinds = settle('node kinds', kindResult, prev.mapNodeKinds, MAP_NODE_KINDS_CACHE_KEY)
       const useCases = settle('use cases', useCaseResult, prev.useCases, USE_CASES_CACHE_KEY)
+      const hisProducts = settle('HIS products', hisResult, prev.hisProducts, HIS_PRODUCTS_CACHE_KEY)
       // ⚠ THE TWO READS THAT ARE EXPECTED TO FAIL TODAY. 0026 has not been applied
       //   to the live database, so both answer 42P01 (PostgREST: PGRST205) on
       //   every load until Aziz runs it. settle() is already the right shape for
@@ -1045,6 +1073,7 @@ export function loadConfig(force = false): Promise<void> {
           nodes.rows,
           kinds.rows,
           useCases.rows,
+          hisProducts.rows,
           stages.rows,
           progress.rows,
         ),

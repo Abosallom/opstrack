@@ -523,11 +523,13 @@ async function loadConfigStore(opts: {
     listMapNodeKinds: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
     listUseCases: () =>
       Promise.resolve({ ok: true, data: { rows: [{ id: 'uc1' }], truncated: false } }),
-    // 0026's two reads. Present in the mock even though nothing here asserts on
-    // them: `loadConfig` awaits all eight in one `Promise.all`, so a missing
-    // member is a TypeError that rejects the whole load and empties the store —
-    // which would fail these tests for a reason that has nothing to do with
-    // paging. They answer the shipping state: both tables exist and are empty.
+    // 0034's catalogue, and 0026's two reads. Present in the mock even though
+    // nothing here asserts on them: `loadConfig` awaits all NINE in one
+    // `Promise.all`, so a missing member is a TypeError that rejects the whole
+    // load and empties the store — which would fail these tests for a reason
+    // that has nothing to do with paging. They answer the shipping state: the
+    // tables exist and are empty.
+    listHisProducts: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
     listMapNodeStages: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
     listMapNodeProgress: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
   }))

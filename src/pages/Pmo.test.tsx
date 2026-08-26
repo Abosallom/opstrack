@@ -92,6 +92,7 @@ vi.mock('../store/config', () => ({
   useStageMap: () => new Map(fx.state.stages.map((s) => [s.id, s])),
   // The delivery fold draws organizations only, so the page has to resolve which
   // kind that is — see summary.ts. Every node in this fixture is one.
+  useHisProducts: () => [],
   useMapNodeKinds: () => [
     { id: 'kind-org', name: 'Organization', name_ar: '', sort_order: 0 },
     { id: 'kind-phase', name: 'Phase', name_ar: '', sort_order: 1 },

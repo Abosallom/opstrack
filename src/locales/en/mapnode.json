@@ -45,6 +45,7 @@
     "goalsFor": "Goals for ⁨{name}⁩",
     "goalsNone": "No goals set",
     "goalsNoneHint": "A goal is what this branch is measured against: a date, and how many are meant to be there by it.",
+    "his": "Hospital system",
     "managerGone": "No longer in the workspace",
     "notRecorded": "Not recorded",
     "progress": "⁨{done}⁩ of {total} ⁨{status}⁩",

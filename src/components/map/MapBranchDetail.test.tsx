@@ -92,6 +92,9 @@ vi.mock('../../store/config', () => ({
   // markup — the same bargain the stage picker's empty ladder strikes above.
   useMapNodes: () => fx.state.nodes,
   useMapNodeKinds: () => [],
+  // 0034's catalogue. Empty is the shipping state: the migration seeded
+  // eleven products and filled in nobody.
+  useHisProducts: () => [],
   invalidateConfig: () => {},
   useMapNodeMap: () => new Map(fx.state.nodes.map((n) => [n.id, n])),
   useAllUseCases: () => [],
@@ -202,6 +205,7 @@ function mapNode(over: Partial<MapNode> & Pick<MapNode, 'id' | 'name'>): MapNode
 }
 
 interface BandOptions {
+  hisName?: string | null
   name?: string
   kindName?: string | null
   manager?: string | null
@@ -225,6 +229,7 @@ function band({
   vendor = 'Acme Health',
   daysInStage = null,
   atRisk = false,
+  hisName = null,
   rollup = null,
   rows = catalogue(),
   links = [link('adt', 'live'), link('rx1', 'testing')],
@@ -238,6 +243,7 @@ function band({
       kindName={kindName}
       manager={manager}
       vendor={vendor}
+      hisName={hisName}
       daysInStage={daysInStage}
       atRisk={atRisk}
       rollup={rollup}
@@ -494,7 +500,12 @@ describe('the fields', () => {
     // "nobody has said where this organization is", and the risk verdict follows
     // it: "Inside its stage time" about an unstaged organization is a
     // reassurance nobody earned, so it reads the dash rather than the word.
-    expect(fieldsOf(html).match(/—/g)).toHaveLength(4)
+    // FIVE, not four: the hospital system (0034) joined the fields and is
+    // recorded on none of the 140 organizations, so it is an absence like the
+    // rest. The count is asserted rather than "at least one" because the whole
+    // point is that every empty field says so — a field that quietly stopped
+    // rendering would still pass a loose test.
+    expect(fieldsOf(html).match(/—/g)).toHaveLength(5)
     // The dash is for the eye; the word is for a screen reader, because ARIA 1.2
     // prohibits naming a generic <span> and AT is free to drop an aria-label.
     expect(html).toContain(esc(t('mapnode.notRecorded')))
@@ -1087,5 +1098,21 @@ describe('the ladder is position and not colour, and the stylesheet proves it', 
     expect(block()).not.toMatch(/[^-](left|right)\s*:/)
     expect(block()).not.toMatch(/margin-left|margin-right|padding-left|padding-right/)
     expect(block()).not.toMatch(/translateX\(/)
+  })
+})
+
+describe('the hospital system', () => {
+  it('names the system when one is recorded', () => {
+    expect(band({ hisName: 'Careware' })).toContain('Careware')
+  })
+
+  it('reads not-recorded as an absence, not as a system called nothing', () => {
+    // All 140 organizations are in this state today — 0034 seeded the catalogue
+    // and deliberately filled in nobody. The em-dash carries its `.sr-only` word
+    // like every other absence on this band.
+    const html = band({ hisName: null })
+    const fields = fieldsOf(html)
+    expect(fields).toContain(esc(t('mapnode.his')))
+    expect(fields).toContain(EM_DASH_CHAR)
   })
 })

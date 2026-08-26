@@ -53,6 +53,8 @@ const fx = vi.hoisted(() => {
 vi.mock('../../store/auth', () => ({ useHasPerm: () => fx.state.canEdit }))
 vi.mock('../../store/config', () => ({
   useMapNodes: () => fx.state.nodes,
+  // 0034's catalogue. Empty is the shipping state.
+  useHisProducts: () => [],
   useMapNodeKinds: () => [{ id: 'k1', name: 'Organization', name_ar: '' }],
   invalidateConfig: () => {},
 }))

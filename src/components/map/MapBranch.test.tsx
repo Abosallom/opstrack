@@ -268,6 +268,8 @@ vi.mock('../../store/config', () => ({
   // an empty kind list keep every assertion in this file describing the same
   // markup — the same bargain the stage picker's empty ladder strikes above.
   useMapNodes: () => fx.state.mapNodes,
+  // 0034's catalogue. Empty is the shipping state.
+  useHisProducts: () => [],
   useMapNodeKinds: () => [],
   invalidateConfig: () => {},
   // Built from `state.tracks` so a case that swaps a track's definition (the
