@@ -42,6 +42,8 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { all, env, parseCsv } from './extract.mjs'
 import { capabilityOf, cleanOrg, orgKey, splitSummary, stateOf } from './rebuild.mjs'
+// The eleven and the two-vocabulary bridge, shared with tickets.mjs.
+import { BRIDGE, ELEVEN } from './useCases.mjs'
 
 const URL_BASE = (env('SUPABASE_URL') || env('VITE_SUPABASE_URL')).replace(/\/+$/u, '')
 const KEY = env('SUPABASE_SERVICE_ROLE_KEY')
@@ -59,33 +61,6 @@ async function send(method, path, body, prefer) {
   if (!r.ok) throw new Error(`${method} ${path} -> ${r.status} ${text.slice(0, 240)}`)
   return text ? JSON.parse(text) : []
 }
-
-/**
- * The eleven the owner named, in his order.
- *
- * ⚠ THE CATALOGUE AND THE READER DISAGREE ON THREE NAMES. `use_cases` holds
- *   `Rad Report`, `Rad Order` and `Lab Result`; rebuild.mjs's rules answer
- *   `Radiology Report`, `Radiology Order` and `Lab Results`. Neither is wrong —
- *   they were written months apart — but a script that assumed one vocabulary
- *   would silently drop three of the eleven, which is a quarter of the grid. So
- *   the bridge is written down rather than inferred.
- */
-const ELEVEN = [
-  'ADT',
-  'Medication Prescribe V1', 'Medication Prescribe V2',
-  'Medication Dispense V1', 'Medication Dispense V2',
-  'Rad Report', 'Rad Order',
-  'Lab Result', 'Lab Order',
-  'Clinical Notes',
-  'Vital Signs',
-]
-
-/** reader's name → catalogue name. Anything absent from here is already equal. */
-const BRIDGE = new Map([
-  ['Radiology Report', 'Rad Report'],
-  ['Radiology Order', 'Rad Order'],
-  ['Lab Results', 'Lab Result'],
-])
 
 const RANK = { planned: 1, testing: 2, live: 3 }
 const RUNG_OF = { planned: 'intake', testing: 'stg', live: 'prod' }

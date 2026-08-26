@@ -24,7 +24,8 @@
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { all, env } from './extract.mjs'
-import { splitSummary, orgKey, cleanOrg } from './rebuild.mjs'
+import { splitSummary, orgKey, cleanOrg, capabilityOf } from './rebuild.mjs'
+import { catalogueName, ELEVEN } from './useCases.mjs'
 
 const URL_BASE = (env('SUPABASE_URL') || env('VITE_SUPABASE_URL')).replace(/\/+$/u, '')
 const KEY = env('SUPABASE_SERVICE_ROLE_KEY')
@@ -177,6 +178,22 @@ export function readOpenTickets(path, knownNames = []) {
     out.push({
       key: (r[iK] ?? '').trim(),
       title: (r[iS] ?? '').trim(),
+      // ⚠ THE USE CASE, WHICH THIS READER USED TO COMPUTE AND THROW AWAY.
+      //   `splitSummary` already decides which half of the title is the
+      //   capability, and the answer was discarded one line later — so an
+      //   activity landed on a hospital knowing nothing about WHICH of the
+      //   eleven it was about, and the detail panel could not list a
+      //   hospital's tickets under the use case they belong to.
+      //
+      //   Read from the WHOLE SUMMARY when the convention does not hold, for
+      //   the same reason `namedOrganization` exists: "United Doc - STG ADT
+      //   error" names its use case perfectly clearly and follows no
+      //   convention at all. `catalogueName` returns null for the XD family
+      //   and Encounter History, which are capabilities but not part of the
+      //   onboarding grid, and null simply means the tag is not added.
+      cap: catalogueName(
+        (split ? capabilityOf(split.cap) : null) ?? capabilityOf((r[iS] ?? '')),
+      ),
       orgKey: orgKey(org),
       orgName: org,
       via,
@@ -213,6 +230,72 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     profiles.map((p) => [(p.display_name ?? '').trim().toLowerCase(), p.id]).filter(([k]) => k),
   )
 
+  /* ── --retag: the use case onto activities that are already here ────────
+   *
+   * The 627 activities in the workspace were imported before this reader kept
+   * the capability, so they carry their Jira key, their team and their category
+   * and nothing that says which of the eleven they are about. Re-running the
+   * import will not fix them: it is idempotent by Jira key and skips every one.
+   *
+   * Their TITLE is the Jira summary, so the capability can be read back off the
+   * row itself without the export file. It only ADDS a tag — an activity whose
+   * use case cannot be read keeps exactly the tags it has, and one that already
+   * carries a use-case tag is left alone, so this is re-runnable too.
+   */
+  if (process.argv.includes('--retag')) {
+    const rows = await all('entries?select=id,title,tags')
+    const eleven = new Set(ELEVEN)
+    const plan = []
+    for (const r of rows) {
+      const tags = r.tags ?? []
+      if (tags.some((tg) => eleven.has(tg))) continue
+      const split = splitSummary(r.title ?? '')
+      const cap = catalogueName(
+        (split ? capabilityOf(split.cap) : null) ?? capabilityOf(r.title ?? ''),
+      )
+      if (!cap) continue
+      plan.push({ id: r.id, cap, tags: [...tags, cap] })
+    }
+    const per = new Map()
+    for (const p of plan) per.set(p.cap, (per.get(p.cap) ?? 0) + 1)
+    const carried = rows.filter((r) => (r.tags ?? []).some((tg) => eleven.has(tg))).length
+    console.log(`activities            ${rows.length}`)
+    console.log(`  already carry one   ${carried}`)
+    console.log(`  to tag              ${plan.length}`)
+    for (const [cap, n] of [...per].sort((a, b) => b[1] - a[1])) console.log(`     ${String(n).padStart(4)}  ${cap}`)
+    // ⚠ MINUS THE ONES ALREADY CARRYING A TAG, not just the ones planned. Left
+    //   as `rows.length - plan.length` this read "no readable use case 627" on
+    //   the second run — i.e. it counted every activity it had just tagged as
+    //   unreadable. A number that is right once and wrong on every re-run is
+    //   the kind this repository's honesty rules exist to catch.
+    console.log(`  no readable use case ${rows.length - carried - plan.length}`)
+    if (!APPLY) { console.log('\nDRY RUN — nothing was written. Add --apply.'); process.exit(0) }
+
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
+    const file = `docs/EVIDENCE/import-runs/retag-${stamp}.json`
+    // The undo is the previous tag array, row by row, written before the first
+    // PATCH — the same rule every destructive script here follows.
+    writeFileSync(file, JSON.stringify({
+      kind: 'activity-retag', at: new Date().toISOString(),
+      rows: plan.map((p) => ({ id: p.id, added: p.cap })),
+    }, null, 1))
+    console.log(`\nmanifest written first: ${file}`)
+
+    let n = 0
+    for (const p of plan) {
+      const r = await fetch(`${URL_BASE}/rest/v1/entries?id=eq.${p.id}`, {
+        method: 'PATCH',
+        headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ tags: p.tags }),
+      })
+      if (!r.ok) throw new Error(`retag ${p.id} -> ${r.status} ${(await r.text()).slice(0, 160)}`)
+      n += 1
+      if (n % 50 === 0 || n === plan.length) process.stdout.write(`\r  tagged ${n}/${plan.length}`)
+    }
+    console.log(`\ndone — ${n} activities tagged`)
+    process.exit(0)
+  }
+
   const existing = await all('entries?select=id,tags')
   // Idempotent by JIRA KEY, which rides in `tags`. Re-running must not double
   // the queue — the map import earns its trust by being re-runnable and this
@@ -240,7 +323,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       // real state worth keeping rather than flattening to unassigned.
       owner_id: ownerId,
       owner_name: ownerId ? null : (t.assignee || null),
-      tags: [t.key, t.team, t.category].filter(Boolean),
+      tags: [t.key, t.team, t.category, t.cap].filter(Boolean),
       created_at: t.createdAt ?? undefined,
       last_activity_at: t.createdAt ?? undefined,
     })

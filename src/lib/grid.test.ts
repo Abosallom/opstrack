@@ -34,13 +34,24 @@ const FILES: Record<string, string> = import.meta.glob('../../scripts/report/gri
 })
 const SRC = Object.values(FILES)[0] ?? ''
 
+// The eleven and the two-vocabulary bridge live in their own module, because
+// tickets.mjs needs the same reconciliation and a second copy of it is how the
+// two would drift.
+const VOCAB_FILES: Record<string, string> = import.meta.glob('../../scripts/report/useCases.mjs', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+const VOCAB = Object.values(VOCAB_FILES)[0] ?? ''
+
 describe('grid.mjs — the seed', () => {
   it('is loaded at all', () => {
     expect(SRC.length).toBeGreaterThan(2000)
+    expect(VOCAB.length).toBeGreaterThan(200)
   })
 
   it('names exactly eleven use cases, in the catalogue’s vocabulary', () => {
-    const block = /const ELEVEN = \[([\s\S]*?)\]/.exec(SRC)?.[1] ?? ''
+    const block = /export const ELEVEN = \[([\s\S]*?)\]/.exec(VOCAB)?.[1] ?? ''
     const names = [...block.matchAll(/'([^']+)'/g)].map((m) => m[1])
     expect(names).toHaveLength(11)
     // The catalogue says `Rad Report`; rebuild.mjs's rules answer `Radiology
@@ -50,7 +61,7 @@ describe('grid.mjs — the seed', () => {
     expect(names).toContain('Rad Order')
     expect(names).toContain('Lab Result')
     expect(names).not.toContain('Radiology Report')
-    expect(SRC).toMatch(/BRIDGE\s*=\s*new Map\(\[/)
+    expect(VOCAB).toMatch(/BRIDGE\s*=\s*new Map\(\[/)
   })
 
   it('refuses to seed a partial grid when a use case is missing', () => {
