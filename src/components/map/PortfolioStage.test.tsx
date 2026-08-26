@@ -175,6 +175,7 @@ function node(over: Partial<MapNode> & Pick<MapNode, 'id' | 'name'>): MapNode {
     description_ar: '',
     account_manager_id: null,
     vendor: '',
+    his_id: null,
     sort_order: 0,
     archived: false,
     archived_at: null,

@@ -67,12 +67,46 @@ import type {
   MapNodeStage,
   MapNodeUseCase,
   UseCase,
+  UseCaseRung,
   UseCaseStatus,
 } from '../types'
 import type { IsoDate } from './dates'
 import { diffDays } from './dates'
 import { normalizeSearch } from './text'
 import type { MindNode } from './mindtree/model'
+
+/**
+ * The three-word `status` that goes with a rung — THE ONLY PLACE THE TWO
+ * COLUMNS ARE RECONCILED.
+ *
+ * 0032 added `rung` and backfilled it from `status`, keeps both, and says a
+ * later migration drops `status` once every reader has moved. Until that day
+ * every write must set both, because two columns describing the same cell and
+ * disagreeing is worse than either one alone — a reader would have no way to
+ * tell which was stale.
+ *
+ * This is the migration's own backfill run backwards:
+ *
+ *     planned → intake        intake        → planned
+ *     testing → stg           dev, stg, coc → testing
+ *     live    → prod          prod          → live
+ *
+ * ⚠ IT IS LOSSY IN THIS DIRECTION AND THAT IS CORRECT, NOT A DEFECT. Three
+ *   rungs collapse to `testing`, so a round trip through `status` would lose
+ *   whether a pair is at DEV or waiting on a signed COC. That is exactly why
+ *   `rung` was added: `status` cannot hold the answer. `rung` is the truth and
+ *   `status` is the shadow it casts for readers that have not moved yet — never
+ *   the other way round, and nothing may derive a rung FROM a status outside
+ *   0032's one-time backfill.
+ *
+ * scripts/report/grid.mjs carries the same table (`RUNG_OF`). One of the two is
+ * going to be edited one day; this comment is how the other gets found.
+ */
+export function statusForRung(rung: UseCaseRung): UseCaseStatus {
+  if (rung === 'prod') return 'live'
+  if (rung === 'intake') return 'planned'
+  return 'testing'
+}
 
 /**
  * One capability on the table, with what the links say about it.
@@ -89,10 +123,34 @@ export interface UseCaseProgressRow {
    * summarise three of them, and `linked`/`done` are the numbers that can.
    */
   status: UseCaseStatus | null
+  /**
+   * The RUNG, on the same rule as `status` right above: the value when exactly
+   * one link speaks for this capability, and null both when nothing is recorded
+   * and when a roll-up's organizations disagree.
+   *
+   * ⚠ NULL IS THREE FACTS AND THE PANEL MUST TELL THEM APART, which it does
+   *   through `linked`: 0 is "no row at all", 1 is "a row nobody has placed on
+   *   the ladder", and more than 1 is "they disagree". Drawing all three as a
+   *   marker at intake would invent a position for two of them.
+   */
+  rung: UseCaseRung | null
   /** Links naming this capability. 0 or 1 for one organization. */
   linked: number
   /** Links naming this capability AT the terminal status. */
   done: number
+  /**
+   * Links that say this capability DOES NOT APPLY here (0032's `scope`).
+   *
+   * ⚠ A SEPARATE COUNT, NOT A ZERO IN `linked`, because "nobody has said" and
+   *   "somebody said it does not apply" are different facts and the panel draws
+   *   them differently — an em-dash for the first, a word for the second.
+   *   Folding them together would put the row this office deliberately ruled out
+   *   in the same state as the rows nobody has looked at.
+   *
+   * These pairs are also subtracted from `total`, which is the whole reason
+   * `scope` exists: a hospital with no radiology department reads "6 of 10".
+   */
+  notApplicable: number
   /**
    * Retired from the catalogue but still recorded here — `use_cases.hidden`
    * with at least one link. Rendered marked, never dropped; see the header.
@@ -189,9 +247,13 @@ export function useCaseProgress(
   // ONE PASS, and the foreign-link test is inside it rather than a `filter()`
   // above it: at 4,000 links a copy of the array per call is the allocation this
   // module is asked for once per node in a roll-up.
+  // ⚠ `not_applicable` IS SKIPPED HERE TOO, so a RETIRED capability that some
+  //   organization has ruled out does not climb back onto the table to be
+  //   counted. It is on the table only if somebody is actually doing it.
   const linkedIds = new Set<string>()
   for (const link of links) {
     if (!nodeIds.has(link.node_id)) continue
+    if (link.scope === 'not_applicable') continue
     linkedIds.add(link.use_case_id)
   }
 
@@ -205,24 +267,50 @@ export function useCaseProgress(
     onTable.set(useCase.id, useCase)
   }
 
-  const tally = new Map<string, { linked: number; done: number; status: UseCaseStatus | null }>()
+  interface Tally {
+    linked: number
+    done: number
+    notApplicable: number
+    status: UseCaseStatus | null
+    rung: UseCaseRung | null
+  }
+  const blank = (): Tally => ({
+    linked: 0, done: 0, notApplicable: 0, status: null, rung: null,
+  })
+  const tally = new Map<string, Tally>()
+  // Every pair somebody has ruled out, so it can leave the denominator below.
+  let ruledOut = 0
   for (const link of links) {
     if (!nodeIds.has(link.node_id)) continue
     if (!onTable.has(link.use_case_id)) continue
-    const seen = tally.get(link.use_case_id)
+    let seen = tally.get(link.use_case_id)
     if (seen === undefined) {
-      tally.set(link.use_case_id, {
-        linked: 1,
-        done: link.status === terminalKey ? 1 : 0,
-        status: link.status,
-      })
+      seen = blank()
+      tally.set(link.use_case_id, seen)
+    }
+    // ⚠ A RULED-OUT PAIR IS NOT A LINK AND NOT A ZERO. It counts itself, leaves
+    //   `linked`, `done` and `status` untouched, and comes off the total. Adding
+    //   it to `linked` would say somebody is working on it; adding it to neither
+    //   would say nobody has looked.
+    if (link.scope === 'not_applicable') {
+      seen.notApplicable += 1
+      ruledOut += 1
+      continue
+    }
+    if (seen.linked === 0) {
+      seen.linked = 1
+      seen.done = link.status === terminalKey ? 1 : 0
+      seen.status = link.status
+      seen.rung = link.rung ?? null
       continue
     }
     seen.linked += 1
     if (link.status === terminalKey) seen.done += 1
     // A second voice on the same capability. No single word is true of both, so
-    // the row falls back to its counts.
+    // the row falls back to its counts — and the same is true of the rung, which
+    // is also how "one organization placed it and one did not" resolves.
     if (seen.status !== link.status) seen.status = null
+    if (seen.rung !== (link.rung ?? null)) seen.rung = null
   }
 
   // Sorted here rather than trusted from the caller: `sort_order` is the order
@@ -236,8 +324,10 @@ export function useCaseProgress(
       return {
         useCase,
         status: seen?.status ?? null,
+        rung: seen?.rung ?? null,
         linked: seen?.linked ?? 0,
         done: seen?.done ?? 0,
+        notApplicable: seen?.notApplicable ?? 0,
         retired: useCase.hidden && (seen?.linked ?? 0) > 0,
       }
     })
@@ -254,7 +344,14 @@ export function useCaseProgress(
     linked += row.linked
   }
 
-  return { rows, done, total: rows.length * population, linked, nodes: population }
+  // ⚠ RULED-OUT PAIRS COME OFF THE TOTAL, which is the entire reason 0032 added
+  //   `scope`. A hospital with no radiology department is not failing to deliver
+  //   Rad Order — it reads "6 of 10", not "6 of 11". Floored at the population
+  //   for the reason above: an organization that ruled out everything is still
+  //   one organization, and "0 of 0" is not a sentence.
+  const total = Math.max(population, rows.length * population - ruledOut)
+
+  return { rows, done, total, linked, nodes: population }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

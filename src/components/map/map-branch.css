@@ -686,15 +686,125 @@
   list-style: none;
 }
 
+/* TWO SLOTS AT REST, TWO LINES ON A PHONE. At 320px the panel's content box is
+   about 288px, and a long capability name plus a 57px track plus a "Not
+   applicable" pill does not fit on one line — the failure mode of the flex row
+   this replaces is the track pushed off the inline end where nothing reaches it.
+   `auto-fit` would be wrong: there are exactly two slots and the only question
+   is whether they share a line. */
 .mbr-uc-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 4px;
   padding-block: 6px;
   padding-inline: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-elev);
+}
+
+@media (max-width: 22rem) {
+  .mbr-uc-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The track takes its own line and keeps the inline-end edge it had, which is
+     where the eye already looks for it on a wider screen. */
+  .mbr-rung,
+  .mbr-uc-na {
+    justify-self: end;
+  }
+}
+
+/* ═══════════════ THE RUNG, DRAWN AS POSITION AND NEVER AS FIVE HUES ═══════════
+   0032's column comment, docs/OPERATING-MODEL.md §11.5, 0026's organization
+   ladder and scripts/report/views/cover.mjs all state one rule: an ordered
+   ladder is drawn as POSITION. Distance along the track is the progress, so a
+   hospital that is nearly done looks nearly done from across a room, and a
+   column of markers bunched at the start is a hospital nobody has begun.
+
+   It satisfies WCAG 1.4.1 for free — colour is never the ONLY channel, because
+   colour is not a channel at all here — and it survives being screenshotted into
+   a message, printed in grey, and read by somebody who has never been told what
+   the palette means.
+
+   ⚠ NO RULE IN THIS BLOCK MAY SELECT ON [data-rung]. Five hues for five rungs is
+     the forbidden drawing and it cannot be written without keying off the rung.
+     `data-rung` exists so a `renderToStaticMarkup` test can assert the position
+     without measuring a pixel — it is for the TEST, not for the paint, and
+     MapBranchDetail.test.tsx reads this file as text and fails if it appears in
+     a selector.
+
+   ⚠ TWO INKS, AND NO THIRD. `--text` for what has happened, `--border` for what
+     has not, `--bg-elev` only as the ring that lifts the marker off the rail.
+     The states differ by SIZE and FILL, which are channels that survive
+     greyscale.
+
+   ⚠ EVERY PROPERTY HERE IS LOGICAL. No `left`, no `right`, no `translateX`.
+     The ladder must run in the reading direction or every Arabic reader sees
+     the estate's progress backwards, which is a lie told fluently. */
+.mbr-rung {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  gap: 3px;
+  margin-inline-start: auto;
+  /* 5 markers + 4 gaps, floored so it never collapses to a smudge on a 320px
+     phone and capped so it never sprawls when the panel is wide. */
+  inline-size: clamp(57px, 22vw, 92px);
+  list-style: none;
+  position: relative;
+  margin-block: 0;
+  padding: 0;
+}
+
+/* The rail the markers stand on. `inset-inline` reverses with the page. */
+.mbr-rung::before {
+  content: '';
+  position: absolute;
+  inset-inline: 4px;
+  inset-block-start: 50%;
+  block-size: 1px;
+  background: var(--border);
+}
+
+.mbr-rung-step {
+  position: relative;
+  justify-self: center;
+  border-radius: 50%;
+}
+
+/* PASSED — a small solid dot. Form, not hue. */
+.mbr-rung-step[data-state='passed'] {
+  inline-size: 5px;
+  block-size: 5px;
+  background: var(--text);
+}
+
+/* WHERE IT IS. The one mark the eye finds first: biggest, solid, and ringed in
+   the panel's own ground so it reads above the rail. */
+.mbr-rung-step[data-state='at'] {
+  inline-size: 9px;
+  block-size: 9px;
+  background: var(--text);
+  box-shadow: 0 0 0 2px var(--bg-elev);
+}
+
+/* AHEAD — a hollow socket: the card's own surface through a 1px ring. */
+.mbr-rung-step[data-state='ahead'] {
+  inline-size: 5px;
+  block-size: 5px;
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+/* Ruled out. A word, because it is a decision somebody made and a track would
+   say the opposite — that nobody had looked. */
+.mbr-uc-na {
+  margin-inline-start: auto;
+  white-space: nowrap;
 }
 
 .mbr-uc-name {

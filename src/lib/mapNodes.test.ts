@@ -35,11 +35,13 @@ import {
   goalProgress,
   progressByNode,
   stageIndex,
+  statusForRung,
   useCaseProgress as progressOf,
   type StageIndex,
 } from './mapNodes'
 import { cohortKeyOf, type MindNodeKind } from './mindtree/model'
-import type { MapNode, MapNodeStage, MapNodeUseCase, UseCase, UseCaseStatus } from '../types'
+import type { MapNode, MapNodeStage, MapNodeUseCase, UseCase, UseCaseRung,
+  UseCaseStatus } from '../types'
 
 /* ────────────────────────────── fixtures ────────────────────────────── */
 
@@ -397,6 +399,7 @@ function node(over: Partial<MapNode> & Pick<MapNode, 'id'>): MapNode {
     description_ar: '',
     account_manager_id: null,
     vendor: '',
+    his_id: null,
     sort_order: 0,
     archived: false,
     archived_at: null,
@@ -712,5 +715,103 @@ describe('goalProgress — a count goal is about what is beneath', () => {
     const result = goalProgress(COUNT_GOAL, { id: 'phase' }, BENEATH, index, '2027-06-01')
     expect(result.met).toBe(true)
     expect(result.daysLeft).toBeLessThan(0)
+  })
+})
+
+describe('useCaseProgress — a rung, and a pair that does not apply', () => {
+  /** A link on the ladder. `rung` is the truth; `status` is its shadow. */
+  const at = (
+    useCaseId: string,
+    rung: UseCaseRung,
+    nodeId = 'org-1',
+  ): MapNodeUseCase => ({
+    node_id: nodeId,
+    use_case_id: useCaseId,
+    status: statusForRung(rung),
+    rung,
+  })
+
+  /** A pair somebody ruled out. It keeps its row — that is 0032's whole point. */
+  const ruledOut = (useCaseId: string, nodeId = 'org-1'): MapNodeUseCase => ({
+    node_id: nodeId,
+    use_case_id: useCaseId,
+    status: 'planned',
+    rung: 'intake',
+    scope: 'not_applicable',
+  })
+
+  it('carries the rung through when one organization speaks', () => {
+    const p = progressOf(catalogue(), [at('adt', 'coc')], LIVE, ONE)
+    expect(p.rows.find((r) => r.useCase.id === 'adt')?.rung).toBe('coc')
+  })
+
+  it('drops the rung to null when two organizations disagree', () => {
+    // The same rule `status` already obeyed: no single word is true of both, so
+    // the row falls back to its counts.
+    const p = progressOf(
+      catalogue(),
+      [at('adt', 'coc', 'org-1'), at('adt', 'dev', 'org-2')],
+      LIVE,
+      TWO,
+    )
+    expect(p.rows.find((r) => r.useCase.id === 'adt')?.rung).toBeNull()
+  })
+
+  it('takes a ruled-out pair out of the denominator, and says so', () => {
+    // ⚠ THE NUMBER THIS WHOLE COLUMN EXISTS FOR. Six capabilities, one
+    //   organization, two of them ruled out and one at PROD: the hospital reads
+    //   "1 of 4", not "1 of 6". A hospital with no radiology department is not
+    //   failing to deliver Rad Order.
+    const p = progressOf(
+      catalogue(),
+      [at('adt', 'prod'), ruledOut('rad'), ruledOut('lab')],
+      LIVE,
+      ONE,
+    )
+    expect(p.total).toBe(4)
+    expect(p.done).toBe(1)
+    expect(p.linked).toBe(1)
+  })
+
+  it('keeps the ruled-out row on the table, marked', () => {
+    // Dropping the row would hide a decision somebody made, and the next reader
+    // would sit down and record it again.
+    const p = progressOf(catalogue(), [ruledOut('rad')], LIVE, ONE)
+    const row = p.rows.find((r) => r.useCase.id === 'rad')
+    expect(row).toBeDefined()
+    expect(row?.notApplicable).toBe(1)
+    // NOT counted as work: `linked` is what says somebody is doing it.
+    expect(row?.linked).toBe(0)
+    expect(row?.rung).toBeNull()
+  })
+
+  it('tells "nobody has said" apart from "does not apply"', () => {
+    // Both render without a track, and they are different facts: the first is a
+    // measurement nobody took, the second is a decision somebody made. Only the
+    // second leaves the denominator.
+    const p = progressOf(catalogue(), [ruledOut('rad')], LIVE, ONE)
+    const silent = p.rows.find((r) => r.useCase.id === 'adt')
+    const excluded = p.rows.find((r) => r.useCase.id === 'rad')
+    expect(silent?.notApplicable).toBe(0)
+    expect(excluded?.notApplicable).toBe(1)
+    expect(p.total).toBe(5)
+  })
+
+  it('treats a link with no scope key as in scope', () => {
+    // ⚠ THE LANDMINE. `scope` is OPTIONAL on MapNodeUseCase, and every fixture
+    //   in this repo and every optimistic row a panel holds between a tick and
+    //   its round trip omits it. A `!== 'in_scope'` test would mark all of them
+    //   out of scope and zero every denominator in the app at once, silently,
+    //   with no exception anywhere. The test is positive for that reason.
+    const bare: MapNodeUseCase = { node_id: 'org-1', use_case_id: 'adt', status: 'live' }
+    expect(progressOf(catalogue(), [bare], LIVE, ONE).total).toBe(6)
+  })
+
+  it('never lets the denominator fall below the population', () => {
+    // An organization that ruled out everything is still one organization, and
+    // "0 of 0" is not a sentence.
+    const all = catalogue().map((u) => ruledOut(u.id))
+    const p = progressOf(catalogue(), all, LIVE, ONE)
+    expect(p.total).toBe(1)
   })
 })

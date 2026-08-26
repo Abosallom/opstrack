@@ -26,7 +26,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { MapNode, MapNodeUseCase, UseCase, UseCaseStatus } from '../../types'
+import type { MapNode, MapNodeUseCase, UseCase, UseCaseRung,
+  UseCaseStatus } from '../../types'
 import type { MapNodeGoal } from '../../api/goals'
 
 const fx = vi.hoisted(() => {
@@ -184,6 +185,7 @@ function mapNode(over: Partial<MapNode> & Pick<MapNode, 'id' | 'name'>): MapNode
     description_ar: '',
     account_manager_id: null,
     vendor: '',
+    his_id: null,
     sort_order: 0,
     archived: false,
     archived_at: null,
@@ -325,6 +327,9 @@ const SHEET_SRC: Record<string, string> = import.meta.glob('./map-branch.css', {
   eager: true,
 })
 const SHEET = SHEET_SRC['./map-branch.css'] ?? ''
+
+/** The character the panel pairs with an `.sr-only` word for every absence. */
+const EM_DASH_CHAR = '\u2014'
 
 /**
  * Just the field list.
@@ -991,5 +996,96 @@ describe('the goal band', () => {
     expect(goalClock(30)).toEqual({ key: 'mapnode.goalLeft', count: 30, tone: 'ahead' })
     expect(goalClock(0)).toEqual({ key: 'mapnode.goalDue', count: 0, tone: 'due' })
     expect(goalClock(-3)).toEqual({ key: 'mapnode.goalOverdue', count: 3, tone: 'over' })
+  })
+})
+
+describe('the rung, drawn as position', () => {
+  /** A link on the ladder. `rung` is the truth; `status` is its shadow. */
+  const at = (useCaseId: string, rung: UseCaseRung): MapNodeUseCase => ({
+    node_id: 'org-1',
+    use_case_id: useCaseId,
+    status: rung === 'prod' ? 'live' : rung === 'intake' ? 'planned' : 'testing',
+    rung,
+  })
+
+  /** The five markers' states, in order, off the rendered track. */
+  const states = (html: string): string[] => {
+    const track = /<ol class="mbr-rung"[\s\S]*?<\/ol>/.exec(html)?.[0] ?? ''
+    return [...track.matchAll(/data-state="(\w+)"/g)].map((m) => m[1])
+  }
+
+  it('puts the marker at the rung, with the passed rungs behind it', () => {
+    const html = band({ links: [at('adt', 'stg')] })
+    expect(states(html)).toEqual(['passed', 'passed', 'at', 'ahead', 'ahead'])
+  })
+
+  it('draws the first and last rungs at the ends of the track', () => {
+    expect(states(band({ links: [at('adt', 'intake')] })))
+      .toEqual(['at', 'ahead', 'ahead', 'ahead', 'ahead'])
+    expect(states(band({ links: [at('adt', 'prod')] })))
+      .toEqual(['passed', 'passed', 'passed', 'passed', 'at'])
+  })
+
+  it('states the position as a count for a screen reader, never as a percentage', () => {
+    // "step 3 of 5" is a fact a reader can check against the picture. "60%" is a
+    // number nobody measured — house law, and the reason the ladder is drawn at
+    // all rather than summarised.
+    const html = band({ links: [at('adt', 'stg')] })
+    expect(html).toContain(esc(t('mapnode.rungStg')))
+    expect(html).toMatch(/step 3 of 5/)
+    expect(html).not.toMatch(/\d+%/)
+  })
+
+  it('leaves the paper alone when nobody has placed the pair', () => {
+    // ⚠ UNTOUCHED PAPER, NEVER A MARKER AT POSITION ZERO. An unrecorded pair and
+    //   a pair sitting at Intake must not be two arrangements of one picture, so
+    //   no track is rendered at all — docs/OPERATING-MODEL.md §11.5.
+    const html = band({ links: [] })
+    expect(html).not.toContain('class="mbr-rung"')
+    expect(html).toContain(EM_DASH_CHAR)
+  })
+
+  it('says a ruled-out pair does not apply, rather than drawing it at zero', () => {
+    const html = band({
+      links: [{ node_id: 'org-1', use_case_id: 'adt', status: 'planned', rung: 'intake', scope: 'not_applicable' }],
+    })
+    expect(html).toContain(esc(t('mapnode.scopeNa')))
+  })
+})
+
+describe('the ladder is position and not colour, and the stylesheet proves it', () => {
+  /** The rung block, sliced off the sheet by its own heading. */
+  const block = (): string =>
+    /═ THE RUNG, DRAWN AS POSITION[\s\S]*?(?=\n\.mbr-uc-name)/.exec(SHEET)?.[0] ?? ''
+
+  it('is findable at all, so nothing below passes vacuously', () => {
+    expect(block().length).toBeGreaterThan(400)
+  })
+
+  it('never selects on the rung, because five hues for five rungs is the forbidden drawing', () => {
+    // `data-rung` is on the markup so the tests above can assert a position
+    // without measuring a pixel. It is for the test, NOT for the paint: the
+    // moment a rule keys off it, the ladder has become a palette and a reader in
+    // greyscale, or one who was never told what the colours mean, is left with
+    // nothing.
+    expect(block()).not.toMatch(/\[data-rung=/)
+  })
+
+  it('spends two inks and no more', () => {
+    // `--text` for what has happened, `--border` for what has not, `--bg-elev`
+    // only as the ring that lifts the marker off the rail. The states differ by
+    // SIZE and FILL, which are channels that survive a greyscale print.
+    const inks = [...new Set(block().match(/var\(--[a-z-]+\)/g) ?? [])].sort()
+    expect(inks).toEqual(['var(--bg-elev)', 'var(--border)', 'var(--text)'])
+  })
+
+  it('uses logical properties only, so the ladder runs in the reading direction', () => {
+    // ⚠ A PHYSICAL OFFSET HERE IS A LIE TOLD FLUENTLY: every Arabic reader would
+    //   see the estate's progress running backwards, and nothing on the screen
+    //   would look broken. localeParity covers the strings; nothing but this
+    //   covers the geometry.
+    expect(block()).not.toMatch(/[^-](left|right)\s*:/)
+    expect(block()).not.toMatch(/margin-left|margin-right|padding-left|padding-right/)
+    expect(block()).not.toMatch(/translateX\(/)
   })
 })

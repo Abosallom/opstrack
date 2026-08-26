@@ -795,6 +795,37 @@ export type MapNodeSource = 'local' | 'jira'
 export type UseCaseStatus = 'planned' | 'testing' | 'live'
 
 /**
+ * How far one organization has got with one use case — 0032's ladder, and the
+ * column that is now the truth.
+ *
+ * `status` above is the three-word reading this product shipped with. 0032 keeps
+ * both, backfilling `rung` from `status`, and says a later migration drops
+ * `status` once every reader has moved. Until that day BOTH ARE WRITTEN AND
+ * THEY MUST AGREE — see `statusForRung` in lib/mapNodes.ts, which is the single
+ * owner of the correspondence so the app and scripts/report/grid.mjs cannot
+ * drift into disagreeing about the same cell.
+ *
+ * ⚠ IT IS ORDERED, AND THE ORDER IS THE MEANING. Drawn as position along a
+ *   track and never as five colours — docs/OPERATING-MODEL.md §11.5, the same
+ *   rule 0026 already enforces on the organization ladder.
+ */
+export type UseCaseRung = 'intake' | 'dev' | 'stg' | 'coc' | 'prod'
+
+/** The rungs in order. Index is position; length is the track. */
+export const USE_CASE_RUNGS: readonly UseCaseRung[] = ['intake', 'dev', 'stg', 'coc', 'prod']
+
+/**
+ * Whether a use case applies to this organization at all.
+ *
+ * ⚠ NOT A SIXTH RUNG, AND NOT AN ABSENCE. A hospital with no radiology
+ *   department is not "at intake on Rad Order" and it is not a missing row
+ *   either — it is a row that says the pair does not apply, so it can leave the
+ *   denominator and read "6 of 10" rather than "6 of 11". 0032's header makes
+ *   the argument; `useCaseProgress` is where it has to be obeyed.
+ */
+export type UseCaseScope = 'in_scope' | 'not_applicable'
+
+/**
  * map_nodes — the tree beneath a track. Programme phases, onboarding phases, and
  * the organizations being onboarded, at whatever depth the admin builds.
  *
@@ -855,6 +886,17 @@ export interface MapNode {
    * that filter-by-vendor has one answer to "no vendor" rather than two.
    */
   vendor: string
+  /**
+   * Which hospital information system this organization runs — `his_products.id`,
+   * `on delete set null` (0034). Null on all 140 today, which is the honest
+   * starting point: the catalogue was seeded, nobody was filled in.
+   *
+   * A REFERENCE where `vendor` right above is free text, and the asymmetry is
+   * deliberate in the other direction this time: there are eleven HIS products
+   * and the estate keeps spelling them six ways, so this one gets a catalogue a
+   * person picks from.
+   */
+  his_id: string | null
   sort_order: number
   archived: boolean
   /**
@@ -942,6 +984,56 @@ export interface UseCase {
 }
 
 /**
+ * his_products (0034) — the hospital information systems an organization can run.
+ *
+ * ⚠ RHAPSODY IS DELIBERATELY NOT IN THIS CATALOGUE and must not be added. It is
+ *   the integration engine the technical team builds interfaces IN, not a system
+ *   a hospital runs, so seeding it would tag most of the estate with one
+ *   meaningless value. The eleven names here were all read off strings the
+ *   workspace's own tickets already carry.
+ */
+export interface HisProduct {
+  id: string
+  name: string
+  /** `not null default ''`. Empty means no translation yet — fall back to `name`. */
+  name_ar: string
+  /** The company that makes it. Free text for `MapNode.vendor`'s stated reason. */
+  supplier: string
+  sort_order: number
+  /** Retires it from the picker without un-tagging the organizations on it. */
+  hidden: boolean
+  created_at: string
+  updated_at: string
+  created_by: string | null
+  updated_by: string | null
+}
+
+/** The three states the owner named for single sign-on. A closed check in 0033. */
+export type SsoState = 'not_started' | 'uat' | 'prd'
+
+/**
+ * map_node_readiness (0033) — the three things that come before ADT.
+ *
+ * ONE SET PER HOSPITAL, not one per use case: registering with the patient
+ * registry is something an organization does once, not something it does again
+ * for Lab Order.
+ *
+ * ⚠ THE ABSENCE OF A ROW IS "NOBODY HAS SAID", AND IT IS NOT `not_started`.
+ *   The table is empty today, so every organization is in that state, and a
+ *   screen that renders the missing row as three unticked boxes and "Not
+ *   started" would be printing a measurement nobody took. The defaults exist for
+ *   rows a person has created, not to describe rows that do not exist.
+ */
+export interface NodeReadiness {
+  node_id: string
+  patient_registry: boolean
+  provider_portal: boolean
+  sso: SsoState
+  updated_at: string
+  updated_by: string | null
+}
+
+/**
  * map_node_use_cases — which organization integrated which capability, and how far.
  *
  * NO ID: the pair is the primary key, so the ordering is total and two loads of the
@@ -967,6 +1059,39 @@ export interface MapNodeUseCase {
   node_id: string
   use_case_id: string
   status: UseCaseStatus
+  /**
+   * 0032's ladder. Optional only so a fixture written before 0032 still type
+   * checks; every row in the database carries one, and the backfill left no
+   * nulls.
+   */
+  rung?: UseCaseRung | null
+  /** `not_applicable` leaves the denominator. Defaults to `in_scope` in the database. */
+  scope?: UseCaseScope
+  /** Set when somebody flags the pair blocked; null means it is not blocked. */
+  blocked_since?: string | null
+  /** Free text, empty when not blocked. */
+  blocked_reason?: string
+  /** Who the wait is on. Empty when nobody has said. */
+  pending_with?: string
+  /** The day this pair reached PROD, when a person recorded it. */
+  live_on?: string | null
+  /**
+   * When the rung last moved.
+   *
+   * ⚠ NOT A MEASUREMENT YET. Every row's value was written by 0032's backfill
+   *   with `updated_by` null, so lib/portfolio/fields.ts's rule applies — a
+   *   clock a script wrote is the moment the script ran, not the moment
+   *   anything happened. No day count may be printed from this until a person
+   *   moves a rung.
+   */
+  status_changed_at?: string | null
+  /** A date somebody committed to for this pair. Null is "nobody has said". */
+  target_date?: string | null
+  /** The COC chase, which is the rung this office works. All null until recorded. */
+  coc_submitted_on?: string | null
+  coc_contact?: string | null
+  coc_reference?: string | null
+  coc_signed_on?: string | null
   /** 'local' unless a sync wrote the row. The frozen twin of `map_nodes.source`. */
   source?: MapNodeSource
   /** The Jira issue key this link mirrors, or null for a link somebody typed. */

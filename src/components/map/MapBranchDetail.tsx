@@ -187,7 +187,14 @@ import { useFilterContext } from '../../store/entries'
 import { mergeProgress, usePendingStages } from '../../store/stageOverlay'
 import { useMemberMap } from '../../store/members'
 import type { Member } from '../../api/members'
-import type { MapNode, MapNodeStage, MapNodeUseCase, UseCase, UseCaseStatus } from '../../types'
+import type {
+  MapNode,
+  MapNodeStage,
+  MapNodeUseCase,
+  UseCase,
+  UseCaseRung,
+  UseCaseStatus,
+} from '../../types'
 
 /* ══════════════════════════ constants ══════════════════════════ */
 
@@ -207,22 +214,6 @@ export const TERMINAL_STATUS: UseCaseStatus = 'live'
 /** A value that is not recorded. Paired with an `.sr-only` word every time. */
 const EM_DASH = '—'
 
-/**
- * The status as a standalone badge, and the status INSIDE the heading sentence.
- *
- * Two records for one union, because "Live" is a label and "6 of 9 live" is a
- * sentence, and English capitalises the first and not the second. Written as
- * literals rather than built from a template, because `localeReach.test.ts`
- * scans the source for key-shaped strings and cannot see a key it has to
- * assemble — a template literal here would take four keys out of the gate that
- * proves they exist in both bundles.
- */
-const STATUS_PILL: Readonly<Record<UseCaseStatus, string>> = {
-  planned: 'mapnode.statusPlanned',
-  testing: 'mapnode.statusTesting',
-  live: 'mapnode.statusLive',
-}
-
 // EXPORTED beside `TERMINAL_STATUS`, and for the identical argument: the PMO
 // page prints the same "⁨6⁩ of 9 ⁨live⁩" sentence off the same `useCaseProgress`
 // pair, and a second literal there would be the exact duplication this file's
@@ -234,11 +225,31 @@ export const STATUS_WORD: Readonly<Record<UseCaseStatus, string>> = {
   live: 'mapnode.wordLive',
 }
 
-/** The tone each status wears. Neutral is a real answer, so it is not in here. */
-const STATUS_TONE: Readonly<Record<UseCaseStatus, string>> = {
-  planned: '',
-  testing: ' info',
-  live: ' ok',
+/**
+ * The five rungs, in order — 0032's ladder.
+ *
+ * ⚠ THE ORDER OF THIS ARRAY IS THE ONLY THING THAT SAYS WHICH WAY THE LADDER
+ *   RUNS. The strings are opaque and `'coc'` sorts before `'dev'` alphabetically,
+ *   so nothing else in the app could recover the sequence. The panel draws slot
+ *   `i` from this array; reversing it silently reverses every hospital's
+ *   progress, which is why a test pins the rendered marker states against it.
+ */
+const RUNGS: readonly UseCaseRung[] = ['intake', 'dev', 'stg', 'coc', 'prod']
+
+/**
+ * The rung as a word.
+ *
+ * Written as literals rather than built from a template, because
+ * `localeReach.test.ts` scans the source for key-shaped strings and cannot see a
+ * key it has to assemble — a template here would take five keys out of the gate
+ * that proves they exist in both bundles.
+ */
+const RUNG_WORD: Readonly<Record<UseCaseRung, string>> = {
+  intake: 'mapnode.rungIntake',
+  dev: 'mapnode.rungDev',
+  stg: 'mapnode.rungStg',
+  coc: 'mapnode.rungCoc',
+  prod: 'mapnode.rungProd',
 }
 
 /* ══════════════════════════ pure helpers ══════════════════════════ */
@@ -646,15 +657,29 @@ export function DetailBand({
                     {t('mapnode.retired')}
                   </span>
                 )}
-                {row.status === null ? (
+                {/* ⚠ RULED OUT IS NOT A POSITION ON THE LADDER, so it does not
+                    get one. Drawing an empty track here would say "nobody has
+                    said anything", which is the opposite of what somebody
+                    actually said — and this row has left the denominator, which
+                    a reader can only check if the row says so. */}
+                {row.notApplicable > 0 && row.linked === 0 ? (
+                  <span className="pill mbr-uc-na">{t('mapnode.scopeNa')}</span>
+                ) : row.rung === null ? (
+                  /* UNTOUCHED PAPER, NEVER A MARKER AT POSITION ZERO — the rule
+                     docs/OPERATING-MODEL.md §11.5 states and that
+                     `INK.unrecorded = 'none'` states again in the printed
+                     report: the honest way to draw a measurement nobody took is
+                     to leave the paper alone. No track is rendered AT ALL, so an
+                     unrecorded pair and a pair sitting at Intake can never be
+                     confused — they are not two arrangements of one picture. */
                   <span className="mbr-uc-status">
                     <span aria-hidden="true">{EM_DASH}</span>
-                    <span className="sr-only">{t('mapnode.statusNone')}</span>
+                    <span className="sr-only">
+                      {t(row.linked === 0 ? 'mapnode.statusNone' : 'mapnode.rungUnplaced')}
+                    </span>
                   </span>
                 ) : (
-                  <span className={`pill mbr-uc-status${STATUS_TONE[row.status]}`}>
-                    {t(STATUS_PILL[row.status])}
-                  </span>
+                  <RungTrack rung={row.rung} />
                 )}
               </li>
             ))}
@@ -741,6 +766,53 @@ export function DetailBand({
       </dl>
 
     </section>
+  )
+}
+
+/**
+ * Where one use case stands, drawn as POSITION along a five-stop track.
+ *
+ * ⚠ NOT FIVE COLOURS, AND THAT IS A RULE RATHER THAN A PREFERENCE. It is the
+ *   same decision `0026_map_node_stages.sql` already enforces on the
+ *   organization ladder and `scripts/report/views/cover.mjs` on the printed
+ *   report, stated once more in docs/OPERATING-MODEL.md §11.5: *an ordered
+ *   ladder is drawn as position, never as hues*. Distance along the track is
+ *   the progress, so a hospital that is nearly done looks nearly done from
+ *   across a room. It satisfies WCAG 1.4.1 for free — colour is never the only
+ *   channel because colour is not a channel at all here — and it survives being
+ *   screenshotted into a message, printed in grey, and read by somebody who has
+ *   never been told what the palette means.
+ *
+ * FIVE REAL ELEMENTS, NOT ONE OFFSET BAR, and the reason is testability rather
+ * than taste: five `<li>`s each carrying `data-state` make "the marker is at
+ * slot three" something `renderToStaticMarkup` can assert, where
+ * `inset-inline-start: 50%` could only ever be proved in a browser this repo
+ * deliberately does not have in its test environment.
+ *
+ * `aria-hidden`, because it is a picture of a fact the sentence beside it
+ * already states in words — announcing five list items would be five noises
+ * for one reading.
+ */
+function RungTrack({ rung }: { rung: UseCaseRung }): ReactElement {
+  const at = RUNGS.indexOf(rung)
+  return (
+    <>
+      <ol className="mbr-rung" data-rung={rung} aria-hidden="true">
+        {RUNGS.map((step, i) => (
+          <li
+            key={step}
+            className="mbr-rung-step"
+            data-state={i < at ? 'passed' : i === at ? 'at' : 'ahead'}
+          />
+        ))}
+      </ol>
+      {/* POSITION AS A COUNT, never as a percentage — "step 3 of 5" is a fact a
+          reader can check against the picture; "60%" is a number nobody
+          measured. */}
+      <span className="sr-only">
+        {t('mapnode.rungAt', { rung: t(RUNG_WORD[rung]), n: at + 1, total: RUNGS.length })}
+      </span>
+    </>
   )
 }
 
@@ -838,7 +910,7 @@ export function goalClock(daysLeft: number): GoalClock {
 /**
  * Which of the four sentences a goal is, as LITERAL keys.
  *
- * Written out rather than assembled, `STATUS_PILL`'s reason twenty lines up:
+ * Written out rather than assembled, `RUNG_WORD`'s reason above:
  * `localeReach.test.ts` scans the source for key-shaped strings and cannot see a
  * key it has to build, so a template literal here would take four keys out of the
  * gate that proves they exist in both bundles.

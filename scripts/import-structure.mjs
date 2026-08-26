@@ -722,10 +722,32 @@ if (UNDO) {
       } else if (action.kind === 'restore-link') {
         // merge-duplicates: the row may or may not be there, and putting it back
         // has to work either way. This is the one place an undo CREATES.
+        // ⚠ THE RUNG GOES BACK TOO, OR THE UNDO IS A CORRUPTION.
+        //
+        //   0032 added `map_node_use_cases.rung` — the ladder that is now the
+        //   truth — and left it nullable. A POST carrying only `status` lands
+        //   `rung = NULL` while every other row in the estate has one, and the
+        //   0032 stamp trigger records the insert in `map_node_use_case_events`
+        //   as a move to nowhere, with `source = 'migration'` and a null actor
+        //   because the service role has no `auth.uid()`. So a routine undo
+        //   would be indistinguishable, in the one table that exists to make the
+        //   migration auditable, from the migration itself.
+        //
+        //   `RUNG_FOR_STATUS` is 0032's own backfill mapping, and it is the ONLY
+        //   direction that is safe to compute: status → rung is what the
+        //   migration did once with the whole estate in front of it, and this
+        //   restores a row this same script recorded before 0032 existed.
+        //   src/lib/mapNodes.ts owns the other direction and has no inverse.
+        const RUNG_FOR_STATUS = { planned: 'intake', testing: 'stg', live: 'prod' }
         await rest('/rest/v1/map_node_use_cases', {
           method: 'POST',
           headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-          body: JSON.stringify([{ node_id: action.nodeId, use_case_id: action.useCaseId, status: action.status }]),
+          body: JSON.stringify([{
+            node_id: action.nodeId,
+            use_case_id: action.useCaseId,
+            status: action.status,
+            rung: RUNG_FOR_STATUS[action.status] ?? 'intake',
+          }]),
         })
         done.push(`${action.useCase} put back as ${action.status} on ${action.path.join(' > ')}`)
       } else if (action.kind === 'revert-node') {

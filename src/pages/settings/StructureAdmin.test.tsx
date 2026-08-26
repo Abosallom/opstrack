@@ -210,6 +210,7 @@ function node(over: Partial<MapNode> & Pick<MapNode, 'id' | 'track_id'>): MapNod
     description_ar: '',
     account_manager_id: null,
     vendor: '',
+    his_id: null,
     sort_order: seq,
     archived: false,
     archived_at: null,

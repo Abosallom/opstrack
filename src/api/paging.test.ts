@@ -362,18 +362,37 @@ describe('listNodeUseCases', () => {
     expect(result.ok && result.data).toHaveLength(1)
   })
 
-  it('asks for the five Jira columns by name, so a row can say where it came from', async () => {
+  it('asks for every column by name, so a row can say where it came from and how far it has got', async () => {
     const api = await loadMapApi()
 
     await api.listNodeUseCases('org-1')
 
     const columns = String(argsOf(calls[0], 'select')?.[0])
     expect(columns).toBe(
-      'node_id, use_case_id, status, source, external_ref, external_url, synced_at, overrides',
+      'node_id, use_case_id, status, rung, scope, blocked_since, blocked_reason, pending_with, target_date, live_on, status_changed_at, coc_submitted_on, coc_contact, coc_reference, coc_signed_on, source, external_ref, external_url, synced_at, overrides',
     )
     // Never `*`: a later migration's column would otherwise ship to every
     // client and into whatever the caller caches.
     expect(columns).not.toContain('*')
+  })
+
+  it('selects BOTH status and rung, because half the app still reads each', async () => {
+    // ⚠ THE PAIR IS THE POINT. 0032 added `rung` — the five-rung ladder that is
+    //   now the truth — and kept `status` until a later migration drops it. The
+    //   org panel reads `rung`; the portfolio bars, cards and grid still read
+    //   `status`. Selecting only one of the two makes half the app silently
+    //   blind, with no error anywhere and a screen that simply says nothing.
+    //
+    //   The exact-string assertion above would also catch a dropped column, but
+    //   it reads as a formatting change; this one names the consequence. When
+    //   `status` is finally dropped, this test is the second place to look.
+    const api = await loadMapApi()
+    await api.listNodeUseCases('org-1')
+    const columns = String(argsOf(calls[0], 'select')?.[0])
+
+    for (const column of ['status', 'rung', 'scope']) {
+      expect(columns.split(/,\s*/)).toContain(column)
+    }
   })
 })
 

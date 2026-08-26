@@ -33,6 +33,8 @@ import { supabase } from './supabase'
 import { fail, notConfigured, type ApiResult } from './result'
 import { chunkIds, fetchAllPages } from './paging'
 import { pgErrorKey } from '../lib/pgError'
+// The one place `rung` and the deprecated `status` are reconciled — see below.
+import { statusForRung } from '../lib/mapNodes'
 // TYPE-ONLY, so entries.ts's doctrine comment at 82-98 stays the one place
 // `Loaded<T>` is explained and this module gains no runtime coupling to the
 // entries loader.
@@ -52,7 +54,8 @@ import type {
   MapNodeUseCase,
   UseCase,
   UseCaseInput,
-  UseCaseStatus,
+  UseCaseRung,
+  UseCaseScope,
 } from '../types'
 
 /** The id of the signed-in user, or null when the session has gone. */
@@ -687,11 +690,19 @@ export async function deleteUseCase(id: string): Promise<ApiResult<void>> {
 // capability is the data the team collects, and gating it on is_admin() would make
 // one person the bottleneck for the only numbers this feature exists to produce.
 //
-// AN ABSENT ROW MEANS "NOT INTEGRATED". There is no sentinel status and no zero: the
-// two states a (node, use case) cell can be in are "a row with a status" and "no
+// AN ABSENT ROW MEANS "NOBODY HAS SAID". There is no sentinel rung and no zero: the
+// two states a (node, use case) cell can be in are "a row on the ladder" and "no
 // row". That is exactly `track_slas`' shape, chosen here for exactly its reason, and
-// it is why setNodeUseCase takes `status: UseCaseStatus | null` and DELETES on null
+// it is why setNodeUseCase takes `rung: UseCaseRung | null` and DELETES on null
 // rather than writing something that means nothing.
+//
+// ⚠ AND "DOES NOT APPLY HERE" IS NOT THAT ABSENCE. 0032 added `scope` precisely so a
+//   hospital with no radiology department can say so — a ROW reading
+//   `not_applicable`, which leaves the denominator and reads "6 of 10". Deleting the
+//   row would say nobody had looked, which is the opposite of a decision somebody
+//   made, and the stamp trigger is BEFORE INSERT OR UPDATE, so a DELETE is the one
+//   change the audit log cannot see. Ruling a pair out is a scope write, never a
+//   delete; the delete stays for "this was recorded by mistake".
 
 /**
  * The columns every link read asks for, by name.
@@ -704,9 +715,31 @@ export async function deleteUseCase(id: string): Promise<ApiResult<void>> {
  * link somebody typed. One list, used by every reader here, is what keeps the
  * widening from being true of one loader and false of the next — the kind of
  * two-answers-for-one-question seam this wave exists to close.
+ *
+ * ⚠ `status` AND `rung` ARE BOTH HERE, AND THAT IS NOT DUPLICATION. 0032 added
+ *   `rung` — the five-rung ladder that is now the truth — and backfilled it from
+ *   `status`, keeping both until a later migration drops the older column. The
+ *   panel reads `rung`; the portfolio surfaces still read `status`. They agree
+ *   because every write sets both from one expression (`setNodeUseCase` below),
+ *   and the day `status` is dropped is the day it leaves this list and those
+ *   surfaces move. Selecting only one of the two would make one half of the app
+ *   silently blind.
+ *
+ * ⚠ AND THE PORTFOLIO PAYS FOR THE PANEL'S COLUMNS. `listNodeUseCasesFor` pulls
+ *   1,540 rows and now carries thirteen more per row, most of them empty. That
+ *   is the cheaper of the two mistakes: two lists would mean a `MapNodeUseCase`
+ *   from one path has fields the other lacks, which destroys the property this
+ *   type stands on — `source === undefined` means "not from a read", never "no
+ *   source". When the COC queue's read outgrows this, it gets a row type of its
+ *   own with its own select, never a narrower `MapNodeUseCase`.
  */
+// ⚠ ONE STRING LITERAL, NOT A CONCATENATION, and it has to stay that way.
+//   supabase-js infers the row shape from the literal it is handed; `'a' + 'b'`
+//   widens to `string` and the inference collapses, which surfaces forty lines
+//   away as "PostgrestFilterBuilder is not assignable to PromiseLike<Page<…>>"
+//   on a line nobody touched. Long line, kept whole on purpose.
 const LINK_COLUMNS =
-  'node_id, use_case_id, status, source, external_ref, external_url, synced_at, overrides'
+  'node_id, use_case_id, status, rung, scope, blocked_since, blocked_reason, pending_with, target_date, live_on, status_changed_at, coc_submitted_on, coc_contact, coc_reference, coc_signed_on, source, external_ref, external_url, synced_at, overrides'
 
 /**
  * One node's links. Ordered so two loads of the same data render in the same order —
@@ -823,11 +856,12 @@ export async function listNodeUseCasesFor(
 export async function setNodeUseCase(
   nodeId: string,
   useCaseId: string,
-  status: UseCaseStatus | null,
+  rung: UseCaseRung | null,
+  scope: UseCaseScope = 'in_scope',
 ): Promise<ApiResult<MapNodeUseCase | null>> {
   if (!supabase) return notConfigured()
 
-  if (status === null) {
+  if (rung === null) {
     const { error } = await supabase
       .from('map_node_use_cases')
       .delete()
@@ -866,7 +900,39 @@ export async function setNodeUseCase(
       //
       //   Nothing to do on the DELETE path above: clearing a cell removes the
       //   row, and a row that does not exist holds nothing.
-      { node_id: nodeId, use_case_id: useCaseId, status, overrides: ['status'] },
+      //
+      // ⚠ BOTH COLUMNS, FROM ONE EXPRESSION, AND THIS IS THE WHOLE OF THE FIX.
+      //
+      //   `status` is `not null default 'live'` (0024:360). Send `rung` without
+      //   it and a brand-new INTAKE cell lands as LIVE on the home screen, in
+      //   the portfolio bar and in the PMO exception list — a false positive,
+      //   which is strictly worse than the null it replaces. Send `status`
+      //   without `rung` — which is what this line did until 0032 applied — and
+      //   the estate splits into backfilled rows that have a rung and app-written
+      //   rows that do not, while the stamp trigger records an event reading
+      //   "moved to nowhere".
+      //
+      //   Neither is representable here: the two keys are spread from a SINGLE
+      //   call to `statusForRung`, so an edit cannot move one without moving the
+      //   other. `statusForRung` is lossy on purpose and has no inverse — see
+      //   lib/mapNodes.ts. The pair dies together the day `status` is dropped.
+      {
+        node_id: nodeId,
+        use_case_id: useCaseId,
+        rung,
+        status: statusForRung(rung),
+        scope,
+        // ⚠ `overrides` NOW NAMES EVERY FIELD THIS WRITE TOUCHES. The paragraph
+        //   above said in capitals that the whole-array form "is wrong the day a
+        //   second field becomes editable here" — 0032 made `rung` and `scope`
+        //   that second and third field. This is still a whole-array write and
+        //   therefore still the union only because these three are the only
+        //   editable fields today; the moment a fourth arrives on a DIFFERENT
+        //   screen, two screens will start dropping each other's entries and the
+        //   fix is the trigger, not a longer literal. `status` is not listed: a
+        //   person edits a rung and the older column follows.
+        overrides: ['rung', 'scope'],
+      },
       { onConflict: 'node_id,use_case_id' },
     )
     // The same LINK_COLUMNS the reads ask for, so the row this hands back is the

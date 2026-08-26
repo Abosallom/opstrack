@@ -101,6 +101,8 @@ function progressOf(statuses: readonly (UseCaseStatus | null)[]): UseCaseProgres
       status,
       linked: status === null ? 0 : 1,
       done: status === 'live' ? 1 : 0,
+      notApplicable: 0,
+      rung: null,
       retired: false,
     }
   })
