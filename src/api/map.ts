@@ -959,15 +959,24 @@ export async function setNodeUseCase(
         rung,
         status: statusForRung(rung),
         scope,
-        // ⚠ `overrides` NOW NAMES EVERY FIELD THIS WRITE TOUCHES. The paragraph
-        //   above said in capitals that the whole-array form "is wrong the day a
-        //   second field becomes editable here" — 0032 made `rung` and `scope`
-        //   that second and third field. This is still a whole-array write and
-        //   therefore still the union only because these three are the only
-        //   editable fields today; the moment a fourth arrives on a DIFFERENT
-        //   screen, two screens will start dropping each other's entries and the
-        //   fix is the trigger, not a longer literal. `status` is not listed: a
-        //   person edits a rung and the older column follows.
+        // ⚠ SUPERSEDED BY 0035, AND HARMLESS IN BOTH STATES.
+        //
+        //   The paragraph above says in capitals that the whole-array form "is
+        //   wrong the day a second field becomes editable here", and 0032 made
+        //   `rung` and `scope` that second and third field: two people editing
+        //   different fields of the same cell each send the array they read on
+        //   open, and the second write drops the first's entry. That is a lost
+        //   update, and it is invisible until a Jira sync that does not exist
+        //   yet quietly takes back a field somebody owns.
+        //
+        //   0035 moves the column into `map_node_use_cases_stamp()`, which
+        //   computes the UNION server-side and therefore OVERRULES whatever
+        //   arrives here — so this line is correct before 0035 (the only writer,
+        //   naming exactly the fields it touched) and inert after it. It stays
+        //   until 0035 is applied everywhere, at which point it is one deletion.
+        //
+        //   `status` is deliberately not listed: a person edits a rung, and the
+        //   older column follows.
         overrides: ['rung', 'scope'],
       },
       { onConflict: 'node_id,use_case_id' },

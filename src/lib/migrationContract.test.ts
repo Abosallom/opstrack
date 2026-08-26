@@ -471,3 +471,40 @@ describe('0030: the map view settings singleton stays inside the map\'s own refu
     expect(sql()).not.toMatch(/node_fields[\s\S]{0,200}?jsonb_path_exists/)
   })
 })
+
+/**
+ * 0035 — `overrides` is the server's to write, not the client's.
+ *
+ * `src/api/map.ts` has carried a capitalised warning since 0024 that the
+ * whole-array write "is wrong the day a second field becomes editable here".
+ * 0032 made `rung` and `scope` that second and third field: two people editing
+ * different fields of the same cell each send the array they read on open, and
+ * the second write drops the first's entry. `overrides` is the per-field editing
+ * contract a future Jira sync must honour, so a dropped entry means the sync
+ * quietly takes back a field a person owns — and nothing shows it until a sync
+ * that does not exist yet runs.
+ */
+describe('0035: a person’s edit cannot be dropped by somebody else’s save', () => {
+  const body = (): string => latestFunctionBody('map_node_use_cases_stamp')?.body ?? ''
+
+  it('computes the union in the database, where no client can get it wrong', () => {
+    // A read-modify-write in the client only narrows the window; provenance
+    // written by whichever client remembered to write it is not provenance.
+    expect(body()).toContain('array_agg(distinct field)')
+  })
+
+  it('writes it only for a person, never for the service role', () => {
+    // ⚠ THE GATE IS THE POINT. The importer and any future sync have no
+    //   `auth.uid()`, and a sync marking its own writes as human-held would make
+    //   `JiraEffect.held` meaningless in the one direction that matters.
+    expect(body()).toMatch(/if auth\.uid\(\) is not null then[\s\S]*?new\.overrides :=/)
+  })
+
+  it('keeps 0032’s two jobs, which a rewrite of this function could silently drop', () => {
+    // `create or replace` rewrites the WHOLE body. 0035 restates 0032's rung
+    // stamp and event-log write for that reason, and this is what would notice
+    // if a later edit forgot to.
+    expect(body()).toContain('status_changed_at := now()')
+    expect(body()).toContain('map_node_use_case_events')
+  })
+})

@@ -62,3 +62,47 @@ all need columns that arrive in those three files.
 I committed on a failing gate **three times** — twice on lint, once on two failing
 tests. Each was fixed within minutes, and every one was me reading the exit code
 and going ahead anyway rather than the tooling being unclear.
+
+---
+
+## Auto-open on zoom — tried three ways, backed out, and what it would take
+
+Asked for on 27 August. The idea: zooming close to a department reveals its
+hospitals without a tap. **It is not in the product.** Three designs, three
+failures, all measured in a browser rather than reasoned about — recorded here so
+a fourth attempt starts from the evidence instead of from the idea again.
+
+The decision logic itself was never the problem. A pure `approachOpenIds(cards,
+scale, focus)` returning the branch to open, with the threshold set to
+`BAND_EDGES.opening` so a branch opens on the same frame its card gains a second
+line, passed thirteen tests including the mount-time `scale === 0` trap. What
+failed, every time, was the *writing*.
+
+1. **Open every branch past the threshold.** Every department's card is the same
+   width, so all six crossed on one frame: 140 organizations unfolded at once
+   into unreadable dust — the "wall of identical grey bricks" that
+   `openDepthFor`'s header says the whole depth rule exists to prevent. The tests
+   were green and the picture was ruined.
+
+2. **Open only the branch nearest the camera centre.** Correct behaviour, blank
+   map. Opening re-flows the layout under a camera that deliberately does not
+   follow it, and the camera ends up pointed where nothing is.
+
+3. **Route it through the page's `toggleFold`**, which parks the id and calls
+   `reveal()` once the drawing commits — the mechanism a manual tap already uses,
+   and the one `useMapGeometry` names: *"Reader folds → the camera holds, and the
+   page calls `reveal()` with the branch that opened."* Still blank.
+
+**The remaining suspect, untested.** The `+` button ANIMATES. The tween crosses
+the threshold mid-flight, the open fires, and `reveal()` flies the camera while
+the zoom tween is already flying it — two motions fighting for the same camera.
+A fourth attempt should debounce until the camera has settled (`flyToCamera` has
+a completion the effect could wait on) and only then ask. That is the "debounced
+effect" the original plan named and that none of these three did.
+
+⚠ **And it may still not be worth it.** `openDepthFor`'s own note argues the tap
+IS the gesture — *"The reader opens the one they want, which is the gesture the
+tree is for"* — and the owner described it the same way: *"once i reach this
+level, i click the org"*. Tapping works, is predictable, and costs one gesture.
+This is the only feature in the product that writes layout from the camera, and
+it has now cost three rewrites without once improving the picture.
