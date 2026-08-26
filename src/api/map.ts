@@ -776,7 +776,7 @@ export async function deleteUseCase(id: string): Promise<ApiResult<void>> {
 //   away as "PostgrestFilterBuilder is not assignable to PromiseLike<Page<…>>"
 //   on a line nobody touched. Long line, kept whole on purpose.
 const LINK_COLUMNS =
-  'node_id, use_case_id, status, rung, scope, blocked_since, blocked_reason, pending_with, target_date, live_on, status_changed_at, coc_submitted_on, coc_contact, coc_reference, coc_signed_on, source, external_ref, external_url, synced_at, overrides'
+  'node_id, use_case_id, status, rung, scope, blocked_since, blocked_reason, pending_with, target_date, live_on, status_changed_at, coc_submitted_on, coc_contact, coc_reference, coc_signed_on, updated_by, source, external_ref, external_url, synced_at, overrides'
 
 /**
  * One node's links. Ordered so two loads of the same data render in the same order —

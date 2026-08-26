@@ -787,3 +787,127 @@ a.pmo-jira:hover {
   color: var(--text-dim);
   white-space: nowrap;
 }
+
+/* ---------- what is stuck (§11) ---------- */
+
+/* Four channels side by side where there is room, stacked where there is not.
+   `auto-fit` rather than a fixed count: the four are independent readings and
+   any of them may be empty, so the row must close up rather than leave a hole
+   that reads as a section that failed to load. */
+.pmo-stuck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-block-start: 12px;
+}
+
+.pmo-stuck-channel {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+/* The count is the channel's headline and is sized like one. Its denominator
+   rides in the same string — never a share. */
+.pmo-stuck-count {
+  margin: 2px 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pmo-stuck-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pmo-stuck-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 8px;
+  font-size: 12.5px;
+}
+
+.pmo-stuck-name { overflow-wrap: anywhere; color: var(--text); }
+.pmo-stuck-who { color: var(--text-dim); font-size: 11.5px; grid-column: 1; }
+.pmo-stuck-n { color: var(--text-dim); grid-column: 2; grid-row: 1; }
+
+/* COC gets its own block below the four, not a fifth column among them. Its
+   accent is the page's own, NOT a warning tone: the wait is on CHI and this is
+   the PMO's own queue, so it is not a fault anybody here is being told about. */
+.pmo-coc {
+  margin-block-start: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--accent-line, var(--border));
+  border-radius: var(--radius);
+  background: var(--accent-soft, var(--bg-elev));
+}
+
+/* ---------- one line per hospital (§11.2) ---------- */
+
+.pmo-strips { margin-block-start: 4px; }
+
+.pmo-strip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pmo-strip-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  padding-block: 2px;
+  font-size: 12.5px;
+}
+
+.pmo-strip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.pmo-strip {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 2px;
+  align-items: end;
+  block-size: 14px;
+}
+
+/* ⚠ POSITION AS HEIGHT, AND NO RULE IN THIS BLOCK MAY SELECT A COLOUR PER RUNG.
+   The mark's HEIGHT is the reading — five steps of it — so the strip survives
+   greyscale, a screenshot and a reader who was never told what the palette
+   means. One ink for a mark, one for the paper. */
+.pmo-strip-cell {
+  inline-size: 6px;
+  block-size: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  align-self: end;
+}
+
+.pmo-strip-cell[data-fill='1'] { block-size: 3px; background: var(--text-dim); }
+.pmo-strip-cell[data-fill='2'] { block-size: 6px; background: var(--text-dim); }
+.pmo-strip-cell[data-fill='3'] { block-size: 9px; background: var(--text); }
+.pmo-strip-cell[data-fill='4'] { block-size: 12px; background: var(--text); }
+.pmo-strip-cell[data-fill='5'] { block-size: 14px; background: var(--text); }
+
+/* Ruled out: the paper, hollowed. Not a short mark — a short mark would read as
+   "barely started", which is the opposite of "this does not apply here". */
+.pmo-strip-cell[data-na='true'] {
+  block-size: 14px;
+  background: transparent;
+  border: 1px dashed var(--border);
+}

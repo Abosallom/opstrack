@@ -369,7 +369,7 @@ describe('listNodeUseCases', () => {
 
     const columns = String(argsOf(calls[0], 'select')?.[0])
     expect(columns).toBe(
-      'node_id, use_case_id, status, rung, scope, blocked_since, blocked_reason, pending_with, target_date, live_on, status_changed_at, coc_submitted_on, coc_contact, coc_reference, coc_signed_on, source, external_ref, external_url, synced_at, overrides',
+      'node_id, use_case_id, status, rung, scope, blocked_since, blocked_reason, pending_with, target_date, live_on, status_changed_at, coc_submitted_on, coc_contact, coc_reference, coc_signed_on, updated_by, source, external_ref, external_url, synced_at, overrides',
     )
     // Never `*`: a later migration's column would otherwise ship to every
     // client and into whatever the caller caches.
@@ -390,7 +390,11 @@ describe('listNodeUseCases', () => {
     await api.listNodeUseCases('org-1')
     const columns = String(argsOf(calls[0], 'select')?.[0])
 
-    for (const column of ['status', 'rung', 'scope']) {
+    // `updated_by` is the fourth: it is the WITNESS that decides whether the
+    // rung clock can be read at all. Without it `obMonitor` cannot tell a clock
+    // a person set from the one instant 0032 stamped on all 1,540 rows, and the
+    // 10-day budget would fire on every hospital at once.
+    for (const column of ['status', 'rung', 'scope', 'updated_by']) {
       expect(columns.split(/,\s*/)).toContain(column)
     }
   })

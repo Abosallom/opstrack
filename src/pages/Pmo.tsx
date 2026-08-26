@@ -115,7 +115,7 @@
 // advertise a feature nobody can turn on, and 0028's contract is that it renders
 // ABSENT until `useJiraEnabled()` is true).
 
-import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactElement, type ReactNode, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AgingChart, ThroughputChart } from '../components/charts'
 import { EmptyState } from '../components/shared'
@@ -179,7 +179,9 @@ import {
   type RiskType,
 } from '../lib/pmo/summary'
 import { buildRulings, type RulingKind, type Rulings } from '../lib/pmo/rulings'
+import { buildObMonitor, OB_RUNGS, type ObMonitor, type ObRow } from '../lib/pmo/obMonitor'
 import { isolate } from '../lib/bidi'
+import { useCapabilityLabel } from '../lib/labels'
 import { isOpen } from '../lib/health'
 import {
   loadConfig,
@@ -240,6 +242,21 @@ const RULING_WHY: Readonly<Record<RulingKind, string>> = {
   silent: 'pmo.rulingSilent',
   unowned: 'pmo.rulingUnowned',
 }
+
+/**
+ * §11.6 — no movement and no comment for fourteen calendar days.
+ *
+ * ⚠ IT WILL FIRE HARD AND THAT IS THE POINT. The median open ticket is over two
+ *   hundred days old, so a fortnight's threshold lights up most of the board on
+ *   the first day anybody looks. That is not the instrument miscalibrated; it is
+ *   the first honest measurement this programme has had, and a threshold chosen
+ *   to make the first screenshot comfortable is a threshold that never tells
+ *   anyone anything.
+ */
+const QUIET_AFTER_DAYS = 14
+
+/** Rows of the exception lists. Capped, and the cap is always said out loud. */
+const OB_ROWS = 12
 
 const ACTION_ROWS = 12
 
@@ -462,6 +479,66 @@ export default function Pmo(): ReactElement {
     return out
   }, [entries])
 
+  /**
+   * When anything was last filed against each node.
+   *
+   * ⚠ THE QUIET CHANNEL READS THIS AND NOT THE RUNG CLOCK, because the rung
+   *   clock cannot be read yet — see `buildObMonitor`'s header. §11.6 defines
+   *   quiet as "no movement AND no comment", and the comment half is the half
+   *   this workspace can actually measure today.
+   */
+  /**
+   * The ELEVEN, for the strip.
+   *
+   * `catalogue` above is deliberately every row including the hidden ones,
+   * because it is a DENOMINATOR and hiding a capability must not shrink
+   * yesterday's number. A strip is a different question — it is a picture of the
+   * work in front of people — so it draws the live catalogue only, and the four
+   * hidden CDA rows 0032 merged away do not each take a column of every row.
+   */
+  const visibleCatalogue = useMemo(() => catalogue.filter((u) => !u.hidden), [catalogue])
+
+  const lastActivityByNode = useMemo(() => {
+    const out = new Map<string, string>()
+    for (const entry of entries) {
+      if (entry.node_id === null) continue
+      const at = entry.last_activity_at
+      const held = out.get(entry.node_id)
+      if (held === undefined || at > held) out.set(entry.node_id, at)
+    }
+    return out
+  }, [entries])
+
+  /**
+   * A capability's displayed name, by id — for the strip's `aria-label`.
+   *
+   * Through `useCapabilityLabel`, which is the supported way and the one that
+   * falls back to `name` when `name_ar` is empty. A component that reached for
+   * `name_ar` itself would print a blank for every capability whose Arabic name
+   * nobody has written, which is most of them.
+   */
+  const capabilityLabel = useCapabilityLabel()
+  const useCaseNameOf = useCallback(
+    (useCaseId: string): string => {
+      const found = visibleCatalogue.find((u) => u.id === useCaseId)
+      return found === undefined ? '' : capabilityLabel(found)
+    },
+    [visibleCatalogue, capabilityLabel],
+  )
+
+  const obMonitor = useMemo(
+    () =>
+      buildObMonitor({
+        nodes: orgKindId === null ? [] : nodes.filter((n) => n.kind_id === orgKindId),
+        catalogue: visibleCatalogue,
+        links: links ?? [],
+        lastActivityByNode,
+        today: ctx.today,
+        quietAfterDays: QUIET_AFTER_DAYS,
+      }),
+    [nodes, orgKindId, visibleCatalogue, links, lastActivityByNode, ctx.today],
+  )
+
   const rulings = useMemo(
     () =>
       buildRulings({
@@ -678,6 +755,11 @@ export default function Pmo(): ReactElement {
           {tab === 'initiatives' && <PortfolioInitiatives />}
           {tab === 'delivery' && (
             <>
+              {/* §11.1 — the exception list FIRST, then everything else. */}
+              <ObMonitorSection monitor={obMonitor} managerNameOf={managerNameOf} />
+              <Section id="pmo-strips" title={t('pmo.strips')} desc={t('pmo.stripsHint')}>
+                <ObStrips monitor={obMonitor} labelOf={useCaseNameOf} />
+              </Section>
               <Projects
                 rows={delivery}
                 coverage={coverage}
@@ -1678,6 +1760,257 @@ function Rulings({ rulings }: { rulings: Rulings }): ReactElement {
       )}
     </Section>
   )
+}
+
+/**
+ * What is stuck right now — OPERATING-MODEL §11, and the first thing the
+ * delivery tab shows.
+ *
+ * §11.1: the section opens with the exception list, because that is what the
+ * owner opens it to find. Coverage, the commitments and the cards are all still
+ * on the page, below. *A dashboard whose first screen is a progress bar is a
+ * dashboard people stop opening.*
+ */
+function ObMonitorSection({
+  monitor,
+  managerNameOf,
+}: {
+  monitor: ObMonitor
+  managerNameOf: (id: string | null) => string | null
+}): ReactElement {
+  const clear =
+    monitor.blocked.length === 0 &&
+    monitor.noOwner.length === 0 &&
+    monitor.quiet.length === 0 &&
+    monitor.atCoc.length === 0
+
+  return (
+    <Section id="pmo-stuck" title={t('pmo.stuck')} desc={t('pmo.stuckDesc')}>
+      {monitor.organizations === 0 ? (
+        <p className="muted pmo-desc">{t('pmo.deliveryEmpty')}</p>
+      ) : (
+        <>
+          <div className="pmo-stuck-grid">
+            <ObChannel
+              titleKey="pmo.stuckBlocked"
+              rows={monitor.blocked}
+              total={monitor.organizations}
+              managerNameOf={managerNameOf}
+              countOf={(row) => row.blocked}
+            />
+            {/* ⚠ THE ONE CHANNEL THAT CANNOT SPEAK, AND IT SAYS SO RATHER THAN
+                SAYING ZERO. Every one of the 1,540 links carries no author and
+                one shared `status_changed_at` — the instant 0032 ran — so a day
+                count from it would give every hospital the same number and that
+                number would be the age of one SQL Editor session. "0 over
+                budget" would read as "we checked and found none"; the sentence
+                below reads as what is true, which is "we cannot look yet". */}
+            <div className="pmo-stuck-channel">
+              <h4 className="mbr-sub">{t('pmo.stuckBudget')}</h4>
+              {monitor.budgetMeasurable ? (
+                <ObList
+                  rows={monitor.overBudget}
+                  total={monitor.organizations}
+                  managerNameOf={managerNameOf}
+                  countOf={() => 0}
+                />
+              ) : (
+                <p className="mbr-note">{t('pmo.stuckBudgetUnmeasurable')}</p>
+              )}
+            </div>
+            <ObChannel
+              titleKey="pmo.stuckNoOwner"
+              rows={monitor.noOwner}
+              total={monitor.organizations}
+              managerNameOf={managerNameOf}
+              countOf={() => 0}
+            />
+            <ObChannel
+              titleKey="pmo.stuckQuiet"
+              rows={monitor.quiet}
+              total={monitor.organizations}
+              managerNameOf={managerNameOf}
+              countOf={(row) => row.quietDays ?? 0}
+            />
+          </div>
+
+          {/* ⚠ COC IS ITS OWN BLOCK, BELOW THE FOUR AND NOT AMONG THEM. The
+              waiting party is CHI, outside the programme: nobody on this roster
+              can move it by working harder, and presenting it in the same shape
+              as "your engineer has not touched this in 40 days" tells the reader
+              to chase the wrong person. It is also the rung this office itself
+              works, which is why it is on the PMO's page at all. */}
+          <div className="pmo-coc">
+            <h4 className="mbr-sub">{t('pmo.cocQueue')}</h4>
+            {monitor.cocPairs === 0 ? (
+              <p className="mbr-note">{t('pmo.cocNone')}</p>
+            ) : (
+              <>
+                <p className="muted pmo-desc">
+                  {t('pmo.cocCount', {
+                    count: monitor.cocPairs,
+                    organizations: monitor.atCoc.length,
+                  })}
+                </p>
+                <ObList
+                  rows={monitor.atCoc}
+                  total={monitor.organizations}
+                  managerNameOf={managerNameOf}
+                  countOf={(row) => row.atCoc}
+                />
+              </>
+            )}
+          </div>
+
+          {clear && <p className="muted pmo-desc">{t('pmo.stuckNone')}</p>}
+        </>
+      )}
+    </Section>
+  )
+}
+
+/** One exception channel: its name, its count against the estate, its rows. */
+function ObChannel({
+  titleKey,
+  rows,
+  total,
+  managerNameOf,
+  countOf,
+}: {
+  titleKey: string
+  rows: ObRow[]
+  total: number
+  managerNameOf: (id: string | null) => string | null
+  countOf: (row: ObRow) => number
+}): ReactElement {
+  return (
+    <div className="pmo-stuck-channel">
+      <h4 className="mbr-sub">{t(titleKey)}</h4>
+      {/* THE COUNT AND ITS DENOMINATOR, never a share. "38 of 140" is a fact a
+          reader can check; "27%" is one they have to trust. */}
+      <p className="pmo-stuck-count tabular">
+        {t('pmo.stuckOf', { count: rows.length, total })}
+      </p>
+      <ObList rows={rows} total={total} managerNameOf={managerNameOf} countOf={countOf} />
+    </div>
+  )
+}
+
+function ObList({
+  rows,
+  managerNameOf,
+  countOf,
+}: {
+  rows: ObRow[]
+  total: number
+  managerNameOf: (id: string | null) => string | null
+  countOf: (row: ObRow) => number
+}): ReactElement | null {
+  if (rows.length === 0) return null
+  const shown = rows.slice(0, OB_ROWS)
+  return (
+    <>
+      <ul className="pmo-stuck-list">
+        {shown.map((row) => {
+          const manager = managerNameOf(row.managerId)
+          const n = countOf(row)
+          return (
+            <li key={row.nodeId}>
+              <span className="pmo-stuck-name">{isolate(row.name)}</span>
+              <span className="pmo-stuck-who">
+                {manager === null ? (
+                  <Dash label={t('mindtree.portfolioNoManager')} />
+                ) : (
+                  isolate(manager)
+                )}
+              </span>
+              {n > 0 && <span className="pmo-stuck-n tabular">{n}</span>}
+            </li>
+          )
+        })}
+      </ul>
+      {/* ⚠ NO SILENT CAP. A list that stopped at twelve without saying so reads
+          as "these are all of them", which is the one thing a list of exceptions
+          must never imply. */}
+      {rows.length > shown.length && (
+        <p className="mbr-note">
+          {t('pmo.stuckMore', { count: rows.length - shown.length })}
+        </p>
+      )}
+    </>
+  )
+}
+
+/**
+ * §11.2 — one row per hospital, carrying its eleven use cases as a strip.
+ *
+ * The atom is (hospital × use case) and there are 1,540 of them, which is more
+ * than anyone reads. One row per use case would answer "how is Lab Order going"
+ * and lose the hospital; the full grid answers neither and only shows patterns.
+ * A hospital row with eleven markers is a whole picture on one line.
+ *
+ * ⚠ POSITION AS HEIGHT, NOT AS COLOUR — the same rule the panel's five-stop
+ *   track obeys, in the one encoding that survives 1,540 cells. A cell is one
+ *   element whose fill rises with the rung, so a row of low marks is a hospital
+ *   nobody has started and a row of tall ones is nearly done, read from across a
+ *   room and in greyscale. Five separate steps per cell would be 7,700 elements
+ *   for the same sentence.
+ */
+function ObStrips({ monitor, labelOf }: { monitor: ObMonitor; labelOf: (u: string) => string }): ReactElement | null {
+  if (monitor.rows.length === 0) return null
+  return (
+    <div className="pmo-strips">
+      <h4 className="mbr-sub">{t('pmo.strips')}</h4>
+      <p className="muted pmo-desc">{t('pmo.stripsDesc', { count: monitor.organizations })}</p>
+      <ul className="pmo-strip-list">
+        {monitor.rows.map((row) => (
+          <li key={row.nodeId} className="pmo-strip-row">
+            <span className="pmo-strip-name">{isolate(row.name)}</span>
+            <span className="pmo-strip" role="img" aria-label={stripLabel(row, labelOf)}>
+              {row.cells.map((cell) => (
+                <span
+                  key={cell.useCaseId}
+                  className="pmo-strip-cell"
+                  /* `data-fill` is 1..5, or absent when there is no marker to
+                     draw. Absent is untouched paper and NOT a mark at zero. */
+                  data-fill={cell.rank === null ? undefined : cell.rank + 1}
+                  data-na={cell.notApplicable ? 'true' : undefined}
+                />
+              ))}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * The strip as a sentence, for a reader who cannot see it.
+ *
+ * ⚠ ONE `aria-label` ON THE WHOLE STRIP, not eleven labelled cells: a screen
+ *   reader working through 1,540 individually-announced marks is worse than no
+ *   labels at all. The sentence names only what is PLACED — an unrecorded pair
+ *   contributes nothing to say, which is the audible form of untouched paper.
+ */
+function stripLabel(row: ObRow, labelOf: (useCaseId: string) => string): string {
+  const placed = row.cells.filter((c) => c.rank !== null)
+  if (placed.length === 0) return t('pmo.stripNone', { name: row.name })
+  return t('pmo.stripAt', {
+    name: row.name,
+    detail: placed
+      .map((c) => `${labelOf(c.useCaseId)}: ${t(RUNG_WORD[OB_RUNGS[c.rank ?? 0]])}`)
+      .join(' · '),
+  })
+}
+
+/** The rung as a word, for the strip's sentence. Literals, for localeReach. */
+const RUNG_WORD: Readonly<Record<string, string>> = {
+  intake: 'mapnode.rungIntake',
+  dev: 'mapnode.rungDev',
+  stg: 'mapnode.rungStg',
+  coc: 'mapnode.rungCoc',
+  prod: 'mapnode.rungProd',
 }
 
 function Risks({ risks }: { risks: Record<RiskType, RiskRow[]> }): ReactElement {

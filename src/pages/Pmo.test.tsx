@@ -155,6 +155,20 @@ vi.mock('../store/stageOverlay', async (importOriginal) => {
   return { ...actual, usePendingStages: () => new Map<string, string | null>() }
 })
 
+/**
+ * The page's own stylesheet, as text.
+ *
+ * `migrationContract.test.ts`'s idiom, used here for its reason: nothing in
+ * `npm run test` renders CSS, so a rule that carries meaning — the strip's
+ * height ladder — can only be defended by reading the file.
+ */
+const PMO_SRC: Record<string, string> = import.meta.glob('./pmo.css', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+const PMO_CSS = PMO_SRC['./pmo.css'] ?? ''
+
 const TODAY = '2026-08-22'
 
 /** The ancestry the entries store would build — self, then up. */
@@ -1132,5 +1146,88 @@ describe('§10 the rulings tab — what the tracker will not decide', () => {
       entries: [entry({ id: 'e1', node_id: 'a' })],
     })
     expect(render(tab('rulings'))).toContain(asHtml(t('pmo.rulingsEmpty', { count: 1 })))
+  })
+})
+
+describe('§11 what is stuck — the delivery tab opens with the exception list', () => {
+  const org = (id: string, over: Partial<MapNode> = {}) =>
+    node({ id, name: id, kind_id: 'kind-org', ...over })
+
+  it('puts the exception list above the cards', () => {
+    // §11.1: the section opens with what is stuck, because that is what this
+    // page is opened to find. A dashboard whose first screen is a progress bar
+    // is a dashboard people stop opening.
+    workspace({ nodes: [org('a')], entries: [entry({ id: 'e1', node_id: 'a' })] })
+    const html = render(tab('delivery'))
+    expect(html.indexOf('pmo-stuck')).toBeGreaterThan(-1)
+    expect(html.indexOf('pmo-stuck')).toBeLessThan(html.indexOf('pmo-delivery'))
+  })
+
+  it('says the rung budget cannot be measured, rather than reporting zero', () => {
+    // ⚠ THE ASSERTION THIS WHOLE SECTION TURNS ON. Every link carries the
+    //   migration's timestamp and no author, so a day count would give all 1,540
+    //   the same number. "0 past its budget" would read as "we checked and found
+    //   none"; the truth is "we cannot look yet", and only one of those two
+    //   sentences leaves the reader correctly informed.
+    workspace({ nodes: [org('a')], entries: [entry({ id: 'e1', node_id: 'a' })] })
+    const html = render(tab('delivery'))
+    expect(html).toContain(asHtml(t('pmo.stuckBudgetUnmeasurable')))
+  })
+
+  it('gives COC its own block and its own words, not a fault among the four', () => {
+    workspace({ nodes: [org('a')], entries: [entry({ id: 'e1', node_id: 'a' })] })
+    const html = render(tab('delivery'))
+    expect(html).toContain(asHtml(t('pmo.cocQueue')))
+    // It sits BELOW the four channels, which is what says it is not one of them.
+    expect(html.indexOf('pmo-stuck-grid')).toBeLessThan(html.indexOf('pmo-coc'))
+  })
+
+  it('names an unowned hospital, with its denominator and never a share', () => {
+    workspace({
+      nodes: [org('a', { account_manager_id: null }), org('b', { account_manager_id: 'u1' })],
+      entries: [entry({ id: 'e1', node_id: 'a' })],
+    })
+    const html = render(tab('delivery'))
+    expect(html).toContain(asHtml(t('pmo.stuckNoOwner')))
+    expect(html).toContain(asHtml(t('pmo.stuckOf', { count: 1, total: 2 })))
+    expect(html).not.toMatch(/\d+%/)
+  })
+
+  it('draws one strip row per organization', () => {
+    workspace({
+      nodes: [org('a'), org('b'), org('c')],
+      entries: [entry({ id: 'e1', node_id: 'a' })],
+    })
+    const html = render(tab('delivery'))
+    expect(html.match(/class="pmo-strip-row"/g) ?? []).toHaveLength(3)
+  })
+})
+
+describe('§11 the strip is position, and the stylesheet says so', () => {
+  const block = (): string =>
+    /POSITION AS HEIGHT[\s\S]*?(?=\n\/\* Ruled out)/.exec(PMO_CSS)?.[0] ?? ''
+
+  it('is findable, so nothing below passes vacuously', () => {
+    expect(block().length).toBeGreaterThan(200)
+  })
+
+  it('varies the mark by HEIGHT across all five rungs', () => {
+    // Height is the reading. If every step were the same size the strip would be
+    // carrying its meaning in colour alone, which is the forbidden drawing.
+    const sizes = [...block().matchAll(/data-fill='(\d)'\] \{ block-size: (\d+)px/g)].map((m) => [
+      Number(m[1]),
+      Number(m[2]),
+    ])
+    expect(sizes).toHaveLength(5)
+    for (let i = 1; i < sizes.length; i += 1) {
+      expect(sizes[i][1]).toBeGreaterThan(sizes[i - 1][1])
+    }
+  })
+
+  it('spends no colour the reader has to decode', () => {
+    // Two inks and the paper. A palette of five would put the whole reading in a
+    // channel that dies in greyscale and in a screenshot.
+    const inks = [...new Set(block().match(/var\(--[a-z-]+\)/g) ?? [])].sort()
+    expect(inks).toEqual(['var(--border)', 'var(--text)', 'var(--text-dim)'])
   })
 })

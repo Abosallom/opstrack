@@ -1092,6 +1092,17 @@ export interface MapNodeUseCase {
   coc_contact?: string | null
   coc_reference?: string | null
   coc_signed_on?: string | null
+  /**
+   * Who last wrote this row, or null.
+   *
+   * ⚠ THE WITNESS THAT DECIDES WHETHER THE RUNG CLOCK MEANS ANYTHING. Null on
+   *   all 1,540 rows today, because 0032's backfill wrote every one of them and
+   *   a migration has no `auth.uid()`. `lib/pmo/obMonitor.ts` reads it for
+   *   exactly that: a `status_changed_at` with no author is the moment a script
+   *   ran, not the moment anything happened — `lib/portfolio/fields.ts` makes
+   *   the identical refusal one table over.
+   */
+  updated_by?: string | null
   /** 'local' unless a sync wrote the row. The frozen twin of `map_nodes.source`. */
   source?: MapNodeSource
   /** The Jira issue key this link mirrors, or null for a link somebody typed. */

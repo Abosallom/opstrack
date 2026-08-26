@@ -23,6 +23,12 @@
     "asOf": "Read at ⁨{time}⁩.",
     "blankIsNobody": "Leave it blank if nobody has said — blank is not zero.",
     "budget": "Budget",
+    "cocCount": {
+      "one": "One record, across ⁨{organizations}⁩ organizations. The wait is on CHI, not on this roster.",
+      "other": "{count} records, across ⁨{organizations}⁩ organizations. The wait is on CHI, not on this roster."
+    },
+    "cocNone": "Nothing is at COC.",
+    "cocQueue": "At COC — this office's own queue",
     "colAction": "Action",
     "colCommitment": "Commitment",
     "colDaysOpen": "Days open",
@@ -228,6 +234,30 @@
       "open": "Open",
       "watching": "Watching"
     },
+    "stripAt": "⁨{name}⁩ — ⁨{detail}⁩",
+    "stripNone": "⁨{name}⁩ — nothing recorded.",
+    "strips": "Every hospital, on one line",
+    "stripsDesc": {
+      "one": "One organization.",
+      "other": "{count} organizations."
+    },
+    "stripsHint": "One row per organization, its eleven use cases as marks. The taller the mark, the further along.",
+    "stuck": "What is stuck",
+    "stuckBlocked": "Flagged as blocked",
+    "stuckBudget": "Past its rung budget",
+    "stuckBudgetUnmeasurable": "Not measurable yet. Every use case carries the timestamp of the migration that created it and no author, so a day count would give all 1,540 the same number — the age of one database session, not of any work. It starts the first time a person moves a rung.",
+    "stuckDesc": "The exception list first, because that is what this page is opened to find. Coverage, commitments and the cards are all below.",
+    "stuckMore": {
+      "one": "One more not shown.",
+      "other": "{count} more not shown."
+    },
+    "stuckNoOwner": "No account manager",
+    "stuckNone": "Nothing is flagged.",
+    "stuckOf": {
+      "one": "⁨1⁩ of ⁨{total}⁩",
+      "other": "⁨{count}⁩ of ⁨{total}⁩"
+    },
+    "stuckQuiet": "Gone quiet",
     "subtitle": "Delivery, what is waiting on somebody, and what is going wrong. Every number below is read off what this workspace holds — where it holds nothing, it says so rather than showing a zero.",
     "summaryLabel": "Summary",
     "tabs": "Sections",
