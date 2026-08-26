@@ -1,0 +1,1714 @@
+{
+ "kind": "organization-merge",
+ "at": "2026-08-26T05:58:31.703Z",
+ "groups": [
+  {
+   "into": "Aseer (Care Ware)",
+   "survivor": {
+    "id": "6c826301-c2b8-4544-993d-6149493e42f7",
+    "name": "Aseer (Care Ware) Cluster"
+   },
+   "absorbed": [],
+   "links": [],
+   "progress": [],
+   "entries": []
+  },
+  {
+   "into": "Aseer (Vida Plus)",
+   "survivor": {
+    "id": "4b2019cb-84cf-4d99-8a40-eb4f045c1ee4",
+    "name": "Aseer (Vida Plus)"
+   },
+   "absorbed": [
+    {
+     "id": "9c80b3d5-66ad-4488-9bad-ed21290635e0",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "3b9f1fcf-41f5-48dd-8088-783fd63762dd",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Aseer (Vida Plus) Cluster",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "983a85e9-4b36-4f82-86d1-6907459d7763",
+     "vendor": "",
+     "sort_order": 37,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.170478+00:00",
+     "updated_at": "2026-08-25T11:41:29.824329+00:00",
+     "created_by": null,
+     "org_id": null
+    },
+    {
+     "id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "870e2711-5d36-46a1-bbe6-2e418c2e72d9",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Aseer",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": null,
+     "vendor": "",
+     "sort_order": 115,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-25T11:41:36.356293+00:00",
+     "created_by": null,
+     "org_id": null
+    },
+    {
+     "id": "c7cbd504-1d11-4e29-bda4-322aba9a8878",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "3b9f1fcf-41f5-48dd-8088-783fd63762dd",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Aseer Cluster",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "983a85e9-4b36-4f82-86d1-6907459d7763",
+     "vendor": "",
+     "sort_order": 118,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-25T11:41:37.432649+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "9c80b3d5-66ad-4488-9bad-ed21290635e0",
+     "use_case_id": "5944b97b-4431-4126-adef-8bc489bb0c65",
+     "status": "planned",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+     "use_case_id": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+     "use_case_id": "5944b97b-4431-4126-adef-8bc489bb0c65",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+     "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+     "use_case_id": "24e75ff8-e739-4341-9130-c436533409e5",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+     "use_case_id": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+     "use_case_id": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+     "use_case_id": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+     "use_case_id": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "c7cbd504-1d11-4e29-bda4-322aba9a8878",
+     "use_case_id": "5944b97b-4431-4126-adef-8bc489bb0c65",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "9c80b3d5-66ad-4488-9bad-ed21290635e0",
+     "stage_id": "92c358af-e29b-4c56-8d1a-02566307542c",
+     "stage_changed_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_by": null
+    },
+    {
+     "node_id": "1bd5a1ef-af60-48a5-898e-e3799c9189bd",
+     "stage_id": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    },
+    {
+     "node_id": "c7cbd504-1d11-4e29-bda4-322aba9a8878",
+     "stage_id": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "82b98e7b-6d33-46d3-b993-7ab95c25a8d8",
+    "bce60a37-af0e-4191-8075-c01166b25328"
+   ]
+  },
+  {
+   "into": "Najran Cluster",
+   "survivor": {
+    "id": "4306ed5d-2bfd-45db-8857-07c1cd424a4f",
+    "name": "Najran Cluster"
+   },
+   "absorbed": [
+    {
+     "id": "074554c3-f953-4bde-89ce-c9f17e41b7cf",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "870e2711-5d36-46a1-bbe6-2e418c2e72d9",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Najran",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+     "vendor": "",
+     "sort_order": 155,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-25T11:41:45.007551+00:00",
+     "created_by": null,
+     "org_id": null
+    },
+    {
+     "id": "b412aa2a-0dc8-4ff7-b6ba-2f94c21cb945",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Najran (Vida plus)",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+     "vendor": "",
+     "sort_order": 156,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-23T17:11:41.993806+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "074554c3-f953-4bde-89ce-c9f17e41b7cf",
+     "use_case_id": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "074554c3-f953-4bde-89ce-c9f17e41b7cf",
+     "use_case_id": "68fa8fb3-c241-4437-8f31-0179163a7073",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "b412aa2a-0dc8-4ff7-b6ba-2f94c21cb945",
+     "use_case_id": "56f3287f-443a-4561-b99c-de8ae245a627",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "074554c3-f953-4bde-89ce-c9f17e41b7cf",
+     "stage_id": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    },
+    {
+     "node_id": "b412aa2a-0dc8-4ff7-b6ba-2f94c21cb945",
+     "stage_id": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "e45d6a40-b11c-4879-865f-24ed0d5ec233",
+    "d7b8c3dc-fa2e-4924-9087-a9d3db9af687",
+    "b81348dc-a64e-4f4f-9ad6-9b0834251851"
+   ]
+  },
+  {
+   "into": "Najran Specialized Hospital",
+   "survivor": {
+    "id": "58c1a90f-4579-4113-83cd-17f265863ec0",
+    "name": "Najran specialized hospital"
+   },
+   "absorbed": [
+    {
+     "id": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "3b9f1fcf-41f5-48dd-8088-783fd63762dd",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Najran specialized hospital(FHIR)",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+     "vendor": "",
+     "sort_order": 159,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-25T11:41:45.464202+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+     "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+     "use_case_id": "24e75ff8-e739-4341-9130-c436533409e5",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+     "use_case_id": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+     "use_case_id": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "46fb2603-f887-48d8-babd-62b40b7bbaf7",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "3a2b9f25-b124-4e18-b3c4-79b5e942598a",
+    "70d930c5-1ca3-4886-bc0f-42e34b8fcdb1",
+    "ebf9fac3-f384-4db6-b872-b7860f24471d",
+    "614aea57-4668-4238-be59-4e1d9caba214"
+   ]
+  },
+  {
+   "into": "AlSalama Hospital",
+   "survivor": {
+    "id": "bc8042dd-1b3a-4530-8ac9-1197fe5953dc",
+    "name": "AL Salama Hospital"
+   },
+   "absorbed": [
+    {
+     "id": "dadb88d7-9a3e-4f06-a6a5-5594f92e06b8",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "3b9f1fcf-41f5-48dd-8088-783fd63762dd",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "AlSalama (Murgan)Hospital",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+     "vendor": "",
+     "sort_order": 15,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.170478+00:00",
+     "updated_at": "2026-08-25T11:41:16.886918+00:00",
+     "created_by": null,
+     "org_id": null
+    },
+    {
+     "id": "66c1ea0d-b2f3-47c4-89e3-dafbd164c5df",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "3b9f1fcf-41f5-48dd-8088-783fd63762dd",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "AlSalama (Murjan) Hospital",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+     "vendor": "",
+     "sort_order": 16,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.170478+00:00",
+     "updated_at": "2026-08-25T11:41:17.258305+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "dadb88d7-9a3e-4f06-a6a5-5594f92e06b8",
+     "use_case_id": "24e75ff8-e739-4341-9130-c436533409e5",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "66c1ea0d-b2f3-47c4-89e3-dafbd164c5df",
+     "use_case_id": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "66c1ea0d-b2f3-47c4-89e3-dafbd164c5df",
+     "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "66c1ea0d-b2f3-47c4-89e3-dafbd164c5df",
+     "use_case_id": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "dadb88d7-9a3e-4f06-a6a5-5594f92e06b8",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_by": null
+    },
+    {
+     "node_id": "66c1ea0d-b2f3-47c4-89e3-dafbd164c5df",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "bdedd7d3-1cfd-4929-878c-cd08e359d8c5",
+    "ac79fc20-ca99-45b8-adbc-1e477668de8b",
+    "2c593045-e9ce-46b5-8f89-7100a35d0857"
+   ]
+  },
+  {
+   "into": "Al Madinah",
+   "survivor": {
+    "id": "39cb6de0-66f6-4aca-91cf-f9da9a654454",
+    "name": "Al Madinah"
+   },
+   "absorbed": [
+    {
+     "id": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Al Madinah Cluster",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+     "vendor": "",
+     "sort_order": 6,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.170478+00:00",
+     "updated_at": "2026-08-23T17:11:43.222957+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+     "use_case_id": "5944b97b-4431-4126-adef-8bc489bb0c65",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+     "use_case_id": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+     "use_case_id": "68fa8fb3-c241-4437-8f31-0179163a7073",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "5edc02a5-a1c0-498a-9cb4-273a9d7c1ae8",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "99584c41-38ca-4741-806c-0bf0eba65ecf"
+   ]
+  },
+  {
+   "into": "Alsaedy Hospital",
+   "survivor": {
+    "id": "399ed064-8530-4c75-9d30-54ecbca178ee",
+    "name": "Alsaedy Hospital"
+   },
+   "absorbed": [
+    {
+     "id": "265909f2-1dce-49be-83a0-f9b38dcbf430",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Alsaedy Hospital(CDA)",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+     "vendor": "",
+     "sort_order": 112,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-23T17:11:41.993806+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "265909f2-1dce-49be-83a0-f9b38dcbf430",
+     "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "265909f2-1dce-49be-83a0-f9b38dcbf430",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "d753f928-4308-4145-b87d-32001659a5fb"
+   ]
+  },
+  {
+   "into": "Arrawdah Hospital",
+   "survivor": {
+    "id": "55987b86-894e-45cf-8854-1c99a8b865de",
+    "name": "Arrawdah Hospital"
+   },
+   "absorbed": [
+    {
+     "id": "ddb0a897-93a7-47dc-a2f6-7c0b93d3becc",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "3b9f1fcf-41f5-48dd-8088-783fd63762dd",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Arrawdah General Hospital",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+     "vendor": "",
+     "sort_order": 35,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.170478+00:00",
+     "updated_at": "2026-08-25T11:41:19.45451+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "ddb0a897-93a7-47dc-a2f6-7c0b93d3becc",
+     "use_case_id": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "ddb0a897-93a7-47dc-a2f6-7c0b93d3becc",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "f01433bd-67da-4b7a-8128-622b781a220e"
+   ]
+  },
+  {
+   "into": "King Khalid University",
+   "survivor": {
+    "id": "b317549f-2ee3-4155-a260-a9166bdb4bb2",
+    "name": "King Khalid University"
+   },
+   "absorbed": [
+    {
+     "id": "f07d077f-171b-4cc9-8b3d-e42cbe447e33",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "King Khalid University (Aseer)",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "80670098-427e-4b0b-af1b-d7b025e1bbcc",
+     "vendor": "",
+     "sort_order": 144,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-23T17:11:41.993806+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "f07d077f-171b-4cc9-8b3d-e42cbe447e33",
+     "use_case_id": "56f3287f-443a-4561-b99c-de8ae245a627",
+     "status": "planned",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "f07d077f-171b-4cc9-8b3d-e42cbe447e33",
+     "use_case_id": "24e75ff8-e739-4341-9130-c436533409e5",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "f07d077f-171b-4cc9-8b3d-e42cbe447e33",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "5b400b5e-0918-4b48-8c75-bcefb9d806e8"
+   ]
+  },
+  {
+   "into": "Magrabi Hospital",
+   "survivor": {
+    "id": "1eef4fe8-40d9-4503-892a-24699e68290e",
+    "name": "Magrabi Hospital"
+   },
+   "absorbed": [
+    {
+     "id": "046c59ac-a53f-4aa0-bed3-d43ab431e170",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Magrabi Health Hospital",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+     "vendor": "",
+     "sort_order": 75,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.170478+00:00",
+     "updated_at": "2026-08-22T15:48:43.103036+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "046c59ac-a53f-4aa0-bed3-d43ab431e170",
+     "use_case_id": "5944b97b-4431-4126-adef-8bc489bb0c65",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "046c59ac-a53f-4aa0-bed3-d43ab431e170",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "f00bc209-5a21-4f68-bc50-354bc8fd2fa9",
+    "12142d3a-eb59-4e60-83be-a799f49c42ec"
+   ]
+  },
+  {
+   "into": "Makkah 2 (MCC)",
+   "survivor": {
+    "id": "5056d4a4-cf82-4fcc-9507-7b685365fe45",
+    "name": "Makkah 2 (MCC)"
+   },
+   "absorbed": [
+    {
+     "id": "dea94d42-b34b-4cc4-a294-e7b63b79b3e1",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "3b9f1fcf-41f5-48dd-8088-783fd63762dd",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Makkah Cluster 2 (MCC)",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "983a85e9-4b36-4f82-86d1-6907459d7763",
+     "vendor": "",
+     "sort_order": 78,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.170478+00:00",
+     "updated_at": "2026-08-25T11:41:29.01128+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "dea94d42-b34b-4cc4-a294-e7b63b79b3e1",
+     "use_case_id": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+     "status": "planned",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "dea94d42-b34b-4cc4-a294-e7b63b79b3e1",
+     "stage_id": "92c358af-e29b-4c56-8d1a-02566307542c",
+     "stage_changed_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "a33ea64f-457a-4519-be8c-2663d97c6d16"
+   ]
+  },
+  {
+   "into": "SFH (Security Force Hospital)",
+   "survivor": {
+    "id": "0c4e485a-19da-4ced-a2dc-42ce1e0dd5ec",
+    "name": "SFH (Security Force Hospital)"
+   },
+   "absorbed": [
+    {
+     "id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "SFH",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": null,
+     "vendor": "",
+     "sort_order": 172,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-23T17:11:41.993806+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+     "use_case_id": "2bfa4cb0-3d0a-4e9c-aa93-82375645f223",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+     "use_case_id": "5944b97b-4431-4126-adef-8bc489bb0c65",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+     "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+     "use_case_id": "24e75ff8-e739-4341-9130-c436533409e5",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+     "use_case_id": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+     "use_case_id": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+     "use_case_id": "59dab928-13a6-48a5-873a-f27f7b4f01e7",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+     "use_case_id": "cb89f3c9-b975-4d07-aa1f-edd078c8a11b",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "7e2a06d2-81c4-4202-b5ed-6dd2b275f970",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "7ce6f97d-0709-42e6-946e-4d4a75551aca",
+    "f9528147-3e5d-4d7a-9af2-9e97d810bd60"
+   ]
+  },
+  {
+   "into": "Aljedaani Hospital",
+   "survivor": {
+    "id": "817a1487-676c-4af1-8bde-97803723af90",
+    "name": "Aljedaani Hospital"
+   },
+   "absorbed": [
+    {
+     "id": "add7358b-4c50-485d-ac0d-027540635536",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Aljadaani (SAFA) Hospital",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+     "vendor": "",
+     "sort_order": 111,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-23T17:11:41.993806+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "add7358b-4c50-485d-ac0d-027540635536",
+     "use_case_id": "56f3287f-443a-4561-b99c-de8ae245a627",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "add7358b-4c50-485d-ac0d-027540635536",
+     "use_case_id": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+     "status": "planned",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "add7358b-4c50-485d-ac0d-027540635536",
+     "use_case_id": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+     "status": "planned",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "add7358b-4c50-485d-ac0d-027540635536",
+     "use_case_id": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+     "status": "planned",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "add7358b-4c50-485d-ac0d-027540635536",
+     "use_case_id": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+     "status": "planned",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "add7358b-4c50-485d-ac0d-027540635536",
+     "use_case_id": "68fa8fb3-c241-4437-8f31-0179163a7073",
+     "status": "planned",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "add7358b-4c50-485d-ac0d-027540635536",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "a08a7b08-f008-48be-a4c1-f0008ee742a8",
+    "891e68f9-4b2a-4dc6-9f64-0933388368f6",
+    "ba18b125-10e7-41f6-ba9d-8fb9fb6d5730",
+    "7477cd4f-4282-459d-9116-41c655db3fb4",
+    "6a0c1d22-dc59-455a-be28-4f40c52c26a8",
+    "ab6f09a1-9c2a-4c9c-ad10-890792f9944e",
+    "477dd0cf-1419-47b5-aac9-ac14d5122a95",
+    "cc49418c-a943-4adf-b68b-9ee423d03329"
+   ]
+  },
+  {
+   "into": "AlYousif Hospital",
+   "survivor": {
+    "id": "6c14d741-7425-43dd-98b6-b862275f8c60",
+    "name": "Alyosif Hospital"
+   },
+   "absorbed": [
+    {
+     "id": "4f2bbc65-c442-47b6-9f3b-6678bd776eb2",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "3b9f1fcf-41f5-48dd-8088-783fd63762dd",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "AlYousif",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": null,
+     "vendor": "",
+     "sort_order": 17,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.170478+00:00",
+     "updated_at": "2026-08-25T11:41:13.891789+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "4f2bbc65-c442-47b6-9f3b-6678bd776eb2",
+     "use_case_id": "5944b97b-4431-4126-adef-8bc489bb0c65",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "4f2bbc65-c442-47b6-9f3b-6678bd776eb2",
+     "use_case_id": "cb439ee5-bd38-4913-af64-aa4cc80a3505",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "4f2bbc65-c442-47b6-9f3b-6678bd776eb2",
+     "use_case_id": "5be6cf50-b4e1-41dd-8635-218dafcab6ac",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "4f2bbc65-c442-47b6-9f3b-6678bd776eb2",
+     "use_case_id": "3f14dfe8-3da3-4db5-a817-518ecfcfe2f1",
+     "status": "testing",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "4f2bbc65-c442-47b6-9f3b-6678bd776eb2",
+     "stage_id": "96ae41b5-e91d-4791-bb09-5e5c2451077d",
+     "stage_changed_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "85f7a625-da30-43c5-984c-1e62294c1fd2",
+    "9bdfcf54-8da5-4618-ba59-0f3c2b62cbe8",
+    "c5afb434-fe5e-4a76-a53a-d9c30b8fb02d",
+    "38f4f94d-fc18-4eae-af16-3aa2cbbdb57a"
+   ]
+  },
+  {
+   "into": "Autism Spectrum Virtual Care",
+   "survivor": {
+    "id": "636f97f2-6f5d-46a0-bf98-c90d2b591392",
+    "name": "AUTISM SPECTRUM VIRTTUAL CARE CLINIC"
+   },
+   "absorbed": [
+    {
+     "id": "809ad92f-623a-4788-831f-c8fb6a046277",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Autism Spectrum virtual care Hospital",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "7f5c93d1-7741-4bc9-b465-a00f97de985d",
+     "vendor": "",
+     "sort_order": 39,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.170478+00:00",
+     "updated_at": "2026-08-22T15:48:54.05758+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "809ad92f-623a-4788-831f-c8fb6a046277",
+     "use_case_id": "5944b97b-4431-4126-adef-8bc489bb0c65",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-22T14:44:16.664276+00:00",
+     "updated_at": "2026-08-22T14:44:16.664276+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "809ad92f-623a-4788-831f-c8fb6a046277",
+     "stage_id": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+     "stage_changed_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_at": "2026-08-22T14:44:16.991611+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": []
+  },
+  {
+   "into": "Jeddah Oasis",
+   "survivor": {
+    "id": "2248ba66-d25f-4603-a821-8aa777360d82",
+    "name": "Jeddah Oasis"
+   },
+   "absorbed": [
+    {
+     "id": "ebd47729-70d2-4fd8-8cd5-9b6a19964400",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "870e2711-5d36-46a1-bbe6-2e418c2e72d9",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Jedda Oasis",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+     "vendor": "",
+     "sort_order": 135,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-25T11:41:41.566781+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "ebd47729-70d2-4fd8-8cd5-9b6a19964400",
+     "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "ebd47729-70d2-4fd8-8cd5-9b6a19964400",
+     "stage_id": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": []
+  },
+  {
+   "into": "Samir Abbas Hospital",
+   "survivor": {
+    "id": "1497e75d-c078-43f6-a304-12e04aadaace",
+    "name": "Samir Abbas Hospital"
+   },
+   "absorbed": [
+    {
+     "id": "ec770d37-0735-4973-9252-cdc361ef8184",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Samer Abbas Hospital",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": null,
+     "vendor": "",
+     "sort_order": 169,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-23T17:11:41.993806+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "ec770d37-0735-4973-9252-cdc361ef8184",
+     "use_case_id": "75da043a-7f5c-4a8c-89c0-3225c8542c9f",
+     "status": "planned",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "ec770d37-0735-4973-9252-cdc361ef8184",
+     "stage_id": "92c358af-e29b-4c56-8d1a-02566307542c",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "b8b75470-d7e4-473d-80a3-1f8c0b75150b"
+   ]
+  },
+  {
+   "into": "Jazan Cluster (MCC)",
+   "survivor": {
+    "id": "b8c476ea-0c5f-463f-bdae-042ac729f48b",
+    "name": "Jazan Cluster (MCC)"
+   },
+   "absorbed": [
+    {
+     "id": "450e7a80-ebd3-4541-981a-4bf4eb0791f3",
+     "track_id": "137111c8-fdf7-4a83-a099-5ea34f1300c8",
+     "parent_id": "46fed987-e3af-4db1-b08c-2d7565be86eb",
+     "kind_id": "0b18c48c-744a-46ac-8218-f641d8571f34",
+     "name": "Jazan",
+     "name_ar": "",
+     "description": "",
+     "description_ar": "",
+     "account_manager_id": "16ccffdf-7ee7-47c6-98ae-a7ebb8c320cd",
+     "vendor": "",
+     "sort_order": 131,
+     "archived": false,
+     "archived_at": null,
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:41.993806+00:00",
+     "updated_at": "2026-08-23T17:11:41.993806+00:00",
+     "created_by": null,
+     "org_id": null
+    }
+   ],
+   "links": [
+    {
+     "node_id": "450e7a80-ebd3-4541-981a-4bf4eb0791f3",
+     "use_case_id": "13d04399-05c8-4a7e-9077-e6a7523302eb",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "450e7a80-ebd3-4541-981a-4bf4eb0791f3",
+     "use_case_id": "747556d1-ed10-43e4-90a7-2ebc10124bd6",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    },
+    {
+     "node_id": "450e7a80-ebd3-4541-981a-4bf4eb0791f3",
+     "use_case_id": "68fa8fb3-c241-4437-8f31-0179163a7073",
+     "status": "live",
+     "source": "local",
+     "external_ref": null,
+     "external_url": null,
+     "synced_at": null,
+     "overrides": [],
+     "created_at": "2026-08-23T17:11:49.156156+00:00",
+     "updated_at": "2026-08-23T17:11:49.156156+00:00",
+     "created_by": null,
+     "updated_by": null
+    }
+   ],
+   "progress": [
+    {
+     "node_id": "450e7a80-ebd3-4541-981a-4bf4eb0791f3",
+     "stage_id": "bb6028fc-d04b-4763-87be-33b9b16f6b17",
+     "stage_changed_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_at": "2026-08-23T17:11:53.997788+00:00",
+     "updated_by": null
+    }
+   ],
+   "entries": [
+    "18dcd39c-329e-488b-84a1-35ee4a44078c",
+    "0be700f6-14c1-46ac-9d6e-936fe8ff6bed",
+    "4e3f6871-15a6-4c16-9386-c1baec7bbee8"
+   ]
+  }
+ ]
+}

@@ -17,7 +17,7 @@
     "wordTesting": "in testing",
     "wordLive": "live",
     "retired": "Retired",
-    "retiredHint": "This capability was hidden in the catalogue. It still counts here, because this organization is recorded against it.",
+    "retiredHint": "This use case was hidden in the catalogue. It still counts here, because this organization is recorded against it.",
     "goals": "Goals",
     "goalsFor": "Goals for ⁨{name}⁩",
     "goalsNone": "No goals set",

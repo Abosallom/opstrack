@@ -132,6 +132,23 @@ export interface DeliveryInput extends StageReadingInput {
    * found nobody.
    */
   managerOfNode: ReadonlyMap<string, string | null>
+  /**
+   * Which node kind means "an organization being onboarded", or null when the
+   * kinds have not loaded.
+   *
+   * ⚠ REQUIRED, NOT OPTIONAL, AND THAT IS THE FIX. This fold's own docblock has
+   *   always said "one row per live ORGANIZATION" and the loop below has always
+   *   taken every node it was handed. With one track and no departments the two
+   *   agreed by accident; the moment 0032's six departments arrived, the
+   *   Onboarding delivery tab began listing them AS hospitals — "Business
+   *   Operations — no use case has been recorded against this organization yet
+   *   — 84 open items". A department is not an organization and has no use
+   *   cases, so every one of those cards was a true sentence about a thing that
+   *   cannot have them.
+   *
+   *   An optional field would have let the existing call site keep the bug.
+   */
+  orgKindId: string | null
 }
 
 /**
@@ -153,6 +170,9 @@ export function buildDeliveryRows(input: DeliveryInput): DeliveryRow[] {
   const rows: DeliveryRow[] = []
   for (const node of input.nodes) {
     if (node.archived) continue
+    // Null kinds mean the catalogue has not loaded; drawing every node would be
+    // worse than drawing none, because the reader cannot tell the difference.
+    if (input.orgKindId === null || node.kind_id !== input.orgKindId) continue
     const reading = stageReading(node.id, input)
     const changedAt = input.progressById.get(node.id)?.stage_changed_at ?? null
     rows.push({

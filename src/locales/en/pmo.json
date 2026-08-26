@@ -43,7 +43,7 @@
     "deleteTitle": "Delete ⁨{name}⁩?",
     "delivery": "Onboarding delivery",
     "deliveryAll": "Open the full portfolio",
-    "deliveryDesc": "One row per organization on the onboarding ladder: the stage it has reached, how much of its capability set is recorded, and who is accountable for it. This is the map’s portfolio, read as a list.",
+    "deliveryDesc": "One row per organization on the onboarding ladder: the stage it has reached, how much of its use case set is recorded, and who is accountable for it. This is the map’s portfolio, read as a list.",
     "deliveryEmpty": "No organizations to show",
     "deliveryEmptyHint": "This section reads the hierarchy under Settings › Structure. Nothing has been recorded there yet.",
     "deliveryNotStaged": "No stage recorded",
@@ -150,15 +150,15 @@
     "planned": "Planned",
     "projActive": "In progress",
     "projDone": "Done",
-    "projNoCoverage": "No capability has been recorded against this organization yet.",
+    "projNoCoverage": "No use case has been recorded against this organization yet.",
     "projOpen": {
       "one": "One item open",
       "other": "{count} items open"
     },
     "projPaused": "On hold",
     "projRecorded": {
-      "one": "Only one of these capabilities has anything recorded against it.",
-      "other": "Only {count} of these capabilities have anything recorded against them."
+      "one": "Only one of these use cases has anything recorded against it.",
+      "other": "Only {count} of these use cases have anything recorded against them."
     },
     "projects": "Projects",
     "projectsDesc": "The programme’s own projects — each with a manager, a budget, dates and how far it has actually got against where it was meant to be.",

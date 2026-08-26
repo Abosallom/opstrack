@@ -28,7 +28,7 @@
     "whoRls": "The database decides this row by row, not the app. Every rule asks whether the caller holds a profile in this workspace — not merely whether they are signed in — and sign-up is switched off, so an account nobody here created can read nothing at all.",
     "whoPrivateTitle": "Three things are yours alone",
     "whoPrivateNotif": "Your notifications. Only the recipient can read them, and there is no “who else was told”.",
-    "whoPrivatePush": "Your push subscriptions. Owner-only, and not readable by an administrator either — a push address is a capability to send to that device, and nobody needs to hold somebody else's.",
+    "whoPrivatePush": "Your push subscriptions. Owner-only, and not readable by an administrator either — a push address is a use case to send to that device, and nobody needs to hold somebody else's.",
     "whoPrivateAi": "Your AI usage row. Yours alone, so that “who has been leaning on the assist” is not a question one colleague can ask about another.",
     "whoAdmin": "An administrator can additionally create and remove accounts, change roles, and edit the workspace's tracks, groups, vocabulary and wording.",
     "whereTitle": "Where it lives",

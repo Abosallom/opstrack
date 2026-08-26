@@ -184,6 +184,7 @@ import {
   useAllUseCases,
   useMapNodes,
   useNodeProgress,
+  useMapNodeKinds,
   useStageMap,
 } from '../store/config'
 import { loadGoals, useGoals, useGoalsError } from '../store/goals'
@@ -410,6 +411,18 @@ export default function Pmo(): ReactElement {
   const merged = useMemo(() => mergeProgress(progress, pending), [progress, pending])
   const stages = useMemo(() => stageIndex(merged, stageById), [merged, stageById])
 
+  /*
+   * WHICH KIND IS AN ORGANIZATION, resolved by NAME because that is what the
+   * catalogue is: `map_node_kinds` is seeded Programme / Phase / Organization
+   * and an admin may rename or reorder them, but the ids are per-workspace and
+   * nothing in the code may hardcode one.
+   */
+  const kinds = useMapNodeKinds()
+  const orgKindId = useMemo(
+    () => kinds.find((k) => /organi/i.test(k.name))?.id ?? null,
+    [kinds],
+  )
+
   const delivery = useMemo(() => {
     // `ctx.today` rather than `Date.now()` in the dependency list, on
     // `useAtRiskCount`'s reasoning: the fold's only use of the clock is whole
@@ -425,9 +438,10 @@ export default function Pmo(): ReactElement {
       labelOf: nodeLabel,
       openByNode,
       managerOfNode: ctx.managerOfNode ?? new Map(),
+      orgKindId,
     })
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, stages, merged, nodeLabel, openByNode, ctx.managerOfNode, ctx.today])
+  }, [nodes, stages, merged, nodeLabel, openByNode, ctx.managerOfNode, ctx.today, orgKindId])
 
   const readiness = useMemo(() => stageReadiness(delivery), [delivery])
   const verdict = useMemo(() => latenessVerdict(readiness), [readiness])

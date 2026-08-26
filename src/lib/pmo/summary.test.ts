@@ -54,11 +54,18 @@ function stage(over: Partial<MapNodeStage> & { id: string }): MapNodeStage {
   }
 }
 
+/**
+ * A node. `kind_id` defaults to the ORGANIZATION kind, because that is what
+ * every test in this file is about — `buildDeliveryRows` now draws only
+ * organizations, and a fixture defaulting to null would silently produce a fold
+ * with no rows and assertions that pass vacuously. A test about a department
+ * passes its own kind.
+ */
 function node(over: Partial<MapNode> & { id: string }): MapNode {
   return {
     parent_id: null,
     track_id: 't1',
-    kind_id: null,
+    kind_id: 'kind-org',
     name: over.id,
     name_ar: '',
     description: '',
@@ -136,6 +143,10 @@ function input(over: Partial<DeliveryInput> = {}): DeliveryInput {
     labelOf: (n) => n.name,
     openByNode: new Map(),
     managerOfNode: new Map(),
+    // Every fixture node is an organization unless a test says otherwise; the
+    // fold now refuses anything else, which is what stopped departments being
+    // drawn as hospitals.
+    orgKindId: 'kind-org',
     ...over,
   }
 }
@@ -814,5 +825,61 @@ describe('buildActionRows', () => {
       TODAY,
     )
     expect(out.map((r) => r.entry.id)).toEqual(['a', 'b', 'c'])
+  })
+})
+
+/*
+ * ── A DEPARTMENT IS NOT A HOSPITAL ─────────────────────────────────────────
+ *
+ * ⚠ THE OWNER SAW THIS ON THE LIVE SITE AND SAID SO: "even few names i'm seeing
+ *   are not placed correctly, it delivery within ob related subjects". The
+ *   Onboarding delivery tab was drawing all six departments as cards —
+ *   "Business Operations — no use case has been recorded against this
+ *   organization yet — 84 open items", and the same for IT Integration, IT
+ *   Delivery, Product and التهيئة.
+ *
+ * Every one of those sentences was TRUE and about a thing that cannot have use
+ * cases, which is the worst kind of wrong: it reads as a finding about a
+ * hospital that is behind.
+ *
+ * `buildDeliveryRows` has said "one row per live ORGANIZATION" in its docblock
+ * since it was written, and took every node it was handed. With one track and no
+ * departments the two agreed by accident. The six departments arrived and the
+ * accident ended.
+ */
+describe('buildDeliveryRows draws organizations and nothing else', () => {
+  const estate = () => [
+    node({ id: 'uhr', kind_id: 'kind-programme' }),
+    node({ id: 'onboarding', kind_id: 'kind-phase', parent_id: 'uhr' }),
+    node({ id: 'it-integration', kind_id: 'kind-phase', parent_id: 'uhr' }),
+    node({ id: 'fakeeh', kind_id: 'kind-org', parent_id: 'onboarding' }),
+    node({ id: 'aljedaani', kind_id: 'kind-org', parent_id: 'onboarding' }),
+  ]
+
+  it('leaves the track and the departments out', () => {
+    const rows = buildDeliveryRows(input({ nodes: estate() }))
+    expect(rows.map((r) => r.nodeId).sort()).toEqual(['aljedaani', 'fakeeh'])
+  })
+
+  /*
+   * The failure this replaces was not "a department appeared" — it was "a
+   * department appeared CARRYING A COUNT". 84 open items rolled up from its
+   * children, printed on a card that also said no use case had been recorded,
+   * so the reader saw a hospital with a lot of open work and nothing recorded.
+   */
+  it('does not print a department carrying its children roll-up', () => {
+    const rows = buildDeliveryRows(
+      input({ nodes: estate(), openByNode: new Map([['onboarding', 84], ['fakeeh', 3]]) }),
+    )
+    expect(rows.find((r) => r.nodeId === 'onboarding')).toBeUndefined()
+    expect(rows.find((r) => r.nodeId === 'fakeeh')?.open).toBe(3)
+  })
+
+  /*
+   * Drawing everything is worse than drawing nothing when the catalogue has not
+   * loaded, because a reader cannot tell a full estate from a mislabelled one.
+   */
+  it('draws nothing at all rather than everything when the kinds are absent', () => {
+    expect(buildDeliveryRows(input({ nodes: estate(), orgKindId: null }))).toEqual([])
   })
 })

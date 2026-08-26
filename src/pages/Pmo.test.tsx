@@ -90,6 +90,12 @@ vi.mock('../store/config', () => ({
   loadConfig: () => Promise.resolve(),
   useMapNodes: () => fx.state.nodes,
   useStageMap: () => new Map(fx.state.stages.map((s) => [s.id, s])),
+  // The delivery fold draws organizations only, so the page has to resolve which
+  // kind that is — see summary.ts. Every node in this fixture is one.
+  useMapNodeKinds: () => [
+    { id: 'kind-org', name: 'Organization', name_ar: '', sort_order: 0 },
+    { id: 'kind-phase', name: 'Phase', name_ar: '', sort_order: 1 },
+  ],
   useNodeProgress: () => fx.state.progress,
   useAllUseCases: () => fx.state.useCases,
 }))
@@ -194,11 +200,16 @@ const tab = (id: string): string => `/pmo?tab=${id}`
 
 /* ─────────────────────────────── fixtures ─────────────────────────────── */
 
+/**
+ * A node, and it is an ORGANIZATION unless a test says otherwise —
+ * `buildDeliveryRows` now draws only organizations, so a null kind here would
+ * empty the fold and let these assertions pass against nothing.
+ */
 function node(over: Partial<MapNode> & { id: string }): MapNode {
   return {
     parent_id: null,
     track_id: 't1',
-    kind_id: null,
+    kind_id: 'kind-org',
     name: over.id,
     name_ar: '',
     description: '',

@@ -4,15 +4,12 @@
     "subtitle": "A role is a named bundle of permissions, and every member holds exactly one. Invent as many as the workspace needs — a Director who shapes the map without being able to remove people is a role, not a compromise.",
     "settingsHint": "Invent roles, choose what each one can do, and see how many people hold it.",
     "manage": "Manage roles",
-
     "fixedTitle": "You invent the roles. The permissions are fixed.",
     "fixedBody": "The switches below are the whole list, and it is set by what this app actually checks — a permission is a promise the code keeps, so a switch nobody reads would grant nothing and tell you it had. New switches arrive when new abilities are built, never from this screen.",
-
     "loadFailed": "The roles could not be loaded.",
     "empty": "No roles yet",
     "emptyHint": "Roles arrive with the workspace. If this list is empty, the migration that adds them has not run against this project.",
     "missingTableHint": "Roles live in migration 0025. Apply it to this project and reload.",
-
     "system": "Built in",
     "keyLabel": "Key",
     "memberCount": {
@@ -23,10 +20,8 @@
       "one": "{count} person can administer this workspace.",
       "other": "{count} people can administer this workspace."
     },
-
     "permissions": "What this role can do",
     "permHint": "Each line says what it lets a holder do, in the app's own terms. Nothing here is a category — it is the action itself.",
-
     "permWorkspaceAdmin": "Administer the workspace",
     "permWorkspaceAdminEffect": "Create and delete accounts and change anyone's role, including yours; edit tracks, the map, the words the app uses and every setting; and read the record of who changed what.",
     "permMembersManage": "Manage roles",
@@ -34,22 +29,17 @@
     "permStructureEdit": "Edit the map's shape",
     "permStructureEditEffect": "Add, rename, move and archive the tracks, programmes, phases and organizations the map is drawn from.",
     "permVocabEdit": "Edit the app's words",
-    "permVocabEditEffect": "Add and rename the statuses, types and priorities every item is filed under, and the capabilities an organization is onboarded onto.",
+    "permVocabEditEffect": "Add and rename the statuses, types and priorities every item is filed under, and the use cases an organization is onboarded onto.",
     "permCaptureWrite": "Record work",
-    "permCaptureWriteEffect": "Create items and update them, and record which capabilities an organization has integrated.",
-
+    "permCaptureWriteEffect": "Create items and update them, and record which use cases an organization has integrated.",
     "reachLive": "In force",
     "reachDeclared": "Not in force yet",
     "reachDeclaredNote": "Nothing checks this switch yet — the screens it will gate still ask for the top one. Turning it on is recorded and safe, and it starts working the day those screens read it.",
-
     "granted": "⁨{permission}⁩ turned on for ⁨{name}⁩",
     "revoked": "⁨{permission}⁩ turned off for ⁨{name}⁩",
     "permissionLabel": "⁨{permission}⁩ for ⁨{name}⁩",
-
     "lastAdminReason": "This is the only role that can administer the workspace, and somebody holds it. Turning this off would leave nobody able to turn it back on — not even you — and it could only be repaired from the database itself. Give another role this switch first.",
-
     "unknownPerm": "This role holds ⁨{name}⁩, which this version of the app does not know about. It is safe: the app enforces only what it understands. Reload to pick up a newer build.",
-
     "create": "New role",
     "createTitle": "Create a role",
     "createHint": "A new role starts with nothing switched on. Give it a name, then choose what it can do.",
@@ -57,7 +47,6 @@
     "createKeyHint": "Lowercase letters, digits and underscores. This is the name code and migrations use, and it can never be changed — the labels above can.",
     "createSubmit": "Create role",
     "created": "⁨{name}⁩ created",
-
     "rename": "Rename",
     "renameDone": "Done",
     "nameEn": "Name (English)",
@@ -68,7 +57,6 @@
     "saved": "⁨{name}⁩ saved",
     "unsaved": "Unsaved",
     "nameRequired": "Give the role an English name of 40 characters or fewer.",
-
     "delete": "Delete role",
     "deleteTitle": "Delete ⁨{name}⁩?",
     "deleteBody": "The role and everything it grants go. Nobody holds it, so no one loses access.",
@@ -78,7 +66,6 @@
       "one": "{count} member holds this role. Move them to another role first — deleting it would take away every permission they have.",
       "other": "{count} members hold this role. Move them to another role first — deleting it would take away every permission they have."
     },
-
     "errLastAdmin": "That would leave the workspace with nobody able to administer it. Give another role that switch first.",
     "errSystem": "That role is built in and cannot be deleted.",
     "errInUse": "Somebody still holds that role. Move them first.",

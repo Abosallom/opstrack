@@ -1,28 +1,25 @@
 {
   "catalogue": {
     "title": "Catalogue",
-    "settingsHint": "The capabilities organizations are onboarded onto, and the kinds of thing the map is made of.",
+    "settingsHint": "The use cases organizations are onboarded onto, and the kinds of thing the map is made of.",
     "manage": "Open the catalogue",
-    "subtitle": "Two short lists the map is built out of: the capabilities an organization is onboarded onto, and the kinds of thing a node can be.",
-    "whyEditable": "This screen can add and delete; Settings › Vocabulary deliberately cannot. Vocabulary is frozen because an item's status key is written into the append-only update thread, so merging two options would silently rewrite finished work with no undo. Nothing here is stored that way — a capability is referenced by a real foreign key — so add and delete are safe, and the database refuses the one delete that would lose something.",
-    "hideVsDelete": "Hiding is not deleting. A hidden capability leaves the pickers; every organization already recorded against it keeps it, and still shows it.",
+    "subtitle": "Two short lists the map is built out of: the use cases an organization is onboarded onto, and the kinds of thing a node can be.",
+    "whyEditable": "This screen can add and delete; Settings › Vocabulary deliberately cannot. Vocabulary is frozen because an item's status key is written into the append-only update thread, so merging two options would silently rewrite finished work with no undo. Nothing here is stored that way — a use case is referenced by a real foreign key — so add and delete are safe, and the database refuses the one delete that would lose something.",
+    "hideVsDelete": "Hiding is not deleting. A hidden use case leaves the pickers; every organization already recorded against it keeps it, and still shows it.",
     "loadFailed": "Couldn't load the catalogue.",
     "notInstalled": "The catalogue tables aren't in this project yet. Apply migrations 0023 and 0024, then reload.",
     "errSave": "Couldn't save that. Nothing was changed.",
     "usageUnknown": "Couldn't count what uses these, so the warnings below are missing. The database still refuses a delete that would lose data.",
-
     "order": "Order",
     "moveUp": "Move ⁨{name}⁩ up",
     "moveDown": "Move ⁨{name}⁩ down",
     "movedTo": "⁨{name}⁩, position {position} of {total}.",
     "reordered": "New order saved.",
-
     "nameEn": "English name",
     "nameAr": "Arabic name",
     "nameArHint": "Leave it empty and readers see the English name. Nothing breaks — it just stays untranslated.",
     "errNameRequired": "An English name is required.",
     "errNameLong": "That name is too long. The limit is {max}.",
-
     "save": "Save",
     "saving": "Saving…",
     "unsaved": "Unsaved",
@@ -32,23 +29,21 @@
     "editRow": "Edit ⁨{name}⁩",
     "closeRow": "Close ⁨{name}⁩",
     "saved": "Saved ⁨{name}⁩.",
-
     "delete": "Delete",
     "deleteRow": "Delete ⁨{name}⁩",
     "deleteConfirm": "Delete",
     "deleted": "Deleted ⁨{name}⁩.",
-
     "useCasesTitle": "Use cases",
-    "useCasesHint": "The HL7/FHIR capabilities an organization integrates. A version is its own row — “Medication Prescribe V2” sits beside V1 rather than replacing it.",
+    "useCasesHint": "The HL7/FHIR use cases an organization integrates. A version is its own row — “Medication Prescribe V2” sits beside V1 rather than replacing it.",
     "useCasesOrderNote": "The order below is the one the catalogue was seeded in, and every screen reads it. It can't be changed from here yet.",
-    "useCasesEmpty": "No capabilities yet",
+    "useCasesEmpty": "No use cases yet",
     "useCasesEmptyHint": "Add the first one and it appears wherever an organization is scored.",
     "arabicPending": {
-      "one": "1 capability still has no Arabic name. This screen is where you add it.",
-      "other": "{count} capabilities still have no Arabic name. This screen is where you add them."
+      "one": "1 use case still has no Arabic name. This screen is where you add it.",
+      "other": "{count} use cases still have no Arabic name. This screen is where you add them."
     },
     "needsArabic": "No Arabic name",
-    "needsArabicHint": "The ten seeded capabilities shipped with the Arabic name blank on purpose. An empty field here is a job to do, not a fault.",
+    "needsArabicHint": "The ten seeded use cases shipped with the Arabic name blank on purpose. An empty field here is a job to do, not a fault.",
     "inUse": {
       "one": "Recorded against 1 organization",
       "other": "Recorded against {count} organizations"
@@ -61,10 +56,9 @@
     "inUseBlocks": "Organizations are recorded against this, so the database refuses to delete it — that work would go with it. Hide it instead: it leaves the pickers and keeps its history.",
     "deleteUseCaseTitle": "Delete ⁨{name}⁩?",
     "deleteUseCaseBody": "No organization is recorded against it, so nothing is lost. If you only want it out of the pickers, hide it instead.",
-    "addUseCase": "Add a capability",
-    "addUseCaseTitle": "New capability",
+    "addUseCase": "Add a use case",
+    "addUseCaseTitle": "New use case",
     "addUseCaseHint": "Name it the way the room says it. A version is a separate row, so write the version into the name.",
-
     "kindsTitle": "Node kinds",
     "kindsHint": "What a node on the map IS — a programme, a phase, an organization. Nothing in the app behaves differently because of a kind; it names the thing and orders the list.",
     "kindsNoHide": "Kinds can't be hidden — the table has no such state. Delete one and the nodes that used it simply lose their kind; they stay on the map.",
@@ -80,7 +74,6 @@
     "addKind": "Add a kind",
     "addKindTitle": "New kind",
     "addKindHint": "A colour is not asked for: colour on this map means track, at every depth.",
-
     "stagesTitle": "Stage ladder",
     "stagesHint": "How far an organization has got — the rungs an account manager moves it up, from the first conversation to live. Position is the meaning here: a goal written as “at Testing/UAT or beyond” counts every rung from Testing/UAT downwards in this list.",
     "stagesOrderNote": "Reordering this ladder restates every goal written as a count. “40 organizations at Go-live ready or beyond” is measured by a rung's position, so moving one changes which organizations count towards commitments nobody edited — and no goal records that it changed.",
@@ -122,7 +115,6 @@
     "addStage": "Add a rung",
     "addStageTitle": "New rung",
     "addStageHint": "It joins the end of the ladder. Move it into place afterwards — and read the note above the list before you do.",
-
     "addSubmit": "Add",
     "adding": "Adding…",
     "added": "Added ⁨{name}⁩.",

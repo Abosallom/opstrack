@@ -9,7 +9,7 @@ const orgs = csv.split('\n').slice(1).filter(Boolean).map((line) => {
 }).filter(Boolean)
 
 /** Each entry: the rows that collapse, and what they collapse INTO. */
-const MERGES = [
+export const MERGES = [
   // ⚠ THE RULING WAS "TWO, SPLIT BY SYSTEM", SO THERE ARE TWO — not three.
   //   `Aseer` and `Aseer Cluster` name no system, so which of the two they
   //   belong to is not something this file may decide. They are attached to the
@@ -35,8 +35,17 @@ const MERGES = [
   { into: 'Autism Spectrum Virtual Care', rows: ['AUTISM SPECTRUM VIRTTUAL CARE CLINIC', 'Autism Spectrum virtual care Hospital'] },
   { into: 'Jeddah Oasis', rows: ['Jedda Oasis', 'Jeddah Oasis'] },
   { into: 'Samir Abbas Hospital', rows: ['Samer Abbas Hospital', 'Samir Abbas Hospital'] },
+  { into: 'Jazan Cluster (MCC)', rows: ['Jazan Cluster (MCC)', 'Jazan'], pending: 'the bare `Jazan` row names no system — allocate to MCC or MedicaCloud' },
+  { into: 'Jazan cluster (MedicaCloud)', rows: ['Jazan cluster (MedicaCloud)'] },
 ]
-const DEFERRED = ['Jazan', 'Jazan Cluster (MCC)', 'Jazan cluster (MedicaCloud)']
+/*
+ * ⚠ JAZAN IS TWO, NOT ONE AND NOT THREE. The owner ruled that MCC and
+ *   MedicaCloud are DIFFERENT systems, so both cluster rows stand. The bare
+ *   `Jazan` row names no system, so which of the two it belongs to is not
+ *   something this file may decide — it is attached to the larger and flagged
+ *   PENDING, the same treatment Aseer's two bare rows get.
+ */
+const DEFERRED = []
 
 const known = new Set(orgs)
 let missing = []
@@ -50,6 +59,7 @@ const before = orgs.length
 const survivors = orgs.filter((o) => !consumed.has(o)).length + MERGES.length
 const USE_CASES = 11
 
+if (process.argv[1]?.endsWith('org-merges.mjs')) {
 console.log(`rows named by rulings but NOT in structure.csv: ${missing.length}`)
 for (const m of missing) console.log(`   ⚠ ${m}`)
 console.log()
@@ -62,4 +72,4 @@ for (const m of MERGES.filter((x) => x.pending)) console.log(`  ⚠ pending: ${m
 console.log()
 console.log(`GRID  ${survivors} x ${USE_CASES} use cases = ${survivors * USE_CASES}`)
 console.log(`  was 161 x 11 = ${161 * USE_CASES}`)
-console.log(`  if Jazan later merges to one: ${(survivors - 2) * USE_CASES}`)
+}
