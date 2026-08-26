@@ -879,7 +879,24 @@ export function useMapUrl(
       // where `?lens=shape` alone may have nothing.
       if (
         (!arrived.current || wanted.lens !== lens) &&
-        mapLensOpensPanel(wanted.lens, url?.focusId ?? focusPref)
+        /*
+         * ⚠ THE LINK'S FOCUS ONLY — NOT THE PERSISTED ONE, AND THE COMMENT
+         *   ABOVE ALREADY SAID SO: "`?lens=shape` alone may have nothing".
+         *   With `?? focusPref` it always had something, because the reader's
+         *   remembered focus supplied a subject the link never named. So
+         *   opening `/mindtree` — no query, no intent — swung the details card
+         *   open over the drawing every time, covering a third of it including
+         *   two of the six departments.
+         *
+         *   The owner's word for that was "garbage". The map is the thing he
+         *   SHOWS people (docs/MAP-CONTRACT.md §0); a panel that opens itself
+         *   over the picture is the opposite of showing it.
+         *
+         *   A link that names a node still opens onto it, which is the whole
+         *   reason this branch exists — "See all" on the bell and the five
+         *   palette rows must land somewhere visibly different.
+         */
+        mapLensOpensPanel(wanted.lens, url?.focusId ?? null)
       ) {
         setMindPanelOpen(true)
       }

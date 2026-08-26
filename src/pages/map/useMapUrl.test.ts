@@ -1294,3 +1294,80 @@ describe('store/mindtree', () => {
     expect(readMindtreePrefs().dimension).toBe('owner')
   })
 })
+
+/*
+ * ── THE PANEL DOES NOT OPEN ITSELF OVER THE DRAWING ────────────────────────
+ *
+ * `mapLensOpensPanel` is a pure function and was always right. The defect was at
+ * its CALL SITE, which passed `url?.focusId ?? focusPref` — so a focus the
+ * reader merely happened to be sitting on, remembered from a previous session,
+ * supplied a subject that no link had named. Opening `/mindtree` with no query
+ * at all swung the details card open across a third of the map.
+ *
+ * These pin the distinction the call site now makes, because the pure function
+ * cannot: a link that NAMES a node opens onto it; a bare lens does not.
+ */
+describe('a bare lens has nothing to show, a link with a node does', () => {
+  it('opens nothing for `?lens=shape` with no node named', () => {
+    expect(mapLensOpensPanel('shape', null)).toBe(false)
+  })
+
+  it('opens for `?lens=shape&focus=X`, which is the case the branch exists for', () => {
+    expect(mapLensOpensPanel('shape', 'node-1')).toBe(true)
+  })
+
+  /*
+   * The guard against fixing it the wrong way. Making `shape` never open would
+   * also silence "See all" on the bell and the five palette rows, which is the
+   * defect this branch was written to cure in the first place.
+   */
+  it('still opens the lenses whose panel is their whole point', () => {
+    expect(mapLensOpensPanel('needs-me', null)).toBe(true)
+    expect(mapLensOpensPanel('what-changed', null)).toBe(true)
+  })
+})
+
+/*
+ * ⚠ AND THE THREE ABOVE DO NOT CATCH THE BUG, WHICH IS WHY THIS EXISTS.
+ *
+ *   `mapLensOpensPanel` is pure and was never wrong. The defect lived in what
+ *   the hook HANDED it — `url?.focusId ?? focusPref` — and no test of a pure
+ *   function can see its caller. Putting the fallback back left all three green,
+ *   which is the definition of a decorative test.
+ *
+ *   The hook is a `useEffect` over `useSearchParams` and cannot be rendered in
+ *   `environment: 'node'`, so the assertion is made against the SOURCE, which is
+ *   the same instrument `mapMotion.test.ts` reaches for when a whole-file grep
+ *   would not do.
+ */
+const HOOK_SRC: Record<string, string> = import.meta.glob('./useMapUrl.ts', {
+  eager: true,
+  query: '?raw',
+  import: 'default',
+})
+const HOOK = (HOOK_SRC['./useMapUrl.ts'] ?? '')
+  .replace(/\/\*[\s\S]*?\*\//gu, '')
+  .replace(/^\s*\/\/.*$/gmu, '')
+
+describe('the arriving lens asks about the LINK\u2019s focus, not the reader\u2019s', () => {
+  it('finds the call at all, so the assertions below cannot pass vacuously', () => {
+    expect(HOOK).toContain('mapLensOpensPanel(')
+  })
+
+  /*
+   * ⚠ ANCHORED ON `wanted.lens`, BECAUSE THE FIRST `mapLensOpensPanel(` IN THIS
+   *   FILE IS THE FUNCTION'S OWN DECLARATION. A regex that took the first match
+   *   read the DEFINITION's parameter list — `lens: MapLens, focusId` — which
+   *   contains no `focusPref` and never will, so the assertion passed while the
+   *   bug was present. Caught by mutation, not by reading it.
+   */
+  it('never falls back to the persisted focus when deciding to open the panel', () => {
+    const call = /mapLensOpensPanel\(\s*wanted\.lens,([^)]*)\)/u.exec(HOOK)?.[1]
+    expect(call).toBeDefined()
+    expect(call ?? '').not.toContain('focusPref')
+  })
+
+  it('passes null, which is what "the link named nothing" means', () => {
+    expect(HOOK).toMatch(/mapLensOpensPanel\(\s*wanted\.lens,\s*url\?\.focusId \?\? null\s*\)/u)
+  })
+})
