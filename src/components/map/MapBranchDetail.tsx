@@ -565,85 +565,21 @@ export function DetailBand({
 
       {editor}
 
-      <dl className="mbr-fields" hidden={editing}>
-        {/* THE STAGE FIRST, because it is the one field on this band that is
-            also a CONTROL, and because "where has this got to" is the question
-            an account manager opens the panel with. The `<dd>` holds the picker
-            directly — no label element of its own: the `<dt>` names the pair for
-            sighted readers and the select carries its own `aria-label` naming
-            the organization, so a screen-reader user hears "Stage for Riyadh
-            General" rather than a bare "Stage" repeated on every panel. */}
-        {stage !== undefined && stage !== null && (
-          <div className="mbr-field">
-            <dt className="mbr-field-k">{t('mindtree.colStage')}</dt>
-            <dd className="mbr-field-v">{stage}</dd>
-          </div>
-        )}
-        <div className="mbr-field">
-          <dt className="mbr-field-k">{t('mapnode.accountManager')}</dt>
-          <dd className="mbr-field-v">{manager === null ? <NotRecorded /> : isolate(manager)}</dd>
-        </div>
-        <div className="mbr-field">
-          <dt className="mbr-field-k">{t('mapnode.vendor')}</dt>
-          <dd className="mbr-field-v">
-            {vendor.trim() === '' ? <NotRecorded /> : isolate(vendor)}
-          </dd>
-        </div>
-        {/* THE PORTFOLIO'S OWN FOUR NUMBERS, IN THE PANEL'S OWN WORDS.
-            `mindtree.colInStage`, `colRisk`, `colOpen` and `colQuiet` are the
-            table's column headings reused as field labels rather than restated
-            — the reader who renames "In stage" in Settings renames it on both
-            surfaces, which is the whole promise a shared key makes. The VALUES
-            come off `stageReading` and the canvas's walk; only the wrapping is
-            this band's. */}
-        <div className="mbr-field">
-          <dt className="mbr-field-k">{t('mindtree.colInStage')}</dt>
-          <dd className="mbr-field-v">
-            {daysInStage === null ? (
-              <NotRecorded />
-            ) : (
-              t('mindtree.portfolioDays', { count: daysInStage })
-            )}
-          </dd>
-        </div>
-        {/* NO VERDICT WITHOUT A CLOCK. "Inside its stage time" about an
-            organization nobody has staged is a reassurance nobody earned, so
-            the row reads the dash until there is a day count to judge. */}
-        <div className="mbr-field">
-          <dt className="mbr-field-k">{t('mindtree.colRisk')}</dt>
-          <dd className="mbr-field-v">
-            {daysInStage === null ? (
-              <NotRecorded />
-            ) : (
-              t(atRisk ? 'mindtree.portfolioAtRisk' : 'mindtree.portfolioOnTrack')
-            )}
-          </dd>
-        </div>
-        {rollup != null && (
-          <>
-            <div className="mbr-field">
-              <dt className="mbr-field-k">{t('mindtree.colOpen')}</dt>
-              <dd className="mbr-field-v">{rollup.open}</dd>
-            </div>
-            <div className="mbr-field">
-              <dt className="mbr-field-k">{t('mindtree.colQuiet')}</dt>
-              {/* `OrgRow`'s renderer exactly: null is "nothing has ever been
-                  filed here", which is not a zero and must not print as one. */}
-              <dd className="mbr-field-v">
-                {rollup.quietDays === null ? (
-                  <NotRecorded />
-                ) : (
-                  t('mindtree.portfolioDays', { count: rollup.quietDays })
-                )}
-              </dd>
-            </div>
-          </>
-        )}
-      </dl>
+      {/* THE ELEVEN FIRST, AND THAT IS A RULING RATHER THAN A LAYOUT TASTE.
+          The owner's words when he was asked what the panel should open with:
+          "all ob progress per org, once i reach this level, i click the org and
+          i should see a bar with details poping up" — and then, of what the bar
+          leads with, the eleven use cases. He is the reader this panel exists
+          for, and what he opens it to find out is how far each use case has
+          got, not who the account manager is.
 
-      {/* THE MATRIX, and it is the visually dominant element on the band: it is
-          the answer to "how far has this organization actually got", which is
-          the question the panel was asked. */}
+          It also only became worth leading with once the grid was filled. Until
+          then most organizations had a handful of recorded cells and the list
+          was mostly dashes; every organization now carries all eleven rows, so
+          this is a complete picture rather than a sample of one. The fields
+          below did not become unimportant — they became the second question. */}
+      {/* The matrix: the answer to "how far has this organization actually
+          got", which is the question the panel was asked. */}
       <div className="mbr-uc">
         <h4 className="mbr-sub">{t('mapnode.useCases')}</h4>
 
@@ -725,6 +661,85 @@ export function DetailBand({
           </ul>
         )}
       </div>
+
+      <dl className="mbr-fields" hidden={editing}>
+        {/* THE STAGE FIRST AMONG THE FIELDS — the use-case matrix above now
+            answers "where has this got to" use case by use case, and this is
+            the whole-organization summary of the same question. It leads the
+            fields because it is the one among them that is also a CONTROL.
+            The `<dd>` holds the picker
+            directly — no label element of its own: the `<dt>` names the pair for
+            sighted readers and the select carries its own `aria-label` naming
+            the organization, so a screen-reader user hears "Stage for Riyadh
+            General" rather than a bare "Stage" repeated on every panel. */}
+        {stage !== undefined && stage !== null && (
+          <div className="mbr-field">
+            <dt className="mbr-field-k">{t('mindtree.colStage')}</dt>
+            <dd className="mbr-field-v">{stage}</dd>
+          </div>
+        )}
+        <div className="mbr-field">
+          <dt className="mbr-field-k">{t('mapnode.accountManager')}</dt>
+          <dd className="mbr-field-v">{manager === null ? <NotRecorded /> : isolate(manager)}</dd>
+        </div>
+        <div className="mbr-field">
+          <dt className="mbr-field-k">{t('mapnode.vendor')}</dt>
+          <dd className="mbr-field-v">
+            {vendor.trim() === '' ? <NotRecorded /> : isolate(vendor)}
+          </dd>
+        </div>
+        {/* THE PORTFOLIO'S OWN FOUR NUMBERS, IN THE PANEL'S OWN WORDS.
+            `mindtree.colInStage`, `colRisk`, `colOpen` and `colQuiet` are the
+            table's column headings reused as field labels rather than restated
+            — the reader who renames "In stage" in Settings renames it on both
+            surfaces, which is the whole promise a shared key makes. The VALUES
+            come off `stageReading` and the canvas's walk; only the wrapping is
+            this band's. */}
+        <div className="mbr-field">
+          <dt className="mbr-field-k">{t('mindtree.colInStage')}</dt>
+          <dd className="mbr-field-v">
+            {daysInStage === null ? (
+              <NotRecorded />
+            ) : (
+              t('mindtree.portfolioDays', { count: daysInStage })
+            )}
+          </dd>
+        </div>
+        {/* NO VERDICT WITHOUT A CLOCK. "Inside its stage time" about an
+            organization nobody has staged is a reassurance nobody earned, so
+            the row reads the dash until there is a day count to judge. */}
+        <div className="mbr-field">
+          <dt className="mbr-field-k">{t('mindtree.colRisk')}</dt>
+          <dd className="mbr-field-v">
+            {daysInStage === null ? (
+              <NotRecorded />
+            ) : (
+              t(atRisk ? 'mindtree.portfolioAtRisk' : 'mindtree.portfolioOnTrack')
+            )}
+          </dd>
+        </div>
+        {rollup != null && (
+          <>
+            <div className="mbr-field">
+              <dt className="mbr-field-k">{t('mindtree.colOpen')}</dt>
+              <dd className="mbr-field-v">{rollup.open}</dd>
+            </div>
+            <div className="mbr-field">
+              <dt className="mbr-field-k">{t('mindtree.colQuiet')}</dt>
+              {/* `OrgRow`'s renderer exactly: null is "nothing has ever been
+                  filed here", which is not a zero and must not print as one. */}
+              <dd className="mbr-field-v">
+                {rollup.quietDays === null ? (
+                  <NotRecorded />
+                ) : (
+                  t('mindtree.portfolioDays', { count: rollup.quietDays })
+                )}
+              </dd>
+            </div>
+          </>
+        )}
+      </dl>
+
     </section>
   )
 }

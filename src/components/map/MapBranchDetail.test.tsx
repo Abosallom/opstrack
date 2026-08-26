@@ -332,9 +332,20 @@ const SHEET = SHEET_SRC['./map-branch.css'] ?? ''
  * The fields and the matrix both render an em-dash for "nothing recorded", so an
  * unqualified count of them is true of the band whatever either half is doing.
  * MapBranch.test.tsx slices the history band off for the same reason.
+ *
+ * ⚠ BOUNDED BY ITS OWN `</dl>`, NOT BY THE MATRIX THAT USED TO FOLLOW IT. This
+ *   sliced from `mbr-fields` to `mbr-uc"` until the matrix moved above the
+ *   fields, at which point the two indices crossed and the slice came back
+ *   empty — the assertion failed with "Target cannot be null", which is a
+ *   helper breaking, not a band. A helper that encodes the order of two
+ *   siblings reddens on a reordering that changes nothing it is testing.
  */
-const fieldsOf = (html: string): string =>
-  html.slice(html.indexOf('mbr-fields'), html.indexOf('mbr-uc"'))
+const fieldsOf = (html: string): string => {
+  const from = html.indexOf('mbr-fields')
+  if (from < 0) return ''
+  const to = html.indexOf('</dl>', from)
+  return html.slice(from, to < 0 ? undefined : to)
+}
 
 /**
  * Just the matrix's heading line.
@@ -421,6 +432,31 @@ describe('every class this band renders has a rule in map-branch.css', () => {
 })
 
 /* ──────────────────────────── the fields ─────────────────────────────── */
+
+describe('what the band leads with', () => {
+  it('puts the use-case matrix above the fields', () => {
+    // The owner's ruling: the panel opens with the eleven use cases, because
+    // "how far has each use case got" is what he clicks an organization to find
+    // out. The account manager and the vendor are the second question.
+    //
+    // ⚠ THIS IS THE ONLY THING PINNING THE ORDER. The reorder that put the
+    //   matrix first changed no markup, no class and no string — nothing else
+    //   in this file would have reddened if it were quietly undone.
+    const html = band({ links: [link('adt', 'live')] })
+    const matrix = html.indexOf('mbr-uc"')
+    const fields = html.indexOf('mbr-fields')
+    expect(matrix).toBeGreaterThan(-1)
+    expect(fields).toBeGreaterThan(-1)
+    expect(matrix).toBeLessThan(fields)
+  })
+
+  it('still renders both halves', () => {
+    // An order assertion passes trivially if one half stopped rendering.
+    const html = band({ links: [link('adt', 'live')] })
+    expect(html).toContain('mbr-uc-list')
+    expect(html).toContain('mbr-field-k')
+  })
+})
 
 describe('the fields', () => {
   it('names the account manager through the roster, never as stored text', () => {
