@@ -178,6 +178,8 @@ import {
   type RiskSeverity,
   type RiskType,
 } from '../lib/pmo/summary'
+import { buildRulings, type RulingKind, type Rulings } from '../lib/pmo/rulings'
+import { isolate } from '../lib/bidi'
 import { isOpen } from '../lib/health'
 import {
   loadConfig,
@@ -223,6 +225,22 @@ const PROJECT_CARDS = 12
 const INITIATIVE_ROWS = 12
 
 /** How many actions the register lists before deferring to the attention screen. */
+/**
+ * Why a row is on the rulings list — one sentence per reading.
+ *
+ * Written as literals rather than assembled from the kind, because
+ * `localeReach.test.ts` scans the source for key-shaped strings and cannot see a
+ * key it has to build.
+ */
+const RULING_WHY: Readonly<Record<RulingKind, string>> = {
+  duplicate: 'pmo.rulingDuplicate',
+  ambiguous: 'pmo.rulingAmbiguous',
+  contained: 'pmo.rulingContained',
+  near: 'pmo.rulingNear',
+  silent: 'pmo.rulingSilent',
+  unowned: 'pmo.rulingUnowned',
+}
+
 const ACTION_ROWS = 12
 
 /** How many rows each risk table prints. */
@@ -274,6 +292,7 @@ const TABS = [
   { id: 'delivery', labelKey: 'pmo.delivery' },
   { id: 'actions', labelKey: 'pmo.actions' },
   { id: 'risks', labelKey: 'pmo.risks' },
+  { id: 'rulings', labelKey: 'pmo.rulings' },
   { id: 'revenue', labelKey: 'pmo.revenue' },
   { id: 'okrs', labelKey: 'pmo.okrs' },
 ] as const
@@ -421,6 +440,35 @@ export default function Pmo(): ReactElement {
   const orgKindId = useMemo(
     () => kinds.find((k) => /organi/i.test(k.name))?.id ?? null,
     [kinds],
+  )
+
+  /**
+   * Everything ever filed against a node, open or closed.
+   *
+   * ⚠ NOT `openByNode`, AND THE DIFFERENCE IS THE WHOLE OF THE `silent` ROW.
+   *   That map counts OPEN entries and rolls them up through the ancestry, which
+   *   is right for "what is on this department's plate". An organization with
+   *   three closed tickets has not been silent — somebody worked on it and
+   *   finished. Reading the open count here would put it on a list titled
+   *   "nothing has ever been filed", which is false and would send a person to
+   *   go and ask about work that is already done.
+   */
+  const filedByNode = useMemo(() => {
+    const out = new Map<string, number>()
+    for (const entry of entries) {
+      if (entry.node_id === null) continue
+      out.set(entry.node_id, (out.get(entry.node_id) ?? 0) + 1)
+    }
+    return out
+  }, [entries])
+
+  const rulings = useMemo(
+    () =>
+      buildRulings({
+        nodes: orgKindId === null ? [] : nodes.filter((n) => n.kind_id === orgKindId),
+        openByNode: filedByNode,
+      }),
+    [nodes, orgKindId, filedByNode],
   )
 
   const delivery = useMemo(() => {
@@ -625,6 +673,7 @@ export default function Pmo(): ReactElement {
               hasEntries={entries.length > 0}
             />
           )}
+          {tab === 'rulings' && <Rulings rulings={rulings} />}
           {tab === 'projects' && <PortfolioProjects />}
           {tab === 'initiatives' && <PortfolioInitiatives />}
           {tab === 'delivery' && (
@@ -1569,6 +1618,66 @@ const RISK_TITLE: Readonly<Record<RiskType, string>> = {
 const RISK_EMPTY: Readonly<Record<RiskType, string>> = {
   issue: 'pmo.riskEmptyIssues',
   escalation: 'pmo.riskEmptyEscalations',
+}
+
+/**
+ * Organizations that need a person to decide something.
+ *
+ * ⚠ IT FLAGS AND IT DOES NOT MERGE, which is a refusal rather than an omission.
+ *   Merging two organizations moves their activities, their use-case links and
+ *   their progress rows; `scripts/report/merge-orgs.mjs` already does exactly
+ *   that, dry-run first and with an undo manifest written before it touches a
+ *   row. A button here would be the one destructive act in this product with no
+ *   manifest behind it, taken on a screen where the reader can see two names and
+ *   not what hangs off them.
+ *
+ * The counts are what make a row decidable: on a duplicate pair, the row
+ * carrying the work is almost always the one to keep, and the numbers say which
+ * that is without the page deciding it.
+ */
+function Rulings({ rulings }: { rulings: Rulings }): ReactElement {
+  return (
+    <Section id="pmo-rulings" title={t('pmo.rulings')} desc={t('pmo.rulingsDesc')}>
+      {rulings.rows.length === 0 ? (
+        <p className="muted pmo-desc">
+          {t('pmo.rulingsEmpty', { count: rulings.organizations })}
+        </p>
+      ) : (
+        <>
+          {/* THE DENOMINATOR, SAID OUT LOUD. "31 questions" on its own invites
+              the reader to guess how big the estate is; naming both numbers is
+              the same rule that keeps a bare percentage off every other surface
+              in this product. */}
+          <p className="muted pmo-desc">
+            {t('pmo.rulingsCount', {
+              count: rulings.rows.length,
+              organizations: rulings.organizations,
+            })}
+          </p>
+          <ul className="pmo-rulings">
+            {rulings.rows.map((row) => (
+              <li key={row.key} className="pmo-ruling" data-kind={row.kind}>
+                <p className="pmo-ruling-why">{t(RULING_WHY[row.kind])}</p>
+                <ul className="pmo-ruling-parties">
+                  {row.parties.map((party) => (
+                    <li key={party.nodeId}>
+                      {/* Database text: isolated, so a Latin hospital name beside
+                          an Arabic count does not drag the row's punctuation. */}
+                      <span className="pmo-ruling-name">{isolate(party.name)}</span>
+                      <span className="pmo-ruling-count tabular">
+                        {t('pmo.rulingsFiled', { count: party.activities })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+          <p className="muted pmo-desc">{t('pmo.rulingsFixHint')}</p>
+        </>
+      )}
+    </Section>
+  )
 }
 
 function Risks({ risks }: { risks: Record<RiskType, RiskRow[]> }): ReactElement {

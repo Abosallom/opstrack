@@ -721,3 +721,69 @@ a.pmo-jira:hover {
 .pmo-kr .pmo-form {
   flex-basis: 100%;
 }
+
+/* ---------- needs a ruling ---------- */
+
+/* A LIST OF QUESTIONS, NOT A TABLE. Every other register on this page is one row
+   per thing with the same columns; this one holds six different readings whose
+   rows have nothing in common but a sentence and one or more organizations. A
+   table would need a column for every reading and leave most cells empty, which
+   is the shape that makes a reader think something failed to load. */
+.pmo-rulings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pmo-ruling {
+  padding-block: 8px;
+  padding-inline: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+/* The sentence first, because it is the question. The names below it are the
+   answer's subject, and a reader who agrees with the question does not need to
+   read the names twice. */
+.pmo-ruling-why {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.pmo-ruling-parties {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Name and count on one line, the count pinned to the reading end. TWO SLOTS,
+   and the name takes what is left — a long hospital name wraps rather than
+   pushing its own count off the edge. */
+.pmo-ruling-parties li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 10px;
+  font-size: 13px;
+}
+
+.pmo-ruling-name {
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+/* The number that decides it. Dimmer than the name — it is evidence, not the
+   subject — but tabular, so two counts under each other can be compared at a
+   glance, which is the whole reason it is printed. */
+.pmo-ruling-count {
+  color: var(--text-dim);
+  white-space: nowrap;
+}

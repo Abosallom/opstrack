@@ -983,6 +983,7 @@ describe('the assembled page', () => {
     workspace({ nodes: [node({ id: 'a' })], entries: [entry({ id: 'e1' })], goals: [] })
     for (const [path, id] of [
       ['/pmo', 'pmo-overview'],
+    [tab('rulings'), 'pmo-rulings'],
       [tab('delivery'), 'pmo-delivery'],
       [tab('delivery'), 'pmo-commitments'],
       [tab('actions'), 'pmo-actions'],
@@ -1003,7 +1004,7 @@ describe('the assembled page', () => {
     const html = render(tab('revenue'))
     for (const key of [
       'pmo.overview', 'pmo.projects', 'pmo.initiatives', 'pmo.delivery',
-      'pmo.actions', 'pmo.risks', 'pmo.revenue', 'pmo.okrs',
+      'pmo.actions', 'pmo.risks', 'pmo.revenue', 'pmo.okrs', 'pmo.rulings',
     ]) {
       expect(html, key).toContain(asHtml(t(key)))
     }
@@ -1043,5 +1044,89 @@ describe('the assembled page', () => {
     workspace({ nodes: [node({ id: 'a' })], entries: [entry({ id: 'e1' })] })
     const html = render().toLowerCase()
     expect(html).not.toContain('jira')
+  })
+})
+
+describe('§10 the rulings tab — what the tracker will not decide', () => {
+  it('names both rows of a duplicate, heaviest first, with their counts', () => {
+    // The live pair, and the one that started this: `Aseer (Care Ware)` carries
+    // 7 activities and `Aseer Care ware` 2, splitting one hospital's work.
+    workspace({
+      nodes: [
+        node({ id: 'a', name: 'Aseer (Care Ware)', kind_id: 'kind-org' }),
+        node({ id: 'b', name: 'Aseer Care ware', kind_id: 'kind-org' }),
+      ],
+      entries: [
+        entry({ id: 'e1', node_id: 'a' }),
+        entry({ id: 'e2', node_id: 'a' }),
+        entry({ id: 'e3', node_id: 'b' }),
+      ],
+    })
+    const html = render(tab('rulings'))
+    expect(html).toContain('Aseer (Care Ware)')
+    expect(html).toContain('Aseer Care ware')
+    expect(html).toContain(asHtml(t('pmo.rulingDuplicate')))
+    // Heaviest first, so the row carrying the work reads as the likely keeper.
+    expect(html.indexOf('Aseer (Care Ware)')).toBeLessThan(html.indexOf('Aseer Care ware'))
+  })
+
+  it('says a bare "Aseer" ticket could mean either, rather than choosing one', () => {
+    // ⚠ THE OWNER'S RULING, RENDERED. The two Aseers are different systems and
+    //   stay apart, so eight tickets naming only "Aseer" have no honest home.
+    //   This row is the whole of what the app is allowed to say about them.
+    workspace({
+      nodes: [
+        node({ id: 'a', name: 'Aseer (Care Ware)', kind_id: 'kind-org' }),
+        node({ id: 'b', name: 'Aseer (Vida Plus)', kind_id: 'kind-org' }),
+      ],
+      entries: [entry({ id: 'e1', node_id: 'a' })],
+    })
+    expect(render(tab('rulings'))).toContain(asHtml(t('pmo.rulingAmbiguous')))
+  })
+
+  it('states its denominator, and prints no bare percentage', () => {
+    workspace({
+      nodes: [
+        node({ id: 'a', name: 'Aseer (Care Ware)', kind_id: 'kind-org' }),
+        node({ id: 'b', name: 'Aseer Care ware', kind_id: 'kind-org' }),
+      ],
+      entries: [entry({ id: 'e1', node_id: 'a' })],
+    })
+    const html = render(tab('rulings'))
+    // "31 questions" alone invites the reader to guess how big the estate is.
+    expect(html).toMatch(/2 organizations|⁨2⁩/)
+    expect(html).not.toMatch(/\d+%/)
+  })
+
+  it('offers no button that would rewrite the estate', () => {
+    // ⚠ IT FLAGS AND IT DOES NOT MERGE. Merging moves activities, use-case links
+    //   and progress rows; merge-orgs.mjs does it dry-run first with an undo
+    //   manifest. A button here would be the one destructive act in this product
+    //   with no manifest behind it.
+    workspace({
+      nodes: [
+        node({ id: 'a', name: 'Aseer (Care Ware)', kind_id: 'kind-org' }),
+        node({ id: 'b', name: 'Aseer Care ware', kind_id: 'kind-org' }),
+      ],
+      entries: [entry({ id: 'e1', node_id: 'a' })],
+    })
+    const html = render(tab('rulings'))
+    const section = html.slice(html.indexOf('pmo-rulings'))
+    expect(section).not.toContain('<button')
+    expect(html).toContain(asHtml(t('pmo.rulingsFixHint')))
+  })
+
+  it('says so plainly when there is nothing to decide', () => {
+    // The empty arm is the day-one state and is designed first, like every other
+    // section on this page.
+    workspace({
+      // An owner AND something filed: the two readings that would otherwise
+      // put a perfectly healthy organization on this list.
+      nodes: [
+        node({ id: 'a', name: 'Alpha Hospital', kind_id: 'kind-org', account_manager_id: 'u1' }),
+      ],
+      entries: [entry({ id: 'e1', node_id: 'a' })],
+    })
+    expect(render(tab('rulings'))).toContain(asHtml(t('pmo.rulingsEmpty', { count: 1 })))
   })
 })

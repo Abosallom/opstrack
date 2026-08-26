@@ -696,7 +696,18 @@ export const NAMESPACE_PLACEMENT: Readonly<Record<string, NamespacePlacement>> =
         prefixes: ['tabs', 'projects', 'initiatives', 'revenue', 'okrs'],
         section: 'screenTitles',
       },
-      { prefixes: ['needsMigration'], section: 'emptyStates' },
+      { prefixes: ['needsMigration', 'rulingsEmpty'], section: 'emptyStates' },
+      // ⚠ `rulingsEmpty` IS LISTED BEFORE `rulings`, and the order matters: the
+      //   prefix rules are tried in sequence and `rulings` would otherwise claim
+      //   its own empty state. The six `ruling*` sentences are the reasons a row
+      //   is on the list — not titles and not actions, so they land in
+      //   `messages` with the other sentences an admin may reword.
+      {
+        prefixes: ['rulingDuplicate', 'rulingAmbiguous', 'rulingContained', 'rulingNear',
+                   'rulingSilent', 'rulingUnowned', 'rulingsCount', 'rulingsFiled',
+                   'rulingsFixHint', 'rulingsDesc'],
+        section: 'messages',
+      },
       // The portfolio card vocabulary 0031 brought with it, and the form
       // labels that fill those cards in. One rule, because a reader renaming
       // "Budget" on the card is renaming the word above the box that sets it —

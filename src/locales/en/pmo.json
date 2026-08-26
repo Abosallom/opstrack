@@ -191,6 +191,27 @@
     "risksOwnDesc": "Risks and challenges on the programme itself. One record behind both, told apart by the word somebody chose — and ungraded stays ungraded rather than becoming low.",
     "risksOwnEmpty": "Nothing on the register yet",
     "risksOwnEmptyHint": "A risk is what might go wrong; a challenge is what already is. Both take a level, an impact and what is being done about it.",
+    "rulingAmbiguous": "A ticket naming only this could mean either row, so it cannot be filed at all.",
+    "rulingContained": "One name sits inside the other.",
+    "rulingDuplicate": "One hospital, two rows: the names are the same once punctuation is dropped.",
+    "rulingNear": "The names differ by a character or two.",
+    "rulingSilent": "Nothing has ever been filed against this organization.",
+    "rulingUnowned": "No account manager.",
+    "rulings": "Needs a ruling",
+    "rulingsCount": {
+      "one": "One question, across ⁨{organizations}⁩ organizations.",
+      "other": "{count} questions, across ⁨{organizations}⁩ organizations."
+    },
+    "rulingsDesc": "Organizations the tracker cannot decide about on its own — duplicates, names two rows could mean, and rows nobody has touched. Read from the map itself every time this page loads, so a merge this morning is gone from here this afternoon.",
+    "rulingsEmpty": {
+      "one": "Nothing to decide across one organization.",
+      "other": "Nothing to decide across {count} organizations."
+    },
+    "rulingsFiled": {
+      "one": "1 filed",
+      "other": "{count} filed"
+    },
+    "rulingsFixHint": "Nothing here is changed by looking at it. Merging two rows moves their activities, their use cases and their progress, so it runs from scripts/report/merge-orgs.mjs — dry run first, undo manifest written before anything moves.",
     "slaNone": "Nothing that finished in this window carried a service deadline, so there is no rate to report.",
     "slaRate": "⁨{met}⁩ of ⁨{measured}⁩ finished inside the deadline we had set.",
     "slaTitle": "Finished on the promise",
