@@ -1018,3 +1018,33 @@
 .mbr-edit-archive {
   margin-inline-start: auto;
 }
+
+/* ---------- before ADT (0033) ---------- */
+
+.mbr-readiness {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-block-start: 14px;
+}
+
+/* Label and control on one line, control at the reading end. The checkbox keeps
+   its own hit area rather than being shrunk to match the text — `.tap-44` and
+   the rule pmo.css states: the unconditional compaction shipped the smallest
+   targets to the smallest screens once already. */
+.mbr-ready-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  min-block-size: 28px;
+}
+
+/* The select sits at the reading end, where the tick boxes' controls are. */
+.mbr-ready-row .input {
+  grid-column: 2;
+  justify-self: end;
+  max-inline-size: 12rem;
+}

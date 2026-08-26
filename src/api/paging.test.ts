@@ -530,6 +530,7 @@ async function loadConfigStore(opts: {
     // that has nothing to do with paging. They answer the shipping state: the
     // tables exist and are empty.
     listHisProducts: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
+    listReadiness: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
     listMapNodeStages: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
     listMapNodeProgress: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
   }))

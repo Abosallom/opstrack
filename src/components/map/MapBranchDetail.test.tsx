@@ -95,6 +95,9 @@ vi.mock('../../store/config', () => ({
   // 0034's catalogue. Empty is the shipping state: the migration seeded
   // eleven products and filled in nobody.
   useHisProducts: () => [],
+  // 0033's readiness. `undefined` is the shipping answer for all 140:
+  // nobody has said, which is not the same as "not started".
+  useNodeReadiness: () => undefined,
   invalidateConfig: () => {},
   useMapNodeMap: () => new Map(fx.state.nodes.map((n) => [n.id, n])),
   useAllUseCases: () => [],

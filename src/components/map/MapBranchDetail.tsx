@@ -149,6 +149,7 @@ import {
 } from '../../api/goals'
 import { listNodeUseCases } from '../../api/map'
 import NodeEditor from './NodeEditor'
+import ReadinessControls from './ReadinessControls'
 import { useHisProducts } from '../../store/config'
 import { confirm } from '../Confirm'
 // The stage control and the optimistic write behind it. ONE control mounted
@@ -458,6 +459,7 @@ export default function MapBranchDetail({
       // node with no system recorded and for one naming a product the catalogue
       // no longer has, which read the same way to a person: nothing to show.
       hisName={hisProducts.find((product) => product.id === node.his_id)?.name ?? null}
+      readiness={<ReadinessControls nodeId={nodeId} />}
       daysInStage={reading?.days ?? null}
       atRisk={reading?.atRisk ?? false}
       rollup={rollup ?? null}
@@ -503,6 +505,13 @@ export interface DetailBandProps {
   /** The INHERITED vendor, same rule and same rewritten dash. `''` is "not
    *  recorded anywhere up the chain" — the column is `not null default ''`. */
   vendor: string
+  /**
+   * 0033's three tick boxes, as a node — passed in rather than mounted here for
+   * `stage`'s stated reason: the band stays renderable without a store, so a
+   * control that needs one arrives as a `ReactNode` and the test can hand it
+   * nothing.
+   */
+  readiness?: ReactNode
   /**
    * The hospital information system's NAME, already resolved from the catalogue,
    * or null when nothing is recorded.
@@ -575,6 +584,7 @@ export function DetailBand({
   manager,
   vendor,
   hisName,
+  readiness,
   daysInStage,
   atRisk,
   rollup,
@@ -803,6 +813,7 @@ export function DetailBand({
         )}
       </dl>
 
+      {readiness}
     </section>
   )
 }

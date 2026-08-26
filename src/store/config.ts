@@ -59,6 +59,7 @@ import {
   listMapNodeStages,
   listMapNodes,
   listHisProducts,
+  listReadiness,
   listUseCases,
 } from '../api/map'
 import {
@@ -79,6 +80,7 @@ import type {
   Track,
   TrackGroup,
   HisProduct,
+  NodeReadiness,
   UseCase,
 } from '../types'
 
@@ -107,6 +109,7 @@ const MAP_NODES_CACHE_KEY = 'nphiescore_map_nodes_v1'
 const MAP_NODE_KINDS_CACHE_KEY = 'nphiescore_map_node_kinds_v1'
 const USE_CASES_CACHE_KEY = 'nphiescore_use_cases_v1'
 const HIS_PRODUCTS_CACHE_KEY = 'nphiescore_his_products_v1'
+const READINESS_CACHE_KEY = 'nphiescore_node_readiness_v1'
 
 /**
  * Two more (0026), and their own keys for the reason above — with one extra edge
@@ -190,6 +193,11 @@ interface ConfigState {
   useCases: UseCase[]
   /** 0034's catalogue. Empty on a workspace that has not run it. */
   hisProducts: HisProduct[]
+  /**
+   * 0033's readiness, by node. A MISSING ENTRY IS "NOBODY HAS SAID" and is not
+   * the same as a row whose three fields are all at their defaults.
+   */
+  readinessByNode: Map<string, NodeReadiness>
   /**
    * Precomputed `hidden === false` slice, stable by reference — the tracks/`active`
    * pair one table over, for its reason. A hidden capability has to leave every
@@ -468,6 +476,7 @@ function deriveAll(
   kinds: MapNodeKind[],
   useCases: UseCase[],
   hisProducts: HisProduct[],
+  readiness: NodeReadiness[],
   stages: MapNodeStage[],
   progress: MapNodeProgress[],
 ): Omit<
@@ -478,6 +487,7 @@ function deriveAll(
     // Carried straight through: the catalogue derives nothing, and a `hisById`
     // map would be a second index for one picker on one panel.
     hisProducts,
+    readinessByNode: new Map(readiness.map((row) => [row.node_id, row])),
     ...derive(tracks, groups),
     ...deriveGroups(groups),
     ...deriveMap(tracks, nodes),
@@ -572,6 +582,8 @@ const useConfigStore = create<ConfigState>(() => ({
     readRowCache<MapNodeKind>(MAP_NODE_KINDS_CACHE_KEY),
     readRowCache<UseCase>(USE_CASES_CACHE_KEY),
     readRowCache<HisProduct>(HIS_PRODUCTS_CACHE_KEY),
+    // `node_id`, not `id` — 0033 gives this table no surrogate key either.
+    readRowCache<NodeReadiness>(READINESS_CACHE_KEY, 'node_id'),
     readRowCache<MapNodeStage>(MAP_NODE_STAGES_CACHE_KEY),
     // `node_id`, not `id` — 0026 gives this table no surrogate key. See
     // readRowCache's own note: the default would drop every cached row.
@@ -732,6 +744,18 @@ export function useAllUseCases(): UseCase[] {
  */
 export function useHisProducts(): HisProduct[] {
   return useConfigStore((s) => s.hisProducts)
+}
+
+/**
+ * What one organization has ready — 0033's three things before ADT.
+ *
+ * `undefined` is NOBODY HAS SAID, and the panel must draw it as such: the table
+ * is empty today, so this is the answer for all 140 organizations, and rendering
+ * it as three unticked boxes and "Not started" would be a measurement nobody
+ * took presented as one somebody did.
+ */
+export function useNodeReadiness(nodeId: string | null): NodeReadiness | undefined {
+  return useConfigStore((s) => (nodeId === null ? undefined : s.readinessByNode.get(nodeId)))
 }
 
 // ── the stage ladder and where each node got to (0026) ─────────────────────
@@ -1005,6 +1029,7 @@ export function loadConfig(force = false): Promise<void> {
     listMapNodeKinds(),
     listUseCases(true),
     listHisProducts(true),
+    listReadiness(),
     listMapNodeStages(),
     listMapNodeProgress(),
     loadJiraSettings(),
@@ -1022,6 +1047,7 @@ export function loadConfig(force = false): Promise<void> {
         kindResult,
         useCaseResult,
         hisResult,
+        readinessResult,
         stageResult,
         progressResult,
         jiraResult,
@@ -1033,6 +1059,12 @@ export function loadConfig(force = false): Promise<void> {
       const kinds = settle('node kinds', kindResult, prev.mapNodeKinds, MAP_NODE_KINDS_CACHE_KEY)
       const useCases = settle('use cases', useCaseResult, prev.useCases, USE_CASES_CACHE_KEY)
       const hisProducts = settle('HIS products', hisResult, prev.hisProducts, HIS_PRODUCTS_CACHE_KEY)
+      const readiness = settle(
+        'readiness',
+        readinessResult,
+        [...prev.readinessByNode.values()],
+        READINESS_CACHE_KEY,
+      )
       // ⚠ THE TWO READS THAT ARE EXPECTED TO FAIL TODAY. 0026 has not been applied
       //   to the live database, so both answer 42P01 (PostgREST: PGRST205) on
       //   every load until Aziz runs it. settle() is already the right shape for
@@ -1074,6 +1106,7 @@ export function loadConfig(force = false): Promise<void> {
           kinds.rows,
           useCases.rows,
           hisProducts.rows,
+          readiness.rows,
           stages.rows,
           progress.rows,
         ),

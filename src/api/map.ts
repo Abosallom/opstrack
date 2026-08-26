@@ -43,6 +43,8 @@ import type {
   MapNode,
   HisProduct,
   MapNodeInput,
+  NodeReadiness,
+  SsoState,
   MapNodeKind,
   MapNodeKindInput,
   MapNodeMoveResult,
@@ -1301,6 +1303,68 @@ export async function listMapNodeProgress(): Promise<ApiResult<Loaded<MapNodePro
  * failure that reads as working — so the row this hands back is the row a reload
  * would show, including the stamp this call never named.
  */
+/* ── the three things that come before ADT (0033) ──────────────────────────
+ *
+ * `map_node_readiness` — Patient Registry, Provider Portal and SSO — is ONE SET
+ * PER HOSPITAL and not one per use case: registering with the patient registry
+ * is something an organization does once, not something it does again for Lab
+ * Order. That is why it is a side table keyed on `node_id` and not four more
+ * columns on `map_node_use_cases`.
+ *
+ * ⚠ AND THE ABSENCE OF A ROW IS "NOBODY HAS SAID", NOT `not_started`. The table
+ *   is empty today, so every organization is in that state. The column defaults
+ *   describe a row a person has created; they do not describe a row that does
+ *   not exist. A screen that rendered the missing row as three unticked boxes
+ *   would be printing a measurement nobody took — `map_node_progress`' own
+ *   three-state argument, one table over.
+ */
+
+/** Every readiness row. One per organization at most, so it is small. */
+export async function listReadiness(): Promise<ApiResult<Loaded<NodeReadiness>>> {
+  if (!supabase) return notConfigured()
+  const client = supabase
+  return await fetchAllPages<NodeReadiness>(
+    (from, to) =>
+      client
+        .from('map_node_readiness')
+        .select('node_id, patient_registry, provider_portal, sso, updated_at, updated_by')
+        .order('node_id', { ascending: true })
+        .range(from, to),
+    MAX_PAGES,
+  )
+}
+
+/**
+ * Record what an organization has ready.
+ *
+ * ⚠ AN UPSERT THAT CREATES THE ROW IS A PERSON SAYING SOMETHING, which is the
+ *   whole point: until this is called there is no row, and no row means nobody
+ *   has said. So the caller must send the WHOLE set rather than one field — a
+ *   partial upsert on a missing row would take the column defaults for the other
+ *   two and assert, on a person's behalf, that they are not started.
+ */
+export async function setReadiness(
+  nodeId: string,
+  input: { patientRegistry: boolean; providerPortal: boolean; sso: SsoState },
+): Promise<ApiResult<NodeReadiness>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase
+    .from('map_node_readiness')
+    .upsert(
+      {
+        node_id: nodeId,
+        patient_registry: input.patientRegistry,
+        provider_portal: input.providerPortal,
+        sso: input.sso,
+      },
+      { onConflict: 'node_id' },
+    )
+    .select('node_id, patient_registry, provider_portal, sso, updated_at, updated_by')
+    .single()
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: data as unknown as NodeReadiness }
+}
+
 export async function setNodeStage(
   nodeId: string,
   stageId: string | null,

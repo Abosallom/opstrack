@@ -270,6 +270,9 @@ vi.mock('../../store/config', () => ({
   useMapNodes: () => fx.state.mapNodes,
   // 0034's catalogue. Empty is the shipping state.
   useHisProducts: () => [],
+  // 0033's readiness. `undefined` is the shipping answer for all 140:
+  // nobody has said, which is not the same as "not started".
+  useNodeReadiness: () => undefined,
   useMapNodeKinds: () => [],
   invalidateConfig: () => {},
   // Built from `state.tracks` so a case that swaps a track's definition (the

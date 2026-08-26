@@ -93,6 +93,9 @@ vi.mock('../store/config', () => ({
   // The delivery fold draws organizations only, so the page has to resolve which
   // kind that is — see summary.ts. Every node in this fixture is one.
   useHisProducts: () => [],
+  // 0033's readiness. `undefined` is the shipping answer for all 140:
+  // nobody has said, which is not the same as "not started".
+  useNodeReadiness: () => undefined,
   useMapNodeKinds: () => [
     { id: 'kind-org', name: 'Organization', name_ar: '', sort_order: 0 },
     { id: 'kind-phase', name: 'Phase', name_ar: '', sort_order: 1 },
