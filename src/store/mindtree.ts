@@ -237,7 +237,21 @@ const DEFAULT_PREFS: MindtreePrefs = {
   viewPinned: false,
   density: 'comfortable',
   lens: DEFAULT_LENS,
-  panelOpen: true,
+  /*
+   * ⚠ CLOSED, AND IT USED TO BE OPEN. The default lens is `shape` — the map —
+   *   and the map is the thing the owner SHOWS people (docs/MAP-CONTRACT.md §0).
+   *   Defaulting the dock to open meant a first-ever visit landed on a details
+   *   card spread across a third of the drawing, covering two of the six
+   *   departments, before the reader had asked for anything.
+   *
+   *   Nothing that needs the panel loses it. A lens whose panel IS its content —
+   *   `needs-me`, `what-changed` — opens it two ways that both still work:
+   *   arriving with `?lens=needs-me` (useMapUrl's inbound write, which asks
+   *   `mapLensOpensPanel`) and tapping the chip (`applyLens`). Both are explicit
+   *   acts. The default is for the reader who has expressed no act at all, and
+   *   for them the honest answer is the picture.
+   */
+  panelOpen: false,
   focus: null,
   collapsed: {},
   opened: {},

@@ -76,11 +76,22 @@ describe('readMindtreePrefs — every field validated', () => {
       // 'shape', because the map is now somewhere a reader CHOOSES to go — `/`
       // renders the home screen — and what they came for is the organizations.
       // It was 'needs-me' while this screen was the landing route; see
-      // lib/mindtree/lens.ts for the full argument. Anywhere else
-      // is a day-one regression — and the dock, which starts open because the
-      // lens is only worth choosing when its panel is showing.
+      // lib/mindtree/lens.ts for the full argument. Anywhere else is a day-one
+      // regression.
+      //
+      // ⚠ AND THE DOCK STARTS CLOSED, WHICH IS A REVERSAL. This comment used to
+      //   read "the dock, which starts open because the lens is only worth
+      //   choosing when its panel is showing" — sound while the landing lens was
+      //   'needs-me', where the panel IS the content. The landing lens became
+      //   'shape', and the reasoning did not follow it: a reader who has chosen
+      //   nothing now lands on the MAP, and an open dock covers a third of it
+      //   before they have asked for anything. The owner's word was "garbage".
+      //
+      //   The lenses whose panel is their content still open theirs, by the two
+      //   explicit acts that already existed — arriving with `?lens=needs-me`,
+      //   and tapping the chip.
       lens: 'shape',
-      panelOpen: true,
+      panelOpen: false,
       focus: null,
       collapsed: {},
       opened: {},
