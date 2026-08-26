@@ -163,7 +163,7 @@ Nothing moves from `agreed` to `built` without the owner's dated approval on thi
 - **Proof** — An undo manifest in `docs/EVIDENCE/import-runs/` naming all 161 pre-merge rows, and
   `structure.csv` reading 141 rows afterwards with the two Aseer rows still marked pending
   allocation.
-- **Files** — `scripts/report/org-merges.mjs`, `scripts/report/structure.csv`, `docs/ORG-RULINGS.md`
+- **Files** — `scripts/report/org-merges.mjs`, `scripts/report/structure.csv`, `docs/ORG-RULINGS.md`, `supabase/migrations/0034_his_catalogue.sql`
 
 ### BRD-010 — Jazan is two, and one row is unallocated
 
@@ -560,7 +560,7 @@ Nothing moves from `agreed` to `built` without the owner's dated approval on thi
 - **Honesty rule** — Never a bare percentage.
 - **Proof** — 141 rows × 11 tracks rendered from one dataset, and the load view naming the four
   people who hold 435 of 552 rather than printing a share.
-- **Files** — `src/pages/Pmo.tsx`
+- **Files** — `src/pages/Pmo.tsx`, `supabase/migrations/0033_org_readiness.sql`
 
 ### BRD-020 — The strip reads as position
 
@@ -591,7 +591,7 @@ Nothing moves from `agreed` to `built` without the owner's dated approval on thi
 - **Honesty rule** — none beyond the standing four.
 - **Proof** — The COC count renders in its own section with a sentence naming CHI, and no record
   whose only condition is being at COC carries a warning colour anywhere on the page.
-- **Files** — `src/pages/Pmo.tsx`
+- **Files** — `src/pages/Pmo.tsx`, `supabase/migrations/0033_org_readiness.sql`
 
 ---
 
@@ -610,7 +610,7 @@ Nothing moves from `agreed` to `built` without the owner's dated approval on thi
 - **Honesty rule** — none beyond the standing four.
 - **Proof** — A second track exists carrying its own organizations, and a report scoped to it
   returns none of the 141 UHR organizations.
-- **Files** — `supabase/migrations/0023_map_nodes.sql`
+- **Files** — `supabase/migrations/0023_map_nodes.sql`, `supabase/migrations/0034_his_catalogue.sql`
 
 ### BRD-028 — One computation, two surfaces
 
@@ -756,5 +756,7 @@ boundary is fixed at `0023`: a new migration may never be filed as `pre-brief`.
 | `0028_jira_settings.sql` | BRD-001, BRD-025 | The saved Jira configuration and the off-switch, which is what `jira-read` and a later `jira-write` are configured through. |
 | `0029_org_identity.sql` | BRD-009 | Who an organization IS to NPHIES — the identity the thirteen rulings settle. |
 | `0030_map_view_settings.sql` | BRD-020 | How the map draws, with `colour_by` pinned to a single value because exactly one hue source exists. |
+| `0033_org_readiness.sql` | BRD-019, BRD-021 | Patient Registry, Provider Portal and SSO — three tick-box facts per hospital, the ground the eleven use cases stand on. One row per organization, warning rather than blocking. |
+| `0034_his_catalogue.sql` | BRD-009, BRD-027 | The hospital information systems as a catalogue rather than free text, plus `map_nodes.his_id`. Seeded from eleven names the owner's own data already carries — and deliberately not Rhapsody, which is our integration engine and not a property of any hospital. |
 | `0032_use_case_rungs.sql` | BRD-003, BRD-008, BRD-015 | The rung ladder per use case, `scope` for not-applicable, the blocked flag, the COC queue's four columns, the append-only event log, and the XD/Encounter History merge into the eleven. |
 | `0031_pmo_portfolio.sql` | BRD-037 | Eight `pmo_*` tables — projects, initiatives, actions, risks, revenue, objectives, key results, milestones — created before any requirement asked for them. Named here as the finding BRD-037 records, not as a decision. |
