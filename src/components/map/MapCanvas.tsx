@@ -61,7 +61,8 @@ import MindBlock from '../mindtree/MindBlock'
 import MindEdge from '../mindtree/MindEdge'
 import MindNode, { type MindNodePos, type MindNodeView } from '../mindtree/MindNode'
 import MindWorldRim from '../mindtree/MindWorldRim'
-import { apparentOf, bandBlend, DOM_HORIZON_PX, type Band } from '../../lib/mindtree/lod'
+import { apparentOf, bandBlend, DOM_HORIZON_PX, flatBandFor, type Band } from '../../lib/mindtree/lod'
+import { D_LEAF } from '../../lib/mindtree/radial'
 import NodeCard, { NODE_CARD_ID, type NodeCardProps } from '../mindtree/NodeCard'
 import PulseLayer, { type PulseLayerProps } from '../mindtree/PulseLayer'
 import { MindDropTargets, type MindDragController } from '../mindtree/DragLayer'
@@ -263,7 +264,37 @@ export default function MapCanvas({
       // the two clauses agree: the tidy tree reads INFINITE both because it is
       // flat and because it has no disc, and it did so before and after the
       // deleted preview bridge briefly invented discs for it.
-      if (flat || pos.worldD === undefined) {
+      /*
+       * THE FLAT TREE NOW HAS TWO RUNGS, AND KEEPS ITS INFINITE APPARENT SIZE.
+       *
+       * ⚠ THE TWO NUMBERS SERVE DIFFERENT READERS AND MUST NOT BE MERGED. The
+       *   paragraph above is right that `DOM_HORIZON_PX` culls on `apparent`,
+       *   and that "every card is drawn in full at every zoom" is the statement
+       *   an infinite apparent makes. That promise stays. What was wrong was
+       *   deriving the BAND from the same infinity, which pinned every card to
+       *   `card` at every camera and made the one authored zoom-in mark — an
+       *   organization's account manager and vendor, on `view.secondary` —
+       *   unreachable by construction.
+       *
+       * The band reads the card's real drawn width. `D_LEAF` is the diameter of
+       * a world holding exactly one 168x44 card, which is what a tidy card IS,
+       * so `D_LEAF * scale` is its apparent size in the bands' own unit and
+       * nothing has to be invented for it.
+       *
+       * ⚠ AND THIS IS NOT THE FEEDBACK LOOP THIS FILE IS ARRANGED AROUND. The
+       *   trap named at useMapGeometry.ts:9 is `layout -> bounds -> scale ->
+       *   layout`. Banding reads `scale` and changes what is DRAWN, never what
+       *   is laid out. No arrow returns.
+       */
+      if (flat) {
+        out.set(pos.id, {
+          band: flatBandFor(apparentOf(D_LEAF, scale)),
+          out: 0,
+          apparent: Number.POSITIVE_INFINITY,
+        })
+        continue
+      }
+      if (pos.worldD === undefined) {
         out.set(pos.id, { band: 'card', out: 0, apparent: Number.POSITIVE_INFINITY })
         continue
       }

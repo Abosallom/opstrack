@@ -911,8 +911,25 @@ export const MindNode = memo(function MindNode({
    * so that every one of the eleven tests below reads the same answer and no
    * branch can be reached by asking the raw prop instead — which is the failure
    * mode a second `if (flat)` scattered through the body would have.
+   *
+   * ⚠ THE FLAT TREE NOW HAS TWO RUNGS, NOT ONE, and coercing to `card` here was
+   *   the second of two gates that made zoom a pure magnifier. `MapCanvas` was
+   *   already told to answer `card` for every flat node; this line then threw
+   *   away whatever it said anyway, so fixing one without the other changed
+   *   nothing on the glass.
+   *
+   *   `flatBandFor` constrains a flat node to `card | opening` and can never
+   *   return a degrading band, so passing it straight through cannot reintroduce
+   *   the grain/state/chip marks `flat` exists to suppress. A caller that has
+   *   not been taught about the camera still defaults to `card` through the
+   *   parameter default above and renders exactly what it rendered before.
+   *
+   *   The guard that remains is the one that matters: only `card` and `opening`
+   *   are admissible here, so a future caller handing a flat node a `frame` or a
+   *   `grain` gets the old coercion rather than a vanished card.
    */
-  const band: Band = flat ? 'card' : bandRead
+  const band: Band =
+    flat && bandRead !== 'card' && bandRead !== 'opening' ? 'card' : bandRead
   const node = pos.node
   const isLeaf = node.kind === 'entry'
   /**
@@ -1179,10 +1196,24 @@ export const MindNode = memo(function MindNode({
    * there to enter.
    */
   const terminal = !pos.hasChildren
-  /** A terminal card holds past 380px and gains its second line. */
-  const holding = band === 'opening' && terminal
+  /**
+   * A card that holds past 380px and gains its second line.
+   *
+   * ⚠ `flat ||` IS LOAD-BEARING AND ITS ABSENCE WOULD HAVE DELETED CARDS. On the
+   *   tidy tree a COLLAPSED ORGANIZATION reports `hasChildren: true` — its
+   *   status buckets are hidden, not gone (layout.ts gives it
+   *   `hiddenChildCount > 0`) — so `terminal` is false for exactly the node the
+   *   reader zooms in on. Without this term such a card would take the
+   *   `dissolving` arm the moment it crossed 380px and be removed from the
+   *   drawing: zoom in far enough and the hospital you were reading disappears.
+   *
+   *   A tidy card never dissolves, because there is nothing for it to dissolve
+   *   INTO on this drawing — no rim, no world, no containment. `flatBandFor`
+   *   makes the same statement one module over, and the two must agree.
+   */
+  const holding = band === 'opening' && (flat || terminal)
   /** A world dissolving into its children. Non-text ink only; see the header. */
-  const dissolving = band === 'opening' && !terminal
+  const dissolving = band === 'opening' && !flat && !terminal
   /**
    * THE TWO BANDS THAT DRAW A BOX WITH WORDS IN IT, and `chip` is no longer one
    * of them — `lod.ts`'s header carries the arithmetic (a name there is

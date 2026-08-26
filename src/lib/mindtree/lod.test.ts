@@ -33,6 +33,7 @@ import {
   BAND_BLEND,
   BAND_EDGES,
   DOM_HORIZON_PX,
+  flatBandFor,
   FLOOR,
   type Band,
 } from './lod'
@@ -910,5 +911,98 @@ describe('the flat card holds a real name and a useful number', () => {
     )
     expect(markup).toContain('aria-label="Onboarding, 12 open, 6 of 9 live"')
     expect(markup).toMatch(/<text class="mtree-node-label"[^>]*aria-hidden="true"[^>]*>⁨Directorate/)
+  })
+})
+
+/*
+ * ── THE TIDY TREE'S TWO RUNGS ──────────────────────────────────────────────
+ *
+ * The owner: "still i can not zoom in details in the maps". Measured on the
+ * running page, `+` died after two presses and the node count never moved — the
+ * same seven cards, larger. `MapCanvas` answered `card` at an INFINITE apparent
+ * size for every flat node, so the one authored zoom-in mark in the drawing —
+ * an organization's account manager and vendor, on `view.secondary` — could
+ * never be reached.
+ */
+describe('flatBandFor', () => {
+  it('starts at card, so a tidy card always carries its name', () => {
+    for (const apparent of [0, 60, 157, 200, 379]) {
+      expect(flatBandFor(apparent)).toBe('card')
+    }
+  })
+
+  it('rises to opening at the edge, which is where the second line lives', () => {
+    expect(flatBandFor(BAND_EDGES.opening)).toBe('opening')
+    expect(flatBandFor(BAND_EDGES.opening + 1)).toBe('opening')
+    expect(flatBandFor(4000)).toBe('opening')
+  })
+
+  /*
+   * ⚠ IT MUST NOT DEGRADE, WHICH IS WHY `bandFor` IS THE WRONG INSTRUMENT HERE.
+   *   At the opening fit a flat card is 60-170 apparent px, which `bandFor`
+   *   reads as `state` or `chip` — the small marks the owner asked to have
+   *   removed and the exact thing `flat` exists to suppress.
+   */
+  it('never returns a band below card, whatever it is handed', () => {
+    for (const apparent of [-100, 0, 1, 3, 6, 25, 51, 156]) {
+      expect(bandFor(apparent, 800)).not.toBe(flatBandFor(apparent))
+      expect(flatBandFor(apparent)).toBe('card')
+    }
+  })
+
+  /*
+   * ⚠ AND IT MUST NOT REACH `frame`, WHICH WOULD DELETE THE CARD. `frameStartOf`
+   *   floors the frame edge at 380 — the opening edge itself — so on a 375px
+   *   phone `bandFor` crosses card -> frame at the same instant it would cross
+   *   into opening, and `MindNode` renders NOTHING for frame: there is no rim to
+   *   hand the name to and no breadcrumb entry for a leaf. The card would vanish
+   *   at maximum zoom on the smallest screen.
+   */
+  it('refuses frame, which bandFor would hand a phone at the same moment', () => {
+    const phone = 375
+    expect(bandFor(400, phone)).toBe('frame')
+    expect(flatBandFor(400)).toBe('opening')
+  })
+})
+
+/*
+ * ── THE FLAT TREE'S SECOND LINE, RENDERED ──────────────────────────────────
+ *
+ * ⚠ THIS EXISTS BECAUSE MUTATION SAID EVERY OTHER TEST WAS BLIND TO IT. Putting
+ *   `MindNode`'s old coercion back — `flat ? 'card' : bandRead` — left all 5,675
+ *   assertions green, and that coercion is the gate that made the whole fix
+ *   inert: `MapCanvas` was already handing a flat node its real band, and this
+ *   line then threw the answer away.
+ *
+ * There were TWO gates and fixing either alone changes nothing on the glass,
+ * which is exactly the shape of defect a pure-function test cannot see.
+ */
+describe('a flat card gains its second line when it is big enough', () => {
+  it('shows nothing extra at card, which is every ordinary zoom', () => {
+    expect(render(props('card', { flat: true }))).not.toContain('mring-secondary')
+  })
+
+  it('draws the account manager and vendor at opening', () => {
+    const markup = render(props('opening', { flat: true }))
+    expect(markup).toContain('mring-secondary')
+    expect(markup).toContain('Sara Q')
+  })
+
+  /*
+   * ⚠ AND THE CARD MUST SURVIVE IT. A collapsed organization reports
+   *   `hasChildren: true` — its status buckets are hidden, not gone — so
+   *   `terminal` is false for exactly the node a reader zooms in on. Before
+   *   `holding` learned about `flat`, such a card took the `dissolving` arm at
+   *   380px and was removed from the drawing: zoom in far enough and the
+   *   hospital you were reading disappeared.
+   */
+  it('keeps a card that still has children, rather than dissolving it', () => {
+    const markup = render(props('opening', { flat: true, pos: positioned(model(), true) }))
+    expect(markup).toContain('mtree-node-box')
+    expect(markup).not.toBe('')
+  })
+
+  it('leaves the containment drawing alone — it still dissolves a branch', () => {
+    expect(render(props('opening', { flat: false }))).not.toContain('mring-secondary')
   })
 })

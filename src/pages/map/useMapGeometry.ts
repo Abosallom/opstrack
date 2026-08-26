@@ -182,6 +182,55 @@ const NO_OCCLUSION: Occlusion = { inlineEnd: 0, blockEnd: 0 }
  * module's layout functions. `PositionedNode` satisfies it structurally, with no
  * adapter anywhere.
  */
+/**
+ * The authored tidy-tree card, in drawing units. MUST match the `nodeSize`
+ * `Mindtree.tsx` hands the layout — `mapMotion.test.ts` reads both out of the
+ * source and fails if they drift, because a near end derived from the wrong
+ * card is a near end that is quietly wrong on every screen.
+ */
+const CARD_W = 168
+const CARD_H = 54
+
+/**
+ * How much of the stage one card may fill at the closest zoom.
+ *
+ * Two terms because the map's pane is WIDE AND SHORT — measured 1238 x 401 on a
+ * laptop, since the chrome above and the composer below take the rest — and the
+ * two axes bind on different devices. On a phone the width runs out first; on a
+ * laptop the height does. Taking the smaller of the two is what keeps "a card
+ * never becomes the whole picture" true on both.
+ */
+const CARD_MAX_OF_WIDTH = 0.9
+const CARD_MAX_OF_HEIGHT = 0.55
+
+/**
+ * The near end of the zoom, in CSS pixels per drawing unit, for a stage of this
+ * size. Pure, exported, and tested directly — the hook below is a `useEffect`
+ * over a ResizeObserver and cannot be rendered under `environment: 'node'`.
+ *
+ * ⚠ AN EARLIER VERSION OF THIS ASKED `lod.ts` FOR THE FRAME EDGE — `bandFloorPx('frame',
+ *   min(w, h)) / D_LEAF` — and it was wrong ON THE ONLY STAGE THAT MATTERS. That
+ *   edge is floored at an absolute 380px, so every pane shorter than about 447px
+ *   lands on the floor, and the map's own pane is 401 tall. It computed 1.90,
+ *   the `max(2, …)` lifted it back to 2, and the desktop the owner was
+ *   complaining about got no improvement whatsoever. It was found by measuring
+ *   the running page, not by reading the code.
+ *
+ * This asks the question directly instead: at what scale does the AUTHORED CARD
+ * fill as much of the stage as it is allowed to? That is a fact about the
+ * drawing's own unit and the window, which is exactly what the paragraph beside
+ * `maxPxPerUnit` argues the near end must be — and it is not a fact about the
+ * data, so it does not move when an admin adds a department.
+ */
+export function nearEndPxPerUnit(box: { width: number; height: number }): number {
+  const w = Math.max(1, box.width)
+  const h = Math.max(1, box.height)
+  return Math.max(
+    2,
+    Math.min((CARD_MAX_OF_WIDTH * w) / CARD_W, (CARD_MAX_OF_HEIGHT * h) / CARD_H),
+  )
+}
+
 export interface CameraBox {
   readonly x: number
   readonly y: number
@@ -357,8 +406,52 @@ export function useMapGeometry<L extends CameraLayout>({
    * no places to arrive at, so a limit derived from the tree would be a limit
    * that moves when an admin adds a department, for no reason the reader could
    * see.
+   *
+   * ⚠ ALL OF THE ABOVE STANDS, AND THE CONSTANT BELOW IT DID NOT. The argument
+   *   rules out a limit derived from the DATA. It says nothing about a limit
+   *   derived from the WINDOW — and "the reader is inside a single word with no
+   *   context on the glass" is a question about the window, which is a
+   *   distinction `lod.ts`'s own header already draws: "LEGIBILITY IS
+   *   ABSOLUTE… 'IS THIS THING THE FRAME' IS NOT ABSOLUTE. It is a question
+   *   about the window."
+   *
+   *   A flat 2 was absolute where the question is relative, and it delivered
+   *   four different pictures rather than one. Measured, in card pitches across
+   *   the frame at the ceiling:
+   *
+   *       375 x 560   1.03   ← already the wall the paragraph above fears
+   *      1024 x 700   2.81
+   *      1600 x 760   4.40   ← stops with two octaves of context unspent
+   *
+   *   The owner's report was "still i can not zoom in details in the maps", on a
+   *   desktop, where 2 was leaving the most room unused.
    */
-  const MAX_PX_PER_UNIT = 2
+
+  /**
+   * As close as the camera goes: THE POINT AT WHICH ONE CARD WOULD BECOME THE
+   * FRAME, AND NO CLOSER — a sentence `lod.ts` already owns and already tests.
+   *
+   * `bandFloorPx('frame', v)` is `max(380, 0.85 * v)`: the world fills the stage
+   * bar a margin, and past it the world IS the stage. `D_LEAF` is the diameter
+   * of a world holding exactly one 168x44 card, which is precisely what a tidy
+   * tree's card is — so the ratio is the card's own apparent size at the frame
+   * edge, in the bands' own unit.
+   *
+   * ⚠ `Math.max(2, …)` KEEPS TODAY'S CONSTANT AS A FLOOR, so no viewport gets
+   *   less zoom than it has now and the phone's ceiling is byte-identical.
+   *
+   * ⚠ AND IT IS `box`, NOT `viewportMinPx`. Mindtree.tsx's `viewportMinPx`
+   *   subtracts the details panel; this must not, because `cameraBounds` promises
+   *   below that it is derived from the ELEMENT and not from anything drawn over
+   *   it. Opening the panel may not change how far the reader can zoom.
+   *
+   * ⚠ AND IT DOES NOT DEPEND ON WHAT IS UNDER THE CAMERA. A per-node near end
+   *   would make `minWidth` a function of `camera.cx/cy`, so a pan at maximum
+   *   zoom would push the camera OUT — a pan that changes scale. The whole file
+   *   is arranged around "pan changes cx/cy, zoom changes width", and
+   *   `MapCanvas` banks on a pan never rebuilding the bands.
+   */
+  const maxPxPerUnit = nearEndPxPerUnit(box)
 
   /**
    * The two ends, in DRAWING UNITS OF CAMERA WIDTH.
@@ -379,9 +472,9 @@ export function useMapGeometry<L extends CameraLayout>({
   const cameraBounds = useMemo<CameraBounds>(
     () => ({
       maxWidth: Math.max(wholeMapFit.width, 1),
-      minWidth: Math.max(box.width, 1) / MAX_PX_PER_UNIT,
+      minWidth: Math.max(box.width, 1) / maxPxPerUnit,
     }),
-    [wholeMapFit.width, box.width],
+    [wholeMapFit.width, box.width, maxPxPerUnit],
   )
 
   /* ── the one read of layout.bounds ──────────────────────────────────────── */

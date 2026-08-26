@@ -11,11 +11,21 @@
  * and every assertion is a claim about `worlds.ts`. The drawing this file
  * photographs is the other one: `layoutMindtree` with
  * `{ orientation: 'vertical', wrap: true }` — a vertical top-down tidy tree of
- * uniform cards, no hub, no rings, no `worldD`, and — since the renderer
- * revision — no bands at all BY DECLARATION rather than by accident: `MapCanvas`
- * is handed `flat`, which coerces every node's band to `card` at an infinite
- * apparent size, draws no world rim, drops the chevron disc and replaces the
- * per-child connectors with BLOCK CONTAINERS. The `flat` this file passes is the
+ * uniform cards, no hub, no rings, no `worldD`, and TWO bands rather than seven:
+ * `MapCanvas` is handed `flat`, which draws no world rim, drops the chevron disc
+ * and replaces the per-child connectors with BLOCK CONTAINERS.
+ *
+ * ⚠ THIS PARAGRAPH USED TO SAY "no bands at all", and that stopped being true.
+ *   `flat` pinned every node to `card` at an INFINITE apparent size, which also
+ *   pinned the drawing to one rendering at every camera — the owner's "still i
+ *   can not zoom in details in the maps". A flat node is now banded from its own
+ *   drawn width by `lod.flatBandFor`, which returns `card` or `opening` and
+ *   nothing else: it can never degrade to the small marks `flat` exists to
+ *   suppress, and it can never reach `frame`, which would delete the card.
+ *
+ *   The three framings below are all at scale 1 — apparent 200 against an
+ *   opening edge of 380 — so every existing picture is byte-identical, and that
+ *   is the regression gate rather than a coincidence worth relying on quietly. The `flat` this file passes is the
  * same `flat` `pages/Mindtree.tsx` passes, so these are pictures of the app's
  * drawing and not of a path only a test can reach.
  * Folding a sixth camera into that file would have made the two

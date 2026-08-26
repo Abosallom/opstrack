@@ -75,6 +75,8 @@ import {
 // The layout module, imported HERE and nowhere in `mapMotion.ts` — see
 // `packedRatio` below on why the asymmetry is the design rather than an accident.
 import { D_LEAF, GAP_RATIO, packRing } from '../../lib/mindtree/radial'
+import { BAND_EDGES } from '../../lib/mindtree/lod'
+import { nearEndPxPerUnit } from './useMapGeometry'
 
 /** A 960×520 window on the middle of a drawing — the desktop fallback box. */
 const WIDE: Camera = { cx: 480, cy: 260, width: 960, height: 520 }
@@ -1528,6 +1530,11 @@ describe('the loop’s last write and React’s next render are the SAME BYTES',
 //
 // Each assertion names the MEASURED defect it stands guard over.
 
+/** Any sibling source file, for the cross-file assertions below. */
+function readSource(rel: string): string {
+  return readFileSync(new URL(rel, import.meta.url), 'utf8')
+}
+
 function hookSource(): string {
   const src = readFileSync(new URL('./useMapGeometry.ts', import.meta.url), 'utf8')
   if (src.trim() === '') throw new Error('useMapGeometry.ts is empty')
@@ -1771,5 +1778,120 @@ describe('the JS camera and the CSS relayout are ONE motion', () => {
 
   it('names mapMotion.ts in the sheet, so the mirror is findable from both ends', () => {
     expect(sheet()).toContain('mapMotion.ts')
+  })
+})
+
+/*
+ * ── HOW CLOSE THE CAMERA MAY GO ────────────────────────────────────────────
+ *
+ * The owner, on a desktop: "still i can not zoom in details in the maps". Two
+ * presses of `+` and it was dead — viewBox 960 to 619 on a 1238px canvas, and
+ * the same seven cards, larger.
+ *
+ * ⚠ THE CONSTANT WAS THE WRONG SHAPE, NOT THE WRONG NUMBER, and its own comment
+ *   is what gives that away. It defends the near end as "A FACT ABOUT PIXELS,
+ *   NOT ABOUT THE TREE" — which correctly rules out a limit derived from the
+ *   DATA, and says nothing about one derived from the WINDOW. The thing the
+ *   paragraph is actually afraid of, "inside a single word with no context on
+ *   the glass", is a question about the window, and `lod.ts` already draws that
+ *   line: "LEGIBILITY IS ABSOLUTE… 'IS THIS THING THE FRAME' IS NOT."
+ *
+ *   A flat 2 gave four different pictures. In card widths across the frame:
+ *   1.03 on a phone — already the wall — against 4.40 on a 1600px desktop, with
+ *   two octaves of context unspent. The complaint came from the desktop.
+ */
+describe('the near end of the zoom is a question about the window', () => {
+  it('never gives a viewport less than the flat 2 it replaced', () => {
+    // A 320px phone's width term is 1.71 and the floor is what it gets. A 375px
+    // one computes 2.009 on its own, so the floor is not what carries it —
+    // stated separately rather than lumped together, because "the floor holds"
+    // and "the formula happens to agree" are different facts.
+    expect(nearEndPxPerUnit({ width: 320, height: 400 })).toBe(2)
+    expect(nearEndPxPerUnit({ width: 375, height: 430 })).toBeCloseTo(2.01, 2)
+    for (const box of [
+      { width: 320, height: 400 },
+      { width: 375, height: 430 },
+      { width: 390, height: 500 },
+      { width: 1238, height: 401 },
+    ]) {
+      expect(nearEndPxPerUnit(box)).toBeGreaterThanOrEqual(2)
+    }
+  })
+
+  /*
+   * ⚠ THE STAGE IS WIDE AND SHORT AND THAT IS THE WHOLE DIFFICULTY. Measured on
+   *   the running page, the map's pane is 1238 x 401 — the chrome above and the
+   *   composer below take the rest. An earlier version of this asked `lod.ts`
+   *   for its frame edge, which is floored at an absolute 380px, so every pane
+   *   shorter than ~447px landed on the floor and the laptop computed 1.90 →
+   *   clamped back to 2. The desktop that prompted the complaint got nothing.
+   */
+  it('spends the room a laptop pane actually has', () => {
+    expect(nearEndPxPerUnit({ width: 1238, height: 401 })).toBeCloseTo(4.08, 2)
+    expect(nearEndPxPerUnit({ width: 1491, height: 520 })).toBeCloseTo(5.3, 1)
+  })
+
+  /*
+   * THE PROPERTY THAT MAKES IT A MAP AND NOT A POSTER. Whatever the stage, the
+   * closest zoom leaves roughly the same amount of picture around the card —
+   * which is what the old flat 2 claimed and did not deliver, ranging from 1.03
+   * card widths on a phone to 4.40 on a desktop.
+   */
+  it('holds the context roughly constant instead of the magnification', () => {
+    const across = ({ width, height }: { width: number; height: number }): number =>
+      width / (168 * nearEndPxPerUnit({ width, height }))
+    const stages = [
+      { width: 1238, height: 401 },
+      { width: 1491, height: 520 },
+      { width: 768, height: 600 },
+      { width: 2560, height: 900 },
+    ]
+    for (const stage of stages) {
+      expect(across(stage)).toBeGreaterThan(1)
+      expect(across(stage)).toBeLessThan(2.5)
+    }
+  })
+
+  it('lets whichever axis runs out first decide', () => {
+    // Wide and very short: the height binds.
+    expect(nearEndPxPerUnit({ width: 4000, height: 300 })).toBeCloseTo(3.06, 2)
+    // Narrow and very tall: the width binds.
+    expect(nearEndPxPerUnit({ width: 400, height: 4000 })).toBeCloseTo(2.14, 2)
+  })
+
+  /*
+   * ⚠ THE PHONE MUST REACH THE DETAIL TOO. A ceiling that let a desktop read a
+   *   card's second line while a phone could not would be a two-class map, and
+   *   the owner has said the phone is the device he carries.
+   *
+   *   `flatBandFor` promotes a card to `opening` at `D_LEAF * scale >= 380`, so
+   *   the question is whether every stage's ceiling clears scale 1.9. It does,
+   *   because the floor is 2 — and that floor is therefore load-bearing for
+   *   mobile detail, not merely for not-regressing.
+   */
+  it('reaches the detail band on every stage, phones included', () => {
+    for (const box of [
+      { width: 320, height: 400 },
+      { width: 375, height: 430 },
+      { width: 390, height: 500 },
+      { width: 768, height: 600 },
+      { width: 1238, height: 401 },
+    ]) {
+      expect(D_LEAF * nearEndPxPerUnit(box)).toBeGreaterThanOrEqual(BAND_EDGES.opening)
+    }
+  })
+
+  /*
+   * The card the near end is derived from must be the card the layout draws.
+   * Read out of both sources rather than asserted from memory, because a drift
+   * here is invisible: the map would simply stop a little short, everywhere.
+   */
+  it('is derived from the card Mindtree actually authors', () => {
+    const geom = readSource('./useMapGeometry.ts')
+    const page = readSource('../Mindtree.tsx')
+    const authored = /nodeSize:\s*\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}/u.exec(page)
+    expect(authored).not.toBeNull()
+    expect(geom).toContain(`const CARD_W = ${authored?.[1]}`)
+    expect(geom).toContain(`const CARD_H = ${authored?.[2]}`)
   })
 })

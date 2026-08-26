@@ -231,6 +231,31 @@ export function apparentOf(worldD: number, scale: number): number {
 }
 
 /**
+ * THE TIDY TREE'S OWN LADDER, and it has exactly two rungs.
+ *
+ * The flat drawing is not the containment drawing at a different scale — it has
+ * no discs, no rims and no worlds — so `bandFor` is the wrong instrument for it
+ * twice over:
+ *
+ * ⚠ AT THE BOTTOM it would degrade. A flat card at the opening fit is 60-170
+ *   apparent px, which `bandFor` reads as `state` or `chip` — the small marks
+ *   the owner asked to have removed, and precisely what `flat` was introduced to
+ *   stop. A tidy card always carries its name.
+ *
+ * ⚠ AT THE TOP it would DISAPPEAR. `frameStartOf` floors the frame edge at 380,
+ *   so on a 375px phone a card would cross `card -> frame` at the same instant
+ *   it crossed into `opening`, and `MindNode` renders nothing for `frame`: there
+ *   is no rim to hand the name to and no breadcrumb entry for a leaf. The card
+ *   would vanish at maximum zoom on the smallest screen.
+ *
+ * So: a tidy card starts at `card` and may only RISE. It never becomes the
+ * frame, because on this drawing there is nothing for it to become.
+ */
+export function flatBandFor(apparentPx: number): 'card' | 'opening' {
+  return px(apparentPx) < BAND_EDGES.opening ? 'card' : 'opening'
+}
+
+/**
  * The frame edge in CSS pixels, floored at the opening edge so `bandFor` is
  * monotone on every viewport. See the header.
  */
