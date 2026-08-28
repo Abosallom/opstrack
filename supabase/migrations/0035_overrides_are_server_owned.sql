@@ -96,7 +96,7 @@ begin
                case when                     new.coc_submitted_on is distinct from old.coc_submitted_on then 'coc_submitted_on' end,
                case when                     new.coc_contact    is distinct from old.coc_contact    then 'coc_contact'    end,
                case when                     new.coc_reference  is distinct from old.coc_reference  then 'coc_reference'  end,
-               case when                     new.coc_signed_on  is distinct from old.coc_signed_on  then 'coc_signed_on'  end,
+               case when                     new.coc_signed_on  is distinct from old.coc_signed_on  then 'coc_signed_on'  end
              ], null)
         ) as field
     );

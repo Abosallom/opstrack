@@ -19,17 +19,24 @@ exact defect the `w_0025 = 0` warning at the bottom of this page describes, deli
 that warns about it, to the one reader who is alone at a SQL Editor and trusting it. **A stale
 "pending" is a live instruction.**
 
-## Status — 13 August 2026
+## Status — 28 August 2026
 
-**Five files are pending**, re-probed against the live project on **21 August 2026** — every
-one of the five objects the first four of them own still answers 404, and `0030`'s table has
-never existed anywhere. `0023`, `0024` and `0025` are applied to the live
-project (`lrysgpbkmuqgzsjesfkr`) and there is live data sitting on top of them.
-`0026_map_node_stages.sql`, `0027_map_node_goals_and_counts.sql`, `0028_jira_settings.sql`,
-`0029_org_identity.sql` and `0030_map_view_settings.sql` are
-**written and have never been run against any database** — they are in the pending table below,
-each with a "verify live by" query that is runnable the moment it is applied, and each comes back
-out of that table in the same sitting it goes in.
+**One file is pending: `0030_map_view_settings.sql`.** Every other migration written to date is
+applied to the live project (`lrysgpbkmuqgzsjesfkr`).
+
+Re-probed over REST against the live project on **28 August 2026**, object by object rather than
+by trusting any apply: `map_node_stages` (7 rows), `map_node_progress`, `map_node_goals`,
+`v_map_node_open_counts`, `jira_settings`, `map_node_branches`, `map_nodes.org_id`, the nine
+`pmo_*` tables, `map_node_use_cases.rung` / `.scope` / `.overrides`, `map_node_use_case_events`,
+`map_node_readiness`, `his_products` (seeded) and `map_nodes.his_id` all answer. Only
+`map_view_settings` answers **404**, and it has never existed anywhere.
+
+**0032, 0033, 0034 and 0035 were applied by the owner at the SQL Editor on 27–28 August 2026.**
+0035 failed its first paste on a syntax error — a trailing comma inside the `array[…]`
+constructor, which Postgres reported as `syntax error at or near "]"`. The Supabase SQL Editor
+runs a file in a transaction, so **nothing of 0035 landed on that attempt**; the comma was removed
+and the whole file re-run clean. Worth keeping: the failure was in the `create or replace function`
+validator, which is the one place in that file where a partial apply would have been invisible.
 
 ### ⛔ 0023, 0024 and 0025 are APPLIED. None of them is ever re-run.
 
@@ -314,29 +321,24 @@ since `delete_track` now has real rows to destroy:
 2. Deleting a track that has map nodes with **no** reassignment target must raise
    `track_in_use:` and name the node count.
 
-## Pending — 0026, 0027 and 0028: WRITTEN, and NOT YET RUN ANYWHERE
+## Pending — 0030, and nothing else
 
-> **The step-by-step apply for these three lives in [`RUN-0026-0027-0028.md`](RUN-0026-0027-0028.md)**
-> — the paste order, the NOTICEs to read, what each failure means, and the post-apply checks
-> including the canary below. This section stays the register: what each file contains, when it may
-> be run, and the "verify live by" query that goes false if it is ever reverted.
+> The step-by-step apply that carried 0026, 0027 and 0028 lives in
+> [`RUN-0026-0027-0028.md`](RUN-0026-0027-0028.md), and 0031's in [`RUN-0031.md`](RUN-0031.md).
+> Both are history now; this section stays the register of what has **not** been run.
 
-All three files now exist in `supabase/migrations/`. **None of them has been applied to any
-database.** They are pending in the strict sense this page means it — written, reviewed, probed on
-paper, and not yet run — which is a different state from the one this section described while they
-were still designs, and the difference matters to the one person who follows this page alone:
-there is now something to paste into the SQL Editor.
+`0030_map_view_settings.sql` is written, reviewed, probed on paper, and **has never been run
+against any database**. There is no client half waiting on it — the map reads its drawing settings
+from code today — so it blocks nothing, which is precisely why it has sat here while five later
+files went past it. It stays on this page rather than being quietly forgotten.
 
-The "verify live by" column is filled for each, per the rule at the bottom of this page: **the row
-lands in the same commit as the SQL, with a query that runs today and goes false if the file is
-ever reverted.** Move a row out of this table and into the applied table in the same sitting it is
+The "verify live by" column is filled per the rule at the bottom of this page: **the row lands in
+the same commit as the SQL, with a query that runs today and goes false if the file is ever
+reverted.** Move a row out of this table and into the applied table in the same sitting it is
 applied in — the other half of that rule, and the half that once cost this file three days.
 
 | # | File | Written by | What it contains | Owner runs it | Verify live by (runnable the moment it is applied) |
 |---|---|---|---|---|---|
-| 0026 | `map_node_stages.sql` | wave 2 | `map_node_stages` on the 5-part configurable-list pattern (0018's) — name 1..40, `name_ar`, `sort_order`, `hidden`, `terminal`, `paused`, `expected_days` (NULL = no stalled threshold), no colour column, seven seeded and all renameable; plus `map_node_progress` (`node_id` pk → `map_nodes` on delete cascade, `stage_id`, `stage_changed_at`, `updated_at`, `updated_by`), member-writable because setting a stage is fieldwork and not configuration, with the stamp trigger as the only writer of `stage_changed_at` | before wave 2's client half is useful | 7 rows in `map_node_stages`, exactly 1 `terminal`; `map_node_progress` present with `map_node_progress_pkey` on `(node_id)`; `map_node_progress_stage_stamp_trg` is BEFORE INSERT OR UPDATE and sorts before `map_node_progress_touch_trg`; `reorder_map_node_stages`'s only argument is named `p_ids` |
-| 0027 | `map_node_goals_and_counts.sql` | wave 3 | `map_node_goals` (node_id cascade, label/`label_ar`, nullable `stage_id`, `target > 0`, `target_date`), written on `structure.edit` and audited; plus the `v_map_node_open_counts` view with `security_invoker = true` — mandatory, and its own probe reads `reloptions` to prove it | after 0026 | `map_node_goals` present; `v_map_node_open_counts`'s `reloptions` contains `security_invoker=true` (a view without it reads as its OWNER and hands every member counts RLS would have withheld) |
-| 0028 | `jira_settings.sql` | wave 7 | The saved Jira reading configuration, **one row**: `site_base_url`, the three field ids, `status_map jsonb`, `fold_arabic`, `jql`, **`enabled boolean not null default false`**, `updated_at`/`updated_by`. One-row-ness is a CHECKED SINGLETON KEY — a fixed uuid primary key plus `jira_settings_singleton_chk` — because the key alone stops a second row with the SAME id and nothing else. Member-read (every member's screens ask whether Jira is on), `structure.edit`-write, touch + `config_audit` triggers. NO seed row, NO credentials, NO sync state | any time — the client half is safe to ship first (see below) | `jira_settings` present; `pg_get_expr` of the `enabled` default contains `false`; `jira_settings_singleton_chk` exists; `jira_settings_select`'s `qual` contains `is_member` **and** `jira_settings_update`'s contains `structure.edit`; `select count(*) from jira_settings` is 0 until somebody saves on the Jira screen |
 | 0030 | `map_view_settings.sql` | wave ? | How the map draws, **ONE ROW**: `layout`/`open_depth`/card size/gaps/`sibling_wrap`/`grouping`/`sibling_sort`/`colour_by` (`track` only)/`node_fields` jsonb/`label_budget`. Checked singleton key ending `…0030`; member-read, `structure.edit`-write, touch + `config_audit`; **NO seed row**. Depends only on 0001/0002/0025 — never on 0026-0029 | any time — no client half exists yet | `map_view_settings` present; `pg_get_expr` of `layout`'s default contains `'worlds'`; `map_view_settings_singleton_chk` exists; `map_view_settings_select`'s `qual` contains `is_member` **and** `map_view_settings_update`'s contains `structure.edit`; `select count(*) from map_view_settings` is 0 |
 
 **0028 is the one file on this page whose client half is safe to ship before it is applied**, and
@@ -459,8 +461,9 @@ appears, somebody edited it by hand or a later migration did. Fix it before anyt
 
 ## The applied record, 0014 onward
 
-`0014`–`0022` are applied to the live project (`lrysgpbkmuqgzsjesfkr`),
-each twice, and verified by querying the catalog rather than by trusting the apply:
+`0014`–`0022` are applied to the live project (`lrysgpbkmuqgzsjesfkr`), each twice, and
+`0026`–`0029` and `0031`–`0035` are applied to the same project — all verified by querying the
+catalog, or by asking PostgREST for the object, rather than by trusting the apply:
 
 | # | File | Verified live by |
 |---|---|---|
@@ -473,6 +476,15 @@ each twice, and verified by querying the catalog rather than by trusting the app
 | 0020 | `ai_usage.sql` | `ai_usage` table + `ai_usage_day()` / `ai_usage_today()` / `ai_usage_record()` present |
 | 0021 | `ai_prefs.sql` | `notification_prefs.ai_enabled` column present |
 | 0022 | `nudge_stamps_on_insert.sql` | `entries_guard_insert()` body contains the two nudge pins; `claim_counters_scope_ck` lists all four scopes |
+| 0026 | `map_node_stages.sql` | 7 rows in `map_node_stages`, exactly 1 `terminal`; `map_node_progress` present |
+| 0027 | `map_node_goals_and_counts.sql` | `map_node_goals` present; `v_map_node_open_counts`'s `reloptions` contains `security_invoker=true` |
+| 0028 | `jira_settings.sql` | `jira_settings` present; `jira_settings_singleton_chk` exists; 0 rows until somebody saves on the Jira screen |
+| 0029 | `org_identity.sql` | `map_nodes.org_id` column present; `map_node_branches` table present |
+| 0031 | `pmo_portfolio.sql` | `pmo_projects`, `pmo_initiatives`, `pmo_actions`, `pmo_risks`, `pmo_revenue`, `pmo_objectives`, `pmo_key_results`, `pmo_milestones` present; `v_pmo_objective_progress` present |
+| 0032 | `use_case_rungs.sql` | `map_node_use_cases.rung` + `.scope` columns present; `map_node_use_case_events` table present; `map_node_use_cases_stamp()` body contains `status_changed_at := now()` |
+| 0033 | `org_readiness.sql` | `map_node_readiness` table present |
+| 0034 | `his_catalogue.sql` | `his_products` seeded (Careware, Vida Plus, InterSystems, TrakCare, MedicaCloud …); `map_nodes.his_id` column present |
+| 0035 | `overrides_are_server_owned.sql` | `map_node_use_cases_stamp()` body contains `array_agg(distinct field)` **and still contains** `status_changed_at := now()` and `map_node_use_case_events` — the two things 0032 owns that a `create or replace` would silently drop |
 
 **`0010` was edited after it had already been applied**, which normally must not happen and is
 justified in the file itself and in `docs/W-AI-HANDOFF.md` §(a). Short version: this project has

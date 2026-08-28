@@ -1,7 +1,7 @@
 # Read this first
 
-Written 26 August 2026, overnight. Everything below is either **done and live**,
-or **waiting on one thing only you can do**.
+Written 26 August 2026 overnight; **updated 28 August 2026**, when the four pending migrations
+went onto the live database and the last thing blocking the screens stopped blocking them.
 
 ## What is live on nphiescore.com right now
 
@@ -19,43 +19,38 @@ looked unchanged, **that prompt was the reason.** Accept it once.
 | All six departments **read in Arabic** | التهيئة · التكامل التقني · العمليات التشغيلية · التسليم التقني · المنتج · الدعم والصيانة |
 | The capture examples **name things that exist** | They pointed at `#infra`, `#network` and `#"IT Operations"` — tracks deleted with the old product |
 
-## The one thing only you can do
+## The migrations are applied — 28 August 2026
 
-**Three migrations are written, tested and unapplied.** I have no database
-credential that can run DDL — no Supabase CLI, no `psql`, and no connection
-string in `.env.local`. They need the **SQL Editor** in the Supabase dashboard,
-run in order:
+**0032, 0033, 0034 and 0035 are on the live database.** You ran them at the SQL Editor. 0035
+refused its first paste on a trailing comma in an `array[…]` constructor — Postgres said
+`syntax error at or near "]"` — and because the SQL Editor runs a file in one transaction,
+nothing of it landed until the fixed file went through clean.
 
-1. `supabase/migrations/0032_use_case_rungs.sql` — the rung ladder per use case
-   (Intake → DEV → STG/TEST → COC → PROD), `scope` for not-applicable, the
-   blocked flag, the COC queue's four columns, and the append-only event log that
-   makes "what moved this week" answerable for the first time.
-2. `supabase/migrations/0033_org_readiness.sql` — Patient Registry, Provider
-   Portal, SSO.
-3. `supabase/migrations/0034_his_catalogue.sql` — the HIS catalogue and
-   `map_nodes.his_id`.
+Re-probed object by object afterwards: the rung ladder and its event log, `map_node_readiness`,
+`his_products` with its seed, and `map_nodes.his_id` all answer. `docs/PENDING-MIGRATIONS.md` now
+carries the full applied record; **only `0030_map_view_settings.sql` is still unrun**, and it
+blocks nothing — no client half exists for it.
 
-Each ends in probes that raise rather than return quietly, so a partial apply
-announces itself. **0032's row-level half has already run** over REST — the XD
-merge and the renames — so its merge loop will find nothing left to move, which
-is correct.
+## So the screens are unblocked
 
-## Then the screens can be built
-
-Nothing else is blocked. The OB monitoring page, the COC queue and the HIS queue
-all need columns that arrive in those three files.
+Nothing is waiting on a credential any more. The OB monitoring page, the COC queue and the HIS
+queue all have the columns they need.
 
 ## Still open, and each needs a sentence from you
 
-1. **Aseer** — `Aseer` and `Aseer Cluster` name no system. Ticket text leans
-   Careware 12 to Vida Plus 2, and you said to split them by what is underneath,
-   which needs the hospitals under each.
-2. **Jazan** — the bare `Jazan` row, same question, between MCC and MedicaCloud.
-3. **Misbar** — the Grafana pull is a script on your Mac and does not survive the
-   move; and sending email would be the first thing this product ever sends
-   outside the building. See `docs/MISBAR.md`.
-4. **The BRD** — `docs/guides/brd.pdf`, 29 pages. You approve in pieces; the
-   data-model section is the one that unblocks building.
+1. **Misbar** — the Grafana pull is a script on your Mac and does not survive the move; and
+   sending email would be the first thing this product ever sends outside the building. See
+   `docs/MISBAR.md`.
+2. **The BRD** — `docs/guides/brd.pdf`, 29 pages. You approve in pieces; the data-model section is
+   the one that unblocks building.
+
+### Parked on your instruction — Aseer and Jazan
+
+You said on 28 August to **ignore them for now**, so they are off this list and nobody is waiting
+on you for them. They are not lost: the PMO rulings tab computes them live from `map_nodes` and
+`entries` every time it is opened, so the pair reappears the day either is answered and disappears
+the day either is merged. Nothing is filed against them and nothing is guessed at in the meantime
+— the eight tickets naming only "Aseer" stay unfiled, which is the honest state.
 
 ## One thing I did badly
 
