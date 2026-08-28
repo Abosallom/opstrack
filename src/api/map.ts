@@ -58,6 +58,7 @@ import type {
   UseCase,
   UseCaseInput,
   UseCaseRung,
+  UseCaseRungRow,
   UseCaseScope,
 } from '../types'
 
@@ -1109,6 +1110,77 @@ const PROGRESS_COLUMNS = 'node_id, stage_id, stage_changed_at, updated_at, updat
  * since `sort_order` defaults to 0 and the reorder RPC only rewrites the ids it
  * was handed.
  */
+/**
+ * Which rungs each capability passes through (0036).
+ *
+ * ⚠ EXPECTED TO FAIL UNTIL 0036 IS APPLIED, and the caller must treat that as
+ *   "all five apply" rather than as "none do". store/config's settle() already
+ *   has that shape — it warns, keeps the previous rows and does not latch — and
+ *   `rungsFor()` turns an empty set into the full ladder, which is exactly the
+ *   behaviour before this table existed.
+ */
+export async function listUseCaseRungs(): Promise<ApiResult<Loaded<UseCaseRungRow>>> {
+  if (!supabase) return notConfigured()
+  const client = supabase
+  return await fetchAllPages<UseCaseRungRow>(
+    (from, to) =>
+      client
+        .from('use_case_rungs')
+        .select('*')
+        // Ordered so two loads render identically. The pair is unique, so this
+        // is total.
+        .order('use_case_id', { ascending: true })
+        .order('rung', { ascending: true })
+        .range(from, to),
+    MAX_PAGES,
+  )
+}
+
+/**
+ * Switch a rung ON for a capability, or set its budget.
+ *
+ * Upsert on the pair rather than insert, for `map_node_progress`' reason one
+ * table over: two admins on the same screen, the second one's refetch not yet
+ * landed, and a plain insert raises 23505 on a toggle that was already on. The
+ * upsert is a complete no-op when nothing changed.
+ */
+export async function applyUseCaseRung(
+  useCaseId: string,
+  rung: UseCaseRung,
+  expectedDays: number | null = null,
+): Promise<ApiResult<UseCaseRungRow>> {
+  if (!supabase) return notConfigured()
+  const { data, error } = await supabase
+    .from('use_case_rungs')
+    // `created_at`, `updated_at`, `created_by` and `updated_by` are the
+    // database's — the touch trigger owns the last two and would pin back
+    // anything sent here anyway.
+    .upsert({ use_case_id: useCaseId, rung, expected_days: expectedDays }, { onConflict: 'use_case_id,rung' })
+    .select('*')
+    .single()
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: data as unknown as UseCaseRungRow }
+}
+
+/**
+ * Switch a rung OFF for a capability.
+ *
+ * ⚠ THIS IS THE CALL THAT CAN BE REFUSED, and the refusal is the feature. 0036's
+ *   guard raises `use_case_rung_in_use` when organizations are standing on the
+ *   rung, and `use_case_rung_required` for intake and prod. Both arrive as i18n
+ *   keys through `pgErrorKey`, so the screen says which it was.
+ */
+export async function unapplyUseCaseRung(useCaseId: string, rung: UseCaseRung): Promise<ApiResult<null>> {
+  if (!supabase) return notConfigured()
+  const { error } = await supabase
+    .from('use_case_rungs')
+    .delete()
+    .eq('use_case_id', useCaseId)
+    .eq('rung', rung)
+  if (error) return fail(pgErrorKey(error))
+  return { ok: true, data: null }
+}
+
 export async function listMapNodeStages(): Promise<ApiResult<Loaded<MapNodeStage>>> {
   if (!supabase) return notConfigured()
   const client = supabase

@@ -184,6 +184,10 @@ export function pgErrorKey(error: unknown): string {
       // not own this file. Both sentences already exist in both locale trees.
       if (text.includes('track_groups_name_ar_uidx')) return 'groups.errNameArTaken'
       if (text.includes('track_groups_name_uidx')) return 'groups.errNameTaken'
+      // 0036. Reachable by two people switching the same rung on at once — the
+      // second insert names this index, and "already applies" is the honest
+      // sentence rather than a duplicate-key error about a table of toggles.
+      if (text.includes('use_case_rungs_use_case_id_rung_key')) return 'mapadmin.errRungAlreadyApplies'
       // map_nodes (0023). SIBLING-scoped, not global: two organizations called
       // "Emergency" under two different phases are two real things, and a
       // workspace-wide unique name would be a rule about the tree that the tree
@@ -347,6 +351,14 @@ export function pgErrorKey(error: unknown): string {
       // RTL layout, with nothing saying which field is wrong.
       if (text.includes('map_node_goals_label_ar_len_chk')) return 'mapadmin.errGoalLabelArLength'
       if (text.includes('map_node_goals_label_len_chk')) return 'mapadmin.errGoalLabelLength'
+      // 0036's three, and the first two are the SAME FACT from two directions:
+      // a ladder cannot be narrowed under a pair, and a pair cannot be moved
+      // onto a rung its capability does not have. Without tokens both arrive as
+      // a raw 23514 naming a trigger function, on a screen of toggles.
+      if (text.includes('use_case_rung_in_use')) return 'mapadmin.errRungInUse'
+      if (text.includes('use_case_rung_required')) return 'mapadmin.errRungRequired'
+      if (text.includes('use_case_rung_not_applicable')) return 'mapadmin.errRungNotApplicable'
+      if (text.includes('use_case_rungs_expected_days_chk')) return 'mapadmin.errRungExpectedDays'
       break
     case '23502':
       // NOT NULL violated. This should now be UNREACHABLE: the one column that

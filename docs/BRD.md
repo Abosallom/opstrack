@@ -243,7 +243,7 @@ Nothing moves from `agreed` to `built` without the owner's dated approval on thi
 - **Proof** — Roughly 1,100 of the 1,551 pairs sit in `Intake` as counted rows on day one, and
   `status CHANGED` history returns a rung for every open record — against 531 of 552 open onboarding
   tickets naming no rung today.
-- **Files** — none yet; not built., `supabase/migrations/0032_use_case_rungs.sql`
+- **Files** — `supabase/migrations/0032_use_case_rungs.sql`, `supabase/migrations/0036_use_case_rungs_apply.sql`, `src/lib/useCaseRungs.ts`
 
 ### BRD-004 — Blocked is a flag, not a status
 
@@ -760,4 +760,5 @@ boundary is fixed at `0023`: a new migration may never be filed as `pre-brief`.
 | `0034_his_catalogue.sql` | BRD-009, BRD-027 | The hospital information systems as a catalogue rather than free text, plus `map_nodes.his_id`. Seeded from eleven names the owner's own data already carries — and deliberately not Rhapsody, which is our integration engine and not a property of any hospital. |
 | `0032_use_case_rungs.sql` | BRD-003, BRD-008, BRD-015 | The rung ladder per use case, `scope` for not-applicable, the blocked flag, the COC queue's four columns, the append-only event log, and the XD/Encounter History merge into the eleven. |
 | `0035_overrides_are_server_owned.sql` | BRD-001, BRD-025 | `map_node_use_cases.overrides` moves into the stamp trigger, which computes the union server-side. 0024's own comment predicted this in capitals — the whole-array write is wrong the day a second field becomes editable, and 0032's `rung` and `scope` made that day. Two people editing different fields of one cell were dropping each other's entries, which is the per-field editing contract a Jira write-back must honour. Gated on `auth.uid()`, so the importer and any future sync leave it untouched. |
+| `0036_use_case_rungs_apply.sql` | BRD-003 | Each capability gets its own ladder by saying which of the five rungs it passes through — the owner's "each use case has its own phases", where what varies is which stops a capability makes and NOT what they are called. `use_case_rungs` is a membership table: no `name`, no `sort_order`, because renaming DEV for one capability and not another would make "how many are past DEV" a question with no answer. Two guards: a rung cannot be switched off while pairs stand on it, and a pair cannot be moved to a rung its capability does not have. `intake` and `prod` are on every ladder. Seeded with all five for every capability, so nothing changes on the day it runs. Carries §11.3.2's per-(capability, rung) budget, which is the only place that number has a home. |
 | `0031_pmo_portfolio.sql` | BRD-037 | Eight `pmo_*` tables — projects, initiatives, actions, risks, revenue, objectives, key results, milestones — created before any requirement asked for them. Named here as the finding BRD-037 records, not as a decision. |

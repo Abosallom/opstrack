@@ -150,7 +150,8 @@ import {
 import { listNodeUseCases } from '../../api/map'
 import NodeEditor from './NodeEditor'
 import ReadinessControls from './ReadinessControls'
-import { useHisProducts } from '../../store/config'
+import { useHisProducts, useUseCaseRungs } from '../../store/config'
+import { rungsFor } from '../../lib/useCaseRungs'
 import { confirm } from '../Confirm'
 // The stage control and the optimistic write behind it. ONE control mounted
 // twice — see the header's note on the reversed read-only decision.
@@ -236,7 +237,12 @@ export const STATUS_WORD: Readonly<Record<UseCaseStatus, string>> = {
  *   `i` from this array; reversing it silently reverses every hospital's
  *   progress, which is why a test pins the rendered marker states against it.
  */
+// ⚠ NO LONGER THE LADDER EVERY ROW DRAWS — 0036. Each capability has its own,
+//   resolved through `rungsFor()`, and this array survives only as the ORDER
+//   those ladders are drawn in (it is `USE_CASE_RUNGS` re-stated for the
+//   `RUNG_WORD` map below). A capability with three stops draws three.
 const RUNGS: readonly UseCaseRung[] = ['intake', 'dev', 'stg', 'coc', 'prod']
+void RUNGS
 
 /**
  * The rung as a word.
@@ -597,6 +603,11 @@ export function DetailBand({
   editing = false,
 }: DetailBandProps): ReactElement {
   useLocale()
+  // 0036: which stops each capability makes. Empty until 0036 is applied, which
+  // `rungsFor()` reads as all five — the behaviour this panel already had, so
+  // the picture does not change on the day the migration runs, only on the day
+  // somebody narrows a ladder.
+  const ladders = useUseCaseRungs()
   const { rows, done, total, linked } = progress
   const settled = !loading && error === null
 
@@ -715,7 +726,7 @@ export function DetailBand({
                     </span>
                   </span>
                 ) : (
-                  <RungTrack rung={row.rung} />
+                  <RungTrack rung={row.rung} ladder={rungsFor(ladders, row.useCase.id)} />
                 )}
               </li>
             ))}
@@ -842,12 +853,25 @@ export function DetailBand({
  * already states in words — announcing five list items would be five noises
  * for one reading.
  */
-function RungTrack({ rung }: { rung: UseCaseRung }): ReactElement {
-  const at = RUNGS.indexOf(rung)
+function RungTrack({ rung, ladder }: { rung: UseCaseRung; ladder: readonly UseCaseRung[] }): ReactElement | null {
+  // ⚠ THE LADDER IS THIS CAPABILITY'S OWN, NOT THE PROGRAMME'S FIVE — 0036.
+  //
+  //   §11.5: "distance along the track IS the progress", which is only true if
+  //   the track is the one this capability actually walks. A capability with
+  //   three stops drawing its PROD marker at position 5 of 5 would report
+  //   FINISHED work as two-fifths short, on the one screen whose whole job is
+  //   to be readable from across a room. Before 0036 every ladder is all five
+  //   and this is identical to what it replaced.
+  const at = ladder.indexOf(rung)
+  // A stored rung its capability does not have. Reachable only by a direct SQL
+  // write with 0036's guard disabled — and a marker at position zero would say
+  // "not started" about a pair at STG/TEST, which is worse than drawing
+  // nothing. Untouched paper, on §11.5's own rule.
+  if (at < 0) return null
   return (
     <>
       <ol className="mbr-rung" data-rung={rung} aria-hidden="true">
-        {RUNGS.map((step, i) => (
+        {ladder.map((step, i) => (
           <li
             key={step}
             className="mbr-rung-step"
@@ -857,9 +881,10 @@ function RungTrack({ rung }: { rung: UseCaseRung }): ReactElement {
       </ol>
       {/* POSITION AS A COUNT, never as a percentage — "step 3 of 5" is a fact a
           reader can check against the picture; "60%" is a number nobody
-          measured. */}
+          measured. The total is the CAPABILITY'S, so "step 3 of 3" reads as
+          finished and says so. */}
       <span className="sr-only">
-        {t('mapnode.rungAt', { rung: t(RUNG_WORD[rung]), n: at + 1, total: RUNGS.length })}
+        {t('mapnode.rungAt', { rung: t(RUNG_WORD[rung]), n: at + 1, total: ladder.length })}
       </span>
     </>
   )

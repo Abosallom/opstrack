@@ -25,6 +25,11 @@
     "errStageReorderDenied": "Reordering the stage ladder needs the structure permission, which this account doesn't have.",
     "errGoalTarget": "A goal has to name a positive number of organizations, or no number at all.",
     "errGoalLabelLength": "A goal's name can be at most 60 characters.",
-    "errGoalLabelArLength": "A goal's Arabic name can be at most 60 characters."
+    "errGoalLabelArLength": "A goal's Arabic name can be at most 60 characters.",
+    "errRungInUse": "That rung cannot be switched off while organizations are standing on it. Move them off it first, then switch it off.",
+    "errRungRequired": "Intake and PROD are on every ladder and cannot be switched off. Every pair starts at Intake, and a ladder with no PROD is one nothing can finish.",
+    "errRungNotApplicable": "This use case does not pass through that rung. Switch the rung on for it in Settings › Catalogue first.",
+    "errRungExpectedDays": "A rung budget has to be a positive number of days, or blank for no budget.",
+    "errRungAlreadyApplies": "That rung already applies to this use case — somebody else switched it on while this screen was open."
   }
 }

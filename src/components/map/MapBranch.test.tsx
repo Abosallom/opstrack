@@ -270,6 +270,11 @@ vi.mock('../../store/config', () => ({
   useMapNodes: () => fx.state.mapNodes,
   // 0034's catalogue. Empty is the shipping state.
   useHisProducts: () => [],
+  // 0036, and EMPTY IS THE SHIPPING STATE: the table does not exist on the live
+  // project, so `rungsFor()` answers with all five and the track draws exactly
+  // as it did before 0036. A fixture that narrowed a ladder here would be
+  // asserting on a state no workspace is in yet.
+  useUseCaseRungs: () => new Map(),
   // 0033's readiness. `undefined` is the shipping answer for all 140:
   // nobody has said, which is not the same as "not started".
   useNodeReadiness: () => undefined,

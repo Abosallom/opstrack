@@ -21,8 +21,14 @@ that warns about it, to the one reader who is alone at a SQL Editor and trusting
 
 ## Status — 28 August 2026
 
-**One file is pending: `0030_map_view_settings.sql`.** Every other migration written to date is
-applied to the live project (`lrysgpbkmuqgzsjesfkr`).
+**Two files are pending: `0030_map_view_settings.sql` and `0036_use_case_rungs_apply.sql`.**
+Every other migration written to date is applied to the live project (`lrysgpbkmuqgzsjesfkr`).
+
+⚠ **0036 is the one with a client half already shipped**, and it is shipped in the state this page
+always asks for: the read fails on a project without the table, `settle()` keeps the empty list,
+and `rungsFor()` reads an empty set as **all five rungs apply** — which is exactly the behaviour
+before the table existed. So the app is correct either way, and applying 0036 changes nothing on
+the day it runs. It changes something the first time somebody switches a rung off.
 
 Re-probed over REST against the live project on **28 August 2026**, object by object rather than
 by trusting any apply: `map_node_stages` (7 rows), `map_node_progress`, `map_node_goals`,
@@ -321,7 +327,7 @@ since `delete_track` now has real rows to destroy:
 2. Deleting a track that has map nodes with **no** reassignment target must raise
    `track_in_use:` and name the node count.
 
-## Pending — 0030, and nothing else
+## Pending — 0030 and 0036
 
 > The step-by-step apply that carried 0026, 0027 and 0028 lives in
 > [`RUN-0026-0027-0028.md`](RUN-0026-0027-0028.md), and 0031's in [`RUN-0031.md`](RUN-0031.md).
@@ -329,8 +335,13 @@ since `delete_track` now has real rows to destroy:
 
 `0030_map_view_settings.sql` is written, reviewed, probed on paper, and **has never been run
 against any database**. There is no client half waiting on it — the map reads its drawing settings
-from code today — so it blocks nothing, which is precisely why it has sat here while five later
+from code today — so it blocks nothing, which is precisely why it has sat here while six later
 files went past it. It stays on this page rather than being quietly forgotten.
+
+`0036_use_case_rungs_apply.sql` answers the owner's "each use case has its own phases". Its client
+half is live and fails open, per the status note above: until it runs, every capability passes
+through all five rungs and the Catalogue screen says so in a sentence rather than drawing a matrix
+nobody can edit.
 
 The "verify live by" column is filled per the rule at the bottom of this page: **the row lands in
 the same commit as the SQL, with a query that runs today and goes false if the file is ever
@@ -340,6 +351,7 @@ applied in — the other half of that rule, and the half that once cost this fil
 | # | File | Written by | What it contains | Owner runs it | Verify live by (runnable the moment it is applied) |
 |---|---|---|---|---|---|
 | 0030 | `map_view_settings.sql` | wave ? | How the map draws, **ONE ROW**: `layout`/`open_depth`/card size/gaps/`sibling_wrap`/`grouping`/`sibling_sort`/`colour_by` (`track` only)/`node_fields` jsonb/`label_budget`. Checked singleton key ending `…0030`; member-read, `structure.edit`-write, touch + `config_audit`; **NO seed row**. Depends only on 0001/0002/0025 — never on 0026-0029 | any time — no client half exists yet | `map_view_settings` present; `pg_get_expr` of `layout`'s default contains `'worlds'`; `map_view_settings_singleton_chk` exists; `map_view_settings_select`'s `qual` contains `is_member` **and** `map_view_settings_update`'s contains `structure.edit`; `select count(*) from map_view_settings` is 0 |
+| 0036 | `use_case_rungs_apply.sql` | 28 Aug 2026 | `use_case_rungs`: which of the five rungs each capability passes through. A MEMBERSHIP table — no `name`, no `sort_order`, because the five stay the programme's shared vocabulary and renaming DEV for one capability would make "how many are past DEV" unanswerable. `structure.edit` to write, member-read, touch + `config_audit`. Two guards: a rung cannot be switched off while pairs stand on it, and a pair cannot move to a rung its capability does not have. `intake` and `prod` are on every ladder. Seeded with all five for every capability, so the apply is a no-op on the picture. Carries §11.3.2's per-(capability, rung) budget | any time — the client half is live and fails open | `use_case_rungs` present with 5 rows per capability; `use_case_rungs_guard_delete_trg` and `map_node_use_cases_rung_applies_trg` both present; deleting an `intake` row raises `use_case_rung_required`; `map_node_use_cases_stamp()` still contains `array_agg(distinct field)` and `map_node_use_case_events` |
 
 **0028 is the one file on this page whose client half is safe to ship before it is applied**, and
 that is a property of the design rather than a licence to be casual: `loadJiraSettings()` fails

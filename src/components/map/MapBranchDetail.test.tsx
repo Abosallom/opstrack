@@ -24,7 +24,7 @@
 // defaults and reads as styling that was never written. See MapBranch.test.tsx's
 // own namespace gate, which is this paragraph one file over.
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { MapNode, MapNodeUseCase, UseCase, UseCaseRung,
   UseCaseStatus } from '../../types'
@@ -64,6 +64,14 @@ const fx = vi.hoisted(() => {
     stages: Map<string, { id: string; expected_days: number | null; terminal: boolean; paused: boolean }>
     vendorOfNode: Map<string, string>
     managerOfNode: Map<string, string | null>
+    /**
+     * 0036 — which rungs each capability passes through.
+     *
+     * ⚠ EMPTY IS THE SHIPPING STATE, and `rungsFor()` reads it as all five, so
+     *   every test that does not touch it asserts on the picture the panel drew
+     *   before 0036 existed.
+     */
+    ladders: Map<string, Set<UseCaseRung>>
     today: string
   } = {
     nodes: [],
@@ -71,6 +79,7 @@ const fx = vi.hoisted(() => {
     stages: new Map(),
     vendorOfNode: new Map(),
     managerOfNode: new Map(),
+    ladders: new Map(),
     today: '2026-03-10',
   }
   return { members, state, mem }
@@ -95,6 +104,10 @@ vi.mock('../../store/config', () => ({
   // 0034's catalogue. Empty is the shipping state: the migration seeded
   // eleven products and filled in nobody.
   useHisProducts: () => [],
+  // 0036. EMPTY IS THE SHIPPING STATE — the table does not exist on the live
+  // project, `rungsFor()` reads that as all five, and every test that leaves it
+  // alone therefore asserts on the picture the panel drew before 0036 existed.
+  useUseCaseRungs: () => fx.state.ladders,
   // 0033's readiness. `undefined` is the shipping answer for all 140:
   // nobody has said, which is not the same as "not started".
   useNodeReadiness: () => undefined,
@@ -1048,6 +1061,55 @@ describe('the rung, drawn as position', () => {
     expect(html).toContain(esc(t('mapnode.rungStg')))
     expect(html).toMatch(/step 3 of 5/)
     expect(html).not.toMatch(/\d+%/)
+  })
+
+  /**
+   * 0036 — "each use case has its own phases", which the owner clarified as: the
+   * same five, but some do not apply to some capabilities.
+   *
+   * ⚠ §11.5 SAYS DISTANCE ALONG THE TRACK IS THE PROGRESS, and that is only
+   *   true if the track is the one this capability actually walks. Drawing a
+   *   three-stop capability's PROD marker at position 5 of 5 would report
+   *   FINISHED work as two-fifths short, on the one screen whose whole job is
+   *   to be readable from across a room.
+   */
+  describe('when a capability skips rungs', () => {
+    afterEach(() => {
+      fx.state.ladders = new Map()
+    })
+
+    it('draws only the stops that capability makes', () => {
+      fx.state.ladders = new Map([['adt', new Set<UseCaseRung>(['intake', 'dev', 'prod'])]])
+      expect(states(band({ links: [at('adt', 'dev')] }))).toEqual(['passed', 'at', 'ahead'])
+    })
+
+    it('puts a finished short ladder at the END of its own track, not four-fifths along', () => {
+      fx.state.ladders = new Map([['adt', new Set<UseCaseRung>(['intake', 'dev', 'prod'])]])
+      const html = band({ links: [at('adt', 'prod')] })
+      expect(states(html)).toEqual(['passed', 'passed', 'at'])
+      expect(html).toMatch(/step 3 of 3/)
+    })
+
+    it('still draws all five for a capability nobody has narrowed', () => {
+      // The other capability in a configured workspace, and every capability
+      // before 0036 is applied. `rungsFor()` makes both the same case.
+      fx.state.ladders = new Map([['lab', new Set<UseCaseRung>(['intake', 'prod'])]])
+      expect(states(band({ links: [at('adt', 'stg')] }))).toEqual([
+        'passed',
+        'passed',
+        'at',
+        'ahead',
+        'ahead',
+      ])
+    })
+
+    it('draws nothing for a pair standing on a rung its capability does not have', () => {
+      // Reachable only by a direct SQL write with 0036's guard disabled. A
+      // marker at position zero would say "not started" about a pair at
+      // STG/TEST, which is worse than untouched paper.
+      fx.state.ladders = new Map([['adt', new Set<UseCaseRung>(['intake', 'prod'])]])
+      expect(band({ links: [at('adt', 'stg')] })).not.toContain('class="mbr-rung"')
+    })
   })
 
   it('leaves the paper alone when nobody has placed the pair', () => {

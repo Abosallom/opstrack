@@ -118,6 +118,13 @@
     "addSubmit": "Add",
     "adding": "Adding…",
     "added": "Added ⁨{name}⁩.",
-    "cancelAdd": "Cancel"
+    "cancelAdd": "Cancel",
+    "laddersTitle": "Which rungs each use case passes through",
+    "laddersDesc": "The five rungs are the programme's own and are not renamed here — Intake, DEV, STG/TEST, COC and PROD mean the same thing for every use case, or \"how many are past DEV\" stops having an answer. What changes below is which stops a use case actually makes.",
+    "laddersUnconfigured": "No ladder has been narrowed yet, so every use case passes through all five. Switch off the stops a use case does not make.",
+    "laddersCapability": "Use case",
+    "laddersAlways": "Intake and PROD are on every ladder. Every pair starts at Intake, and a ladder with no PROD is one nothing can finish. A use case that does not apply to a hospital is marked not applicable on that hospital instead.",
+    "laddersAlwaysMark": "Always",
+    "laddersToggle": "⁨{rung}⁩ applies to ⁨{name}⁩"
   }
 }

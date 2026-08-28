@@ -149,7 +149,17 @@ const NODE_FS = 'node:fs'
 const { readFileSync } = (await import(NODE_FS)) as {
   readFileSync: (path: URL, encoding: 'utf8') => string
 }
-const SOURCE: string = (await import('./CatalogueAdmin.tsx?raw')).default
+// ⚠ THE SCREEN IS TWO FILES SINCE 0036, AND THIS SCAN COVERS BOTH. The ladder
+// matrix — which of the five rungs each capability passes through — lives in
+// `components/settings/UseCaseLadders.tsx` because it is a component with its
+// own write path, not because it is a different screen: it renders inside this
+// page, under the capability list, and its strings are `catalogue.*` for that
+// reason. Scanning only this file would let the orphan rule below report every
+// one of its keys as a sentence nobody renders, and the obvious "fix" would be
+// to move perfectly good strings into a namespace that does not describe them.
+const SOURCE: string =
+  (await import('./CatalogueAdmin.tsx?raw')).default +
+  (await import('../../components/settings/UseCaseLadders.tsx?raw')).default
 const SHEET: string = readFileSync(new URL('./catalogue.css', import.meta.url), 'utf8')
 
 const EN = (await import('../../locales/en/catalogue.json')).default as Record<string, unknown>

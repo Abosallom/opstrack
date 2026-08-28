@@ -527,12 +527,18 @@ async function loadConfigStore(opts: {
     listMapNodeKinds: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
     listUseCases: () =>
       Promise.resolve({ ok: true, data: { rows: [{ id: 'uc1' }], truncated: false } }),
-    // 0034's catalogue, and 0026's two reads. Present in the mock even though
-    // nothing here asserts on them: `loadConfig` awaits all NINE in one
-    // `Promise.all`, so a missing member is a TypeError that rejects the whole
-    // load and empties the store — which would fail these tests for a reason
-    // that has nothing to do with paging. They answer the shipping state: the
-    // tables exist and are empty.
+    // 0034's catalogue, 0026's two reads, and 0036's one. Present in the mock
+    // even though nothing here asserts on them: `loadConfig` awaits all TEN in
+    // one `Promise.all`, so a missing member is a TypeError that rejects the
+    // whole load and empties the store — which would fail these tests for a
+    // reason that has nothing to do with paging. They answer the shipping
+    // state: the tables exist and are empty.
+    //
+    // ⚠ `listUseCaseRungs` ANSWERING EMPTY IS NOT "NO RUNGS APPLY". 0036 is
+    //   unapplied on the live project, so the real read fails and settle() keeps
+    //   `[]` — and `rungsFor()` turns that into all five, which is the behaviour
+    //   before the table existed. An empty answer here models that state.
+    listUseCaseRungs: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
     listHisProducts: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
     listReadiness: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),
     listMapNodeStages: () => Promise.resolve({ ok: true, data: { rows: [], truncated: false } }),

@@ -815,6 +815,40 @@ export type UseCaseRung = 'intake' | 'dev' | 'stg' | 'coc' | 'prod'
 export const USE_CASE_RUNGS: readonly UseCaseRung[] = ['intake', 'dev', 'stg', 'coc', 'prod']
 
 /**
+ * Which of the five rungs one capability actually passes through — 0036.
+ *
+ * A ROW MEANS THE RUNG APPLIES. There is no `name`, no `name_ar` and no
+ * `sort_order` here on purpose: the five already have all three, in
+ * `USE_CASE_RUNGS` above, identically for every capability. The owner's ask was
+ * "each use case has its own phases" and what varies is WHICH STOPS a capability
+ * makes, not what they are called — renaming DEV for one capability and not
+ * another would make "how many are past DEV" a question with no answer.
+ *
+ * ⚠ AN ABSENT TABLE AND AN ABSENT CAPABILITY BOTH MEAN "ALL FIVE". 0036 is not
+ *   applied on every project, and a capability with no rows is one nobody has
+ *   configured. Both resolve through `rungsFor()` in lib/useCaseRungs.ts, which
+ *   is the only place that decision is made.
+ */
+export interface UseCaseRungRow {
+  id: string
+  use_case_id: string
+  rung: UseCaseRung
+  /**
+   * §11.3.2's budget for this (capability, rung), or null for no threshold.
+   *
+   * ⚠ NOTHING MAY PRINT A DAY COUNT FROM IT YET. Every link still carries
+   *   `updated_by = null`, so `buildObMonitor`'s `budgetMeasurable` is false and
+   *   stays false until a person moves a rung. This is the threshold, not the
+   *   permission to use it.
+   */
+  expected_days: number | null
+  created_at: string
+  updated_at: string
+  created_by: string | null
+  updated_by: string | null
+}
+
+/**
  * Whether a use case applies to this organization at all.
  *
  * ⚠ NOT A SIXTH RUNG, AND NOT AN ABSENCE. A hospital with no radiology

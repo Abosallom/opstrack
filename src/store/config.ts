@@ -52,6 +52,7 @@
 // under useSyncExternalStore means "the snapshot changed" forever — an infinite
 // re-render loop, and in dev a "getSnapshot should be cached" warning.
 
+import { buildUseCaseRungMap, type UseCaseRungMap } from '../lib/useCaseRungs'
 import { create } from 'zustand'
 import {
   listMapNodeKinds,
@@ -61,6 +62,7 @@ import {
   listHisProducts,
   listReadiness,
   listUseCases,
+  listUseCaseRungs,
 } from '../api/map'
 import {
   loadJiraSettings,
@@ -82,6 +84,7 @@ import type {
   HisProduct,
   NodeReadiness,
   UseCase,
+  UseCaseRungRow,
 } from '../types'
 
 const CACHE_KEY = 'nphiescore_tracks_v1'
@@ -108,6 +111,7 @@ const GROUPS_CACHE_KEY = 'nphiescore_track_groups_v1'
 const MAP_NODES_CACHE_KEY = 'nphiescore_map_nodes_v1'
 const MAP_NODE_KINDS_CACHE_KEY = 'nphiescore_map_node_kinds_v1'
 const USE_CASES_CACHE_KEY = 'nphiescore_use_cases_v1'
+const USE_CASE_RUNGS_CACHE_KEY = 'nphiescore_use_case_rungs_v1'
 const HIS_PRODUCTS_CACHE_KEY = 'nphiescore_his_products_v1'
 const READINESS_CACHE_KEY = 'nphiescore_node_readiness_v1'
 
@@ -191,6 +195,17 @@ interface ConfigState {
   mapNodeKinds: MapNodeKind[]
   /** Every use case, hidden included — the Catalogue admin needs them all. */
   useCases: UseCase[]
+  /**
+   * 0036: which of the five rungs each capability passes through, as a lookup.
+   *
+   * ⚠ EMPTY MEANS "ALL FIVE APPLY", NOT "NONE DO". The read fails on every load
+   *   until 0036 is applied, and `lib/useCaseRungs.ts` is the ONE place that
+   *   decision is made — nothing else may test this Map for emptiness and draw
+   *   its own conclusion.
+   */
+  useCaseRungs: UseCaseRungMap
+  /** The rows behind it, for the admin screen that edits them. */
+  useCaseRungRows: UseCaseRungRow[]
   /** 0034's catalogue. Empty on a workspace that has not run it. */
   hisProducts: HisProduct[]
   /**
@@ -475,6 +490,7 @@ function deriveAll(
   nodes: MapNode[],
   kinds: MapNodeKind[],
   useCases: UseCase[],
+  useCaseRungRows: UseCaseRungRow[],
   hisProducts: HisProduct[],
   readiness: NodeReadiness[],
   stages: MapNodeStage[],
@@ -501,6 +517,11 @@ function deriveAll(
     mapNodeKinds: kinds,
     useCases,
     visibleUseCases: useCases.filter((u) => !u.hidden),
+    useCaseRungRows,
+    // Folded ONCE here rather than per render: a selector that builds a Map is
+    // "the snapshot changed, forever" under useSyncExternalStore, which is the
+    // loop this file's header opens with.
+    useCaseRungs: buildUseCaseRungMap(useCaseRungRows),
   }
 }
 
@@ -581,6 +602,7 @@ const useConfigStore = create<ConfigState>(() => ({
     readRowCache<MapNode>(MAP_NODES_CACHE_KEY),
     readRowCache<MapNodeKind>(MAP_NODE_KINDS_CACHE_KEY),
     readRowCache<UseCase>(USE_CASES_CACHE_KEY),
+    readRowCache<UseCaseRungRow>(USE_CASE_RUNGS_CACHE_KEY),
     readRowCache<HisProduct>(HIS_PRODUCTS_CACHE_KEY),
     // `node_id`, not `id` — 0033 gives this table no surrogate key either.
     readRowCache<NodeReadiness>(READINESS_CACHE_KEY, 'node_id'),
@@ -729,6 +751,23 @@ export function useUseCases(): UseCase[] {
 /** Every use case, hidden included — the Catalogue admin's list. */
 export function useAllUseCases(): UseCase[] {
   return useConfigStore((s) => s.useCases)
+}
+
+/**
+ * 0036's ladder membership, as a lookup keyed by capability.
+ *
+ * ⚠ AN EMPTY MAP MEANS "ALL FIVE APPLY", and no caller may decide that for
+ *   itself — every reader goes through `rungsFor()` / `rungApplies()` in
+ *   lib/useCaseRungs.ts, which is the one place that decision is written and
+ *   the one place it agrees with 0036's own guard.
+ */
+export function useUseCaseRungs(): UseCaseRungMap {
+  return useConfigStore((s) => s.useCaseRungs)
+}
+
+/** The rows behind the lookup — only the admin screen that edits them wants these. */
+export function useUseCaseRungRows(): UseCaseRungRow[] {
+  return useConfigStore((s) => s.useCaseRungRows)
 }
 
 /**
@@ -1028,6 +1067,7 @@ export function loadConfig(force = false): Promise<void> {
     listMapNodes(true),
     listMapNodeKinds(),
     listUseCases(true),
+    listUseCaseRungs(),
     listHisProducts(true),
     listReadiness(),
     listMapNodeStages(),
@@ -1046,6 +1086,7 @@ export function loadConfig(force = false): Promise<void> {
         nodeResult,
         kindResult,
         useCaseResult,
+        useCaseRungResult,
         hisResult,
         readinessResult,
         stageResult,
@@ -1058,6 +1099,18 @@ export function loadConfig(force = false): Promise<void> {
       const nodes = settle('map nodes', nodeResult, prev.mapNodes, MAP_NODES_CACHE_KEY)
       const kinds = settle('node kinds', kindResult, prev.mapNodeKinds, MAP_NODE_KINDS_CACHE_KEY)
       const useCases = settle('use cases', useCaseResult, prev.useCases, USE_CASES_CACHE_KEY)
+      // ⚠ EXPECTED TO FAIL UNTIL 0036 IS APPLIED, and the failure is correct
+      //   rather than tolerated: settle() warns, keeps the rows already in hand
+      //   — `[]`, because there have never been any — and does not latch, so the
+      //   focus refetch picks the table up the moment it exists. `rungsFor()`
+      //   turns that empty set into all five, which IS the behaviour before this
+      //   table, so every screen reads identically either way.
+      const useCaseRungs = settle(
+        'use case rungs',
+        useCaseRungResult,
+        prev.useCaseRungRows,
+        USE_CASE_RUNGS_CACHE_KEY,
+      )
       const hisProducts = settle('HIS products', hisResult, prev.hisProducts, HIS_PRODUCTS_CACHE_KEY)
       const readiness = settle(
         'readiness',
@@ -1105,6 +1158,7 @@ export function loadConfig(force = false): Promise<void> {
           nodes.rows,
           kinds.rows,
           useCases.rows,
+          useCaseRungs.rows,
           hisProducts.rows,
           readiness.rows,
           stages.rows,

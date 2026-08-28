@@ -129,6 +129,7 @@ import {
 import { t, useLocale, type Locale } from '../../lib/i18n'
 import { invalidateConfig } from '../../store/config'
 import { useHasPerm } from '../../store/auth'
+import { UseCaseLadders } from '../../components/settings/UseCaseLadders'
 import type { MapNodeKind, MapNodeStage, MapNodeStageInput, UseCase } from '../../types'
 import './catalogue.css'
 
@@ -1613,6 +1614,11 @@ export default function CatalogueAdmin(): ReactElement {
           )}
         </section>
       )}
+
+      {/* 0036 — WHICH of the five each capability makes, immediately below the
+          list of capabilities themselves, because it is a second fact about the
+          same eleven rows and a person reading one wants the other. */}
+      {!loading && !errorKey && useCases !== null && <UseCaseLadders useCases={useCases} />}
 
       {!loading && !errorKey && (
         <section className="card cat-section" aria-labelledby="cat-h-kind">

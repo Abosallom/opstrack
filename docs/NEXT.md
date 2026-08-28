@@ -105,6 +105,48 @@ service-role key can exercise. Record a submission date, then a contact on the
 same pair: if `overrides` reads `{coc_submitted_on, coc_contact}` rather than
 just the second, the union holds.
 
+## Each use case has its own phases — built, and one migration to run
+
+You said the phases are not one ladder shared by all eleven, and then that what differs is **which
+of the five a capability actually makes** — not what they are called, and every one of them still
+reaches COC.
+
+**So the five did not become configurable, and that is the design.** Intake → DEV → STG/TEST → COC
+→ PROD stays one vocabulary, one CHECK constraint, one set of words in the announcement. Renaming
+DEV for one capability and not another would make *"how many are past DEV"* a question with no
+answer. What is configurable is **membership**: `use_case_rungs` has no `name` and no `sort_order`
+because the five already have both, identically, for everybody.
+
+**Settings › Catalogue has a matrix** — capabilities down, the five across, a toggle in each cell.
+A matrix and not eleven forms because the question a person actually has is comparative: *which
+capabilities skip STG/TEST?* is a column you read in one glance.
+
+**Two things the database refuses, and the refusal is the feature.** A rung cannot be switched off
+while organizations are standing on it — it names how many are in the way. And Intake and PROD are
+on every ladder: every one of the 1,540 pairs sits at Intake, so removing it would orphan the
+estate in one click, and a ladder with no PROD is one nothing can finish. Those two show as
+"Always" rather than as a switch that gets refused.
+
+**The map's track now draws the capability's own ladder.** §11.5 says distance along the track is
+the progress — which is only true if the track is the one that capability walks. A three-stop
+capability at PROD now reads *step 3 of 3*, not four-fifths along.
+
+⚠ **`0036_use_case_rungs_apply.sql` needs running, and nothing breaks until you do.** The read
+fails on a project without the table, which the app reads as *all five apply* — exactly today's
+behaviour. Applying it changes nothing on the day it runs; it changes something the first time you
+switch a rung off. The seed gives every capability all five.
+
+## ⚠ And the gap this turned up: nothing can move a pair up the ladder
+
+`setNodeUseCase` still has **no call site in the app**. The rung is drawn everywhere and settable
+nowhere, which means the COC queue shipped this morning **can never fill** — a pair only reaches
+COC if somebody puts it there.
+
+That is the same diagnosis as before, one level down: eight ways to look, almost no way to change.
+The picker belongs on the organization panel beside the track it already draws, and it should offer
+only the rungs 0036 says that capability has. It is the next thing worth building, and it is what
+makes both this and the COC queue mean anything in practice.
+
 ## Still open, and each needs a sentence from you
 
 1. **Misbar** — the Grafana pull is a script on your Mac and does not survive the move; and
