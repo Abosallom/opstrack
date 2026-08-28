@@ -53,11 +53,12 @@
 --     does not exist — it draws nowhere, sorts nowhere, and is counted by
 --     everything. The delete is refused and names how many rows are in the way.
 --
---  2. `intake` AND `prod` CANNOT BE SWITCHED OFF AT ALL. Every one of the 1,540
---     links sits at intake today, so removing it would orphan the entire estate
---     in one click; and a ladder with no PROD is a ladder a capability can
---     never finish. A use case that genuinely never goes live is `scope =
---     'not_applicable'` on the pair, which 0032 already has.
+--  2. `intake` AND `prod` CANNOT BE SWITCHED OFF AT ALL. 1,029 of the 1,540
+--     links sit at intake today, so removing it would orphan two thirds of the
+--     estate in one click; and a ladder with no PROD is a ladder a capability
+--     can never finish — 211 pairs are already standing on it. A use case that
+--     genuinely never goes live is `scope = 'not_applicable'` on the pair,
+--     which 0032 already has.
 --
 -- ── THE TOKEN CONTRACT WITH src/lib/pgError.ts ────────────────────────────
 --
@@ -247,7 +248,7 @@ as $$
 declare
   v_standing int;
 begin
-  -- intake and prod are not switchable. See the header: every link in the
+  -- intake and prod are not switchable. See the header: two thirds of the
   -- estate sits at intake today, and a ladder with no PROD cannot be finished.
   if old.rung in ('intake', 'prod') then
     raise exception

@@ -76,9 +76,16 @@ export function CocQueueSection({ queue, labelOf, managerNameOf }: Props): React
     return (
       <div className="pmo-coc-queue">
         {/* ⚠ TRUE TODAY, AND THE SCREEN SAYS SO RATHER THAN LOOKING BROKEN. All
-            1,540 pairs sit at intake, so this queue is empty on the day it
-            ships. An empty worklist that explains itself is honest; a blank
-            panel reads as a bug and gets reported as one. */}
+            nothing has reached COC yet — 1,029 of the 1,540 pairs are at
+            intake, 300 at STG/TEST and 211 at PROD, and NONE at COC — so this
+            queue is empty on the day it ships. An empty worklist that explains
+            itself is honest; a blank panel reads as a bug and gets reported as
+            one.
+
+            ⚠ THOSE NUMBERS ARE A MEASUREMENT, NOT AN ASSUMPTION, and they
+            replace a wrong one: an earlier note here said the whole estate was
+            at intake, which came from reading three rows and generalising. The
+            distribution above was counted with an exact count per rung. */}
         <p className="mbr-note">{t('pmo.cocQueueEmpty')}</p>
       </div>
     )

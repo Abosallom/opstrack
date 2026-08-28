@@ -118,11 +118,11 @@ export function rungsNotApplied(map: UseCaseRungMap, useCaseId: string): readonl
  * The two rungs no capability may be without.
  *
  * ⚠ MIRRORS 0036's `use_case_rungs_guard_delete()` AND MUST STAY IN STEP WITH
- *   IT. Every one of the 1,540 links sits at intake, so removing it would
- *   orphan the estate in one click; and a ladder with no PROD is one a
- *   capability can never finish. The client hides the control rather than
- *   offering a switch the database will refuse — a disabled control is a
- *   promise, and this one would be a lie.
+ *   IT. Intake is where 1,029 of the 1,540 links sit, so removing it would
+ *   orphan two thirds of the estate in one click; and a ladder with no PROD is
+ *   one a capability can never finish — 211 pairs are already there. The client
+ *   hides the control rather than offering a switch the database will refuse —
+ *   a disabled control is a promise, and this one would be a lie.
  *
  *   A capability that genuinely never goes live is `scope = 'not_applicable'`
  *   on the pair, which 0032 already has.

@@ -42,7 +42,7 @@
     },
     "cocQueue": "At COC — this office's own queue",
     "cocQueueCounts": "{waiting} waiting on CHI · {unsubmitted} not yet submitted · {signed} signed and not yet at PROD",
-    "cocQueueEmpty": "Nothing is at COC yet. Every use case in the estate is still at intake, so this queue fills the first time somebody moves a pair up the ladder.",
+    "cocQueueEmpty": "Nothing is at COC yet. This queue fills the first time somebody moves a pair to COC — the rung this office works.",
     "cocRecord": "Record the chase",
     "cocReference": "CHI reference",
     "cocSignedHint": "Leave blank until the certificate arrives. Filling it in does not move the pair to PROD — that is a separate act.",

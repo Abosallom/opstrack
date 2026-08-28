@@ -80,14 +80,17 @@ function draw(links: MapNodeUseCase[], nodes = [{ id: 'a', name: 'Al-Zobaidi', a
 
 describe('the empty queue, which is what ships', () => {
   /**
-   * ⚠ TRUE ON THE DAY THIS SHIPS. All 1,540 pairs sit at intake, so the first
-   * person to open this tab sees an empty worklist — and an empty panel with no
-   * words in it reads as a bug and gets reported as one.
+   * ⚠ TRUE ON THE DAY THIS SHIPS. No pair has reached COC — the estate sits
+   * 1,029 at intake, 300 at STG/TEST and 211 at PROD — so the first person to
+   * open this tab sees an empty worklist, and an empty panel with no words in
+   * it reads as a bug and gets reported as one.
    */
   it('explains itself rather than drawing a blank panel', () => {
     const html = draw([])
     expect(html).toContain('Nothing is at COC yet')
-    expect(html).toContain('intake')
+    // It says what fills it, not just that it is empty — an empty worklist
+    // that does not explain itself gets reported as a bug.
+    expect(html).toContain('fills the first time')
   })
 
   it('prints no count line and no oldest wait when there is nothing to count', () => {

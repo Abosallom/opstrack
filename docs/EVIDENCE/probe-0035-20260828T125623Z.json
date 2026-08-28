@@ -1,5 +1,5 @@
 {
-  "probe": "0035 \u2014 proving the trigger BEHAVES, not merely that its body is present",
+  "probe": "0035 — proving the trigger BEHAVES, not merely that its body is present",
   "run_at": "20260828T125623Z",
   "run_by": "Claude Opus 5, service_role key, over PostgREST",
   "project": "lrysgpbkmuqgzsjesfkr",
@@ -9,16 +9,16 @@
     "node_id": "0168f516-8bd4-4c08-be54-e8c121c34f3d",
     "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb"
   },
-  "why_this_row": "Chosen deterministically (first by node_id, use_case_id). All 1540 rows sat at rung=intake with overrides=[] \u2014 no person had edited any cell, so no human-held state existed to put at risk.",
-  "what_this_probe_could_NOT_test": "The union itself. 0035's overrides block is gated on `auth.uid() is not null`, and the service_role JWT carries no `sub` claim \u2014 so auth.uid() is null for every write made here. What is proved below is the GATE. What remains unproved is what a PERSON'S edit writes, which needs a user JWT and therefore either one click in the running app or a throwaway auth user. Recorded in docs/NEXT.md rather than left implied.",
+  "why_this_row": "Chosen deterministically (first by node_id, use_case_id). No row in the table had a non-empty `overrides` — counted with an exact filter, not sampled — so no human-held state existed to put at risk, which is what made the probe safe.",
+  "what_this_probe_could_NOT_test": "The union itself. 0035's overrides block is gated on `auth.uid() is not null`, and the service_role JWT carries no `sub` claim — so auth.uid() is null for every write made here. What is proved below is the GATE. What remains unproved is what a PERSON'S edit writes, which needs a user JWT and therefore either one click in the running app or a throwaway auth user. Recorded in docs/NEXT.md rather than left implied.",
   "test_A": {
     "name": "a service-role write must not mark any field as human-held",
-    "why_it_matters": "`overrides` is the promise a future Jira sync reads \u2014 JiraEffect.held in src/lib/jira/map.ts. If a sync's own writes marked fields as human-held, `held` would mean nothing in the one direction that matters: the importer would be claiming a person's authority over rows no person ever touched, and every subsequent sync would refuse to correct them.",
+    "why_it_matters": "`overrides` is the promise a future Jira sync reads — JiraEffect.held in src/lib/jira/map.ts. If a sync's own writes marked fields as human-held, `held` would mean nothing in the one direction that matters: the importer would be claiming a person's authority over rows no person ever touched, and every subsequent sync would refuse to correct them.",
     "did": "PATCH {rung: intake -> dev, target_date: null -> 2026-09-30} as service_role",
     "expected": "overrides stays []; status_changed_at moves; one event row appended, actor_id null, source 'migration'",
     "observed": {
-      "overrides": "[] \u2014 unchanged. THE GATE HOLDS.",
-      "status_changed_at": "2026-08-26T20:06:31.193182+00:00 -> 2026-08-28T12:56:54.968468+00:00 \u2014 0032's stamp survived 0035's create-or-replace",
+      "overrides": "[] — unchanged. THE GATE HOLDS.",
+      "status_changed_at": "2026-08-26T20:06:31.193182+00:00 -> 2026-08-28T12:56:54.968468+00:00 — 0032's stamp survived 0035's create-or-replace",
       "event_appended": {
         "rung_from": "intake",
         "rung_to": "dev",
@@ -26,7 +26,7 @@
         "source": "migration"
       }
     },
-    "verdict": "PASS on all three \u2014 and the second and third are exactly what 0035's own probe asserts about the function body. This shows them running."
+    "verdict": "PASS on all three — and the second and third are exactly what 0035's own probe asserts about the function body. This shows them running."
   },
   "restore": {
     "did": "PATCH rung back to intake and target_date back to null; then a second PATCH writing status_changed_at back to its original value, which sticks because the stamp trigger only fires when rung changes",
@@ -104,5 +104,6 @@
     "coc_contact": "",
     "coc_reference": "",
     "coc_signed_on": null
-  }
+  },
+  "correction_2026-08-28": "An earlier version of this field also said 'all 1540 rows sat at rung=intake'. THAT WAS WRONG and it came from reading three rows and generalising. Counted per rung on 28 August: 1,029 at intake, 300 at stg, 211 at prod, 0 at dev, 0 at coc. It does not change this probe's finding — the row chosen was at intake, and the gate held — but the sentence claimed something the query never asked."
 }

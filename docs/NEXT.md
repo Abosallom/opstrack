@@ -89,9 +89,14 @@ all 1,540 rows. `coc_submitted_on` is a date **a person types**, so its age is a
 real wait — and an unsubmitted pair prints a sentence, never "0 days", which
 would read as "submitted this morning".
 
-**It is empty today and says so.** Every pair in the estate is at intake, so the
-tab ships with a sentence explaining that it fills the first time somebody moves
-a pair up the ladder. An empty panel with no words in it reads as a bug.
+**It is empty today and says so.** No pair has reached COC, so the tab ships with a
+sentence explaining what fills it. An empty panel with no words in it reads as a bug.
+
+⚠ **A correction I owe you.** I first wrote that the whole estate was at intake. That
+was wrong, and it came from reading three rows and generalising. Counted per rung on
+28 August: **1,029 at intake, 300 at STG/TEST, 211 at PROD, none at DEV or COC.** The
+211 at PROD is the same number the home screen has been showing all along. The COC
+queue is genuinely empty — the reason I gave for it was not.
 
 **Not built, and deliberately: the chase thread.** §11.7 wants a line per chase
 and is explicit that it must not become a fifth column — `entry_updates` is
@@ -131,10 +136,11 @@ estate in one click, and a ladder with no PROD is one nothing can finish. Those 
 the progress — which is only true if the track is the one that capability walks. A three-stop
 capability at PROD now reads *step 3 of 3*, not four-fifths along.
 
-⚠ **`0036_use_case_rungs_apply.sql` needs running, and nothing breaks until you do.** The read
-fails on a project without the table, which the app reads as *all five apply* — exactly today's
-behaviour. Applying it changes nothing on the day it runs; it changes something the first time you
-switch a rung off. The seed gives every capability all five.
+**`0036_use_case_rungs_apply.sql` is applied — 28 August.** 75 rows, 15 capabilities × 5, and both
+guards were tested against the live database rather than assumed: removing `intake` is refused with
+*"intake is on every ladder"*, and removing STG/TEST from Lab Order is refused with *"36
+organizations are at this rung for this use case"* — a real count, of real rows, that would have
+been orphaned.
 
 ## ⚠ And the gap this turned up: nothing can move a pair up the ladder
 
