@@ -1772,6 +1772,12 @@ stamp is the moment a script ran. Quiet starts counting from the first movement 
 
 ### 11.7 The COC queue, and the first write path the PMO would use daily
 
+> **BUILT, 28 August 2026** — the PMO dashboard's COC queue tab.
+> `src/lib/pmo/cocQueue.ts` is the arithmetic, `src/components/pmo/CocQueue.tsx` the surface,
+> `setUseCaseCoc` in `src/api/map.ts` the write. The four fields are all there; the chase
+> thread is not, for the reason this section gives — it needs a work item per pair to hang
+> `entry_updates` on, and a fifth column was never an option.
+
 COC is the one rung this office works, so it is the one place the PMO needs to **record** rather
 than read. Four fields, all confirmed with the owner:
 

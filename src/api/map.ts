@@ -959,25 +959,22 @@ export async function setNodeUseCase(
         rung,
         status: statusForRung(rung),
         scope,
-        // ⚠ SUPERSEDED BY 0035, AND HARMLESS IN BOTH STATES.
+        // ⚠ `overrides` IS NOT SENT FROM HERE, AND MUST NOT BE ADDED BACK.
         //
-        //   The paragraph above says in capitals that the whole-array form "is
-        //   wrong the day a second field becomes editable here", and 0032 made
-        //   `rung` and `scope` that second and third field: two people editing
-        //   different fields of the same cell each send the array they read on
-        //   open, and the second write drops the first's entry. That is a lost
-        //   update, and it is invisible until a Jira sync that does not exist
-        //   yet quietly takes back a field somebody owns.
+        //   The paragraph above said in capitals that the whole-array form "is
+        //   wrong the day a second field becomes editable here". 0032 made
+        //   `rung` and `scope` that second and third field, so the day arrived,
+        //   and 0035 answered it by moving the column into
+        //   `map_node_use_cases_stamp()`, which computes the UNION server-side
+        //   from what each statement actually changed.
         //
-        //   0035 moves the column into `map_node_use_cases_stamp()`, which
-        //   computes the UNION server-side and therefore OVERRULES whatever
-        //   arrives here — so this line is correct before 0035 (the only writer,
-        //   naming exactly the fields it touched) and inert after it. It stays
-        //   until 0035 is applied everywhere, at which point it is one deletion.
-        //
-        //   `status` is deliberately not listed: a person edits a rung, and the
-        //   older column follows.
-        overrides: ['rung', 'scope'],
+        //   So the column is server-owned now: anything sent from a client is
+        //   OVERRULED, and this line — correct while it was the only writer —
+        //   was deleted once 0035 was applied. Adding it back would not corrupt
+        //   anything, because the trigger wins; it would simply be a lie about
+        //   who owns the column, which is how the lost update got written the
+        //   first time. `docs/EVIDENCE/probe-0035-20260828T125623Z.json` is the
+        //   live proof that the trigger holds.
       },
       { onConflict: 'node_id,use_case_id' },
     )
@@ -990,6 +987,73 @@ export async function setNodeUseCase(
   return { ok: true, data: data as unknown as MapNodeUseCase }
 }
 
+
+/**
+ * The four COC fields — OPERATING-MODEL §11.7, and the first write path in this
+ * product that somebody would use every day.
+ *
+ * ── WHY IT IS NOT `setNodeUseCase` WITH MORE ARGUMENTS ────────────────────
+ *
+ * That function owns the LADDER: it sends `rung` and `status` from one call to
+ * `statusForRung` precisely so an edit cannot move one without the other, and
+ * it upserts, because placing a pair on the ladder may be the first time the
+ * row exists. This one owns the CHASE, and the difference is not cosmetic:
+ *
+ *   · it UPDATES and never inserts. A COC record against a pair nobody has put
+ *     at COC is a row asserting a submission to CHI for work that is not there.
+ *     `.eq` on both key columns with no upsert means the write simply matches
+ *     nothing, and the caller is told, rather than inventing the pair.
+ *   · it must NEVER touch `rung` or `status`. Recording that the evidence went
+ *     to CHI is not the same act as saying the pair reached COC, and a chase
+ *     form that silently moved the ladder would be the map's "a branch labelled
+ *     12 showing 3" defect in a text box.
+ *
+ * ── AN EMPTY BOX IS A CLEARED FIELD, NOT AN UNTOUCHED ONE ─────────────────
+ *
+ * `lib/pmo/forms.ts`'s rule, which this obeys: a caller that omits a key means
+ * "do not touch"; a caller that passes `null` or `''` means "somebody deleted
+ * what was here". Dropping a cleared field from the patch is the opposite of
+ * what clearing it said, and it is how a wrong CHI reference outlives its
+ * correction.
+ *
+ * ── SERVER-OWNED COLUMNS ARE NOT SENT ─────────────────────────────────────
+ *
+ * `overrides` is 0035's, computed as a union by the stamp trigger from what
+ * this statement actually changes — so a chase recorded here marks
+ * `coc_submitted_on` and friends as human-held without the client naming them,
+ * and a later Jira sync must leave them alone. `updated_at` and `updated_by`
+ * are the touch trigger's. See `setNodeUseCase` above for the whole argument.
+ */
+export async function setUseCaseCoc(
+  nodeId: string,
+  useCaseId: string,
+  patch: {
+    coc_submitted_on?: string | null
+    coc_contact?: string | null
+    coc_reference?: string | null
+    coc_signed_on?: string | null
+  },
+): Promise<ApiResult<MapNodeUseCase | null>> {
+  if (!supabase) return notConfigured()
+
+  // Nothing to say is not an error and is not a write: an empty patch would
+  // otherwise become an UPDATE with no SET, which PostgREST rejects with a
+  // message about the request rather than about the pair.
+  if (Object.keys(patch).length === 0) return { ok: true, data: null }
+
+  const { data, error } = await supabase
+    .from('map_node_use_cases')
+    .update(patch)
+    .eq('node_id', nodeId)
+    .eq('use_case_id', useCaseId)
+    .select(LINK_COLUMNS)
+    .maybeSingle()
+  if (error) return fail(pgErrorKey(error))
+  // `null` here is the pair not existing — see the header. The caller shows the
+  // queue's own "this pair is no longer at COC" rather than a database error,
+  // because that is what actually happened: somebody else moved it.
+  return { ok: true, data: data === null ? null : (data as unknown as MapNodeUseCase) }
+}
 // ── the stage ladder, and where each node got to (0026) ─────────────────────
 //
 // TWO TABLES WITH OPPOSITE PERMISSIONS, and the split is the whole reason 0026

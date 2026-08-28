@@ -911,3 +911,77 @@ a.pmo-jira:hover {
   background: transparent;
   border: 1px dashed var(--border);
 }
+
+/* ══════════════════ the COC queue (§11.7) ══════════════════ */
+
+/* A WORKLIST, NOT A TABLE. Four fields on one row read as a form; the same
+   four as columns read as a report, and a report is what this office already
+   has too much of. The row is a line somebody works through and writes back
+   to, so it is sized for reading a name and pressing one button. */
+
+.pmo-coc-queue { margin-block-start: 4px; }
+
+.pmo-coc-oldest { font-weight: 600; color: var(--text); }
+
+/* Submitted with nobody to call and nothing to quote. A warning tone HERE and
+   not on the queue itself: the wait is CHI's, but an untraceable submission is
+   this office's own omission and is the one thing on the screen that is. */
+.pmo-coc-warn { color: var(--warn-text, var(--text)); }
+
+.pmo-coc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pmo-coc-row {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+/* Signed work is finished and reads that way — it sits at the bottom of the
+   list and does not compete with the live waits above it for attention. */
+.pmo-coc-row[data-state='signed'] { opacity: 0.72; }
+
+.pmo-coc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pmo-coc-org { font-weight: 650; color: var(--text); overflow-wrap: anywhere; }
+.pmo-coc-case { font-size: 12.5px; color: var(--text-dim); }
+
+/* The age carries the whole reason to chase, so it sits at the end of the
+   line where the eye stops, at full contrast even when the row is dimmed. */
+.pmo-coc-age {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pmo-coc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.pmo-coc-ref { font-variant-numeric: tabular-nums; }
+.pmo-coc-signed { color: var(--text); }
+
+@media (max-width: 560px) {
+  /* The age stops being an end-of-line item and becomes its own line, because
+     at this width `margin-inline-start: auto` puts it against a wrapped
+     capability name and the two read as one string. */
+  .pmo-coc-age { margin-inline-start: 0; }
+}

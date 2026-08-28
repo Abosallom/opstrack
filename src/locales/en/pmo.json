@@ -23,12 +23,43 @@
     "asOf": "Read at ⁨{time}⁩.",
     "blankIsNobody": "Leave it blank if nobody has said — blank is not zero.",
     "budget": "Budget",
+    "coc": "COC queue",
+    "cocContact": "Who holds it at CHI",
+    "cocContactEmail": "That looks like an email address. Record the person's name only.",
+    "cocContactHint": "A name only. No email address and no phone number — this workspace keeps neither, and a contact outside the organization is a higher bar, not a lower one.",
+    "cocContactPhone": "That looks like a phone number. Record the person's name only.",
     "cocCount": {
       "one": "One record, across ⁨{organizations}⁩ organizations. The wait is on CHI, not on this roster.",
       "other": "{count} records, across ⁨{organizations}⁩ organizations. The wait is on CHI, not on this roster."
     },
+    "cocDesc": "The one rung this office works, and the one place it records rather than reads. Every pair waiting on CHI, oldest first, because the age of a wait is the reason to chase it.",
+    "cocGone": "Somebody moved this pair off COC while the form was open. Nothing was saved.",
+    "cocNoContact": "Nobody named at CHI",
     "cocNone": "Nothing is at COC.",
+    "cocOldest": {
+      "one": "The oldest wait is one day.",
+      "other": "The oldest wait is {count} days."
+    },
     "cocQueue": "At COC — this office's own queue",
+    "cocQueueCounts": "{waiting} waiting on CHI · {unsubmitted} not yet submitted · {signed} signed and not yet at PROD",
+    "cocQueueEmpty": "Nothing is at COC yet. Every use case in the estate is still at intake, so this queue fills the first time somebody moves a pair up the ladder.",
+    "cocRecord": "Record the chase",
+    "cocReference": "CHI reference",
+    "cocSignedHint": "Leave blank until the certificate arrives. Filling it in does not move the pair to PROD — that is a separate act.",
+    "cocSignedOn": "Signed ⁨{date}⁩",
+    "cocSignedOnField": "Came back signed on",
+    "cocStateSigned": "Signed",
+    "cocStateUnsubmitted": "Not submitted",
+    "cocSubmittedOn": "Sent to CHI on",
+    "cocUntraceable": {
+      "one": "One is submitted with no contact and no reference — there is nobody to call and nothing to quote.",
+      "other": "{count} are submitted with no contact and no reference — there is nobody to call and nothing to quote."
+    },
+    "cocWaiting": {
+      "one": "1 day",
+      "other": "{count} days"
+    },
+    "cocWith": "With ⁨{name}⁩ at CHI",
     "colAction": "Action",
     "colCommitment": "Commitment",
     "colDaysOpen": "Days open",

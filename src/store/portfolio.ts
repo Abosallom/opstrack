@@ -147,6 +147,34 @@ export function getPortfolioSnapshot(): PortfolioState {
   return usePortfolioStore.getState()
 }
 
+/**
+ * Replace ONE link after a successful write, without a refetch.
+ *
+ * The COC queue writes one (hospital × use case) at a time and needs the row it
+ * just saved to be the row on screen. `loadPortfolio(ids, true)` would do it by
+ * re-reading roughly four thousand links to change four fields, and every other
+ * mark the reader is looking at would go through a load while it happened.
+ *
+ * ⚠ THE ROW PASSED IN MUST BE THE ROW THE DATABASE RETURNED, never the form's
+ *   own idea of it. `overrides` is computed by 0035's trigger and `updated_at`
+ *   by the touch trigger, so a client-assembled row would put values in this
+ *   store that no table holds, and the next real read would silently disagree
+ *   with what the user was shown. Every caller passes the `.select()` result.
+ *
+ * A pair this store has never seen is IGNORED rather than appended: the links
+ * in hand are the ones for the nodes that were asked for, and appending a row
+ * from outside that set would put an organization into counts folded out of it.
+ */
+export function applyPortfolioLink(link: MapNodeUseCase): void {
+  const held = usePortfolioStore.getState().links
+  if (held === null) return
+  const at = held.findIndex((l) => l.node_id === link.node_id && l.use_case_id === link.use_case_id)
+  if (at < 0) return
+  const next = held.slice()
+  next[at] = link
+  usePortfolioStore.setState({ links: next })
+}
+
 // ── loading ────────────────────────────────────────────────────────────────
 
 let inFlight: Promise<void> | null = null

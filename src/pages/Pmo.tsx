@@ -119,6 +119,7 @@ import { useEffect, useMemo, useState, type ReactElement, type ReactNode, useCal
 import { Link, useSearchParams } from 'react-router-dom'
 import { AgingChart, ThroughputChart } from '../components/charts'
 import { EmptyState } from '../components/shared'
+import { CocQueueSection } from '../components/pmo/CocQueue'
 import {
   PortfolioActions,
   PortfolioInitiatives,
@@ -179,6 +180,7 @@ import {
   type RiskType,
 } from '../lib/pmo/summary'
 import { buildRulings, type RulingKind, type Rulings } from '../lib/pmo/rulings'
+import { buildCocQueue } from '../lib/pmo/cocQueue'
 import { buildObMonitor, OB_RUNGS, type ObMonitor, type ObRow } from '../lib/pmo/obMonitor'
 import { isolate } from '../lib/bidi'
 import { useCapabilityLabel } from '../lib/labels'
@@ -307,6 +309,7 @@ const TABS = [
   { id: 'projects', labelKey: 'pmo.projects' },
   { id: 'initiatives', labelKey: 'pmo.initiatives' },
   { id: 'delivery', labelKey: 'pmo.delivery' },
+  { id: 'coc', labelKey: 'pmo.coc' },
   { id: 'actions', labelKey: 'pmo.actions' },
   { id: 'risks', labelKey: 'pmo.risks' },
   { id: 'rulings', labelKey: 'pmo.rulings' },
@@ -539,6 +542,25 @@ export default function Pmo(): ReactElement {
     [nodes, orgKindId, visibleCatalogue, links, lastActivityByNode, ctx.today],
   )
 
+  /**
+   * §11.8 — ONE COMPUTATION, TWO SURFACES, and this is a second READING of the
+   * same rows rather than a second arithmetic. `obMonitor` counts what is at
+   * COC as one of five channels on the delivery tab; this turns the same pairs
+   * into the worklist the PMO works through, with the four fields §11.7 names.
+   * Neither restates the other's sums — `MapBranchDetail.tsx`'s rule that "a
+   * branch labelled 12 showing 3 is the worst thing this map can do".
+   */
+  const cocQueue = useMemo(
+    () =>
+      buildCocQueue({
+        nodes: orgKindId === null ? [] : nodes.filter((n) => n.kind_id === orgKindId),
+        catalogue: visibleCatalogue,
+        links: links ?? [],
+        today: ctx.today,
+      }),
+    [nodes, orgKindId, visibleCatalogue, links, ctx.today],
+  )
+
   const rulings = useMemo(
     () =>
       buildRulings({
@@ -749,6 +771,11 @@ export default function Pmo(): ReactElement {
               onBasis={setBasis}
               hasEntries={entries.length > 0}
             />
+          )}
+          {tab === 'coc' && (
+            <Section id="pmo-coc-queue" title={t('pmo.coc')} desc={t('pmo.cocDesc')}>
+              <CocQueueSection queue={cocQueue} labelOf={useCaseNameOf} managerNameOf={managerNameOf} />
+            </Section>
           )}
           {tab === 'rulings' && <Rulings rulings={rulings} />}
           {tab === 'projects' && <PortfolioProjects />}

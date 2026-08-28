@@ -61,6 +61,50 @@ overrules, so it is better evidence than anything I can synthesize.
 it and any restore moves it again. And the event log is append-only, so the two events the probe
 caused stay on the record rather than being deleted.
 
+## The COC queue is built — §11.7, and the first daily write path
+
+The PMO dashboard has a **COC queue** tab. It is the unbuilt half of OB
+monitoring: §11.1–11.6 already shipped on the Delivery tab, and §11.7 — the part
+that *records* rather than reads — did not exist.
+
+**Why this and not another reading of the same rows.** The diagnosis behind the
+whole exercise was that this product has eight ways to look at data and almost no
+way to change any of it: `setNodeUseCase` shipped with **zero call sites**, so
+"nobody has ever hand-edited anything" was a consequence rather than a habit. COC
+is the rung this office works, so it is the honest place for the first write path
+somebody uses every day.
+
+**The four fields**, as §11.7 names them: the day the evidence went to CHI, the
+named person holding it, CHI's own reference, and the day it came back signed.
+
+⚠ **`coc_contact` is a name and nothing else.** No email, no phone — refused
+before the save rather than explained afterwards, so the person hears it while
+still looking at what they typed. This workspace holds no staff emails by design
+and its privacy page is written from what the schema contains; a contact
+*outside* the organization is a higher bar, not a lower one.
+
+**The queue's clock is honest where the rung clock is not.** `obMonitor` refuses
+to print a day count because `status_changed_at` holds one migration instant for
+all 1,540 rows. `coc_submitted_on` is a date **a person types**, so its age is a
+real wait — and an unsubmitted pair prints a sentence, never "0 days", which
+would read as "submitted this morning".
+
+**It is empty today and says so.** Every pair in the estate is at intake, so the
+tab ships with a sentence explaining that it fills the first time somebody moves
+a pair up the ladder. An empty panel with no words in it reads as a bug.
+
+**Not built, and deliberately: the chase thread.** §11.7 wants a line per chase
+and is explicit that it must not become a fifth column — `entry_updates` is
+already an append-only authored trail, and `coc_notes` would be a second thread
+implementation whose entries could not be attributed. That needs a work item per
+pair to hang the thread on, which this table does not have.
+
+**And it will finish the 0035 proof by being used.** The first save through this
+form is a person's edit with an `auth.uid()`, which is the half of 0035 no
+service-role key can exercise. Record a submission date, then a contact on the
+same pair: if `overrides` reads `{coc_submitted_on, coc_contact}` rather than
+just the second, the union holds.
+
 ## Still open, and each needs a sentence from you
 
 1. **Misbar** — the Grafana pull is a script on your Mac and does not survive the move; and
