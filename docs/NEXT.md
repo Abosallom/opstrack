@@ -36,6 +36,31 @@ blocks nothing — no client half exists for it.
 Nothing is waiting on a credential any more. The OB monitoring page, the COC queue and the HIS
 queue all have the columns they need.
 
+## 0035 was proved against the live database — half of it
+
+`docs/EVIDENCE/probe-0035-20260828T125623Z.json`. One row — Al-Zobaidi Medical Group × Lab Order,
+picked deterministically — with its before-state captured, the write made, and the row restored.
+All 1,540 rows sat at `intake` with `overrides = []`, so no person's edit was at risk.
+
+**What is proved.** A service-role write of `rung` and `target_date` left `overrides` at `[]`,
+moved `status_changed_at`, and appended an event with `actor_id: null` and `source: 'migration'`.
+That is the gate holding, and it is the half that protects `JiraEffect.held`: a sync whose own
+writes marked fields as human-held would make `held` meaningless in the one direction that
+matters. It also shows 0032's two jobs *running* rather than merely present in the body, which is
+more than 0035's own probe can assert.
+
+**What is not proved: the union itself.** The overrides block only runs when `auth.uid()` is not
+null, and the service-role key carries no `sub` claim, so nothing I can send exercises it. It
+needs a user session. Cheapest path by far is **one click from you** — open any organization,
+change a rung, then change a target date on the same cell; if `overrides` reads
+`{rung, target_date}` and not `{target_date}`, the union holds and the lost update 0024 predicted
+is closed. That also exercises `src/api/map.ts`'s real write path, which is the code 0035
+overrules, so it is better evidence than anything I can synthesize.
+
+**Residue, stated plainly.** `updated_at` on that row moved to 28 August — the touch trigger owns
+it and any restore moves it again. And the event log is append-only, so the two events the probe
+caused stay on the record rather than being deleted.
+
 ## Still open, and each needs a sentence from you
 
 1. **Misbar** — the Grafana pull is a script on your Mac and does not survive the move; and

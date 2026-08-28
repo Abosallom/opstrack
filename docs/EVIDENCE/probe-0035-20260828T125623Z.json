@@ -1,0 +1,108 @@
+{
+  "probe": "0035 \u2014 proving the trigger BEHAVES, not merely that its body is present",
+  "run_at": "20260828T125623Z",
+  "run_by": "Claude Opus 5, service_role key, over PostgREST",
+  "project": "lrysgpbkmuqgzsjesfkr",
+  "target": {
+    "node": "Al-Zobaidi Medical Group",
+    "use_case": "Lab Order",
+    "node_id": "0168f516-8bd4-4c08-be54-e8c121c34f3d",
+    "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb"
+  },
+  "why_this_row": "Chosen deterministically (first by node_id, use_case_id). All 1540 rows sat at rung=intake with overrides=[] \u2014 no person had edited any cell, so no human-held state existed to put at risk.",
+  "what_this_probe_could_NOT_test": "The union itself. 0035's overrides block is gated on `auth.uid() is not null`, and the service_role JWT carries no `sub` claim \u2014 so auth.uid() is null for every write made here. What is proved below is the GATE. What remains unproved is what a PERSON'S edit writes, which needs a user JWT and therefore either one click in the running app or a throwaway auth user. Recorded in docs/NEXT.md rather than left implied.",
+  "test_A": {
+    "name": "a service-role write must not mark any field as human-held",
+    "why_it_matters": "`overrides` is the promise a future Jira sync reads \u2014 JiraEffect.held in src/lib/jira/map.ts. If a sync's own writes marked fields as human-held, `held` would mean nothing in the one direction that matters: the importer would be claiming a person's authority over rows no person ever touched, and every subsequent sync would refuse to correct them.",
+    "did": "PATCH {rung: intake -> dev, target_date: null -> 2026-09-30} as service_role",
+    "expected": "overrides stays []; status_changed_at moves; one event row appended, actor_id null, source 'migration'",
+    "observed": {
+      "overrides": "[] \u2014 unchanged. THE GATE HOLDS.",
+      "status_changed_at": "2026-08-26T20:06:31.193182+00:00 -> 2026-08-28T12:56:54.968468+00:00 \u2014 0032's stamp survived 0035's create-or-replace",
+      "event_appended": {
+        "rung_from": "intake",
+        "rung_to": "dev",
+        "actor_id": null,
+        "source": "migration"
+      }
+    },
+    "verdict": "PASS on all three \u2014 and the second and third are exactly what 0035's own probe asserts about the function body. This shows them running."
+  },
+  "restore": {
+    "did": "PATCH rung back to intake and target_date back to null; then a second PATCH writing status_changed_at back to its original value, which sticks because the stamp trigger only fires when rung changes",
+    "fields_not_restored": {
+      "updated_at": {
+        "before": "2026-08-26T20:06:31.193182+00:00",
+        "after": "2026-08-28T12:57:52.497888+00:00"
+      }
+    },
+    "residue_explained": "`updated_at` is owned by the touch trigger: any PATCH restoring it moves it again. And the event log is APPEND-ONLY by design, so the two events this probe caused (intake->dev at 12:56:54Z, dev->intake at 12:57:52Z) stay on the record. They are a true account of what happened to that row and are not deleted.",
+    "events_on_this_row_now": [
+      {
+        "id": "30b2e29c-3f94-48f4-91b7-5ff798bb0cb2",
+        "node_id": "0168f516-8bd4-4c08-be54-e8c121c34f3d",
+        "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+        "rung_from": null,
+        "rung_to": "intake",
+        "scope_from": "in_scope",
+        "scope_to": "in_scope",
+        "at": "2026-08-26T20:06:31.193182+00:00",
+        "actor_id": null,
+        "source": "migration",
+        "note": ""
+      },
+      {
+        "id": "80b6fece-5bce-4c71-9517-4c192d979abd",
+        "node_id": "0168f516-8bd4-4c08-be54-e8c121c34f3d",
+        "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+        "rung_from": "intake",
+        "rung_to": "dev",
+        "scope_from": "in_scope",
+        "scope_to": "in_scope",
+        "at": "2026-08-28T12:56:54.968468+00:00",
+        "actor_id": null,
+        "source": "migration",
+        "note": ""
+      },
+      {
+        "id": "e3aa33ca-ff82-4368-9ded-4fbe6901f0c9",
+        "node_id": "0168f516-8bd4-4c08-be54-e8c121c34f3d",
+        "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+        "rung_from": "dev",
+        "rung_to": "intake",
+        "scope_from": "in_scope",
+        "scope_to": "in_scope",
+        "at": "2026-08-28T12:57:52.113097+00:00",
+        "actor_id": null,
+        "source": "migration",
+        "note": ""
+      }
+    ]
+  },
+  "after": {
+    "node_id": "0168f516-8bd4-4c08-be54-e8c121c34f3d",
+    "use_case_id": "1d55cc5a-6312-4c97-92d0-1bd4683d08fb",
+    "status": "planned",
+    "source": "local",
+    "external_ref": null,
+    "external_url": null,
+    "synced_at": null,
+    "overrides": [],
+    "created_at": "2026-08-22T14:44:16.664276+00:00",
+    "updated_at": "2026-08-28T12:57:52.497888+00:00",
+    "created_by": null,
+    "updated_by": null,
+    "rung": "intake",
+    "scope": "in_scope",
+    "blocked_since": null,
+    "blocked_reason": "",
+    "pending_with": "",
+    "target_date": null,
+    "live_on": null,
+    "status_changed_at": "2026-08-26T20:06:31.193182+00:00",
+    "coc_submitted_on": null,
+    "coc_contact": "",
+    "coc_reference": "",
+    "coc_signed_on": null
+  }
+}
